@@ -22,7 +22,7 @@ const FLOW = { initial: 'open', moves: [
 /** Make one recorded move with an explicit instant and actor. */
 const event = (kind, minute, extra = {}) => ({ kind, at: new Date(Date.UTC(2026, 9, 28, 12, minute)).toISOString(), by: 'web-1', ...extra });
 
-test('pipeline replay keeps retained corrections and renewals in Building, then enters review at submit [N26,N38,C7]', () => {
+test('view.x-pipeline-model.pipeline-replay-keeps-retained-corrections-and-renewals: pipeline replay keeps retained corrections and renewals in Building, then enters review at submit [N26,N38,C7]', () => {
   const item = { status: 'submitted', history: [event('add', 0), event('claim', 1), event('refreeze', 2, { retainedClaim: true }), event('renew', 3), event('submit', 4), event('reserve', 5)] };
   const before = JSON.stringify(item), steps = replayItem(item, FLOW, lifecycleMove);
   assert.deepEqual(steps.filter(step => step.move).map(step => [step.from, step.move.to]), [
@@ -32,7 +32,7 @@ test('pipeline replay keeps retained corrections and renewals in Building, then 
   assert.equal(JSON.stringify(item), before);
 });
 
-test('pipeline arrival after a lapse uses the recorded claim deadline and a merge is later than acceptance [N26,N38,C7]', () => {
+test('view.x-pipeline-model.pipeline-arrival-after-a-lapse-uses-the: pipeline arrival after a lapse uses the recorded claim deadline and a merge is later than acceptance [N26,N38,C7]', () => {
   const expiry = '2026-10-28T14:00:00Z';
   const expired = { status: 'open', updatedAt: event('edit', 5).at, history: [event('add', 0), event('claim', 1)],
     thread: [{ type: 'move', kind: 'claim', detail: { leaseUntil: expiry } }] };
@@ -44,7 +44,7 @@ test('pipeline arrival after a lapse uses the recorded claim deadline and a merg
   assert.equal(pipelineStage({ status: 'verified' }), 'accepted');
 });
 
-test('list summaries remain authoritative while full snapshots derive holders and exact counts [N26,N38,C7]', () => {
+test('view.x-pipeline-model.list-summaries-remain-authoritative-while-full-snapshots: list summaries remain authoritative while full snapshots derive holders and exact counts [N26,N38,C7]', () => {
   const summary = Object.freeze({ stage: 'submitted', since: event('submit', 4).at });
   assert.equal(itemListFields(summary, FLOW, { match: lifecycleMove }), summary);
   const item = { status: 'submitted', reviewer: 'tests-1', reviewUntil: '2026-10-28T14:00:00Z', history: [event('add', 0), event('claim', 1), event('submit', 4)],
@@ -98,11 +98,11 @@ function testApprovedStageKeys() {
   assert.equal(itemStageKey(' In   Review '), '-in-review-');
 }
 
-test('withdrawn stage recovery preserves each recorded prior state [N26,N28,N38]', testWithdrawnStageRecovery);
-test('stage presentation maps every lifecycle input to its approved word and detail [N26,N28,N38]', testApprovedStagePresentations);
-test('stage keys are stable for all approved display words [N26,N28,N38]', testApprovedStageKeys);
+test('view.x-pipeline-model.withdrawn-stage-recovery-preserves-each-recorded-prior: withdrawn stage recovery preserves each recorded prior state [N26,N28,N38]', testWithdrawnStageRecovery);
+test('view.x-pipeline-model.stage-presentation-maps-every-lifecycle-input-to: stage presentation maps every lifecycle input to its approved word and detail [N26,N28,N38]', testApprovedStagePresentations);
+test('view.x-pipeline-model.stage-keys-are-stable-for-all-approved: stage keys are stable for all approved display words [N26,N28,N38]', testApprovedStageKeys);
 
-test('clause 2: a blocked item says which item blocks it, in the design sheet words [N26,#6870]', () => {
+test('view.x-pipeline-model.clause-2-a-blocked-item-says-which: clause 2: a blocked item says which item blocks it, in the design sheet words [N26,#6870]', () => {
   const blocked = itemStagePresentation({ status: 'open', blockedBy: [5821] }, { gated: true });
   assert.equal(stageSentence(blocked.stage, blocked.detail), 'Blocked by #5821');
   const held = itemStagePresentation({ status: 'open' }, { gated: true });

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view packages/store */
 /** The Dashboard finished-runs count reads the job table by index, not by a scan [C7,#8480]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -16,7 +15,7 @@ function jobTableBoard(t) {
   return { project, board };
 }
 
-test('clause 1: the finishedRuns job-table query plan names job_step_updated and does not SCAN job [C7]', t => {
+test('view.x-io-finished-runs-plan.clause-1-the-finishedruns-job-table-query: clause 1: the finishedRuns job-table query plan names job_step_updated and does not SCAN job [C7]', t => {
   const { project, board } = jobTableBoard(t);
   store.closeBoard(board);
   const db = new DatabaseSync(project.boardFile, { readOnly: true });
@@ -28,7 +27,7 @@ test('clause 1: the finishedRuns job-table query plan names job_step_updated and
   } finally { db.close(); }
 });
 
-test('clause 1: finishedRuns still counts nothing on a board with no finished jobs [C7]', t => {
+test('view.x-io-finished-runs-plan.clause-1-finishedruns-still-counts-nothing-on: clause 1: finishedRuns still counts nothing on a board with no finished jobs [C7]', t => {
   const { project, board } = jobTableBoard(t);
   store.closeBoard(board);
   assert.deepEqual(finishedRuns(project.repo + '/.git', Date.now()), { gate: 0, landing: 0, test: 0 });

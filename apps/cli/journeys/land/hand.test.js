@@ -13,7 +13,7 @@ import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/
 const e2e = createE2eHelpers();
 const { boardFixture, accepted } = makeMergeBoard(e2e);
 
-test('clause 1: with landing.byHand on, land --item N lands one accepted item while a trunk hold is set, prints the reason and the bypassed hold, and status counts it as landed [C7,#3775]', async t => {
+test('cli.journeys-land-hand.with-landing-byhand-on-land-item: clause 1: with landing.byHand on, land --item N lands one accepted item while a trunk hold is set, prints the reason and the bypassed hold, and status counts it as landed [C7,#3775]', async t => {
   t.after(e2e.cleanup);
   const box = boardFixture();
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { landing: { byHand: true } });

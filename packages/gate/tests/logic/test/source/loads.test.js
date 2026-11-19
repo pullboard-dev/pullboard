@@ -37,7 +37,7 @@ function graph(t) {
   return { root,git,put,commit };
 }
 
-test('source loader declarations resolve committed targets and reject unknown boundaries [V4,C7]', (t) => {
+test('gate.logic-test-source-loads.source-loader-declarations-resolve-committed: source loader declarations resolve committed targets and reject unknown boundaries [V4,C7]', (t) => {
   const headers = [
     '/** @pullboard-module-loads src/api.js */',
     '/** @pullboard-module-loads src/missing.js */',

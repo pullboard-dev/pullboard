@@ -23,20 +23,20 @@ function repo(t) {
 }
 const ON = { withdraw: { refuseLanded: true } };
 
-test('clause 1: with withdraw.refuseLanded on, withdrawing an item whose commit is on main is refused WITHDRAW_LANDED naming pullboard merged [C7]', t => {
+test('cli.io-item-withdraw-landed.with-withdraw-refuselanded-on-withdrawing-an-item: clause 1: with withdraw.refuseLanded on, withdrawing an item whose commit is on main is refused WITHDRAW_LANDED naming pullboard merged [C7]', t => {
   const { root, landed } = repo(t);
   assert.throws(() => refuseLandedWithdraw(ON, root, { item_id: 7, item_commit: landed, item_merged_commit: null }, roadmapView),
     error => error.code === 'WITHDRAW_LANDED' && /pullboard merged 7/u.test(`${error.message} ${error.next ?? ''}`));
   assert.throws(() => refuseLandedWithdraw(ON, root, { item_id: 8, item_commit: null, item_merged_commit: landed }, roadmapView), { code: 'WITHDRAW_LANDED' });
 });
 
-test('clause 2: with withdraw.refuseLanded on, an item whose commit is not on main still withdraws [C7]', t => {
+test('cli.io-item-withdraw-landed.with-withdraw-refuselanded-on-an-item-whose: clause 2: with withdraw.refuseLanded on, an item whose commit is not on main still withdraws [C7]', t => {
   const { root, side } = repo(t);
   assert.doesNotThrow(() => refuseLandedWithdraw(ON, root, { item_id: 9, item_commit: side, item_merged_commit: null }, roadmapView));
   assert.doesNotThrow(() => refuseLandedWithdraw(ON, root, { item_id: 10, item_commit: null, item_merged_commit: null }, roadmapView));
 });
 
-test('clause 3: with withdraw.refuseLanded off, the default, withdraw of a landed item behaves as before [C7]', t => {
+test('cli.io-item-withdraw-landed.with-withdraw-refuselanded-off-the-default-withdraw: clause 3: with withdraw.refuseLanded off, the default, withdraw of a landed item behaves as before [C7]', t => {
   const { root, landed } = repo(t);
   assert.doesNotThrow(() => refuseLandedWithdraw({}, root, { item_id: 11, item_commit: landed, item_merged_commit: null }));
   assert.doesNotThrow(() => refuseLandedWithdraw({ withdraw: { review: true } }, root, { item_id: 11, item_commit: landed, item_merged_commit: null }));

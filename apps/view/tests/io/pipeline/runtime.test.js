@@ -9,7 +9,7 @@ function pane() {
   return { innerHTML: '', addEventListener: (type, handler) => listeners.set(type, handler), listeners, contains: () => true };
 }
 
-test('clause 2: it draws "reading" until the history is complete, then draws the model and refreshes the machine only every ten seconds [N26,#6869]', async t => {
+test('view.x-io-pipeline-runtime.clause-2-it-draws-reading-until-the: clause 2: it draws "reading" until the history is complete, then draws the model and refreshes the machine only every ten seconds [N26,#6869]', async t => {
   const region = pane(), previous = globalThis.document;
   globalThis.document = { getElementById: id => id === 'insights-pipeline' ? region : null };
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });

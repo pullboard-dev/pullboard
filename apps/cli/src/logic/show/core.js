@@ -1,0 +1,17 @@
+/** The lines `pullboard show` prints from the item row alone, kept pure so a thin door can print them without the heavy readers [C7]. */
+
+/**
+ * The item row's printed lines, in the order show prints them (other sections sit between them, so each comes back named).
+ *
+ * @param {any} item the board's item row
+ * @param {{ itemLine: string, checkText?: string }} facts the item line the caller formatted, and the check text the full path chose (frozen or live)
+ * @returns {{ item: string, expectedBuild: string | null, criterion: string | null, check: string[] }}
+ */
+export function coreLines(item, { itemLine, checkText = '' }) {
+  return {
+    item: itemLine,
+    expectedBuild: item.item_expected_build_minutes != null ? `expected build: ${item.item_expected_build_minutes} min` : null,
+    criterion: item.item_criterion ? `criterion: ${item.item_criterion}` : null,
+    check: checkText ? [`check: ${checkText}`, ...(item.item_frozen_digest ? [`check digest: ${item.item_frozen_digest}`] : [])] : [],
+  };
+}

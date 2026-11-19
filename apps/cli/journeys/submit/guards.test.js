@@ -12,7 +12,7 @@ import { registryBox } from '../../tests/fixtures/guards.js';
 
 after(e2e.cleanup);
 
-test('submit runs the move registry guard for an item that adds a move and refuses it by name when the credential is missing [C7,V4,V16]', async () => {
+test('cli.journeys-submit-guards.submit-runs-the-move-registry-guard: submit runs the move registry guard for an item that adds a move and refuses it by name when the credential is missing [C7,V4,V16]', async () => {
   const box = (await registryBox());
   put(box.web, 'src/moves/newMove.js', 'export const operation = "newMove";\n');
   // An unrelated source change makes the normal import selection exceed its submit budget.

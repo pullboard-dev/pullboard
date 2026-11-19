@@ -13,7 +13,7 @@ after(cleanupSandboxes);
 const PREVIOUS_MODEL = 'gpt-6';
 const NEW_MODEL = 'claude-opus-5-5';
 
-test('clause 1: a takeover of the coordinator seat records the new session model in whoami and the notice [B3,B7,O8]', async () => {
+test('cli.journeys-agents-takeover-model.a-takeover-of-the-coordinator-seat: clause 1: a takeover of the coordinator seat records the new session model in whoami and the notice [B3,B7,O8]', async () => {
   const box = await project();
   const first = 'claude-session-secret-first-9509';
   const second = 'claude-session-secret-second-9509';

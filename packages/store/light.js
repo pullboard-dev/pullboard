@@ -2,7 +2,7 @@
 export { itemById, firstRefusal } from './src/logic/board/item/lookup.js';
 export { itemCheckBaseline } from './src/logic/board/item/baseline.js';
 export { milestones } from './src/logic/board/milestones.js';
-export { landingMayWait, openBoardReadOnly, boardId, listItems, busyRefusal, readBoardSnapshot, systemClock, agentAt, rowDrafts } from './src/io/board/read/light.js';
+export { landingMayWait, openBoardReadOnly, boardId, listItems, busyRefusal, readBoardSnapshot, systemClock, agentAt, rowDrafts, withItemSnapshot, refreshItemSnapshot } from './src/io/board/read/light.js';
 export { landingTestDefects } from './src/logic/board/landing/test/history.js';
 export { hasPendingCpuNotices, hasPendingDispatchNotices } from './src/logic/board/receipts.js';
 export { awaitingGateOrReview, pendingSubmitHandoff, submitHandoff } from './src/io/submit/handoff/records.js';
@@ -12,3 +12,5 @@ export { schemaMissing, writeRefused } from './src/io/board/migrate.js';
 export { PERSON, events, listAgents, agentById, ensureCoordinator, ReadNeedsWrite, acceptedVerdict, verdictReviewProblem, getItem, itemThread, proofReceipts, relatedItems, reviewHolder, verdictsFor, specApprovalBaseline, rowDecisions } from './src/io/board/query.js';
 export { allItemsNeedingRescope } from './src/io/cooldown.js';
 export { rotateBoardWritesLog, BOARD_WRITES_MAX_BYTES } from './src/io/board/hold/rotate.js';
+/** One seat heartbeat from the board file alone: every CLI command beats its seat, and presence.js already loads through query.js [C7,#10873]. */
+export { beatSeatFile } from './src/io/presence.js';

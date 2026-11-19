@@ -57,6 +57,7 @@ New to doctrine? Read [Lesson 1: Doctrine](https://pullboard.dev/tutorials/doctr
 - T19 [draft, aim] With verify.frozenTests on, a test file a clause names is frozen at claim; changing it needs a person ruling. Off by default (#8097). | gate: review
 - T20 [draft, aim] With verify.failBefore on, a [test] clause needs a receipt that fails on an assertion at base and passes at head. Off by default (#8092); fully usable once #8090 records base runs. | gate: review
 - T21 [draft, aim] Under Strict pace, a separate test author writes and freezes the tests before a different agent builds. Opt-in per item otherwise. | gate: review
+- T22 [draft, must] A test checks Pullboard behavior. Real git, database files, processes and browsers appear only in their adapter contract tests and in journeys. | gate: review
 
 ## G · Git and the gate
 - G1 [approved, must] `npm run gate` (spec check and tests) passes before every push. | gate: pre-push hook

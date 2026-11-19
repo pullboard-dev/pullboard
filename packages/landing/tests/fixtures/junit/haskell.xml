@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: hspec-junit-formatter (writes junit.xml)
+     Assumption: the formatter writes the spec group in classname and no file attribute; the source path is classname + Spec.hs.
+     Case names read "clause N: ..." as an example titled that way would write them. No tool is needed to read it. -->
+<testsuites>
+  <testsuite name="hspec" tests="3" errors="0" failures="1" skipped="1" time="0.021" timestamp="2026-11-17T12:00:00">
+    <testcase classname="Calc" name="clause 1: adds two" time="0.001"/>
+    <testcase classname="Calc" name="clause 2: halves a number" time="0.002">
+      <failure message="expected: 2 but got: 1">expected: 2
+ but got: 1</failure>
+    </testcase>
+    <testcase classname="Calc" name="clause 3: later" time="0.000">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>

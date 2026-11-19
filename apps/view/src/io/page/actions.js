@@ -204,7 +204,7 @@ function pageControl(target) {
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
   drawPageControls();
   address();
-  later(render);
+  afterPaint(render);
 }
 
 /** Open one of the strip's menus, or close it; a second press on its button closes it. */
@@ -955,7 +955,7 @@ function switchTo(root, target = null, record = true) {
   seen = '';
   if (data) render();
   document.body.classList.add('switching');
-  return refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => {
+  return refresh().catch((error) => { $('live').textContent = offlineLine(error); }).finally(() => {
     if (generation === switchGeneration) document.body.classList.remove('switching');
     if (generation === switchGeneration && requestedItem !== null && view.item === requestedItem && view.root === root && view.tab === 'items') reveal();
   });
@@ -1450,7 +1450,7 @@ async function loadTransport() {
     const module = await pageStartup(document.documentElement).within(() => import(configuredTransportModule), 15_000, 'The relay client did not load within 15 seconds.');
     if (typeof module.createTransport !== 'function') throw new Error('The browser transport must export createTransport({ onUpdate }).');
     const configured = await module.createTransport({
-      onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = 'offline: ' + error.message; }) : Promise.resolve(),
+      onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = offlineLine(error); }) : Promise.resolve(),
       onOpenBoard: openApprovedBoard, waitForRender: true, // A phone's transport keeps its shell until didRender (#899).
     });
     if (!configured || typeof configured.request !== 'function') throw new Error('The browser transport must provide request(path, body).');
@@ -1492,8 +1492,8 @@ startPage().catch((error) => {
 // The relay transport keeps its own stream and timer. The local view reads on a timer only while it has no live
 // stream, and its live line says so (#545). Each timer asks which the page uses as it fires: the hosted page starts
 // out on the relay and turns to this machine's view once it reaches it (#513).
-if (!snapshot) setInterval(() => { if (!document.hidden && (transport || (hosted.local && hosted.relaySession && configuredTransportModule))) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
-if (!snapshot) setInterval(() => { if (!document.hidden && !transport && !(hosted.local && hosted.relaySession && configuredTransportModule) && !connected()) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, FALLBACK_MS);
+if (!snapshot) setInterval(() => { if (!document.hidden && (transport || (hosted.local && hosted.relaySession && configuredTransportModule))) refresh().catch((error) => { $('live').textContent = offlineLine(error); }); }, 3000);
+if (!snapshot) setInterval(() => { if (!document.hidden && !transport && !(hosted.local && hosted.relaySession && configuredTransportModule) && !connected()) refresh().catch((error) => { $('live').textContent = offlineLine(error); }); }, FALLBACK_MS);
 setInterval(tickAges, 60000);
 `;
 }

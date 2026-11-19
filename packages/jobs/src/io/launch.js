@@ -74,10 +74,11 @@ async function sweep(folder, domain, run = launchctl) {
  *
  * @param {string} command - The executable.
  * @param {string[]} args - Its arguments.
- * @param {{ cwd?: string, env?: NodeJS.ProcessEnv, log?: string, home?: string, launchd?: boolean, launcher?: (args: string[]) => Promise<{ status: number, stdout: string }> }} [options] - log is a file path for both output streams; launchd false forces the plain spawn; launcher stands in for launchctl, so a test can make the gui bootstrap fail.
+ * @param {{ cwd?: string, env?: NodeJS.ProcessEnv, log?: string, home?: string, launchd?: boolean, launcher?: (args: string[]) => Promise<{ status: number, stdout: string }> }} [options] - log is a file path for both output streams; launchd false forces the plain spawn, and left out it is false on a fixture board (env PULLBOARD_FIXTURE_BOARD=1) so a test run registers no launchd job, while launchd true still uses launchd; launcher stands in for launchctl, so a test can make the gui bootstrap fail.
  * @returns {Promise<{ pid: number | null, launchd: boolean, label?: string }>}
  */
-export async function spawnReachable(command, args, { cwd = process.cwd(), env = process.env, log, home = process.env.PULLBOARD_MACHINE_HOME ?? join(homedir(), '.pullboard'), launchd = existsSync(LAUNCHCTL), launcher = launchctl } = {}) {
+export async function spawnReachable(command, args, { cwd = process.cwd(), env = process.env, log, home = process.env.PULLBOARD_MACHINE_HOME ?? join(homedir(), '.pullboard'), launchd, launcher = launchctl } = {}) {
+  launchd ??= existsSync(LAUNCHCTL) && env.PULLBOARD_FIXTURE_BOARD !== '1';
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
   const started = launchd && uid !== null ? await launched(command, args, { cwd, env, log, home, uid, run: launcher }) : null;
   return started ?? detached(command, args, { cwd, env, log });

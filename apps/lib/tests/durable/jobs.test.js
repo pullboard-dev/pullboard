@@ -19,7 +19,7 @@ function withBoard(name, body) {
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
-test('clause 1: the board opens with job and job_step tables whose step key is unique on (job, name, seq) [C7]', () => {
+test('lib.durable-jobs.the-board-opens-with-job-and: clause 1: the board opens with job and job_step tables whose step key is unique on (job, name, seq) [C7]', () => {
   withBoard('tables', (db) => {
     const names = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('job','job_step') ORDER BY name").all().map(row => row.name);
     assert.deepEqual(names, ['job', 'job_step']);
@@ -29,7 +29,7 @@ test('clause 1: the board opens with job and job_step tables whose step key is u
   });
 });
 
-test('clause 2: writeStep is a no-op on a repeat and returns the stored payload [C7]', () => {
+test('lib.durable-jobs.writestep-is-a-no-op-on: clause 2: writeStep is a no-op on a repeat and returns the stored payload [C7]', () => {
   withBoard('repeat', (db) => {
     createJob(db, { id: 'j2', kind: 'gate', item: 7, now: 1 });
     assert.deepEqual(writeStep(db, 'j2', 'captured', { tree: 'aaa' }, { now: 2 }), { written: true, payload: { tree: 'aaa' } });
@@ -41,7 +41,7 @@ test('clause 2: writeStep is a no-op on a repeat and returns the stored payload 
   });
 });
 
-test('clause 3: jobView returns the current step, the last one written [C7]', () => {
+test('lib.durable-jobs.jobview-returns-the-current-step-the: clause 3: jobView returns the current step, the last one written [C7]', () => {
   withBoard('view', (db) => {
     assert.equal(jobView(db, 'absent'), null);
     createJob(db, { id: 'j3', kind: 'gate', item: 9, candidate: 'c1', base: 'b1', now: 1 });
@@ -64,7 +64,7 @@ function withBoardPart2(name, body) {
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
-test('clause 1: takeJob succeeds only when the lease has lapsed [C7]', () => {
+test('lib.durable-jobs.takejob-succeeds-only-when-the-lease: clause 1: takeJob succeeds only when the lease has lapsed [C7]', () => {
   withBoardPart2('take', (db) => {
     createJob(db, { id: 'j1', kind: 'gate', now: 1000 });
     assert.equal(takeJob(db, 'j1', 'driver-a', { now: 1000 }).taken, true);
@@ -78,7 +78,7 @@ test('clause 1: takeJob succeeds only when the lease has lapsed [C7]', () => {
   });
 });
 
-test('clause 2: renewLease moves lease_until only for the holder with a live lease [C7]', () => {
+test('lib.durable-jobs.renewlease-moves-lease-until-only-for: clause 2: renewLease moves lease_until only for the holder with a live lease [C7]', () => {
   withBoardPart2('renew', (db) => {
     createJob(db, { id: 'j2', kind: 'gate', now: 0 });
     takeJob(db, 'j2', 'driver-a', { now: 10_000 });
@@ -89,7 +89,7 @@ test('clause 2: renewLease moves lease_until only for the holder with a live lea
   });
 });
 
-test('clause 3: reclaimLapsed returns taken jobs whose lease lapsed, 2 minutes after the last renewal [C7]', () => {
+test('lib.durable-jobs.reclaimlapsed-returns-taken-jobs-whose-lease: clause 3: reclaimLapsed returns taken jobs whose lease lapsed, 2 minutes after the last renewal [C7]', () => {
   withBoardPart2('reclaim', (db) => {
     for (const id of ['queued', 'live', 'silent']) createJob(db, { id, kind: 'gate', now: 0 });
     takeJob(db, 'live', 'a', { now: 50_000 });
@@ -109,7 +109,7 @@ function withBoardPart3(name, body) {
   try { return body(board.db); } finally { closeBoard(board); }
 }
 
-test('clause 1: show and status read the gate panel from the jobs cell jobView [C7]', () => {
+test('lib.durable-jobs.show-and-status-read-the-gate: clause 1: show and status read the gate panel from the jobs cell jobView [C7]', () => {
   withBoardPart3('live', (db) => {
     createJob(db, { id: 'g1', kind: 'gate', item: 5, now: 0 });
     assert.equal(gatePanel(db, 'g1', { now: 1000 }).text, 'queued');
@@ -120,7 +120,7 @@ test('clause 1: show and status read the gate panel from the jobs cell jobView [
   });
 });
 
-test('clause 1: a job whose lease lapsed shows stalled (reclaimable) with its age [C7]', () => {
+test('lib.durable-jobs.a-job-whose-lease-lapsed-shows: clause 1: a job whose lease lapsed shows stalled (reclaimable) with its age [C7]', () => {
   withBoardPart3('stalled', (db) => {
     createJob(db, { id: 'g2', kind: 'gate', item: 6, now: 0 });
     takeJob(db, 'g2', 'driver', { now: 60_000 });
@@ -131,7 +131,7 @@ test('clause 1: a job whose lease lapsed shows stalled (reclaimable) with its ag
   });
 });
 
-test('clause 1: the nine ghost-gate shapes from 6 Nov render as stalled (reclaimable) in a fixture [C7]', () => {
+test('lib.durable-jobs.the-nine-ghost-gate-shapes-from: clause 1: the nine ghost-gate shapes from 6 Nov render as stalled (reclaimable) in a fixture [C7]', () => {
   withBoardPart3('ghosts', (db) => {
     const now = 10 * 60 * 60_000;
     /** [id, steps, taken-at or null] for nine jobs that read running or queued with nobody driving. */

@@ -39,6 +39,8 @@ export function placementFor(entries, { lane, specIds = [], after = [] }, itemOf
   let chosen = spec ?? laneRelease ?? current;
   let rule = spec ? 'spec rows' : laneRelease ? 'lane release' : 'current release';
   if (chosen && floor > chosen.index) { chosen = open.find(({ index }) => index >= floor); rule = 'dependencies'; }
+  // Under the live-release engine an item waiting on a current-release item stays in the current release, never a later one [C7,#4028].
+  if (liveReleases && current && chosen && chosen.index > current.index && waits.some(row => row.at?.index === current.index)) { chosen = current; rule = 'dependencies'; }
   const inputs = {
     after: waits.map(row => ({ id: row.id, milestone: row.at?.entry.name ?? null })),
     specs: rows.size ? { rows: [...rows], milestone: spec?.entry.name ?? null } : null,

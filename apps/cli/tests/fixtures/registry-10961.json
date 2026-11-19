@@ -1,0 +1,3 @@
+{
+  "cli.io-cells-submit-checks.the-snapshot-pair-differs-only-by-the": {"proves":{"specs":["C7"],"claim":"The cells snapshot harness builds a main and a candidate repository in the plan layout that differ only by the edit given, and an unchanged candidate holds main's tree."},"why":"Without it, a regression where the snapshot pair differs by more than its edit would make every submit-check test built on it pass or fail for the wrong reason.","kind":"cell unit","inputs":["apps/cli/tests/io/cells-submit-checks.test.js","apps/cli/tests/fixtures/cells/snapshot.js"]}
+}

@@ -2,7 +2,6 @@ import { dependencyCustodyQuiet } from '../../dependency.js';
 import { STRANDED_DEPENDENCY_ENGINE } from '../../../../../state/index.js';
 import { strandedDependency } from '../../dependency.js';
 import { observeDependencyWork } from '../../dependency.js';
-import { dependencyWaiters } from '../../../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../../state/index.js';
@@ -142,6 +141,22 @@ function claimJobInFlight(board, item, claimAt, now) {
   });
 }
 
+/**
+ * Every item id an open or claimed item waits on, from one read of the item table: the same comma-delimited membership the
+ * items cell's per-id dependents query matches, read once per pass instead of once per claim row [C7,#11998].
+ * Why: that query scans the whole item table, so a pass over 240 claims on an 11,994-item board spent 16 s before every write.
+ *
+ * @param {any} board
+ * @returns {Set<string>} The waited-on ids, as strings.
+ */
+export function dependencyWaitedIds(board) {
+  const waited = new Set();
+  for (const { item_after: after } of board.db.prepare("SELECT item_after FROM item WHERE item_status IN ('open','claimed') AND item_after<>''").all()) {
+    for (const id of String(after).split(',')) waited.add(id);
+  }
+  return waited;
+}
+
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
   const seatQuietLimit = 2 * 60_000;
@@ -173,12 +188,14 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   // in 3 h clustered with a coordinator stall): no claim is released for this window, and one shout says so.
   const stall = machineStalled({ claimed: snapshot.claims.length, quiet: snapshot.claims.filter(quietSeat).length, gapMs: ctx.sweepGapMs ?? 0 });
   if (stall) ctx.machineStall = { ...stall, observedAt: at.toISOString() };
+  // The waited-on ids are read once, at the first row that needs them, never once per claim row [C7,#11998].
+  let waited = null;
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate or proof run is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
     if (itemWorkInFlight(board, byId.get(row.id))) return [];
     // With claim.keepWhileRunning on, a live test run, test or gate job on the item keeps the claim whatever the seat's heartbeat or idle time says [C7,#9498].
     if (keepWhileRunning && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime())) return [];
-    const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && dependencyWaiters(board, row.id).length;
+    const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && (waited ??= dependencyWaitedIds(board)).has(String(row.id));
     if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
@@ -244,5 +261,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   // At most 32 decisions per write; any left over are taken by the next write.
   snapshot.claims = snapshot.claims.slice(0, 32);
   if (!snapshot.claims.length && !lapsedItems.length) return null;
+  // Every lapsed claim was kept and the scan cursor stays put: the maintenance write would change nothing, yet it took
+  // the board's write lock before every command (44.6% of live writes on 18 Nov), so none is opened [C7,#10875].
+  if (!snapshot.claims.length && snapshot.claimScan.next === snapshot.claimScan.previous) return null;
   return snapshot;
 }

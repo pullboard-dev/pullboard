@@ -12,9 +12,11 @@ import {
 } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
   statSync,
   unlinkSync,
@@ -290,6 +292,42 @@ export function residentPlace(cwd, entry, env) {
 }
 
 /**
+ * How old a slot's start lock may grow before another client may start the slot again: a starter that died before it
+ * listened never blocks its slot for longer. Why this long: on 17 Nov, at load 130, a resident took over a minute from
+ * spawn to listening.
+ */
+export const RESIDENT_START_STALE_MS = 120_000;
+
+/** The start lock a client creates beside a slot's pid file before it starts that slot's resident process. */
+export function residentStartFile(pidFile) {
+  return pidFile.replace(/\.pid$/u, '') + '.starting';
+}
+
+/**
+ * Take a slot's start lock: true when this client may start the slot's resident process, false when another client
+ * already is (the command then runs in-process, as it would anyway). The lock is a file created exclusively; the
+ * resident removes it once it listens or leaves, and a lock older than RESIDENT_START_STALE_MS is taken over.
+ * Why: while a slot's resident loaded cold under load, every concurrent command found no socket and started another,
+ * so 41 resident processes ran at once, 34 on one slot, and the load reached 130 (17 Nov).
+ */
+export function claimResidentStart(pidFile, now = Date.now()) {
+  const file = residentStartFile(pidFile);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      closeSync(openSync(file, 'wx'));
+      return true;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') return false;
+    }
+    try {
+      if (now - statSync(file).mtimeMs <= RESIDENT_START_STALE_MS) return false;
+      unlinkSync(file);
+    } catch (error) { if (error?.code !== 'ENOENT') return false; }
+  }
+  return false;
+}
+
+/**
  * Start the resident process through spawnReachable, which runs it as a one-shot launchd job where launchd exists and
  * falls back to a plain detached spawn; the command in hand still runs in-process. Why: a resident started from an app
  * inherits that app's denied Local Network permission, so the board it serves cannot reach a runner [C7,#5760].
@@ -329,13 +367,13 @@ function detach(args, { cwd, env }) {
  *
  * Why: every agent polls `test --status`, and each poll that started a resident process cost 15-25% CPU [C7,#5888].
  */
-export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr, start = startResident } = {}) {
+export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr, start = startResident, call = null, payload = null, onResult = () => {} } = {}) {
   let code, place, starts;
   try {
-    if (!residentCommand(argv)) return Promise.resolve(null);
+    if (!call && !residentCommand(argv)) return Promise.resolve(null);
     // The environment alone can refuse (a test run, PULLBOARD_RESIDENT=0): answer that before codeVersion asks Git [C7].
     if (!residentAllowed(env, false)) return Promise.resolve(null);
-    starts = residentStarts(argv);
+    starts = !call && residentStarts(argv);
     code = codeVersion(entry);
     if (!residentAllowed(env, code.linked)) return Promise.resolve(null);
     place = residentPlace(cwd, entry, env);
@@ -351,7 +389,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       clearTimeout(waited);
       socket.destroy();
       // The start settles before the command runs in-process: a launchd job is loaded by a child the entry must outlive.
-      if (restart && starts) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
+      // Only the client holding the slot's start lock starts it; the rest run in-process while that resident loads.
+      if (restart && starts && claimResidentStart(place.pid)) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
       else done(status);
     };
     // A command that has not started by now waits behind another; the process never starts it past the cutoff, so
@@ -360,7 +399,7 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
     waited.unref?.();
     socket.setEncoding('utf8');
     socket.on('connect', () => {
-      socket.write(JSON.stringify({ version: 1, code: code.version, sentAt: Date.now(), argv, cwd, env,
+      socket.write(JSON.stringify({ version: 1, code: code.version, sentAt: Date.now(), argv, cwd, env, ...(call ? { call, payload } : {}),
         tty: { stdout: Boolean(stdout.isTTY), stderr: Boolean(stderr.isTTY), columns: stdout.columns ?? null } }) + '\n');
     });
     socket.on('data', (chunk) => {
@@ -372,6 +411,7 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
         if (frame.t === 'start') started = true;
         else if (frame.t === 'out') stdout.write(frame.d);
         else if (frame.t === 'err') stderr.write(frame.d);
+        else if (frame.t === 'result') onResult(frame.value);
         else if (frame.t === 'exit') settle(frame.code);
         else if (frame.t === 'stale') settle(null, { restart: true });
         else settle(null);
@@ -386,4 +426,20 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       settle(1);
     });
   });
+}
+
+/**
+ * Ask a running resident process to answer one check, for a caller that would otherwise start a node child for it [C7,#5330].
+ * Never starts a process and never waits for one: null when none serves this checkout, it is busy, or it hands the call
+ * back, and the caller then does the work itself, as it always did.
+ *
+ * @param {string} call - A name the resident process answers (see calls.js).
+ * @param {object} payload - The call's JSON arguments.
+ * @param {{ cwd?: string, env?: object, entry?: string }} [options]
+ * @returns {Promise<object | null>} The call's answer, or null.
+ */
+export async function callResident(call, payload, { cwd = process.cwd(), env = process.env, entry = PULLBOARD_ENTRY } = {}) {
+  let value = null;
+  const code = await runResident([], { entry, cwd, env, call, payload, onResult: (answer) => { value = answer; } });
+  return code === 0 ? value : null;
 }

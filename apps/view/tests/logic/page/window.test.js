@@ -5,7 +5,7 @@ import { composeViewStyles } from '../../../src/io/styles.js';
 
 const pitch = 76, viewport = 900, count = 6700;
 
-test('clause 2: Items draws only the rows near the screen, and scrolling the list reaches every item [N26]', () => {
+test('view.x-page-window.clause-2-items-draws-only-the-rows: clause 2: Items draws only the rows near the screen, and scrolling the list reaches every item [N26]', () => {
   const first = rowWindow({ count, top: 120, viewport, pitch });
   assert.equal(first.start, 0, 'the first draw starts at the first row');
   assert.ok(first.end < 40, 'the first draw is a screenful and a margin of the 6,700 rows, not all of them: ' + first.end);
@@ -24,7 +24,7 @@ test('clause 2: Items draws only the rows near the screen, and scrolling the lis
   assert.deepEqual(rowWindow({ count: 5, top: 0, viewport, pitch }), { start: 0, end: 5 }, 'a short list is drawn whole');
 });
 
-test('clause 2: the list keeps its whole height: rows are one fixed height, and the rows above and below are padding [N26]', () => {
+test('view.x-page-window.clause-2-the-list-keeps-its-whole: clause 2: the list keeps its whole height: rows are one fixed height, and the rows above and below are padding [N26]', () => {
   const css = composeViewStyles();
   assert.match(css, /#chain \{ --item-row-h: 55px;/u, 'the row height is one number the page reads');
   assert.match(css, /#chain > li\.row \{ height: var\(--item-row-h\);/u, 'every row is that height');

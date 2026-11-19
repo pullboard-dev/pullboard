@@ -28,7 +28,7 @@ function boardAt(t, { version, stamp = true }) {
   return file;
 }
 
-test('a board from before 0.9.3 is refused naming the 0.9.3 step, byte-identical after [R4]', (t) => {
+test('store.io-board-too-old.a-board-from-before-0-9: a board from before 0.9.3 is refused naming the 0.9.3 step, byte-identical after [R4]', (t) => {
   const file = boardAt(t, { version: 2 });
   const before = readFileSync(file);
   assert.throws(() => fixtureBoard(t, at(file)), (error) => {
@@ -40,12 +40,12 @@ test('a board from before 0.9.3 is refused naming the 0.9.3 step, byte-identical
   assert.ok(before.equals(readFileSync(file)), 'the refused board is byte-identical afterwards');
 });
 
-test('a 0.9.3 board still upgrades on open as today [R4]', (t) => {
+test('store.io-board-too-old.a-0-9-3-board-still: a 0.9.3 board still upgrades on open as today [R4]', (t) => {
   const board = fixtureBoard(t, at(boardAt(t, { version: 3, stamp: false })));
   assert.equal(board.db.prepare('PRAGMA user_version').get().user_version, 3);
   assert.notEqual(board.db.prepare('PRAGMA application_id').get().application_id, 0, 'the unstamped board was stamped');
 });
 
-test('a new board file is created, not refused [R4]', (t) => {
+test('store.io-board-too-old.a-new-board-file-is-created: a new board file is created, not refused [R4]', (t) => {
   assert.ok(fixtureBoard(t, { storage: 'file', purpose: 'migration' }));
 });

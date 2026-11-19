@@ -15,7 +15,7 @@ function freshWorktree(box, name) {
   return path;
 }
 
-test('clause 1: with laneMode off, join with no lane succeeds [C7,#2830]', async t => {
+test('cli.journeys-join-lanes-off.with-lanemode-off-join-with-no: clause 1: with laneMode off, join with no lane succeeds [C7,#2830]', async t => {
   const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
   const path = freshWorktree(box, 'nolane');
   const joined = await cli(box, path, ['join', '--model', FIXTURE_MODEL]);
@@ -23,7 +23,7 @@ test('clause 1: with laneMode off, join with no lane succeeds [C7,#2830]', async
   assert.ok(joined.document.agent, 'the seat is registered');
 });
 
-test('clause 2: with laneMode off, next offers items from two lanes the route covers [C7,#2830]', async t => {
+test('cli.journeys-join-lanes-off.with-lanemode-off-next-offers-items: clause 2: with laneMode off, next offers items from two lanes the route covers [C7,#2830]', async t => {
   const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
   const docs = box.add('Docs lane item', { lane: 'docs' });
   const web = box.add('Web lane item');
@@ -40,7 +40,7 @@ test('clause 2: with laneMode off, next offers items from two lanes the route co
   assert.deepEqual([...offered].sort((a, b) => a - b), [docs, web].sort((a, b) => a - b), 'the web seat is offered the docs-lane item and the web-lane item');
 });
 
-test('clause 3: with laneMode on, join with no lane is refused as today [C7,#2830]', async t => {
+test('cli.journeys-join-lanes-off.with-lanemode-on-join-with-no: clause 3: with laneMode on, join with no lane is refused as today [C7,#2830]', async t => {
   const box = await fixture(t);
   const path = freshWorktree(box, 'nolane');
   const joined = await cli(box, path, ['join', '--model', FIXTURE_MODEL]);

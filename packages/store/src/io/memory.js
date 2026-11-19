@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   machineHome,
   machineSettingsFile,
-} from "../../../resources/index.js";
+} from "../../../resources/light.js";
 import { readMachineSettingsFile } from "../../../queue/index.js";
 
 /** An unset floor keeps status on its existing lightweight path; old pools have no per-run holds. */

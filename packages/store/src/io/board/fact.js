@@ -5,6 +5,7 @@ import { checkRouted } from '../../../../items/index.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { setItem } from '../board.js';
 import { requireFactKind } from "../../../../items/index.js";
+import { mainRedFact } from "../../../../items/index.js";
 import { barCheckFactFields } from "../../../../verify/index.js";
 import { PERSON } from "./query.js";
 import { isHeld } from "./query.js";
@@ -25,6 +26,22 @@ import { tellFactImplications } from "../../../../state/index.js";
 import { postRigorNotices } from "../board.js";
 
 const FACT_JUDGEMENTS = new Set(['decision', 'rejection', 'supersession', 'root-cause']);
+
+/** The item's accept move with this event id, or undefined. */
+function acceptMove(board, id, eventId) {
+  if (typeof eventId !== 'string') return undefined;
+  return itemThread(board, id).find(entry => entry.type === 'move' && entry.kind === 'accept' && String(entry.eventId) === eventId);
+}
+
+/** Whether the seat itself recorded the item's accept move with this event id: it may correct that verdict note with a superseding fact [B31,#11787]. */
+function recordedAccept(board, id, eventId, agentId) {
+  return acceptMove(board, id, eventId)?.by === agentId;
+}
+
+/** Whether this id names an accept move, whoever recorded it: such a supersession carries no fact decision to tell. */
+function accepted(board, id, eventId) {
+  return acceptMove(board, id, eventId) !== undefined;
+}
 
 /** Append a typed fact atomically; a correction never edits the original event [B29,B30,B31,B32].
  * The internal factId is set from a sealed move's identity during replay, rather than replica-local sequence ids; a never-again with its cause is the person's alone, and rigor lists it at once (#713) [D1].
@@ -52,13 +69,14 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
     if (urgency && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'urgent marks use the person terminal or authenticated view');
     if (urgency && !['on', 'off'].includes(text)) throw new Refused('URGENT_VALUE', 'mark urgent with on or off');
     const barFields = barCheckFactFields(board, item, { agentId, kind, text, answers, supersedes });
-    if ((FACT_JUDGEMENTS.has(kind) || supersedes !== null) && agentId !== COORDINATOR && (!isHeld(board, item) || item.item_owner !== agentId)) {
+    const ownAccept = supersedes !== null && !FACT_JUDGEMENTS.has(kind) && recordedAccept(board, id, supersedes, agentId);
+    if ((FACT_JUDGEMENTS.has(kind) || supersedes !== null) && !ownAccept && agentId !== COORDINATOR && (!isHeld(board, item) || item.item_owner !== agentId)) {
       throw new Refused('FACT_JUDGEMENT', `only the item's live holder${isHeld(board, item) ? ' (' + item.item_owner + ')' : ''} or the coordinator may append a judgement or supersede a fact; append an observation or ask the coordinator`);
     }
     if (typeof factId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/u.test(factId)) throw new Refused('BAD_FACT_ID', 'a fact identity is invalid; retry with the current Pullboard engine');
     if (factIdentityExists(board.db, factId)) throw new Refused('BAD_FACT_ID', 'this fact identity is already recorded; retry the original sealed move instead of appending it again');
-    if (supersedes !== null && (typeof supersedes !== 'string' || !itemThread(board, id).some((entry) => entry.type === 'fact' && entry.id === supersedes))) {
-      throw new Refused('NO_FACT', `no fact ${String(supersedes)} on item #${id}; use a fact id from pullboard show ${id} --json`);
+    if (supersedes !== null && (typeof supersedes !== 'string' || !ownAccept && !itemThread(board, id).some((entry) => entry.type === 'fact' && entry.id === supersedes || entry.type === 'move' && entry.kind === 'accept' && String(entry.eventId) === supersedes))) {
+      throw new Refused('NO_FACT', `no fact or accept move ${String(supersedes)} on item #${id}; use a fact id or an accept event id from pullboard show ${id} --json`);
     }
     const binding = factReference(ref);
     if (!urgency && !ruling && (neverAgain || asPerson || cause !== null)) requireNeverAgain(id, { agentId, cause, neverAgain, asPerson, channel });
@@ -72,8 +90,22 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
       // A strong item keeps its route and brief: the coordinator lowers it with pullboard edit, so a cold seat never claims work that needs the strong route.
       if (item.item_route !== 'strong') setItem(board, id, { item_route: 'light', item_brief: diagnosisBrief(diagnosis) });
     }
-    const result = tellFactImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), factFromEvent(trigger), { id, implies, supersedes });
+    const result = tellFactImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), factFromEvent(trigger), { id, implies, supersedes: ownAccept || accepted(board, id, supersedes) ? null : supersedes });
     if (neverAgain) postRigorNotices(board, trigger);
     return result;
   });
+}
+
+/**
+ * Record a static run's known main findings on the item: one measurement fact per rule and file, each worded by the Main red fact writer.
+ * Why: a static finding main also has is not the item's, and the fact keeps that on the item's thread for the reviewer [C7,#10451].
+ * Why here: it joins the fact writer it calls, so the store door adds no module to every cold command (closure-budget) [C7].
+ * @param {object} board The open board.
+ * @param {number} id The submitting item.
+ * @param {{ agentId: string, findings: { rule: string, file: string }[], main: string }} record The submitter, the knownMain findings, and main's commit.
+ * @returns {object[]} The facts written, none for an empty list.
+ */
+export function recordKnownMainStatic(board, id, { agentId, findings, main }) {
+  return findings.map(finding => appendFact(board, id, { agentId, kind: 'measurement',
+    text: mainRedFact([{ file: finding.file, name: finding.rule }], `static finding, also red on main ${main.slice(0, 12)}`) }));
 }

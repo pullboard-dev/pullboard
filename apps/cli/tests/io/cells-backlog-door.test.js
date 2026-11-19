@@ -26,7 +26,7 @@ function sources(folder) {
   return found;
 }
 
-test('clause 1: the cells audit backlog exists in the apps/cli cells folder, not at its old codemap path, and no file imports the old path [C7,#9465]', () => {
+test('cli.io-cells-backlog-door.the-cells-audit-backlog-exists-in-the: clause 1: the cells audit backlog exists in the apps/cli cells folder, not at its old codemap path, and no file imports the old path [C7,#9465]', () => {
   assert.ok(existsSync(join(ROOT, 'apps/cli/src/io/cells/backlog.js')), 'the new home exists');
   assert.equal(typeof cellsBacklogCollector, 'function');
   assert.equal(typeof cellsAuditBacklog, 'function');

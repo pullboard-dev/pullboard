@@ -1200,7 +1200,7 @@
       "cells": 3,
       "deep": 0
     },
-    "apps/relay/src/logic/person/enrollment/store.js": {
+    "apps/relay/src/io/store/enrollment.js": {
       "cells": 2,
       "deep": 0
     },
@@ -1349,11 +1349,15 @@
       "deep": 0
     },
     "apps/view/src/io/serve.js": {
-      "cells": 14,
+      "cells": 11,
       "deep": 0
     },
     "apps/view/src/io/session.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/view/src/io/state.js": {
+      "cells": 11,
       "deep": 0
     },
     "apps/view/src/logic/main.js": {
@@ -1965,6 +1969,14 @@
       "deep": 0
     },
     "packages/gate/tests/fixtures/diagnostics.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-runners.js": {
       "cells": 1,
       "deep": 0
     },
@@ -3888,10 +3900,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/store/src/io/board/patch/remove.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/store/src/io/board/ports.js": {
       "cells": 4,
       "deep": 1
@@ -4246,14 +4254,6 @@
     },
     "packages/store/tests/fixtures/dispatch.js": {
       "cells": 2,
-      "deep": 0
-    },
-    "packages/store/tests/fixtures/stats/compare.js": {
-      "cells": 3,
-      "deep": 0
-    },
-    "packages/store/tests/fixtures/stats/time.js": {
-      "cells": 3,
       "deep": 0
     },
     "packages/sync/src/io/git/lock.js": {
@@ -5983,16 +5983,7 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/resources/runner.js": [
-      "apps/cli"
-    ],
     "packages/git/tests/fixtures/flakes.js": [
-      "apps/cli"
-    ],
-    "packages/runners/tests/fixtures/advance.js": [
-      "apps/cli"
-    ],
-    "packages/runners/tests/fixtures/fleet.js": [
       "apps/cli"
     ],
     "packages/store/tests/fixtures/cell.js": [

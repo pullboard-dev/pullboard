@@ -43,12 +43,13 @@ export async function run(io, { first, values }) {
   if (values.for !== undefined) {
     const id = idArg(values.for, 'an item id after --for');
     const item = await withBoardRead(ctx, board => store.getItem(board, id));
-    const budget = values.budget === undefined ? 4000 : Number(values.budget);
-    if (!Number.isSafeInteger(budget) || budget < 1 || budget > 8000) {
+    // Without --budget the slice renderer's own default applies; this command holds no number of its own.
+    const budget = values.budget === undefined ? undefined : Number(values.budget);
+    if (budget !== undefined && (!Number.isSafeInteger(budget) || budget < 1 || budget > 8000)) {
       throw new Refused('USAGE', '--budget for an item slice must be a whole number from 1 to 8000 tokens');
     }
     try {
-      printMap(renderItemSlice(map, item, { budget }));
+      printMap(renderItemSlice(map, item, budget === undefined ? {} : { budget }));
     } catch (error) {
       if (error instanceof RangeError && error.message.startsWith('item slice budget too small')) {
         throw new Refused('USAGE', error.message);

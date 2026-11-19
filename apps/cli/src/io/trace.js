@@ -12,7 +12,9 @@ import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { storeName } from './store-names.js';
+
+/** The store file name for the record held under a key, with its extension; local so a cold command loads one module fewer (closure-budget) [C7]. */
+function storeName(key, ext = '.json') { return key + ext; }
 
 /** Environment names that carry an agent session id (kept literal so a trace loads no discovery module). */
 const SESSION_ENV = ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID'];

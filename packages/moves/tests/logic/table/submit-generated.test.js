@@ -13,7 +13,7 @@ const ENGINES = [
   { limit: 3, infra: new Set(['RUNNER_UNAVAILABLE', 'GATE_INFRA_EXHAUSTED', 'BOARD_BUSY']), ...boardSubmitEngine() },
   { limit: 1, infra: new Set(['RUNNER_UNAVAILABLE', 'GATE_INFRA_EXHAUSTED']), ...submitEngine({ retryLimit: 1, infrastructureCodes: ['RUNNER_UNAVAILABLE', 'GATE_INFRA_EXHAUSTED'] }) },
 ];
-const NAMES = ['SUBMIT', 'COMMIT', 'OUTCOME', 'START', 'COMPLETE'];
+const NAMES = ['SUBMIT', 'COMMIT', 'OUTCOME', 'START', 'COMPLETE', 'RECAPTURE'];
 const IO = ['hosted', 'recovered', 'dirty', 'untracked', 'noCommit', 'mainMerge', 'empty', 'trunkMerge', 'provesNothing', 'kernelApproval', 'familyProblem',
   'itemPatches', 'handoffExecution', 'redLoop', 'composition', 'stack', 'hostName', 'infraNote', 'ownership', 'postGate'];
 const PROBLEMS = ['barProblem', 'clauseProblem', 'reviewProblem', 'mergeOnlyProblem', 'hookProofProblem', 'ownershipWaitProblem'];
@@ -52,7 +52,7 @@ const waitsOf = (g) => g.pick([undefined, { count: g.pick([1, 0, -1, 2.5, '3']),
 
 /** One seeded case for one table: every guard breaks now and then, so each row is reached and about half the moves pass. */
 function scenario(seed) {
-  const g = seeded(seed), table = NAMES[seed % 5], engine = ENGINES[flip(g, 3) ? 1 : 0], r = table === 'SUBMIT' ? 70 : 30;
+  const g = seeded(seed), table = NAMES[seed % NAMES.length], engine = ENGINES[flip(g, 3) ? 1 : 0], r = table === 'SUBMIT' ? 70 : 30;
   const actor = g.pick(['tests-1', 'tests-1', 'coordinator']), frozen = flip(g, 12) ? null : hex(g, 64);
   const head = { commit: hex(g, 40), tree: hex(g, 40), main: hex(g, 40), ...opt(flip(g, 3), { executionCommit: hex(g, 40), executionTree: hex(g, 40) }) };
   const io = { ...Object.fromEntries(IO.map(f => [f, flip(g, r) ? bad(`IO_${f.toUpperCase()}`) : null])), head, companionDigest: g.pick([undefined, null, hex(g, 64), ...(flip(g, r) ? ['zz'] : [])]),
@@ -87,6 +87,10 @@ function scenario(seed) {
   } else if (table === 'OUTCOME') {
     m = { ...m, name: 'submit-outcome', digest: flip(g, 6) ? hex(g, 64) : frozen, stage: g.pick([undefined, 'fast', 'slow']),
       refusal: { code: flip(g, 8) ? g.pick(['', 'bad_code', '9X', undefined]) : g.pick(['FLAKE', 'MERGE_CONFLICT', 'GATE_RED', 'E9_X']), text: flip(g, 8) ? g.pick(['', ' ', 5]) : g.pick(['tests failed', LONG]) } };
+  } else if (table === 'RECAPTURE') {
+    const h = s.handoff = job(g, s, actor, ['queued', 'queued', 'running', 'green']);
+    m = { ...m, name: 'recapture-submit-handoff', actor: flip(g, r) ? 'other' : h.agentId, job: flip(g, r) ? uuid(g) : h.id, main: flip(g, r) ? g.pick(['', 'abc', hex(g, 39), undefined]) : hex(g, 40) };
+    if (flip(g, r)) s.handoff = null;
   } else {
     const h = s.handoff = job(g, s, actor, table === 'START' ? ['queued', 'running', 'infrastructure', 'infrastructure', 'green'] : ['queued', 'running', 'running', 'green']);
     m = { ...m, name: table === 'START' ? 'start-submit-handoff' : 'complete-submit-handoff', actor: flip(g, r) ? 'other' : h.agentId, job: flip(g, r) ? uuid(g) : h.id };
@@ -177,6 +181,7 @@ function guards(table, s, m) {
     OUTCOME: [['outcome-shape', () => !/^[A-Z][A-Z0-9_]*$/u.test(m.refusal.code ?? '') || typeof m.refusal.text !== 'string' || m.refusal.text.trim() === '']],
     START: [['start-matching', matching], put('start-hook-proof', 'hookProofProblem'), ['start-retry-id', () => m.retryJob !== undefined && !(JOB_ID.test(m.retryJob) && m.retryJob !== m.job)],
       ['start-running-serves', () => plain() && h.state === 'running' && !serves(s, h)], ['start-queued-serves', () => plain() && h.state === 'queued' && !serves(s, h)]],
+    RECAPTURE: [['recapture-main', () => !isHex(m.main, 40)], ['recapture-matching', matching], ['recapture-queued-serves', () => h.state !== 'queued' || !serves(s, h)]],
     COMPLETE: [['complete-matching', matching], put('ownership-wait', 'ownershipWaitProblem'),
       ['green-is-submitted', () => fresh() && !(s.item.status === 'submitted' && s.item.builtBy === h.agentId && s.item.commit === m.result.commit)],
       ['green-is-proved', () => fresh() && !proved(s, m)], ['refusal-document', () => active(h) && !s.deferred.ownershipWait && m.result?.code !== 0 && !canonical()]],
@@ -215,6 +220,7 @@ function outcome({ table, s, m, engine: { limit, infra } }) {
     const text = m.refusal.text.slice(0, 4000), renew = mine(s, m.actor) && s.item.frozenDigest === m.digest && live(s);
     return { via: [renew ? 'renew' : 'skip'], renewal: renew ? { code: m.refusal.code, text, digest: m.digest, ...opt(m.stage === 'fast', { stage: 'fast' }), pipelineCause: cause(m.refusal.code, text) } : undefined };
   }
+  if (table === 'RECAPTURE') return { via: ['recapture'], events: [hev(h)], record: { ...h, main: m.main } };
   const retries = h.infrastructureRetries ?? 0, stopped = h.state === 'infrastructure';
   if (table === 'START') {
     if (m.hook) return { via: ['hook'], events: [hev(h)], record: { ...h, hookProjection: { ...m.hook, at: NOW } } };
@@ -320,7 +326,8 @@ test('moves.submit.fact-breaks: metamorphic: break one fact of an accepted submi
     USAGE: c => ({ m: { ...c.m, companion: { file: 'f', key: 'k' } } }), CRITERIA_CHANGED: c => (c.s.item.frozenDigest ? { s: { ...c.s, io: { ...c.s.io, currentDigest: { digest: 'f'.repeat(64) } } } } : null) },
   COMMIT: { ...common, USAGE: c => ({ m: { ...c.m, note: 'two\nlines' } }), GATE_RED: c => ({ s: { ...c.s, gate: { refusal: bad('GATE_RED') } } }) },
   OUTCOME: { USAGE: c => ({ m: { ...c.m, refusal: { ...c.m.refusal, text: ' ' } } }) },
-  START: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, job: 'gone' } }) }, COMPLETE: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, actor: 'stranger' } }) } };
+  START: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, job: 'gone' } }) }, COMPLETE: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, actor: 'stranger' } }) },
+  RECAPTURE: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, job: 'gone' } }), BAD_SUBMIT_HANDOFF: c => ({ m: { ...c.m, main: 'abc' } }) } };
   for (const c of ok) {
     for (const [code, apply] of Object.entries(BREAKS[c.table])) {
       const broken = apply(c);
@@ -336,6 +343,23 @@ test('moves.submit.gate-red-code: clause 1: a submit refused by a red gate carri
     const refused = run(c, { ...c.s, gate: { refusal: bad('GATE_RED') } }, c.m).refused;
     assert.deepEqual([refused?.row, refused?.code], ['gate', 'GATE_RED'], `seed ${c.seed}`);
   }
+});
+
+test('moves.submit.recapture-table: clause 1: the RECAPTURE table refuses a bad main, then a foreign job or sender, then a job not queued or not serving its claim, and otherwise records the job with main replaced [C7,#9548]', () => {
+  const { tables, rules } = ENGINES[0], table = tables.RECAPTURE, main = 'a'.repeat(40);
+  const s = { now: NOW, item: { status: 'claimed', owner: 'tests-1', frozenDigest: 'b'.repeat(64) }, handoff: { id: uuid(seeded(1)), agentId: 'tests-1', state: 'queued', digest: 'b'.repeat(64), commit: 'c'.repeat(40), main: 'd'.repeat(40) } };
+  const m = { name: 'recapture-submit-handoff', actor: 'tests-1', job: s.handoff.id, main };
+  const refuse = (state, move) => runTable(table, rules, structuredClone(state), structuredClone(move)).refused;
+  assert.deepEqual(['abc', undefined, 'A'.repeat(40)].map(bad => refuse(s, { ...m, main: bad })?.code), ['BAD_SUBMIT_HANDOFF', 'BAD_SUBMIT_HANDOFF', 'BAD_SUBMIT_HANDOFF']);
+  assert.equal(refuse(s, { ...m, job: 'gone' })?.code, 'SUBMIT_HANDOFF_CHANGED');
+  assert.equal(refuse(s, { ...m, actor: 'stranger' })?.code, 'SUBMIT_HANDOFF_CHANGED');
+  assert.equal(refuse({ ...s, handoff: { ...s.handoff, state: 'running' } }, m)?.code, 'SUBMIT_HANDOFF_CHANGED');
+  assert.equal(refuse({ ...s, item: { ...s.item, frozenDigest: 'e'.repeat(64) } }, m)?.code, 'SUBMIT_HANDOFF_CHANGED');
+  assert.equal(refuse({ ...s, item: { ...s.item, owner: 'other' } }, m)?.code, 'SUBMIT_HANDOFF_CHANGED');
+  assert.equal(refuse({ ...s, item: { ...s.item, status: 'submitted' } }, m)?.code, 'SUBMIT_HANDOFF_CHANGED');
+  const done = runTable(table, rules, structuredClone(s), structuredClone(m));
+  assert.deepEqual([done.refused, done.via, done.events], [undefined, ['recapture'], [{ kind: 'submit-handoff', by: 'tests-1', detail: { state: 'queued', commit: 'c'.repeat(40) } }]]);
+  assert.deepEqual(table.outcomes[0].record(s, m), { ...s.handoff, main });
 });
 
 test('moves.submit.unrelated-events: metamorphic: an unrelated board event, reject, receipt or done child changes no outcome or refusal [C7,#8264]', () => {

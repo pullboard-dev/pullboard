@@ -50,7 +50,9 @@ import {
 } from '../../../spec/index.js';
 import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../kernel/light.js';
-import { storeName } from './store-names.js';
+
+/** The store file name for the record held under a key, with its extension; local so a cold command loads one module fewer (closure-budget) [C7]. */
+function storeName(key, ext = '.json') { return key + ext; }
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 

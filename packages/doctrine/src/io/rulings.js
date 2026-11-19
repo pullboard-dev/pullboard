@@ -28,12 +28,12 @@ import {
   loadDoctrine,
 } from './main.js';
 import {
-  git,
   tryGit,
 } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { writeRowApply } from '../../../spec/index.js';
 import { mainCriterionFacts } from './main-criterion-facts.js';
+import { primaryCheckoutPath } from './main-criterion-facts.js';
 import {
   loadSpec,
   parseSpec,
@@ -72,8 +72,7 @@ export function agentDoctrine(ctx, board, { facts = mainCriterionFacts(ctx.info.
   const root = ctx.info.root;
   let doctrine = facts?.doctrine ?? ctx.doctrine;
   let name = doctrine.name;
-  const entry = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0')[0];
-  const primaryRoot = entry.startsWith('worktree ') ? entry.slice('worktree '.length) : null;
+  const primaryRoot = primaryCheckoutPath(root);
   const file = primaryRoot && join(primaryRoot, name);
   const current = file && existsSync(file) ? readFileSync(file, 'utf8') : null;
   return appliedDoctrine(doctrine, decisions, current, { standard: facts?.standard });

@@ -69,7 +69,7 @@ function cellIndex(plan, map) {
   return index;
 }
 
-test('every moved path in the committed plan is in exactly one cell, with one target inside that cell [D3,CD60]', () => {
+test('cli.journeys-fact-plan-cells.every-moved-path-in-the-committed: every moved path in the committed plan is in exactly one cell, with one target inside that cell [D3,CD60]', () => {
   const owners = new Map(), targets = new Map();
   for (const cell of PLAN.cells) {
     assert.equal(cell.frontDoor, `${cell.root}/index.js`, `${cell.name} has one front door`);
@@ -91,21 +91,21 @@ test('every moved path in the committed plan is in exactly one cell, with one ta
   assert.equal(PLAN.cells.length, PLAN.totals.cells);
 });
 
-test('no active plan row names a file deleted since the plan, so a later move never looks for it [C7,D3]', () => {
+test('cli.journeys-fact-plan-cells.no-active-plan-row-names-a: no active plan row names a file deleted since the plan, so a later move never looks for it [C7,D3]', () => {
   const stale = stalePlanRows(ROOT, PLAN).map(({ file, row }) => `${file}: ${row[0]}`);
   assert.deepEqual(stale, [], 'retire each deleted file in the item that deletes it: node packages/codemap/src/io/cells/scripts/plan.js --retire <path>');
 });
 
-test('clause 1: no retired historical path exists or is imported on the committed tree, so main never refuses a submit CELLS_PLAN_RETIRED [C7,D3]', () => {
+test('cli.journeys-fact-plan-cells.no-retired-historical-path-exists-or: clause 1: no retired historical path exists or is imported on the committed tree, so main never refuses a submit CELLS_PLAN_RETIRED [C7,D3]', () => {
   assert.deepEqual(retiredProblems(ROOT, PLAN), [], 'a file re-created at a retired target drops its retired row: edit packages/codemap/data/plan/cells.json');
 });
 
-test('no cut edge names a file without a plan row, so the cut reader and the submit gate never refuse main [C7,D3]', () => {
+test('cli.journeys-fact-plan-cells.no-cut-edge-names-a-file: no cut edge names a file without a plan row, so the cut reader and the submit gate never refuse main [C7,D3]', () => {
   assert.deepEqual(orphanCutEdges(PLAN), [], 'a shim item drops its cut edges too: node packages/codemap/src/io/cells/scripts/plan.js --retire <path>');
   assert.doesNotThrow(() => importCuts(PLAN));
 });
 
-test('the plan places every tracked module and asset under src/, bin/ and relay/ at its base commit [D3,CD60]', () => {
+test('cli.journeys-fact-plan-cells.the-plan-places-every-tracked-module: the plan places every tracked module and asset under src/, bin/ and relay/ at its base commit [D3,CD60]', () => {
   assert.match(PLAN.base, /^[0-9a-f]{40}$/u, 'the plan records the commit it was computed at');
   const listed = new Set(git(ROOT, 'ls-tree', '-r', '--name-only', PLAN.base).split('\n'));
   const rows = PLAN.cells.flatMap(cell => cell.paths);
@@ -119,7 +119,7 @@ test('the plan places every tracked module and asset under src/, bin/ and relay/
   assert.deepEqual(left, [], 'the freeze moved every module and asset out of the old roots; place a new one under its cell, not at the root');
 });
 
-test('no cell is ordered ahead of a cell it imports, computed from the real source, except the cuts it names [D3,CD64]', () => {
+test('cli.journeys-fact-plan-cells.no-cell-is-ordered-ahead-of: no cell is ordered ahead of a cell it imports, computed from the real source, except the cuts it names [D3,CD64]', () => {
   const { edges } = cellInventory(ROOT, { importsIn, commonJsIn });
   const index = cellIndex(PLAN, readPathMap(ROOT));
   const position = new Map(PLAN.cells.map(cell => [cell.name, cell.order]));
@@ -144,7 +144,7 @@ test('no cell is ordered ahead of a cell it imports, computed from the real sour
   }
 });
 
-test('a plan built from real files orders leaves first, cuts the cycle and places a newer module by name [D3,CD60,CD64]', t => {
+test('cli.journeys-fact-plan-cells.a-plan-built-from-real-files: a plan built from real files orders leaves first, cuts the cycle and places a newer module by name [D3,CD60,CD64]', t => {
   const { root } = fixture(t);
   const plan = computePlan(root);
   const names = plan.cells.map(cell => cell.name);
@@ -171,7 +171,7 @@ test('a plan built from real files orders leaves first, cuts the cycle and place
   assert.ok(dependent && dependent.args[dependent.args.indexOf('--after') + 1].split(',').includes('7001'), 'a later cell waits on the filed id');
 });
 
-test('a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', async t => {
+test('cli.journeys-fact-plan-cells.a-move-item-s-frozen-check: a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', async t => {
   const { root, put } = fixture(t);
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   const plan = computePlan(root);
@@ -191,7 +191,7 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   assert.match(unknown.stderr, /CELLS_PLAN_CELL/u);
 });
 
-test('a bounded single-entry write derives index and shard counts from the same paths [C7,D3,CD60]', t => {
+test('cli.journeys-fact-plan-cells.a-bounded-single-entry-write-derives: a bounded single-entry write derives index and shard counts from the same paths [C7,D3,CD60]', t => {
   const { root, put } = fixture(t);
   writePlan(root, computePlan(root));
   const before = readPlan(root);
@@ -222,7 +222,7 @@ test('a bounded single-entry write derives index and shard counts from the same 
   assert.deepEqual(readPlan(root), after, 'the normalized writer is idempotent');
 });
 
-test('an asset a placed reader lists joins that reader cell, and an asset nothing reads is still refused by name [D3,CD60]', t => {
+test('cli.journeys-fact-plan-cells.an-asset-a-placed-reader-lists: an asset a placed reader lists joins that reader cell, and an asset nothing reads is still refused by name [D3,CD60]', t => {
   const { root, put } = fixture(t);
   put('src/stats-docs/heartbeat.json', '{}\n');
   put('src/stats-docs-reader.js', "import { readdirSync, readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nexport const docs = (root = '.') => [readdirSync(join(root, 'src/stats-docs')), readFileSync];\n");
@@ -238,7 +238,7 @@ test('an asset a placed reader lists joins that reader cell, and an asset nothin
 });
 
 /** Real Git graph selection remains explicit, while missing parsers/selectors refuse before repository reads. */
-test('codemap providers are required and source advance retains its real raw closure [C7,D3,CD64]', t => {
+test('cli.journeys-fact-plan-cells.codemap-providers-are-required-and-source: codemap providers are required and source advance retains its real raw closure [C7,D3,CD64]', t => {
   for (const parsers of [undefined, { importsIn }, { commonJsIn }]) {
     assert.throws(() => cellInventory('/missing-codemap-provider', parsers), /explicit module parser operations/u);
   }
@@ -261,7 +261,7 @@ test('codemap providers are required and source advance retains its real raw clo
 });
 
 
-test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', async t => {
+test('cli.journeys-fact-plan-cells.cut-metadata-refresh-preserves-frozen-moves: cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', async t => {
   const { root, put } = fixture(t), plan = computePlan(root);
   const early = plan.cells.find(cell => cell.name === 'kernel'), later = plan.cells.find(cell => cell.name === 'stats');
   const before = structuredClone(plan);
@@ -294,7 +294,7 @@ test('cut metadata refresh preserves frozen moves and records only current real 
 });
 
 
-test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', async t => {
+test('cli.journeys-fact-plan-cells.cut-refresh-refuses-a-newly-tracked: cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', async t => {
   const { root, put } = fixture(t), plan = computePlan(root);
   writePlan(root, plan);
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'frozen fixture plan');
@@ -328,7 +328,7 @@ const SHARD = (paths) => formatJson({ order: 8, name: 'state', paths }) + '\n';
 const ROW = (n) => [`src/m-${n}.js`, `packages/state/src/m-${n}.js`, 'rule'];
 const SHARD_FILE = 'packages/codemap/data/plan/14-state.json';
 
-test('two disjoint plan-row appends merge clean in both orders and keep the one-row-per-line layout [C7,D3]', t => {
+test('cli.journeys-fact-plan-cells.two-disjoint-plan-row-appends-merge: two disjoint plan-row appends merge clean in both orders and keep the one-row-per-line layout [C7,D3]', t => {
   const base = [ROW(1), ROW(2)];
   const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD([...base, ROW(3)]), SHARD([...base, ROW(4)]));
   for (const [ours, theirs] of [heads, [...heads].reverse()]) {
@@ -343,7 +343,7 @@ test('two disjoint plan-row appends merge clean in both orders and keep the one-
   }
 });
 
-test('the same plan row edited two ways still conflicts [C7,D3]', t => {
+test('cli.journeys-fact-plan-cells.the-same-plan-row-edited-two: the same plan row edited two ways still conflicts [C7,D3]', t => {
   const base = [ROW(1), ROW(2)];
   const edit = (to) => base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', to, 'rule'] : row));
   const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(edit('packages/a/m-2.js')), SHARD(edit('packages/b/m-2.js')));
@@ -365,7 +365,7 @@ const DEFAULTS = (extra = '') => `export function defaults() {
 }
 `;
 
-test('different keys added to the config defaults merge clean in both orders; one key edited twice conflicts [C7]', t => {
+test('cli.journeys-fact-plan-cells.different-keys-added-to-the-config: different keys added to the config defaults merge clean in both orders; one key edited twice conflicts [C7]', t => {
   const mapped = DEFAULTS().replace('    lanes: {},', '    alpha: { on: false },\n    lanes: {},');
   const beta = DEFAULTS().replace('    spec: ', "    // Beta's comment.\n    beta: {\n      on: true,\n    },\n    spec: ");
   const { root, heads } = divergent(t, 'src/config.js', DEFAULTS(), mapped, beta);
@@ -376,7 +376,7 @@ test('different keys added to the config defaults merge clean in both orders; on
   assert.deepEqual(mechanicalConflictFiles(twice.root, twice.heads[0], twice.heads[1]), ['src/config.js'], 'the same new key with two values is a real conflict');
 });
 
-test('a plan row one branch deletes and the other changes still conflicts in both orders [C7,D3]', t => {
+test('cli.journeys-fact-plan-cells.a-plan-row-one-branch-deletes: a plan row one branch deletes and the other changes still conflicts in both orders [C7,D3]', t => {
   const base = [ROW(1), ROW(2)];
   const gone = base.filter(row => row[0] !== 'src/m-2.js');
   const moved = base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', 'packages/b/m-2.js', 'rule'] : row));
@@ -387,7 +387,7 @@ test('a plan row one branch deletes and the other changes still conflicts in bot
   assert.deepEqual(mechanicalConflictFiles(apart.root, apart.heads[0], apart.heads[1]), [], 'a delete beside a disjoint append still merges');
 });
 
-test('a config default one branch deletes and the other changes still conflicts in both orders [C7]', t => {
+test('cli.journeys-fact-plan-cells.a-config-default-one-branch-deletes: a config default one branch deletes and the other changes still conflicts in both orders [C7]', t => {
   const gone = DEFAULTS().replace('    // Explains the next setting.\n    map: { slice: false },\n', '');
   const changed = DEFAULTS().replace('slice: false', 'slice: true');
   assert.notEqual(gone, DEFAULTS());
@@ -396,7 +396,7 @@ test('a config default one branch deletes and the other changes still conflicts 
   assert.deepEqual(mechanicalConflictFiles(root, heads[1], heads[0]), ['src/config.js']);
 });
 
-test('replay of a version-three receipt keeps the older policy for plan rows [H16,C7]', t => {
+test('cli.journeys-fact-plan-cells.replay-of-a-version-three-receipt: replay of a version-three receipt keeps the older policy for plan rows [H16,C7]', t => {
   const base = [ROW(1), ROW(2)];
   const edit = (to) => base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', to, 'rule'] : row));
   const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(edit('packages/a/m-2.js')), SHARD(edit('packages/b/m-2.js')));
@@ -413,7 +413,7 @@ function planIndex(stays) {
 /** Render the test-tier manifest's actual file-keyed rows. */
 function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
 
-test('plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
+test('cli.journeys-fact-plan-cells.plan-index-disjoint-additions-compose-identically: plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
   const row = path => ({ path: path, reason: 'T1' });
   const base = [row('test/base.test.js')];
   const { root, heads } = divergent(t, 'packages/codemap/data/plan/cells.json', planIndex(base),
@@ -435,7 +435,7 @@ test('plan index disjoint additions compose identically in both orders [C7,D3]',
   assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
 });
 
-test('plan index same-row edits refuse and name the row [C7,D3]', async t => {
+test('cli.journeys-fact-plan-cells.plan-index-same-row-edits-refuse: plan index same-row edits refuse and name the row [C7,D3]', async t => {
   const path = 'test/shared.test.js';
   const row = value => [{ path: path, reason: value }];
   const { root, heads } = divergent(t, 'packages/codemap/data/plan/cells.json', planIndex(row('T1')),
@@ -450,7 +450,7 @@ test('plan index same-row edits refuse and name the row [C7,D3]', async t => {
 });
 
 
-test('test tiers disjoint additions compose identically in both orders [C7,D3]', async t => {
+test('cli.journeys-fact-plan-cells.test-tiers-disjoint-additions-compose-identically: test tiers disjoint additions compose identically in both orders [C7,D3]', async t => {
   const row = path => ({ file: path, tier: 'T1' });
   const base = [row('test/base.test.js')];
   const { root, heads } = divergent(t, 'packages/gate/data/tests/tiers.json', tierManifest(base),
@@ -471,7 +471,7 @@ test('test tiers disjoint additions compose identically in both orders [C7,D3]',
   assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
 });
 
-test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
+test('cli.journeys-fact-plan-cells.test-tiers-same-row-edits-refuse: test tiers same-row edits refuse and name the row [C7,D3]', async t => {
   const path = 'test/shared.test.js';
   const row = value => [{ file: path, tier: value }];
   const { root, heads } = divergent(t, 'packages/gate/data/tests/tiers.json', tierManifest(row('T1')),
@@ -485,7 +485,7 @@ test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
   }
 });
 
-test('a cell read by path by a test outside it stays sealed, and the report lists each reader as a ratchet [C7]', async () => {
+test('cli.journeys-fact-plan-cells.a-cell-read-by-path-by: a cell read by path by a test outside it stays sealed, and the report lists each reader as a ratchet [C7]', async () => {
   const { declaredReads, sealedReport, testCellsProblems } = await import('../../../../../packages/gate/src/io/test/cells.js');
   const cells = ['a', 'b', 'apps/cli'];
   assert.deepEqual(declaredReads('/** @pullboard-test-input source-tree */\nx\n', cells), ['a', 'apps/cli', 'b']);

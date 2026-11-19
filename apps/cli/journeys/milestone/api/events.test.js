@@ -22,7 +22,7 @@ import { startLocalHandler } from '../../../tests/fixtures/api/milestone.js';
 
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
-test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit person answers', async (t) => {
+test('cli.journeys-milestone-api-events.http-decisions-preserve-routing-passing-and: [A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit person answers', async (t) => {
   const box = project();
   const app = join(box.dir, 'app-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
@@ -81,7 +81,7 @@ test('[A2,B25,B26,B27] HTTP decisions preserve routing, passing and explicit per
   assert.deepEqual((await (await apiFetch(api, `${path}/state`)).json()).state.decisions, []);
 });
 
-test('[A2] SSE delivers a live move and resumes after Last-Event-ID without replay', async (t) => {
+test('cli.journeys-milestone-api-events.sse-delivers-a-live-move-and: [A2] SSE delivers a live move and resumes after Last-Event-ID without replay', async (t) => {
   const box = project();
   // The two near-identical item titles are fixture data, not a duplicate filing the board should refuse.
   box.env.PULLBOARD_FIXTURE_ADD_DISTINCT = '1';
@@ -136,7 +136,7 @@ test('[A2] SSE delivers a live move and resumes after Last-Event-ID without repl
   }
 });
 
-test('[A5,A6] doctor diagnoses future event logs read-only and accepts the current marker', async () => {
+test('cli.journeys-milestone-api-events.doctor-diagnoses-future-event-logs-read: [A5,A6] doctor diagnoses future event logs read-only and accepts the current marker', async () => {
   const box = project();
   const added = json(box, box.repo, 'add', ['app', 'Version fixture', '--specs', 'G1']);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -168,7 +168,7 @@ test('[A5,A6] doctor diagnoses future event logs read-only and accepts the curre
   assert.equal(readEventLogVersion(file), String(READABLE_EVENT_LOG + 1), 'doctor does not silently upgrade the marker');
 });
 
-test('[A5] view export preserves the typed future-version refusal without creating output', async () => {
+test('cli.journeys-milestone-api-events.view-export-preserves-the-typed-future: [A5] view export preserves the typed future-version refusal without creating output', async () => {
   const box = project();
   const added = json(box, box.repo, 'add', ['app', 'Export version fixture', '--specs', 'G1']);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');

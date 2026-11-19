@@ -13,7 +13,7 @@ import {
   state,
 } from '../../tests/fixtures/submit/handoff.js';
 
-test('queue preparation retries a real peer commit and still bounds continuous changes [B2,V4,H16,E18]', t => {
+test('cli.journeys-submit-handoff.queue-preparation-retries-a-real-peer: queue preparation retries a real peer commit and still bounds continuous changes [B2,V4,H16,E18]', t => {
   const box = fixture(t);
   // @pullboard-board-file locking: a second native connection commits while source sealing is outside BEGIN.
   const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });

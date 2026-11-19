@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { gateClauseTickNotes } from '../../../../../packages/state/index.js';
@@ -41,7 +41,7 @@ function boardItem(t) {
   return { board, id };
 }
 
-test('clause 1: verify.folderTicks defaults to false and, when on, a changed test under the quoted folder is a gate file, so submit does not refuse CLAUSE_UNTICKED [C7]', t => {
+test('cli.io-gate-folder-ticks.verify-folderticks-defaults-to-false-and-when: clause 1: verify.folderTicks defaults to false and, when on, a changed test under the quoted folder is a gate file, so submit does not refuse CLAUSE_UNTICKED [C7]', t => {
   assert.equal(defaults().verify.folderTicks, false);
   assert.equal(configFromSource('{}').verify.folderTicks, false);
   assert.equal(configFromSource(JSON.stringify({ verify: { folderTicks: true } })).verify.folderTicks, true);
@@ -56,7 +56,7 @@ test('clause 1: verify.folderTicks defaults to false and, when on, a changed tes
   assert.equal(clauseInspectionProblem(held, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: 'b'.repeat(40) })?.code, 'CLAUSE_UNTICKED');
 });
 
-test('clause 2: with verify.folderTicks on, a green gate run of the changed test records the clause tick note on the item [C7]', t => {
+test('cli.io-gate-folder-ticks.with-verify-folderticks-on-a-green-gate: clause 2: with verify.folderTicks on, a green gate run of the changed test records the clause tick note on the item [C7]', t => {
   const head = 'c'.repeat(40);
   const outcomes = [{ file: NEW_TEST, name: 'clause 1: the dry run prints its checklist', passed: true, skipped: false }];
   const notes = ({ board, id }, options) => {

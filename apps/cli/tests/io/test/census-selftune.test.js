@@ -35,7 +35,7 @@ function folder(t, earlier) {
   return { dir, out };
 }
 
-test('clause 1: with census.selfTune on, no typed census.jobMinutes and a previous census, the jobs are cut at selfTunedJobMinutes of its shard times [C7,U151]', t => {
+test('cli.io-test-census-selftune.with-census-selftune-on-no-typed-census: clause 1: with census.selfTune on, no typed census.jobMinutes and a previous census, the jobs are cut at selfTunedJobMinutes of its shard times [C7,U151]', t => {
   const shards = [4, 5, 6, 7, 8];
   const { dir, out } = folder(t, [rowsOf([1, 1, 1, 1]), rowsOf(shards)]);
   const minutes = censusJobMinutesFrom(dir, out, { selfTune: true, typed: null });
@@ -43,17 +43,17 @@ test('clause 1: with census.selfTune on, no typed census.jobMinutes and a previo
   assert.equal(minutes, 7);
 });
 
-test('clause 1: a typed census.jobMinutes wins over the self-tuned length [C7,U151]', t => {
+test('cli.io-test-census-selftune.a-typed-census-jobminutes-wins-over-the: clause 1: a typed census.jobMinutes wins over the self-tuned length [C7,U151]', t => {
   const { dir, out } = folder(t, [rowsOf([4, 5, 6, 7, 8])]);
   assert.equal(censusJobMinutesFrom(dir, out, { selfTune: true, typed: 12 }), 12);
 });
 
-test('clause 2: with census.selfTune off the plan is today\'s, with no length [C7,U151]', t => {
+test('cli.io-test-census-selftune.with-census-selftune-off-the-plan-is: clause 2: with census.selfTune off the plan is today\'s, with no length [C7,U151]', t => {
   const { dir, out } = folder(t, [rowsOf([4, 5, 6, 7, 8])]);
   assert.equal(censusJobMinutesFrom(dir, out, { selfTune: false, typed: null }), null);
 });
 
-test('clause 2: with no previous census, too few shards, or a census without instants the plan is today\'s [C7,U151]', t => {
+test('cli.io-test-census-selftune.with-no-previous-census-too-few-shards: clause 2: with no previous census, too few shards, or a census without instants the plan is today\'s [C7,U151]', t => {
   assert.equal(censusJobMinutesFrom(folder(t, []).dir, 'nowhere.jsonl', { selfTune: true, typed: null }), null, 'no earlier census');
   const few = folder(t, [rowsOf([4, 5, 6])]);
   assert.equal(censusJobMinutesFrom(few.dir, few.out, { selfTune: true, typed: null }), null, 'three shards say too little');
@@ -62,7 +62,7 @@ test('clause 2: with no previous census, too few shards, or a census without ins
   assert.equal(censusJobMinutesFrom('/pullboard-no-such-census-dir', 'x.jsonl', { selfTune: true, typed: null }), null, 'no folder');
 });
 
-test('clause 1: a shard\'s time is its widest end minus start, one per shard label [C7,U151]', () => {
+test('cli.io-test-census-selftune.a-shard-s-time-is-its-widest: clause 1: a shard\'s time is its widest end minus start, one per shard label [C7,U151]', () => {
   const rows = [...rowsOf([3, 9]), { shard: '1/2', startedAt: new Date(START).toISOString(), endedAt: new Date(START + 5 * MIN).toISOString() }];
   assert.deepEqual(previousShardMs(rows).sort((a, b) => a - b), [5 * MIN, 9 * MIN]);
 });

@@ -374,7 +374,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     if (second || rest.length) throw new Refused('USAGE', 'pullboard spec apply takes no ids; it applies current person decisions');
     return withBoard(ctx, async (board) => {
       const me = whoAmI(ctx, board);
-      if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+      applyRow.requireApplier({ isMain: ctx.info.isMain, me: me.id, coordinator: COORDINATOR, channel: io.personChannel, values, decisions: store.rowDecisions(board), events: io.personChannel === undefined ? [] : store.events(board, { kinds: ['row_decision'] }) });
       applyRow.requireCleanForCommit(ctx.info.root, values); // --commit proves the checkout clean first; every automatic proposal is preflighted before any draft or decision changes a file.
       const passkeyDecision = record => verifiedPasskeyRowDecision(board, record);
       const first = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
@@ -383,6 +383,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
       const automatic = planAutomaticRigorApply(ctx.info.root, ctx.config, store.rowDrafts(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, automatic);
+      automatic.collisions.forEach(clash => io.say(`${clash.target}: ${clash.id} holds different text, gate or tier than its Rigor draft, so the draft was not written; resolve ${clash.id} by hand`));
       automatic.files.forEach(file => io.say(`${file.file}: materialized unproved Rigor drafts for the person's review`));
       // A lane's board drafts (#878) reach SPEC.md as draft rows at their own ids; the person approves them there as before.
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));

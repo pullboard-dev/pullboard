@@ -36,6 +36,8 @@ import { censusRecordFileTimesEnabled } from '../../../../../packages/config/ind
 import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
 import { censusRerunOnSettleEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
+import { censusSkipUnchangedEnabled } from '../../../../../packages/config/index.js';
+import { censusFileKillSeconds } from '../../../../../packages/config/index.js';
 import { censusSoloFileSeconds } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusSelfTuneEnabled } from '../../../../../packages/config/index.js';
@@ -52,11 +54,18 @@ import { pulledTimeLines } from '../../logic/census.js';
 import { rowFileTimes } from '../../logic/census.js';
 import { rerunRow } from '../../logic/census.js';
 import { rerunnable } from '../../logic/census.js';
+import { censusVerdictLists } from '../../logic/census.js';
+import { censusIdleSlots } from '../../logic/census.js';
+import { censusIdleLine } from '../../logic/census.js';
+import { censusPhases } from '../../logic/census.js';
+import { censusPhaseLine } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
+import { shardFileKillMs } from '../../logic/census.js';
 import { previousShardMs } from '../../logic/census.js';
 import { selfTunedJobMinutes } from '../../logic/census-tune.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
+import { censusCarry } from './census-carry.js';
 import { fileBudgetField } from './file-limit.js';
 import { withFileLimit } from './file-limit.js';
 
@@ -125,7 +134,7 @@ const CENSUS_TIMES_WRITE = /^# census-times \{.*\}\n?$/u;
  * @param {string} output - The shard's log text.
  * @param {Date} fallbackStart - When this census began.
  * @param {number} fallbackLoad - The 1-minute load when it began.
- * @returns {{ claimedAt: string, startedAt: string, endedAt: string, load1: number }}
+ * @returns {{ enqueuedAt: string, claimedAt: string, startedAt: string, endedAt: string, load1: number }}
  */
 function jobTimes(output, fallbackStart, fallbackLoad) {
   let told = {};
@@ -134,7 +143,7 @@ function jobTimes(output, fallbackStart, fallbackLoad) {
   const iso = value => (typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null);
   const now = new Date().toISOString(), began = fallbackStart.toISOString();
   const startedAt = iso(told.startedAt) ?? iso(told.claimedAt) ?? began;
-  return { claimedAt: iso(told.claimedAt) ?? startedAt, startedAt, endedAt: iso(told.endedAt) ?? now, load1: Number.isFinite(told.load1) ? told.load1 : Math.round(fallbackLoad * 100) / 100 };
+  return { enqueuedAt: iso(told.enqueuedAt) ?? began, claimedAt: iso(told.claimedAt) ?? startedAt, startedAt, endedAt: iso(told.endedAt) ?? now, load1: Number.isFinite(told.load1) ? told.load1 : Math.round(fallbackLoad * 100) / 100 };
 }
 
 /**
@@ -178,15 +187,15 @@ function pulledCensus(ctx, io, values = {}) {
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
     const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
-    const plan = cutPlan(root, files, count), perRunner = censusJobsPerRunner(), quiet = censusJobsPerRunnerQuiet();
+    const plan = cutPlan(root, files, count), killSeconds = censusFileKillSeconds(), times = killSeconds ? readFileTimes(root) : {}, perRunner = censusJobsPerRunner(), quiet = censusJobsPerRunnerQuiet();
     await Promise.all(plan.map(async (shard, index) => {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
       try {
-        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : fileBudgetField(values)), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : { ...fileBudgetField(values), ...(shardFileKillMs(shard.files, times, killSeconds) ? { fileBudgetMs: shardFileKillMs(shard.files, times, killSeconds) } : {}) }), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
-        write(`# census-times ${JSON.stringify({ claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
+        write(`# census-times ${JSON.stringify({ enqueuedAt: ran.enqueuedAt, claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
         const timed = pulledTimeLines(ran.times, FILE_TIME_LINE) + pulledTimeLines(ran.caseMs, FILE_CASE_LINE);
         write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${timed}${ran.output}\n`);
       } catch (error) {
@@ -207,21 +216,24 @@ function pulledCensus(ctx, io, values = {}) {
  * @param {object} io
  * @param {{ info: { root: string } }} ctx
  * @param {{ out?: string, json?: boolean, 'no-file-limit'?: boolean }} values
- * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards }} [options] - `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
+ * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards, clock?: () => number }} [options] - `clock` reads the time in milliseconds for the phase seconds; `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
-export async function runCensus(io, ctx, values, { shards, prefixes = [], run } = {}) {
+export async function runCensus(io, ctx, values, { shards, prefixes = [], run, clock = Date.now } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
   const tracked = await trackedTests(root);
-  const files = tracked.filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
-  if (!files.length) throw new Refused('NO_TEST_FILE', 'no tracked test files match this census', 'run the census from a repository checkout, with path prefixes that name tracked test files');
+  const everyFile = tracked.filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
+  if (!everyFile.length) throw new Refused('NO_TEST_FILE', 'no tracked test files match this census', 'run the census from a repository checkout, with path prefixes that name tracked test files');
   const out = resolve(root, values.out ?? join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
   // Read the earlier census before this run empties its own file.
   const tuned = censusJobMinutesFrom(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out);
   if (tuned) TUNED.set(root, tuned); else TUNED.delete(root);
-  writeFileSync(out, '');
+  // Opt-in: files whose declared inputs did not change since a green earlier census keep that row, marked carried [C7,#10383].
+  const carry = censusSkipUnchangedEnabled() ? censusCarry(root, { files: everyFile, sha, dir: join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out }) : { run: everyFile, carried: [], from: null };
+  const files = carry.run;
+  writeFileSync(out, carry.carried.map(row => `${JSON.stringify(row)}\n`).join(''));
   // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
   const pulled = !run && runnerDispatchMode() === 'pull';
   const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
@@ -231,14 +243,16 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const runners = censusShardCount(loadMachineSettings().runners);
   // census.jobMinutes, when set, sizes a pulled census by measured time: the job count is whatever the plan needs (cutPlan ignores `count`).
   const timed = pulled && jobMinutesFor(root) ? cutPlan(root, files, 1).length : null;
-  const count = Math.min(timed ?? shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
+  const count = Math.max(1, Math.min(timed ?? shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length));
   // The same plan runLandingShards cuts, so a shard's label names the files it held.
   const plan = cutPlan(root, files, count, pulled);
-  const rows = new Map();
+  const rows = new Map(carry.carried.map(row => [row.file, row]));
   const last = new Map();
   const settled = [];
   const censusStart = new Date(), startLoad = loadavg()[0];
+  const marks = { start: clock(), first: null, pass1: 0 };
   const emit = (shard, record) => {
+    marks.first ??= clock();
     const text = shardRows({ ...record, files: shard.files.map(file => fileKey(file)), outcomes: allTestOutcomes(record.output), times: shardFileTimes(record.output) }, sha);
     const told = jobTimes(record.output, censusStart, startLoad);
     for (const row0 of text) {
@@ -265,15 +279,15 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   process.env[LANDING_COLLECT_ALL_ENV] = '1';
   process.env[COLLECTION_ID_ENV] = env.id;
   io.err(`pullboard test --census: ${files.length} files at ${sha.slice(0, 10)} in ${plan.length} shards; rows go to ${out}`);
-  const started = Date.now();
   const bound = browserBoundFiles(root, files).then(list => new Set(list));
   const base = { root, runner: resolve(root, 'apps/cli/src/io/run/tests.js'), fullScope: true, parseProcessCensus,
     runnerAdmission: gateRunnerAdmission(), needsGui: shardFiles => testsNeedGui(root, shardFiles),
     needsBrowser: async shardFiles => { const set = await bound; return shardFiles.some(file => set.has(file)); } };
   try {
     try {
-      await run({ ...base, files, count: plan.length, write });
+      if (files.length) await run({ ...base, files, count: plan.length, write });
     } finally {
+      marks.pass1 = clock();
       // A shard that never reached a last word still owes its files a row.
       for (const shard of plan.entries()) {
         const [index, entry] = shard;
@@ -286,16 +300,22 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
     // Opt-in: each non-green file runs once more, alone, before the census calls it red; this replaces a separate pass 2 [C7,#9138].
     if (settleReruns) writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
     else if (censusRerunNonGreenEnabled()) await rerunNonGreen({ rows, out, sha, run, base, pulled });
+    // With reruns on the rows are the confirmed verdict, so the census writes the reds and slow lists pass 2 used to [C7,#10348].
+    if (settleReruns || censusRerunNonGreenEnabled()) { const lists = censusVerdictLists(rows.values()); writeFileSync(`${out}.reds.txt`, lists.reds); writeFileSync(`${out}.slow.txt`, lists.slow); }
   } finally {
     if (env.collect === undefined) delete process.env[LANDING_COLLECT_ALL_ENV]; else process.env[LANDING_COLLECT_ALL_ENV] = env.collect;
     if (env.collection === undefined) delete process.env[COLLECTION_ID_ENV]; else process.env[COLLECTION_ID_ENV] = env.collection;
   }
   // Opt-in: the same record steers landing shard plans, so a census writes it only when this machine asked; files no longer tracked drop [C7].
-  if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes(rows.values()); if (Object.keys(measured).length) writeFileTimes(root, measured, { keep: tracked }); }
+  if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes([...rows.values()].filter(row => !row.carried)); if (Object.keys(measured).length) writeFileTimes(root, measured, { keep: tracked }); }
   const counts = {};
   for (const row of rows.values()) counts[row.status] = (counts[row.status] ?? 0) + 1;
-  const seconds = Math.round((Date.now() - started) / 1000);
-  io.result?.({ out, sha, files: files.length, shards: plan.length, seconds, counts });
-  io.say(`census of ${files.length} files at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
-  return (counts.green ?? 0) === files.length ? 0 : 1;
+  const phases = censusPhases({ ...marks, end: clock() }), seconds = phases.wallSecs;
+  const idleSlots = censusIdleSlots(rows.values(), censusStart.getTime());
+  io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, phases, idleSlots, counts });
+  io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried from ${carry.from.slice(0, 10)})` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
+  io.say(censusPhaseLine(phases));
+  const idleLine = censusIdleLine(idleSlots);
+  if (idleLine) io.say(idleLine);
+  return (counts.green ?? 0) === everyFile.length ? 0 : 1;
 }

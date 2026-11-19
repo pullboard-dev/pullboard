@@ -20,7 +20,7 @@ const { project } = e2e;
 
 const checkedProject = (fields, extraRows) => checkedProjectOf(project, fields, extraRows);
 
-test('the asynchronous doctrine hold preserves candidate and base ratchet decisions [D1,D3,C7]', async () => {
+test('cli.journeys-doctrine-checks-scoped.the-asynchronous-doctrine-hold-preserves-candidate: the asynchronous doctrine hold preserves candidate and base ratchet decisions [D1,D3,C7]', async () => {
   const box = await checkedProject('count: 2');
   commitWeb(box, { 'a.html': 'TODO retained\n' }, 'feat(web): lower the count [G1]');
   const options = { mainCommit: box.git(box.repo, 'rev-parse', 'HEAD'), commit: box.git(box.web, 'rev-parse', 'HEAD') };
@@ -30,7 +30,7 @@ test('the asynchronous doctrine hold preserves candidate and base ratchet decisi
   await assert.rejects(holdDoctrineAsync(box.web, options), error => error.code === 'RATCHET_ROSE' && error.message.includes('rose to 3'));
 });
 
-test('a submit hold runs scoped checks only for affected paths or checker code [D1,D3,C7]', async () => {
+test('cli.journeys-doctrine-checks-scoped.a-submit-hold-runs-scoped-checks: a submit hold runs scoped checks only for affected paths or checker code [D1,D3,C7]', async () => {
   const box = await checkedProject('count: 2 | files: web/a.html', [
     '- Q5 [approved, must] A local checker stays green. | gate: check node web/checker.js | count: 0 | files: api',
     '- Q6 [approved, must] An unscoped check stays green. | gate: check true | count: 0',

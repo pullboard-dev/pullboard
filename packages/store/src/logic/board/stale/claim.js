@@ -23,7 +23,11 @@ export function staleClaimRelease(board, item, actor, note, captured) {
   const now = board.clock.now().getTime();
   const observed = staleInstant(captured.observedAt, now);
   const last = observed === null ? null : staleInstant(row?.lastActivity, observed);
-  const revision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
+  // A captured itemRevision (release.staleItemRevision on) scopes the check to this item's events, so another item's event on a busy board cannot refuse the release forever (#10598).
+  const itemScoped = Number.isSafeInteger(captured.itemRevision);
+  const revision = itemScoped ? board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=?').get(item.item_id).id
+    : board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
+  const observedRevision = itemScoped ? captured.itemRevision : captured.observedRevision;
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner);
   const limits = staleStateLimits({ health: captured.health });
   const limit = row?.blocker === true ? limits.blocker : limits.claim;
@@ -34,7 +38,7 @@ export function staleClaimRelease(board, item, actor, note, captured) {
   if (item.item_status !== 'claimed' || item.item_owner !== row?.actor || item.item_id !== row?.id
     || item.item_lease_until !== row?.leaseUntil
     || (captured.leaseLapse !== true || (board.executionEngineVersion ?? ENGINE_VERSION) < LEASE_LAPSE_ENGINE) && !(item.item_lease_until > board.clock.now().toISOString())
-    || claim?.event_id !== row?.claimEventId || captured.observedRevision !== revision) {
+    || claim?.event_id !== row?.claimEventId || observedRevision !== revision) {
     throw new Refused('NOT_YOURS', 'the claim changed after the stale observation; capture it again before releasing');
   }
   if (!folderGone && (observed === null || last === null || row.evidence?.complete !== true || row.limitMs !== limit || observed - last < limit)) {

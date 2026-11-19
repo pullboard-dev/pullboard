@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../store/index.js';
+import { MILESTONE_BUMP_ENGINE } from "../../../../state/index.js";
 import { editMilestone } from '../../../../store/index.js';
 import { editMilestoneItems } from '../../../../store/index.js';
 import { roadmap } from '../../../../store/index.js';
+import { provideCoordinatorMilestoneRelease } from '../../../../store/index.js';
 import { workQueue } from '../../../../items/index.js';
 import { milestoneRoadmap } from '../../../../roadmap/index.js';
 import { listApiProjects } from '../../../../seats/index.js';
@@ -14,6 +16,9 @@ import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../fixtures/cell-board.js';
+
+// The store has no stats edge; these ships do not read the gauge, so a stub release stands in [C7].
+provideCoordinatorMilestoneRelease(() => ({ gauge: null, previous: null, problem: null }));
 
 const HOUR = 3_600_000;
 const SETUP = 'fixture release setup';
@@ -106,5 +111,61 @@ test('board.limit.caps-validate-edits-shipment-carry-and: [N26,H16] caps validat
     assert.deepEqual(store.milestones(box.board)[1].items, [first, second], 'historical uncapped moves replay unchanged');
     assert.throws(() => editMilestone(box.board, 'target', { agentId: 'coordinator', limit: 3 }), { code: 'ENGINE_VERSION' });
     assert.throws(() => editMilestoneItems(box.board, 'target', { agentId: 'coordinator', add: ['other#1'], swap: [first] }), { code: 'ENGINE_VERSION' });
+  } finally { box.board.executionEngineVersion = currentEngine; }
+});
+
+
+test('board.limit.full-rollover-release-bumps-its-lowest-unstarted-item: [N26] a full rollover release bumps its lowest unstarted item to the top of the next release and keeps the add, recording the bump on the bumped item', (t) => {
+  const box = fixture(t);
+  const first = box.item('Unstarted release work', 'open');
+  const building = box.item('Already building', 'open');
+  const incoming = box.item('New release work', 'open');
+  const waiting = box.item('Already waiting next', 'open');
+  store.claim(box.board, building, { agentId: box.builder, lane: 'web', leaseMs: HOUR,
+    freeze: () => ({ text: 'Tracked work', digest: 'digest:tracked' }) });
+  box.add('release', [first, building]);
+  box.add('next', [waiting]);
+  box.edit('release', { limit: '2' });
+  box.members('release', { add: [String(incoming)] });
+  const [release, next] = store.milestones(box.board);
+  assert.deepEqual(release.items, [building, incoming], 'the add is kept and the lowest unstarted item left');
+  assert.deepEqual(next.items, [first, waiting], 'the bumped item sits at the top of the next release');
+  const moved = store.itemThread(box.board, first).filter(entry => entry.kind === 'milestone_moved');
+  assert.equal(moved.length, 1);
+  assert.equal(moved[0].detail.from, 'release');
+  assert.equal(moved[0].detail.to, 'next');
+});
+
+test('board.limit.full-release-still-refuses-without-a-bump: [N26] explicit mode, an earlier engine and a release with no unstarted item still refuse MILESTONE_LIMIT', (t) => {
+  const box = fixture(t);
+  /** Claim an item with a seat of its own, since a seat holds one claim at a time. */
+  const claimed = (title, seat) => {
+    const id = box.item(title, 'open');
+    const agentId = cellSeat(box.board, { lane: 'web', path: `${box.project.dir}/${seat}` }).id;
+    store.claim(box.board, id, { agentId, lane: 'web', leaseMs: HOUR, freeze: () => ({ text: 'Tracked work', digest: 'digest:tracked' }) });
+    return id;
+  };
+  const refused = (error) => error?.code === 'MILESTONE_LIMIT';
+  const first = box.item('Unstarted release work', 'open');
+  const second = box.item('More unstarted work', 'open');
+  const incoming = box.item('New release work', 'open');
+  box.add('explicit', [first, second]);
+  box.add('later');
+  box.edit('explicit', { limit: '2', mode: 'explicit' });
+  assert.throws(() => box.members('explicit', { add: [String(incoming)] }), refused, 'explicit mode refuses');
+  assert.deepEqual(store.milestones(box.board)[0].items, [first, second]);
+  const busy = [claimed('Building one', 'one'), claimed('Building two', 'two')];
+  box.add('busy', busy);
+  box.edit('busy', { limit: '2' });
+  assert.throws(() => box.members('busy', { add: [String(incoming)] }), refused, 'no unstarted item refuses');
+  assert.deepEqual(store.milestones(box.board)[2].items, busy);
+  box.edit('later', { limit: '0' });
+  box.edit('explicit', { mode: 'rollover' });
+  assert.throws(() => box.members('explicit', { add: [String(incoming)] }), refused, 'a next release with no room refuses');
+  box.edit('later', { limit: 'none', asPerson: true });
+  const currentEngine = box.board.executionEngineVersion;
+  try {
+    box.board.executionEngineVersion = MILESTONE_BUMP_ENGINE - 1;
+    assert.throws(() => box.members('explicit', { add: [String(incoming)] }), refused, 'an earlier engine refuses');
   } finally { box.board.executionEngineVersion = currentEngine; }
 });

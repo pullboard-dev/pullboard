@@ -21,7 +21,9 @@ import {
   ENGINE_FILE,
   discovered,
 } from '../../../../kernel/light.js';
-import { storeName } from '../store-names.js';
+
+/** The store file name for the record held under a key, with its extension; local so a cold command loads one module fewer (closure-budget) [C7]. */
+function storeName(key, ext = '.json') { return key + ext; }
 
 /** The generated table of landed numbers the pure state doors read [C7]. */
 export const ENGINE_TABLE = 'packages/state/src/logic/engine/table.js';

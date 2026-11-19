@@ -46,6 +46,14 @@ export function stopSeatKeepalive() {
 }
 
 /**
+ * Whether a requested move's heartbeat prints claim overlap lines: the default next omits them to honor its output bound, so it reads no item list [C7,#5329].
+ * Both heartbeat callers use it; the first to run marks the io recorded, so a caller that disagreed would never apply.
+ * @param {{ defaultLoop?: boolean }} io
+ * @returns {boolean}
+ */
+export function claimHeartbeatOverlaps(io) { return io.defaultLoop !== true; }
+
+/**
  * Observe only the registered local checkout, or its seat's live item folder, after normal session binding;
  * unknown callers gain no identity. A successful beat keeps the seat fresh for the rest of the process; default next omits overlap text to honor its output bound.
  */
@@ -64,8 +72,11 @@ export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoar
       recorded.add(io);
       keepSeatAlive(ctx, seat.agent_id, keepaliveMs);
       // Overlap reads the recorded worktree files; it never runs Git in another seat's worktree (#2427).
-      const items = listItems(board), agents = listAgents(board);
-      if (overlaps) for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
+      // The lists are read only when their overlap lines print; a heartbeat with overlaps off sends no item query.
+      if (overlaps) {
+        const items = listItems(board), agents = listAgents(board);
+        for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
+      }
     }
   } catch (error) {
     if (!['NO_CONFIG', 'NOT_A_REPO'].includes(error.code)) io.err(`presence heartbeat unavailable: ${error.message}`);

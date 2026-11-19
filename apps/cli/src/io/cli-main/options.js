@@ -1,5 +1,6 @@
 /** The CLI's global switches and the command-aware argument parser [C7]. */
 import { parseArgs } from 'node:util';
+import { Refused } from '../../../../../packages/kernel/light.js';
 
 const OPTIONS = {
   criterion: { type: 'string' },
@@ -7,6 +8,7 @@ const OPTIONS = {
   files: { type: 'string' },
   'force-size': { type: 'string' },
   'not-duplicate-of': { type: 'string' },
+  here: { type: 'string' },
   confirm: { type: 'boolean' },
   reject: { type: 'boolean' },
   'accept-green': { type: 'string' },
@@ -83,10 +85,12 @@ const OPTIONS = {
   source: { type: 'string' },
   section: { type: 'string' },
   blueprint: { type: 'string', multiple: true },
-  route: { type: 'string' },
+  role: { type: 'string' },
+  route: { type: 'string' }, level: { type: 'string' },
   field: { type: 'string' },
   family: { type: 'string' }, 'review-family': { type: 'string' },
   model: { type: 'string' },
+  issue: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
   // The watch command's options.
@@ -140,10 +144,12 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  'fail-on-drift': { type: 'boolean' },
   prune: { type: 'boolean' },
   utilization: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
+  stats: { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
   overflow: { type: 'string' },
@@ -168,6 +174,7 @@ const OPTIONS = {
   must: { type: 'boolean' },
   json: { type: 'boolean' },
   detail: { type: 'boolean' },
+  audit: { type: 'boolean' },
   fields: { type: 'string' },
   history: { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -230,12 +237,35 @@ export function parseCommandArgs(argv) {
     ...(command === 'spec' ? { commit: { type: 'boolean' } } : {}),
     ...(['add', 'edit', 'submit', 'done', 'test'].includes(command) ? { wait: { type: 'boolean' } } : {}),
     ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
+    ...(['add', 'edit'].includes(command) ? { review: { type: 'string' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
   const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  foldLevelIntoRoute(parsed.values);
+  if (['add', 'edit'].includes(command)) foldReviewIntoReviewTier(parsed.values);
   if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
   return parsed;
+}
+
+/** --level is the approved name for --route (U136): stored events keep route, so every reader sees the value as values.route. */
+function foldLevelIntoRoute(values) {
+  if (values.level === undefined) return;
+  if (values.route !== undefined && values.route !== values.level) throw new Refused('USAGE', `--level ${values.level} and --route ${values.route} name the same setting; give one of them`);
+  values.route = values.level;
+  delete values.level;
+}
+
+/**
+ * --review standard|strict is the approved name for --review-tier (U136): the stored tier keeps its name, so every reader
+ * sees the value as values['review-tier']. Standard is the floor and changes nothing; strict may be raised, never lowered.
+ */
+function foldReviewIntoReviewTier(values) {
+  if (values.review === undefined) return;
+  if (!['standard', 'strict'].includes(values.review)) throw new Refused('USAGE', `--review ${values.review}: give standard or strict`);
+  if (values['review-tier'] !== undefined && values['review-tier'] !== values.review) throw new Refused('USAGE', `--review ${values.review} and --review-tier ${values['review-tier']} name the same setting; give one of them`);
+  if (values.review === 'strict') values['review-tier'] = 'strict';
+  delete values.review;
 }
 
 /**

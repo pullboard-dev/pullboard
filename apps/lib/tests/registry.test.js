@@ -15,7 +15,7 @@ export const TYPED_REQUEST_STEPS=Object.freeze({
   "REQUEST_ALREADY_ANSWERED": "read the recorded answer with pullboard request list --all"
 });
 
-test('typed queue descriptors bind only the exact options actor and require their own engine [N26,H16]',()=>{
+test('lib.registry.typed-queue-descriptors-bind-only-the-exact: typed queue descriptors bind only the exact options actor and require their own engine [N26,H16]',()=>{
   for(const operation of TYPED_REQUEST_OPERATIONS){
     assert.equal(MOVE_REGISTRY[operation].engine,TYPED_REQUESTS_ENGINE);
     assert.equal(minimumMoveEngine(operation,[]),TYPED_REQUESTS_ENGINE);

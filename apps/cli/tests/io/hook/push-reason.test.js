@@ -9,7 +9,7 @@ import { pushShardSkipReason } from '../../../src/io/hook/push.js';
 
 const ready = { pull: true, clean: true, untracked: 0, files: 5, nameable: true };
 
-test('clause 1: pushShardSkipReason gives a distinct one-line reason for each case with no plan, and null when a plan exists [C7,#9368]', () => {
+test('cli.io-hook-push-reason.pushshardskipreason-gives-a-distinct-one-line-reason: clause 1: pushShardSkipReason gives a distinct one-line reason for each case with no plan, and null when a plan exists [C7,#9368]', () => {
   assert.equal(pushShardSkipReason(ready), null);
   const reasons = [
     pushShardSkipReason({ ...ready, pull: false }),
@@ -27,7 +27,7 @@ test('clause 1: pushShardSkipReason gives a distinct one-line reason for each ca
   assert.match(reasons[4], /cannot name/u);
 });
 
-test('clause 2: the say line carries the reason when the hook falls back to the one-command gate [C7,#9368]', async t => {
+test('cli.io-hook-push-reason.the-say-line-carries-the-reason-when: clause 2: the say line carries the reason when the hook falls back to the one-command gate [C7,#9368]', async t => {
   const { root } = cellRepo(t, { real: true });
   writeFileSync(join(root, 'loose.txt'), 'x');
   const said = [];
@@ -38,6 +38,6 @@ test('clause 2: the say line carries the reason when the hook falls back to the 
   assert.match(said[0], /untracked/u);
 });
 
-test('clause 2: a pushed plan that exists says nothing extra about falling back [C7,#9368]', () => {
+test('cli.io-hook-push-reason.a-pushed-plan-that-exists-says-nothing: clause 2: a pushed plan that exists says nothing extra about falling back [C7,#9368]', () => {
   assert.equal(pushShardSkipReason(ready), null, 'no reason, so pushShardGate adds no fallback line');
 });

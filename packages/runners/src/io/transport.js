@@ -191,7 +191,7 @@ export function runnerHealthReply(root, request) {
 export function recordRunnerOwner(directory, processCensus) {
   const owner = processCensus()?.get(process.pid);
   if (!owner) throw new Error('runner worker process identity could not be observed');
-  writeFileSync(join(directory, 'worker-owner.json'), JSON.stringify({ pid: owner.pid, started: owner.started }) + '\n',
+  writeFileSync(join(directory, 'worker-owner.json'), JSON.stringify({ pid: owner.pid, started: owner.started, pgid: owner.pgid }) + '\n',
     { mode: 0o600, flag: 'wx' });
 }
 

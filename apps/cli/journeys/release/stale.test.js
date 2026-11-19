@@ -94,7 +94,7 @@ process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.r
   return { box, board, builder, reviewer, clock, freeze, add, review, advance, snapshot, cli, worktree };
 }
 
-test('timed holds warn one hour before expiry and retain exact half-limit bindings [B4,C7]', t => {
+test('cli.journeys-release-stale.timed-holds-warn-one-hour-before: timed holds warn one hour before expiry and retain exact half-limit bindings [B4,C7]', t => {
   const f = fixture(t);
   const id = f.add('A private timed hold');
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'Awaiting an outside response' });
@@ -126,7 +126,7 @@ test('timed holds warn one hour before expiry and retain exact half-limit bindin
   assert.equal(store.itemHold(f.board, id).item_hold_reason, binding.reason, 'the pure planner never mutates a hold');
 });
 
-test('review inactivity requires complete evidence and preserves exact current reservation bindings [B4,V1,H16]', t => {
+test('cli.journeys-release-stale.review-inactivity-requires-complete-evidence-and: review inactivity requires complete evidence and preserves exact current reservation bindings [B4,V1,H16]', t => {
   const f = fixture(t);
   const id = f.review();
   const initial = f.snapshot().reviews[0];
@@ -156,7 +156,7 @@ test('review inactivity requires complete evidence and preserves exact current r
   assert.equal(planStaleState(future).reviewReleases.length, 0);
 });
 
-test('reviewer heartbeat and native shouts restart measured inactivity without rewriting reservation identity [B3,B4]', t => {
+test('cli.journeys-release-stale.reviewer-heartbeat-and-native-shouts-restart: reviewer heartbeat and native shouts restart measured inactivity without rewriting reservation identity [B3,B4]', t => {
   const f = fixture(t);
   const id = f.review();
   const initial = f.snapshot().reviews[0];
@@ -174,7 +174,7 @@ test('reviewer heartbeat and native shouts restart measured inactivity without r
   assert.equal(store.getItem(f.board, id).item_review_by, f.reviewer);
 });
 
-test('future or unavailable presence cannot authorize stale review expiry [B3,B4,H16]', t => {
+test('cli.journeys-release-stale.future-or-unavailable-presence-cannot-authorize: future or unavailable presence cannot authorize stale review expiry [B3,B4,H16]', t => {
   const f = fixture(t);
   f.review();
   f.advance(-1);
@@ -185,7 +185,7 @@ test('future or unavailable presence cannot authorize stale review expiry [B3,B4
 });
 
 
-test('an idle review reservation returns to the queue [B4,V1,H16]', async t => {
+test('cli.journeys-release-stale.an-idle-review-reservation-returns-to: an idle review reservation returns to the queue [B4,V1,H16]', async t => {
   const f = fixture(t);
   const id = f.review();
   f.worktree(join(f.box.dir, 'reviewer'), 'private-idle-reviewer');
@@ -216,7 +216,7 @@ test('an idle review reservation returns to the queue [B4,V1,H16]', async t => {
   assert.equal(store.getItem(f.board, id).item_review_by, f.reviewer, 'ordinary independent review guards still apply');
 });
 
-test('coordinator expiry refuses stale revisions and a replaced reviewer without changing either holder [B4,H16]', t => {
+test('cli.journeys-release-stale.coordinator-expiry-refuses-stale-revisions-and: coordinator expiry refuses stale revisions and a replaced reviewer without changing either holder [B4,H16]', t => {
   const f = fixture(t);
   const id = f.review();
   f.advance(30 * MINUTE);
@@ -234,7 +234,7 @@ test('coordinator expiry refuses stale revisions and a replaced reviewer without
   assert.equal(store.getItem(f.board, id).item_review_by, other);
 });
 
-test('ordered stale review expiry replays captured evidence despite a replica-local heartbeat [B3,B4,H16]', t => {
+test('cli.journeys-release-stale.ordered-stale-review-expiry-replays-captured: ordered stale review expiry replays captured evidence despite a replica-local heartbeat [B3,B4,H16]', t => {
   const f = fixture(t);
   const id = f.review();
   const prefix = exportBoard(f.board);
@@ -255,7 +255,7 @@ test('ordered stale review expiry replays captured evidence despite a replica-lo
   assert.deepEqual(applyRelayMove(replica, move, options), outcome, 'duplicate delivery has one immutable receipt');
 });
 
-test('incomplete or future work observations never authorize a review release [B4,H16]', t => {
+test('cli.journeys-release-stale.incomplete-or-future-work-observations-never: incomplete or future work observations never authorize a review release [B4,H16]', t => {
   const f = fixture(t);
   const id = f.review();
   f.advance(30 * MINUTE);
@@ -269,7 +269,7 @@ test('incomplete or future work observations never authorize a review release [B
 });
 
 
-test('coordinator hold warnings and expiry use direct sentinel notices without borrowing the coordinator identity [B4,H16]', t => {
+test('cli.journeys-release-stale.coordinator-hold-warnings-and-expiry-use: coordinator hold warnings and expiry use direct sentinel notices without borrowing the coordinator identity [B4,H16]', t => {
   const f = fixture(t);
   const id = f.add('Warn about a private hold');
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'An outside decision is pending' });
@@ -292,7 +292,7 @@ test('coordinator hold warnings and expiry use direct sentinel notices without b
   assert.equal(store.getItem(f.board, id).item_status, 'open');
 });
 
-test('lane and person holds remain visible but outside automatic item-hold authority [B4,B26]', t => {
+test('cli.journeys-release-stale.lane-and-person-holds-remain-visible: lane and person holds remain visible but outside automatic item-hold authority [B4,B26]', t => {
   const f = fixture(t);
   store.holdLane(f.board, 'web', { agentId: 'coordinator', reason: 'Person requested a pause', asPerson: true, channel: 'terminal' });
   f.advance(24 * 60 * MINUTE);
@@ -307,7 +307,7 @@ test('lane and person holds remain visible but outside automatic item-hold autho
   assert.equal(store.laneHold(f.board, 'web').hold_by, 'person');
 });
 
-test('status exposes every past-half hold claim and review with honest unknown evidence [B4,C7]', async t => {
+test('cli.journeys-release-stale.status-exposes-every-past-half-hold: status exposes every past-half hold claim and review with honest unknown evidence [B4,C7]', async t => {
   const f = fixture(t);
   const review = f.review();
   const held = f.add('A near-expiry hold');
@@ -340,7 +340,7 @@ test('status exposes every past-half hold claim and review with honest unknown e
 });
 
 
-test('a hold with --until lifts when its condition is met [B4,H16]', async t => {
+test('cli.journeys-release-stale.a-hold-with-until-lifts-when: a hold with --until lifts when its condition is met [B4,H16]', async t => {
   const f = fixture(t);
   const held = f.add('A condition-bound private hold');
   const unrelated = f.add('An unrelated private item');
@@ -368,7 +368,7 @@ test('a hold with --until lifts when its condition is met [B4,H16]', async t => 
   assert.equal(f.board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`stale_hold_until:${held}`), undefined);
 });
 
-test('a conditional lift retains the captured trigger timestamp rather than the later board clock [B4,H16]', t => {
+test('cli.journeys-release-stale.a-conditional-lift-retains-the-captured: a conditional lift retains the captured trigger timestamp rather than the later board clock [B4,H16]', t => {
   const f = fixture(t);
   const id = f.add('A captured native event time');
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'Wait for its captured observation', until: 'shout' });
@@ -386,7 +386,7 @@ test('a conditional lift retains the captured trigger timestamp rather than the 
   assert.notEqual(trigger.event_at, f.clock.now().toISOString());
 });
 
-test('conditional holds recognize verified and landed aliases through ordinary lifecycle writes [B4,H16]', async t => {
+test('cli.journeys-release-stale.conditional-holds-recognize-verified-and-landed: conditional holds recognize verified and landed aliases through ordinary lifecycle writes [B4,H16]', async t => {
   for (const until of ['verified', 'accept', 'landed', 'merged']) {
     await t.test(until, () => {
       const f = fixture(t);
@@ -421,7 +421,7 @@ test('conditional holds recognize verified and landed aliases through ordinary l
   }
 });
 
-test('conditional hold replay retains the trigger and refuses a writer below its pending-condition floor [B3,B4,H16]', t => {
+test('cli.journeys-release-stale.conditional-hold-replay-retains-the-trigger: conditional hold replay retains the trigger and refuses a writer below its pending-condition floor [B3,B4,H16]', t => {
   const f = fixture(t);
   const id = f.add('A replayed condition');
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'Await a recorded observation', until: 'shout' });
@@ -448,7 +448,7 @@ test('conditional hold replay retains the trigger and refuses a writer below its
   assert.ok(store.itemHold(older, id), 'an older writer cannot skip the modern condition');
 });
 
-test('a silent claim on a blocker can be released by the coordinator after 15 minutes [B4,H16]', async t => {
+test('cli.journeys-release-stale.a-silent-claim-on-a-blocker: a silent claim on a blocker can be released by the coordinator after 15 minutes [B4,H16]', async t => {
   const f = fixture(t);
   const path = join(f.box.dir, 'builder');
   f.worktree(path, 'private-stale-builder');
@@ -484,7 +484,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
 });
 
 
-test('actual private worktree activity prevents an otherwise stale blocker release [B4,C7]', async t => {
+test('cli.journeys-release-stale.actual-private-worktree-activity-prevents-an: actual private worktree activity prevents an otherwise stale blocker release [B4,C7]', async t => {
   const { captureStaleState } = await import('../../../../packages/health/src/io/stale/state/capture.js');
   const f = fixture(t);
   const path = join(f.box.dir, 'builder');
@@ -512,7 +512,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
 });
 
 
-test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
+test('cli.journeys-release-stale.stale-releases-carry-observation-plus-code: stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
   const { applyEngineMove } = await import('../../../../packages/state/index.js');
   const { STALE_STATE_ENGINE } = await import('../../../../packages/state/light.js');
   const { RELEASE_REASONS_ENGINE } = await import('../../../../packages/state/light.js');
@@ -556,7 +556,7 @@ test('stale releases carry observation plus code through native and ordered APIs
   }
 });
 
-test('the stale CLI validates and retains an explicit maintenance reason override [B4,C7]', async t => {
+test('cli.journeys-release-stale.the-stale-cli-validates-and-retains: the stale CLI validates and retains an explicit maintenance reason override [B4,C7]', async t => {
   const { captureStaleState } = await import('../../../../packages/health/src/io/stale/state/capture.js');
   const f = fixture(t), id = f.add('Silent coded override');
   const path = store.agentById(f.board, f.builder).agent_path;
@@ -577,7 +577,7 @@ test('the stale CLI validates and retains an explicit maintenance reason overrid
   assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
 });
 
-test('clause 1: release --stale by the coordinator frees a claim at once when the holder worktree folder is gone and records the path [C7]', async t => {
+test('cli.journeys-release-stale.release-stale-by-the-coordinator-frees: clause 1: release --stale by the coordinator frees a claim at once when the holder worktree folder is gone and records the path [C7]', async t => {
   const f = fixture(t);
   store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Gone folder fixture' });
   const gone = f.add('Claim whose seat folder was removed'), present = f.add('Claim whose seat folder exists');
@@ -599,7 +599,7 @@ test('clause 1: release --stale by the coordinator frees a claim at once when th
 });
 
 /** Preserve historical release detail bytes while current automatic expiry uses a genuine coded reason. */
-test('automatic idle review release codes current maintenance without rewriting historical detail [B4,C7,H16]', t => {
+test('cli.journeys-release-stale.automatic-idle-review-release-codes-current: automatic idle review release codes current maintenance without rewriting historical detail [B4,C7,H16]', t => {
   for (const historical of [false, true]) {
     const f = fixture(t), id = f.review();
     f.advance(30 * MINUTE);

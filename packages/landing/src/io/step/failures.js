@@ -3,6 +3,8 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.
 /** Coordinator landing failures step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
 import { junitFailures } from '../../logic/junit-failures.js';
+import { cargoTestCases } from '../../../../gate/light.js';
+import { junitFile } from '../../logic/junit-files.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -11,8 +13,11 @@ import * as store from '../../../../store/index.js';
  * Derive failing test identities from TAP or spec reporter names and source locations, refusing unknown paths. With
  * junitFailures on and junitXml given, the report's failing cases join the rows, deduped on file plus case names.
  * Why: pytest, Go, Rust, PHP, Elixir, C# and C++ write JUnit, not TAP, so landing could name none of their reds [C7].
+ * A case the report gives no file attribute for takes the path junitFile gives for junitLanguage; with no junitLanguage its file stays null [C7,#10591].
+ * With cargoFailures on, each failing `cargo test` case in the output is a row with its panic line, deduped against the rows
+ * above on test name; Rust writes no JUnit without nextest [C7,#10385].
  */
-export function landingFailures(output, root, { excludeCancelled = false, junitFailures: junitOn = false, junitXml = null } = {}) {
+export function landingFailures(output, root, { excludeCancelled = false, junitFailures: junitOn = false, junitXml = null, junitLanguage = null, cargoFailures: cargoOn = false } = {}) {
   const failures = [];
   let active = null;
   const cases = [];
@@ -84,12 +89,39 @@ export function landingFailures(output, root, { excludeCancelled = false, junitF
     return [`${file}\0${JSON.stringify(caseNames ?? [name])}`, { name, file, ...(caseNames ? { caseNames } : {}), ...(assertion ? { assertion } : {}), ...(watchdog ? { watchdog: true } : {}) }];
   }));
   if (junitOn === true && typeof junitXml === 'string') {
-    for (const { name, file, assertion } of junitFailures(junitXml, root).rows) {
+    for (const { name, classname, file: reported, assertion } of junitFailures(junitXml, root).rows) {
+      const file = reported ?? (typeof junitLanguage === 'string' ? junitFile(junitLanguage, { classname, file: null, root }) : null);
       const key = `${file}\0${JSON.stringify([name])}`;
       if (!unique.has(key)) unique.set(key, { name, file, ...(assertion ? { assertion } : {}) });
     }
   }
+  if (cargoOn === true) addCargoRows(unique, output);
   return [...unique.values()];
+}
+
+/** The `Running <path>` line before a libtest line, as the repo file its binary was built from, or null when none came before. */
+function cargoFiles(output) {
+  const files = new Map();
+  let file = null;
+  for (const line of output.split(/\r?\n/u)) {
+    const running = /^\s*Running (?:unittests )?(\S+\.rs)\b/u.exec(line);
+    if (running) file = running[1];
+    const test = /^test (\S+) \.\.\. FAILED\b/u.exec(line);
+    if (test && !files.has(test[1])) files.set(test[1], file);
+  }
+  return files;
+}
+
+/** Add one row per failing cargo test that no earlier row already names; the panic line rides as its assertion. */
+function addCargoRows(unique, output) {
+  const named = new Set([...unique.values()].flatMap(row => [row.name, ...(row.caseNames ?? [])]));
+  const files = cargoFiles(output);
+  for (const { name, outcome, message } of cargoTestCases(output).cases) {
+    if (outcome !== 'fail' || named.has(name)) continue;
+    const file = files.get(name) ?? null;
+    unique.set(`${file}\0${JSON.stringify([name])}`, { name, file, ...(message ? { assertion: message } : {}) });
+    named.add(name);
+  }
 }
 
 /**

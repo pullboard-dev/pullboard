@@ -58,7 +58,7 @@ async function published(child, file) {
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 
-test('clause 2: a producer nudged from a modified tooling copy records the pinned commit\'s checker and preloads [C7]', { timeout: 590_000 }, async t => {
+test('lib.rebuild-producer.a-producer-nudged-from-a-modified: clause 2: a producer nudged from a modified tooling copy records the pinned commit\'s checker and preloads [C7]', { timeout: 590_000 }, async t => {
   const { machine, root, commit } = producerFixture();
   isolateMachine(t, machine);
   const copy = modifiedToolingCopy(t, 'modified tooling copy');
@@ -74,7 +74,7 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
   assert.equal(readAcceptedCells(root, commit).descriptor?.checker, identity.checker);
 });
 
-test('a gate whose own checker files differ from the pinned main gets the inventory its cells-inventory job built from the pinned tooling, never a pending stop [C7]', { timeout: 590_000 }, async t => {
+test('lib.rebuild-producer.a-gate-whose-own-checker-files: a gate whose own checker files differ from the pinned main gets the inventory its cells-inventory job built from the pinned tooling, never a pending stop [C7]', { timeout: 590_000 }, async t => {
   const { machine, root, later: commit } = producerFixture();
   isolateMachine(t, machine);
   const copy = modifiedToolingCopy(t, 'candidate changes the checker');

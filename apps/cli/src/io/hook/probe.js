@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { hookStanding } from '../../../../../packages/commits/light.js';
+import { hookProbeAnswer } from '../../../../../packages/commits/browser.js';
 
 /**
  * The version a hook's probe is told. A hook script refuses any binary whose version differs from its own `want`,
@@ -23,8 +23,7 @@ export function hookProbeVersion(release, { cwd, env }) {
     const hooks = join(folder, '.githooks');
     if (existsSync(hooks)) {
       const scripts = readdirSync(hooks).map((name) => { try { return readFileSync(join(hooks, name), 'utf8'); } catch { return ''; } });
-      const standing = hookStanding(release, scripts);
-      return standing.state === 'accepted' ? standing.versions[0] : release;
+      return hookProbeAnswer(release, scripts);
     }
     if (dirname(folder) === folder) return release;
   }

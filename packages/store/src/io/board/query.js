@@ -17,6 +17,7 @@ import {
   activityInterests,
   isActivityNews,
   archivedItemEvents,
+  hasEventArchive,
   itemActivity,
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
@@ -321,6 +322,17 @@ export function itemThreads(board, ids, history) {
       for (const id of new Set(movedItems(event))) events.get(id)?.push(event);
     }
   }
+  // The archiver moved a finished item's events out of the hot list the history holds; they read back in their place, as itemThread's do [#9335].
+  const wanted = [...events.keys()];
+  if (wanted.length > 0 && hasEventArchive(board.db)) {
+    const archived = board.db.prepare("SELECT event_id, event_at, event_by, event_kind, item_id, event_detail FROM event_archive WHERE item_id IN (SELECT value FROM json_each(?)) ORDER BY event_id").all(JSON.stringify(wanted));
+    for (const event of archived) {
+      const own = events.get(event.item_id);
+      if (event.event_kind === 'usage' || event.event_kind === 'shared-usage' || own.some(seen => seen.event_id === event.event_id)) continue;
+      own.push(event);
+      own.sort((a, b) => a.event_id - b.event_id);
+    }
+  }
   const threads = new Map();
   for (const [id, own] of events) {
     const withdrawals = own.some(event => event.event_kind === 'reopen' && String(event.event_detail).includes('withdrawnVerdict'))
@@ -386,7 +398,7 @@ export function agentModel(board, id) {
 
 /** Attach an agent's model to a row from the legacy stable agent table. */
 export function withModel(board, agent) {
-  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
+  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_role: board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_role:${agent.agent_id}`)?.meta_value ?? null, agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
 }
 
 /**

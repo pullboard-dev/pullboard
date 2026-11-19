@@ -14,9 +14,12 @@ import { pushHostedItemBranch } from '../../../../../packages/runners/index.js';
 import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
+import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
 import { proofOnlyTicked } from '../empty.js';
 import { submitProofOnly } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composesOnRunner } from '../submit/handoff/compose-on-runner.js';
 import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
@@ -106,6 +109,7 @@ import { missingCheckFiles } from '../../../../../packages/items/index.js';
 import { refuseMissingCheckFile } from '../../../../../packages/config/index.js';
 import { pendingFromJobRow } from '../../../../../packages/config/index.js';
 import { recoverFromJobRow } from '../../../../../packages/config/index.js';
+import { gateJunitReport } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -121,6 +125,7 @@ import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
 import { titleCases } from '../submit.js';
+import { junitTickNotes } from '../submit.js';
 import { clauseMarksNote } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
@@ -279,6 +284,13 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
+    // With gate.junitReport set, the builder's JUnit report ticks the [test] clauses whose named cases passed and names failing ones; unset (the default) adds nothing [C7,#9727].
+    const reportPath = inspectClauses ? gateJunitReport() : null;
+    if (reportPath) {
+      const junit = junitTickNotes(root, item, store.itemThread(board, id), headCommit(root), reportPath);
+      for (const text of junit.notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+      for (const row of junit.failed) ctx.io.say(`JUnit report ${reportPath}: case "${row.name}" failed, so clause ${row.number} stays unticked`);
+    }
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(item)) : [] })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
@@ -317,20 +329,34 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const added = (held.item_claim_head ? tryGit(root, ['diff', '--name-only', '--diff-filter=A', held.item_claim_head, commit]).stdout : '').split('\n').filter(Boolean);
     throw new Refused('CHECK_FILE_MISSING', `the frozen check names ${absent.join(', ')}, which commit ${commit.slice(0, 12)} does not contain; this commit added ${added.length ? added.join(', ') : 'no files'}; name the test as the check does, or ask the coordinator to correct the check`);
   }
+  // With submit.composeOnRunner on, the queued gate job composes main and the head, so this command merges nothing and sends the head as it is [C7,#10756].
+  const composeOnRunner = composesOnRunner(ctx);
   let mainMerge = null;
-  if (!isSubmitHandoffWorker(ctx)) {
+  if (!isSubmitHandoffWorker(ctx) && !composeOnRunner) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
-    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit, { checkout: false })); }
+    // With submit.composeAsObject on, the composition is a throwaway object (parents main then head) under refs/pullboard/compose:
+    // the builder branch never gets a sync merge, and a runner can recompute the same tree from main and head [C7,U159].
+    const composeAsObject = submitComposeAsObject();
+    try {
+      mainMerge = authorizationStep('main-merge', () => (composeAsObject
+        ? composeSubmissionMain(root, acceptedMain.commit, { item: id })
+        : mergeSubmissionMain(root, acceptedMain.commit, { checkout: false })));
+    }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
     // The composed commit exists only as objects; the builder checkout and its HEAD are not moved [C7].
     if (mainMerge) commit = mainMerge.commit;
-    if (mainMerge?.merged) {
+    if (mainMerge?.composed) {
+      ctx.io.say(`Composed main ${acceptedMain.commit.slice(0, 12)} with head ${mainMerge.source.slice(0, 12)} as ${commit.slice(0, 12)} (${mainMerge.ref}); the builder branch is unchanged; checking the composed tree.`);
+    } else if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
   // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
-    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
+    {
+      proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+      proofShaped: () => withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+    }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
@@ -340,7 +366,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   let trunk;
   let regenerated = null;
-  try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
+  try { trunk = composeOnRunner ? { commit: acceptedMain.commit } : authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
   catch (error) {
     if (error?.code !== 'MERGE_CONFLICT') throw error;
     if (!isSubmitHandoffWorker(ctx)) {
@@ -356,7 +382,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
   }
   // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
-  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+  // With submit.composeOnRunner on there is no composed tree here: the runner composes, so this command sends the head as it is [C7,#10757].
+  if (!isSubmitHandoffWorker(ctx) && !composeOnRunner && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
     let declared;
     try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
     catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }
@@ -389,7 +416,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const frozenPolicyOnly = () => {
     try { const commit = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit; return commit ? JSON.stringify({ policy: { commit } }) : held.item_frozen; } catch { return held.item_frozen; }
   };
-  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly() },
+  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly(), item_brief: held.item_brief, item_files: held.item_files },
     dependencies, commit });
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
@@ -457,7 +484,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const { itemPulledReds: pulledReds } = await import('../submit/pull.js');
   authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit, pulledReds)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
-    text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
+    text: `Builder ${held.item_owner} ${mainMerge.composed ? `composed main ${acceptedMain.commit} with head ${mainMerge.source} as an object under ${mainMerge.ref}; ` : ''}automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
   const barWarning = await authorizationStep('bar-warning', () => withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
@@ -491,7 +518,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   const queueStart = Date.now();
-  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord, composed: mainMerge?.composed && mainMerge.commit === commit ? { main: acceptedMain.commit, head: mainMerge.source, tree: mainMerge.tree } : null }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
   submitMark('queueing', queueStart);
   return queued;
 }
@@ -507,13 +534,19 @@ async function preflightHere(ctx) {
 /** Run `pullboard submit` and return its exit code. */
 /**
  * Tick the claimed item's test clauses after a green `pullboard test` run of files inside its check, as ordinary note facts.
- * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED. For an item whose check names no test file
+ * the run's own cases tick, read from the run's log with the queued run id, so no builder retypes a note [C7].
+ * @param {any} io The command io.
+ * @param {number} itemId The claimed item.
+ * @param {string[]} files The files the run covered.
+ * @param {{ run?: string, logPath?: string|null }} [ran] The queued run id (values test-run) and the green run's log path.
  */
-export async function recordClauseTicks(io, itemId, files) {
+export async function recordClauseTicks(io, itemId, files, { run, logPath = null } = {}) {
+  const outcomes = logPath ? (await import('../test/status-outcomes.js')).statusOutcomes(logPath) ?? [] : [];
   await actOn(io, async (ctx, board, me) => {
     const found = store.getItem(board, itemId);
     if (found.item_owner !== me.id) return 0;
-    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root), { outcomes, run: run ?? null })) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
     return 0;
   });
 }

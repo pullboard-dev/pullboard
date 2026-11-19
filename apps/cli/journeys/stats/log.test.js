@@ -18,7 +18,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js'; // the two inli
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('one 1.2-second outer hold is logged with its command, seat and item, while 0.2 seconds is not [C7,P4]', async () => {
+test('cli.journeys-stats-log.one-1-2-second-outer-hold: one 1.2-second outer hold is logged with its command, seat and item, while 0.2 seconds is not [C7,P4]', async () => {
   const box = helpers.project('true');
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'hold-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -97,7 +97,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.match(shown.out, /fixture-hold: 1 holds; total \d+ ms; p50 \d+ ms; max \d+ ms/u);
 });
 
-test('a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', t => {
+test('cli.journeys-stats-log.a-hold-log-append-observes-the: a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', t => {
   const box = cellProject(t);
   box.env.PULLBOARD_MACHINE_HOME = join(box.dir, 'post-release-observations');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -167,7 +167,7 @@ test('a hold log append observes the actual SQLite writer already released after
   assert.equal(child.status, 0, child.context);
 });
 
-test('the daily allowance is unmeasured until its first full-day fact, and a measured baseline only falls [C7]', () => {
+test('cli.journeys-stats-log.the-daily-allowance-is-unmeasured-until: the daily allowance is unmeasured until its first full-day fact, and a measured baseline only falls [C7]', () => {
   const empty = { version: 1, allowancePerDay: null, observedDay: null, fact: null };
   const measured = { version: 1, allowancePerDay: 12, observedDay: '2026-10-28', fact: 'fixture-full-day-fact' };
   assert.deepEqual(boardHoldBaselineProblems(empty), []);
@@ -183,7 +183,7 @@ test('the daily allowance is unmeasured until its first full-day fact, and a mea
   assert.match(boardHoldLines(live, measured).join(), /WARNING: 13.*exceed the daily allowance 12/u);
 });
 
-test('the gate checks committed allowance changes without consulting live machine counts [C7]', t => {
+test('cli.journeys-stats-log.the-gate-checks-committed-allowance-changes: the gate checks committed allowance changes without consulting live machine counts [C7]', t => {
   assert.deepEqual(committedBoardHoldBaselineProblems(join(import.meta.dirname, '../../../..')), []);
   const box = cellProject(t), file = join(box.repo, 'packages/store/src/io/board/hold/baseline.json');
   mkdirSync(join(box.repo, 'packages/store/src/io/board/hold'), { recursive: true });

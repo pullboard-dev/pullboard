@@ -92,6 +92,7 @@ export {
   pulledGateReds,
   recordPhaseReceipts,
   reportRunaway,
+  runnerCommitPort,
   shardJobs,
   shardedResult,
 } from "./src/io/gate.js";

@@ -22,7 +22,7 @@ refusal: |
   NO_LINE: nothing printed
 `;
 
-test('clause 1: a record with several failures prints each one as field or line, rule, fix and skill command and exits nonzero [C7]', async () => {
+test('cli.contribute-check.a-record-with-several-failures-prints-each: clause 1: a record with several failures prints each one as field or line, rule, fix and skill command and exits nonzero [C7]', async () => {
   const box = e2e.project();
   const file = join(box.repo, 'bad.yml');
   writeFileSync(file, GOOD.replace('ran: pullboard next', 'ran:\n\tpullboard next').replace('blocks: nothing', 'bogus: yes\nblocks: nothing'));
@@ -38,7 +38,7 @@ test('clause 1: a record with several failures prints each one as field or line,
   assert.match(lines.at(-1), /^[2-9] failures in /u);
 });
 
-test('clause 1: a record the parser accepts exits 0, and the issue form name line sets the shape [C7]', async () => {
+test('cli.contribute-check.a-record-the-parser-accepts-exits-0: clause 1: a record the parser accepts exits 0, and the issue form name line sets the shape [C7]', async () => {
   const box = e2e.project();
   const file = join(box.repo, 'good.md');
   writeFileSync(file, `---\nname: Bug\n---\n\nIt broke.\n\n\`\`\`yaml\n${GOOD}\`\`\`\n`);
@@ -49,7 +49,7 @@ test('clause 1: a record the parser accepts exits 0, and the issue form name lin
   assert.notEqual(missing.code, 0);
 });
 
-test('clause 2: the check prints the summary length against its limit and CONTRIB_SECRET with line, rule, fix and skill command for a secret-looking value [C7]', async () => {
+test('cli.contribute-check.the-check-prints-the-summary-length-against: clause 2: the check prints the summary length against its limit and CONTRIB_SECRET with line, rule, fix and skill command for a secret-looking value [C7]', async () => {
   const box = e2e.project();
   const file = join(box.repo, 'secret.md');
   const key = ['AKIA', 'IOSFODNN7EXAMPLE'].join('');

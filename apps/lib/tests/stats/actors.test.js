@@ -106,7 +106,7 @@ function assertCountsUnchanged(board, stats, options) {
   }
 }
 
-test('[R1,R2] legacy family declarations are unknown until a family event and do not backfill', (t) => {
+test('lib.stats-actors.legacy-family-declarations-are-unknown-until: [R1,R2] legacy family declarations are unknown until a family event and do not backfill', (t) => {
   const { board } = familyHistory(t);
   const stats = proofStats(board, {}, statsReadPorts);
   assert.equal(board.db.prepare('SELECT agent_family FROM agent WHERE agent_id=?').get('web-1').agent_family, 'new-family',
@@ -123,7 +123,7 @@ test('[R1,R2] legacy family declarations are unknown until a family event and do
   assertCountsUnchanged(board, stats);
 });
 
-test('[R1,R2] a window keeps earlier family evidence but excludes earlier unknown-family moves', (t) => {
+test('lib.stats-actors.a-window-keeps-earlier-family-evidence: [R1,R2] a window keeps earlier family evidence but excludes earlier unknown-family moves', (t) => {
   const { board } = familyHistory(t);
   const since = '2026-02-04';
   const stats = proofStats(board, { since }, statsReadPorts);
@@ -139,7 +139,7 @@ test('[R1,R2] a window keeps earlier family evidence but excludes earlier unknow
   assertCountsUnchanged(board, stats, { since });
 });
 
-test('[R1,R2] explicit snapshots override prior state, null clears it, and system actors stay excluded', (t) => {
+test('lib.stats-actors.explicit-snapshots-override-prior-state-null: [R1,R2] explicit snapshots override prior state, null clears it, and system actors stay excluded', (t) => {
   const { board } = familyHistory(t);
   const document = exportBoard(board);
   const history = document.tables.event;
@@ -179,7 +179,7 @@ test('[R1,R2] explicit snapshots override prior state, null clears it, and syste
   assert.equal(events(imported).filter((event) => ['board', 'person'].includes(event.event_by)).length, 2);
 });
 
-test('[R1,R2] an empty board reports no agents or family buckets', (t) => {
+test('lib.stats-actors.an-empty-board-reports-no-agents: [R1,R2] an empty board reports no agents or family buckets', (t) => {
   const board = openBoard(':memory:');
   t.after(() => closeBoard(board));
   const { flow, ...historical } = proofStats(board, {}, statsReadPorts);

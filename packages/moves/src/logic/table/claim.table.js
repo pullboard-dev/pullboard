@@ -27,6 +27,7 @@ export const CLAIM_IO = Object.freeze({
   laneSeat: "git + filesystem: a free seat of this session in the item's lane (WRONG_LANE guidance)",
   primaryRoot: 'git: the primary checkout, named when no lane seat is free',
   foreignBlocker: 'another board: the first unlanded cross-repo dependency (BLOCKED)',
+  takeoverReady: 'board: the line takeover wait (line.takeoverMinutes) has passed for this returned item, which ends its first-refusal window',
   builderGone: "heartbeats: the first-refusal builder's seat is gone, which ends its window early",
   buildBudgetMinutes: 'git: accepted itemBuildBudgetMinutes (default 30)',
   seatCap: 'runners + settings: { n, how }, the N top-level item-folder claims a seat may hold, sealed into the claim',
@@ -45,6 +46,8 @@ const FREEZE_CODES = Object.freeze(['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_PO
 
 const leaseLive = (s, item) => item.status === 'claimed' && ((item.leaseUntil ?? '') > s.now || item.gateInFlight === true);
 const isRenewal = (s, m) => s.item.owner === m.actor && leaseLive(s, s.item);
+/** A child is free only beside its own parent, the sub-agent case; a child of a parent this seat does not hold counts like a top-level claim (#10846). */
+const freeChild = (s, parentId) => parentId !== null && s.actorClaims.some(c => c.id === parentId && c.leaseUntil > s.now);
 const isRework = (s, m) => s.item.verdict === 'REJECT' && s.item.builtBy === m.actor;
 const routeIndex = (route) => ROUTES.indexOf(route);
 const cappedRoute = (route, cap) => (cap && routeIndex(cap) < routeIndex(route) ? cap : route);
@@ -54,7 +57,7 @@ const refreshes = (s, m) => Boolean(s.io.policyRefresh && !s.io.policyRefresh.re
 /** Whether the criterion freezes: the first claim, an adopted correction, or a lane-policy refresh. */
 const freezes = (s, m) => s.item.frozenDigest === null || adopts(s, m) || refreshes(s, m);
 /** The N a new top-level item-folder claim is held to, or null when the claim is not one. */
-const seatCapFor = (s, m) => (!isRenewal(s, m) && m.itemFolder === true && s.item.parentId === null && !isRework(s, m) ? s.io.seatCap ?? null : null);
+const seatCapFor = (s, m) => (!isRenewal(s, m) && m.itemFolder === true && !freeChild(s, s.item.parentId) && !isRework(s, m) ? s.io.seatCap ?? null : null);
 
 /** Fields of an unadopted coordinator correction since the last refreeze. */
 export function pendingRefreeze(s) {
@@ -83,7 +86,7 @@ export function firstRefusalWindow(s) {
   return null;
 }
 
-/** Why the first-refusal window keeps this seat off, or null; the board never set takeover minutes, so takeover is off. */
+/** Why the first-refusal window keeps this seat off, or null; an elapsed line takeover wait ends the window as it does for the writer. */
 function firstRefusalReason(s, m) {
   const window = firstRefusalWindow(s);
   if (!window) return null;
@@ -91,7 +94,7 @@ function firstRefusalReason(s, m) {
     const reviewed = s.history.some(e => e.by === m.actor && ['accept', 'reject', 'reserve'].includes(e.kind));
     return reviewed ? `item #${m.id} returned for lack of progress; a reviewer of it cannot take the first refusal; take another item` : null;
   }
-  return window.builder !== m.actor && !s.io.builderGone
+  return window.builder !== m.actor && !s.io.builderGone && !s.io.takeoverReady
     ? `item #${m.id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it` : null;
 }
 
@@ -116,12 +119,12 @@ function oneClaimProblem(s, m) {
   if (live.length >= LIVE_CLAIM_CAP) return 'you already hold ten live claims; submit or release one before claiming another';
   const cap = seatCapFor(s, m);
   if (cap) {
-    const top = live.filter(c => c.parentId === null && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
-    if (top.length >= cap.n) return `you already hold ${top.map(c => `#${c.id}`).join(', ')}; a seat holds up to ${cap.n} (${cap.how}); submit or release one first (child items are free)`;
+    const top = live.filter(c => !freeChild(s, c.parentId) && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
+    if (top.length >= cap.n) return `you already hold ${top.map(c => `#${c.id}`).join(', ')}; a seat holds up to ${cap.n} (${cap.how}); submit or release one first (children of an item you hold are free)`;
   }
-  if (m.itemFolder === true || s.item.parentId !== null || isRework(s, m)) return null;
-  const other = live.find(c => c.parentId === null && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
-  return other ? `you already hold #${other.id}; submit or release it first (child items are free)` : null;
+  if (m.itemFolder === true || freeChild(s, s.item.parentId) || isRework(s, m)) return null;
+  const other = live.find(c => !freeChild(s, c.parentId) && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
+  return other ? `you already hold #${other.id}; submit or release it first (children of an item you hold are free)` : null;
 }
 
 /** A shell `cd` that quotes only paths that need it, as the CLI's does. */
@@ -182,7 +185,7 @@ const CLAIM_RULES = defineRules({
   insideSource: { says: 'an outside PR item stays with its author', holds: (s) => s.item.outside !== 'pull-request' },
   inLane: { says: 'an item is built from its own lane; the refusal names where to build it', holds: (s) => s.item.lane === s.actor.lane },
   lightDiagnosed: { says: 'light work by a light seat needs a current diagnosis', holds: (s, m) => !(seatRoute(s, m) === 'light' && s.item.route === 'light' && !s.item.diagnosed) },
-  routeAllows: { says: 'a seat takes work at or below its route', holds: (s, m) => routeIndex(seatRoute(s, m)) >= routeIndex(s.item.route) },
+  routeAllows: { says: 'a seat takes work at or below its route', holds: (s, m) => routeIndex(seatRoute(s, m)) >= routeIndex(s.item.route) || m.shapedStrong === true && seatRoute(s, m) === 'light' && s.item.route === 'strong' },
   budgetValid: { says: 'the board build budget is positive minutes',
     holds: (s, m) => isRenewal(s, m) || (typeof s.io.buildBudgetMinutes === 'number' && Number.isFinite(s.io.buildBudgetMinutes) && s.io.buildBudgetMinutes > 0) },
   buildScope: { says: 'a new claim fits the board build budget', holds: (s, m) => isRenewal(s, m) || s.item.expectedMinutes == null || s.item.expectedMinutes <= s.io.buildBudgetMinutes },
@@ -293,7 +296,7 @@ function claimTable(grantEngine) {
  * Build the claim rules and table over the grant engine the board stamps on every claim, handed in by the caller.
  * Snapshot: `{ now, actor: { id, lane, route, model, joined }, item, items, claimWaiting, laneHold, actorClaims, history, usedExitKeys, io, deferred }`;
  * `io` holds the fields in CLAIM_IO, `deferred` the precomputed `barProblem`, `reworkRouting`, `exitContinuation`, `lineCapacity`, `submitAdmission` and `submitOutcome`.
- * Move: `{ id, actor, leaseMs, itemFolder, autoNext, reviewSkipped, adoptCorrection, routeCap, exitRules, exitClaimKey, factId }`.
+ * Move: `{ id, actor, leaseMs, itemFolder, autoNext, reviewSkipped, adoptCorrection, routeCap, shapedStrong, exitRules, exitClaimKey, factId }`.
  * Why: moves may not own the engine version; the caller passes state's `AGENT_GRANT_ENGINE`, so there is no second copy to drift (as hop.table.js takes the jobs lease rule).
  *
  * @param {{ grantEngine: number }} board

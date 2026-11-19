@@ -21,7 +21,7 @@ const CALC = 'export function add(a, b) {\n  return a + b;\n}\nexport function i
 const UNIT = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { add, isAdult } from './calc.js';\ntest('add', () => { assert.equal(add(2, 3), 5); });\ntest('adult', () => { assert.equal(isAdult(30), true); assert.equal(isAdult(3), false); });\n";
 const CONTRACT = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { add } from './calc.js';\ntest('add contract', () => { assert.equal(add(2, 3), 5); });\n";
 
-test('clause 1: testKind sorts a test path into journey, contract, harness or cell unit [C7]', () => {
+test('cli.mutate-record.testkind-sorts-a-test-path-into-journey: clause 1: testKind sorts a test path into journey, contract, harness or cell unit [C7]', () => {
   assert.equal(testKind('journeys/ship/main.test.js'), 'journey');
   assert.equal(testKind('tests/journeys/a.test.js'), 'journey');
   assert.equal(testKind('calc.contract.test.js'), 'contract');
@@ -30,7 +30,7 @@ test('clause 1: testKind sorts a test path into journey, contract, harness or ce
   assert.equal(testKind('calc.test.js'), 'cell unit');
 });
 
-test('clause 1: score() groups caught and seeded faults by test kind [C7]', () => {
+test('cli.mutate-record.score-groups-caught-and-seeded-faults-by: clause 1: score() groups caught and seeded faults by test kind [C7]', () => {
   const report = {
     tests: [{ file: 'calc.test.js' }, { file: 'calc.contract.test.js' }, { file: 'journeys/a.test.js' }],
     faults: [
@@ -49,7 +49,7 @@ test('clause 1: score() groups caught and seeded faults by test kind [C7]', () =
   assert.deepEqual(score({ tests: [], faults: [] }), []);
 });
 
-test('clause 1: show lines come from the latest measurement per cell and ignore other facts [C7]', () => {
+test('cli.mutate-record.show-lines-come-from-the-latest-measurement: clause 1: show lines come from the latest measurement per cell and ignore other facts [C7]', () => {
   const fact = (kind, text) => ({ type: 'fact', kind, text });
   const lines = mutationScoreLines([
     fact('measurement', 'mutation score cells/calc: cell unit 1/4'),
@@ -61,7 +61,7 @@ test('clause 1: show lines come from the latest measurement per cell and ignore 
   assert.deepEqual(lines, ['mutation score (report only): cells/calc: cell unit 3/4']);
 });
 
-test('clause 1: mutate --item stores the score on the item, show prints it, and a score of 0 never refuses [C7]', async () => {
+test('cli.mutate-record.mutate-item-stores-the-score-on-the: clause 1: mutate --item stores the score on the item, show prints it, and a score of 0 never refuses [C7]', async () => {
   const box = helpers.project('true');
   const dir = join(box.repo, 'cells', 'calc');
   mkdirSync(dir, { recursive: true });
@@ -82,7 +82,7 @@ test('clause 1: mutate --item stores the score on the item, show prints it, and 
   assert.equal(none.code, 0, 'without --item nothing is recorded and nothing refuses');
 });
 
-test('clause 1: no refusal reads a mutation score, so a score of 0 cannot block submit, verify or landing [C7]', () => {
+test('cli.mutate-record.no-refusal-reads-a-mutation-score-so: clause 1: no refusal reads a mutation score, so a score of 0 cannot block submit, verify or landing [C7]', () => {
   const readers = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

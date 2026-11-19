@@ -11,7 +11,7 @@ import { registryBox } from '../../tests/fixtures/guards.js';
 
 after(e2e.cleanup);
 
-test('full fallback and candidate policy edits cannot omit an accepted registry guard [C7,V4,V16]', async () => {
+test('cli.journeys-submit-guards-full.full-fallback-and-candidate-policy-edits: full fallback and candidate policy edits cannot omit an accepted registry guard [C7,V4,V16]', async () => {
   const box = (await registryBox({ deferred: false }));
   put(box.web, 'src/moves/newMove.js', 'export const operation = "newMove";\n');
   // Unknown data forces a full gate, which is deliberately true and does not include this guard.

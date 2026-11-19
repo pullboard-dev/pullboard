@@ -1,0 +1,4 @@
+{
+  "moves.logic-moves-register.clause-1-a-role-raises-the-floor": {"proves":{"specs":["C7","H16"],"claim":"A register whose first argument carries a role is floored at ADVISOR_ROLE_ENGINE; one with no role keeps its old floor."},"why":"A recorded advisor role must never replay under an engine older than its own leaf.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/register.js","packages/moves/tests/logic/moves/register.test.js"]},
+  "moves.logic-moves-register.clause-2-bad-role-reason": {"proves":{"specs":["C7","H16"],"claim":"The BAD_ROLE refusal text tells the caller to use --role advisor or leave --role off."},"why":"A refused role must name the fix, not just the code.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/register.js","packages/moves/tests/logic/moves/register.test.js"]}
+}

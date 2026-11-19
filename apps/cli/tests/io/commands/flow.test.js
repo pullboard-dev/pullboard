@@ -26,7 +26,7 @@ import {
   prepareEngineMove,
 } from '../../../../../packages/state/index.js';
 import { FLOW_SIZE_ENGINE } from '../../../../../packages/state/light.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -35,7 +35,7 @@ import { replayHistoricalSeatMove } from '../../fixtures/seats.js';
 
 const HOUR = 3_600_000;
 
-test('a submit records its immutable changed-line base and head for flow buckets [R1,R2,V4]', { timeout: 60_000 }, t => {
+test('cli.io-commands-flow.a-submit-records-its-immutable-changed-line: a submit records its immutable changed-line base and head for flow buckets [R1,R2,V4]', { timeout: 60_000 }, t => {
   const project = cellProject(t, { gate: 'true' });
   const repo = project.repo;
   const web = join(project.dir, 'web');
@@ -85,7 +85,7 @@ test('a submit records its immutable changed-line base and head for flow buckets
     'advancing the trunk leaves the earlier submission measurement unchanged');
 });
 
-test('submission size replays identically and refuses unsupported or malformed measurements [R1,R2,H16]', t => {
+test('cli.io-commands-flow.submission-size-replays-identically-and-refuses-unsupported: submission size replays identically and refuses unsupported or malformed measurements [R1,R2,H16]', t => {
   // A native board must know its repository, so the fixture boards live in a repo's .git/pullboard as Pullboard stores them.
   const box = cellProject(t, { gate: 'true' });
   const source = cellBoard(t, join(box.repo, '.git/pullboard/source.sqlite'), undefined, { gitRoot: box.repo });

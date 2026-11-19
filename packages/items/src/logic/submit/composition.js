@@ -20,7 +20,7 @@ export function requireSubmitComposition(root, candidate, trunk, expectedMain, p
 
 /** The refusal shared by every way a submission can miss the proved main. */
 function notComposed(trunk) {
-  return new Refused('MAIN_NOT_COMPOSED', `the submission must contain current main ${trunk.commit.slice(0,12)} and prove that same snapshot; merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
+  return new Refused('MAIN_NOT_COMPOSED', `the submission must contain current main ${trunk.commit.slice(0,12)} and prove that same snapshot; run pullboard submit <id> again, since submit composes current main`);
 }
 
 /** The first parent of a commit, or null for a root commit. */
@@ -52,11 +52,11 @@ export async function composeAfterProof(root, { id, proofCommit, proved, item, c
   const moved = [];
   for (let round = 0; round < MAX_MOVES; round += 1) {
     if (!contains(root, from, trunk.commit)) {
-      throw new Refused('MAIN_NOT_COMPOSED', `main moved from ${from.slice(0, 12)} to ${trunk.commit.slice(0, 12)}, which does not contain the proved main; merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
+      throw new Refused('MAIN_NOT_COMPOSED', `main moved from ${from.slice(0, 12)} to ${trunk.commit.slice(0, 12)}, which does not contain the proved main; run pullboard submit <id> again, since submit composes current main`);
     }
     const judged = await services.judgeTrunkMove(root, { from, to: trunk.commit, item, checkedCommit: proofCommit, check }, services, { all: true });
     if (judged.overlaps.length) {
-      throw new Refused('MAIN_NOT_COMPOSED', `main moved from ${proved.slice(0, 12)} to ${trunk.commit.slice(0, 12)} during the submission proof and changed what the proof depends on: ${judged.overlaps.join('; ')}; merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
+      throw new Refused('MAIN_NOT_COMPOSED', `main moved from ${proved.slice(0, 12)} to ${trunk.commit.slice(0, 12)} during the submission proof and changed what the proof depends on: ${judged.overlaps.join('; ')}; run pullboard submit <id> again, since submit composes current main`);
     }
     moved.push(...judged.moved);
     try {
@@ -64,7 +64,7 @@ export async function composeAfterProof(root, { id, proofCommit, proved, item, c
     } catch (error) {
       services.onMergeFailure?.(error);
       try { git(root, ['merge', '--abort']); } catch { /* Nothing was left to abort; the refusal below names the failed merge. */ }
-      throw new Refused('MAIN_NOT_COMPOSED', `main moved to ${trunk.commit.slice(0, 12)} during the submission proof and merging it failed (${String(error.stderr || error.message).trim().split('\n')[0]}); merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
+      throw new Refused('MAIN_NOT_COMPOSED', `main moved to ${trunk.commit.slice(0, 12)} during the submission proof and merging it failed (${String(error.stderr || error.message).trim().split('\n')[0]}); resolve that conflict in your worktree, commit, then run pullboard submit <id> again`);
     }
     head = headCommitOf(root);
     const now = readTrunk();

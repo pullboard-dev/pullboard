@@ -6,7 +6,7 @@ import { SHARD_JOB_KIND } from '../../../../../packages/api/index.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { configFromSource } from '../../../../../packages/config/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitAndWithdraw } from '../../../src/io/hook/push.js';
 import { pushShardLimitMs } from '../../../src/io/hook/push.js';
 
@@ -26,7 +26,7 @@ async function giveUp(t, ctx, minutes, env) {
   return awaitAndWithdraw(ctx, JOBS, { read: on, write: on, now: () => clock.at, wait, pollMs: 0, limitMs: limit, exit: () => assert.fail('no exit'), signals: new EventEmitter() });
 }
 
-test('clause 1: pushGate.shardMinutes defaults to 20, is read from pullboard.json, and a bad value is refused [C7,#7810]', () => {
+test('cli.io-hook-push-limit.pushgate-shardminutes-defaults-to-20-is-read: clause 1: pushGate.shardMinutes defaults to 20, is read from pullboard.json, and a bad value is refused [C7,#7810]', () => {
   assert.equal(configFromSource('{}').pushGate.shardMinutes, 20);
   assert.equal(configFromSource('{"pushGate":{"shardMinutes":45}}').pushGate.shardMinutes, 45);
   for (const value of [0, -5, 1.5, '20', null, 5000]) assert.throws(() => configFromSource(JSON.stringify({ pushGate: { shardMinutes: value } })), { code: 'BAD_CONFIG' }, String(value));
@@ -34,7 +34,7 @@ test('clause 1: pushGate.shardMinutes defaults to 20, is read from pullboard.jso
   assert.equal(pushShardLimitMs(undefined, {}), 20 * MIN, 'no config means the default');
 });
 
-test('clause 1: the setting sets when the gate gives up, and the refusal names the setting and how to raise it [C7,#7810]', async t => {
+test('cli.io-hook-push-limit.the-setting-sets-when-the-gate-gives: clause 1: the setting sets when the gate gives up, and the refusal names the setting and how to raise it [C7,#7810]', async t => {
   const settled = await giveUp(t, { config: { pushGate: { shardMinutes: 5 } } }, 6, {});
   assert.match(settled.refused, /ran past the 5-minute shard limit/u);
   assert.match(settled.refused, /raise pushGate\.shardMinutes in pullboard\.json/u);
@@ -42,7 +42,7 @@ test('clause 1: the setting sets when the gate gives up, and the refusal names t
   await assert.rejects(giveUp(t, { config: { pushGate: { shardMinutes: 30 } } }, 6, {}), /never gave up/u, 'a 6-minute look is inside a 30-minute limit');
 });
 
-test('clause 2: a raised PULLBOARD_RUNNER_RUN_CEILING_MS gives the same limit, and a lower or off one never shortens the setting [C7,#7810]', async t => {
+test('cli.io-hook-push-limit.a-raised-pullboard-runner-run-ceiling-ms: clause 2: a raised PULLBOARD_RUNNER_RUN_CEILING_MS gives the same limit, and a lower or off one never shortens the setting [C7,#7810]', async t => {
   const config = { pushGate: { shardMinutes: 20 } };
   assert.equal(pushShardLimitMs(config, { PULLBOARD_RUNNER_RUN_CEILING_MS: String(60 * MIN) }), 60 * MIN);
   assert.equal(pushShardLimitMs(config, { PULLBOARD_RUNNER_RUN_CEILING_MS: String(5 * MIN) }), 20 * MIN);

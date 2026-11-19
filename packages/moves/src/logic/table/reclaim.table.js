@@ -35,6 +35,8 @@ const handoffValid = (h, id) => Boolean(h) && Array.isArray(h.changedFiles) && h
 function idleProblem(s, m) {
   const r = m.row, observed = Date.parse(m.observedAt);
   if (s.item.status !== 'claimed' || s.item.owner !== r.actor || s.item.owner === m.maintainer || s.ownerLastClaimId !== r.claimEventId) return 'STALE_STATE_CHANGED';
+  // An unsettled gate is the board's work: no idle rule, seat-gone included, takes its claim, as the store's re-check says [C7,#10931,#10934].
+  if (s.gateInFlight === true) return 'STALE_STATE_CHANGED';
   if (!IDLE_KINDS.includes(r.idle)) return 'BAD_STALE_STATE';
   if (r.idle === 'seat-gone') {
     const last = Date.parse(r.deadSeat?.heartbeatAt ?? r.claimAt ?? '');
@@ -73,6 +75,8 @@ function lapseProblem(s, m) {
   const at = instant(r.lastActivity, observed), leaseAt = instant(r.leaseUntil, observed);
   if (r.evidence?.complete !== true || at === null || r.limitMs !== m.limits.claim || observed - at < m.limits.claim
     || leaseAt === null || observed - leaseAt < m.limits.claim) return 'BAD_STALE_STATE';
+  // A lapsed lease waits for the item's unsettled gate too, checked last as the store checks it [C7,#10931,#10934].
+  if (s.gateInFlight === true) return 'STALE_STATE_CHANGED';
   return null;
 }
 

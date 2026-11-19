@@ -14,6 +14,7 @@ import { STALE_STATE_ENGINE } from "../../../../../state/light.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../../state/light.js";
 import { QUEUED_RED_RETURN_ENGINE } from "../../../../../state/light.js";
 import { redReturnLeaseHolds } from "../../red/return.js";
+import { submitGateInFlight } from "../../red/return.js";
 import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../../state/light.js";
 import { PINNED_CLAIM_RELEASE_MS } from "../../pinned.js";
 import { itemPinned } from "../../pinned.js";
@@ -105,7 +106,10 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
   const after = String(item.item_after ?? '').split(',').map(Number).filter(Number.isSafeInteger);
   // What the reclaim table reads, as this re-check found it; filled in as each rule's facts are read [C7,#9367].
-  const facts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, after }, ownerLastClaimId: claim.event_id, deps: {}, redReturnLease: false, progressNow: null, pinned: false };
+  // An unsettled gate is the board's work: no idle rule, seat-gone included, takes its claim until it settles [C7,#10931].
+  const gateInFlight = submitGateInFlight(board, item);
+  const facts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, after }, ownerLastClaimId: claim.event_id, deps: {}, redReturnLease: false, progressNow: null, pinned: false, gateInFlight };
+  if (gateInFlight) changed();
   if (!['stall', 'release', 'waiting', 'progress', 'seat-gone', 'dependency'].includes(row.idle)) invalid();
   if (row.idle === 'seat-gone') {
     const signal = row.deadSeat?.heartbeatAt ?? row.claimAt;
@@ -261,6 +265,8 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         observedExpiry(row, snapshot.limits.claim, snapshot.observedAt);
         const leaseAt = staleInstant(row.leaseUntil, Date.parse(snapshot.observedAt));
         if (leaseAt === null || Date.parse(snapshot.observedAt) - leaseAt < snapshot.limits.claim) invalid();
+        // A lapsed lease waits for the item's unsettled gate too, whose result applies only to its holder [C7,#10931].
+        if (submitGateInFlight(board, item)) changed();
         return { row, item, leaseMs, lease };
       });
       result.claims = [];
@@ -270,7 +276,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         const lapsedAt = board.clock.now();
         const lapsedFrom = lastEvent();
         const window = { builder: item.item_owner, until: new Date(lapsedAt.getTime() + leaseMs).toISOString() };
-        const lapsedFacts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until }, ownerLastLease: { id: lease.event_id, at: lease.event_at, leaseUntil: row.leaseUntil } };
+        const lapsedFacts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until }, ownerLastLease: { id: lease.event_id, at: lease.event_at, leaseUntil: row.leaseUntil }, gateInFlight: false };
         const lapsedMove = { kind: 'lapsed-claim', maintainer: agentId, observedAt: snapshot.observedAt, limits: snapshot.limits, row, now: lapsedAt.toISOString() };
         const lapsedDecided = live ? decided(lapsedFacts, lapsedMove) : null;
         moveItem(board, row.id, 'release', {

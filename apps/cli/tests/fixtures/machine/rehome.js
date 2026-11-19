@@ -6,8 +6,8 @@ export function assertRehomeTriggerDeclaration() {
   const moveSql = machine => machineRules.storeTriggers(machine).find(({ name }) => name === 'machine_item_move').sql;
   const pairs = machineRules.MACHINE.moves.flatMap(move => move.from.filter(from => from !== move.to).map(from => `'${from}>${move.to}'`));
   for (const pair of pairs) assert.ok(moveSql(machineRules.MACHINE).includes(pair), `the move trigger allows ${pair}`);
-  // The only open-to-verified edge is the source-acceptance import, not a direct verdict.
-  assert.deepEqual(machineRules.MACHINE.moves.filter(move => move.from.includes('open') && move.to === 'verified').map(move => move.verb), ['rehomeImport']);
+  // The open-to-verified edges are the source-acceptance import and the landing reland, each with its own guards, not a direct verdict.
+  assert.deepEqual(machineRules.MACHINE.moves.filter(move => move.from.includes('open') && move.to === 'verified').map(move => move.verb), ['rehomeImport', 'reland']);
   assert.ok(moveSql(machineRules.MACHINE).includes("'open>verified'"));
   const machine = structuredClone(machineRules.MACHINE);
   machine.moves.push({ verb: 'testDirectVerdict', from: ['withdrawn'], to: 'verified', by: ['coordinator'], refuse: 'CLOSED', guards: ['joined', 'coordinatorOnly', 'itemExists', machineRules.IN_STATE], sets: ['item_built_by', 'item_commit', 'item_frozen_digest'] });

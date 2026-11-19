@@ -2,6 +2,7 @@
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 /** The derived file's path beside a board file: `<board file>.derived-state.sqlite`. */
@@ -114,6 +115,46 @@ export function sweepDerivedState(board, { mainCommit, enabled, listItems, verdi
     'gate-at-head': items.filter(item => item.item_status === 'open')
       .map(item => ({ key: String(item.item_id), value: gateAtHead(board, item) })).filter(row => row.value),
   };
-  const file = writeKinds(boardFile, mainCommit, kinds);
+  const file = writeKinds(boardFile, mainCommit, { ...kinds, swept: [{ key: 'all', value: '1' }] });
   return { file, counts: Object.fromEntries(Object.entries(kinds).map(([kind, rows]) => [kind, rows.length])) };
+}
+
+/**
+ * Read the five swept kinds for one main commit back from the derived file, or null when the table is not current for that commit [C7,#8945,#10568].
+ * Why: a kind with no rows leaves no row, so only the marker row (kind swept, key all) written in the same transaction tells swept-and-empty from never-swept;
+ * a table swept at any other commit, a missing file, an in-memory board or the setting off all answer null and the caller computes as before.
+ *
+ * @param {any} board - An open board.
+ * @param {{ mainCommit: string, enabled: boolean }} options - The main commit to read and the health.derivedState setting.
+ * @returns {{ holds: Map<string, any>, verdicts: Map<string, any>, acceptOrder: Map<string, number>, seatFamilies: Map<string, string>, gateAtHead: Map<string, string> } | null} The kinds keyed by row key, or null.
+ */
+export function readDerivedState(board, { mainCommit, enabled }) {
+  if (enabled !== true || !mainCommit) return null;
+  const boardFile = boardFileOf(board);
+  if (!boardFile) return null;
+  const file = derivedStatePath(boardFile);
+  if (!existsSync(file)) return null;
+  const derived = new DatabaseSync(file, { readOnly: true });
+  try {
+    if (!derived.prepare("SELECT 1 AS found FROM derived_state WHERE main_commit = ? AND kind = 'swept' AND key = 'all'").get(mainCommit)) return null;
+    const kind = (name, parse) => new Map(derived.prepare('SELECT key, value FROM derived_state WHERE main_commit = ? AND kind = ?').all(mainCommit, name).map(row => [row.key, parse(row.value)]));
+    return {
+      holds: kind('hold', JSON.parse), verdicts: kind('verdict', JSON.parse), acceptOrder: kind('accept-order', Number),
+      seatFamilies: kind('seat-family', String), gateAtHead: kind('gate-at-head', String),
+    };
+  } catch { return null; } finally { derived.close(); }
+}
+
+/**
+ * Sweep the derived table at a main commit only when it is not already current there [C7,#3010].
+ * Why: a main move must refresh the table without rewriting it on every pass, so a caller asks once per pass and a table already swept at this commit costs one read.
+ * The caller reads health.derivedState and hands in the board's three readers, so this file loads no other cell.
+ *
+ * @param {any} board - An open file-backed board.
+ * @param {{ mainCommit: string, enabled: boolean, readers: { listItems: (board: any) => any[], verdictState: (item: any) => any, gateAtHead: (board: any, item: any) => string | null } }} options - The main commit, the health.derivedState setting and the readers sweepDerivedState takes.
+ * @returns {{ file: string, counts: Record<string, number> } | null} The sweep's counts, or null when the table was already current, the setting is off or the board is not a file.
+ */
+export function sweepDerivedAtMain(board, { mainCommit, enabled, readers }) {
+  if (enabled !== true || !mainCommit || readDerivedState(board, { mainCommit, enabled }) !== null) return null;
+  return sweepDerivedState(board, { mainCommit, enabled, ...readers });
 }

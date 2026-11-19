@@ -27,14 +27,14 @@ async function request(runnersOnly) {
   return { made, marker, box };
 }
 
-test('with gate.runnersOnly set, companion never runs checkBaseline on this machine [C7,E28]', async () => {
+test('cli.io-commands-companion.with-gate-runnersonly-set-companion-never-runs: with gate.runnersOnly set, companion never runs checkBaseline on this machine [C7,E28]', async () => {
   const { made, marker } = await request(true);
   // A local run would have created the marker before the command returned.
   assert.equal(existsSync(marker), false, `the check ran locally: ${made.err}${made.out}`);
   assert.equal(made.code, 0, made.err + made.out);
 });
 
-test('the check runs through the runner worker or refuses with a next step under gate.runnersOnly [C7,E28]', async () => {
+test('cli.io-commands-companion.the-check-runs-through-the-runner-worker: the check runs through the runner worker or refuses with a next step under gate.runnersOnly [C7,E28]', async () => {
   const { made } = await request(true);
   if (made.code === 0) {
     const baseline = JSON.parse(made.out).item.item_check_baseline;
@@ -42,7 +42,7 @@ test('the check runs through the runner worker or refuses with a next step under
   } else assert.match(made.err + made.out, /"next"|next:/u, 'a refusal names its next step');
 });
 
-test('without gate.runnersOnly the baseline still runs on this machine as before [C7]', async () => {
+test('cli.io-commands-companion.without-gate-runnersonly-the-baseline-still-runs: without gate.runnersOnly the baseline still runs on this machine as before [C7]', async () => {
   const { made, marker } = await request(false);
   assert.equal(made.code, 0, made.err + made.out);
   assert.equal(existsSync(marker), true);

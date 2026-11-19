@@ -26,7 +26,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from '../../../config/index.js';
 import { remoteRepository } from '../logic/github/remote.js';
-import { withMachineHomeWrite } from '../../../resources/index.js';
+import { withMachineHomeWrite } from '../../../resources/light.js';
 import { boardReferenceId } from '../../../kernel/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';

@@ -69,7 +69,7 @@ function worktreeBytes(root) {
   return entries;
 }
 
-test('two real claims derive main inputs once and preserve HEAD, index and working bytes [B6,V1]', async () => {
+test('cli.journeys-fact-main-cache.two-real-claims-derive-main-inputs: two real claims derive main inputs once and preserve HEAD, index and working bytes [B6,V1]', async () => {
   const box = cacheFixture();
   const first = item(box, 'First cached claim');
   const second = item(box, 'Second cached claim');
@@ -102,7 +102,7 @@ test('two real claims derive main inputs once and preserve HEAD, index and worki
   db.close();
 });
 
-test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion provider [B2,B5,C7]', async () => {
+test('cli.journeys-fact-main-cache.wrong-lane-and-one-claim-guards: wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion provider [B2,B5,C7]', async () => {
   const box = cacheFixture();
   const first = item(box, 'Held claim');
   const second = item(box, 'Refused claim');
@@ -141,7 +141,7 @@ test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion 
   } finally { store.closeBoard(held); }
 });
 
-test('a busy cache falls back to an uncached derivation [B2,C7]', { timeout: 20_000 }, () => {
+test('cli.journeys-fact-main-cache.a-busy-cache-falls-back-to: a busy cache falls back to an uncached derivation [B2,C7]', { timeout: 20_000 }, () => {
   // Budget: the production SQLite ten-second busy bound expires once; no scheduling-speed assertion.
   const box = e2e.project();
   cachedMainFact(box.repo, 'busy', ['same-key'], () => ({ rows: [] }), value => Array.isArray(value?.rows));
@@ -154,7 +154,7 @@ test('a busy cache falls back to an uncached derivation [B2,C7]', { timeout: 20_
   } finally { db.exec('ROLLBACK'); db.close(); }
 });
 
-test('next and submit reuse immutable facts while an exact applied approval stays fresh [B6,V3,S18]', async () => {
+test('cli.journeys-fact-main-cache.next-and-submit-reuse-immutable-facts: next and submit reuse immutable facts while an exact applied approval stays fresh [B6,V3,S18]', async () => {
   const box = e2e.project('true');
   const id = item(box, 'Fresh applied approval');
   const original = mainCriterionFacts(box.web, { cacheEligible });
@@ -178,7 +178,7 @@ test('next and submit reuse immutable facts while an exact applied approval stay
   assert.equal(stillImmutable.spec.rows.find(row => row.id === 'G1').text, 'The page renders.', 'live approval did not enter the committed cache');
 });
 
-test('absent, declining and failed eligibility providers never persist runtime-dependent inputs [B6,V1]', () => {
+test('cli.journeys-fact-main-cache.absent-declining-and-failed-eligibility-providers: absent, declining and failed eligibility providers never persist runtime-dependent inputs [B6,V1]', () => {
   const box = e2e.project();
   mainCriterionFacts(box.web, { cacheEligible });
   const db = cache(box);
@@ -193,7 +193,7 @@ test('absent, declining and failed eligibility providers never persist runtime-d
   db.close();
 });
 
-test('foreign Git selectors cannot redirect main bytes or the private cache repository [B6,V1]', () => {
+test('cli.journeys-fact-main-cache.foreign-git-selectors-cannot-redirect-main: foreign Git selectors cannot redirect main bytes or the private cache repository [B6,V1]', () => {
   const box = e2e.project();
   const foreign = e2e.project();
   const previous = process.env.GIT_DIR;
@@ -220,7 +220,7 @@ test('foreign Git selectors cannot redirect main bytes or the private cache repo
   }
 });
 
-test('committed source whitespace preserves exact doctrine bytes and spec line positions [B6,V1]', () => {
+test('cli.journeys-fact-main-cache.committed-source-whitespace-preserves-exact-doctrine: committed source whitespace preserves exact doctrine bytes and spec line positions [B6,V1]', () => {
   const box = e2e.project();
   const original = mainCriterionFacts(box.web, { cacheEligible });
   const spec = join(box.repo, original.specName);
@@ -236,7 +236,7 @@ test('committed source whitespace preserves exact doctrine bytes and spec line p
   assert.equal(facts.doctrine.repo.source, doctrineSource);
 });
 
-test('immutable facts invalidate on main advance and never share mutable parsed rows [B6,V1]', () => {
+test('cli.journeys-fact-main-cache.immutable-facts-invalidate-on-main-advance: immutable facts invalidate on main advance and never share mutable parsed rows [B6,V1]', () => {
   const box = e2e.project();
   const original = mainCriterionFacts(box.web, { cacheEligible });
   original.spec.rows.length = 0;
@@ -251,7 +251,7 @@ test('immutable facts invalidate on main advance and never share mutable parsed 
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), original.commit);
 });
 
-test('damaged facts rebuild, derivation errors propagate once, and identities stay separate [B6,V1]', () => {
+test('cli.journeys-fact-main-cache.damaged-facts-rebuild-derivation-errors-propagate: damaged facts rebuild, derivation errors propagate once, and identities stay separate [B6,V1]', () => {
   const box = e2e.project();
   let count = 0;
   /** Count real cache misses without changing the derived value's authority. */
@@ -275,7 +275,7 @@ test('damaged facts rebuild, derivation errors propagate once, and identities st
   assert.equal(failures, 1);
 });
 
-test('two fresh processes racing for one immutable fact perform one actual derivation [B6,V1]', async () => {
+test('cli.journeys-fact-main-cache.two-fresh-processes-racing-for-one: two fresh processes racing for one immutable fact perform one actual derivation [B6,V1]', async () => {
   const box = e2e.project();
   const counter = join(box.repo, '.git', 'derive-counter');
   const ready = join(box.repo, '.git', 'ready-');
@@ -317,7 +317,7 @@ test('two fresh processes racing for one immutable fact perform one actual deriv
 test.after(e2e.cleanup);
 
 
-test('cache evicts old commits transactionally and reclaims its configured size [B6,C7]', () => {
+test('cli.journeys-fact-main-cache.cache-evicts-old-commits-transactionally-and: cache evicts old commits transactionally and reclaims its configured size [B6,C7]', () => {
   const box = e2e.project();
   const previousBytes = process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES;
   const previousRecent = process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS;
@@ -339,7 +339,7 @@ test('cache evicts old commits transactionally and reclaims its configured size 
   }
 });
 
-test('legacy oversized cache is reclaimed and a smaller limit never changes derived values [B6,C7]', () => {
+test('cli.journeys-fact-main-cache.legacy-oversized-cache-is-reclaimed-and: legacy oversized cache is reclaimed and a smaller limit never changes derived values [B6,C7]', () => {
   const box = e2e.project();
   const directory = join(box.repo, '.git', 'pullboard-main-facts');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -363,7 +363,7 @@ test('legacy oversized cache is reclaimed and a smaller limit never changes deri
   }
 });
 
-test('current main retains all namespace facts while older commits rotate [B6,C7]', () => {
+test('cli.journeys-fact-main-cache.current-main-retains-all-namespace-facts: current main retains all namespace facts while older commits rotate [B6,C7]', () => {
   const box = e2e.project();
   const current = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.repo, 'config', 'pullboard.trunk', 'refs/heads/main');
@@ -385,7 +385,7 @@ test('current main retains all namespace facts while older commits rotate [B6,C7
   }
 });
 
-test('a non-private cache is skipped without changing the computed result [B6,C7]', () => {
+test('cli.journeys-fact-main-cache.a-non-private-cache-is-skipped: a non-private cache is skipped without changing the computed result [B6,C7]', () => {
   const box = e2e.project();
   const directory = join(box.repo, '.git', 'pullboard-main-facts');
   mkdirSync(directory, { recursive: true, mode: 0o755 });

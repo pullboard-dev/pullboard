@@ -14,7 +14,7 @@ import { delimiter } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { machineHome } from '../../../resources/index.js';
+import { processMachineHome as machineHome } from '../../../kernel/light.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Resolve one executable now; a wake is not a shell expression or an argv prefix. */

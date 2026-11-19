@@ -1,5 +1,8 @@
 /** Committed criterion inputs are shared; person decisions and checkout edits are never cached. */
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { statSync } from 'node:fs';
 import { gitSpawnSync } from '../../../git/light.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../kernel/index.js';
@@ -9,6 +12,7 @@ import { doctrineFromSource } from './main.js';
 import { standardDoctrine } from './main.js';
 import { mainCheckout } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
+import { checkoutCommonDir } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { cachedMainFact } from '../../../codemap/light.js';
 import { mainFactToolIdentity } from '../../../codemap/light.js';
@@ -129,11 +133,25 @@ export function appliedMainSpec(facts, decisions, currentSource) {
   return { ...spec, rows: [...rows.values()] };
 }
 
-/** Retain fresh cited-row validation without letting stale or invented local rows authorize a claim. */
-export function liveCriterionSpec(root, facts, item, decisions) {
+/**
+ * The primary checkout's path: the folder holding the shared .git directory of an ordinary clone, read from Git's files, else the first entry of Git's worktree list [C7,#10822].
+ * Why: the claim freeze launched a worktree list in each of agentDoctrine and liveCriterionSpec to find this one folder.
+ * @param {string} root any checkout of the repository
+ * @returns {string|null} the primary checkout, or null when Git names none
+ */
+export function primaryCheckoutPath(root) {
+  const common = checkoutCommonDir(root);
+  if (common && basename(common) === '.git') {
+    try { if (statSync(common).isDirectory()) return dirname(common); } catch { /* Files cannot answer; Git does. */ }
+  }
   const listed = tryGit(root, ['worktree', 'list', '--porcelain', '-z'], { env: cleanGitEnvironment() });
   const first = listed.status === 0 ? listed.stdout.split('\0')[0] : '';
-  const primary = first.startsWith('worktree ') ? first.slice('worktree '.length) : null;
+  return first.startsWith('worktree ') ? first.slice('worktree '.length) : null;
+}
+
+/** Retain fresh cited-row validation without letting stale or invented local rows authorize a claim. */
+export function liveCriterionSpec(root, facts, item, decisions) {
+  const primary = primaryCheckoutPath(root);
   let source = null;
   try { if (primary) source = readFileSync(join(primary, facts.specName), 'utf8'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }

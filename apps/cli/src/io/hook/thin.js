@@ -13,7 +13,7 @@ import { withGitFacts } from '../../../../../packages/git/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { agentSessionDigest } from '../../../../../packages/stats/light.js';
 import { sessionBound } from '../../../../../packages/seats/light.js';
-import { COORDINATOR } from '../../../../../packages/config/index.js';
+import { COORDINATOR } from '../../../../../packages/config/light.js';
 import { hookClock } from '../commands/hook.js';
 import { hookCommand } from '../commands/hook.js';
 import { hookSeatId } from '../commands/hook.js';

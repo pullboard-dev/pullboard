@@ -36,7 +36,7 @@ function standInBoard() {
   return { asked, source };
 }
 
-test('clause 2: an export reads events in bounded batches and still writes the whole board [N26,C7]', async t => {
+test('view.x-io-export-batches.clause-2-an-export-reads-events-in: clause 2: an export reads events in bounded batches and still writes the whole board [N26,C7]', async t => {
   const dir = cellSandbox(t).dir;
   const { asked, source } = standInBoard();
   const output = join(dir, 'snapshot');

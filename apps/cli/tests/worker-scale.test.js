@@ -57,7 +57,7 @@ function simulatedBoard({ budget, cycleHours = 0.5, worth = () => null, outside 
   return sim;
 }
 
-test('a growing queue raises workers to what the budget pays for and the budget is never exceeded; held work is never stopped [B26,C7]', async () => {
+test('cli.worker-scale.a-growing-queue-raises-workers-to-what: a growing queue raises workers to what the budget pays for and the budget is never exceeded; held work is never stopped [B26,C7]', async () => {
   const budget = parseWorkerBudget('20/day');
   const sim = simulatedBoard({ budget, outside: { id: 'person-seat', releaseAt: 3 } });
   const plans = [];
@@ -79,7 +79,7 @@ test('a growing queue raises workers to what the budget pays for and the budget 
   assert.ok(sim.reviews === 0 || sim.log.filter(([kind]) => kind === 'review').length > 0, 'waiting reviews were taken');
 });
 
-test('an empty queue lowers the count with budget left, and K binds below the budget [B26,C7]', async () => {
+test('cli.worker-scale.an-empty-queue-lowers-the-count-with: an empty queue lowers the count with budget left, and K binds below the budget [B26,C7]', async () => {
   const sim = simulatedBoard({ budget: parseWorkerBudget('200/week'), worth: () => 3 });
   const counts = [];
   for (let cycle = 0; cycle < 10; cycle += 1) {
@@ -94,7 +94,7 @@ test('an empty queue lowers the count with budget left, and K binds below the bu
   assert.ok(sim.log.some(([kind]) => kind === 'stop'), 'scaling down stopped idle workers');
 });
 
-test('held seats and seats started elsewhere are never chosen to stop, and reviews are assigned first [B26,C7]', async () => {
+test('cli.worker-scale.held-seats-and-seats-started-elsewhere-are: held seats and seats started elsewhere are never chosen to stop, and reviews are assigned first [B26,C7]', async () => {
   const budget = parseWorkerBudget('10/day');
   const held = planWorkerScale({ budget, usedSpend: 10, cycleHours: 1, hoursLeft: 1, worth: 0, reviews: 0, builds: 0,
     workers: [{ id: 'a', busy: true, managed: true }, { id: 'b', busy: false, managed: false }, { id: 'c', busy: false, managed: true }] });
@@ -122,7 +122,7 @@ function ledgerFixture(t) {
 const DAY = Date.parse('2026-10-28T00:00:00Z');
 const at = hours => DAY + hours * HOUR;
 
-test('counterexample: an unobserved hour with one held seat spends a 1/day budget and launches nothing [B26,C7]', t => {
+test('cli.worker-scale.counterexample-an-unobserved-hour-with-one-held: counterexample: an unobserved hour with one held seat spends a 1/day budget and launches nothing [B26,C7]', t => {
   const { ledger, write } = ledgerFixture(t);
   // The ledger's last sample was 12:00 with one live seat holding a claim; the next record comes at 13:00.
   write({ window: 'day', start: DAY, spend: 0, sampledAt: at(12), seats: ['held'], spent: null });
@@ -135,7 +135,7 @@ test('counterexample: an unobserved hour with one held seat spends a 1/day budge
   assert.deepEqual(plan.stop, [], 'and the held seat keeps running');
 });
 
-test('the ledger charges every seat seen at either end of a gap, in full, and survives a supervisor restart [B26,C7]', t => {
+test('cli.worker-scale.the-ledger-charges-every-seat-seen-at: the ledger charges every seat seen at either end of a gap, in full, and survives a supervisor restart [B26,C7]', t => {
   const { file, ledger, write } = ledgerFixture(t);
   write({ window: 'day', start: DAY, spend: 2, sampledAt: at(9), seats: ['a', 'b'], spent: null });
   // b stopped somewhere in the gap and c started somewhere in it; neither moment was observed.
@@ -146,13 +146,13 @@ test('the ledger charges every seat seen at either end of a gap, in full, and su
   assert.equal(restarted.record('day', at(12.5), ['a']).spend, 12, 'an immediate repeat sample adds nothing');
 });
 
-test('a missing ledger charges the seats live now from the window start [B26,C7]', t => {
+test('cli.worker-scale.a-missing-ledger-charges-the-seats-live: a missing ledger charges the seats live now from the window start [B26,C7]', t => {
   const { ledger } = ledgerFixture(t);
   assert.equal(ledger.record('day', at(18), ['a', 'b']).spend, 36, 'nothing proves when two seats live at 18:00 began, so both are charged from midnight');
   assert.equal(ledgerFixture(t).ledger.record('day', at(18), []).spend, 0, 'with no live seat there is nothing to charge');
 });
 
-test('a day or week rollover charges only the new window, from its start [B26,C7]', t => {
+test('cli.worker-scale.a-day-or-week-rollover-charges-only: a day or week rollover charges only the new window, from its start [B26,C7]', t => {
   const { ledger, write } = ledgerFixture(t);
   write({ window: 'day', start: DAY - 24 * HOUR, spend: 30, sampledAt: at(-0.5), seats: ['a', 'b'], spent: null });
   assert.equal(ledger.record('day', at(0.5), ['a']).spend, 1, 'a and b may have run since midnight: half an hour each in the new day');
@@ -161,7 +161,7 @@ test('a day or week rollover charges only the new window, from its start [B26,C7
   assert.equal(windowStart('week', Date.parse('2026-10-25T23:59:59Z')), Date.parse('2026-10-19T00:00:00Z'), 'Sunday belongs to the week before');
 });
 
-test('a clock that moves backwards treats the budget as spent for the window and names why [B26,C7]', t => {
+test('cli.worker-scale.a-clock-that-moves-backwards-treats-the: a clock that moves backwards treats the budget as spent for the window and names why [B26,C7]', t => {
   const { ledger, write } = ledgerFixture(t);
   write({ window: 'day', start: DAY, spend: 1, sampledAt: at(14), seats: ['a'], spent: null });
   const back = ledger.record('day', at(13), ['a']);
@@ -177,7 +177,7 @@ test('a clock that moves backwards treats the budget as spent for the window and
   assert.equal(across.ledger.read('day', at(23)).spend, Infinity);
 });
 
-test('an unreadable or malformed ledger refuses instead of granting a fresh budget [B26,C7]', t => {
+test('cli.worker-scale.an-unreadable-or-malformed-ledger-refuses-instead: an unreadable or malformed ledger refuses instead of granting a fresh budget [B26,C7]', t => {
   const { file, ledger, write } = ledgerFixture(t);
   writeFileSync(file, '{broken');
   assert.throws(() => ledger.record('day', at(11), []), /unreadable/u);
@@ -189,7 +189,7 @@ test('an unreadable or malformed ledger refuses instead of granting a fresh budg
   }
 });
 
-test('the board observation counts every live local seat and held claims and reviews as busy [B26,C7]', t => {
+test('cli.worker-scale.the-board-observation-counts-every-live-local: the board observation counts every live local seat and held claims and reviews as busy [B26,C7]', t => {
   let at = Date.parse('2026-10-28T12:00:00Z');
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   fixtureRegister(board, { lane: 'coordinator', path: '/fixture/main' });
@@ -227,7 +227,7 @@ function queueGate(board, id, commit, at) {
   board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)').run(record.id, 'queued', 0, JSON.stringify({ commit, record }), at);
 }
 
-test("clause 1: observeWorkers counts a build only when nextFor would offer it to a fresh seat on the scaler's lane and route: holds, dependencies, collisions and queued or green gates excluded [B26,C7]", t => {
+test('cli.worker-scale.observeworkers-counts-a-build-only-when-nextfor: clause 1: observeWorkers counts a build only when nextFor would offer it to a fresh seat on the scaler\'s lane and route: holds, dependencies, collisions and queued or green gates excluded [B26,C7]', t => {
   const at = Date.parse('2026-10-28T12:00:00Z');
   const { board, ids } = openGatedWebBoard(t, at, 30);
   const seat = fixtureRegister(board, { lane: 'web', path: '/fixture/web' });
@@ -262,7 +262,7 @@ test("clause 1: observeWorkers counts a build only when nextFor would offer it t
   assert.equal(offeredByNextFor(30), 0, 'and nextFor offers nothing either');
 });
 
-test('clause 2: With 30 open items that are all gated or held, one cycle plans 0 launches [B26,C7]', t => {
+test('cli.worker-scale.with-30-open-items-that-are-all: clause 2: With 30 open items that are all gated or held, one cycle plans 0 launches [B26,C7]', t => {
   const at = Date.parse('2026-10-28T12:00:00Z');
   const { board, ids } = openGatedWebBoard(t, at, 30);
   assert.equal(observeWorkers(board, { lane: 'web', managed: [], now: at }).builds, 30, 'ungated open items are builds');
@@ -276,7 +276,7 @@ test('clause 2: With 30 open items that are all gated or held, one cycle plans 0
   assert.equal(plan.launch, 0, 'one cycle plans 0 launches');
 });
 
-test('clause 1: workers.budget parses and stores spend per day, and the scaler ledger records spend instead of usedHours [C7]', t => {
+test('cli.worker-scale.workers-budget-parses-and-stores-spend-per: clause 1: workers.budget parses and stores spend per day, and the scaler ledger records spend instead of usedHours [C7]', t => {
   assert.deepEqual(parseWorkerBudget('40/day'), { spend: 40, window: 'day' }, 'the parsed budget is spend over a window');
   assert.equal(parseWorkerBudget('40/day').seatHours, undefined, 'no seatHours field is stored');
   const { ledger, write } = ledgerFixture(t);
@@ -289,7 +289,7 @@ test('clause 1: workers.budget parses and stores spend per day, and the scaler l
   assert.equal(legacy.ledger.read('day', at(10)).spend, 3, 'a ledger written with usedHours reads as the same spend');
 });
 
-test('clause 2: workers help text and setting descriptions name spend per day, and the unset default message matches [C7]', async () => {
+test('cli.worker-scale.workers-help-text-and-setting-descriptions-name: clause 2: workers help text and setting descriptions name spend per day, and the unset default message matches [C7]', async () => {
   const { SETTING_DESCRIPTIONS } = await import('../../../packages/config/index.js');
   const { workHelp } = await import('../src/logic/help/work.js');
   const { DEFAULT_NEXT_STEPS } = await import('../../../packages/state/index.js');

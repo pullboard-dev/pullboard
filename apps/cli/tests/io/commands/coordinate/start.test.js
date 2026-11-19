@@ -15,7 +15,7 @@ function filed(t) {
   return box;
 }
 
-test('clause 1: coordinate confirms the listener is armed and what wakes it [C7,#8516]', async t => {
+test('cli.io-commands-coordinate-start.coordinate-confirms-the-listener-is-armed-and: clause 1: coordinate confirms the listener is armed and what wakes it [C7,#8516]', async t => {
   const box = filed(t);
   const ran = await runCliInProcess(['coordinate'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
@@ -23,7 +23,7 @@ test('clause 1: coordinate confirms the listener is armed and what wakes it [C7,
   assert.match(ran.stdout, /each decision or request on an item thread, and each reject/u);
 });
 
-test('clause 2: coordinate names the builder start per lane and the verifier start as a separate session [C7,#8516]', async t => {
+test('cli.io-commands-coordinate-start.coordinate-names-the-builder-start-per-lane: clause 2: coordinate names the builder start per lane and the verifier start as a separate session [C7,#8516]', async t => {
   const box = filed(t);
   const ran = await runCliInProcess(['coordinate'], { cwd: box.root, env: box.env });
   assert.match(ran.stdout, /builder \(web\): pullboard worktree web --model/u);

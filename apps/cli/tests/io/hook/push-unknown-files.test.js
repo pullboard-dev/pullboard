@@ -5,7 +5,7 @@ import { shardProblem } from '../../../src/io/hook/push.js';
 
 const names = (prefix, count) => Array.from({ length: count }, (_, at) => `${prefix}${String(at).padStart(2, '0')}.test.js`);
 
-test('clause 1: a shard with no receipt names its files as not run, neither red nor green, and never under failing files [C7,#9370]', () => {
+test('cli.io-hook-push-unknown-files.a-shard-with-no-receipt-names-its: clause 1: a shard with no receipt names its files as not run, neither red nor green, and never under failing files [C7,#9370]', () => {
   const plan = { shards: [{ files: ['a.test.js'] }, { files: ['b.test.js'] }, { files: ['c.test.js', 'd.test.js'] }] };
   const jobs = ['j1', 'j2', 'j3'];
   const combined = { gate: { shards: [{ job: 'j1', green: true }, { job: 'j2', green: false }, { job: 'j3', green: false }] } };
@@ -18,7 +18,7 @@ test('clause 1: a shard with no receipt names its files as not run, neither red 
   assert.match(problem, /unknown in 1 of 3 shard jobs \(j3\)/u);
 });
 
-test('clause 1: more than 20 unrun files name the first 20 and a count after [C7,#9370]', () => {
+test('cli.io-hook-push-unknown-files.more-than-20-unrun-files-name-the: clause 1: more than 20 unrun files name the first 20 and a count after [C7,#9370]', () => {
   const files = names('f', 25);
   const plan = { shards: [{ files }] };
   const combined = { gate: { shards: [{ job: 'j1', green: false }] } };

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellSandbox } from '../../../../../../packages/store/tests/fixtures/cell.js';
 import { boardRun } from '../../../../../../packages/store/index.js';
 import { RUNS_STORE_KEY } from '../../../../../../packages/store/index.js';
@@ -23,7 +23,7 @@ function offerOne(t, flag) {
   return { board, queue, job };
 }
 
-test('clause 1: with runs_store on, the pull submit offers its gate job through queueRun and the board holds a queued run row [B2,P7]', t => {
+test('cli.io-submit-gate-offer-queue.with-runs-store-on-the-pull-submit: clause 1: with runs_store on, the pull submit offers its gate job through queueRun and the board holds a queued run row [B2,P7]', t => {
   const { board, queue, job } = offerOne(t, true);
   assert.ok(queue, 'the flag is on, so there is a queue');
   assert.equal(job.kind, 'gate');
@@ -31,7 +31,7 @@ test('clause 1: with runs_store on, the pull submit offers its gate job through 
   assert.equal(jobView(queue.runs.db, job.id).step, 'offered', 'the runs file holds the offered job');
 });
 
-test('clause 2: with runs_store off, the pull gate offer writes the same rows as today [B2,P7]', t => {
+test('cli.io-submit-gate-offer-queue.with-runs-store-off-the-pull-gate: clause 2: with runs_store off, the pull gate offer writes the same rows as today [B2,P7]', t => {
   const { board, queue, job } = offerOne(t, false);
   assert.equal(queue, null, 'the flag is off, so there is no queue');
   assert.equal(job.step, 'offered');

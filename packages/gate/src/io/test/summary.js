@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { gitPath } from '../../../../git/index.js';
+import { boardFolderFile } from '../../../../git/index.js';
 import { safeLog } from '../execution.js';
 import { tapTests } from '../tap.js';
 import { readCacheRows } from './account.js';
@@ -83,13 +83,14 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
 }
 
 /**
- * Retain the complete sanitized output in this run's own directory before returning its presentation.
+ * Retain the complete sanitized output in this run's own directory under the repository's common Git folder, so the run
+ * outlives the worktree that made it and any worktree of the repo reads it by run id [C7,#10845].
  * @param {string} root
  * @param {string} output
  * @param {{ root?: string, profile?: object, directory?: string }} [options]
  */
 export function retainTestOutput(root, output, options = {}) {
-  const directory = options.directory ? join(options.directory, randomUUID()) : gitPath(root, join('pullboard-runs', randomUUID()));
+  const directory = options.directory ? join(options.directory, randomUUID()) : boardFolderFile(root, join('pullboard-runs', randomUUID()));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const logPath = join(directory, 'output.log');
   writeFileSync(logPath, safeLog(output), { flag: 'wx', mode: 0o600 });

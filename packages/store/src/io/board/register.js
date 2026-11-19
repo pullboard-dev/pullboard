@@ -1,7 +1,9 @@
 import { seatFamily } from "../../../../verify/index.js";
 import { AGENT_GRANT_ENGINE } from "../../../../state/light.js";
+import { ADVISOR_ROLE_ENGINE } from "../../../../state/light.js";
 import { FAMILY_DECLARE_ENGINE } from "../../../../state/light.js";
 import { heartbeatSeat } from "../presence.js";
+import { writeBoardMeta } from "./meta.js";
 import { now } from "./query.js";
 import { atomic } from "./event/log.js";
 import { afterBoardWrite } from "./event/log.js";
@@ -38,13 +40,19 @@ export function isRemoteAgentPath(path) {
  * independent verifiers (#579). A creator may name the new seat (`id`, the lane's next form) when
  * the relay already issued a token for the next name; ids then skip taken names.
  *
+ * With `coordinatorSeat: true` a worktree other than the main checkout joins the coordinator lane as
+ * `coordinator-<n>`, so paths no lane owns have a seat beside the main checkout; the main checkout stays `coordinator`.
+ *
  * @param {any} board
- * @param {{ lane: string, path: string, route?: string, family?: string | null, model?: string | null, parent?: string | null, session?: string | null, createdBy?: string, id?: string }} who
+ * @param {{ lane: string, path: string, route?: string, family?: string | null, model?: string | null, parent?: string | null, session?: string | null, createdBy?: string, id?: string, coordinatorSeat?: boolean }} who
  * @returns {string} The agent's id.
  */
 export function register(board, who) {
   let { lane, path, route = 'strong', family, model, createdBy, id: named } = who;
+  const { role } = who;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (role !== undefined && role !== 'advisor') throw new Refused('BAD_ROLE', `${JSON.stringify(role)} is not a seat role; use --role advisor, or leave --role off`);
+  if (role !== undefined && engine < ADVISOR_ROLE_ENGINE) throw new Refused('ENGINE_VERSION', `a seat role requires engine ${ADVISOR_ROLE_ENGINE}; upgrade Pullboard before using --role`);
   if (engine < 8) model = undefined;
   if (engine < VERIFIER_STANDING_ENGINE) { createdBy = undefined; named = undefined; }
   checkRoute(route);
@@ -93,13 +101,16 @@ export function register(board, who) {
     const { total } = board.db
       .prepare('SELECT COUNT(*) AS total FROM agent WHERE agent_lane = ?')
       .get(lane);
-    if (lane === COORDINATOR && total > 0) {
+    // A caller that asks for a coordinator seat (its setting read in the command layer) adds one beside the main checkout [C7,#10571].
+    const coordinatorSeat = lane === COORDINATOR && who.coordinatorSeat === true;
+    // The main checkout's seat is the agent named coordinator; a coordinator seat registered first never takes its place.
+    if (lane === COORDINATOR && !coordinatorSeat && board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(COORDINATOR)) {
       throw new Refused('ONE_COORDINATOR', 'the coordinator is the main checkout; it already has one');
     }
     if (createdBy !== undefined && createdBy !== 'machine' && createdBy !== COORDINATOR && !board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(createdBy)) {
       throw new Refused('NO_AGENT', `the creating seat ${createdBy} is not registered; create new seats from a joined worktree or the main checkout`);
     }
-    const id = lane === COORDINATOR ? COORDINATOR
+    const id = lane === COORDINATOR && !coordinatorSeat ? COORDINATOR
       : engine < VERIFIER_STANDING_ENGINE ? `${lane}-${total + 1}` : newSeatId(board, lane, total, named);
     // Delivery cursors are local-only; a new inbox starts at this join's current shout high-water mark.
     board.db
@@ -110,6 +121,7 @@ export function register(board, who) {
     const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
     if (createdBy !== undefined) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_creator:${id}`, createdBy);
+    if (role !== undefined) writeBoardMeta(board.db, `agent_role:${id}`, role);
     // Only a relay replica replaying a receipt-bound registration marks the seat enrolled.
     if (board.relayEnrollment === id && createdBy !== undefined && createdBy !== 'machine') {
       board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_enrolled:${id}`, createdBy);
@@ -119,7 +131,7 @@ export function register(board, who) {
     }
     logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
       ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}),
-      ...(who.lockLane ? { lockLane: true } : {}), ...(who.reviewLimits?.length ? { reviewLimits: who.reviewLimits } : {}) });
+      ...(who.lockLane ? { lockLane: true } : {}), ...(role === undefined ? {} : { role }), ...(who.reviewLimits?.length ? { reviewLimits: who.reviewLimits } : {}) });
     fresh = true;
     return id;
   });

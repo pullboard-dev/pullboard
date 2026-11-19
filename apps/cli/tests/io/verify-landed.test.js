@@ -13,7 +13,7 @@ async function landed(box, title) {
   return item.item_id;
 }
 
-test('clause 1: verify accept and reject on a landed item records the verdict, and a reject reopens a follow-up for the builder instead of refusing as terminal [V1,H16]', async t => {
+test('cli.io-verify-landed.verify-accept-and-reject-on-a-landed: clause 1: verify accept and reject on a landed item records the verdict, and a reject reopens a follow-up for the builder instead of refusing as terminal [V1,H16]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');

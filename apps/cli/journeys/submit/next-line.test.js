@@ -12,7 +12,7 @@ function nextLines(result) {
   return [document.next, document.nextStep, document.error?.next, document.error?.message].filter(line => typeof line === 'string');
 }
 
-test('clause 1: join, claim and submit never print next --wait, on success or any refusal in the matrix [N2,N42]', async t => {
+test('cli.journeys-submit-next-line.join-claim-and-submit-never-print: clause 1: join, claim and submit never print next --wait, on success or any refusal in the matrix [N2,N42]', async t => {
   const box = await fixture(t);
   const outcomes = [];
   /** Run one command and keep the outcome label with every next-step line it printed. */

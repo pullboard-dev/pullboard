@@ -1,12 +1,8 @@
 /** Drives the real CLI (hooks, claim, submit, refreeze) over lane policies and checks lane ownership, refusals and exit codes end to end [L1,L2,L3]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -14,10 +10,8 @@ import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { specGateMoveOnly } from '../../../../packages/spec/index.js';
 import { submissionPaths } from '../../../../packages/sandbox/index.js';
-import { ownsNewFile } from '../../../../packages/sandbox/src/io/trusted/policy.js';
-import { planRowChange } from '../../../../packages/commits/light.js';
 
-test('a lane commits only exact gate paths for its staged test rename [L3,B34]', async t => {
+test('cli.journeys-lanes-main.a-lane-commits-only-exact-gate: a lane commits only exact gate paths for its staged test rename [L3,B34]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -60,7 +54,7 @@ test('a lane commits only exact gate paths for its staged test rename [L3,B34]',
   'the exact committed gate move also passes native submission ownership');
 });
 
-test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', async t => {
+test('cli.journeys-lanes-main.wrong-lane-names-a-clean-native: WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('claim-web', 'web', box.session);
   const api = box.seat('claim api', 'api', box.session);
@@ -88,7 +82,7 @@ test('WRONG_LANE names a clean native lane checkout and the claim there retains 
 });
 
 
-test('lane hook permits only an owned rename and its exact foreign import repoint [L3]', async t => {
+test('cli.journeys-lanes-main.lane-hook-permits-only-an-owned: lane hook permits only an owned rename and its exact foreign import repoint [L3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -119,7 +113,7 @@ test('lane hook permits only an owned rename and its exact foreign import repoin
     item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
 });
 
-test('lane hook accepts a deleted shim repoint only to its exact body [L3]', async t => {
+test('cli.journeys-lanes-main.lane-hook-accepts-a-deleted-shim: lane hook accepts a deleted shim repoint only to its exact body [L3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -149,53 +143,7 @@ test('lane hook accepts a deleted shim repoint only to its exact body [L3]', asy
 });
 
 
-/** Run git in a temporary repo with a fixed identity; fail loudly. */
-function planGit(root, ...args) {
-  const run = spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
-  return run.stdout.trim();
-}
-
-/** Plan files for one cell, before and after a creation row; blobs read like Git entries. */
-function planBlobs(placements) {
-  const blob = value => ({ mode: '100644', bytes: Buffer.from(JSON.stringify(value)) });
-  const index = { cells: [{ file: 'packages/codemap/data/plan/01-x.json', name: 'x', order: 1 }] };
-  const shard = paths => ({ order: 1, name: 'x', root: 'packages/x', paths });
-  const before = { 'packages/codemap/data/plan/cells.json': blob(index), 'packages/codemap/data/plan/01-x.json': blob(shard([])) };
-  const after = { 'packages/codemap/data/plan/cells.json': blob(index), 'packages/codemap/data/plan/01-x.json': blob(shard(placements)) };
-  return { before: path => before[path], after: path => after[path] };
-}
-
-test('a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', () => {
-  const root = mkdtempSync(join(tmpdir(), 'lanes-plan-'));
-  try {
-    planGit(root, 'init', '-q', '-b', 'main');
-    writeFileSync(join(root, 'README.md'), 'base\n');
-    planGit(root, 'add', '.');
-    planGit(root, 'commit', '-q', '-m', 'base');
-    const base = planGit(root, 'rev-parse', 'HEAD');
-    planGit(root, 'switch', '-q', '-c', 'item');
-    mkdirSync(join(root, 'src'));
-    writeFileSync(join(root, 'src/new.js'), 'export {};\n');
-    planGit(root, 'add', '.');
-    planGit(root, 'commit', '-q', '-m', 'feat(x): new file [G1]', '-m', 'Pullboard-Item: #7');
-    const own = planGit(root, 'rev-parse', 'HEAD');
-    const row = [['src/new.js', 'packages/x/src/core/new.js', 'rule']];
-    const change = (snapshot) => planRowChange('packages/codemap/data/plan/01-x.json', {
-      ...planBlobs(row), ownNewFile: path => ownsNewFile(root, { item_id: 7 }, own, snapshot, path),
-    });
-    assert.equal(change(base).allowed, true, 'absent on main, every adding commit is the item\'s own');
-    planGit(root, 'switch', '-q', 'main');
-    mkdirSync(join(root, 'src'));
-    writeFileSync(join(root, 'src/new.js'), 'export {};\n');
-    planGit(root, 'add', '.');
-    planGit(root, 'commit', '-q', '-m', 'feat(y): same file landed on main [G1]');
-    assert.equal(change(planGit(root, 'rev-parse', 'main')).allowed, false, 'present on main');
-  } finally { rmSync(root, { recursive: true, force: true }); }
-});
-
-
-test('cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
+test('cli.journeys-lanes-main.cross-lane-import-edits-follow-only: cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
   const { movedImportOnlyChange, movedImportTargets } = await import('../../../../packages/commits/src/logic/import-only-change.js');
   const diff = 'R100\0api/old.js\0api/new.js\0D\0api/shim.js\0';
   const moves = movedImportTargets(diff, path => path === 'api/shim.js' ? "export { value } from './new.js';\n" : null, path => path === 'api/new.js');

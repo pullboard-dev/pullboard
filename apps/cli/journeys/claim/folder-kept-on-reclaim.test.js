@@ -39,13 +39,13 @@ function draftKept(folder) {
   return ['staged.html', 'untracked.html'].every(name => existsSync(join(folder, 'web', name)) && readFileSync(join(folder, 'web', name), 'utf8') === DRAFT);
 }
 
-test('clause 1: a released claim leaves its item folder\'s uncommitted changes on disk [C7,#2965]', async t => {
+test('cli.journeys-claim-folder-kept-on-reclaim.a-released-claim-leaves-its-item: clause 1: a released claim leaves its item folder\'s uncommitted changes on disk [C7,#2965]', async t => {
   const { folder } = await released(t);
   assert.ok(existsSync(folder), 'the item folder is still there after the release');
   assert.ok(draftKept(folder), 'the staged and the untracked file are both still on disk, byte for byte');
 });
 
-test('clause 2: a later claim of the same item by another seat archives the first seat\'s dirty folder, recoverable from its archive ref, and records the archive in a fact [C7,#2965]', async t => {
+test('cli.journeys-claim-folder-kept-on-reclaim.a-later-claim-of-the-same: clause 2: a later claim of the same item by another seat archives the first seat\'s dirty folder, recoverable from its archive ref, and records the archive in a fact [C7,#2965]', async t => {
   const { box, id, folder } = await released(t);
   const fresh = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', fresh, '-b', 'web/two');

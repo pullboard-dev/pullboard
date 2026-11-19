@@ -28,7 +28,7 @@ function folder(t) {
   return dir;
 }
 
-test('clause 1: a board read retries SQLITE_CANTOPEN with growing backoff until the file opens [C7]', t => {
+test('store.io-board-read-snapshot.a-board-read-retries-sqlite-cantopen: clause 1: a board read retries SQLITE_CANTOPEN with growing backoff until the file opens [C7]', t => {
   const dir = folder(t);
   const file = join(dir, 'later', 'board.sqlite');
   const fake = clock(count => {
@@ -42,7 +42,7 @@ test('clause 1: a board read retries SQLITE_CANTOPEN with growing backoff until 
   assert.deepEqual(fake.sleeps, [10, 20, 40, 80], 'the backoff doubles');
 });
 
-test('clause 2: a board read that still cannot open after five seconds names the file and the open-file count [C7]', t => {
+test('store.io-board-read-snapshot.a-board-read-that-still-cannot: clause 2: a board read that still cannot open after five seconds names the file and the open-file count [C7]', t => {
   const file = join(folder(t), 'missing', 'board.sqlite');
   const fake = clock();
   assert.throws(() => openBoardReadOnly(file, { ...fake, openFiles: () => 42 }),
@@ -51,7 +51,7 @@ test('clause 2: a board read that still cannot open after five seconds names the
   assert.ok(Math.max(...fake.sleeps) <= 500, 'no single backoff step exceeds half a second');
 });
 
-test('a board read does not retry an error that is not SQLITE_CANTOPEN [C7]', t => {
+test('store.io-board-read-snapshot.a-board-read-does-not-retry: a board read does not retry an error that is not SQLITE_CANTOPEN [C7]', t => {
   const dir = folder(t);
   const fake = clock();
   assert.throws(() => openBoardReadOnly(dir, fake), error => !/open files/u.test(error.message));

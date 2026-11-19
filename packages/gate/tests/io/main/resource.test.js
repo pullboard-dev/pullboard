@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/gate/src/io/browser/admission.js */
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServicesSource } from '../../fixtures/execution.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
@@ -14,21 +14,21 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { quote } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { fixture } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { probeSuite } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
+import { quote } from '../../fixtures/resource.js';
+import { fixture } from '../../fixtures/resource.js';
+import { probeSuite } from '../../fixtures/resource.js';
 import { withNestedGroup } from '../../../index.js';
-import { launchTestRunner } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { gateRepo } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { waitFor } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { events } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { RUNNER } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { GATE_MODULE } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { PROBE_PATTERN } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { PROBE_PATH_ENV } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { CHILDREN } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { reapFixtures } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { trackChild } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
+import { launchTestRunner } from '../../fixtures/resource.js';
+import { gateRepo } from '../../fixtures/resource.js';
+import { waitFor } from '../../fixtures/resource.js';
+import { events } from '../../fixtures/resource.js';
+import { RUNNER } from '../../fixtures/resource.js';
+import { GATE_MODULE } from '../../fixtures/resource.js';
+import { PROBE_PATTERN } from '../../fixtures/resource.js';
+import { PROBE_PATH_ENV } from '../../fixtures/resource.js';
+import { CHILDREN } from '../../fixtures/resource.js';
+import { reapFixtures } from '../../fixtures/resource.js';
+import { trackChild } from '../../fixtures/resource.js';
 
 const PROBE_WRITE_TARGET_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_TARGET';
 const PROBE_WRITE_READY_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_READY';

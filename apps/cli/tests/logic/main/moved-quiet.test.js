@@ -7,7 +7,7 @@ import { quietWindow } from '../../fixtures/main/moved.js';
 
 const GAP = { live: false, rowsSignature: '[]' };
 
-test('a worker whose wake file lands late, with its owner file just after, is not judged dead [C7]', () => {
+test('cli.logic-main-moved-quiet.a-worker-whose-wake-file-lands-late: a worker whose wake file lands late, with its owner file just after, is not judged dead [C7]', () => {
   const quiet = quietWindow(0);
   quiet.trigger(0);
   // Sixty seconds of slow start with no wake file: still inside the start grace.
@@ -19,7 +19,7 @@ test('a worker whose wake file lands late, with its owner file just after, is no
   assert.equal(quiet.expired({ ...GAP, at: 68011, wakeGeneration: 1, expectedGeneration: 1 }), true);
 });
 
-test('a second trigger of a slow-starting worker gets the same start grace as the first [C7]', () => {
+test('cli.logic-main-moved-quiet.a-second-trigger-of-a-slow-starting: a second trigger of a slow-starting worker gets the same start grace as the first [C7]', () => {
   const quiet = quietWindow(0);
   quiet.trigger(0);
   assert.equal(quiet.expired({ ...GAP, at: 100, wakeGeneration: 1, expectedGeneration: 1 }), false);

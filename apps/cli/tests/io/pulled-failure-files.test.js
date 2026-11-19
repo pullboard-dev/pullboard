@@ -28,7 +28,7 @@ function recorded(ran) {
   return retainTestOutput(root, ran.output, { directory: root, profile: { testOutcomes: failingOutcomes(ran) } }).failures;
 }
 
-test('clause 1: a red pulled run of several files records each failure with the file its outcome line names, never null [C7]', () => {
+test('cli.io-pulled-failure-files.a-red-pulled-run-of-several-files: clause 1: a red pulled run of several files records each failure with the file its outcome line names, never null [C7]', () => {
   const failures = recorded({ output, outcomes: null });
   assert.deepEqual(failures.map(row => [row.file, row.name]), [['b/b.test.js', 'case that fails in b'], ['c/c.test.js', 'case that fails in c']]);
   const receipt = recorded({ output: output.split('\n').filter(line => !line.startsWith(TEST_OUTCOMES_PREFIX)).join('\n'),
@@ -36,7 +36,7 @@ test('clause 1: a red pulled run of several files records each failure with the 
   assert.deepEqual(receipt.map(row => row.file), ['b/b.test.js', 'c/c.test.js']);
 });
 
-test('clause 2: test --status prints the failing file beside each failing case [C7]', () => {
+test('cli.io-pulled-failure-files.test-status-prints-the-failing-file-beside: clause 2: test --status prints the failing file beside each failing case [C7]', () => {
   const failures = recorded({ output, outcomes: null });
   const lines = testRunLines({ id: 'run-1', status: 'red', files: ['b/b.test.js', 'c/c.test.js'], log: null, refusal: null,
     result: { runner: 'host-1', seconds: 5, failures, notices: [] } });

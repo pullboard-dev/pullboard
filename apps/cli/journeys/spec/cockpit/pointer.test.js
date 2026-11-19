@@ -142,7 +142,7 @@ test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { 
   }
 });
 
-/** The decline dialog's submit button keeps its place while the dialog is open, even when an approval note times out under it. */
+/** The decline dialog's submit button keeps its place while the dialog is open, with an approval note in the list above it. */
 test('the decline dialog never moves under the pointer [B26,N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to check the decline dialog.');
@@ -172,7 +172,7 @@ test('the decline dialog never moves under the pointer [B26,N26]', { timeout: 12
     await pressTab(chrome, 'spec');
     await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
     await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
-    // Approving G1 from the list leaves a note in the list for six seconds; the decline for the next row opens inside that window.
+    // Approving G1 from the list leaves a note in the list; the decline for the next row opens inside that window.
     await chrome.click("document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
     await chrome.stable("document.querySelector('#spec-list').focus();true");
     await pressKey('a', 'KeyA', 65);
@@ -184,9 +184,9 @@ test('the decline dialog never moves under the pointer [B26,N26]', { timeout: 12
     await chrome.send('Input.insertText', { text: 'a reason' });
     const opened = await measure();
 
-    // The note's six-second timer fires while the dialog is open. Its own state clears; the page must not redraw.
-    await new Promise((resolve) => setTimeout(resolve, 7000)); // budget: the note's six-second timer, plus a second of slack
-    assert.equal(await chrome.stable('view.specFeedback === null'), true, 'the approval note timed out while the dialog was open');
+    // The note stays until the next pick or decision (no timer removes it), so the page cannot shift under the pointer.
+    await new Promise((resolve) => setTimeout(resolve, 7000)); // budget: the old six-second window, plus a second of slack
+    assert.equal(await chrome.stable("!!document.querySelector('#spec-list .spec-feedback.ok')"), true, 'the approval note is still in the list while the dialog is open');
     assert.deepEqual(await measure(), opened, 'nothing moves while the dialog waits for its press');
 
     // The press itself: record the page and the button at pointer down, then press with the real mouse.

@@ -18,7 +18,7 @@ const read = () => readMilestoneModel({ name: '0.9.4', items: [], summary: { tot
 const html = (page) => roadmapCardsHtml([read()], { root: '/r', page });
 const labels = (text) => [...text.matchAll(/<span class="id">(#\d+)<\/span>/gu)].map(([, id]) => id);
 
-test('clause 1: moving items come first, then one page of 25 landed items with a page control [N26]', () => {
+test('view.x-summary-roadmap-paging.clause-1-moving-items-come-first-then: clause 1: moving items come first, then one page of 25 landed items with a page control [N26]', () => {
   const ids = labels(html(null));
   assert.deepEqual(ids.slice(0, 4), ['#4', '#3', '#2', '#1'], 'building, in review, ready, then blocked');
   assert.equal(ids.length, 4 + 25, 'only 25 landed items render by default, never all');
@@ -34,7 +34,7 @@ test('clause 1: moving items come first, then one page of 25 landed items with a
   assert.equal(labels(html({ release: 'other', page: 2 })).length, 4 + 25, 'another release keeps its own first page');
 });
 
-test('clause 2: the pager offers 25, 50 and 100 per page and the chosen size sets the page [N26]', () => {
+test('view.x-summary-roadmap-paging.clause-2-the-pager-offers-25-50: clause 2: the pager offers 25, 50 and 100 per page and the chosen size sets the page [N26]', () => {
   const text = html(null);
   assert.deepEqual([...text.matchAll(/data-roadmap-per="(\d+)"[^>]*aria-pressed="(true|false)"/gu)].map(([, size, on]) => [size, on]), [['25', 'true'], ['50', 'false'], ['100', 'false']]);
   assert.equal(labels(html({ release: '0.9.4', page: 1, per: 50 })).length, 4 + 50);
@@ -44,13 +44,13 @@ test('clause 2: the pager offers 25, 50 and 100 per page and the chosen size set
   assert.equal(labels(html({ release: '0.9.4', page: 1, per: 7 })).length, 4 + 25, 'an unknown size reads 25');
 });
 
-test('clause 1: a release of 25 or fewer landed items has no page control [N26]', () => {
+test('view.x-summary-roadmap-paging.clause-1-a-release-of-25-or: clause 1: a release of 25 or fewer landed items has no page control [N26]', () => {
   const small = readMilestoneModel({ name: 'S', items: [] }, [...landed(25), ...moving]);
   assert.doesNotMatch(roadmapCardsHtml([small], { root: '/r' }), /roadmap-pager/u);
   assert.match(roadmapCardsHtml([readMilestoneModel({ name: 'S', items: [] }, [...landed(26), ...moving])], { root: '/r' }), /roadmap-pager/u);
 });
 
-test('clause 2: the open release and its page are in the address and read back the same [N26]', () => {
+test('view.x-summary-roadmap-paging.clause-2-the-open-release-and-its: clause 2: the open release and its page are in the address and read back the same [N26]', () => {
   const search = withPlaceQuery('?k=x', placeQuery({ tab: 'roadmap', release: '0.9.4: Speed', page: 3 }));
   assert.equal(search, '?k=x&release=0.9.4%3A+Speed&page=3');
   assert.deepEqual(readRoadmapPlace(search), { release: '0.9.4: Speed', page: 3, per: 25 });

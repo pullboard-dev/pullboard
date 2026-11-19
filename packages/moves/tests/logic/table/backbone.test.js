@@ -23,10 +23,10 @@ test('moves.backbone.the-backbone-item-rows-are-the-declared: the backbone item 
   MACHINE.moves.forEach((move, index) => assert.equal(BACKBONE_TABLE.items[index].key, `${move.verb}:${move.from.join('|')}>${move.to}`));
 });
 
-test('moves.backbone.every-job-kind-in-the-state-map: every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
+test('moves.backbone.every-job-kind-in-the-state-map: clause 1: every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
   assert.deepEqual(CREATED_JOB_KINDS, FIXTURE.jobs.map(job => job.kind), 'the kinds the code creates are exactly the map\'s');
   assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), FIXTURE.jobs.map(job => job.kind), 'the pull-out job is created by the lander, so the map names it too');
-  assert.equal(BACKBONE_TABLE.jobs.length, 16);
+  assert.equal(BACKBONE_TABLE.jobs.length, FIXTURE.jobs.length);
   for (const job of FIXTURE.jobs) {
     const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === job.kind);
     assert.equal(row.serves, servesRule(job.kind));

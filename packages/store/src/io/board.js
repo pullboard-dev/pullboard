@@ -16,9 +16,8 @@ export { recordExitProgress, requireExitActive } from "../logic/exit/rules/claim
 import { committedItemAuthors } from "../../../verify/index.js";
 import { strictReviewProblem } from "../../../verify/index.js";
 import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../verify/index.js";
-import { seatFamily } from "../../../verify/index.js";
 import { routingStrictReviewProblem } from "../../../verify/index.js";
-import { reviewFamilyProblem } from "../../../verify/index.js";
+import { reviewFamilyEligibility } from "../../../verify/index.js";
 import { declaredLimitProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
@@ -79,7 +78,9 @@ import { editItem } from "./board/edit.js";
 import { validateItemEdit } from "./board/edit.js";
 import { attachItemPatch } from "./board/patch/attach.js";
 import { objectItemPatch } from "./board/patch/attach.js";
-import { removeItemPatch } from "./board/patch/remove.js";
+import { applyItemPatchRemoval } from "../../../items/index.js";
+import { getItem as itemForPatch } from "./board/query.js";
+import { invalidateItemPatch } from "./board/patch/attach.js";
 import { prepareClaim as preparedClaim } from "./board/claim.js";
 import { claim as applyPreparedClaim } from "./board/claim.js";
 import { admitSubmit as applySubmitAdmission } from "./board/claim.js";
@@ -94,6 +95,7 @@ import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
 import { verdictEvidence } from "./board/verify.js";
+import { prepareVerdictFacts } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -110,6 +112,7 @@ import { gateAtHead } from "./board/next.js";
 import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
+import { reserveItem } from "./board/hold/item.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -120,7 +123,7 @@ import { recordLandingFlake } from "./board/record/landing/flake.js";
 import { finishLandingBatch } from "./board/batch.js";
 import { intakeOutside } from "./board/outside/intake.js";
 import { applyRehomeItem } from "./board/apply/rehome.js";
-import { approveOutside } from "./board/outside/approve.js";
+import { approveOutside as applyOutsideApproval } from "./outside.js";
 import { setLaneLead } from "./board/lane/lead.js";
 import { activityDeliveryState } from "./board/delivery.js";
 import { activityInterruptWasDelivered } from "./board/delivery.js";
@@ -159,6 +162,14 @@ export {
   rehomeItem,
   reserveRehomeItemId,
 } from "./board/facade.js";
+
+/** Stop applying native bytes without discarding their historical author exclusions; joined from board/patch/remove.js so a cold command loads one module fewer [C7]. */
+function removeItemPatch(board, id, options) {
+  return applyItemPatchRemoval(board, id, options, { atomic, logEvent, getItem: itemForPatch, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
+/** Record the person's exact-commit owner approval; joined from board/outside/approve.js so a cold command loads one module fewer [C7]. */
+function approveOutside(board, id, options) { return applyOutsideApproval(board, id, options, atomic); }
 export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../verify/index.js";
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./baseline/check.js";
 
@@ -346,7 +357,6 @@ export function gateReceiptProblem(board, item) {
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
-  const family = seatFamily(board, agentId);
   return {
     companionWindow: found => companionWindowProblem(board, found),
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -357,9 +367,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
-      ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
-      : null),
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId
@@ -478,6 +486,7 @@ export {
   reserveNextReview,
   verify,
   verdictEvidence,
+  prepareVerdictFacts,
   reopen,
   merged,
   withdraw,
@@ -494,6 +503,7 @@ export {
   holdLane,
   releaseLane,
   holdItem,
+  reserveItem,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,
@@ -538,6 +548,6 @@ export function admitSubmit(board, id, options) {
   return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, prepareRecaptureSubmitHandoff, recaptureSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
 
 export { createItemSlice } from "./board/item/slice.js";

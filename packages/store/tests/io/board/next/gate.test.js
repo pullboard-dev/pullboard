@@ -30,7 +30,7 @@ for (const kind of ['reopen', 'reject']) {
   });
 }
 
-test('an item whose green submit job is newer than its last reopen is still skipped as gated [C7,#2955]', t => {
+test('store.io-board-next-gate.an-item-whose-green-submit-job: an item whose green submit job is newer than its last reopen is still skipped as gated [C7,#2955]', t => {
   const board = fixtureBoard(t);
   const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'resubmitted after reopen' });
   event(board, id, 'reopen', '2026-11-04T07:00:00.000Z');
@@ -38,4 +38,27 @@ test('an item whose green submit job is newer than its last reopen is still skip
   const offered = nextFor(board, { agentId: 'web-2', lane: 'web' });
   assert.equal(offered.item, null);
   assert.ok(offered.reasons.includes(`#${id}: gate green at ${HEAD.slice(0, 12)}; nothing to build`), offered.reasons.join(' | '));
+});
+
+test('store.next.derived-gate-at-head-used: nextFor skips an item the derived reader answers a reason for as GATE_AT_HEAD with that reason, without reading its submit hand-off [C7,#10880]', t => {
+  const board = fixtureBoard(t);
+  const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'gated by the derived table only' });
+  const asked = [];
+  const offered = nextFor(board, { agentId: 'web-2', lane: 'web', derivedGateAtHead: entry => { asked.push(entry.item_id); return 'gate green at aaaaaaaaaaaa'; } });
+  assert.equal(offered.item, null);
+  assert.ok(asked.includes(id), 'the reader was asked about the item');
+  assert.ok(offered.reasons.includes(`#${id}: gate green at aaaaaaaaaaaa; nothing to build`), offered.reasons.join(' | '));
+  assert.equal(nextFor(board, { agentId: 'web-2', lane: 'web' }).item?.item_id, id, 'with no submit hand-off recorded, only the derived answer skipped it');
+});
+
+test('store.next.derived-gate-at-head-fallback: nextFor computes an item the reader answers undefined for, and every item when the option is absent, with gateAtHead as before [C7,#10880]', t => {
+  const board = fixtureBoard(t);
+  const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'gate queued after the reader was built' });
+  green(board, id, '2026-11-04T08:00:00.000Z');
+  const gated = `#${id}: gate green at ${HEAD.slice(0, 12)}; nothing to build`;
+  for (const options of [{ derivedGateAtHead: () => undefined }, {}]) {
+    const offered = nextFor(board, { agentId: 'web-2', lane: 'web', ...options });
+    assert.equal(offered.item, null);
+    assert.ok(offered.reasons.includes(gated), offered.reasons.join(' | '));
+  }
 });

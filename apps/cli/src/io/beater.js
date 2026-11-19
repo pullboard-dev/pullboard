@@ -8,7 +8,6 @@ import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startDetachedCheck } from '../../../../packages/drive/index.js';
 import { storeName } from './store-names.js';
 
 /** The beater's cadence: four beats inside the two-minute seat-gone limit, so one missed beat never costs a claim. */
@@ -84,11 +83,11 @@ function readLock(lock) { try { return JSON.parse(readFileSync(lock, 'utf8')); }
 /**
  * Start the detached beater for `seat` on the board file `board`, bound to the agent session behind this CLI call; it
  * beats every 30 s until the seat holds no claim, the session exits or the seat's worktree is gone. A beater already
- * watching the same session is kept. Returns what it did; it never throws, because the claim is already recorded.
+ * watching the same session is kept. Resolves to what it did; it never throws, because the claim is already recorded.
  * Why: on 11 Nov 43 of 45 live seats lost a claim while editing or running native tests outside the CLI: only CLI
  * writes, hooks and submit's keepalive beat, and Codex seats have no hooks [B3,C7].
  */
-export function startClaimBeater(cwd, { seat, board }, { env = process.env, session = () => agentSession({ env }), launch = startDetachedCheck, alive = agentAlive } = {}) {
+export async function startClaimBeater(cwd, { seat, board }, { env = process.env, session = () => agentSession({ env }), launch = null, alive = agentAlive } = {}) {
   try {
     if (env.PULLBOARD_CLAIM_BEATER === '0') return { started: false, reason: 'off' };
     if (typeof seat !== 'string' || !seat || typeof board !== 'string' || !board) return { started: false, reason: 'no seat' };
@@ -103,7 +102,8 @@ export function startClaimBeater(cwd, { seat, board }, { env = process.env, sess
     const args = [JSON.stringify({ cwd, seat, board, lock, agent, everyMs: Number(env.PULLBOARD_BEATER_MS) || BEATER_EVERY_MS })];
     // The beater drops the lock only while it names the beater, so recording it after the launch is safe.
     mkdirSync(dirname(lock), { recursive: true });
-    const pid = launch(entry, { args, cwd, env: { ...env, PULLBOARD_CLAIM_BEATER: '0' } });
+    // The drive cell loads here, once a beater really starts, so a claim with no agent session never pays for it [C7].
+    const pid = (launch ?? (await import('../../../../packages/drive/index.js')).startDetachedCheck)(entry, { args, cwd, env: { ...env, PULLBOARD_CLAIM_BEATER: '0' } });
     if (!pid) return { started: false, reason: 'launch failed' };
     writeFileSync(lock, JSON.stringify({ version: 1, pid, agent, seat }) + '\n', { mode: 0o600 });
     return { started: true, pid, agent };
@@ -114,10 +114,24 @@ export function startClaimBeater(cwd, { seat, board }, { env = process.env, sess
  * The beater's whole life: beat the seat while it holds a claim, its worktree exists and the agent session lives, then
  * drop its lock if the lock is still its own. A dead agent stops the beats within one tick, so the two-minute
  * seat-gone release still takes its claim. The gate cell loads here, in the detached process, never in the claim.
+ * A `remote` binding ({ url, token, agent, seatKey? }, a seat joined by board.url) beats the board host through
+ * sendRemoteHeartbeat instead of a local board, and stops once the host refuses a beat or the lock names another beater [P7,B3].
  */
-export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS }, { alive = agentAlive, pid = process.pid, ...options } = {}) {
+export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null }, { alive = agentAlive, pid = process.pid, send = null, ...options } = {}) {
   try {
     const { keepClaimsAlive } = await import('../../../../packages/gate/index.js');
+    if (remote?.url) {
+      const post = send ?? (await import('./remote/moves.js')).sendRemoteHeartbeat;
+      let refused = false;
+      let named = false;
+      return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent), seatOf: () => ({ seat, file: board }),
+        beat: async () => { if (!(await post(remote))) refused = true; },
+        held: async () => {
+          const owner = readLock(lock)?.pid;
+          if (owner === pid) named = true;
+          return !refused && (owner === pid || (owner === undefined && !named));
+        }, ...options });
+    }
     return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent),
       // Any file in the board's folder names the board, so the binding names the board itself.
       seatOf: () => ({ seat, file: board }), ...options });

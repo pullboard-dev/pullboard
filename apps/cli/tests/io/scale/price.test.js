@@ -11,7 +11,7 @@ const [OPUS, SONNET, HAIKU] = Object.keys(MODEL_SEAT_HOUR_PRICE);
 const UNPRICED = ['some', 'new', 'model'].join('-');
 const base = { budget: { spend: 40, window: 'day' }, usedSpend: 0, cycleHours: 0.5, hoursLeft: 10, worth: 100, workers: [], reviews: 0, builds: 100 };
 
-test('clause 1: the price table holds a per-hour price per model and the plan charges a seat by its model [C7]', () => {
+test('cli.io-scale-price.the-price-table-holds-a-per-hour: clause 1: the price table holds a per-hour price per model and the plan charges a seat by its model [C7]', () => {
   assert.equal(MODEL_SEAT_HOUR_PRICE['claude-opus-5-5'], 5);
   assert.equal(seatHourPrice('claude-opus-5-5'), 5);
   const cheap = planWorkerScale({ ...base, model: SONNET });
@@ -21,7 +21,7 @@ test('clause 1: the price table holds a per-hour price per model and the plan ch
   assert.equal(planWorkerScale({ ...base, model: HAIKU }).affordable, 16);
 });
 
-test('clause 2: an unpriced model is charged one seat-hour so existing behaviour is unchanged [C7]', () => {
+test('cli.io-scale-price.an-unpriced-model-is-charged-one-seat: clause 2: an unpriced model is charged one seat-hour so existing behaviour is unchanged [C7]', () => {
   assert.equal(seatHourPrice(UNPRICED), 1);
   assert.equal(seatHourPrice(undefined), 1);
   const unpriced = planWorkerScale({ ...base, model: UNPRICED });
@@ -56,11 +56,11 @@ async function cycleLineFor(model) {
   return said.find(line => line.startsWith('workers:'));
 }
 
-test('clause 1: the supervisor passes the declared model to the planner, so a dearer model affords fewer seats [C7]', async () => {
+test('cli.io-scale-price.the-supervisor-passes-the-declared-model-to: clause 1: the supervisor passes the declared model to the planner, so a dearer model affords fewer seats [C7]', async () => {
   assert.match(await cycleLineFor(SONNET), /enough for 1\b/u);
   assert.match(await cycleLineFor(OPUS), /enough for 0\b/u);
 });
 
-test('clause 2: the supervisor charges an unpriced declared model one seat-hour [C7]', async () => {
+test('cli.io-scale-price.the-supervisor-charges-an-unpriced-declared-model: clause 2: the supervisor charges an unpriced declared model one seat-hour [C7]', async () => {
   assert.match(await cycleLineFor(UNPRICED), /enough for 1\b/u);
 });

@@ -22,7 +22,7 @@ const {
   BIN, sandbox,
 } = e2e;
 
-test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', async () => {
+test('cli.journeys-resume-tour.the-tour-runs-a-reject-and: the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', async () => {
   const box = sandbox();
   const plainEnv = { ...box.env, TMPDIR: box.dir };
   delete plainEnv.NO_COLOR;

@@ -1,6 +1,13 @@
+/** @pullboard-test-input source-cell packages/landing */
+/** @pullboard-world-pin: the Deno cases read the one checked-in report fixture, never a tool run. */
 /** The JUnit reader names each failing case with its file and message [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { junitCases } from '../../../gate/light.js';
+import { junitClauseTicks } from '../../../gate/light.js';
+import { junitFile } from '../../src/logic/junit-files.js';
 import { junitFailures } from '../../src/logic/junit-failures.js';
 
 const ROOT = '/work/repo';
@@ -42,4 +49,26 @@ test('landing.junit-failures.a-file-attribute-outside-root-gives: clause 2: a fi
 test('landing.junit-failures.damaged-xml-gives-no-rows-and: clause 3: damaged XML gives no rows and JUNIT_DAMAGED, never a throw [C7]', () => {
   assert.deepEqual(junitFailures('<testsuite name="s"><testcase name="n"><failure/></testcase>', ROOT), { rows: [], code: 'JUNIT_DAMAGED' });
   assert.deepEqual(junitFailures(undefined, ROOT), { rows: [], code: 'JUNIT_UNREADABLE' });
+});
+
+const DENO = readFileSync(join(import.meta.dirname, '..', 'fixtures', 'junit', 'deno.xml'), 'utf8');
+
+test('landing.junit-failures.deno-failing-case: clause 1: junitFailures names exactly the failing case of a Deno report with the file the deno row maps it to [C7,#10070]', () => {
+  const { rows, code } = junitFailures(DENO, ROOT);
+  assert.equal(code, null);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, 'clause 2: halves a number');
+  assert.match(rows[0].assertion, /expected/u);
+  assert.equal(junitFile('deno', rows[0]), 'calc_test.ts');
+});
+
+test('landing.junit-failures.deno-clause-ticks: clause 2: junitClauseTicks over the Deno report ticks the passing case clause and leaves the failing one unticked, naming it [C7,#10070]', () => {
+  const result = junitClauseTicks(junitCases(DENO).cases, [{ number: 1, kind: 'test' }, { number: 2, kind: 'test' }, { number: 3, kind: 'test' }]);
+  assert.deepEqual(result.ticked, [1]);
+  assert.deepEqual(result.failed, [{ number: 2, name: 'clause 2: halves a number' }]);
+});
+
+test('landing.junit-failures.deno-no-toolchain: clause 3: the Deno cases read only the checked-in fixture as text, so no Deno and no child process is needed [C7,#10070]', () => {
+  assert.ok(DENO.includes('deno test --junit-path=report.xml'));
+  assert.equal(junitCases(DENO).reason, null);
 });

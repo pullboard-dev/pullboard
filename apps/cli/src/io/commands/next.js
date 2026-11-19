@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js */
+/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js packages/git/src/io/review-folder.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
@@ -74,10 +74,15 @@ import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
 import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
+/** The detached review folder for a submitted commit, or the reason this clone could not make one: the commit then reads by the ordinary switch line [C7,#8969]. */
+function reviewFolderAt(ctx, commit) {
+  try { return requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(ctx.info.root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')); } catch (error) { return { failed: String(error.message ?? error).split('\n')[0] }; }
+}
 const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
@@ -112,21 +117,32 @@ export async function nextHere(io, values) {
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
   try {
-    const code = await nextWithProgress(io, values, progress);
+    delete io.lagSilent;
+    // One item list serves every phase of this next between its own writes, instead of a full read per phase and per other seat's commit [C7,N2,#12010].
+    const code = await store.withItemSnapshot(() => nextWithProgress(io, values, progress));
+    // An item folder is cut from current main, so the seat checkout's lag says nothing about that build [U159].
+    if (!io.lagSilent) sayLag(io, context(io));
     sayCoordinatorCallouts(io);
     return code;
   }
   catch (error) {
     // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    try { sayLag(io, context(io)); } catch { /* the lag line is best effort on a refusal */ }
     sayCoordinatorCallouts(io);
     throw error;
   }
   finally {
     progress.stop(); await monitor?.close();
-    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
+    if (environmentAdapter().get('PULLBOARD_NEXT_PROFILE')) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
+    delete io.lagSilent;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/** The line after a claim's check: the criterion and check above are the bar, so a builder skips show [#10557]. */
+function barLine(id) {
+  return `that is your bar; pullboard show ${id} adds the thread and history only`;
 }
 
 /**
@@ -186,7 +202,7 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
-  sayLag(io, ctx);
+  // The lag line prints after the answer (nextHere), so a next that hands out an item folder stays silent about the seat [U159].
   // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
   if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
@@ -217,6 +233,8 @@ async function nextWithProgress(io, values, progress) {
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
   try { for (;;) {
+    // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
+    store.refreshItemSnapshot();
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
@@ -310,6 +328,7 @@ async function nextWithProgress(io, values, progress) {
       // next.itemNotices (off by default): the shouts and rulings that name this item ride on the build instruction [C7,#8787].
       const notices = !review && !found.waitingOffer && nextItemNotices() ? withBoardRead(ctx, board => reasons().itemNoticeLines(board, item.item_id)) : [];
       io.result?.({ item, review, ...(notices.length ? { notices } : {}), ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
+      if (!review && found.itemFolder) io.lagSilent = true;
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (found.landed) {
@@ -324,7 +343,13 @@ async function nextWithProgress(io, values, progress) {
         sayCheckBaseline(io, item);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         if (found.companions) io.say(`review tree checked out at ${found.companions.commit}; patch-set digest: ${found.companions.digest}; companions: ${found.companions.keys.join(', ')}`);
-        else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
+        else {
+          // verify.reviewFolder (off by default): the review reads a detached folder at the submitted commit, so this seat's own checkout stays where it is [C7,#8969].
+          const folder = ctx.config.verify?.reviewFolder === true ? reviewFolderAt(ctx, item.item_commit) : null;
+          if (folder?.failed) io.say(`no review folder: ${folder.failed}`);
+          if (folder?.folder) io.say(`review folder at that commit: ${folder.folder} (read it there; this checkout is untouched)`);
+          else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
+        }
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
         // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
@@ -362,6 +387,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
+        if (item.item_check) io.say(barLine(item.item_id));
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         for (const line of notices) io.say(`  ${line}`);
@@ -372,6 +398,7 @@ async function nextWithProgress(io, values, progress) {
           io.say(`item folder: ${next.itemFolder}; seat ${next.holder}; build, commit and submit there`);
           if (next.item.item_criterion) io.say(`criterion: ${next.item.item_criterion}`);
           if (next.item.item_check) io.say(`check: ${next.item.item_check}   (run it before you submit)`);
+          if (next.item.item_check) io.say(barLine(next.item.item_id));
           io.say(`when it is built and committed: ${cdTo(next.itemFolder)} pullboard submit ${next.item.item_id}`);
         }
         if (more.length) io.say(`you hold ${seatClaims(ctx).map(id => `#${id}`).join(', ')}: build each in its own folder`);

@@ -46,7 +46,7 @@ after(() => {
 });
 const repoWithGate = gateRepoFixture(dirs);
 
-test('the gate stops before the suite on a missing clock-budget comment [C7]', () => {
+test('cli.journeys-gate-main-refusals.the-gate-stops-before-the-suite: the gate stops before the suite on a missing clock-budget comment [C7]', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gate-clock-budget-')));
   dirs.push(root);
   mkdirSync(join(root, 'bin'));
@@ -102,7 +102,7 @@ assert.ok(Date.now() - started < 500, 'planted assertion without a budget commen
   assert.equal(existsSync(suiteMarker), true, 'a clean scanner result continues into the suite');
 });
 
-test('pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
+test('cli.journeys-gate-main-refusals.pullboard-gate-status-refuses-instead-of: pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
   const box = await repoWithGate('echo run >> ../runs.log');
   for (const name of [BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV]) delete box.env[name];
   assert.equal((await box.runLocal('settings', 'gateSlots', '1')).status, 0, 'the fixture uses the holder pool\'s single gate slot');
@@ -199,7 +199,7 @@ try {
   assert.equal(holderResult?.status, 0, JSON.stringify(holderResult));
 });
 
-test('gate before the first commit names the uncommitted config [I1,C7]', async () => {
+test('cli.journeys-gate-main-refusals.gate-before-the-first-commit-names: gate before the first commit names the uncommitted config [I1,C7]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-first-commit-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -239,7 +239,7 @@ test('gate before the first commit names the uncommitted config [I1,C7]', async 
     'other genuine NO_POLICY failures keep their specific message');
 });
 
-test('gate after init in an existing repo says to commit the init files [I1,C7]', async () => {
+test('cli.journeys-gate-main-refusals.gate-after-init-in-an-existing: gate after init in an existing repo says to commit the init files [I1,C7]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-init-history-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');

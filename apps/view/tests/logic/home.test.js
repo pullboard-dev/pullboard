@@ -13,7 +13,7 @@ const CAPACITY = {
   monteCarlo: { asOf: '2026-10-25T10:00:00Z' },
 };
 
-test('the home capacity presenter preserves unknowns stale estimates and escaped labels [N26,R1,R2]', () => {
+test('view.x-home.the-home-capacity-presenter-preserves-unknowns-stale: the home capacity presenter preserves unknowns stale estimates and escaped labels [N26,R1,R2]', () => {
   const projected = { ...CAPACITY, stale: true, binding: { kind: '<b>rework</b>', text: 'A & B' },
     lever: { text: '<img src=x onerror=alert(1)>' }, unknown: ['<script>no</script>', 'Second', 'Third', 'Fourth', 'Fifth', 'Hidden diagnostic'],
     staffing: { measuredLive: false, seats: 4 }, monteCarlo: { asOf: 'earlier <update>' } };

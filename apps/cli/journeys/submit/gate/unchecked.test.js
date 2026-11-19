@@ -47,7 +47,7 @@ describe('submit gate cases that need no shared state run together [V4,C7,V16]',
     assert.equal((await coordinatorLocal(box, 'add', 'build', 'No frozen command')).code, 0);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
-    commitAll(box, 'feat(core): update selected source [G1]');
+    commitAll(box, 'feat(core): update selected source [G1]', true);
     const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(result.code, 0, result.err);
     const receipt = result.receipt;
@@ -71,7 +71,7 @@ describe('submit gate cases that need no shared state run together [V4,C7,V16]',
     assert.equal(added.code, 0, added.err);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
-    commitAll(box, 'feat(core): update selected source [G1]');
+    commitAll(box, 'feat(core): update selected source [G1]', true);
     writeFileSync(refusal, 'refuse\n');
     const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(refused.code, 1, refused.out);

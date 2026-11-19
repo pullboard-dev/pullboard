@@ -35,7 +35,7 @@ async function plainThenQuickWin(t, on) {
   return { box, plain, quick };
 }
 
-test('clause 1: with next.labelBounds on and a label below its minimum next offers that label\'s top item [C7,#9164]', async t => {
+test('cli.journeys-next-labels.with-next-labelbounds-on-and-a: clause 1: with next.labelBounds on and a label below its minimum next offers that label\'s top item [C7,#9164]', async t => {
   const { box, plain, quick } = await plainThenQuickWin(t, true);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${quick}:`, 'u'), 'the quick-win label is under its minimum, so its top item comes first');
@@ -43,20 +43,20 @@ test('clause 1: with next.labelBounds on and a label below its minimum next offe
   assert.ok(at(plain) === -1 || at(quick) < at(plain), 'the quick win is claimed before the queue top');
 });
 
-test('clause 1: next offers the queue top once the label minimum is met [C7,#9164]', async t => {
+test('cli.journeys-next-labels.next-offers-the-queue-top-once: clause 1: next offers the queue top once the label minimum is met [C7,#9164]', async t => {
   const { box, plain, quick } = await plainThenQuickWin(t, true);
   box.claim(quick);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${plain}:`, 'u'), 'another seat holds a quick win, so the minimum is met');
 });
 
-test('clause 2: with next.labelBounds off next offers exactly the queue top [C7,#9164]', async t => {
+test('cli.journeys-next-labels.with-next-labelbounds-off-next-offers: clause 2: with next.labelBounds off next offers exactly the queue top [C7,#9164]', async t => {
   const { box, plain } = await plainThenQuickWin(t, false);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${plain}:`, 'u'));
 });
 
-test('clause 2: next.labelBounds is a described setting [C7,#9164]', () => {
+test('cli.journeys-next-labels.next-labelbounds-is-a-described-setting: clause 2: next.labelBounds is a described setting [C7,#9164]', () => {
   assert.match(describeSetting('next.labelBounds')?.description ?? '', /minimum/u);
 });
 
@@ -78,14 +78,14 @@ async function pinnedAtMax(t, on) {
   return { box, pinned, plain };
 }
 
-test('clause 1: with next.labelBounds on, next does not offer a pinned item whose label is at its maximum [C7,#9165]', async t => {
+test('cli.journeys-next-labels.with-next-labelbounds-on-next-does: clause 1: with next.labelBounds on, next does not offer a pinned item whose label is at its maximum [C7,#9165]', async t => {
   const { box, pinned, plain } = await pinnedAtMax(t, true);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${plain}:`, 'u'), 'the pin is capped by the quick-win max, so the next item is offered');
   assert.doesNotMatch(text, new RegExp(`claimed #${pinned}:`, 'u'));
 });
 
-test('clause 2: pullboard labels --json lists the pinned item as capped [C7,#9165]', async t => {
+test('cli.journeys-next-labels.pullboard-labels-json-lists-the-pinned: clause 2: pullboard labels --json lists the pinned item as capped [C7,#9165]', async t => {
   const { box, pinned } = await pinnedAtMax(t, true);
   const listed = await cli(box, box.seats.actor.path, ['labels']);
   assert.equal(listed.code, 0, listed.out + listed.err);
@@ -93,8 +93,24 @@ test('clause 2: pullboard labels --json lists the pinned item as capped [C7,#916
   assert.equal(listed.document.labels.find(row => row.label === 'quick-win').capped, true);
 });
 
-test('clause 2: with next.labelBounds off the pin is honoured as on main [C7,#9165]', async t => {
+test('cli.journeys-next-labels.with-next-labelbounds-off-the-pin: clause 2: with next.labelBounds off the pin is honoured as on main [C7,#9165]', async t => {
   const { box, pinned } = await pinnedAtMax(t, false);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${pinned}:`, 'u'));
+});
+
+test('cli.journeys-next-labels.pullboard-labels-lists-the-automatic-labels: clause 1: pullboard labels --json on a board with no labels config lists the automatic labels lane:<name>, level:<value>, review:strict and quick-win for items that carry them [C7,#1519]', async t => {
+  const box = await fixture(t);
+  box.add('A quick web item', { brief: 'Files: web/quick.js', expectedBuildMinutes: 5 });
+  box.add('A slow docs item', { lane: 'docs', brief: 'Files: docs/slow.js', expectedBuildMinutes: 25 });
+  box.add('A strict review item', { brief: 'Files: web/strict.js', reviewFamily: 'anthropic' });
+  const listed = await cli(box, box.seats.actor.path, ['labels']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  const names = listed.document.labels.map(row => row.label);
+  assert.ok(names.includes('lane:web'), `lane:web is listed with no config: ${names}`);
+  assert.ok(names.includes('quick-win'), `quick-win is listed with no config: ${names}`);
+  assert.ok(names.includes('review:strict'), `review:strict is listed with no config: ${names}`);
+  assert.ok(names.some(name => name.startsWith('level:')), `a level:<value> label is listed with no config: ${names}`);
+  assert.ok(names.every(name => /^(?:lane:|level:|review:strict$|broken-main$|quick-win$)/u.test(name)), `only automatic labels appear: ${names}`);
+  assert.deepEqual(listed.document.unmet, [], 'no declared minimum, so none is unmet');
 });

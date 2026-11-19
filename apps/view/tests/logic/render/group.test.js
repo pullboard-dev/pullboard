@@ -5,7 +5,7 @@ import { groupActivityModel } from '../../../src/logic/render/group.js';
 import { groupNeedsHtml } from '../../../src/logic/render/group.js';
 import { groupEventHtml } from '../../../src/logic/render/group.js';
 
-test('group history keeps newest eighty events and resolves each title in its own repository [N26,C7]', () => {
+test('view.x-render-group.group-history-keeps-newest-eighty-events-and: group history keeps newest eighty events and resolves each title in its own repository [N26,C7]', () => {
   const repos = [1, 2].map(index => ({ name: 'Repo ' + index, root: '/repo-' + index, board: {
     items: [{ id: 1, title: 'Title ' + index }], events: Array.from({ length: 45 }, (_, minute) => ({
       event_id: minute + 1, item_id: 1, event_at: new Date(Date.UTC(2026, 9, 28, index, minute)).toISOString(),
@@ -21,7 +21,7 @@ test('group history keeps newest eighty events and resolves each title in its ow
   assert.equal(JSON.stringify(repos), before);
 });
 
-test('group person calls preserve prepared rich text, escaped identities and their repository target [N26,B26,C7]', () => {
+test('view.x-render-group.group-person-calls-preserve-prepared-rich-text: group person calls preserve prepared rich text, escaped identities and their repository target [N26,B26,C7]', () => {
   const rows = [{ repoName: 'Repo <one>', repoRoot: '/repo "one"', ref: 'G1', textHtml: '<b>Prepared question</b>', actionLabel: 'answer <G1>', ageHtml: '<time>2m</time>' }];
   const html = groupNeedsHtml(rows);
   assert.match(html, /Repo &lt;one&gt;/u);
@@ -31,7 +31,7 @@ test('group person calls preserve prepared rich text, escaped identities and the
   assert.match(groupNeedsHtml([]), /Nothing to rule on across this project/u);
 });
 
-test('group event links keep board scope and plain labels separate from prepared title HTML [N26,C7]', () => {
+test('view.x-render-group.group-event-links-keep-board-scope-and: group event links keep board scope and plain labels separate from prepared title HTML [N26,C7]', () => {
   const row = { timeLabel: '12:00', repoName: 'Repo <two>', agentLabel: 'builder & model', kind: 'claim', itemId: 1,
     itemHref: '#other/1', foreignRoot: '/other "board"', titleHtml: '<b>Prepared title</b>' };
   const html = groupEventHtml(row);

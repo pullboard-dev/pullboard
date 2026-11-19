@@ -19,6 +19,26 @@ export function rowDecisionsFor(decisions, rowId) {
   return decisions.filter(record => record.applied || record.id === rowId);
 }
 
+/**
+ * Who may run spec apply: the coordinator at the main checkout, or, on a person channel, only the one call
+ * --row <id> --commit for a row whose pending decision was recorded on that same channel [C7,#9627].
+ * Why: the API runs a person's approval on their behalf, so the relaxation names the exact call and no other apply.
+ *
+ * @param {{ isMain: boolean, me: string, coordinator: string, channel?: string, values: { row?: string, commit?: boolean }, decisions: object[], events: object[] }} given
+ *   the checkout and caller, the person channel if any, the flags, the board's row decisions, and its row_decision events (read only on a person channel)
+ */
+export function requireApplier({ isMain, me, coordinator, channel, values, decisions, events }) {
+  const refusal = () => new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+  if (channel === undefined) {
+    if (!isMain || me !== coordinator) throw refusal();
+    return;
+  }
+  const decidedOn = record => JSON.parse(events.find(event => event.event_id === record.event)?.event_detail ?? '{}').channel;
+  // A pending decline passes no guard: only the person's approve on this channel opens the one call [#10679].
+  const justApproved = typeof values.row === 'string' && decisions.some(record => record.id === values.row && record.decision === 'approve' && !record.applied && decidedOn(record) === channel);
+  if (!isMain || values.commit !== true || !justApproved) throw refusal();
+}
+
 /** Git run in the checkout through the shared runner; a failing command throws its first message line. */
 function checkoutGit(root) {
   return args => {

@@ -30,7 +30,7 @@ import {
   shoutTexts,
 } from '../../../tests/fixtures/relay/local-first.js';
 
-test('a move and a read return within a second with no network call while the sender holds the relay lock, and no read takes a lock [H21,H5,H16]', async t => {
+test('cli.journeys-relay-local-first.a-move-and-a-read-return: a move and a read return within a second with no network call while the sender holds the relay lock, and no read takes a lock [H21,H5,H16]', async t => {
   const { box, env } = await linkedBoard(t);
   // The sender's relay lock and the outbox guard are both held by this test process for the whole check.
   const lock = box.linkFile + '.lock';
@@ -58,7 +58,7 @@ test('a move and a read return within a second with no network call while the se
   await eventually('the sender sends the queued move once the relay lock is free', () => outboxEmpty(box) && box.moveAcks.length > acks, () => senderLog(env));
 });
 
-test('a locally known revoked seat cannot queue or apply a move and retains earlier valid outbox history [H2,H9,H21]', async t => {
+test('cli.journeys-relay-local-first.a-locally-known-revoked-seat-cannot: a locally known revoked seat cannot queue or apply a move and retains earlier valid outbox history [H2,H9,H21]', async t => {
   const { box, env } = await linkedBoard(t);
   const lock = box.linkFile + '.lock';
   mkdirSync(lock, { mode: 0o700 });
@@ -88,7 +88,7 @@ test('a locally known revoked seat cannot queue or apply a move and retains earl
   assert.deepEqual(after.document.tables, exported.document.tables, 'the refused move changes no native board row');
 });
 
-test('a queued move is taken back row for row, its item status and row counters included, so the relay\'s order replays onto the board it was made on [H21,H16]', async t => {
+test('cli.journeys-relay-local-first.a-queued-move-is-taken-back: a queued move is taken back row for row, its item status and row counters included, so the relay\'s order replays onto the board it was made on [H21,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-undo-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const board = openBoard(join(directory, 'board.sqlite'));

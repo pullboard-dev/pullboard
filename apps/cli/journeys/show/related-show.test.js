@@ -27,7 +27,7 @@ async function fixture(t) {
   return { box, ids, run };
 }
 
-test('clause 1: after relating two items, show on each lists the other under related links [C7,#9356]', async t => {
+test('cli.journeys-show-related-show.after-relating-two-items-show-on: clause 1: after relating two items, show on each lists the other under related links [C7,#9356]', async t => {
   const { box, ids: [a, b], run } = await fixture(t);
   withFixtureBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'), board => relateItems(board, { by: 'coordinator', a, b, enabled: true }));
   const first = await run(['show', String(a)]);
@@ -39,7 +39,7 @@ test('clause 1: after relating two items, show on each lists the other under rel
   assert.deepEqual((json.result ?? json).relatedLinks, [{ id: b, title: 'Second linked item' }]);
 });
 
-test('clause 2: an item with no related link prints no related links line [C7,#9356]', async t => {
+test('cli.journeys-show-related-show.an-item-with-no-related-link: clause 2: an item with no related link prints no related links line [C7,#9356]', async t => {
   const { ids: [a], run } = await fixture(t);
   const shown = await run(['show', String(a)]);
   assert.equal(shown.status, 0, shown.stdout + shown.stderr);

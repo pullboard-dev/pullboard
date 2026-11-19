@@ -39,7 +39,7 @@ import { spawnSync } from 'node:child_process';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { join } from 'node:path';
 
-test('line order sends a send-back home first and gives the scarcest review first [N2,B13,H16]', t => {
+test('cli.journeys-next-order-focus.line-order-sends-a-send-back: line order sends a send-back home first and gives the scarcest review first [N2,B13,H16]', t => {
   const home = lineOrderFixture(t);
   const older = store.addItem(home.board, { by: 'coordinator', lane: 'core', title: 'older fresh work' });
   const returned = submitted(home.board, home.builder, 'a later send-back belongs home', 'strong', 1);
@@ -104,7 +104,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   assert.equal(withSignedReadiness[0].item_id, ready, 'the injected readiness predicate precedes coordinator rank without manufacturing signed records');
 });
 
-test('line capacity offers reviews before builds when reviews pile up [N2,B13,H16]', t => {
+test('cli.journeys-next-order-focus.line-capacity-offers-reviews-before-builds: line capacity offers reviews before builds when reviews pile up [N2,B13,H16]', t => {
   const { board, root, builder, reviewer } = lineOrderFixture(t);
   let at = Date.parse('2026-10-24T00:00:00Z');
   board.clock = { now: () => new Date(at) };
@@ -154,7 +154,7 @@ test('line capacity offers reviews before builds when reviews pile up [N2,B13,H1
 });
 
 /** Public next commands use a private Git/SQLite board; no seeded state claims a gate execution. */
-test('next offers the focus milestone first and explains a claimable outside fallback [N2,B16]', async t => {
+test('cli.journeys-next-order-focus.next-offers-the-focus-milestone-first: next offers the focus milestone first and explains a claimable outside fallback [N2,B16]', async t => {
   const box = crossLaneFixture(t);
   const owner = box.seat('focus-owner', 'web', box.session);
   const peer = box.seat('focus-peer', 'web', 'focus-peer-session');
@@ -189,7 +189,7 @@ test('next offers the focus milestone first and explains a claimable outside fal
 });
 
 /** Review eligibility still owns held reservations; focus changes preference, not authority. */
-test('historical focus reviews retain reservations and modern reviews enforce focus [C7,N2,B16,H16]', t => {
+test('cli.journeys-next-order-focus.historical-focus-reviews-retain-reservations-and: historical focus reviews retain reservations and modern reviews enforce focus [C7,N2,B16,H16]', t => {
   const { board, builder, reviewer } = boardFixture();
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   t.after(() => store.closeBoard(board));
@@ -218,7 +218,7 @@ test('historical focus reviews retain reservations and modern reviews enforce fo
 });
 
 /** Native offers are observed against real private Git and SQLite, with synthetic lifecycle records explicitly not gate proofs. */
-test('next offers the focus milestone first across review and build modes [N2,B16]', async t => {
+test('cli.journeys-next-order-focus.next-offers-the-focus-milestone-first-2: next offers the focus milestone first across review and build modes [N2,B16]', async t => {
   const box = crossLaneFixture(t);
   const owner = box.seat('mixed-owner', 'web', box.session);
   const author = box.seat('mixed-author', 'api', 'mixed-author-session');
@@ -264,7 +264,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
 });
 
 /** A newer recorded control must not alter historical selection when replaying an older move. */
-test('focus milestone policy survives export while old reserve-next retains its ordering [N2,B16,H16]', t => {
+test('cli.journeys-next-order-focus.focus-milestone-policy-survives-export-while: focus milestone policy survives export while old reserve-next retains its ordering [N2,B16,H16]', t => {
   const { board, builder, reviewer } = boardFixture(FOCUS_MILESTONE_ENGINE);
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Old roadmap review', 'strong', 1);
@@ -293,7 +293,7 @@ test('focus milestone policy survives export while old reserve-next retains its 
   assert.equal(historical.result.item.item_id, outside, 'a historical reservation keeps its previous roadmap order');
 });
 
-test('blocked release --on records and coordinator edit --after none clears the wait [B5,B10,N2]', async t => {
+test('cli.journeys-next-order-focus.blocked-release-on-records-and-coordinator: blocked release --on records and coordinator edit --after none clears the wait [B5,B10,N2]', async t => {
   const box = crossLaneFixture(t);
   box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--json')));
   const blocker = box.add('web', 'Prerequisite');
@@ -310,7 +310,7 @@ test('blocked release --on records and coordinator edit --after none clears the 
 });
 
 
-test('next does not hand out an item whose functions overlap work in progress [N2,N20,C7]', t => {
+test('cli.journeys-next-order-focus.next-does-not-hand-out-an: next does not hand out an item whose functions overlap work in progress [N2,N20,C7]', t => {
   const helpers = createE2eHelpers(), box = helpers.sandbox();
   const root = join(box.dir, 'function-queue');
   for (const dir of ['src', 'bin', 'test', 'packages', 'apps']) mkdirSync(join(root, dir), { recursive: true });

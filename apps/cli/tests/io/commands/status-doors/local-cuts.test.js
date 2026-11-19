@@ -32,7 +32,7 @@ function staticClosure(entry) {
   return [...seen].map(file => file.slice(REPO.length + 1));
 }
 
-test('clause 1: alive, reclaim and disk use load no heavy module through their static imports [C7]', () => {
+test('cli.io-commands-status-doors-local-cuts.alive-reclaim-and-disk-use-load-no: clause 1: alive, reclaim and disk use load no heavy module through their static imports [C7]', () => {
   for (const helper of HELPERS) {
     const modules = staticClosure(helper);
     assert.ok(modules.length > 5, `${helper} walked ${modules.length} modules`);
@@ -40,7 +40,7 @@ test('clause 1: alive, reclaim and disk use load no heavy module through their s
   }
 });
 
-test('clause 1: the helpers import drive, gate and store only through their light doors [C7]', () => {
+test('cli.io-commands-status-doors-local-cuts.the-helpers-import-drive-gate-and-store: clause 1: the helpers import drive, gate and store only through their light doors [C7]', () => {
   for (const helper of HELPERS) {
     const source = readFileSync(resolve(REPO, helper), 'utf8');
     const barrels = [...source.matchAll(/^import\s[^;]*?from\s*'([^']*packages\/(?:drive|gate|store)\/[^']*)'/gmu)].map(match => match[1]);

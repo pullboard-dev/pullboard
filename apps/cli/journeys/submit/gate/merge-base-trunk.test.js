@@ -14,7 +14,7 @@ import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { seedGraph } from '../../../tests/fixtures/submit/gate.js';
 import { test } from 'node:test';
 
-test('affected selection reads old edges and all changes at the trunk merge base [V4,C7]', async (t) => {
+test('cli.journeys-submit-gate-merge-base-trunk.affected-selection-reads-old-edges-and: affected selection reads old edges and all changes at the trunk merge base [V4,C7]', async (t) => {
   const box = privateRepo(t);
   const trunk = seedGraph(box);
   box.git('rm', 'src/a.js');
@@ -25,7 +25,7 @@ test('affected selection reads old edges and all changes at the trunk merge base
   assert.deepEqual(selection.files, ['test/a.test.js']);
 });
 
-test('affected submit includes branch changes made before the item claim [V4,C7,V16]', async (t) => {
+test('cli.journeys-submit-gate-merge-base-trunk.affected-submit-includes-branch-changes-made: affected submit includes branch changes made before the item claim [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
   seedGraph(box);

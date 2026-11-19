@@ -33,7 +33,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { effectiveAgentParent } from '../../../../packages/seats/index.js';
 
-test('[V1,B3] parent discovery reads only matching own runtime metadata and agrees with --parent', (t) => {
+test('lib.session-parent.parent-discovery-reads-only-matching-own: [V1,B3] parent discovery reads only matching own runtime metadata and agrees with --parent', (t) => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-parent-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const sessions = join(home, 'sessions', '2026', '10', '23');
@@ -56,7 +56,7 @@ test('[V1,B3] parent discovery reads only matching own runtime metadata and agre
   assert.throws(() => joinParentSession('/private/session.jsonl'), { code: 'BAD_PARENT' });
 });
 
-test('[V1,B3] ordered parent registration survives replay and board export without local session records', (t) => {
+test('lib.session-parent.ordered-parent-registration-survives-replay-and: [V1,B3] ordered parent registration survives replay and board export without local session records', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-parent-replay-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const boards = ['source', 'replica', 'imported'].map(name => openBoard(':memory:'));
@@ -76,7 +76,7 @@ test('[V1,B3] ordered parent registration survives replay and board export witho
   assert.equal(store.agentAt(replica, '/fixture/legacy').agent_parent_session, null, 'historical moves never invent parent metadata');
 });
 
-test('[V1,B3] an unknown-parent primary session and its child cannot review each other, including queue', (t) => {
+test('lib.session-parent.an-unknown-parent-primary-session-and: [V1,B3] an unknown-parent primary session and its child cannot review each other, including queue', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-primary-parent-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });

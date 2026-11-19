@@ -12,7 +12,7 @@ const base = { mainRoot, currentRoot: mainRoot, seats: [], now: NOW, workingDire
 const handMade = { path: '/tmp/pullboard/.claude/worktrees/smoke-pool-1', head: HEAD };
 const landed = { item_id: 7, item_status: 'landed', item_commit: HEAD, item_merged_commit: 'b'.repeat(40) };
 
-test('clause 1 [test]: a hand-made worktree whose item landed or was withdrawn is removable after 2 h idle, not before [C7,#5733]', () => {
+test('cli.io-worktree-maintenance-finished.clause-1-test-a-hand-made-worktree: clause 1 [test]: a hand-made worktree whose item landed or was withdrawn is removable after 2 h idle, not before [C7,#5733]', () => {
   for (const item of [landed, { ...landed, item_merged_commit: null, item_status: 'withdrawn' }]) {
     const idle = classifyMaintenanceTree(handMade, { ...base, items: [item], previous: { firstSeenAt: NOW - 3 * HOUR } });
     assert.equal(idle.protected, false);
@@ -23,7 +23,7 @@ test('clause 1 [test]: a hand-made worktree whose item landed or was withdrawn i
   }
 });
 
-test('clause 1 [test]: a hand-made worktree with no finished item, an open item, or outside the scratch area stays protected [C7,#5733,#5969]', () => {
+test('cli.io-worktree-maintenance-finished.clause-1-test-a-hand-made-worktree-2: clause 1 [test]: a hand-made worktree with no finished item, an open item, or outside the scratch area stays protected [C7,#5733,#5969]', () => {
   const old = { firstSeenAt: NOW - 10 * HOUR };
   const none = classifyMaintenanceTree(handMade, { ...base, items: [], previous: old });
   assert.equal(none.protected, true);
@@ -37,7 +37,7 @@ test('clause 1 [test]: a hand-made worktree with no finished item, an open item,
   assert.equal(outside.reason, 'outside-maintenance-scratch');
 });
 
-test('clause 2 [test]: a locked finished worktree is never removed [C7,#5733]', () => {
+test('cli.io-worktree-maintenance-finished.clause-2-test-a-locked-finished-worktree: clause 2 [test]: a locked finished worktree is never removed [C7,#5733]', () => {
   const locked = classifyMaintenanceTree({ ...handMade, locked: true }, { ...base, items: [landed], previous: { firstSeenAt: NOW - 10 * HOUR } });
   assert.equal(locked.protected, true);
   assert.equal(locked.reason, 'git-worktree-locked');

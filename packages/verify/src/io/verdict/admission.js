@@ -35,17 +35,22 @@ export function composesAtAdmission(config) {
  * @param {any} board
  * @param {any} item
  * @param {string} checkedCommit - the commit the check runs at
- * @param {{ reReview: boolean, head: string, stale: any, refuseUnverifiedStack: (root: string, board: any, item: any, commit: string, trunk: any) => void }} options
- * @returns {{ trunk: any, review: any }}
+ * @param {{ reReview: boolean, head: string, stale: any, refuseUnverifiedStack: (root: string, board: any, item: any, commit: string, trunk: any) => void, composeAsObject?: boolean, composeMain?: (root: string, main: string, options: { item: number|string }) => { commit: string } }} options
+ *   With `composeAsObject` on, a stale re-review whose checkout lacks current main is composed as an object by `composeMain` instead of refused; `commit` is the commit to check.
+ * @returns {{ trunk: any, review: any, commit: string }}
  */
-export function composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events }) {
+export function composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events, composeAsObject = false, composeMain }) {
   const trunk = requireTrunkMerge(root, checkedCommit);
   if (reReview) {
     if (!isClean(root)) throw new Refused('DIRTY', 'commit the reviewed composition before re-reviewing the stale verdict');
     if (untracked(root).length) throw new Refused('UNTRACKED', 'commit or ignore untracked files before re-reviewing the stale verdict');
-    if (!contains(root, trunk.commit, head)) throw staleVerdictRefusal(item, stale);
+    if (!contains(root, trunk.commit, head)) {
+      if (!composeAsObject || !composeMain) throw staleVerdictRefusal(item, stale);
+      // The review stays bound to the composition: a fresh object of current main and this head (refs/pullboard/compose/<item>/<main12>) is what is checked and sealed [C7,U159].
+      checkedCommit = composeMain(root, trunk.commit, { item: item.item_id }).commit;
+    }
   }
   const review = captureVerdictReview(root, board, item, trunk.commit, checkedCommit, { events });
   refuseUnverifiedStack(root, board, item, checkedCommit, trunk);
-  return { trunk, review };
+  return { trunk, review, commit: checkedCommit };
 }

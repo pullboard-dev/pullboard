@@ -5,6 +5,7 @@ import { trunkBranch } from './folder.js';
 import { laneOf } from '../../../../../packages/seats/index.js';
 import { isConfigFile } from '../../../../../packages/config/browser.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
+import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 
 /** The coordinator's lane and seat id: laneOf names it for every path no lane owns. */
 export const COORDINATOR = 'coordinator';
@@ -50,6 +51,52 @@ export async function missingPathRefusal(ctx, bar) {
   const missing = missingBarPaths(bar, onTrunk(ctx.info.root), path => laneOf(ctx.config, path) !== COORDINATOR, barPaths);
   return missing.length ? new Refused('BAR_PATH_MISSING', `the bar names ${missing.join(', ')}, missing from main, so no build can satisfy it`,
     'name the paths where they live on main now (pullboard edit <id> --criterion/--check/--brief), or withdraw the item') : null;
+}
+
+/**
+ * Refuse a bar that names a new test file the layout rule would call a test-mirror violation, naming the mirror path (#10629).
+ * Why: a frozen path that mirrors no source file fails the commit's LAYOUT_RATCHET, so the coordinator had to re-bar it; add
+ * and edit catch it first. The codemap door loads lazily so the claim path that shares this module never pays for it.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, check?: string }} bar
+ * @param {boolean} on The items.testMirrorAtAdd machine setting; off accepts any path.
+ */
+export async function requireTestMirror(ctx, bar, on) {
+  if (!on) return;
+  const listed = tryGit(ctx.info.root, ['ls-tree', '-r', '--name-only', trunkBranch(ctx.info.root)]);
+  if (listed.status !== 0) return;
+  const tracked = listed.stdout.split('\n').filter(Boolean);
+  const named = barPaths({ criterion: bar.criterion, check: bar.check });
+  const { newTestMirrorFindings, isDefaultTestFile } = await import('../../../../../packages/codemap/index.js');
+  requireRegistryRecord(tracked, named, isDefaultTestFile);
+  const { bad, use } = newTestMirrorFindings(tracked, named);
+  if (!bad.length) return;
+  throw new Refused('LAYOUT_TEST_MIRROR', `the bar names ${bad.join(', ')}, a new test file that mirrors no source file`,
+    use ? `name ${use}, the test that mirrors the source file the bar names, or put the cases in an existing test of that source`
+      : 'name a test under tests/<logic|io>/ for the src/<logic|io>/ file it proves, or put the cases in an existing test of that source');
+}
+
+/**
+ * Refuse a bar whose test file sits in a strict-registry cell (its tests folder holds a registry.test.js) while the bar names
+ * none of that cell's fixtures registry records (#10677).
+ * Why: a bare `clause N:` title in such a cell turned main red on 17 Nov; the refusal names the record file and the ID prefix.
+ *
+ * @param {string[]} tracked Every file on main.
+ * @param {string[]} named The paths the bar names.
+ * @param {(path: string) => boolean} isTest The codemap's test-file predicate, passed in so this module never names a test file itself.
+ */
+export function requireRegistryRecord(tracked, named, isTest) {
+  for (const path of named) {
+    const at = path.lastIndexOf('/tests/');
+    if (at < 0 || !isTest(path) || path.slice(at).startsWith('/tests/registry')) continue;
+    const cell = path.slice(0, at);
+    if (!tracked.some(file => file.startsWith(`${cell}/tests/registry`) && isTest(file))) continue;
+    if (named.some(other => other.startsWith(`${cell}/tests/fixtures/registry`) && other.endsWith('.json'))) continue;
+    const record = `${cell}/tests/fixtures/registry.json`;
+    throw new Refused('REGISTRY_TEST_ID', `the bar names ${path}, a test in a strict-registry cell, but not its registry record ${record}`,
+      `name ${record} in the bar and title each test <cell id>.<area>.<name>: clause N: ..., not a bare clause N title`);
+  }
 }
 
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
@@ -111,11 +158,11 @@ export function coordinatorPaths(config, item, options) {
  * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
  *
  * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
+ * @param {{ prose?: boolean, check?: boolean }} [options] - `check: false` leaves the check's paths out but keeps its lane-folder scope.
  * @returns {string[]}
  */
-export function barPaths(item, { prose = true } = {}) {
-  const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
+export function barPaths(item, { prose = true, check = true } = {}) {
+  const named = [...(prose ? pathTokens(item.criterion) : []), ...(check ? pathTokens(item.check) : []), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
   // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
   const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
   const scoped = scope ? named.map(path => (isConfigFile(path) || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
@@ -135,4 +182,24 @@ export function requireNoCoordinatorPath(config, me, item, options) {
   if (!paths.length) return;
   throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,
     splitAdvice(item.lane, item.title, paths));
+}
+
+/**
+ * Refuse a claim of a lane item whose brief Files list names a path no lane owns, on every claim route (claim, next, run),
+ * judged by the lanes in main's committed config [C7,#11857].
+ * Why: the check read the criterion and check too, so a bar naming a file the builder only reads (a vendored cell, a contract)
+ * refused every claim; and explicit claim read the seat folder's own config while next skipped the check, so seats disagreed.
+ * The Files list is what the item changes; a cited spec row's text in the criterion never adds a path.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {number} id
+ * @param {string} agentId The claiming seat.
+ * @param {object} accepted Main's committed config, as mainPolicy reads it.
+ */
+export function refuseClaimCrossOwnership(ctx, board, id, agentId, accepted) {
+  const item = board.nativePorts.getItem(board, id);
+  if (!item || outsideBuildProblem(board, item)) return;
+  requireNoCoordinatorPath(accepted, { id: agentId }, { lane: item.item_lane, title: item.item_title, check: item.item_check, brief: item.item_brief },
+    { prose: false, check: false, present: onTrunk(ctx.info.root) });
 }

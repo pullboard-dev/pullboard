@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -34,7 +34,7 @@ function postGate(t, extra) {
   return { repo, board, item, posted };
 }
 
-test('clause 1: a pulled timed gate receipt writes the submit receipt in the gate receipt log [C7]', t => {
+test('cli.io-gate-timed-receipt.a-pulled-timed-gate-receipt-writes-the: clause 1: a pulled timed gate receipt writes the submit receipt in the gate receipt log [C7]', t => {
   const { repo, item, board, posted } = postGate(t, { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: 4,
     admittedAt: '2026-11-15T18:00:00.000Z', finishedAt: '2026-11-15T18:00:30.000Z' });
   assert.equal(posted.applied.outcome, 'review', JSON.stringify(posted.applied));
@@ -45,7 +45,7 @@ test('clause 1: a pulled timed gate receipt writes the submit receipt in the gat
     { kind: 'submit', timing: true, exclusive: true, occupiedSlots: 4, admittedAt: '2026-11-15T18:00:00.000Z', finishedAt: '2026-11-15T18:00:30.000Z', runMs: 30_000 });
 });
 
-test('clause 1: an untimed pulled gate receipt writes no submit receipt [C7]', t => {
+test('cli.io-gate-timed-receipt.an-untimed-pulled-gate-receipt-writes-no: clause 1: an untimed pulled gate receipt writes no submit receipt [C7]', t => {
   const { repo } = postGate(t, {});
   assert.throws(() => readFileSync(receiptLog(repo.root), 'utf8'), { code: 'ENOENT' });
 });

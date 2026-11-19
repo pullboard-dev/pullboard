@@ -1,0 +1,5 @@
+{
+  "view.approve-apply.commit-named": {"proves":{"specs":["N26"],"claim":"A spec-approve result carrying applied.commit makes the page message name the short commit id instead of pending apply."},"why":"Without it an approval the board already committed would still read as waiting.","kind":"cell unit","inputs":["apps/view/tests/logic/approve-message.test.js"]},
+  "view.approve-apply.left-named": {"proves":{"specs":["N26"],"claim":"A spec-approve result carrying applied.left makes the page message show that one command left."},"why":"Without it the person is not told the one command that finishes the approval.","kind":"cell unit","inputs":["apps/view/tests/logic/approve-message.test.js"]},
+  "view.approve-apply.absent-keeps-pending": {"proves":{"specs":["N26"],"claim":"A spec-approve result with no applied field keeps the pending apply text."},"why":"Without it a board with the apply setting off would show a wrong message.","kind":"cell unit","inputs":["apps/view/tests/logic/approve-message.test.js"]}
+}

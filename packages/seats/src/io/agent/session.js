@@ -20,7 +20,7 @@ import {
 import {
   holdsLease,
   takeResource,
-} from '../../../../resources/index.js';
+} from '../../../../resources/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import { checkoutSessionFile } from './binding.js';
 export { checkoutSessionFile } from './binding.js';

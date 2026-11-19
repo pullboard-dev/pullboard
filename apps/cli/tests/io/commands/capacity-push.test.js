@@ -10,7 +10,7 @@ import { createE2eHelpers } from '../../fixtures/e2e.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('clause 1: capacity --json carries a pushGate object, null where an input is unknown, and the text names the shard count [C7,U151]', async () => {
+test('cli.io-commands-capacity-push.capacity-json-carries-a-pushgate-object-null: clause 1: capacity --json carries a pushGate object, null where an input is unknown, and the text names the shard count [C7,U151]', async () => {
   const box = e2e.project();
   const json = await box.runLocal(box.repo, 'capacity', '--json');
   assert.equal(json.code, 0, `${json.err}\n${json.out}`);
@@ -29,7 +29,7 @@ test('clause 1: capacity --json carries a pushGate object, null where an input i
   assert.equal(pushGateReport(['a.test.js', 'b.test.js'], {}, {}, 3).shards, 2, 'setting off: the fixed plan, capped by the file count');
 });
 
-test('clause 2: the push gate report only reads: inputs are left unchanged and the plan is repeatable [C7,U151]', () => {
+test('cli.io-commands-capacity-push.the-push-gate-report-only-reads-inputs: clause 2: the push gate report only reads: inputs are left unchanged and the plan is repeatable [C7,U151]', () => {
   const files = ['a.test.js', 'b.test.js'];
   const times = { 'a.test.js': 1000 };
   const config = { pushGate: { sizeFromBoard: true } };

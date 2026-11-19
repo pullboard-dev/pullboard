@@ -6,7 +6,7 @@ import { Refused } from '../../../packages/kernel/index.js';
 
 const options = (extra = {}) => ({ healthy: async () => true, wait: async () => {}, lockSleep: () => {}, say: () => {}, ...extra });
 
-test('clause 1: a board call that throws SLOT_DB_LOCKED twice then succeeds finishes the submit with each stage run once and two lock waits recorded [C7,#3370]', async () => {
+test('lib.submit-lock-retries-in-place.a-board-call-that-throws-slot-db: clause 1: a board call that throws SLOT_DB_LOCKED twice then succeeds finishes the submit with each stage run once and two lock waits recorded [C7,#3370]', async () => {
   const stages = { selection: 0, proof: 0, cells: 0 };
   let board = 0;
   const out = await submitUntilSettled(async (attempt, avoided, inPlace) => {
@@ -21,7 +21,7 @@ test('clause 1: a board call that throws SLOT_DB_LOCKED twice then succeeds fini
   assert.deepEqual(out.lockWaits, { count: 2, totalMs: 750, codes: { SLOT_DB_LOCKED: 2 } });
 });
 
-test('clause 1: a synchronous BOARD_BUSY retries in place with back-off from 250 ms, and another error goes up unchanged [C7,#3370]', async () => {
+test('lib.submit-lock-retries-in-place.a-synchronous-board-busy-retries-in-place: clause 1: a synchronous BOARD_BUSY retries in place with back-off from 250 ms, and another error goes up unchanged [C7,#3370]', async () => {
   const pauses = [];
   let calls = 0;
   const out = await submitUntilSettled(async (attempt, avoided, inPlace) => {

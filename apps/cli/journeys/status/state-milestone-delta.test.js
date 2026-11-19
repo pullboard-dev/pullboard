@@ -9,7 +9,7 @@ import { getItem } from '../../../../packages/store/index.js';
 import { merged } from '../../../../packages/store/index.js';
 import { shout } from '../../../../packages/store/index.js';
 import { verify } from '../../../../packages/store/index.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
@@ -93,21 +93,21 @@ async function deltaAfter(box, change) {
 /** One event on the second item of milestone 7. */
 const touchOneItem = box => () => cellClaim(box.board, box.ids[15], box.agents[1], { root: box.project.repo, leaseMs: 3 * HOUR });
 
-test('clause 1: with state.milestoneDelta on, a delta after one event on one item returns that item and only the milestone holding it, not all 50 [C7,#9846]', async (t) => {
+test('cli.journeys-status-state-milestone-delta.with-state-milestonedelta-on-a-delta: clause 1: with state.milestoneDelta on, a delta after one event on one item returns that item and only the milestone holding it, not all 50 [C7,#9846]', async (t) => {
   const box = await served(t, true);
   const delta = await deltaAfter(box, () => { box.tick(2 * 60_000); touchOneItem(box)(); });
   assert.deepEqual(delta.merge.items.set.map(item => item.id), [box.ids[15]]);
   assert.deepEqual(delta.merge.milestones.set.map(milestone => milestone.name), ['Delta release 7']);
 });
 
-test('clause 2: with state.milestoneDelta on, an event that moves only a milestone pace-derived estimate, window or reason leaves that milestone out of the delta [C7,#9846]', async (t) => {
+test('cli.journeys-status-state-milestone-delta.with-state-milestonedelta-on-an-event: clause 2: with state.milestoneDelta on, an event that moves only a milestone pace-derived estimate, window or reason leaves that milestone out of the delta [C7,#9846]', async (t) => {
   const box = await served(t, true);
   const delta = await deltaAfter(box, () => { box.advance(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'all', text: 'An event that touches no item', lanes: ['web'] }); });
   assert.equal(delta.merge.milestones, undefined, 'a moved pace, and the estimate derived from it, resend no milestone');
   assert.equal(delta.milestonePace.last2h, 0, 'the pace travels once beside the delta');
 });
 
-test('clause 3: with the setting off, that same event puts the milestone row in the delta as today [C7,#9846]', async (t) => {
+test('cli.journeys-status-state-milestone-delta.with-the-setting-off-that-same: clause 3: with the setting off, that same event puts the milestone row in the delta as today [C7,#9846]', async (t) => {
   const box = await served(t, false);
   const delta = await deltaAfter(box, () => { box.advance(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'all', text: 'An event that touches no item', lanes: ['web'] }); });
   assert.equal(delta.merge.milestones.set.length, MILESTONES, 'every milestone is sent again once the pace moved');

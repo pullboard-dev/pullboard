@@ -12,7 +12,7 @@ import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('pullboard publish from an agent shell pushes the green head [GH25]', async () => {
+test('cli.journeys-publish-agent.pullboard-publish-from-an-agent-shell: pullboard publish from an agent shell pushes the green head [GH25]', async () => {
   const box = e2e.sandbox();
   delete box.env.NODE_TEST_CONTEXT;
   const project = e2e.project('node --test test/publish.test.js', box, { withWorktree: false });

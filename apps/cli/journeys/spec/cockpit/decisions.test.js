@@ -129,7 +129,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
 
       await diagnosticClick(chrome, '#spec-detail [data-row-decision="decline"]', width, 'detail decline before saved decision');
       await chrome.stable("document.querySelector('#spec-decline-reason').value = 'Needs a clearer outcome'");
-      box.run(demo.repo, 'shout', 'person', `refresh probe ${width}`);
+      await box.runIn(demo.repo, 'shout', 'person', `refresh probe ${width}`); // in this process: Chrome is the subject, not the CLI start-up [C7]
       await chrome.waitFor(`data.project.shouts.some(shout => shout.shout_text === 'refresh probe ${width}')`);
       assert.equal(await chrome.stable("document.querySelector('#spec-decline-reason').value"), 'Needs a clearer outcome', `${width}: typed reason survives a live refresh`);
       // A background scroll must not refuse a fixed dialog button that stays under the native pointer.

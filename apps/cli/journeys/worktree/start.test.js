@@ -18,7 +18,10 @@ import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import {
+  JOURNEY_MODE,
+  createE2eHelpers,
+} from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
   configProblems,
@@ -37,13 +40,15 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project } = e2e;
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** Setup joins run in this process through the warm worker; a real process under PULLBOARD_JOURNEY_MODE=process (U149). */
+const setupRun = (box) => (JOURNEY_MODE === 'process' ? box.run : box.runSync);
 
-test("the README's worktree command works in a fresh repo [I1,I2]", async () => {
+test('cli.journeys-worktree-start.the-readme-s-worktree-command-works: the README\'s worktree command works in a fresh repo [I1,I2]', async () => {
   const box = sandbox();
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Coordinator Session Model';
-  const coordinator = fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Session Model');
+  const coordinator = fixtureJoin(setupRun(box), repo, 'coordinator', '--model', 'Coordinator Session Model');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
 
   box.env.PULLBOARD_MODEL = 'Session Worktree Model';
@@ -60,6 +65,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
 
   delete box.env.PULLBOARD_MODEL;
   const before = box.git(repo, 'worktree', 'list', '--porcelain');
+  // Kept real: this case tests the exit code and the exact stderr of a refusal.
   const missingWorktreeModel = runFixtureChild(process.execPath, [BIN, 'worktree', 'api'],
     { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(missingWorktreeModel.status, 1);
@@ -78,7 +84,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   box.env.PULLBOARD_MODEL = 'Session Join Model';
   const envJoin = join(box.dir, 'env-join');
   box.git(repo, 'worktree', 'add', '-q', '--detach', envJoin, 'HEAD');
-  const joined = fixtureJoin(box.run, envJoin, 'api');
+  const joined = fixtureJoin(setupRun(box), envJoin, 'api');
   assert.equal(joined.code, 0, joined.err || joined.out);
   assert.match(joined.out, /joined as api-1 \(Session Join Model\)/,
     'join takes the model from PULLBOARD_MODEL');
@@ -86,6 +92,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   delete box.env.PULLBOARD_MODEL;
   const missingJoin = join(box.dir, 'join-without-model');
   box.git(repo, 'worktree', 'add', '-q', '--detach', missingJoin, 'HEAD');
+  // Kept real: this case tests the exit code and the exact stderr of a refusal.
   const missingJoinModel = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'api'],
     { cwd: missingJoin, env: box.env, encoding: 'utf8' });
   assert.equal(missingJoinModel.status, 1);
@@ -100,7 +107,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
     'run pullboard join api --model "<model name>"');
 });
 
-test('a new worktree is created inside the repository [I1,I2]', async () => {
+test('cli.journeys-worktree-start.a-new-worktree-is-created-inside: a new worktree is created inside the repository [I1,I2]', async () => {
   for (const mode of ['inside', 'beside', undefined]) {
     const box = sandbox();
     const { repo, web } = project('true', box);
@@ -222,14 +229,14 @@ test('a new worktree is created inside the repository [I1,I2]', async () => {
   assert.equal(box.git(repo, 'status', '--porcelain'), '');
 });
 
-test('worktree suggests no install for a zero-dependency project [I1,L3]', async () => {
+test('cli.journeys-worktree-start.worktree-suggests-no-install-for-a: worktree suggests no install for a zero-dependency project [I1,L3]', async () => {
   const box = sandbox();
   // Git selectors inherited from a hook would point the fixture's git at the outer repository.
   for (const key of Object.keys(box.env)) if (key.startsWith('GIT_') && !key.startsWith('GIT_CONFIG_') && !/^GIT_(?:AUTHOR|COMMITTER)_/u.test(key)) delete box.env[key];
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Install Step Model';
-  const coordinator = fixtureJoin(box.run, repo, 'coordinator');
+  const coordinator = fixtureJoin(setupRun(box), repo, 'coordinator');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
   /** Commit files on main as the coordinator, then make a web worktree and return its output. */
   const worktreeAfter = async (files) => {
@@ -277,7 +284,7 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', async
     'an npm-shrinkwrap.json in HEAD is a committed lockfile');
 });
 
-test('the worktree and branch names Pullboard makes carry no host part [I1,I2]', async () => {
+test('cli.journeys-worktree-start.the-worktree-and-branch-names-pullboard: the worktree and branch names Pullboard makes carry no host part [I1,I2]', async () => {
   const box = sandbox();
   const { web } = project('true', box);
   box.env.PULLBOARD_MODEL = 'Name Model';
@@ -291,7 +298,7 @@ test('the worktree and branch names Pullboard makes carry no host part [I1,I2]',
   }
 });
 
-test('a submit naming a stand-in host refuses at HOST_NAME, and only warns when the setting is off [C1]', () => {
+test('cli.journeys-worktree-start.a-submit-naming-a-stand-in: a submit naming a stand-in host refuses at HOST_NAME, and only warns when the setting is off [C1]', () => {
   const box = sandbox();
   const { repo } = project('true', box);
   const base = box.git(repo, 'rev-parse', 'HEAD');
@@ -313,7 +320,7 @@ test('a submit naming a stand-in host refuses at HOST_NAME, and only warns when 
     (error) => error.code === 'HOST_NAME' && /names this machine/u.test(error.message), 'a stand-in computer name is refused');
 });
 
-test('a stand-in host after a field separator in a commit body is still refused [C1]', () => {
+test('cli.journeys-worktree-start.a-stand-in-host-after-a: a stand-in host after a field separator in a commit body is still refused [C1]', () => {
   const box = sandbox();
   const { repo } = project('true', box);
   const base = box.git(repo, 'rev-parse', 'HEAD');
@@ -347,7 +354,7 @@ async function submitNamingThisMachine(box, noHostName) {
   return (await box.runLocal(web, 'submit', '1'));
 }
 
-test('a submit naming this machine is refused at HOST_NAME when commits.noHostName is on, and the host name stays out of the output [C1]', async () => {
+test('cli.journeys-worktree-start.a-submit-naming-this-machine-is: a submit naming this machine is refused at HOST_NAME when commits.noHostName is on, and the host name stays out of the output [C1]', async () => {
   const box = sandbox();
   const host = hostname().toLowerCase();
   const refused = (await submitNamingThisMachine(box, true));
@@ -356,7 +363,7 @@ test('a submit naming this machine is refused at HOST_NAME when commits.noHostNa
   assert.equal(`${refused.out}\n${refused.err}`.toLowerCase().includes(host), false, 'the output does not name the host');
 });
 
-test('the same submit only warns when commits.noHostName is off, and the submit goes on [C1]', async () => {
+test('cli.journeys-worktree-start.the-same-submit-only-warns-when: the same submit only warns when commits.noHostName is off, and the submit goes on [C1]', async () => {
   const box = sandbox();
   const host = hostname().toLowerCase();
   const submitted = (await submitNamingThisMachine(box, false));

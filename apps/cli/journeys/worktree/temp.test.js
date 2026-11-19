@@ -25,7 +25,7 @@ function coordinatorBox() {
   return { box, repo };
 }
 
-test('clause 1: a worktree request under the OS temporary directory is refused naming the persistent default when the setting is on [C7,#8513]', async () => {
+test('cli.journeys-worktree-temp.a-worktree-request-under-the-os: clause 1: a worktree request under the OS temporary directory is refused naming the persistent default when the setting is on [C7,#8513]', async () => {
   const { box, repo } = coordinatorBox();
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { refuseTempWorktree: true } });
   const before = box.git(repo, 'worktree', 'list', '--porcelain');
@@ -38,7 +38,7 @@ test('clause 1: a worktree request under the OS temporary directory is refused n
   assert.equal(box.git(repo, 'worktree', 'list', '--porcelain'), before, 'the refused request made no worktree');
 });
 
-test('clause 2: the setting is off by default and leaves worktree requests unchanged [C7,#8513]', async () => {
+test('cli.journeys-worktree-temp.the-setting-is-off-by-default: clause 2: the setting is off by default and leaves worktree requests unchanged [C7,#8513]', async () => {
   const { box, repo } = coordinatorBox();
   const made = await box.runLocal(repo, 'worktree', 'web', '--json');
   assert.equal(made.code, 0, made.err || made.out);

@@ -20,7 +20,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Follow the actual printed setter after proving the same real target fails independently. */
-test('NO_GATE preserves a failing Makefile test with ordinary multiple targets [C3,I1,B26]', async () => {
+test('cli.journeys-init-gate-makefile.no-gate-preserves-a-failing-makefile: NO_GATE preserves a failing Makefile test with ordinary multiple targets [C3,I1,B26]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'multi-target-project');
   mkdirSync(root);
@@ -59,7 +59,7 @@ test('NO_GATE preserves a failing Makefile test with ordinary multiple targets [
   assert.equal(readFileSync(marker, 'utf8'), 'tested');
 });
 
-test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]', async () => {
+test('cli.journeys-init-gate-makefile.no-gate-finds-test-anywhere-in: NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]', async () => {
   for (const [rule, target] of [
     ['check test:', true],
     ['check \\' + '\ntest:', true],
@@ -102,7 +102,7 @@ test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]',
   }
 });
 
-test('init joins one gate per detected language and protects each language\'s test files [C7,B26,#3707]', async () => {
+test('cli.journeys-init-gate-makefile.init-joins-one-gate-per-detected: init joins one gate per detected language and protects each language\'s test files [C7,B26,#3707]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'mixed-languages');
   mkdirSync(root);

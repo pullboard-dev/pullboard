@@ -28,6 +28,7 @@ import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingNumber } from '../../../../../packages/drive/index.js';
 import { runnerSettingOn } from '../../../../../packages/drive/index.js';
 import { machineSettingsFile } from '../../../../../packages/resources/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
@@ -42,12 +43,16 @@ import { pulledProfilePathsEnabled } from '../../../../../packages/config/index.
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { issueRunnerKey } from '../../../../../packages/runners/index.js';
 import { revokeRunnerKey } from '../../../../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
 } from '../../../../../packages/runners/index.js';
+
+/** How long runner add waits for the one-time registration probe (SSH, a shell and node on the runner); health probes keep their 3 s default so a loaded runner or slow link still registers [C7]. */
+const REGISTRATION_PROBE_MS = 15_000;
 
 /** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
 export function liveRunnerCount(ctx) {
@@ -74,7 +79,7 @@ function toolchainLine(host, problem) {
 }
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */
-export async function runnerCommand(io, { first, second, rest, values }) {
+export async function runnerCommand(io, { first, second, rest, values }, { serve = serveRunner } = {}) {
   if (first === 'list') {
     if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner list');
     // Registered capacity is what each runner enforces, whatever its own settings say (#1066).
@@ -140,12 +145,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs), { atomic, logEvent });
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
-    const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
+    const served = await serve({ board: second, key: values.key ?? environmentAdapter().get('PULLBOARD_BOARD_KEY'), runner: values.as,
       ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
-      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled() })
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled(),
+      jobWorkerFactor: runnerSettingNumber(machineSettingsFile(), 'runners.jobWorkerFactor', 2) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
@@ -163,7 +169,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const runner = (loadMachineSettings().runners ?? []).find(entry => entry.host === second);
     if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${second} is not registered`, 'run pullboard runner add <ssh-host>');
     // The key: the flag, the URL's own ?k=, the runner environment's variable, or this machine's board key when it serves the board.
-    const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? process.env.PULLBOARD_BOARD_KEY
+    const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? environmentAdapter().get('PULLBOARD_BOARD_KEY')
       ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
     const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
@@ -227,16 +233,17 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   if (first !== 'add' || !second || rest.length || slotsGiven && !/^[1-9]\d*$/u.test(values.slots)
     || values.browser !== undefined && !/^(?:0|[1-9]\d*)$/u.test(values.browser)
     || slotsGiven && values.browser === undefined || !slotsGiven && values.browser !== undefined && Number(values.browser) !== 0) {
-    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] [--toolchain node=22,python=3.12] | pullboard runner measure [<ssh-host>]');
+    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] [--toolchain node=22,python=3.12|auto] | pullboard runner measure [<ssh-host>]');
   }
   const prior = (loadMachineSettings().runners ?? []).find(runner => runner.host === second);
   const node = values.node ?? prior?.node;
   const root = values.root ?? prior?.root;
   // A re-registration keeps the declared toolchains unless it declares new ones.
-  const toolchains = values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
+  const auto = values.toolchain === 'auto';
+  const toolchains = auto ? undefined : values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
-  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, ...(toolchains ? { toolchains } : {}) });
+  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, timeoutMs: REGISTRATION_PROBE_MS, ...(toolchains ? { toolchains } : {}), ...(auto ? { discover: true } : {}) });
   if (!observation.healthy) throw new Refused('RUNNER_SETUP', `runner ${second} did not complete its registration probe; fix the SSH connection or configured Node, then run pullboard runner add again`);
   if (typeof observation.publicKey !== 'string') throw new Refused('RUNNER_SETUP', `runner ${second} did not enroll its result signing key; check its Pullboard home permissions, then run pullboard runner add again`);
   if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
@@ -248,7 +255,8 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     : { ...computeRunnerSlots(measuredSize), ...(values.browser === '0' ? { browser: 0 } : {}) };
   if (sized.slots === 0) throw new Refused('BAD_RUNNER', `runner ${second} has no capacity after the core and memory reserves; use a larger runner or an explicit fixed count`);
   // Only the toolchains the runner's own probe answered are recorded; each one it could not verify is named and left out.
-  const verified = toolchains ? observation.toolchains?.verified ?? {} : undefined;
+  const verified = auto ? observation.discovered ?? {} : toolchains ? observation.toolchains?.verified ?? {} : undefined;
+  if (auto) io.say(Object.keys(verified).length ? `runner ${second}: found toolchains ${Object.entries(verified).map(([name, version]) => `${name} ${version}`).join(', ')}` : `runner ${second}: --toolchain auto found no toolchain; none recorded`);
   for (const problem of toolchains ? observation.toolchains?.problems ?? Object.keys(toolchains).map(name => ({ name, problem: 'missing', declared: toolchains[name], found: null })) : []) io.say(toolchainLine(second, problem));
   const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(verified && Object.keys(verified).length ? { toolchains: verified } : {}) });
   const runner = addRunner({ ...configured, gui: observation.gui });
@@ -269,7 +277,7 @@ export function run(io, args) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
  */
-export function itemFolderRunner(env = process.env) {
+export function itemFolderRunner(env = environmentAdapter().all()) {
   const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
   if (!host) return null;
   const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);
@@ -285,7 +293,7 @@ export function itemFolderRunner(env = process.env) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {Promise<string>} The folder as host:path.
  */
-export async function openHostedItemFolder(runner, { itemId, branch, commonDir, hooksPath }, env = process.env) {
+export async function openHostedItemFolder(runner, { itemId, branch, commonDir, hooksPath }, env = environmentAdapter().all()) {
   const hosted = await createHostedItemFolder(runner, { itemId, origin: env.PULLBOARD_ITEM_FOLDER_ORIGIN?.trim() || commonDir,
     branch, ...(hooksPath ? { hooksPath } : {}) });
   return `${hosted.host}:${hosted.folder}`;

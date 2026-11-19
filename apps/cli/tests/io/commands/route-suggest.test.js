@@ -16,7 +16,7 @@ async function addItem(box, title, ...extra) {
   return JSON.parse(added.out).item.item_id;
 }
 
-test('clause 1: route --suggest lists the open strong items whose shape meets the light rule and edits none of them [C7,#3081]', async () => {
+test('cli.io-commands-route-suggest.route-suggest-lists-the-open-strong-items: clause 1: route --suggest lists the open strong items whose shape meets the light rule and edits none of them [C7,#3081]', async () => {
   const isolated = helpers.sandbox();
   isolated.env.PULLBOARD_FIXTURE_ROUTES = 'board';
   const box = helpers.project('true', isolated);

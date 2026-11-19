@@ -27,7 +27,7 @@ function board() {
 /** The trace lines of item 7, as the command prints them. */
 const lines = db => traceTimeline({ lines: [], events: [], subject: '7', jobs: readJobSteps(db) }).map(traceLine);
 
-test('clause 1: a lapsed step prints as one line with the runner, attempt, lease end and last step [C7,#9248]', () => {
+test('cli.io-job-lapse-lines.a-lapsed-step-prints-as-one-line: clause 1: a lapsed step prints as one line with the runner, attempt, lease end and last step [C7,#9248]', () => {
   const db = board();
   const lease = NOW + 120_000, last = NOW + 90_000;
   writeStep(db, 'gate:7', 'lapsed', { runner: 'runner-a', attempt: 1, leaseUntil: lease, lastAt: last, lastStep: 'offered' }, { now: NOW + 130_000 });
@@ -39,7 +39,7 @@ test('clause 1: a lapsed step prints as one line with the runner, attempt, lease
   assert.ok(!lapsed[0].includes('{'), 'no raw JSON');
 });
 
-test('clause 2: a job with no lapsed step prints exactly what it printed before [C7,#9248]', () => {
+test('cli.io-job-lapse-lines.a-job-with-no-lapsed-step-prints: clause 2: a job with no lapsed step prints exactly what it printed before [C7,#9248]', () => {
   const db = board();
   writeStep(db, 'gate:7', 'running', { note: 'ok' }, { now: NOW + 20 });
   const text = lines(db).join('\n');

@@ -6,7 +6,7 @@ import { offerJob } from '../../../../api/index.js';
 import { postReceipt } from '../../../../api/index.js';
 import { releaseJob } from '../../../../api/index.js';
 import { renewJob } from '../../../../api/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { jobEngine } from '../../../index.js';
 import { runTable } from '../../../index.js';
 

@@ -24,6 +24,7 @@ import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
+import { namedFileRunner } from '../../../../../packages/gate/index.js';
 import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
@@ -55,7 +56,7 @@ import { specFailureFiles } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
-import { checkpointAfterMove } from '../../../../../packages/stats/index.js';
+import { checkpointAfterMove } from '../../../../../packages/stats/light.js';
 import { usageCheckpointWorkerEntrypoint } from '../checkpoint.js';
 
 /**
@@ -283,6 +284,14 @@ const checkoutState = () => {
   const tracked = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' });
   return head.status === 0 && tracked.status === 0 ? { head: head.stdout.trim(), tracked: tracked.stdout.trim() } : null;
 };
+/**
+ * The result store a submit proof shares: one folder under the runner root, above the 'pull' folder of the slot checkout, which the runner prunes with its other test results.
+ * Why: slot checkouts each held their own store, so a file another slot or gate had already proved ran again. Only a proof that owes a test account (\`selected\`) shares it, so a landing shard, which owes none, keeps its slot's own; a store or reuse setting already in the environment is never replaced [C7,#11114].
+ */
+const sharedResultStore = (role, selected, checkout, env) => {
+  const parts = String(checkout).split('/'), at = parts.lastIndexOf('pull');
+  return role === 'proof' && selected?.length && at > 0 && !env.PULLBOARD_TEST_RESULT_STORE ? { PULLBOARD_TEST_RESULT_STORE: parts.slice(0, at).join('/') + '/test-results/pull-gate' } : {};
+};
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
   if (role === 'proof' && !pipefailShell && /(?:^|[^|])\\|(?:[^|]|$)/u.test(command)) return { role, status: 1, signal: null, tail: 'PIPEFAIL_UNAVAILABLE: the runner shell cannot enable pipefail; rewrite the gate without a pipe', exit: ['PIPEFAIL_UNAVAILABLE'] };
@@ -291,7 +300,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const started = performance.now();
   // Each test child reports its runtime into a private capture folder, as under the controller gate; the proof phase alone is admitted proof [C7].
-  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) };
+  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}), ...sharedResultStore(role, selected, root, process.env) };
   const capture = role === 'proof' && typeof sandbox?.captureTestRuntimes === 'function' ? sandbox.captureTestRuntimes(phaseEnv) : null;
   const ran = await new Promise(resolve => {
     const child = spawn('(' + (role === 'proof' && pipefailShell ? 'set -o pipefail\\n' : '') + command + '\\n) 2>&1', { shell: role === 'proof' && pipefailShell ? pipefailShell : true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -307,6 +316,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  // A phase that wrote its timing profile beside its log in the checkout names it on its row, so the runner keeps it with the sanitized log [C7,#7301].
+  const profileFile = join(root, role + '.log.profile.json'), profilePath = existsSync(profileFile) ? profileFile : null;
   const cases = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
   const failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 500) })) : null;
   // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
@@ -333,7 +344,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   let digest = null;
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
@@ -362,6 +373,8 @@ else {
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null,
     // Each doctrine rule's count line rides first in the notes, as the controller submit printed it ("doctrine: Q1 · 1, was 2 · holding") [D1,D3,C7].
     notes: [...(Array.isArray(analysis.doctrine) ? analysis.doctrine.map(rule => 'doctrine: ' + ruleLine(rule)) : []), ...(analysis.notes ?? [])].slice(0, 20),
+    // Static rows main also has ride to the board as data, so it records them as known main reds (gate.knownMainStatic) [C7,#10567].
+    ...(Array.isArray(analysis.staticKnownMain) && analysis.staticKnownMain.length ? { staticKnownMain: analysis.staticKnownMain.slice(0, 200).map(row => ({ rule: row.rule, file: row.file })) } : {}),
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
@@ -545,6 +558,24 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
 }
 
 /**
+ * The line submit prints naming the runner its proof will use and where that choice came from. Why: a proof once ran under
+ * node --test after main moved to Jest, and nothing said whether main or the item's own pinned policy chose it [C7].
+ *
+ * @param {{ affectedTests?: string }} config - The config the gate job carries.
+ * @param {{ commit: string, config: { affectedTests?: string } }} main - The accepted main the gate pins.
+ * @param {string} source - The commit the gate judges.
+ * @returns {string}
+ */
+export function proofRunnerNote(config, main, source) {
+  const runner = typeof config.affectedTests === 'string' ? config.affectedTests.trim() : '';
+  const mains = typeof main.config?.affectedTests === 'string' ? main.config.affectedTests.trim() : '';
+  if (!runner && !mains) return `test runner: none set (named .js files run under ${namedFileRunner('', ['named.js'])})`;
+  if (!runner) return `test runner: none set (affectedTests from this item's policy ${source.slice(0, 12)}; main sets ${mains})`;
+  if (runner === mains) return `test runner: ${runner} (affectedTests from main ${main.commit.slice(0, 12)})`;
+  return `test runner: ${runner} (affectedTests from this item's policy ${source.slice(0, 12)}; main sets ${mains || 'none'})`;
+}
+
+/**
  * Write the submit's gate job row and return at once. The candidate is pinned under refs/pullboard/gate so a runner can
  * fetch it from the trunk remote; everything else this does is reads and one board write. A companion submit's gate
  * judges its composed source, and its submit record carries the composition, so the board binds the receipts to it [P7].
@@ -552,14 +583,15 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
  * @param {object} ctx
  * @param {{ held: object, me: { id: string }, commit: string, trunk: { commit: string }, main: { commit: string, config: object },
  *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean,
- *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null }} submission - files: what the
+ *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null,
+ *   composed?: { main: string, head: string, tree: string } | null }} submission - composed: set when the submitted commit is a submit.composeAsObject composition, so a runner recomputes its tree from main and head and refuses COMPOSITION_MISMATCH [U159]. files: what the
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
  *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on; tableReplay is the move-table replay hook, which a test hands in its own.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null, composed = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
   const { root } = ctx.info;
   const id = held.item_id;
   // With gate.tableReplay on, a submit whose files change a move table is held to what the board recorded before any job row is offered; off, nothing runs [C7,#8121].
@@ -589,9 +621,10 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
+    ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
-    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
+    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen, item_brief: held.item_brief, item_files: held.item_files } } : authorize || null });
   mark('request');
   const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;
@@ -626,6 +659,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   if (ctx.json) ctx.io.result(acknowledgment);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
+  if (!ctx.json) ctx.io.say(proofRunnerNote(config, main, source));
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
   const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);

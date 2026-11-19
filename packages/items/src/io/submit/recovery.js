@@ -22,7 +22,7 @@ import {
 } from 'node:path';
 import { sameCommonDir } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
-import { handoffQueueDirectory } from '../../../../resources/index.js';
+import { processMachineHome } from '../../../../kernel/light.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 
@@ -112,7 +112,7 @@ function awaitsRecoveryRetry(file, read, now) {
  * @param {{ queue?: string, commonDirs?: string[], now?: number }} [options] - The machine queue, extra repositories to scan and the clock.
  * @returns {Set<string>}
  */
-export function queuedToolOwners({ queue = handoffQueueDirectory(), commonDirs = [], now = Date.now() } = {}) {
+export function queuedToolOwners({ queue = join(processMachineHome(), 'handoff-queue'), commonDirs = [], now = Date.now() } = {}) {
   const owned = new Set();
   const roots = new Set(commonDirs);
   /** Read one JSON file, ignoring anything missing or damaged. */

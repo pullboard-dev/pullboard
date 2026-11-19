@@ -20,7 +20,7 @@ function listing(directory) {
   return found.sort();
 }
 
-test('a second run reuses the first run\'s compiled modules from compile-cache under the machine home [C7]', () => {
+test('cli.compile-cache.a-second-run-reuses-the-first-run: a second run reuses the first run\'s compiled modules from compile-cache under the machine home [C7]', () => {
   const home = privateFixtureFiles('pullboard-compile-cache-').root;
   try {
     assert.equal(runHelpAt(home).status, 0);
@@ -31,7 +31,7 @@ test('a second run reuses the first run\'s compiled modules from compile-cache u
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test('a foreign-writable or unusable cache folder falls back to uncached and the command still succeeds [C7]', () => {
+test('cli.compile-cache.a-foreign-writable-or-unusable-cache-folder: a foreign-writable or unusable cache folder falls back to uncached and the command still succeeds [C7]', () => {
   const home = privateFixtureFiles('pullboard-compile-cache-').root;
   try {
     mkdirSync(join(home, 'compile-cache'));

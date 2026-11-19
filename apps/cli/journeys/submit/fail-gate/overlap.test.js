@@ -7,7 +7,7 @@ import { submitAndSettle } from '../../../tests/fixtures/submit/fail.js';
 import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../tests/fixtures/submit/gate.js';
 
-test('clause 1: a clean change reaches the gate with the static and doctrine stages overlapped [V4,C7]', async t => {
+test('cli.journeys-submit-fail-gate-overlap.a-clean-change-reaches-the-gate: clause 1: a clean change reaches the gate with the static and doctrine stages overlapped [V4,C7]', async t => {
   const clean = await project(t, { staticWaitsForDoctrine: true });
   put(clean.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(clean.box, 'feat(core): change the source [G1]');

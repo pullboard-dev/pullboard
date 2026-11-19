@@ -19,7 +19,7 @@ const FILES = {
 };
 const rowsOf = files => Object.entries(files).map(([file, source]) => ({ file, source }));
 
-test('clause 1: with gate.literalPins on, each of the four kinds of pin fails naming the line and the property to assert instead [C7,#9385]', () => {
+test('gate.logic-literal-pins.with-gate-literalpins-on-each: clause 1: with gate.literalPins on, each of the four kinds of pin fails naming the line and the property to assert instead [C7,#9385]', () => {
   const found = literalPinRows(rowsOf(FILES), { enabled: true });
   assert.equal(found.length, 4, 'one row per pinned line and none for the clean file');
   const kinds = { 'packages/x/tests/engine.test.js': /engine literal; read the engine from the engine registry/u, 'packages/x/tests/count.test.js': /count literal; assert that every file or case/u,
@@ -33,7 +33,7 @@ test('clause 1: with gate.literalPins on, each of the four kinds of pin fails na
   assert.ok(!found.some(row => row.includes('clean.test.js')));
 });
 
-test('clause 1: each kind is told apart at the line, and small counts, comments and non-test files are not pins [C7,#9385]', () => {
+test('gate.logic-literal-pins.each-kind-is-told-apart: clause 1: each kind is told apart at the line, and small counts, comments and non-test files are not pins [C7,#9385]', () => {
   assert.equal(pinKindOf('assert.strictEqual(AUTO_ESCALATE_ENGINE, 50);'), 'engine');
   assert.equal(pinKindOf('assert.equal(51, WITHDRAW_MILESTONE_ENGINE);'), 'engine');
   assert.equal(pinKindOf('assert.equal(cases.length, 40);'), 'count');
@@ -46,7 +46,7 @@ test('clause 1: each kind is told apart at the line, and small counts, comments 
   assert.deepEqual(literalPinFindings({ 'packages/x/src/engine.js': "assert.equal(BAR_ENGINE, 54);\n", 'README.md': `'${HASH}'` }), [], 'only test files are covered');
 });
 
-test('clause 2: a file on the approved-text allowlist passes for its listed kinds, and for every kind when it lists none [C7,#9385]', () => {
+test('gate.logic-literal-pins.a-file-on-the-approved: clause 2: a file on the approved-text allowlist passes for its listed kinds, and for every kind when it lists none [C7,#9385]', () => {
   const allowlist = JSON.stringify({ version: 1, files: {
     'packages/x/tests/hash.test.js': { kinds: ['hash'], reason: 'person-approved text pinned by hash' },
     'packages/x/tests/count.test.js': { kinds: ['hash'], reason: 'wrong kind' },
@@ -57,7 +57,7 @@ test('clause 2: a file on the approved-text allowlist passes for its listed kind
     'the hash file and the no-kinds snapshot file pass; a file allowed another kind still fails for its own');
 });
 
-test('clause 2: with gate.literalPins off, which is the default, the lint reports nothing and refuses nothing [C7,#9385]', () => {
+test('gate.logic-literal-pins.with-gate-literalpins-off-which: clause 2: with gate.literalPins off, which is the default, the lint reports nothing and refuses nothing [C7,#9385]', () => {
   assert.deepEqual(literalPinRows(rowsOf(FILES)), []);
   assert.deepEqual(literalPinRows(rowsOf(FILES), { enabled: false }), []);
   assert.deepEqual(literalPinRows(rowsOf(FILES), { enabled: 'yes' }), [], 'only an exact true turns it on');

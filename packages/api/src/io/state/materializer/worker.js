@@ -216,7 +216,9 @@ parentPort.on('message', (message) => {
   restoreSaved(message);
   try {
     // The revision the request thread read before asking: the build saw at least that state, so a read finding it serves this record.
-    const record = { ...snapshots.materialize(message.board, { held: message.held, full: message.full }), revision: message.revision ?? null };
+    // A build still waiting on its row ages carries none: no revision input moves when they land, so the next read builds again (#10869).
+    const built = snapshots.materialize(message.board, { held: message.held, full: message.full });
+    const record = { ...built, revision: built.rowAgesPending === true ? null : message.revision ?? null };
     parentPort.postMessage({ type: 'record', id: message.id, key: message.key, record });
     latest.set(message.key, { board: message.board, record });
     save(message.board, record);

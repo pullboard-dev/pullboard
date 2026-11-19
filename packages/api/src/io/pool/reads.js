@@ -16,9 +16,9 @@ export function readPoolHandlers({ findBoard, afterEvents, createRequest, execut
     events: ({ root, after, limit }) => afterEvents(root, after, isMain, boardOpeners, limit),
     item: ({ root, id, itemId }) => itemDetail({ root, id }, itemId),
     request: ({ root, body, personChannel }) => createRequest(root, body, isMain, personChannel, boardOpeners),
-    move: ({ root, body, personChannel }) => {
+    move: ({ root, body, personChannel, credential }) => {
       if (typeof runCommand !== 'function') throw Object.assign(new Error('this pool worker was started without the CLI entry point, so it cannot run a move; start the API through pullboard serve'), { name: 'Refused', code: 'API_NO_MOVES' });
-      return executeMove(root, body, runCommand, isMain, personChannel, refusalDocument, boardOpeners);
+      return executeMove(root, body, runCommand, isMain, personChannel, refusalDocument, boardOpeners, credential);
     },
   };
 }

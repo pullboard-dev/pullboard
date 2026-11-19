@@ -1,9 +1,9 @@
-/** The derived database beside a board: proof counters written there as well as to board_meta, when the setting is on [C7]. */
+/** The derived database beside a board: proof counters live there, not in board_meta, on a file board unless the setting is 0 [C7]. */
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 
-/** The setting that turns the dual write on; off unless it is exactly "1". */
+/** The setting that turns the derived database off: on for a file board unless it is exactly "0". */
 export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
 /** The schema name the derived file is attached under. */
 const SCHEMA = 'proof_derived';
@@ -18,16 +18,21 @@ export function derivedPath(boardFile) {
 }
 
 /**
- * Attach the derived database to the board's connection and return its schema name, or null when the setting is off or the
+ * Attach the derived database to the board's connection and return its schema name, or null when the setting is 0 or the
  * board is not a file. Why: one connection writes both stores in the same transaction, so the two never disagree mid-event.
  */
 function attached(board) {
-  if (process.env[DERIVED_SETTING] !== '1') return null;
+  if (process.env[DERIVED_SETTING] === '0') return null;
   if (ATTACHED.has(board.db)) return ATTACHED.get(board.db);
-  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  const databases = board.db.prepare('PRAGMA database_list').all();
+  const file = databases.find(row => row.name === 'main')?.file;
   const schema = file ? SCHEMA : null;
-  if (schema) {
+  // A wrapper around the same connection (a read proxy) is a new key above but already carries the attachment; attaching twice is refused.
+  if (schema && !databases.some(row => row.name === SCHEMA)) {
     board.db.prepare(`ATTACH DATABASE ? AS ${SCHEMA}`).run(derivedPath(file));
+    // WAL, like the board: in rollback-journal mode a reader's snapshot holds a lock that makes a second connection's event write wait BOARD_BUSY.
+    // SQLite refuses the switch inside a transaction (a first attach inside an atomic move); WAL is kept in the file, so a later attach sets it.
+    if (!board.db.isTransaction) board.db.exec(`PRAGMA ${SCHEMA}.journal_mode=WAL`);
     board.db.exec(`CREATE TABLE IF NOT EXISTS ${SCHEMA}.proof_counter(meta_key TEXT PRIMARY KEY, meta_value TEXT) WITHOUT ROWID`);
   }
   ATTACHED.set(board.db, schema);

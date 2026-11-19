@@ -16,7 +16,7 @@ function repo(files, ceilings) {
   return tree.root;
 }
 
-test('clause 1: with the setting on, a file outside the kernel importing node:fs fails naming file, line and adapter [C7,#9449]', () => {
+test('gate.logic-adapter-lints-fs.with-the-setting-on-a-file: clause 1: with the setting on, a file outside the kernel importing node:fs fails naming file, line and adapter [C7,#9449]', () => {
   const root = repo({
     'packages/a/src/x.js': "export const a = 1;\nimport { readFileSync } from 'node:fs';\nimport { stat } from 'node:fs/promises';\n",
     'packages/kernel/src/logic/disk.js': "import { readFileSync } from 'node:fs';\n",
@@ -29,7 +29,7 @@ test('clause 1: with the setting on, a file outside the kernel importing node:fs
   assert.ok(rows.every(row => !row.includes('packages/kernel/src')), 'the kernel folder is exempt');
 });
 
-test('clause 1: comments, tests and other modules are not direct imports [C7,#9449]', () => {
+test('gate.logic-adapter-lints-fs.comments-tests-and-other-modules-are: clause 1: comments, tests and other modules are not direct imports [C7,#9449]', () => {
   const root = repo({
     'packages/a/src/x.js': "// import { a } from 'node:fs';\nimport { join } from 'node:path';\nconst fsx = 'node:fsx';\n",
     'packages/a/tests/x.test.js': "import { readFileSync } from 'node:fs';\n",
@@ -37,7 +37,7 @@ test('clause 1: comments, tests and other modules are not direct imports [C7,#94
   assert.deepEqual(fsLintRows(root, { enabled: true }), []);
 });
 
-test('clause 2: offenders at their ceiling pass and a new import in the same file fails; the ceiling never rises [C7,#9449]', () => {
+test('gate.logic-adapter-lints-fs.offenders-at-their-ceiling-pass-and: clause 2: offenders at their ceiling pass and a new import in the same file fails; the ceiling never rises [C7,#9449]', () => {
   const files = { 'packages/a/src/x.js': "import a from 'node:fs';\nimport b from 'node:fs/promises';\n", 'packages/b/src/y.js': "import a from 'node:fs';\n" };
   const root = repo(files, { 'packages/a/src/x.js': 2 });
   const rows = fsLintRows(root, { enabled: true });
@@ -46,7 +46,7 @@ test('clause 2: offenders at their ceiling pass and a new import in the same fil
   assert.equal(fsLintRows(grown, { enabled: true }).length, 3);
 });
 
-test('clause 2: with the setting off, which is the default, the lint reports nothing [C7,#9449]', () => {
+test('gate.logic-adapter-lints-fs.with-the-setting-off-which-is: clause 2: with the setting off, which is the default, the lint reports nothing [C7,#9449]', () => {
   const root = repo({ 'packages/a/src/x.js': "import a from 'node:fs';\n" });
   assert.deepEqual(fsLintRows(root), []);
   assert.deepEqual(fsLintRows(root, { enabled: false }), []);

@@ -75,7 +75,7 @@ import {
 } from '../../tests/fixtures/http/view-box.js';
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
-test('[A2] a stale registered folder does not hide another readable board', async (t) => {
+test('cli.journeys-shout-http.a2-a-stale-registered-folder-does: [A2] a stale registered folder does not hide another readable board', async (t) => {
   const box = await httpBox(t, { includeMissing: true });
   const listed = await box.call('/api/v1/boards');
   assert.equal(listed.document.boards.length, 1);
@@ -89,7 +89,7 @@ test('[A2] a stale registered folder does not hide another readable board', asyn
   assert.equal(state.document.state.board, box.id);
 });
 
-test('[A2, N26] a person request receipt refreshes cached state without an event', async (t) => {
+test('cli.journeys-shout-http.a2-n26-a-person-request-receipt: [A2, N26] a person request receipt refreshes cached state without an event', async (t) => {
   let builds = 0;
   const box = await httpBox(t, { onStateBuild: () => { builds += 1; } });
   const first = await box.call(box.path + '/state');
@@ -115,7 +115,7 @@ test('[A2, N26] a person request receipt refreshes cached state without an event
   assert.equal(builds, 2, 'request-receipt metadata invalidates the state snapshot');
 });
 
-test('[A2] local HTTP state accepts a safe seen cursor and committed code previews', async (t) => {
+test('cli.journeys-shout-http.a2-local-http-state-accepts-a: [A2] local HTTP state accepts a safe seen cursor and committed code previews', async (t) => {
   const box = await httpBox(t);
   await box.cliLocal(box.root, 'shout', 'app', 'state cursor baseline');
   const before = await box.call(box.path + '/state');
@@ -146,7 +146,7 @@ test('[A2] local HTTP state accepts a safe seen cursor and committed code previe
   }
 });
 
-test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-entry warnings', async (t) => {
+test('cli.journeys-shout-http.a2-n33-n35-api-listing-refreshes: [A2, N33, N35] API listing refreshes live labels and preserves unreadable-entry warnings', async (t) => {
   const box = fixture(t);
   const priorHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -216,7 +216,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   assert.deepEqual(afterForget.warnings.map(({ root }) => root), [second]);
 });
 
-test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
+test('cli.journeys-shout-http.a2-n39-the-view-cookie-check: [A2,N39] the view cookie check catches a weakened compare', async (t) => {
   const box = fixture(t);
   const secret = randomUUID();
   const sessionCookie = {
@@ -331,7 +331,7 @@ test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
   await refused(personMove, 409, 'B26_PERSON_CHANNEL');
 });
 
-test('[A2] local auth, origin, unknown board and malformed calls refuse without moving', async (t) => {
+test('cli.journeys-shout-http.a2-local-auth-origin-unknown-board: [A2] local auth, origin, unknown board and malformed calls refuse without moving', async (t) => {
   const box = await httpBox(t);
   const unauthenticated = await fetchFresh(box.origin + '/api/v1/boards');
   assert.equal(unauthenticated.status, 401);
@@ -355,7 +355,7 @@ test('[A2] local auth, origin, unknown board and malformed calls refuse without 
   assert.deepEqual(state.document.state.requests, []);
 });
 
-test('[A2] move text stays literal and invalid bodies cannot produce a partial event', async (t) => {
+test('cli.journeys-shout-http.a2-move-text-stays-literal-and: [A2] move text stays literal and invalid bodies cannot produce a partial event', async (t) => {
   const box = await httpBox(t);
   const literal = await box.call(box.path + '/moves', { verb: 'shout', args: { to: 'app', text: '--help' } });
   assert.equal(literal.status, 200);
@@ -383,7 +383,7 @@ test('[A2] move text stays literal and invalid bodies cannot produce a partial e
   assert.deepEqual(after.document.state.requests, []);
 });
 
-test('[A2] shared transport stops a live stream when its caller loses access', async (t) => {
+test('cli.journeys-shout-http.a2-shared-transport-stops-a-live: [A2] shared transport stops a live stream when its caller loses access', async (t) => {
   const box = fixture(t);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   let authorized = true;
@@ -431,7 +431,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   assert.ok(checks >= 3, 'access is checked at entry and on live polls');
 });
 
-test('[A2] adapters without a committed-code capability return a versioned refusal', async (t) => {
+test('cli.journeys-shout-http.a2-adapters-without-a-committed-code: [A2] adapters without a committed-code capability return a versioned refusal', async (t) => {
   const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
     boards: () => [],
@@ -459,7 +459,7 @@ test('[A2] adapters without a committed-code capability return a versioned refus
   }
 });
 
-test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapter fallback', async (t) => {
+test('cli.journeys-shout-http.a2-n26-state-json-fragments-preserve: [A2, N26] state JSON fragments preserve the API envelope and legacy adapter fallback', async (t) => {
   const state = { board: 'fixture', label: 'a ",\\"injected\\":true', unseen: null };
   const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
@@ -494,7 +494,7 @@ test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapte
   assert.equal(legacyResponse.headers.get('etag'), null);
 });
 
-test("a request through serve is never the person's [P6,B26,A2]", { timeout: 60_000 }, // budget: private CLI/API startup and request-channel checks, not a throughput claim.
+test('cli.journeys-shout-http.a-request-through-serve-is-never: a request through serve is never the person\'s [P6,B26,A2]', { timeout: 60_000 }, // budget: private CLI/API startup and request-channel checks, not a throughput claim.
 async (t) => {
   const box = fixture(t);
   // Stays a process: a long-lived serve child whose request channel and shutdown signal are under test.

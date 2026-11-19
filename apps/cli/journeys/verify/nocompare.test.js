@@ -43,7 +43,7 @@ async function ok(box, cwd, ...args) {
   return result;
 }
 
-test('clause 1: show and next --verify never tell a reviewer to run verify --compare, and clause 2: the reviewer accepts on the gate receipts while the comparison is unavailable [C7]', { timeout: 240_000 }, async t => {
+test('cli.journeys-verify-nocompare.show-and-next-verify-never-tell: clause 1: show and next --verify never tell a reviewer to run verify --compare, and clause 2: the reviewer accepts on the gate receipts while the comparison is unavailable [C7]', { timeout: 240_000 }, async t => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: RUN });

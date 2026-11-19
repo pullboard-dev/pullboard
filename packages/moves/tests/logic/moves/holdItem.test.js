@@ -11,7 +11,7 @@ import { importBoard } from '../../../../store/index.js';
 import { applyRelayMove } from '../../../../state/index.js';
 import { prepareEngineMove } from '../../../../state/index.js';
 import { heldCounted } from '../../../index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
@@ -42,7 +42,7 @@ function claimRefusal(board, id, seat) {
   try { store.claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs: 2 * HOUR, freeze }); return null; } catch (error) { return error; }
 }
 
-test('a held item is never offered or claimed [N2,N22,M1]', t => {
+test('moves.hold-item.a-held-item-is-never-offered-or: a held item is never offered or claimed [N2,N22,M1]', t => {
   const project = cellProject(t, { real: true, gate: 'true' });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
@@ -95,7 +95,7 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
   assert.throws(() => store.holdItem(board, free, { agentId: actor.id, reason: 'an agent cannot hold work' }), error => error.code === 'COORDINATOR_ONLY');
 });
 
-test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
+test('moves.hold-item.lifting-a-hold-makes-the-item-offerable: lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
   const project = cellProject(t, { real: true, gate: 'true' });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');

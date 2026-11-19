@@ -29,7 +29,7 @@ async function asSession(box, session, cwd, ...args) {
   }
 }
 
-test('a reviewer gets the companion-composed tree and a bare tree cannot reject [V4,H16,G1]', async t => {
+test('cli.journeys-companion-companions-review.a-reviewer-gets-the-companion-composed: a reviewer gets the companion-composed tree and a bare tree cannot reject [V4,H16,G1]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

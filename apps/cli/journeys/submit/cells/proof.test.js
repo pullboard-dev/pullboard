@@ -55,21 +55,21 @@ async function gate(t, overlap, staticCode) {
   return { run, stamp };
 }
 
-test('clause 1: with the setting on, the proof slot is admitted before the cells step ends and the gate is green [C7,#9576]', { timeout: 50000 }, async t => {
+test('cli.journeys-submit-cells-proof.with-the-setting-on-the-proof: clause 1: with the setting on, the proof slot is admitted before the cells step ends and the gate is green [C7,#9576]', { timeout: 50000 }, async t => {
   const { run, stamp } = await gate(t, true, 0);
   const result = await run;
   assert.equal(result.isGreen, true, result.output);
   assert.ok(stamp('proof-admitted') < stamp('static-ended'), 'the proof was admitted while the cells step was still running');
 });
 
-test('clause 1: with the setting off, the proof slot is admitted only after the cells step has ended [C7,#9576]', { timeout: 50000 }, async t => {
+test('cli.journeys-submit-cells-proof.with-the-setting-off-the-proof: clause 1: with the setting off, the proof slot is admitted only after the cells step has ended [C7,#9576]', { timeout: 50000 }, async t => {
   const { run, stamp } = await gate(t, false, 0);
   const result = await run;
   assert.equal(result.isGreen, true, result.output);
   assert.ok(stamp('proof-admitted') >= stamp('static-ended'), 'the proof waited for the cells step');
 });
 
-test('clause 2: with the setting on, a red cells step still refuses GATE_RED and no green proof result returns [C7,#9576]', { timeout: 50000 }, async t => {
+test('cli.journeys-submit-cells-proof.with-the-setting-on-a-red: clause 2: with the setting on, a red cells step still refuses GATE_RED and no green proof result returns [C7,#9576]', { timeout: 50000 }, async t => {
   const { run } = await gate(t, true, 1);
   await assert.rejects(run, error => error.code === 'GATE_RED' && /static checks are red/u.test(error.message));
 });

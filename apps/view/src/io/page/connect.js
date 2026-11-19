@@ -16,6 +16,7 @@ import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
 import { itemLanded } from "../../logic/counts.js";
+import { gateTraceKit } from "../../logic/gate-trace.js";
 import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
 import { pipelineWatchModel } from "../../logic/pipeline/watch.js";
@@ -69,10 +70,11 @@ const activityStart = (${activityStart.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
 const itemLanded = (${itemLanded.toString()});
 const dashboardModel = (${dashboardModel.toString()});
+const gateTrace = (${gateTraceKit.toString()})().gateTrace;
 const comparisonHtml = (${comparisonHtml.toString()});
 /** Defer the shared clock lookup until the page has initialized its formatter. */
 const dashboardWhen = iso => when(iso);
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, agentsTable: () => view.tab === 'dashboard' && view.addressDetail === 'agents', floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), gateTrace, stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, agentsTable: () => view.tab === 'dashboard' && view.addressDetail === 'agents', floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The Activity page: the board's last hours of events and the live snapshot, drawn into #activity (#6916).
 const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html: activityPageHtml, tip: activityTipHtml, step: activityStep, start: activityStart, api, boardPath,
   current: () => view.root, view: () => view, project: () => data?.project, active: () => view.tab === 'activity',

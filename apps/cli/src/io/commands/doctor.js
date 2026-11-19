@@ -45,7 +45,26 @@ import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
 import { residentDaemons } from '../resident/daemons.js';
 import { appDaemonProblems } from '../../logic/runner/daemons.js';
+import { toolchainProblems } from '../../logic/runner/toolchains.js';
+import { jestWorktreeProblem } from '../../logic/jest-worktrees.js';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+
+/** The text of a file under `root`, or undefined when it is missing or unreadable. */
+function textAt(root, name) {
+  try { return existsSync(join(root, name)) ? readFileSync(join(root, name), 'utf8') : undefined; } catch { return undefined; }
+}
+
+/** The Jest finding for the project at `root`: its package.json and its Jest config file, or the package's jest key, read as text [C7,#11848]. */
+function jestProblem(root) {
+  const packageText = textAt(root, 'package.json');
+  const file = ['jest.config.js', 'jest.config.cjs', 'jest.config.mjs', 'jest.config.ts'].map(name => textAt(root, name)).find(Boolean);
+  let inline;
+  try { inline = JSON.stringify(JSON.parse(packageText ?? 'null')?.jest); } catch { inline = undefined; }
+  return jestWorktreeProblem(packageText, file ?? inline);
+}
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
 function runHosts(io) {
@@ -85,6 +104,13 @@ export async function run(io, { values = {} } = {}) {
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
   problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
+  const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/index.js');
+  problems.push(...toolchainProblems(languageToolchains(detectLanguages(ctx.info.root)).toolchains, loadMachineSettings().runners ?? []));
+  const jest = jestProblem(ctx.info.root);
+  if (jest) problems.push(jest);
+  // A managed repo with no background git maintenance slows every git command as loose objects pile up (#10782).
+  const maintenanceProblem = (await import('../init/git-maintenance.js')).gitMaintenanceProblem(ctx.info.root, ctx.info.commonDir);
+  if (maintenanceProblem) problems.push(maintenanceProblem);
   const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
   if (trunkProblem) problems.push(trunkProblem);
   const outdated = outdatedSender();

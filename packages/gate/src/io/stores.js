@@ -198,17 +198,31 @@ export function storeDirGrowth(registry, accepted) {
   return risen;
 }
 
-/** Ceilings that rose against accepted main's baseline: the baseline may only fall. */
+/**
+ * Ceilings that rose against accepted main's baseline: the baseline may only fall. A row moved with its code from one
+ * file to another is not a rise: a file's row may grow only while that store's total across all files does not
+ * (coordinator ruling 17 Nov, #10242); the lane check decides who may move which rows.
+ */
 export function storeBaselineGrowth(current, accepted) {
   const risen = [];
+  /** Each store's count summed over every file of one baseline. */
+  const totals = baseline => {
+    const sums = {};
+    for (const stores of Object.values(baseline)) for (const [store, count] of Object.entries(stores)) sums[store] = (sums[store] ?? 0) + count;
+    return sums;
+  };
+  const now = totals(current), was = totals(accepted);
   for (const [path, stores] of Object.entries(current)) {
     for (const [store, count] of Object.entries(stores)) {
       const before = accepted[path]?.[store] ?? 0;
-      if (count > before) risen.push({ path: STORE_BASELINE, line: 1, text: `CD2_BASELINE_ROSE: ${path} ${store} ${before} -> ${count}; the store baseline may only fall` });
+      if (count > before && now[store] > (was[store] ?? 0)) risen.push({ path: STORE_BASELINE, line: 1, text: `CD2_BASELINE_ROSE: ${path} ${store} ${before} -> ${count}; the store baseline may only fall` });
     }
   }
   return risen;
 }
+
+/** An owner under a logic layer: logic holds no write, so it cannot own a writable store. */
+const LOGIC_OWNER = /^(?:packages|apps)\/[^/]+\/src\/logic\//u;
 
 /**
  * Stores whose owner the registry pins: the owner is the module that writes the store, so moving it needs the pin
@@ -219,12 +233,15 @@ export function storeBaselineGrowth(current, accepted) {
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function storeOwnerProblems(registry) {
-  return Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
+  const pinned = Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
     : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
+  const inLogic = Object.entries(registry.stores ?? {}).filter(([, row]) => row.kind !== 'repo-data' && LOGIC_OWNER.test(row.owner ?? ''))
+    .map(([store, row]) => ({ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is owned by ${row.owner}, a logic file; a writable store is owned by the io module that writes it, and only a read-only repo-data file may name a logic owner` }));
+  return [...pinned, ...inLogic];
 }
 
-/** A call that writes a file or a table: what an owner module must hold for the store it owns. */
-const WRITE_CALL = /writeFileSync|appendFileSync|renameSync|writeFile\(|appendFile\(|createWriteStream|writeSync|DatabaseSync|INSERT|UPDATE |DELETE FROM|atomicWrite|writeJson|writeAtomic/u;
+/** A call that writes a file or a table: what an owner module must hold for the store it owns. The fs adapter names its writes rename, write and copyFile (#11968). */
+const WRITE_CALL = /writeFileSync|appendFileSync|renameSync|writeFile\(|appendFile\(|createWriteStream|writeSync|DatabaseSync|INSERT|UPDATE |DELETE FROM|atomicWrite|writeJson|writeAtomic|\.rename\(|\.write\(|\.copyFile\(/u;
 
 /**
  * Owners that write nothing: a store's owner module must hold a write call to it, unless the row is `kind: "repo-data"`

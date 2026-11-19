@@ -36,12 +36,12 @@ function briefSections(brief) {
   return sections;
 }
 
-test('clause 1: add with no route, no brief and a check naming no test file succeeds on the strong route [V4]', async t => {
+test('cli.journeys-add-brief.add-with-no-route-no-brief: clause 1: add with no route, no brief and a check naming no test file succeeds on the strong route [V4]', async t => {
   const item = await addWith(t, 'npm test');
   assert.equal(item.item_route, 'strong');
 });
 
-test('clause 2: add with no route whose check names a test file lands mid with Files and Test filled from the check [V4]', async t => {
+test('cli.journeys-add-brief.add-with-no-route-whose-check: clause 2: add with no route whose check names a test file lands mid with Files and Test filled from the check [V4]', async t => {
   const item = await addWith(t, 'node --test web/handler.test.js');
   assert.equal(item.item_route, 'mid');
   const shown = JSON.parse((await item.box.runLocal(item.box.repo, 'show', String(item.item_id), '--json')).out);
@@ -67,7 +67,7 @@ function seedPaths(box, paths) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed bar paths');
 }
 
-test('add accepts one cell, refuses three cells and records an explicit size override [B35,C7]', async t => {
+test('cli.journeys-add-brief.add-accepts-one-cell-refuses-three: add accepts one cell, refuses three cells and records an explicit size override [B35,C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   seedPaths(box, ['packages/alpha/a.js', 'packages/alpha/b.js', 'packages/beta/b.js', 'packages/gamma/c.js']);
@@ -90,7 +90,7 @@ test('add accepts one cell, refuses three cells and records an explicit size ove
   assert.equal(JSON.parse(blank.out).error.code, 'ITEM_SIZE_REASON');
 });
 
-test('add accepts three numbered clauses and refuses a fourth even inside one cell [B35,C7]', async t => {
+test('cli.journeys-add-brief.add-accepts-three-numbered-clauses-and: add accepts three numbered clauses and refuses a fourth even inside one cell [B35,C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   seedPaths(box, ['packages/alpha/a.js']);
@@ -101,7 +101,7 @@ test('add accepts three numbered clauses and refuses a fourth even inside one ce
   assert.match(JSON.parse(refused.out).error.next, /at most three numbered clauses/u);
 });
 
-test('clause 1: add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
+test('cli.journeys-add-brief.add-and-edit-refuse-a-check: clause 1: add and edit refuse a check that runs pullboard test and accept the run-tests form [C7,#6188]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   mkdirSync(join(box.repo, 'packages/gate/src/io/run'), { recursive: true });

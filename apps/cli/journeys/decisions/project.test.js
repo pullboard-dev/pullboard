@@ -13,7 +13,7 @@ import {
   withBoard,
 } from '../../tests/fixtures/scenarios/team.js';
 
-test("one decision list across a project's repos [N34]", { timeout: 180_000 }, async t => { // budget: hang ceiling for three real repos' CLI runs and one view process; not a speed target.
+test('cli.journeys-decisions-project.one-decision-list-across-a-project: one decision list across a project\'s repos [N34]', { timeout: 180_000 }, async t => { // budget: hang ceiling for three real repos' CLI runs and one view process; not a speed target.
   const box = helpers.project();
   const other = siblingRepo(box, 'repo-b').repo;
   const lone = siblingRepo(box, 'repo-c').repo;
@@ -62,7 +62,7 @@ test("one decision list across a project's repos [N34]", { timeout: 180_000 }, a
   assert.equal(JSON.parse(unknown.out).error.code, 'PROJECT_REPO_UNKNOWN');
 });
 
-test('two repos of a project that share a name are addressed by folder, never guessed [N34]', { timeout: 120_000 }, async () => { // budget: hang ceiling for two real repos' CLI runs; not a speed target.
+test('cli.journeys-decisions-project.two-repos-of-a-project-that: two repos of a project that share a name are addressed by folder, never guessed [N34]', { timeout: 120_000 }, async () => { // budget: hang ceiling for two real repos' CLI runs; not a speed target.
   const box = helpers.project();
   const other = siblingRepo(box, 'repo-twin').repo;
   nameRepo(box, box.repo, 'twin', 'shop');

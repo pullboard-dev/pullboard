@@ -9,7 +9,7 @@ import { revokeFixtureSessions } from '../../tests/fixtures/relay/auth.js';
 import { registerSecondProject } from '../../tests/fixtures/relay/auth.js';
 import { fixture } from '../../tests/fixtures/relay/auth.js';
 
-test('a cancelled sign-in with a held poll response leaves no person session, link or key behind [H5,N26]', async (t) => {
+test('cli.journeys-relay-main-held.a-cancelled-sign-in-with-a: a cancelled sign-in with a held poll response leaves no person session, link or key behind [H5,N26]', async (t) => {
   await t.test('cancellation revokes a session minted behind a held poll response', async (t) => {
     const box = await relayClientFixture(t);
     const second = await registerSecondProject(box);

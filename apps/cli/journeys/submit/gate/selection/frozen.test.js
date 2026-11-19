@@ -20,7 +20,7 @@ import { put } from '../../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../../tests/fixtures/submit/gate.js';
 
 /** A failed project command keeps its first diagnostic even when later output is unstructured. */
-test('a red gate on submit shows what the gate said [C7,V10]', async (t) => {
+test('cli.journeys-submit-gate-selection-frozen.a-red-gate-on-submit-shows: a red gate on submit shows what the gate said [C7,V10]', async (t) => {
   for (const stream of ['log', 'error']) {
     let box = privateRepo(t);
     const first = stream === 'log' ? 'G1: merge main to get the missing row' : 'G1 error: commit cites it, but it was never committed to the spec';

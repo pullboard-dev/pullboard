@@ -23,10 +23,12 @@ import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { posix } from 'node:path';
+import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
-import { runRunnerScript } from './pull/ssh.js';
+import { createSshAdapter } from './adapter/ssh.js';
+import { trunkGit } from './tooling/committed.js';
 import { pullWord } from './pull/scripts.js';
 import { localNetworkHost } from '../logic/service.js';
 import { serviceForm } from '../logic/service.js';
@@ -47,9 +49,35 @@ const IMPORT_BEFORE = /(?:\bfrom|\bimport\s*\(?)\s*$/u;
 // A data file a module reads next to itself is written `new URL('./file', import.meta.url)`; it is part of the closure too.
 const URL_BEFORE = /\bnew\s+URL\s*\(\s*$/u;
 const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
+// The files that hold the entries a runner job runs from its install: each is a template string written into the tooling root, so its imports are relative to the repo root (#10826).
+const ENTRY_SOURCES = ['apps/cli/src/io/submit/gate.js', 'apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/fixture-memo-warm.js'];
+const ENTRY_TEMPLATE = /\b([A-Z][A-Z_]*ENTRY) = `((?:[^`\\]|\\.)*)`/gu;
+const ENTRY_IMPORT = /'(\.\/[\w./-]+\.js)'/gu;
 
 /**
- * The service entry and every repo file it imports, by repo path. Only Node built-ins may be imported from outside the
+ * The trusted entries a runner job runs from its install, with the repo files each one names in an import, by repo path.
+ * Why: a job on a board whose main is not Pullboard's own tree runs these from the runner's install, so the install must carry what they import, though service.js never does (#10826).
+ * An import of a file the repo lacks is an optional one the entry guards, so it is left out.
+ *
+ * @param {string} [root] - The repo root.
+ * @returns {{ name: string, text: string, imports: string[] }[]}
+ */
+export function trustedEntries(root = REPO) {
+  const entries = [];
+  for (const source of ENTRY_SOURCES) {
+    let text;
+    try { text = readFileSync(posix.join(root, source), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
+    for (const [, name, template] of text.matchAll(ENTRY_TEMPLATE)) {
+      const imports = [...new Set([...template.matchAll(ENTRY_IMPORT)].map(match => match[1].slice(2)))]
+        .filter(path => statSync(posix.join(root, path), { throwIfNoEntry: false })?.isFile());
+      entries.push({ name, text: template, imports });
+    }
+  }
+  return entries;
+}
+
+/**
+ * The service entry and every repo file it imports, plus what every trusted job entry imports, by repo path. Only Node built-ins may be imported from outside the
  * repo, so the runner needs nothing installed but Node.
  *
  * @param {string} [root] - The repo root.
@@ -58,7 +86,7 @@ const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
  */
 export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   const files = {};
-  const pending = [entry];
+  const pending = [entry, ...trustedEntries(root).flatMap(trusted => trusted.imports)];
   const generated = new Set();
   const present = new Set();
   let bytes = 0;
@@ -116,6 +144,75 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   return files;
 }
 
+// Budget: one git archive of a trunk commit and its extraction is a few seconds; a minute covers a slow disk.
+const REFRESH_MS = 60_000;
+
+/**
+ * The runnerCode port: whether the installed app folder holds the service closure of a trunk commit, and the swap
+ * that makes it so [P7]. The closure is read from the commit's tree (a git archive extracted into a scratch folder
+ * beside the app), so the answer never depends on what the runner's own checkout holds.
+ * refresh writes the closure to app.next and renames it over app, as the installer does; board.key, the plist and
+ * serve.log live beside app and are never touched. A failure at any step removes app.next and leaves app whole.
+ *
+ * @param {{ app: string, store: string, scratch?: string, entry?: string, git?: (args: string[]) => Promise<void>, write?: (path: string, text: string) => void }} options
+ *   app: the installed app folder; store: the runner's trunk git directory; git: runs git against it (default: the git on PATH).
+ * @returns {{ changed: (commit: string) => Promise<boolean>, refresh: (commit: string) => Promise<boolean> }}
+ */
+export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entry = SERVICE_ENTRY, git = defaultGit(store), write = writeFileSync }) {
+  const closure = async commit => {
+    rmSync(scratch, { recursive: true, force: true });
+    mkdirSync(scratch, { recursive: true });
+    try {
+      const tar = `${scratch}.tar`;
+      await git(['archive', '--format=tar', `--output=${tar}`, commit]);
+      await new Promise((done, fail) => execFile('tar', ['-xf', tar, '-C', scratch], { timeout: REFRESH_MS }, error => error ? fail(error) : done()));
+      rmSync(tar, { force: true });
+      return { ...serviceFiles(scratch, entry), 'package.json': '{ "type": "module" }\n' };
+    } finally { rmSync(scratch, { recursive: true, force: true }); }
+  };
+  const installed = () => {
+    const files = {};
+    if (!existsSync(app)) return files;
+    for (const name of readdirSync(app, { recursive: true })) {
+      if (statSync(join(app, name)).isFile()) files[name.split(sep).join('/')] = readFileSync(join(app, name), 'utf8');
+    }
+    return files;
+  };
+  const differs = (want, have) => {
+    const paths = Object.keys(want);
+    return paths.length !== Object.keys(have).length || paths.some(path => have[path] !== want[path]);
+  };
+  return {
+    async changed(commit) { return differs(await closure(commit), installed()); },
+    async refresh(commit) {
+      const files = await closure(commit);
+      if (!differs(files, installed())) return false;
+      const next = `${app}.next`;
+      const previous = `${app}.prev`;
+      try {
+        rmSync(next, { recursive: true, force: true });
+        for (const [path, text] of Object.entries(files)) {
+          mkdirSync(dirname(join(next, path)), { recursive: true });
+          write(join(next, path), text);
+        }
+        rmSync(previous, { recursive: true, force: true });
+        renameSync(app, previous);
+        try { renameSync(next, app); } catch (error) { renameSync(previous, app); throw error; }
+      } catch (error) {
+        rmSync(next, { recursive: true, force: true });
+        throw error;
+      }
+      rmSync(previous, { recursive: true, force: true });
+      return true;
+    },
+  };
+}
+
+/** Run git in the trunk store; a non-zero exit rejects with its message. */
+function defaultGit(store) {
+  return args => trunkGit(store, args, REFRESH_MS);
+}
+
 /**
  * Every file in a folder a module names next to itself (`new URL('../../logic/engines/', import.meta.url)`), by repo
  * path, or null when the target is not such a folder. The module lists that folder at run time from wherever it is
@@ -153,6 +250,10 @@ export function serviceBoard(board) {
 /**
  * The installer the runner's Node runs: it reads the plan from stdin, stops any running copy, and then either writes
  * the files, the key and the launchd job and loads it, or removes them. It prints one JSON line.
+ * A serve the bootout could not reach (a system LaunchDaemon run as this user, or one left by ssh) gets SIGTERM once
+ * the new app folder is in place, so launchd's KeepAlive starts it on the new code; the reply names it in restarted.
+ * Why: on 18 Nov every mini kept serving pre-#10774 code from memory after install-serve replaced its files, and
+ * gates went red with no PULLBOARD_GATE_RECEIPT line (#10839).
  * A LaunchAgent loads in the login session. A LaunchDaemon, chosen for a board on the local network, is loaded at once
  * when this runs as root; otherwise it is staged beside the service with the one sudo command that loads it, since
  * install-serve never runs sudo.
@@ -182,6 +283,16 @@ export async function runnerServiceInstaller() {
   await launchctl('bootout', `gui/${uid}/${plan.label}`);
   await launchctl('bootout', `user/${uid}/${plan.label}`);
   if (uid === 0) await launchctl('bootout', `system/${plan.label}`);
+  // The serves of this install still running after the bootout, by pid: this user's processes running <dir>/app/<entry>.
+  const app = join(dir, 'app');
+  const stale = plan.remove ? [] : await new Promise(done => execFile('ps', ['-A', '-ww', '-o', 'pid=,uid=,args='], { maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
+    const entry = join(app, plan.entry || '');
+    done(error ? [] : String(stdout).split('\n').flatMap(row => {
+      const found = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(row);
+      if (!found || Number(found[1]) === process.pid || Number(found[2]) !== uid) return [];
+      return found[3].split(/\s+/u).includes(entry) ? [Number(found[1])] : [];
+    }));
+  }));
   rmSync(agentPlist, { force: true });
   if (uid === 0) rmSync(daemonPlist, { force: true });
   // A daemon this user cannot remove is left to one sudo line, so no older copy keeps pulling unseen.
@@ -193,7 +304,6 @@ export async function runnerServiceInstaller() {
     process.stdout.write(`${JSON.stringify({ removed: true, plist: daemonLeft ? daemonPlist : agentPlist, dir, sudo })}\n`);
     return;
   }
-  const app = join(dir, 'app');
   const next = join(dir, 'app.next');
   rmSync(next, { recursive: true, force: true });
   for (const [path, text] of Object.entries(plan.files)) {
@@ -206,6 +316,7 @@ export async function runnerServiceInstaller() {
   const keyFile = join(dir, 'board.key');
   writeFileSync(keyFile, `${plan.key}\n`, { mode: 0o600 });
   chmodSync(keyFile, 0o600);
+  const restarted = stale.filter(pid => { try { process.kill(pid, 'SIGTERM'); return true; } catch { return false; } });
   const log = join(dir, 'serve.log');
   const daemon = plan.form === 'daemon';
   const plist = daemon ? uid === 0 ? daemonPlist : staged : agentPlist;
@@ -241,7 +352,7 @@ export async function runnerServiceInstaller() {
     }
     if (domain) break;
   }
-  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist,
+  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist, restarted,
     ...(daemon ? { daemonPlist, user: uid === 0 ? 'root' : user } : {}), sudo, dir, log, args })}\n`);
 }
 
@@ -312,7 +423,7 @@ export async function installRunnerService(runner, { board, key, remove = false,
     Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles() });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
-  const run = await runRunnerScript(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
+  const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
   const line = run.stdout.toString('utf8').trim().split('\n').at(-1) ?? '';
   let reply = null;
   try { reply = JSON.parse(line); } catch { reply = null; }

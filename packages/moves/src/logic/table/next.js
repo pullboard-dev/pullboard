@@ -150,7 +150,7 @@ export const LANDING_NEXT = Object.freeze({
   LAND_TRUNK: 'return the checkout to the trunk, then run pullboard land',
   NOT_PENDING: 'nothing to do: only a verified item with no landing receipt lands',
   ITEM_HELD: 'ask the coordinator to lift the hold: pullboard shout coordinator --kind question "lift the hold on #<id>"',
-  STALE_VERDICT: 'merge main, resubmit, and verify again',
+  STALE_VERDICT: 'submit again (submit composes current main), then verify again against current main',
   LAND_KNOWN_RED: 'fix the failing tests and resubmit, or ask the person for an expiring test waiver',
   LAND_RUNNER_SOURCE_HELD: 'wait for a new head or a new main',
   LAND_REPEATED_RED: 'fix what the landing batches found red, then resubmit',

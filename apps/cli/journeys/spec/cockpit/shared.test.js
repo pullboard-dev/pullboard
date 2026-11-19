@@ -16,13 +16,14 @@ import {
   tapTarget,
   machine,
   project,
-  build,
+  buildLocal,
   startView,
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { watchSpecFilter } from '../../../tests/fixtures/cockpit/spec-watch.js';
 
@@ -48,8 +49,10 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
     + `- ${overridden.id} [draft, must] ${longOverride} | gate: doctrine check | serves: ${inherited.id}\n`
     + `- ${declined.id} [wont] ${reason} | gate: doctrine check | serves: ${inherited.id}\n`
     + '\n## Local\n- R1 [approved, must] The repository’s own rule stays in its source section. | gate: local check\n- G1 [approved, must] This doctrine rule shares the citing item. | gate: citation check\n');
-  box.run(demo.repo, 'add', 'web', 'A real item citing G1', '--specs', 'G1', '--criterion', 'The requirement is represented by a built item.');
-  build(box, demo, 1, 'shared-row.txt');
+  await box.runIn(demo.repo, 'add', 'web', 'A real item citing G1', '--specs', 'G1', '--criterion', 'The requirement is represented by a built item.');
+  // The claim and submit run in this process and the commit's hooks too; Chrome below is the subject, not the CLI start-up [C7].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  await buildLocal(box, demo, 1, 'shared-row.txt');
 
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shared-rows-chrome-'));

@@ -7,14 +7,16 @@ import { posix } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { bindBoardView } from '../index.js';
+import { board as library } from '../index.js';
 import { nativeBoardPorts } from '../index.js';
 import { openBoard } from '../index.js';
+import { addItem } from '../../store/index.js';
 import { addMilestone } from '../../store/index.js';
+import { getItem } from '../../store/index.js';
 import { board_ensureCoordinator } from '../../store/index.js';
-import { provideCoordinatorMilestoneRelease } from '../../store/index.js';
 import { shipMilestone } from '../../store/index.js';
 import { coordinatorMilestoneRelease } from '../../stats/light.js';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from './fixtures/cell-board.js';
 import { cellProject } from '../../store/tests/fixtures/cell.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -79,16 +81,26 @@ test('board.index.board-root-hands-stats-coordinatormilestonerelease: clause 1: 
   assert.equal(recorded.previous, null);
 });
 
-test('board.index.store-returns-same-release-values: clause 2: the store returns the same release values through the provider as through the direct stats import [C7]', t => {
+test('board.index.store-returns-same-release-values: clause 2: the store returns the same release values through the provider as the direct stats call [C7]', t => {
   const box = milestoneFixture(t);
   const direct = coordinatorMilestoneRelease(box.board, { plannedMoves: ['milestone_ship'] });
   box.ship();
   const provided = box.shipped();
   assert.deepEqual(undated(provided.gauge), undated(direct.gauge));
   assert.equal(provided.previous, direct.previous);
-  provideCoordinatorMilestoneRelease(null);
-  t.after(() => provideCoordinatorMilestoneRelease(coordinatorMilestoneRelease));
-  const imported = milestoneFixture(t);
-  imported.ship();
-  assert.deepEqual(undated(imported.shipped().gauge), undated(provided.gauge), 'the import path records the same gauge as the provider path');
+});
+
+test('board.index.board-root-exports-reserveitem-records-reservation: clause 1: the board root exports reserveItem, and calling it records a reservation holder, by and at on an item of a real board [C7]', t => {
+  assert.equal(typeof library.reserveItem, 'function');
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
+  board_ensureCoordinator(board, project.repo);
+  const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'Reservable', route: 'mid',
+    criterion: 'The private fixture proves the reservation.', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' });
+  assert.equal(getItem(board, id).item_reservation_holder, null);
+  library.reserveItem(board, id, { agentId: 'coordinator', holder: 'web-1' });
+  const reserved = getItem(board, id);
+  assert.equal(reserved.item_reservation_holder, 'web-1');
+  assert.equal(reserved.item_reservation_by, 'coordinator');
+  assert.ok(reserved.item_reservation_at);
 });

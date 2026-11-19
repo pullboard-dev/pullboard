@@ -28,7 +28,7 @@ function setFloor(gb) {
 /** A statfs standing in for a volume with `freeGb` free. */
 const volume = freeGb => () => ({ bavail: freeGb * 1024, bsize: GB / 1024 });
 
-test('clause 1: a floor above the free disk of the board host prints a warning naming the free space and the floor [C7,#9110]', async () => {
+test('cli.io-health-disk-floor.a-floor-above-the-free-disk-of: clause 1: a floor above the free disk of the board host prints a warning naming the free space and the floor [C7,#9110]', async () => {
   const finding = diskFloorFinding('/board', 200, volume(42.5));
   assert.match(finding.line, /42\.5 GB free/u);
   assert.match(finding.line, /200 GB floor/u);
@@ -38,7 +38,7 @@ test('clause 1: a floor above the free disk of the board host prints a warning n
   assert.equal(run.code, 0, 'a warning never changes the exit code');
 });
 
-test('clause 2: free disk above the floor prints no warning, and a floor of 0, the default, prints none at all [C7,#9110]', async () => {
+test('cli.io-health-disk-floor.free-disk-above-the-floor-prints-no: clause 2: free disk above the floor prints no warning, and a floor of 0, the default, prints none at all [C7,#9110]', async () => {
   assert.equal(diskFloorFinding('/board', 200, volume(500)), null);
   assert.equal(diskFloorFinding('/board', 200, volume(200)), null, 'free space equal to the floor is not under it');
   assert.equal(diskFloorFinding('/board', 0, volume(0)), null, 'a floor of 0 is off even on a full disk');
@@ -48,7 +48,7 @@ test('clause 2: free disk above the floor prints no warning, and a floor of 0, t
   assert.doesNotMatch(run.out, /low disk/u);
 });
 
-test('clause 3: health.diskFloorGb is a described setting, 0 by default [C7,#9110]', () => {
+test('cli.io-health-disk-floor.health-diskfloorgb-is-a-described-setting-0: clause 3: health.diskFloorGb is a described setting, 0 by default [C7,#9110]', () => {
   setFloor(null);
   const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'health.diskFloorGb');
   assert.equal(row.default, 0);

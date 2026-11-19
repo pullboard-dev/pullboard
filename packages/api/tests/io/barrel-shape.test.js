@@ -91,6 +91,7 @@ const BEFORE = [
   'renewJob',
   'reofferLandingJob',
   'reportRunaway',
+  'runnerCommitPort',
   'serveApi',
   'shardClaimCap',
   'shardJobs',

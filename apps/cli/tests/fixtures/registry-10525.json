@@ -1,0 +1,4 @@
+{
+  "cli.io-test-census-phases.a-census-of-40-rows-prints-its-three": {"proves":{"specs":["C7"],"claim":"A census prints the seconds to its first job, through pass 1 and in its reruns, adding up to its wall clock."},"why":"Without it, a slow census phase could not be named from the summary.","kind":"cell unit","inputs":["apps/cli/tests/io/test/census.test.js"]},
+  "cli.io-test-census-phases.the-reruns-phase-is-the-time-after-pass": {"proves":{"specs":["C7"],"claim":"The reruns phase is the time from the end of pass 1 to the last rerun."},"why":"Without it, rerun time would be lost inside the census wall clock.","kind":"cell unit","inputs":["apps/cli/tests/io/test/census.test.js"]}
+}

@@ -20,6 +20,7 @@ import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
+import { changedHunks } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
@@ -32,6 +33,7 @@ import { testTierReport } from '../../../../../packages/gate/index.js';
 import { reviewCitations } from '../../../../../packages/gate/index.js';
 import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
+import { reviewWait } from '../verify/wait.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
@@ -171,8 +173,21 @@ import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
+
+/** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
+export function trunkMovedOverlapText(paths, hunks = []) {
+  const named = hunks.length ? `, at ${hunks.map(({ file, header }) => `${JSON.stringify(file)} ${JSON.stringify(header)}`).join(', ')}` : '';
+  return `main changed files this item touches during review: ${paths.map(path => JSON.stringify(path)).join(', ')}${named}; ask another agent to re-review against current main`;
+}
+
+/** The refusal text when main moved again during the one review retry [C7,U159]. */
+export function trunkMovedAgainText(from, to, reach) {
+  return `main moved again from ${from} to ${to} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; ask another agent to re-review against current main`;
+}
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
@@ -381,7 +396,15 @@ export async function verifyHere(ctx, id, { second, values }) {
           unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${builder}; checked against main ${current.commit}.`;
           ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
         }
-        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events });
+        // With submit.composeAsObject on, a stale re-review is offered on a fresh object composition of current main and this head [C7,U159].
+        const composed = composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events,
+          composeAsObject: submitComposeAsObject(), composeMain: composeSubmissionMain });
+        if (composed.commit !== checkedCommit) {
+          checkedCommit = composed.commit;
+          checkedLabel = 'main-composed review';
+          ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} with the reviewed head for the re-review; checking ${checkedCommit.slice(0, 12)}.`);
+        }
+        return composed;
       };
       let admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
@@ -431,7 +454,8 @@ export async function verifyHere(ctx, id, { second, values }) {
             commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
             onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
           try {
-            check = await withGateSlot(root, async (lease) => {
+            const waitedOn = `the review check${supplement ? ' and its affected tests' : ''} at ${checkedCommit.slice(0, 12)} on a runner`;
+            check = await reviewWait(ctx.io, { item: id, what: waitedOn }, signal => withGateSlot(root, async (lease) => {
               if (admitted) {
                 const selected = checkedCommit;
                 ({ trunk, review } = composeNow());
@@ -442,7 +466,7 @@ export async function verifyHere(ctx, id, { second, values }) {
               }
               const ran = await flakeVerify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
               return ran.state === 'pass' ? { ...ran, guardNote: await guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
-            }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+            }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review'), signal }));
           } catch (error) {
             if (error === reselection) continue;
             throw error;
@@ -465,13 +489,13 @@ export async function verifyHere(ctx, id, { second, values }) {
         const evidence = privateCheckEvidence(check, { hasStructuredCounts }) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
-          knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
+          knownMain = await reviewWait(ctx.io, { item: id, what: `main ${trunk.commit.slice(0, 12)} comparison of the failing cases on a runner` }, () => knownMainCheck(root, check, { main: trunk.commit, item: id,
             items: () => store.listItems(board, { all: true }), runnerAdmission,
             mainRedItems: () => store.listItems(board, { all: true })
               .map(row => { const baseline = itemCheckBaseline(board, row); return baseline ? { ...row, item_check_baseline: baseline } : row; }),
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
             onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
-          });
+          }));
           if (!knownMain && check.proofReceiptId) {
             await recordNativeProof(ctx, checkedItem, check, { ordered, withBoard, resourceAgent, proofRunReceipt: store.proofRunReceipt,
               exitFailures: true }, board);
@@ -495,8 +519,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
         // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
         const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }, { hunkKeyed: hunkFreshnessEnabled() }) : null;
-        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
-          `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedOverlapText(moved.overlap, changedHunks(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: moved.overlap })));
         if (moved && !knownMain) {
           unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
@@ -507,7 +530,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (currentTrunk.commit !== trunk.commit && (knownMain || !judged || judged.overlap)) {
           if (proofRetries++ >= 1) {
             const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];
-            throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; merge the latest main and re-review the clean composition`);
+            throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedAgainText(trunk.commit, currentTrunk.commit, reach));
           }
           checkedCommit = retryReviewCommit(root, checkedCommit, currentTrunk);
           checkedLabel = `retry composition ${checkedCommit}`;
@@ -674,7 +697,7 @@ export async function run(io, args) {
     return compared.status === 'unavailable' ? 1 : 0;
   }
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, reviewOnly: true });
   return code;
 }
 

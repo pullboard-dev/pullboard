@@ -24,7 +24,7 @@ async function keysUnder(fx, extra = {}) {
   return { plain: keys.get(PLAIN)?.key, declaring: keys.get(DECLARING)?.key };
 }
 
-test('#4380 clause 1: a declared environment variable keys the file that declares it and no other [C7]', async () => {
+test('gate.io-test-action-environment.case-4380-clause-1-a-declared-environment: #4380 clause 1: a declared environment variable keys the file that declares it and no other [C7]', async () => {
   const fx = fixture();
   try {
     const [none, red, green] = [await keysUnder(fx), await keysUnder(fx, { TRAIN_RED: '1' }), await keysUnder(fx, { TRAIN_RED: '0' })];
@@ -35,7 +35,7 @@ test('#4380 clause 1: a declared environment variable keys the file that declare
   } finally { fx.done(); }
 });
 
-test('#4380 clause 2: a PULLBOARD_* variable outside the harness set changes every key; a harness one does not [C7]', async () => {
+test('gate.io-test-action-environment.case-4380-clause-2-a-pullboard-variable: #4380 clause 2: a PULLBOARD_* variable outside the harness set changes every key; a harness one does not [C7]', async () => {
   const fx = fixture();
   try {
     const [none, loose, other, harness] = [await keysUnder(fx), await keysUnder(fx, { PULLBOARD_FIXTURE_FLAG: 'a' }), await keysUnder(fx, { PULLBOARD_FIXTURE_FLAG: 'b' }), await keysUnder(fx, { PULLBOARD_RUN_SHIM_PID: '42', PULLBOARD_TEST_PROGRESS: '1' })];
@@ -45,7 +45,7 @@ test('#4380 clause 2: a PULLBOARD_* variable outside the harness set changes eve
   } finally { fx.done(); }
 });
 
-test('#4380 clause 3: identical declared environment still reuses the same key [C7]', async () => {
+test('gate.io-test-action-environment.case-4380-clause-3-identical-declared-environment: #4380 clause 3: identical declared environment still reuses the same key [C7]', async () => {
   const fx = fixture();
   try {
     const env = { TRAIN_RED: '1', PULLBOARD_FIXTURE_FLAG: 'a' };
@@ -53,7 +53,7 @@ test('#4380 clause 3: identical declared environment still reuses the same key [
   } finally { fx.done(); }
 });
 
-test('#7639 clause 1: per-job harness paths and gate slot variables do not change the key, so two workers on one tree share it [C7]', async () => {
+test('gate.io-test-action-environment.case-7639-clause-1-per-job-harness: #7639 clause 1: per-job harness paths and gate slot variables do not change the key, so two workers on one tree share it [C7]', async () => {
   const fx = fixture();
   try {
     const base = await keysUnder(fx);
@@ -73,11 +73,11 @@ test('#7639 clause 1: per-job harness paths and gate slot variables do not chang
   } finally { fx.done(); }
 });
 
-test('#7822 clause 1: a land proof keys a gate-proved file as its gate shard did, whatever the pulled job variables differ in [C7]', async () => {
+test('gate.io-test-action-environment.case-7822-clause-1-a-land-proof: #7822 clause 1: a land proof keys a gate-proved file as its gate shard did, whatever the pulled job variables differ in [C7]', async () => {
   const fx = fixture();
   try {
     // A gate shard's job carries its worker count and the trunk remote; its land job's proof carries neither (packages/drive pull.js).
-    const gate = { TZ: 'UTC', LANG: 'C.UTF-8', PULLBOARD_JOB_WORKERS: '2', PULLBOARD_TRUNK_REMOTE: 'coreyolson@100.109.124.33:pb-trunk', PULLBOARD_RUNNER_TOOLS: '/runner/a' };
+    const gate = { TZ: 'UTC', LANG: 'C.UTF-8', PULLBOARD_JOB_WORKERS: '2', PULLBOARD_TRUNK_REMOTE: 'runner@trunk-host:pb-trunk', PULLBOARD_RUNNER_TOOLS: '/runner/a' };
     const land = { TZ: 'UTC', LANG: 'C.UTF-8', PULLBOARD_RUNNER_TOOLS: '/runner/b' };
     const [proved, landing, otherGate] = [await keysUnder(fx, gate), await keysUnder(fx, land), await keysUnder(fx, { ...gate, PULLBOARD_JOB_WORKERS: '5', PULLBOARD_TRUNK_REMOTE: '/other/trunk' })];
     assert.ok(proved.plain && proved.declaring, 'the gate env keys both files');

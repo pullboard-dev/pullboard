@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { checkRunTickNotes } from '../../index.js';
+import { checklistEvidenceProblem } from '../../index.js';
 import { clauseInspectionProblem } from '../../index.js';
+import { guardBar } from '../../index.js';
 import { testRunTickNotes } from '../../index.js';
 
 const FILE = 'test/example.test.js';
@@ -39,7 +41,7 @@ test('state.logic-evidence.clause-1-a-run-of-a-file-outside-the: clause 1: a run
 
 test('state.logic-evidence.clause-1-pullboard-test-records-the: clause 1: pullboard test records the ticks only after a green run [C7]', () => {
   const source = readFileSync(new URL('../../../../apps/cli/src/io/test/here.js', import.meta.url), 'utf8');
-  assert.match(source, /result\.green && item !== undefined\) await recordClauseTicks/u);
+  assert.match(source, /result\.green && item !== undefined\) await (?:recordAgainstMain\(\(\) => )?recordClauseTicks\(/u);
 });
 
 test('state.logic-evidence.clause-1-a-green-run-of-a-shell-command: clause 1: a green run of a shell-command check ticks its clauses [C7]', () => {
@@ -102,4 +104,36 @@ test('state.logic-evidence.clause-2-ticks-recorded-before-the-bar: clause 2: tic
   assert.match(clauseInspectionProblem(own, changed, { head: HEAD }).message, /clause 1 .*no evidence/u, 'the holder\'s own ticks lapse too');
   const restated = [edit(bar.item_criterion), ...earlier];
   assert.equal(clauseInspectionProblem(bar, restated, { head: HEAD }), null, 'ticks under the current text still count');
+});
+
+test('state.logic-evidence.run-cases-tick-a-checkless-bar: clause 2: a green run ticks each [test] clause of a bar with no check that its cases prove, citing the run id, head and case titles, never from a same-number case in another file, and accept and submit read those notes [C7]', () => {
+  const own = 'packages/landing/tests/logic/junit-files.test.js';
+  const other = 'packages/gate/tests/io/other.test.js';
+  const checkless = { item_id: 10589, item_owner: 'core-1', item_check: '', item_criterion: `1. In ${own}, cmake maps to cpp [test] 2. In the same file, no classname is null [test] 3. Case landing.junit-files.registered passes [test]` };
+  const pass = (file, name) => ({ file, name, passed: true, skipped: false });
+  const rows = [pass(own, 'landing.junit-files.cmake-row: clause 1: cmake maps to cpp'), pass(other, 'gate.other.x: clause 2: unrelated'), pass(own, 'landing.junit-files.registered: titles carry IDs')];
+  const run = '9278348d-5ba7-47db-bea6-9af90a095bf0';
+  const notes = testRunTickNotes(checkless, [own, other], HEAD, { outcomes: rows, run });
+  assert.deepEqual(notes.map(note => note.slice(0, 9)), ['clause 1 ', 'clause 3 '], 'clause 2 has only a same-number case in another file');
+  assert.equal(notes[0], `clause 1 [test]: green pullboard test run of ${own} at ${HEAD}, run ${run}: 1 case passed (landing.junit-files.cmake-row: clause 1: cmake maps to cpp)`);
+  assert.match(checklistEvidenceProblem(checkless, thread(notes)).message, /clause 2 .*has no evidence/u, 'accept still names the unproven clause');
+  const all = testRunTickNotes(checkless, [own], HEAD, { outcomes: [...rows, pass(own, 'landing.junit-files.null-row: clause 2: no classname is null')], run });
+  assert.equal(all.length, 3);
+  assert.equal(checklistEvidenceProblem(checkless, thread(all)), null, 'accept reads the notes as checklist evidence');
+  assert.equal(clauseInspectionProblem(checkless, thread(all), { head: HEAD }), null, 'submit reads them as ticks');
+  assert.deepEqual(testRunTickNotes(checkless, [own], HEAD), [], 'a run with no outcome rows ticks nothing');
+  assert.equal(testRunTickNotes(PAIR, ['test/a.test.js', 'test/b.test.js'], HEAD, { outcomes: rows, run }).length, 2, 'a bar with check files keeps its check-file ticks');
+});
+
+test('state.logic-evidence.refuse-empty-bar-on: clause 1: guardBar with refuseEmpty refuses a missing, blank or unnumbered bar BAR_EMPTY with the edit --criterion step [C7]', () => {
+  for (const bar of [undefined, '', '   \n', 'make it faster']) {
+    assert.throws(() => guardBar(bar, { refuseEmpty: true }), error => error.code === 'BAR_EMPTY' && /edit <id> --criterion/u.test(error.next ?? error.message), `refused: ${JSON.stringify(bar)}`);
+  }
+  assert.deepEqual(guardBar('1. It prints the heading [test]', { refuseEmpty: true }), [], 'a numbered bar passes');
+});
+
+test('state.logic-evidence.refuse-empty-bar-off: clause 2: guardBar without refuseEmpty returns no warnings for an undefined bar, as before [C7]', () => {
+  assert.deepEqual(guardBar(undefined), []);
+  assert.deepEqual(guardBar(undefined, {}), []);
+  assert.deepEqual(guardBar(undefined, { refuseEmpty: false }), []);
 });

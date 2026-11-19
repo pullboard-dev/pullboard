@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/sandbox/index.js packages/items/index.js */
 /** A runner gate fetches a claim base outside its checkout from the trunk remote; one the remote lacks refuses once [P7,C7,#5808]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -107,7 +108,7 @@ function holds(box, commit) {
   try { box.git(box.runner, 'cat-file', '-e', `${commit}^{commit}`); return true; } catch { return false; }
 }
 
-test('clause 1: a runner gate fetches a claim base found only on another item\'s branch and passes lane ownership on the runner [P7,C7]', async t => {
+test('cli.io-submit-gate-claim-fetch.a-runner-gate-fetches-a-claim-base: clause 1: a runner gate fetches a claim base found only on another item\'s branch and passes lane ownership on the runner [P7,C7]', async t => {
   const box = fixture(t);
   assert.equal(holds(box, box.base), false, 'the job checkout starts with only main and the candidate, as the #5660 reproduction did');
   const { submissionPaths } = await import(SANDBOX);
@@ -120,7 +121,7 @@ test('clause 1: a runner gate fetches a claim base found only on another item\'s
   assert.equal(holds(box, box.base), true, 'the claim base came into the runner checkout from the trunk remote');
 });
 
-test('clause 1: a pulled job reads its trunk remote from the runner, so the same fetch serves the pull path [P7,C7]', async t => {
+test('cli.io-submit-gate-claim-fetch.a-pulled-job-reads-its-trunk-remote: clause 1: a pulled job reads its trunk remote from the runner, so the same fetch serves the pull path [P7,C7]', async t => {
   const box = fixture(t);
   const runner = countingRunner(box, { ...box.env, PULLBOARD_TRUNK_REMOTE: box.trunk });
   const analysis = await authorize(box, runner, { trunkRemote: '' });
@@ -128,7 +129,7 @@ test('clause 1: a pulled job reads its trunk remote from the runner, so the same
   assert.equal(holds(box, box.base), true);
 });
 
-test('clause 2: a claim base the trunk remote lacks refuses NO_POLICY once with a next step, never an infrastructure rerun [P7,C7]', async t => {
+test('cli.io-submit-gate-claim-fetch.a-claim-base-the-trunk-remote-lacks: clause 2: a claim base the trunk remote lacks refuses NO_POLICY once with a next step, never an infrastructure rerun [P7,C7]', async t => {
   const box = fixture(t, { claim: 'absent' });
   const runner = countingRunner(box);
   const notices = [];

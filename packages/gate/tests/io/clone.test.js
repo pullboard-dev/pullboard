@@ -10,12 +10,12 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { findChromeExecutable } from '../../../../apps/cli/tests/fixtures/chrome.js';
-import { launchChromeProcess } from '../../../../apps/cli/tests/fixtures/chrome.js';
-import { chromeLaunchArgs } from '../../../../apps/cli/tests/fixtures/chrome/args.js';
+import { findChromeExecutable } from '../fixtures/chrome.js';
+import { launchChromeProcess } from '../fixtures/chrome.js';
+import { chromeLaunchArgs } from '../fixtures/chrome/args.js';
 import { assertNoKilledChromeClone } from '../fixtures/clone.js';
 
-test('a killed test Chrome leaves no code-sign clone [C7]', async () => {
+test('gate.io-clone.a-killed-test-chrome-leaves-no: a killed test Chrome leaves no code-sign clone [C7]', async () => {
   await assertNoKilledChromeClone({ launchChromeProcess, chromeLaunchArgs });
 });
 
@@ -58,7 +58,7 @@ function delayedHelperScripts(profile) {
 }
 
 /** Prove close waits for a surviving process-group helper before a single profile removal. */
-test('removes the profile only after every Chrome process exits [C7]', async (t) => {
+test('gate.io-clone.removes-the-profile-only-after-every: removes the profile only after every Chrome process exits [C7]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-group-'));
   const profile = join(directory, 'profile');
   mkdirSync(profile, { mode: 0o700 });
@@ -95,7 +95,7 @@ test('removes the profile only after every Chrome process exits [C7]', async (t)
 
 
 /** Prove an unrelated process inheriting stderr cannot keep an exited owned Chrome open. */
-test('Chrome close releases inherited stderr after its owned process group exits [C7]', async t => {
+test('gate.io-clone.chrome-close-releases-inherited-stderr-after: Chrome close releases inherited stderr after its owned process group exits [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-inherited-pipe-'));
   const ready = join(directory, 'holder-ready');
   const holder = `const fs = require('node:fs'); fs.writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000);`;
@@ -119,7 +119,7 @@ test('Chrome close releases inherited stderr after its owned process group exits
 });
 
 
-test('fixture close quits actual Chrome cleanly before any signal fallback [C7]', { timeout: 40000 }, async t => {
+test('gate.io-clone.fixture-close-quits-actual-chrome-cleanly: fixture close quits actual Chrome cleanly before any signal fallback [C7]', { timeout: 40000 }, async t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-clone-graceful-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const profile = join(root, 'profile');

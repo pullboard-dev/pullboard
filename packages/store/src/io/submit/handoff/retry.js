@@ -225,6 +225,42 @@ function writeQueueHandoff(board, id, options, decided = null) {
   });
 }
 
+/** Validate the newest main a recapture carries; the job and sender are bound to the saved record when the move is written. */
+function recaptured(options) {
+  if (!SHA.test(options?.main ?? '') || typeof options.agentId !== 'string' || typeof options.job !== 'string') {
+    throw new Refused('BAD_SUBMIT_HANDOFF', 'recapture a queued gate with its job, sender and the newest main commit');
+  }
+}
+
+/** Check a recapture's captured values before the board write opens; nothing is read from git or sealed here. */
+export function prepareRecaptureSubmitHandoff(board, id, options) {
+  recaptured(options);
+  return Object.freeze({ ...options });
+}
+
+/**
+ * Replace a queued gate's captured main with the newest main, and record the move.
+ * Why: main moves while a gate waits, and the held candidate then pinned a main its merge no longer contained, so the
+ * queue refused SUBMIT_HANDOFF_CHANGED instead of running on the main a runner would merge into (#9819, slice of #2987).
+ * Only the seat's own queued job at its frozen bar for its live claim is recaptured; anything else refuses and writes nothing [C7,H16].
+ *
+ * @param {object} board
+ * @param {number} id
+ * @param {{ agentId: string, job: string, main: string }} options - The sender, the queued job's id and the newest main commit.
+ * @returns {{ job: Record<string, any>, created: false }} The queued record now holding the newest main.
+ */
+export function recaptureSubmitHandoff(board, id, options) {
+  recaptured(options);
+  return atomic(board, () => {
+    const saved = matching(board, id, options);
+    const item = getItem(board, id);
+    if (saved.state !== 'queued' || item.item_status !== 'claimed' || item.item_owner !== options.agentId || item.item_frozen_digest !== saved.digest) {
+      throw new Refused('SUBMIT_HANDOFF_CHANGED', 'only the queued gate of the live claim at its frozen bar can recapture main; read the current queued submission');
+    }
+    return { job: record(board, id, { ...saved, main: options.main }), created: false };
+  });
+}
+
 /** Bind every worker transition to its original native queue record and actor. */
 function matching(board, id, { agentId, job }) {
   const saved = submitHandoff(board, id);

@@ -41,7 +41,7 @@ function hopSection() {
   return lines.slice(start + 1, end < 0 ? lines.length : end);
 }
 
-test('every hop names an existing harness or none, and every harness file is a hop\'s [C7]', () => {
+test('gate.io-matrix.every-hop-names-an-existing: every hop names an existing harness or none, and every harness file is a hop\'s [C7]', () => {
   const helpers = new Set(['kit.js', 'project.js']);
   const files = readdirSync(HARNESSES, { recursive: true }).filter(name => name.endsWith('.js') && !helpers.has(name)).map(name => name.replace(/\.js$/u, ''));
   const named = new Set(HOPS.map(hop => hop.harness).filter(Boolean));
@@ -52,7 +52,7 @@ test('every hop names an existing harness or none, and every harness file is a h
   for (const hop of HOPS.filter(entry => entry.fix)) assert.match(hop.fix, /^[0-9a-f]{10,40}$/u, `${hop.id} names the fix commit its repro fails before`);
 });
 
-test('the architecture page lists every hop with its harness, and NONE exactly where no harness exists [C7]', () => {
+test('gate.io-matrix.the-architecture-page-lists-every: the architecture page lists every hop with its harness, and NONE exactly where no harness exists [C7]', () => {
   const rows = hopSection().filter(line => line.startsWith('| ') && !line.startsWith('| Hop') && !line.startsWith('|---'));
   for (const hop of HOPS) {
     const row = rows.find(line => line.includes(`<a id="hop-${hop.id}"></a>`));
@@ -66,7 +66,7 @@ test('the architecture page lists every hop with its harness, and NONE exactly w
   assert.equal(rows.length, HOPS.length, 'one row per hop, no others');
 });
 
-test('the runner reads harness rows into PASS, FAIL and NONE, fails a leak, and marks a row current only when live agrees [C7]', () => {
+test('gate.io-matrix.the-runner-reads-harness-rows: the runner reads harness rows into PASS, FAIL and NONE, fails a leak, and marks a row current only when live agrees [C7]', () => {
   const runs = new Map([
     ['e2e', { code: 0, tail: '', rows: [{ hop: 'claim', status: 'PASS', ms: 900, measured: 'claimed', cause: '' }] }],
     ['board-commands', { code: 1, tail: 'error: \'next wall 520 over 200\'', rows: [

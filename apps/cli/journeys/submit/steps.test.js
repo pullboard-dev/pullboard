@@ -43,7 +43,7 @@ async function addBuild(box, repo, title, check) {
   return JSON.parse(result.out).item.item_id;
 }
 
-test('clause 2: every refusal names a next step that works [P4,I1,I2]', async () => {
+test('cli.journeys-submit-steps.every-refusal-names-a-next-step: clause 2: every refusal names a next step that works [P4,I1,I2]', async () => {
   const codes = new Set(['API_LISTEN', 'CORE_BARE', 'VIEW_SIGN_IN_STOPPED']);
   for (const file of movedSourceFiles()) {
     const source = readFileSync(join(REPOSITORY, file), 'utf8');
@@ -164,7 +164,7 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
 });
 
 
-test('the light collector preserves prepared JSON refusal documents and a single success output [A1,P4,B26,C7]', async () => {
+test('cli.journeys-submit-steps.the-light-collector-preserves-prepared-json: the light collector preserves prepared JSON refusal documents and a single success output [A1,P4,B26,C7]', async () => {
   const cases = [
     { code: 'NO_ITEM', message: 'No item exists.' },
     { code: 'FUTURE_REMOTE_RULE', message: 'The service refused.', next: 'ask its owner to restore the board' },

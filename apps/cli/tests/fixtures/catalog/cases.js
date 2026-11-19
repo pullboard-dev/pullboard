@@ -1211,7 +1211,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   assert.equal(handoff.resume.agent, joined.agent);
 }, ['add', 'bar', 'blueprint', 'check', 'claim', 'companion', 'digest', 'export', 'flakes', 'gate', 'handoff', 'import', 'init', 'join', 'labels', 'land', 'lane', 'lanes', 'loop', 'maintenance', 'milestone', 'publish', 'queue', 'relay', 'reopen', 'rigor', 'roadmap', 'runner', 'search', 'seats', 'sentinel', 'sentinels', 'spec', 'stats', 'submit', 'takeover', 'tool-build', 'trace', 'verify', 'why']);
 
-catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON', ['flow replay', 'init'], async () => {
+catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON', ['flow replay', 'flow tune', 'init'], async () => {
   const box = await project();
   const result = await json(box, box.repo, 'flow', ['replay'], 'replay');
   assert.equal(result.history.version, 1);
@@ -1220,6 +1220,9 @@ catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay thro
   assert.ok(Array.isArray(result.replay.items));
   assert.ok(Array.isArray(result.replay.landingOrder));
   assert.equal(typeof result.replay.stages, 'object');
+  const tuned = await json(box, box.repo, 'flow', ['tune'], 'tune');
+  assert.equal(typeof tuned.cycle.due, 'boolean');
+  assert.equal(typeof tuned.choice.kind, 'string');
 }, ['flow', 'init']);
 
 catalogCase('[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON', ['add', 'init', 'map'], async () => {
@@ -1450,20 +1453,26 @@ const CATALOG_GROUPS = {
   ],
   commands: [
     '[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON',
-    '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
     '[A1] intake records a real outside pull request through the CLI',
-    '[A1,C7] test runs named test files as a pulled job and reports the runner',
+    '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
+    '[A1,C7,#8842] route suggests light items through the catalog',
+    '[A1,C7] rules replays the event log through the catalog',
+  ],
+  'commands-b': [
+    '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
     '[A1,H11] sync shares a board through a real Git remote without an account',
+    '[A1,C7] compact reports a dry run through the catalog',
+    '[A1,C7,#8071] replay reports a table through the catalog',
+    '[A1,C7,#8072] explain reports a table through the catalog',
+  ],
+  'commands-c': [
+    '[A1,C7] test runs named test files as a pulled job and reports the runner',
     '[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON',
     '[A1,C7] additive roots expose a real report and refuse missing native audit evidence',
     '[A1,C7] red explain reports absent evidence through the catalog',
     '[A1,C7] mutate reports caught and missed faults through the catalog',
-    '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
-    '[A1,C7,#8842] route suggests light items through the catalog',
-    '[A1,C7] rules replays the event log through the catalog',
-    '[A1,C7] compact reports a dry run through the catalog',
-    '[A1,C7,#8071] replay reports a table through the catalog',
-    '[A1,C7,#8072] explain reports a table through the catalog',
+  ],
+  'commands-d': [
     '[A1,C7] contribute check reports an accepted record through the catalog',
     '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
     '[A1,C7,#8378] moves reports each move table state through real CLI JSON',

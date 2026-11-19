@@ -6,14 +6,11 @@
       "path": "init",
       "file": "apps/cli/journeys/init/gate.test.js",
       "specs": [
-        "A1",
         "B26",
-        "C3",
         "C7",
         "H5",
         "I1",
         "I2",
-        "L3",
         "N26"
       ],
       "commands": [
@@ -52,17 +49,14 @@
       "file": "apps/cli/journeys/next/take.test.js",
       "specs": [
         "A6",
-        "B13",
         "B3",
         "B5",
         "C7",
         "H16",
         "I6",
         "N2",
-        "R3",
         "V1",
-        "V2",
-        "V4"
+        "V2"
       ],
       "commands": [
         "next"
@@ -126,7 +120,6 @@
         "B3",
         "C7",
         "V1",
-        "V18",
         "V4",
         "V8"
       ],
@@ -149,13 +142,9 @@
       "path": "land",
       "file": "apps/cli/journeys/land/main.test.js",
       "specs": [
-        "B3",
         "C7",
-        "H5",
-        "I1",
         "Q1",
-        "Q3",
-        "R3"
+        "Q3"
       ],
       "commands": [
         "init",
@@ -214,17 +203,10 @@
       "path": "relay-pair",
       "file": "apps/cli/journeys/relay/main-pairing.test.js",
       "specs": [
-        "A4",
-        "B26",
         "H1",
-        "H2",
-        "H21",
         "H5",
-        "H7",
         "H8",
-        "H9",
-        "N26",
-        "P6"
+        "N26"
       ],
       "commands": [
         "relay on"
@@ -237,17 +219,11 @@
       "path": "view-open",
       "file": "apps/cli/journeys/view/e2e.test.js",
       "specs": [
-        "A2",
-        "D1",
-        "D2",
-        "D3",
-        "D4",
         "I8",
         "N26",
         "N27",
         "N32",
-        "N39",
-        "S8"
+        "N39"
       ],
       "commands": [
         "view",
@@ -272,7 +248,6 @@
       "specs": [
         "A5",
         "S19",
-        "V2",
         "V3"
       ],
       "commands": [

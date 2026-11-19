@@ -38,6 +38,16 @@ const LEGACY_REPORT = 'local:proof-stats:v2:report-summary';
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
 
 
+/** Every store that holds report keys: board_meta, and the derived database once the dual write attached it [C7]. */
+const reportTables = board => ['board_meta', ...(board.db.prepare('PRAGMA database_list').all().some(row => row.name === 'proof_derived') ? ['proof_derived.proof_counter'] : [])];
+/** The stored rows under a glob, per store, so an older writer's boundary can be put back exactly. */
+const heldRows = (board, glob) => reportTables(board).map(table => [table, board.db.prepare(`SELECT meta_key,meta_value FROM ${table} WHERE meta_key GLOB ?`).all(glob)]);
+/** Emulate an older writer: drop the glob's rows from every store, then put the held rows back. */
+function olderWriterRestores(board, glob, held) {
+  for (const table of reportTables(board)) board.db.prepare(`DELETE FROM ${table} WHERE meta_key GLOB ?`).run(glob);
+  for (const [table, rows] of held) for (const row of rows) board.db.prepare(`INSERT INTO ${table}(meta_key,meta_value) VALUES (?,?)`).run(row.meta_key, row.meta_value);
+}
+
 /** Construct a native board whose append path maintains current report shards. */
 function fixture(t, { item = true, now } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-report-cache-'));
@@ -50,7 +60,7 @@ function fixture(t, { item = true, now } = {}) {
   return board;
 }
 
-test('an empty indexed board has a measured empty report rather than a missing capability [R1,R2]', t => {
+test('lib.flow-report-cache.an-empty-indexed-board-has-a: an empty indexed board has a measured empty report rather than a missing capability [R1,R2]', t => {
   const board = fixture(t, { item: false });
   const report = proofStats(board, {}, statsReadPorts).flow.report;
   assert.deepEqual(report.items, []);
@@ -60,7 +70,7 @@ test('an empty indexed board has a measured empty report rather than a missing c
   assert.equal(report.overall.submissionsPerLanded, null);
 });
 
-test('clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
+test('lib.flow-report-cache.flow-report-indexed-projection-matches-canonical: clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
   const board = fixture(t);
   const now = Date.now() + 60_000;
   const history = store.events(board);
@@ -76,9 +86,9 @@ test('clause 2: flow report indexed projection matches canonical replay without 
   assert.equal(proofStats(board, { now, since: '2026-10-01' }, statsReadPorts).flow.report.scope, 'all-time', 'a date-filtered legacy summary visibly labels the report scope');
 });
 
-test('old v2 counters retain fast metrics and explicitly unavailable reports until a writer rebuilds [R1,R2]', t => {
+test('lib.flow-report-cache.old-v2-counters-retain-fast-metrics: old v2 counters retain fast metrics and explicitly unavailable reports until a writer rebuilds [R1,R2]', t => {
   const board = fixture(t);
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`${REPORT}summary`);
+  olderWriterRestores(board, `${REPORT}summary`, []);
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
@@ -93,15 +103,14 @@ test('old v2 counters retain fast metrics and explicitly unavailable reports unt
   assert.deepEqual(store.events(board), before, 'writer backfill changes only local derived counters');
 });
 
-test('an older writer cannot make retained report capability look current [R1,R2,H16]', t => {
+test('lib.flow-report-cache.an-older-writer-cannot-make-retained: an older writer cannot make retained report capability look current [R1,R2,H16]', t => {
   const board = fixture(t);
   const reportKeys = 'local:proof-stats:v2:report-*';
-  const retained = board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ?').all(reportKeys);
+  const retained = heldRows(board, reportKeys);
   const previousEvents = store.events(board);
   store.addItem(board, { by: 'coordinator', lane: 'api', title: 'An older writer advances native history' });
   // Emulate an older writer's exact derived-state boundary: ordinary counters advance; report shards do not.
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(reportKeys);
-  for (const row of retained) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(row.meta_key, row.meta_value);
+  olderWriterRestores(board, reportKeys, retained);
   const stale = proofStats(board, {}, statsReadPorts);
   assert.equal(stale.flow.queues.open.size, 2, 'existing native counters remain usable');
   assert.deepEqual(stale.flow.report, { available: false }, 'retained version alone cannot certify intervening older-writer events');
@@ -117,7 +126,7 @@ test('an older writer cannot make retained report capability look current [R1,R2
   assert.deepEqual(store.events(board), before, 'repair changes derived counters only');
 });
 
-test('retained refreezes keep active build time and prototype-like recorded names remain ordinary groups [R1,R2]', () => {
+test('lib.flow-report-cache.retained-refreezes-keep-active-build-time: retained refreezes keep active build time and prototype-like recorded names remain ordinary groups [R1,R2]', () => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   const commit = 'a'.repeat(40);
   const entries = [
@@ -142,7 +151,7 @@ test('retained refreezes keep active build time and prototype-like recorded name
 });
 
 
-test('an item fact after claim expiry cannot reclassify the preceding active build [R1,R2]', () => {
+test('lib.flow-report-cache.an-item-fact-after-claim-expiry: an item fact after claim expiry cannot reclassify the preceding active build [R1,R2]', () => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   const entries = [
     [0, 'add', { lane: 'core' }],
@@ -166,7 +175,7 @@ test('an item fact after claim expiry cannot reclassify the preceding active bui
 });
 
 
-test('cached flow retains every native milestone membership through edits removals and shipping [R1,R2]', t => {
+test('lib.flow-report-cache.cached-flow-retains-every-native-milestone: cached flow retains every native milestone membership through edits removals and shipping [R1,R2]', t => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
@@ -222,7 +231,7 @@ test('cached flow retains every native milestone membership through edits remova
   assert.deepEqual(report.milestones.map(row => row.milestone), [null]);
 });
 
-test('automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
+test('lib.flow-report-cache.automatic-placement-overrides-agree-in-cached: automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
   const board = fixture(t);
   const who = { agentId: 'coordinator' };
   const id = 1;
@@ -249,7 +258,7 @@ test('automatic placement overrides agree in cached and replayed flow after ship
   observe(['B']);
 });
 
-test('repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
+test('lib.flow-report-cache.repeated-native-landing-receipts-preserve-the: repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
@@ -277,7 +286,7 @@ test('repeated native landing receipts preserve the first measured landing inter
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
 });
 
-test('clause 3: writers alternating between a v2-shaped and the current report version keep legacy keys, replay only the missed tail, and never write over 1 s [R1,R2]', t => {
+test('lib.flow-report-cache.writers-alternating-between-a-v2-shaped: clause 3: writers alternating between a v2-shaped and the current report version keep legacy keys, replay only the missed tail, and never write over 1 s [R1,R2]', t => {
   const board = fixture(t);
   const key = `${REPORT}summary`;
   const legacy = JSON.stringify({ data: { version: FLOW_REPORT_VERSION - 1, last: 1, invalid: false }, numbers: [] });
@@ -292,14 +301,13 @@ test('clause 3: writers alternating between a v2-shaped and the current report v
   const resets = () => board.db.prepare('SELECT COUNT(*) AS n FROM temp.report_resets').get().n;
   const folder = () => board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ?').all(`${REPORT}*`);
   for (let round = 1; round <= 6; round += 1) {
-    const kept = folder(), seen = store.events(board).length;
+    const kept = heldRows(board, `${REPORT}*`), seen = store.events(board).length;
     const started = performance.now();
     store.addItem(board, { by: 'coordinator', lane: 'core', title: `Current writer ${round}` });
     assert.ok(performance.now() - started < 1000, `round ${round}: a current write takes under 1 s`); // budget: declared by the item bar, one second
     // Emulate the v2-shaped writer: it advances ordinary counters and its own legacy keys, but not this folder.
     store.addItem(board, { by: 'coordinator', lane: 'core', title: `Older writer ${round}` });
-    board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${REPORT}*`);
-    for (const row of kept) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(row.meta_key, row.meta_value);
+    olderWriterRestores(board, `${REPORT}*`, kept);
     const missed = store.events(board).slice(seen + 0).map(event => event.event_id);
     const reportEvents = [], proofEvents = [];
     board.onFlowReportEvent = event => reportEvents.push(event.event_id);

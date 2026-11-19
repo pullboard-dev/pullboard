@@ -17,6 +17,7 @@ import {
   cpus,
 } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import ceilings from '../../journeys/list/startup-budget.json' with { type: 'json' };
 import * as store from '../../../../packages/store/index.js';
@@ -24,6 +25,8 @@ import { openBoard } from '../../../lib/index.js';
 import { itemProgress } from '../../../../packages/roadmap/index.js';
 import { runFixtureGit } from './child.js';
 import { submitFixture } from './board/submit.js';
+
+const CPU_REPORT = pathToFileURL(resolve(import.meta.dirname, 'cpu-report.js')).href;
 
 /** Seed real rows, not cached command results, with many historical submissions and a small live queue. */
 function fixture(t) {
@@ -79,6 +82,49 @@ function boardDigest(db) {
 }
 
 
+/** The bare node median of a quiet runner: 30.66 ms, measured in L14 diag run fe98a381 with list thin at 143.22 ms. A loaded run's own bare floor is judged against it [C7]. */
+export const QUIET_BARE_MS = 30.66;
+
+/** A row's median with the load removed: it is divided by how much slower this run's bare node is than the quiet floor, and a quiet or faster run is judged exactly as measured. */
+export function scaledMedian(median, bareMedian) {
+  return median / Math.max(1, bareMedian / QUIET_BARE_MS);
+}
+
+/** The best bare node CPU time of a quiet runner, in ms (user plus system of `node -e 0`): 25, an estimate of 80% of the quiet wall floor above, since no quiet runner was free to read it; a lower value only makes a loaded run's scaling more lenient. Loaded runs read 45 to 50 ms (runs 8f516652, 5aeeb8f1) [C7]. */
+export const QUIET_BARE_CPU_MS = 25;
+
+/** A run counts as quiet when its bare node wall median is within 10% of the quiet floor; only then is a row also judged by its wall time [C7]. */
+export const QUIET_FLOOR_SLACK = 1.1;
+
+/** A row's best CPU time with the load removed: divided by how much more CPU this run's bare node spent than the quiet floor, and never raised. */
+export function scaledCpu(cpuMedian, bareCpuMedian) {
+  return cpuMedian / Math.max(1, bareCpuMedian / QUIET_BARE_CPU_MS);
+}
+
+/**
+ * Whether one startup row meets its ceiling. CPU time, scaled by the run's bare node CPU floor, is always judged: it does not follow runner load.
+ * Wall time, scaled by the bare wall floor, is judged too on a quiet run, so a quiet run is held exactly as strictly as before [C7].
+ *
+ * @param {{ wall: number, cpu: number, bareWall: number, bareCpu: number }} row wall median and best CPU, with the bare node's, in ms
+ * @param {number} ceiling the row in startup-budget.json
+ * @returns {{ ok: boolean, quiet: boolean, cpu: number, wall: number }} the scaled values the verdict used
+ */
+export function judgeStartupRow({ wall, cpu, bareWall, bareCpu }, ceiling) {
+  const quiet = bareWall <= QUIET_BARE_MS * QUIET_FLOOR_SLACK;
+  const scaledWall = scaledMedian(wall, bareWall);
+  const scaledCpuMs = scaledCpu(cpu, bareCpu);
+  return { ok: scaledCpuMs < ceiling && (!quiet || scaledWall < ceiling), quiet, cpu: scaledCpuMs, wall: scaledWall };
+}
+
+/** One fresh node child with the CPU report preloaded: its wall ms, its CPU ms from descriptor 3, and the spawn result. */
+function measuredSpawn(args, options) {
+  const started = performance.now();
+  const result = spawnSync(process.execPath, ['--import', CPU_REPORT, ...args], { ...options, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
+  const wallMs = performance.now() - started;
+  const micros = Number(result.output?.[3]);
+  return { result, wallMs, cpuMs: Number.isFinite(micros) ? micros / 1000 : NaN };
+}
+
 /** Every command the startup budgets measure, in measuring order. */
 export const STARTUP_COMMANDS = ['version', 'show', 'status', 'list', 'list thin'];
 
@@ -116,24 +162,23 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
       thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
     const samples=Object.fromEntries(startupCommands(options).map(name=>[name,[]]));
+    const cpuSamples=Object.fromEntries(Object.keys(samples).map(name=>[name,[]]));
     // 'list thin' is list with list.thinRead on in the child's machine settings; the file exists only while that child runs [C7,#9090].
     const settingsFile=join(root,'private-machine','settings.json');
     const childEnvironment={...process.env,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
     // Bare node (node -e 0, same env and child API) is the floor no import cut can beat; it is timed once per round next to every row [C7].
-    const bareSamples=[];
+    const bareSamples=[],bareCpuSamples=[];
     for(let round=0;round<5;round++) {
-      const bareStarted=performance.now();
-      const bare=spawnSync(process.execPath,['-e','0'],{cwd:root,encoding:'utf8',env:childEnvironment});
-      bareSamples.push(performance.now()-bareStarted);
+      const {result:bare,wallMs:bareWallMs,cpuMs:bareCpuMs}=measuredSpawn(['-e','0'],{cwd:root,encoding:'utf8',env:childEnvironment});
+      bareSamples.push(bareWallMs);
+      bareCpuSamples.push(bareCpuMs);
       assert.equal(bare.status,0,`bare node round ${round}: ${bare.error?.message ?? bare.stderr}`);
       for(const name of Object.keys(samples)) {
       const thin=name==='list thin';
       const args=name==='version'?['--version','--json']:name==='show'?['show','4','--json']:[thin?'list':name,'--json'];
       if(thin){ mkdirSync(join(root,'private-machine'),{recursive:true}); writeFileSync(settingsFile,JSON.stringify({list:{thinRead:true}})); }
-      const started=performance.now();
-      const result=spawnSync(process.execPath,[code,...args],{cwd:root,encoding:'utf8',env:childEnvironment,maxBuffer:16*1024*1024});
-      const milliseconds=performance.now()-started;
+      const {result,wallMs:milliseconds,cpuMs}=measuredSpawn([code,...args],{cwd:root,encoding:'utf8',env:childEnvironment,maxBuffer:16*1024*1024});
       if(thin) unlinkSync(settingsFile);
       assert.equal(result.status,0,`${name} round ${round}: ${result.error?.message ?? result.stderr ?? result.stdout}`);
       const data=JSON.parse(result.stdout);
@@ -146,6 +191,7 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
         assert.deepEqual(data.items,expectedItems,'the complete list rows survive the startup optimization');
       }
       samples[name].push(milliseconds);
+      cpuSamples[name].push(cpuMs);
       }
     }
     assert.equal(boardDigest(db),initial,'all persistent board rows remain unchanged');
@@ -153,15 +199,26 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
     const report={code,node:process.version,method:'end-to-end real child process, round-robin five, no warmup; full stdout+JSON assertions',population:{items:1000,events:db.prepare('SELECT count(*) AS n FROM event').get().n,shouts:23000,agents:801,historicalSubmits:1600,landingBatches:0},samplesMs:samples,mediansMs:medians,load:loadavg(),cpus:cpus().length,boardSha256:initial};
     t.diagnostic(JSON.stringify(report));
     const bareMedian=[...bareSamples].sort((a,b)=>a-b)[2];
+    // The least-disturbed of five fresh processes: load only ever adds CPU time (cache misses, switches), so the smallest sample is the nearest to the work itself.
+    const cpuMedians=Object.fromEntries(Object.entries(cpuSamples).map(([name,values])=>[name,Math.min(...values)]));
+    const bareCpuMedian=Math.min(...bareCpuSamples);
+    t.diagnostic(JSON.stringify({cpuSamplesMs:cpuSamples,bareNodeCpuMs:bareCpuSamples}));
+    report.cpuSamplesMs=cpuSamples;
+    report.cpuMediansMs=cpuMedians;
+    report.bareNodeCpuMs=bareCpuSamples;
+    report.bareNodeCpuMedianMs=bareCpuMedian;
     report.bareNodeMs=bareSamples;
     report.bareNodeMedianMs=bareMedian;
     report.floorLines=Object.entries(medians).map(([name,median])=>`${name} median ${median.toFixed(2)} ms, bare node median ${bareMedian.toFixed(2)} ms, overhead ${(median-bareMedian).toFixed(2)} ms`);
     for (const line of report.floorLines) t.diagnostic(line);
+    report.cpuLines=Object.entries(cpuMedians).map(([name,median])=>`${name} cpu best ${median.toFixed(2)} ms, bare node cpu best ${bareCpuMedian.toFixed(2)} ms, quiet bare cpu ${QUIET_BARE_CPU_MS} ms`);
+    for (const line of report.cpuLines) t.diagnostic(line);
     // The report is handed out before any ceiling assertion, so a row over its ceiling still leaves its floor readable.
     Object.assign(sink, report);
     // Goal: 100 ms (#1048). Each row is an audited exception at its measured runner median (#5994); rows only go down, and the 0.9.5 de-barrel item brings them to the goal.
     for (const [name, median] of Object.entries(medians)) {
-      assert.ok(median < ceilings[name], `${name} end-to-end median ${median.toFixed(2)} ms exceeds its ${ceilings[name]} ms row in startup-budget.json (goal 100 ms)`);
+      const verdict = judgeStartupRow({ wall: median, cpu: cpuMedians[name], bareWall: bareMedian, bareCpu: bareCpuMedian }, ceilings[name]);
+      assert.ok(verdict.ok, `${name} end-to-end median ${median.toFixed(2)} ms wall (${verdict.wall.toFixed(2)} ms scaled by the bare node floor ${bareMedian.toFixed(2)} ms against the quiet ${QUIET_BARE_MS} ms; judged ${verdict.quiet ? 'on a quiet run' : 'not at all, the run is loaded'}) and ${cpuMedians[name].toFixed(2)} ms best CPU (${verdict.cpu.toFixed(2)} ms scaled by the bare node best CPU floor ${bareCpuMedian.toFixed(2)} ms against the quiet ${QUIET_BARE_CPU_MS} ms) exceeds its ${ceilings[name]} ms row in startup-budget.json (goal 100 ms)`);
       if (median < 100) t.diagnostic(`${name} median ${median.toFixed(2)} ms meets the 100 ms goal; lower its row in startup-budget.json to 100`);
     }
     return report;

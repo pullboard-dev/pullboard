@@ -77,7 +77,7 @@ async function acceptSubmitted(box, itemId, submitted) {
   box.git(box.repo, 'switch', '-q', 'main');
 }
 
-test('coordinator resume guides and groups the checked composition after stale re-review [E8,N19]',
+test('lib.resume.coordinator-resume-guides-and-groups-the-checked: coordinator resume guides and groups the checked composition after stale re-review [E8,N19]',
   { timeout: 120_000 }, async () => { // budget: hang ceiling for private Git worktrees and public CLI checks; not a speed target.
     const box = helpers.project();
     box.env.LC_ALL = 'C';

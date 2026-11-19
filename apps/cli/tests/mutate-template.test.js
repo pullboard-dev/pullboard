@@ -11,14 +11,14 @@ const SOURCE = [
   'export const next = (s) => s.count > 3;',
 ].join('\n');
 
-test('clause 1: [C7] faults seeds equality, logic and comparison swaps on the lines after a template that nests a template', () => {
+test('cli.mutate-template.faults-seeds-equality-logic-and-comparison-swaps: clause 1: [C7] faults seeds equality, logic and comparison swaps on the lines after a template that nests a template', () => {
   const found = faults(SOURCE, [3, 4]);
   const kinds = (line) => new Set(found.filter((fault) => fault.line === line).map((fault) => fault.operator));
   assert.deepEqual([...kinds(3)].sort(), ['equality', 'literal', 'logic']);
   assert.deepEqual([...kinds(4)].sort(), ['comparison', 'literal']);
 });
 
-test('clause 1: [C7] masked blanks the text of a nested template, keeps its ${} code, and ends the outer template at its own backtick', () => {
+test('cli.mutate-template.masked-blanks-the-text-of-a-nested: clause 1: [C7] masked blanks the text of a nested template, keeps its ${} code, and ends the outer template at its own backtick', () => {
   const rows = masked(SOURCE).split('\n');
   assert.equal(rows.length, SOURCE.split('\n').length);
   assert.ok(rows[0].includes('a === b'), 'code inside ${} stays visible');

@@ -152,18 +152,24 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly', 'staticParallelMax', 'junitSignatures', 'junitFailures'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'runnerOnlyCompose', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly', 'staticParallelMax', 'junitSignatures', 'junitFailures', 'cargoFailures', 'composedEquality'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
   if (value.landing?.staticParallelMax !== undefined && (!Number.isSafeInteger(value.landing.staticParallelMax) || value.landing.staticParallelMax < 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.staticParallelMax in ${file} must be a whole number of at least 1; remove it to run the static checks one at a time`);
   }
+  if (value.landing?.composedEquality !== undefined && typeof value.landing.composedEquality !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.composedEquality in ${file} must be true or false`);
+  }
   if (value.health?.sentinel !== undefined && typeof value.health.sentinel !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.sentinel in ${file} must be true or false`);
   }
   if (value.gate?.browserFreeChecks !== undefined && typeof value.gate.browserFreeChecks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.browserFreeChecks in ${file} must be true or false`);
+  }
+  if (value.gate?.adapterLintSsh !== undefined && typeof value.gate.adapterLintSsh !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.adapterLintSsh in ${file} must be true or false`);
   }
   if (value.gate?.runnersOnly !== undefined && typeof value.gate.runnersOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersOnly in ${file} must be true or false`);
@@ -195,14 +201,29 @@ export function loadMachineSettings() {
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
+  if (value.gate?.failFastShards !== undefined && typeof value.gate.failFastShards !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.failFastShards in ${file} must be true or false`);
+  }
+  if (value.gate?.retryNewRedsOnce !== undefined && typeof value.gate.retryNewRedsOnce !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.retryNewRedsOnce in ${file} must be true or false`);
+  }
   if (value.gate?.reofferInfraEnd !== undefined && typeof value.gate.reofferInfraEnd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.reofferInfraEnd in ${file} must be true or false`);
   }
-  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
+  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.localWake', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase', 'runners.reportCommit', 'runners.selfUpdate', 'join.coordinatorSeat']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
+  }
+  if (value['runners.coresPerShard'] !== undefined && !(Number.isSafeInteger(value['runners.coresPerShard']) && value['runners.coresPerShard'] >= 1 && value['runners.coresPerShard'] <= 5)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.coresPerShard in ${file} must be a whole number from 1 through 5`);
+  }
+  if (value['runners.jobWorkerFactor'] !== undefined && !(typeof value['runners.jobWorkerFactor'] === 'number' && value['runners.jobWorkerFactor'] >= 1 && value['runners.jobWorkerFactor'] <= 4)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.jobWorkerFactor in ${file} must be a number from 1 to 4`);
   }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.settleOnMainReceipt in ${file} must be true or false`);
+  }
+  if (value.gate?.receiptMissingCause !== undefined && typeof value.gate.receiptMissingCause !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.receiptMissingCause in ${file} must be true or false`);
   }
   if (value.gate?.redFactLocation !== undefined && typeof value.gate.redFactLocation !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.redFactLocation in ${file} must be true or false`);
@@ -216,12 +237,24 @@ export function loadMachineSettings() {
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
   }
+  if (value.items?.barRulesAtAdd !== undefined && typeof value.items.barRulesAtAdd !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.barRulesAtAdd in ${file} must be true or false`);
+  }
+  if (value.items?.testMirrorAtAdd !== undefined && typeof value.items.testMirrorAtAdd !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.testMirrorAtAdd in ${file} must be true or false`);
+  }
   if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
   }
   const testGroup = value.test;
   if (testGroup?.statusOutcomes !== undefined && typeof testGroup.statusOutcomes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `test.statusOutcomes in ${file} must be true or false`);
+  }
+  if (testGroup?.loadRerun !== undefined && typeof testGroup.loadRerun !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.loadRerun in ${file} must be true or false`);
+  }
+  if (testGroup?.retryStaleRecord !== undefined && typeof testGroup.retryStaleRecord !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.retryStaleRecord in ${file} must be true or false`);
   }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
@@ -235,6 +268,9 @@ export function loadMachineSettings() {
   if (value.tests?.requireJourneyPath !== undefined && typeof value.tests.requireJourneyPath !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireJourneyPath in ${file} must be true or false`);
   }
+  if (value.gate?.adapterLintGithub !== undefined && typeof value.gate.adapterLintGithub !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.adapterLintGithub in ${file} must be true or false`);
+  }
   if (value.canary?.directPush !== undefined && typeof value.canary.directPush !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `canary.directPush in ${file} must be true or false`);
   }
@@ -243,6 +279,9 @@ export function loadMachineSettings() {
   }
   if (value.census?.rerunNonGreen !== undefined && typeof value.census.rerunNonGreen !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunNonGreen in ${file} must be true or false`);
+  }
+  if (value.census?.skipUnchanged !== undefined && typeof value.census.skipUnchanged !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.skipUnchanged in ${file} must be true or false`);
   }
   if (value.census?.rerunOnSettle !== undefined && typeof value.census.rerunOnSettle !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunOnSettle in ${file} must be true or false`);
@@ -283,6 +322,9 @@ export function loadMachineSettings() {
   if (value.census?.soloFileSeconds !== undefined && value.census.soloFileSeconds !== null && !(Number.isSafeInteger(value.census.soloFileSeconds) && value.census.soloFileSeconds >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.soloFileSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
   }
+  if (value.census?.fileKillSeconds !== undefined && value.census.fileKillSeconds !== null && !(Number.isSafeInteger(value.census.fileKillSeconds) && value.census.fileKillSeconds >= 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.fileKillSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
+  }
   if (value.census?.jobsPerRunnerQuiet !== undefined && value.census.jobsPerRunnerQuiet !== null && !(Number.isSafeInteger(value.census.jobsPerRunnerQuiet) && value.census.jobsPerRunnerQuiet >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunnerQuiet in ${file} must be a whole number of jobs, 1 or more, or null`);
   }
@@ -310,6 +352,12 @@ export function loadMachineSettings() {
   if (value.gate?.sampleDiskIo !== undefined && typeof value.gate.sampleDiskIo !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleDiskIo in ${file} must be true or false`);
   }
+  if (value.gate?.jsdocCheck !== undefined && typeof value.gate.jsdocCheck !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.jsdocCheck in ${file} must be true or false`);
+  }
+  if (value.gate?.sampleSwap !== undefined && typeof value.gate.sampleSwap !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleSwap in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
@@ -319,6 +367,7 @@ export function loadMachineSettings() {
   if (value.gate?.measuredSlots !== undefined && typeof value.gate.measuredSlots !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.measuredSlots in ${file} must be true or false`);
   }
+  if (value.gate?.adapterLintSigning !== undefined && typeof value.gate.adapterLintSigning !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.adapterLintSigning in ${file} must be true or false`);
   if (value.gate?.loadAwareDispatch !== undefined && typeof value.gate.loadAwareDispatch !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.loadAwareDispatch must be true or false');
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
   // The controller value is gone from the schema: every runner job is a row a runner pulls, so "pull" is the only value [P7].
@@ -364,6 +413,12 @@ export function loadMachineSettings() {
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
   }
+  if (value.line?.tune !== undefined && typeof value.line.tune !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `line.tune in ${file} must be true or false`);
+  }
+  if (value.verify?.soloLowStakes !== undefined && typeof value.verify.soloLowStakes !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `verify.soloLowStakes in ${file} must be true or false`);
+  }
   if (value.verify?.rejectKeepsCheck !== undefined && typeof value.verify.rejectKeepsCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.rejectKeepsCheck in ${file} must be true or false`);
   }
@@ -382,6 +437,9 @@ export function loadMachineSettings() {
   if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
   }
+  if (value.join?.coordinatorSeat !== undefined && typeof value.join.coordinatorSeat !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `join.coordinatorSeat in ${file} must be true or false`);
+  }
   if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);
   }
@@ -390,6 +448,9 @@ export function loadMachineSettings() {
   }
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);
+  }
+  if (value.health?.adviceThroughNext !== undefined && typeof value.health.adviceThroughNext !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.adviceThroughNext in ${file} must be true or false`);
   }
   if (value.health?.lapsedSweep !== undefined && typeof value.health.lapsedSweep !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.lapsedSweep in ${file} must be true or false`);
@@ -417,6 +478,9 @@ export function loadMachineSettings() {
   }
   if (value.landing?.staticAffectedOnly !== undefined && typeof value.landing.staticAffectedOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.staticAffectedOnly in ${file} must be true or false`);
+  }
+  if (value.landing?.cargoFailures !== undefined && typeof value.landing.cargoFailures !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.cargoFailures in ${file} must be true or false`);
   }
   if (value.landing?.junitSignatures !== undefined && typeof value.landing.junitSignatures !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.junitSignatures in ${file} must be true or false`);
@@ -475,11 +539,20 @@ export function loadMachineSettings() {
   if (value.next?.readinessCache !== undefined && typeof value.next.readinessCache !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCache in ${file} must be true or false`);
   }
+  if (value.next?.returnedFirst !== undefined && typeof value.next.returnedFirst !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.returnedFirst in ${file} must be true or false`);
+  }
   if (value.stats?.recordCoordinatorUsage !== undefined && typeof value.stats.recordCoordinatorUsage !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `stats.recordCoordinatorUsage in ${file} must be true or false`);
   }
   if (value.submit?.clauseMarks !== undefined && typeof value.submit.clauseMarks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.clauseMarks in ${file} must be true or false`);
+  }
+  if (value.submit?.composeAsObject !== undefined && typeof value.submit.composeAsObject !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.composeAsObject in ${file} must be true or false`);
+  }
+  if (value.submit?.composeOnRunner !== undefined && typeof value.submit.composeOnRunner !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.composeOnRunner in ${file} must be true or false`);
   }
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
@@ -498,6 +571,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.withdrawCancelsJob !== undefined && typeof value.gate.withdrawCancelsJob !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.withdrawCancelsJob in ${file} must be true or false`);
+  }
+  if (value.landing?.runnerOnlyCompose !== undefined && typeof value.landing.runnerOnlyCompose !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.runnerOnlyCompose in ${file} must be true or false`);
   }
   if (value.launch?.reachableDispatcher !== undefined && typeof value.launch.reachableDispatcher !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `launch.reachableDispatcher in ${file} must be true or false`);
@@ -632,6 +708,11 @@ export function withdrawCancelsJob() {
   return loadMachineSettings().gate?.withdrawCancelsJob === true;
 }
 
+/** Whether a landing batch must be composed on a runner (#10245): off by default; only an exact `true` turns it on. */
+export function runnerOnlyCompose() {
+  return loadMachineSettings().landing?.runnerOnlyCompose === true;
+}
+
 /** Whether the handoff dispatcher check starts through spawnReachable (#10243): off by default; only an exact `true` turns it on. */
 export function reachableDispatcherOn() {
   return loadMachineSettings().launch?.reachableDispatcher === true;
@@ -661,9 +742,29 @@ export function submitClauseMarks() {
   return loadMachineSettings().submit?.clauseMarks === true;
 }
 
-/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */
+/** Whether a submit composes main as a throwaway object under refs/pullboard/compose, never a branch commit (U159): off by default; only an exact `true` turns it on. */
+export function submitComposeAsObject() {
+  return loadMachineSettings().submit?.composeAsObject === true;
+}
+
+/** Whether landing may skip the retest for a staged tree equal to the proven composition (U159): off by default; only an exact `true` turns it on. */
+export function landingComposedEquality() {
+  return loadMachineSettings().landing?.composedEquality === true;
+}
+
+/** Whether runner load samples also carry swap readings (#10583): off by default; only an exact `true` turns it on. */
+export function gateSampleSwap() {
+  return loadMachineSettings().gate?.sampleSwap === true;
+}
+
+/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755): off by default; only an exact `true` turns it on. */
+export function submitComposeOnRunner() {
+  return loadMachineSettings().submit?.composeOnRunner === true;
+}
+
+/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): on by default; only an exact `false` turns it off. */
 export function submitProofOnly() {
-  return loadMachineSettings().submit?.proofOnly === true;
+  return loadMachineSettings().submit?.proofOnly !== false;
 }
 
 
@@ -803,6 +904,11 @@ export function browserFreeChecksEnabled() {
 /** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
 export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function typedFieldsEnabled() {
+  return loadMachineSettings().items?.typedFields === true;
 }
 
 /** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */

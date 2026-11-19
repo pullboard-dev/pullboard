@@ -490,9 +490,17 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
     },
+    "adapter-lint-env.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/env.js"
+    },
     "adapter-lint-fs.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
+    },
+    "adapter-lint-ssh.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/ssh.js"
     },
     "adapter-lint-timers.json": {
       "kind": "repo-data",
@@ -580,7 +588,7 @@
     },
     "browser-refusal.json": {
       "kind": "json",
-      "owner": "apps/runner/src/io/worker/entry.js"
+      "owner": "packages/resources/src/io/main.js"
     },
     "budgets.json": {
       "kind": "json",
@@ -596,7 +604,7 @@
     },
     "cells-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/gate/src/io/test/tier/selection.js"
+      "owner": "packages/gate/src/io/edges.js"
     },
     "cells-test-batches.json": {
       "kind": "json",
@@ -641,6 +649,10 @@
     "cli-launches.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
+    },
+    "closure-budget.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/logic/budgets.js"
     },
     "code-map.json": {
       "kind": "json",
@@ -701,6 +713,10 @@
     "dispatcher.json": {
       "kind": "json",
       "owner": "packages/resources/src/io/handoff/worker/cap.js"
+    },
+    "event-moves.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/generated/declarations.js"
     },
     "events.json": {
       "kind": "json",
@@ -808,7 +824,7 @@
       "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
     },
     "load-bearing.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/gate/src/logic/load/bearing.js"
     },
     "lock.sqlite": {
@@ -835,6 +851,10 @@
       "kind": "repo-data",
       "owner": "apps/view/src/io/cost/tab.js"
     },
+    "renderer-moves.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/static/view.js"
+    },
     "runtime-profiles.json": {
       "kind": "repo-data",
       "owner": "packages/seats/src/io/runtime-profile.js"
@@ -858,6 +878,10 @@
     "guards.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
+    },
+    "job-terminal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
     },
     "push-only.json": {
       "kind": "repo-data",
@@ -1011,6 +1035,10 @@
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
     },
+    "relay-outbox.unsealed.json": {
+      "kind": "json",
+      "owner": "packages/outbox/src/io/relay.js"
+    },
     "relay-relink.json": {
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
@@ -1133,7 +1161,11 @@
     },
     "sources.json": {
       "kind": "json",
-      "owner": "packages/codemap/src/io/cell/uses.js"
+      "owner": "packages/codemap/src/io/module/imports.js"
+    },
+    "starting.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
     },
     "startup.json": {
       "kind": "json",
@@ -1365,7 +1397,7 @@
     },
     "table:person_enrollment": {
       "kind": "table",
-      "owner": "apps/relay/src/logic/person/enrollment/store.js"
+      "owner": "apps/relay/src/io/store/enrollment.js"
     },
     "table:phone_approval": {
       "kind": "table",
@@ -1497,7 +1529,7 @@
     },
     "table:temp": {
       "kind": "table",
-      "owner": "packages/outbox/src/logic/undo.js"
+      "owner": "packages/outbox/src/io/relay/undo.js"
     },
     "table:test_result": {
       "kind": "table",
@@ -1509,7 +1541,11 @@
     },
     "table:verdict": {
       "kind": "table",
-      "owner": "packages/verify/src/logic/verdict/assurance.js"
+      "owner": "packages/verify/src/io/review/independence.js"
+    },
+    "table:vault": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "table:waiter": {
       "kind": "table",
@@ -1570,6 +1606,10 @@
     "transition.json": {
       "kind": "repo-data",
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
+    },
+    "vault.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "vendors.json": {
       "kind": "repo-data",

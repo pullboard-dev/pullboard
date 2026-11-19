@@ -16,7 +16,7 @@ import { runInProcessAt } from '../../../fixtures/spec/box.js';
 import { viewMove } from '../../../fixtures/spec/box.js';
 import { boardRowDecisions } from '../../../fixtures/spec/box.js';
 
-test("spec answer records the person's choice [S1,E3,P6]", async (t) => {
+test('cli.io-spec-main-answer.spec-answer-records-the-person-s-choice: spec answer records the person\'s choice [S1,E3,P6]', async (t) => {
   const box = specBox(t, { specSource: QUESTION_SPEC });
   const file = join(box.root, box.specName);
   const line = (id) => readFileSync(file, 'utf8').split('\n').find((text) => text.startsWith(`- ${id} `));
@@ -80,7 +80,7 @@ test("spec answer records the person's choice [S1,E3,P6]", async (t) => {
   assert.notEqual(error.next, RECORDED_GENERIC_NEXT);
 });
 
-test('approving an answered row keeps the answer [S1,E3]', async (t) => {
+test('cli.io-spec-main-answer.approving-an-answered-row-keeps-the-answer: approving an answered row keeps the answer [S1,E3]', async (t) => {
   const box = specBox(t, { specSource: QUESTION_SPEC });
   const line = (id) => readFileSync(join(box.root, box.specName), 'utf8').split('\n').find((text) => text.startsWith(`- ${id} `));
   assert.equal((await box.spec('answer', 'B1', 'Postgres')).status, 0);
@@ -103,7 +103,7 @@ test('approving an answered row keeps the answer [S1,E3]', async (t) => {
   assert.match(approved.stdout, /^B3: approved, pending apply$/mu, 'a row with no answer approves as it reads');
 });
 
-test('approve --text names the answer it replaces [S1,E3]', async (t) => {
+test('cli.io-spec-main-answer.approve-text-names-the-answer-it-replaces: approve --text names the answer it replaces [S1,E3]', async (t) => {
   const box = specBox(t, { specSource: QUESTION_SPEC });
   const line = (id) => readFileSync(join(box.root, box.specName), 'utf8').split('\n').find((text) => text.startsWith(`- ${id} `));
   assert.equal((await box.spec('answer', 'B1', 'Postgres')).status, 0);
@@ -122,7 +122,7 @@ test('approve --text names the answer it replaces [S1,E3]', async (t) => {
   assert.equal(line('B2'), '- B2 [approved, must] The cache lives in memory. | gate: review');
 });
 
-test('an agent cannot answer a pending row [P6,B26,E3]', async (t) => {
+test('cli.io-spec-main-answer.an-agent-cannot-answer-a-pending-row: an agent cannot answer a pending row [P6,B26,E3]', async (t) => {
   const box = specBox(t, { specSource: QUESTION_SPEC });
   const file = join(box.root, box.specName);
   const before = readFileSync(file, 'utf8');

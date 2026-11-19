@@ -1,7 +1,9 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireTestMirror } from '../item/bar.js';
+import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
@@ -43,6 +45,8 @@ import {
   CHECKOUT_LEASES,
 } from '../entry.js';
 
+const fs = fileSystemAdapter();
+
 /** Run `pullboard edit` and return its exit code. */
 export async function run(io, args) {
   const command = 'edit';
@@ -54,7 +58,8 @@ export async function run(io, args) {
   if (recovered) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
-    io.result?.({ item: store.getItem(board, id) });
+    const filed = store.getItem(board, id);
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`edited #${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
@@ -67,7 +72,7 @@ export async function run(io, args) {
   let change = {
     agentId: me.id,
     ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
-    ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(readFileSync(values['machine-commands-file'], 'utf8')) }),
+    ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(fs.readFile(values['machine-commands-file'], 'utf8')) }),
     ...(values.title === undefined ? {} : { title: values.title }),
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
@@ -102,6 +107,7 @@ export async function run(io, args) {
     const before = store.getItem(board, id);
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
+    await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
@@ -130,7 +136,8 @@ export async function run(io, args) {
     }
   }
   const warnings = [...evidenceWarnings, ...barWarnings];
-  io.result?.({ item: store.getItem(board, id), ...(warnings.length ? { warnings } : {}) });
+  const filed = store.getItem(board, id);
+  io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard', ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`edited #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));

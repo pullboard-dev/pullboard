@@ -9,7 +9,7 @@ import { seedGraph } from '../../../tests/fixtures/submit/gate.js';
 import { test } from 'node:test';
 import { affectedSubmitModeCases } from '../../../tests/fixtures/submit/merge-base-modes.js';
 
-test('affected selection says explicitly when no claim head was recorded [V4,C7]', async (t) => {
+test('cli.journeys-submit-gate-merge-base.affected-selection-says-explicitly-when-no: affected selection says explicitly when no claim head was recorded [V4,C7]', async (t) => {
   const box = privateRepo(t);
   seedGraph(box);
   const selection = selectAffectedTests(box.root, { base: null, trunk: 'refs/heads/main' });

@@ -58,7 +58,7 @@ function commitSourceFixture(root) {
   return head.stdout.trim();
 }
 
-test("the repo's own static checks never take a browser slot [C7]", async t => {
+test('cli.journeys-test-resources.the-repo-s-own-static-checks: the repo\'s own static checks never take a browser slot [C7]', async t => {
   const root = resolve(import.meta.dirname, '../../../..');
   const env = { ...process.env, NODE_OPTIONS: '', PATH: [dirname(process.execPath), '/usr/bin', '/bin'].join(delimiter) };
   const configured = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).staticChecks;
@@ -152,7 +152,7 @@ test("the repo's own static checks never take a browser slot [C7]", async t => {
 /** A module that records its own evaluation, so a test can prove admission never runs what it reads. */
 const EXECUTES = "import { writeFileSync } from 'node:fs'; writeFileSync(new URL('../executed', import.meta.url), 'bad');\n";
 
-test('clause 1: a test file needs a browser only when its first line is // pullboard: browser [C7]', async t => {
+test('cli.journeys-test-resources.a-test-file-needs-a-browser: clause 1: a test file needs a browser only when its first line is // pullboard: browser [C7]', async t => {
   assert.equal(BROWSER_MARKER, '// pullboard: browser');
   const root = sourceFixture(t, {
     'package.json': '{"type":"module"}\n',
@@ -279,7 +279,7 @@ function runnerFixture(t, tests) {
   return { root, run };
 }
 
-test('clause 2: an undeclared test file that launches Chrome through the shared launcher fails BROWSER_UNDECLARED [C7,O5]', async t => {
+test('cli.journeys-test-resources.an-undeclared-test-file-that-launches: clause 2: an undeclared test file that launches Chrome through the shared launcher fails BROWSER_UNDECLARED [C7,O5]', async t => {
   const launch = name => `test('${name} launches the stand-in browser', async () => {
   appendFileSync(process.env.PULLBOARD_FIXTURE_MARKERS, \`${name}=\${process.env.PULLBOARD_TEST_BROWSER_SLOT ?? 'unset'}\\n\`);
   const browser = launchChromeProcess({ executable: process.env.FIXTURE_BROWSER, args: ['${name}'] });
@@ -294,7 +294,7 @@ test('clause 2: an undeclared test file that launches Chrome through the shared 
     'test/child.test.js': `import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-test('child launches from a process the test starts', () => {
+test('cli.journeys-test-resources.child-launches-from-a-process-the: child launches from a process the test starts', () => {
   const result = spawnSync(process.execPath, ['test/launch-helper.mjs'], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
 });
@@ -308,16 +308,16 @@ test('child launches from a process the test starts', () => {
   const direct = runnerFixture(t, {
     'test/direct.test.js': `import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-test('direct starts the configured browser path itself', () => { spawnSync(process.env.FIXTURE_BROWSER, ['direct']); });
+test('cli.journeys-test-resources.direct-starts-the-configured-browser-path: direct starts the configured browser path itself', () => { spawnSync(process.env.FIXTURE_BROWSER, ['direct']); });
 `,
     'test/shell.test.js': `import { execSync, spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-test('shell starts the browser from an sh -c string', () => { spawnSync('sh', ['-c', \`'\${process.env.FIXTURE_BROWSER}' shell\`]); });
-test('shell starts the browser through exec', () => { execSync(\`'\${process.env.FIXTURE_BROWSER}' exec\`); });
+test('cli.journeys-test-resources.shell-starts-the-browser-from-an: shell starts the browser from an sh -c string', () => { spawnSync('sh', ['-c', \`'\${process.env.FIXTURE_BROWSER}' shell\`]); });
+test('cli.journeys-test-resources.shell-starts-the-browser-through-exec: shell starts the browser through exec', () => { execSync(\`'\${process.env.FIXTURE_BROWSER}' exec\`); });
 `,
     'test/spawned.test.js': `import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-test('spawned starts a Node child that starts the browser', () => {
+test('cli.journeys-test-resources.spawned-starts-a-node-child-that: spawned starts a Node child that starts the browser', () => {
   const result = spawnSync(process.execPath, ['test/direct-helper.mjs'], { encoding: 'utf8' });
   if (result.status !== 0) throw new Error(result.stderr);
 });
@@ -416,7 +416,7 @@ function chromeLaunchingTests(repository) {
   return [...modules].filter(path => /\.test\.m?js$/u.test(path) && reaching.has(path)).sort();
 }
 
-test('clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', async () => {
+test('cli.journeys-test-resources.every-test-file-that-launches-chrome: clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', async () => {
   const repository = resolve(import.meta.dirname, '../../../..');
   // This file's own launches are fixture sources run by nested runners with their own declarations.
   const launching = chromeLaunchingTests(repository).filter(file => file !== 'apps/cli/journeys/test/resources.test.js');

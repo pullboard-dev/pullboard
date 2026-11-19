@@ -14,14 +14,14 @@ function board({ size = null, outcomes = [] } = {}) {
   return { db };
 }
 
-test('clause 1: with landing.adaptiveBatch off, batchCap returns the line.landingBatchSize cap or no cap, whatever the history [C7,#9017]', () => {
+test('cli.io-landing-adaptive-batch.with-landing-adaptivebatch-off-batchcap-returns-the: clause 1: with landing.adaptiveBatch off, batchCap returns the line.landingBatchSize cap or no cap, whatever the history [C7,#9017]', () => {
   const landed = Array(9).fill('landed');
   assert.equal(batchCap(board({ outcomes: landed })), Infinity);
   assert.equal(batchCap(board({ size: 3, outcomes: landed })), 3);
   assert.equal(batchCap(board({ size: 3, outcomes: ['red'] }), { adaptive: false }), 3);
 });
 
-test('clause 2: with landing.adaptiveBatch on, the size starts at 1 and rises by one after 3 clean batches in a row, never past line.landingBatchSize [C7,#9017]', () => {
+test('cli.io-landing-adaptive-batch.with-landing-adaptivebatch-on-the-size-starts: clause 2: with landing.adaptiveBatch on, the size starts at 1 and rises by one after 3 clean batches in a row, never past line.landingBatchSize [C7,#9017]', () => {
   assert.equal(batchCap(board(), { adaptive: true }), 1);
   assert.equal(batchCap(board({ outcomes: ['landed', 'landed'] }), { adaptive: true }), 1);
   assert.equal(batchCap(board({ outcomes: Array(3).fill('landed') }), { adaptive: true }), 2);
@@ -30,7 +30,7 @@ test('clause 2: with landing.adaptiveBatch on, the size starts at 1 and rises by
   assert.equal(adaptiveBatchSize(Array(9).fill(true), 3), 3);
 });
 
-test('clause 3: with landing.adaptiveBatch on, any stopped batch drops the next size back to 1 [C7,#9017]', () => {
+test('cli.io-landing-adaptive-batch.with-landing-adaptivebatch-on-any-stopped-batch: clause 3: with landing.adaptiveBatch on, any stopped batch drops the next size back to 1 [C7,#9017]', () => {
   assert.equal(batchCap(board({ outcomes: [...Array(6).fill('landed'), 'red'] }), { adaptive: true }), 1);
   assert.equal(batchCap(board({ outcomes: [...Array(6).fill('landed'), 'conflict', 'landed', 'landed', 'landed'] }), { adaptive: true }), 2);
 });

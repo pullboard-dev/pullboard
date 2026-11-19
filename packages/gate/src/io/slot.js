@@ -6,6 +6,7 @@ import { Refused } from '../../../kernel/index.js';
 import { recordRunnerMeasurement } from '../../../config/index.js';
 import { declaredMachineSlots } from '../../../config/index.js';
 import { machineHome } from '../../../resources/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { withEnvironment } from '../../../resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseSync } from 'node:sqlite';
@@ -94,7 +95,7 @@ export function infrastructureBackoffMs(failures, { startMs, maxMs }) {
  * @returns {{ windowMs: number, startMs: number, maxMs: number, sleep: (ms: number) => Promise<void>, now: () => number }}
  */
 export function infrastructureRetryPolicy(given = {}) {
-  const fromEnv = process.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS;
+  const fromEnv = environmentAdapter().get('PULLBOARD_INFRA_RETRY_BACKOFF_MS');
   const envMs = fromEnv !== undefined && fromEnv !== '' && Number.isFinite(Number(fromEnv)) && Number(fromEnv) >= 0 ? Number(fromEnv) : null;
   return { windowMs: given.windowMs ?? INFRA_RETRY_WINDOW_MS, startMs: given.startMs ?? envMs ?? INFRA_BACKOFF_START_MS,
     maxMs: given.maxMs ?? INFRA_BACKOFF_MAX_MS, sleep: given.sleep ?? (ms => new Promise(done => setTimeout(done, ms))), now: given.now ?? Date.now };

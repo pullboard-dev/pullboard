@@ -37,7 +37,7 @@ function seedCommit(box) {
   git('update-ref', 'HEAD', commit);
 }
 
-test('offline linked reads use the local board, moves queue locally, and the same relay receives them when it returns [H10,H21]', async (t) => {
+test('cli.journeys-relay-main-offline.offline-linked-reads-use-the-local: offline linked reads use the local board, moves queue locally, and the same relay receives them when it returns [H10,H21]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -111,7 +111,7 @@ test('offline linked reads use the local board, moves queue locally, and the sam
   }
 });
 
-test('clause 1: relay.test.js fixture seats claim on the strong route [C7]', async (t) => {
+test('cli.journeys-relay-main-offline.relay-test-js-fixture-seats-claim: clause 1: relay.test.js fixture seats claim on the strong route [C7]', async (t) => {
   const box = await relayClientFixture(t);
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
   const laneAdded = await inProcessCli(box)(box.root, 'lane', 'add', 'fixture', '--owns', 'fixture/', '--json'); // the review lane owns no folder
@@ -127,7 +127,7 @@ test('clause 1: relay.test.js fixture seats claim on the strong route [C7]', asy
   assert.doesNotMatch(`${claimed.stdout}${claimed.stderr}`, /"ROUTE"|\[ROUTE\]|ROUTE:/, 'the claim is not refused ROUTE');
 });
 
-test('a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
+test('cli.journeys-relay-main-offline.a-linked-device-without-its-key: a linked device without its key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
   const box = await relayClientFixture(t);
   // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
@@ -213,7 +213,7 @@ test('a linked device without its key reads locally and refuses moves with both 
   assert.equal(box.calls.length, callsBefore, 'no read or refused move reaches the relay');
 });
 
-test('a linked device with an unreadable key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
+test('cli.journeys-relay-main-offline.a-linked-device-with-an-unreadable: a linked device with an unreadable key reads locally and refuses moves with both repairs [H10,H17]', async (t) => {
   const box = await relayClientFixture(t);
   // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
@@ -314,5 +314,5 @@ import {
   relayOnClearsExclusion,
   assertPersonUnlinkHistory,
 } from '../../tests/fixtures/relay/exclusion.js';
-test('a deleted relay copy relinks rather than excluding the board [H5,H17]', deletedCopyRelinks);
-test('relay on clears an exclusion and names it [H5,H17,B26]', relayOnClearsExclusion);
+test('cli.journeys-relay-main-offline.a-deleted-relay-copy-relinks-rather: a deleted relay copy relinks rather than excluding the board [H5,H17]', deletedCopyRelinks);
+test('cli.journeys-relay-main-offline.relay-on-clears-an-exclusion-and: relay on clears an exclusion and names it [H5,H17,B26]', relayOnClearsExclusion);

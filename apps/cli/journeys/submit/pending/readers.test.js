@@ -57,7 +57,7 @@ function fixture(t) {
   return { board, seat, waiting, repair, job, clean: new Map([[waiting, { files: [], unknown: false }]]) };
 }
 
-test('clause 1: pendingSubmitHandoff is true for an offered gate job row with the setting on, false with it off, and false once the job ends [C7,P7,#9741]', t => {
+test('cli.journeys-submit-pending-readers.pendingsubmithandoff-is-true-for-an-offered: clause 1: pendingSubmitHandoff is true for an offered gate job row with the setting on, false with it off, and false once the job ends [C7,P7,#9741]', t => {
   const f = fixture(t);
   const held = () => store.getItem(f.board, f.waiting);
   assert.equal(withSettings({}, pendingFromJobRow), false, 'the setting is off by default');
@@ -73,7 +73,7 @@ test('clause 1: pendingSubmitHandoff is true for an offered gate job row with th
   assert.ok(!store.pendingSubmitHandoff(f.board, held(), { fromJobRow: true }), 'an ended job is no longer pending');
 });
 
-test('clause 1: routing keeps a claim whose gate job row is offered, and only with the setting on [C7,P7,#9741]', t => {
+test('cli.journeys-submit-pending-readers.routing-keeps-a-claim-whose-gate: clause 1: routing keeps a claim whose gate job row is offered, and only with the setting on [C7,P7,#9741]', t => {
   const f = fixture(t);
   const route = pendingFromJobRow => mainRedBuildRouting(f.board, { caller: f.seat, workingFiles: f.clean, pendingFromJobRow });
   const job = f.job();
@@ -83,7 +83,7 @@ test('clause 1: routing keeps a claim whose gate job row is offered, and only wi
   assert.equal(route(true)?.releaseRequest?.item, f.waiting, 'once the job ends the claim yields again');
 });
 
-test('clause 2: take reads the offered job row for its own claim only with the setting on [C7,P7,#9741]', async t => {
+test('cli.journeys-submit-pending-readers.take-reads-the-offered-job-row: clause 2: take reads the offered job row for its own claim only with the setting on [C7,P7,#9741]', async t => {
   const f = fixture(t);
   f.job();
   const services = {
@@ -102,7 +102,7 @@ test('clause 2: take reads the offered job row for its own claim only with the s
   assert.equal(store.getItem(f.board, f.waiting).item_status, 'open');
 });
 
-test('clause 2: the merge-conflict guard reads the offered job row through the setting it is given, true while offered and false once ended [C7,P7,#9741]', t => {
+test('cli.journeys-submit-pending-readers.the-merge-conflict-guard-reads-the: clause 2: the merge-conflict guard reads the offered job row through the setting it is given, true while offered and false once ended [C7,P7,#9741]', t => {
   const f = fixture(t);
   const guard = () => withSettings({ submit: { pendingFromJobRow: true } }, () => store.pendingSubmitHandoff(f.board, store.getItem(f.board, f.waiting), { fromJobRow: pendingFromJobRow() }));
   const job = f.job();

@@ -9,7 +9,11 @@ import { createE2eHelpers } from '../fixtures/e2e.js';
 import { openKitBoard } from '../fixtures/board.js';
 import { withFixtureBoard } from '../fixtures/board.js';
 import { atomic } from '../../../../packages/store/index.js';
-import { withOpenedBoard } from '../../src/io/read.js';
+import {
+  itemLine,
+  withOpenedBoard,
+} from '../../src/io/read.js';
+import { fileFixtureItem } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 
 /** Block this thread, as a slow write does while holding the writer. */
@@ -41,7 +45,7 @@ function moveMainEvery500ms(t, repo) {
   return stop;
 }
 
-test('claim commits every write while main moves every 500 ms [C7,B2]', t => {
+test('cli.io-read.claim-commits-every-write-while-main-moves: claim commits every write while main moves every 500 ms [C7,B2]', t => {
   const { box, file, ref } = setup(t);
   const stop = moveMainEvery500ms(t, box.repo);
   const tip = () => box.git(box.repo, 'rev-parse', ref).trim();
@@ -63,7 +67,7 @@ test('claim commits every write while main moves every 500 ms [C7,B2]', t => {
     check.db.prepare("SELECT COUNT(*) AS n FROM agent WHERE agent_id LIKE 'moving-main-seat-%'").get().n, 3));
 });
 
-test('a main-dependent submit still refuses POLICY_SNAPSHOT_STALE naming the moved ref [C7,B2]', t => {
+test('cli.io-read.a-main-dependent-submit-still-refuses-policy: a main-dependent submit still refuses POLICY_SNAPSHOT_STALE naming the moved ref [C7,B2]', t => {
   const { box, file, ref } = setup(t);
   let work = 0;
   assert.throws(() => withOpenedBoard(commandContext(box, 'submit'), opened => atomic(opened, () => {
@@ -71,4 +75,38 @@ test('a main-dependent submit still refuses POLICY_SNAPSHOT_STALE naming the mov
     box.git(box.repo, 'commit', '-q', '--allow-empty', '--no-verify', '-m', 'chore: lander moves main');
   }), openKitBoard(file)), error => error.code === 'POLICY_SNAPSHOT_STALE' && error.message.includes(`${ref} moved`));
   assert.equal(work, 1, 'the refused write is not replayed');
+});
+
+const WAITING = { item_id: 7, item_status: 'open', item_lane: 'web', item_title: 'Wait', item_route: 'strong', item_after: ['host#41'] };
+
+test('cli.io-read.item-line-prints-foreign-state: itemLine with a foreign states map prints the state of a foreign wait, the cause of an unavailable one, and a local wait as before [C7,#11044,#11050]', () => {
+  assert.match(itemLine(WAITING, id => id, false, new Map([['host#41', { status: 'verified' }]])), /after host#41 \(verified on host\)/u);
+  assert.match(itemLine(WAITING, id => id, false, new Map([['host#41', { status: 'unavailable', cause: 'no link' }]])), /after host#41 \(unavailable: no link\)/u);
+  assert.match(itemLine(WAITING), /after host#41$/u, 'without a map the label prints as before');
+  assert.match(itemLine({ ...WAITING, item_after: [3] }, id => id, false, new Map([['host#41', { status: 'verified' }]])), /after #3$/u, 'a local wait prints as before');
+});
+
+test('cli.io-read.show-prints-foreign-state: pullboard show on an item filed with --after host#41 prints that wait with its state on its first line [C7,#11044,#11050]', async t => {
+  const e2e = createE2eHelpers();
+  t.after(e2e.cleanup);
+  const box = e2e.project('true');
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waits on host', args: ['--after', 'host#41'], run: box.runLocal });
+  const shown = await box.runLocal(box.repo, 'show', String(item.item_id));
+  assert.equal(shown.code, 0, `${shown.err}\n${shown.out}`);
+  assert.match(shown.out.split('\n')[0], /after host#41 \(unavailable: no link\)/u);
+});
+
+const MERGED = 'a1b2c3d4e5f60718293a4b5c6d7e8f901234567';
+const ROW = { item_id: 7, item_lane: 'core', item_title: 'A title', item_route: 'strong' };
+
+test('cli.io-read.itemline-landed-names-main-sha: clause 1: itemLine for a withdrawn item at stage landed with a merged commit prints on main at the first 12 characters, and no longer prints (landed) [C7,#11113]', () => {
+  const line = itemLine({ ...ROW, item_status: 'withdrawn', item_stage: 'landed', item_merged_commit: MERGED });
+  assert.equal(line, '#7  withdrawn (on main at a1b2c3d4e5f6)  core  A title');
+  assert.doesNotMatch(line, /\(landed\)/u);
+});
+
+test('cli.io-read.itemline-withdrawn-unmerged-unchanged: clause 2: itemLine for a withdrawn item with no merged commit, and for a verified item, prints the same line as before [C7,#11113]', () => {
+  assert.equal(itemLine({ ...ROW, item_status: 'withdrawn', item_stage: 'withdrawn' }), '#7  withdrawn  core  A title');
+  assert.equal(itemLine({ ...ROW, item_status: 'withdrawn', item_stage: 'landed' }), '#7  withdrawn (landed)  core  A title');
+  assert.equal(itemLine({ ...ROW, item_status: 'verified', item_stage: 'landed', item_verified_by: 'core-1', item_merged_commit: MERGED }), '#7  verified (landed) by core-1  core  A title');
 });

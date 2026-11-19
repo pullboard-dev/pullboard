@@ -22,6 +22,7 @@ import { scrubLegacyPersonSessions } from '../../../../keys/index.js';
 import { approvalContext } from '../../logic/relay/approval.js';
 import { createPairingCode } from '../../../../person/index.js';
 import { relayMachineDirectory } from '../../../../store/index.js';
+import { relayMachineStateFile } from '../../../../store/index.js';
 import { Refused } from '../../../../kernel/light.js';
 
 const DEVICE = /^device-[0-9a-f]{32}$/u;
@@ -85,7 +86,7 @@ function readState() {
   const folder = directory();
   if (!existsSync(folder)) return emptyState();
   privateEntry(folder, true);
-  const file = join(folder, 'state.json');
+  const file = relayMachineStateFile();
   if (!existsSync(file)) return emptyState();
   privateEntry(file);
   let state;
@@ -143,7 +144,7 @@ export function updateRelayMachine(mutate) {
     db.exec('PRAGMA busy_timeout = 30000');
     db.exec('CREATE TABLE IF NOT EXISTS machine_lock (id INTEGER PRIMARY KEY)');
     db.exec('BEGIN IMMEDIATE');
-    // A crashed legacy writer may have left a complete person session beside state.json.
+    // A crashed legacy writer may have left a complete person session beside the machine state file.
     for (const name of readdirSync(folder)) {
       if (/^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name)) rmSync(join(folder, name), { force: true });
     }
@@ -160,7 +161,7 @@ export function updateRelayMachine(mutate) {
     const fd = openSync(temporary, 'wx', 0o600);
     try { writeFileSync(fd, JSON.stringify(state) + '\n'); fsyncSync(fd); }
     finally { closeSync(fd); }
-    renameSync(temporary, join(folder, 'state.json'));
+    renameSync(temporary, relayMachineStateFile());
     db.exec('COMMIT');
     return result;
   } catch (error) {

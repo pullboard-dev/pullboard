@@ -34,7 +34,7 @@ function world(t) {
 
 const receive = (w, commits) => receivePushed(w.host, BODY(commits), SEAT, (read) => read({}), () => claimed, { remote: w.remote });
 
-test('clause 1: a submit that carries a commit and ref gates that commit when it is reachable on the ref at trunk.remote [P7]', async (t) => {
+test('cli.io-submit-pushed.a-submit-that-carries-a-commit-and: clause 1: a submit that carries a commit and ref gates that commit when it is reachable on the ref at trunk.remote [P7]', async (t) => {
   const w = world(t);
   const head = w.commit('pushed work');
   w.git(w.seat, 'push', '--quiet', 'origin', 'HEAD:refs/heads/work');
@@ -44,13 +44,13 @@ test('clause 1: a submit that carries a commit and ref gates that commit when it
   assert.equal(w.git(w.host, 'rev-parse', 'refs/pullboard/remote/core-9/item-7'), head);
 });
 
-test('clause 2: a commit missing from the remote is refused REMOTE_COMMIT_MISSING with a next step [P7]', async (t) => {
+test('cli.io-submit-pushed.a-commit-missing-from-the-remote-is: clause 2: a commit missing from the remote is refused REMOTE_COMMIT_MISSING with a next step [P7]', async (t) => {
   const w = world(t);
   const head = w.commit('never pushed');
   await assert.rejects(() => receive(w, { head, ref: 'refs/heads/work' }), (error) => error.code === 'REMOTE_COMMIT_MISSING' && /push/u.test(error.message));
 });
 
-test('clause 3: a ref that does not point at that commit is refused REMOTE_REF_MISMATCH with a next step [P7]', async (t) => {
+test('cli.io-submit-pushed.a-ref-that-does-not-point-at: clause 3: a ref that does not point at that commit is refused REMOTE_REF_MISMATCH with a next step [P7]', async (t) => {
   const w = world(t);
   const pushed = w.commit('pushed work');
   w.git(w.seat, 'push', '--quiet', 'origin', 'HEAD:refs/heads/work');

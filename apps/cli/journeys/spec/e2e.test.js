@@ -26,7 +26,7 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
-test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', async () => {
+test('cli.journeys-spec-e2e.decisions-are-asked-listed-and-answered: decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', async () => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
   const asked = await box.runIn(box.web, 'shout', 'coordinator', 'ship', 'today?', '--kind', 'question', '--decision');
@@ -48,7 +48,7 @@ test('decisions are asked, listed and answered, and evidence attached, from the 
   assert.match((await box.runIn(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope')).err, /BAD_EVIDENCE.*"nope"/);
 });
 
-test("a worktree starts only from a commit that holds pullboard's files as the main checkout has them [I4, C4]", async () => {
+test('cli.journeys-spec-e2e.a-worktree-starts-only-from-a: a worktree starts only from a commit that holds pullboard\'s files as the main checkout has them [I4, C4]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
@@ -110,7 +110,7 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   assert.match(foreign.stderr, /outside the web lane: api\/a.js/, 'its hooks run');
 });
 
-test('a hook git ignores is committed by force before a worktree; a deleted config is restored, never re-initialized [I4, C4]', async () => {
+test('cli.journeys-spec-e2e.a-hook-git-ignores-is-committed: a hook git ignores is committed by force before a worktree; a deleted config is restored, never re-initialized [I4, C4]', async () => {
   const box = project();
   const sh = (command) => execFileSync('sh', ['-c', command], { env: box.env, encoding: 'utf8', stdio: 'pipe' });
   writeFileSync(join(box.repo, '.gitignore'), '.githooks/post-checkout\n');
@@ -144,7 +144,7 @@ test('a hook git ignores is committed by force before a worktree; a deleted conf
   assert.ok((await box.runIn(box.web, 'next')).err.includes(`restore it: cd ${box.web} && git checkout HEAD -- pullboard.json`), 'a linked worktree restores its own');
 });
 
-test('clause 1: a journey commit through box.tryGit is awaited and answers its status with test.inProcessHooks on [C7]', async () => {
+test('cli.journeys-spec-e2e.a-journey-commit-through-box-trygit: clause 1: a journey commit through box.tryGit is awaited and answers its status with test.inProcessHooks on [C7]', async () => {
   const box = project();
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const committed = await commitFile(box, box.repo, 'docs/awaited.md', 'awaited\n', 'docs: awaited commit');

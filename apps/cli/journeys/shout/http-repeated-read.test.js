@@ -26,7 +26,7 @@ import {
 } from '../../tests/fixtures/http/view-box.js';
 
 /** Prove warmed reads across three registered projects start no child processes and changes refresh state. */
-test('a repeated read through the view page spawns no process [A2,N26]', async (t) => {
+test('cli.journeys-shout-http-repeated-read.a-repeated-read-through-the-view: a repeated read through the view page spawns no process [A2,N26]', async (t) => {
   const box = fixture(t);
   const roots = [box.root];
   for (const number of [2, 3]) {

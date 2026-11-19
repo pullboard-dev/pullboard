@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/page/actions.js */
 /** @pullboard-world-pin reads the shipped page script source to prove the phone detail reveal. */
 /** #7403: the Dashboard gate card is as tall as its rows, runner rows read alike, a phone Items row opens below the nav [N26]. */
 import assert from 'node:assert/strict';
@@ -17,12 +17,12 @@ const model = runs => {
   return { ...dashboardModel(project, events, { now, complete: true }), runners: { runners: [{ runner: 1, busy: true, jobs: runs, cpu: null, ram: null }], runs } };
 };
 
-test('clause 1: the Dashboard queue cards are only as tall as their rows [N26]', () => {
+test('view.x-io-dashboard-leftovers.clause-1-the-dashboard-queue-cards-are: clause 1: the Dashboard queue cards are only as tall as their rows [N26]', () => {
   const css = composeViewStyles();
   assert.match(css, /\.dash-queues \{[^}]*align-items: start;/u, 'a card is never stretched to its neighbour');
 });
 
-test('clause 2: every runner detail row reads item id when there is one, then the kind, then files done of total [N26]', () => {
+test('view.x-io-dashboard-leftovers.clause-2-every-runner-detail-row-reads: clause 2: every runner detail row reads item id when there is one, then the kind, then files done of total [N26]', () => {
   let html = '';
   try { html = dashboardHtml(model([
     { kind: 'test run', item: null, selected: 12, done: 0, minutesLeft: 0 },
@@ -38,7 +38,7 @@ test('clause 2: every runner detail row reads item id when there is one, then th
   assert.ok(!rows.some(row => /^\|\d+ files?\|/u.test(row)), 'no row puts a file count where the id goes');
 });
 
-test('clause 3: opening an Items row at phone width puts the detail just below the nav and re-places it after the content lands [N26]', () => {
+test('view.x-io-dashboard-leftovers.clause-3-opening-an-items-row-at: clause 3: opening an Items row at phone width puts the detail just below the nav and re-places it after the content lands [N26]', () => {
   const actions = readFileSync(new URL('../../src/io/page/actions.js', import.meta.url), 'utf8');
   const body = actions.match(/function reveal\(\) \{([\s\S]*?)\n\}/u)?.[1] ?? '';
   assert.match(body, /bar\.getBoundingClientRect\(\)\.bottom/u, 'the nav height sets the offset');
