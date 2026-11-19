@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "total": 1375,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -317,12 +316,6 @@
     "packages/landing/src/io/land/guard.js": 1,
     "packages/landing/src/io/main/matches.js": 1,
     "packages/landing/src/io/main/red.js": 1,
-    "packages/landing/src/io/main/red/refresh.js": 1,
-    "packages/landing/src/io/main/red/refresh/flight.js": 9,
-    "packages/landing/src/io/merged/scripts/followup.js": 2,
-    "packages/landing/src/io/pause.js": 2,
-    "packages/landing/src/io/post/land.js": 4,
-    "packages/landing/src/io/prune.js": 1,
     "packages/landing/src/io/registries.js": 1,
     "packages/landing/src/io/runner/job.js": 3,
     "packages/landing/src/io/runner/proof.js": 3,
