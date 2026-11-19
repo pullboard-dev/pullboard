@@ -13,13 +13,14 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { repoInfo } from "../../../git/light.js";
 import { Refused } from "../../../kernel/light.js";
+import { environmentAdapter } from "../../../env/index.js";
 
 /** A pending baseline result's file name: one per request id. */
 export const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;
 
 /** This machine's private pullboard folder, outside every repository. */
 export function pullboardHome() {
-  return process.env.PULLBOARD_HOME || join(homedir(), '.pullboard');
+  return environmentAdapter().get('PULLBOARD_HOME') || join(homedir(), '.pullboard');
 }
 
 /** The machine's relay settings folder. */
@@ -119,7 +120,8 @@ function relayMachineStateEmpty() {
  * @returns {boolean}
  */
 export function syncMayAct(cwd) {
-  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined && process.env.PULLBOARD_RELAY_KEY !== undefined) return true;
+  const environment = environmentAdapter();
+  if (environment.has('PULLBOARD_RELAY_TOKEN') && environment.has('PULLBOARD_RELAY_KEY')) return true;
   if (existsSync(relayKeyDirectory()) || (existsSync(relayMachineDirectory()) && !relayMachineStateEmpty())) return true;
   let info;
   try { info = repoInfo(cwd); }

@@ -1,4 +1,5 @@
 import { boardWriteHolderText } from "./write/lock.js";
+import { environmentAdapter } from "../../../../env/index.js";
 import { busyRefusal } from "./read/light.js";
 /** Name a board this process cannot write, such as one inside a read-only agent sandbox [I1,P4]. */
 import { randomUUID } from 'node:crypto';
@@ -27,7 +28,7 @@ const CODEX_MARKERS = AGENT_SHELL_MARKERS.filter((name) => name.startsWith('CODE
  * @param {Error & { errcode?: number, code?: string }} error
  * @returns {Error}
  */
-export function boardNotWritable(file, error, environment = process.env) {
+export function boardNotWritable(file, error, environment = environmentAdapter().all()) {
   const sqliteCode = Number.isInteger(error?.errcode) ? error.errcode & 0xff : null;
   if (sqliteCode !== 8 && sqliteCode !== 14 && !['EACCES', 'EPERM', 'EROFS'].includes(error?.code ?? '')) return error;
   const folder = dirname(file);
