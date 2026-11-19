@@ -410,6 +410,9 @@ export function loadMachineSettings() {
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
   }
+  if (value.line?.tune !== undefined && typeof value.line.tune !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `line.tune in ${file} must be true or false`);
+  }
   if (value.verify?.soloLowStakes !== undefined && typeof value.verify.soloLowStakes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.soloLowStakes in ${file} must be true or false`);
   }
