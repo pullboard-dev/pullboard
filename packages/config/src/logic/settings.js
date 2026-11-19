@@ -213,6 +213,9 @@ export function loadMachineSettings() {
   if (value['runners.coresPerShard'] !== undefined && !(Number.isSafeInteger(value['runners.coresPerShard']) && value['runners.coresPerShard'] >= 1 && value['runners.coresPerShard'] <= 5)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.coresPerShard in ${file} must be a whole number from 1 through 5`);
   }
+  if (value['runners.jobWorkerFactor'] !== undefined && !(typeof value['runners.jobWorkerFactor'] === 'number' && value['runners.jobWorkerFactor'] >= 1 && value['runners.jobWorkerFactor'] <= 4)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.jobWorkerFactor in ${file} must be a number from 1 to 4`);
+  }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.settleOnMainReceipt in ${file} must be true or false`);
   }
@@ -230,6 +233,9 @@ export function loadMachineSettings() {
   }
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
+  }
+  if (value.items?.barRulesAtAdd !== undefined && typeof value.items.barRulesAtAdd !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.barRulesAtAdd in ${file} must be true or false`);
   }
   if (value.items?.testMirrorAtAdd !== undefined && typeof value.items.testMirrorAtAdd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.testMirrorAtAdd in ${file} must be true or false`);

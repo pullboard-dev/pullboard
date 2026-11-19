@@ -1,4 +1,5 @@
 /** A local gate run whose process tree makes no output, CPU or process change for the stall interval is a named stall, not a silent hold [C7]. */
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Longer than the 11 minute per-test ceiling, so a hung test is ended by its own watchdog first. */
 export const DEFAULT_RUN_STALL_MS = 900_000;
@@ -11,7 +12,7 @@ export const RUN_STALL_ENV = 'PULLBOARD_RUN_STALL_MS';
  * @param {number|string|undefined} [given] - An explicit interval in milliseconds.
  * @returns {number}
  */
-export function runStallMs(given = process.env[RUN_STALL_ENV]) {
+export function runStallMs(given = environmentAdapter().get(RUN_STALL_ENV)) {
   if (given === undefined || given === '') return DEFAULT_RUN_STALL_MS;
   const parsed = Number(given);
   if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 2_147_483_647) throw new Error(`${RUN_STALL_ENV} must be 0 (off) or a positive integer no greater than 2147483647 milliseconds`);
@@ -26,7 +27,7 @@ export function runStallMs(given = process.env[RUN_STALL_ENV]) {
  * @returns {Promise<Array<{ pid: number, ppid: number, pgid: number, cpu: string, command: string }>|null>}
  */
 export async function processRows(spawn) {
-  const result = await spawn('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,time=,command='], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 5_000, maxBuffer: 32 << 20, env: { ...process.env, LC_ALL: 'C' } });
+  const result = await spawn('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,time=,command='], { stdio: ['ignore', 'pipe', 'pipe'], timeout: 5_000, maxBuffer: 32 << 20, env: { ...environmentAdapter().all(), LC_ALL: 'C' } });
   if (result.error || result.status !== 0 || typeof result.stdout !== 'string') return null;
   const rows = [];
   for (const line of result.stdout.split('\n')) {
