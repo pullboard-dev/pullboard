@@ -4,6 +4,7 @@ export const coordinatorHelp = `Coordinator
                                         file one item per file a linter, type checker or test reporter flags
   pullboard land                        manual override: offer a runner land job for the accepted items
   pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners
+  pullboard land --stats [--json]  count the last 7 days of landings by same-tree and re-proved, and the retest share per 100 (needs landing.composedEquality)
   pullboard land --waive <test> --until <date> --reason \"why\"  the person records an expiring test waiver
   pullboard publish                     coordinator: run the whole suite on the trunk head; push it only when every test passes
   pullboard merged <id> <commit> [--gate-receipt <id>] [--items 1,2,3] [--forced "<why>" [--waive-proof "<why>"]]  record verified work with its native batch receipt; --forced records hand-landed work as landed without a verify, and needs a passing receipt for the item tip or --waive-proof

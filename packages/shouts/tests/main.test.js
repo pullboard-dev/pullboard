@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../store/tests/fixtures/cell.js';

@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { BroadcastChannel } from 'node:worker_threads';
 import { test } from 'node:test';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
@@ -65,9 +68,9 @@ function fixtureBoard(t) {
 }
 
 /** Serve the API over one fixture board, its clock read through `clock.skew` so a test can let a lease lapse. */
-async function served(t, entry, ports, clock = { skew: 0 }) {
+async function served(t, entry, ports, clock = { skew: 0 }, viewPorts = VIEW_PORTS) {
   const api = await serveApi({ projects: () => [entry], secret: SECRET, runCommand: async () => 0, isMain: false, refusalDocument, now: () => Date.now() + clock.skew,
-    boardOpeners: { openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] }, viewPorts: VIEW_PORTS, handlerPorts: ports });
+    boardOpeners: { openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] }, viewPorts, handlerPorts: ports });
   t.after(() => api.close());
   return api;
 }
@@ -164,4 +167,37 @@ test('api.http.not-busy-serves-every-caller: clause 3: with the API not busy, ag
   assert.deepEqual([moved.status, moved.body.moved], [200, true], 'an agent move after the runner calls is served');
   const after = (await call(api, '/api/v1/health')).body.pool;
   assert.deepEqual([after.busy, after.queued], [0, 0], 'nothing is left held or queued');
+});
+
+/** A fixture project whose board holds one seat that has claimed one item, and one open item nobody holds. */
+function seatBoard(t) {
+  const project = cellProject(t, { real: true });
+  const board = openCellBoard(project.boardFile);
+  try {
+    const seat = cellSeat(board, { lane: 'web', path: '/fixture/seat-a' });
+    const held = cellItem(board, { lane: 'web', title: 'The seat holds this one', criterion: '1. web/a.js exists [command]' });
+    cellItem(board, { lane: 'web', title: 'Nobody holds this one', criterion: '1. web/b.js exists [command]' });
+    cellClaim(board, held.item_id, seat, { root: project.repo });
+    return { entry: { root: project.repo, name: 'fixture', project: 'fixture', added: '2026-11-18' }, id: boardId(board), seat: seat.id, held: held.item_id };
+  } finally { closeCellBoard(board); }
+}
+
+test('api.http.agent-route-answers-one-seat: clause 1: GET /api/v1/boards/<id>/agents/<agent> answers 200 with agent_id, agent_lane, agent_route and the ids of the items that seat holds claimed, and an unknown agent answers NO_AGENT [P7]', { timeout: 60_000 }, async (t) => {
+  const { entry, id, seat, held } = seatBoard(t);
+  const api = await served(t, entry, undefined);
+  const answered = await call(api, `/api/v1/boards/${id}/agents/${seat}`);
+  assert.equal(answered.status, 200, JSON.stringify(answered.body));
+  assert.deepEqual(answered.body, { agent_id: seat, agent_lane: 'web', agent_route: 'strong', claimed: [held], version: 1 });
+  const unknown = await call(api, `/api/v1/boards/${id}/agents/no-such-seat`);
+  assert.equal(unknown.body.error?.code, 'NO_AGENT', JSON.stringify(unknown.body));
+});
+
+test('api.http.agent-route-skips-state: clause 2: the agent route answers without calling the adapter\'s state build, so a counting state stub stays at 0 [P7]', { timeout: 60_000 }, async (t) => {
+  const { entry, id, seat } = seatBoard(t);
+  let builds = 0;
+  const counting = Object.fromEntries(Object.keys(VIEW_PORTS).map((name) => [name, () => { builds++; throw new Error(`the agent route must not project ${name}`); }]));
+  const api = await served(t, entry, undefined, { skew: 0 }, counting);
+  const answered = await call(api, `/api/v1/boards/${id}/agents/${seat}`);
+  assert.equal(answered.status, 200, JSON.stringify(answered.body));
+  assert.equal(builds, 0, 'no view projection ran for the agent read');
 });

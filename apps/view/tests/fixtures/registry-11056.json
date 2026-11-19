@@ -1,0 +1,41 @@
+{
+  "view.serve-session.same-secret-accepts-cookie": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A restarted view with the same secret accepts the session cookie the first one set."
+    },
+    "why": "Without it the cookie could go back to random per start with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/serve-session.test.js"
+    ]
+  },
+  "view.serve-session.other-secret-refuses-cookie": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A view with a different secret refuses that cookie."
+    },
+    "why": "Without it the cookie could go back to random per start with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/serve-session.test.js"
+    ]
+  },
+  "view.serve-session.real-path": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The cookie under test comes from a real serveView HTTP response."
+    },
+    "why": "Without it the cookie could go back to random per start with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/serve-session.test.js"
+    ]
+  }
+}

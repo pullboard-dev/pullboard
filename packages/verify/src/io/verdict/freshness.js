@@ -58,7 +58,7 @@ function sameHunks(root, reviewed, merged) {
 /**
  * True when the checked change merges onto main without conflict and every path it touched carries the same
  * patch after the merge as it did against its reviewed trunk [E8,V8,#2896].
- * Why: main touching a shared file (packages/codemap/data/plan/cells.json) said nothing about the reviewed change, yet it made
+ * Why: main touching a file the change did not touch said nothing about the reviewed change, yet it made
  * every other accept stale and each needed a re-review of identical work.
  * With verify.hunkFreshness on (#9438) the patches are compared hunk by hunk instead of as one patch id per path, so only
  * a changed hunk of the submit's own patch makes the review stale; the caller reads the setting and passes `hunkKeyed`, so the light read door never loads the config package.
@@ -230,9 +230,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       readGit(root, ['diff', '--no-renames', '--name-only', '-z', `${commit}^1`, commit, '--']).split('\0').filter(Boolean));
     return changes.get(commit);
   };
-  /** Derive pending proof freshness and an older landing's explicitly recorded review mismatch. */
-  const state = item => {
-    if (item.item_status !== 'verified') return null;
+  /** Derive pending proof freshness and an older landing's explicitly recorded review mismatch; `reopened` reads an item a landing re-proof red sent back to open as if its accept still stood [C7,U159,#10777]. */
+  const state = (item, { reopened = false } = {}) => {
+    if (item.item_status !== 'verified' && !reopened) return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
     // A caller-supplied reader answers from the derived-state table: a state or null is final, undefined computes below [#8945].
     const known = derived?.(item);
@@ -295,6 +295,16 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
           : { reason: failure?.reason ?? 'the reviewed Git history is unavailable; restore its objects and re-review' }) };
     }
   };
+  /**
+   * Whether an item reopened by a landing re-proof red (#10776) keeps its accepted verdict [C7,U159,#10777].
+   * With `composedEquality` on, the review stays bound: it is kept unless main changed a file the review covered (the STALE_VERDICT rule), and the stale state is returned for the redo.
+   * With it off, the reopened item follows the rules of today: nothing is kept.
+   */
+  const reopened = (item, { composedEquality = false } = {}) => {
+    if (!composedEquality) return { keep: false };
+    const stale = state(item, { reopened: true });
+    return stale ? { keep: false, stale } : { keep: true };
+  };
   /** Decorate a public item read while preserving every stored proof field. */
   const project = item => {
     const freshness = state(item);
@@ -302,7 +312,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   };
   /** Ask Git about every unlanded verified item's commit in one process, before the per-item reads need them [C7]. */
   const prime = items => askHeld(items.filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => item.item_commit));
-  return { state, project, prime, main: tip ?? null };
+  return { state, reopened, project, prime, main: tip ?? null };
 }
 
 

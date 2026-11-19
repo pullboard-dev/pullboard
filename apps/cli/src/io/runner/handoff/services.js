@@ -6,6 +6,7 @@ import { commonJsIn } from '../../../../../../packages/gate/index.js';
 import { failureSignatures } from '../../../../../../packages/landing/index.js';
 import { foreignNodeOptions } from '../../../../../../packages/gate/index.js';
 import { importsIn } from '../../../../../../packages/gate/index.js';
+import { regenerateDeclaredFiles } from '../../../../../../packages/gate/index.js';
 import { requireSubmitComposition } from '../../../../../../packages/items/index.js';
 import { tapTests } from '../../../../../../packages/gate/index.js';
 import { withImportParseCache } from '../../../../../../packages/gate/index.js';
@@ -22,6 +23,7 @@ export function handoffStageServices() {
     doctrine: { holdDoctrineAsync, ruleLine },
     cells: { requireSubmitCells, gate: { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions }, landing: { withMainCheckout } },
     composition: { requireSubmitComposition },
+    regenerate: { regenerateDeclaredFiles },
     failures: { tapTests, failureSignatures },
   };
 }

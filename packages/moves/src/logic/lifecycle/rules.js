@@ -42,8 +42,9 @@ export function leaseLive(item, at) {
 
 /**
  * What each item this one waits on is, by the rule "every item it waits on is verified".
+ * An id the item also lists in `afterGate` is met as soon as that item is submitted with `gateGreen` true; absent fields keep the plain rule.
  *
- * @param {{ after: number[] }} item
+ * @param {{ after: number[], afterGate?: number[] }} item
  * @param {Map<number, object>} items
  * @returns {{ id: number, state: string }[]} The waits that are not yet verified, each with what it is instead.
  */
@@ -52,9 +53,84 @@ export function unmetWaits(item, items) {
   for (const id of item.after) {
     const dep = items.get(id);
     if (dep?.status === 'verified') continue;
+    if (dep?.status === 'submitted' && dep.gateGreen === true && item.afterGate?.includes(id)) continue;
     unmet.push({ id, state: !dep ? 'missing' : dep.status === 'withdrawn' ? (dep.merged ? 'withdrawn-landed' : 'withdrawn') : dep.status });
   }
   return unmet;
+}
+
+/** The moves a builder may make on its own submitted item when every row is low-stakes and every check is machine-run: reserve and accept, never reject or a post-landing review. */
+const SELF_VERIFY_KINDS = Object.freeze(['reserve', 'accept', 'merge-only-accept']);
+
+/**
+ * The rows the item froze at its claim, as `{ id, stakes? }`, read from the item in the move snapshot (`item.frozen`, the frozen
+ * record as text or as parsed). A row with no stakes field froze as team (#11412). Null when the item carries no record.
+ *
+ * @param {{ frozen?: string | { rows?: { id?: string, stakes?: string }[] } } | undefined} item
+ * @returns {{ id?: string, stakes?: string }[] | null}
+ */
+function frozenRowsOf(item) {
+  let record = item?.frozen;
+  if (typeof record === 'string') {
+    try { record = JSON.parse(record); } catch { return null; }
+  }
+  return Array.isArray(record?.rows) ? record.rows : null;
+}
+
+/**
+ * Does every row the caller's snapshot carries match the item's frozen record? Each snapshot row must name a frozen row by id and
+ * state the stakes it froze with, and every frozen row must appear. Why: the board record, never the snapshot a caller builds, decides
+ * the stakes, so a forged low row cannot lift a team or critical row into a self-accept (#1084). No frozen record means no match.
+ *
+ * @param {{ item?: object, rows?: { id?: string, stakes?: string }[] }} snapshot
+ * @returns {boolean}
+ */
+function rowsMatchFrozen(snapshot) {
+  const frozen = frozenRowsOf(snapshot?.item);
+  const { rows } = snapshot ?? {};
+  if (!frozen || !Array.isArray(rows)) return false;
+  const stakesById = new Map(frozen.map(row => [row?.id, row?.stakes ?? 'team']));
+  const seen = new Set();
+  for (const row of rows) {
+    if (!stakesById.has(row?.id) || stakesById.get(row.id) !== (row.stakes ?? 'team')) return false;
+    seen.add(row.id);
+  }
+  return seen.size === stakesById.size;
+}
+
+/** Does the snapshot claim every row low-stakes and person-approved and every check machine-run red then green? */
+function claimsSoloLowStakes(snapshot, kind) {
+  if (snapshot?.soloLowStakes !== true || !SELF_VERIFY_KINDS.includes(kind)) return false;
+  const { rows, checks } = snapshot;
+  return Array.isArray(rows) && rows.length > 0 && rows.every(row => row?.stakes === 'low' && row.personApproved === true)
+    && Array.isArray(checks) && checks.length > 0 && checks.every(check => check?.machineRun === true && check.redBefore === true && check.greenAfter === true);
+}
+
+/**
+ * May the builder make this move on its own work? Only when the snapshot carries `soloLowStakes: true` (the verify.soloLowStakes
+ * setting, default off), `rows` where every row is `{ id, stakes: 'low', personApproved: true }` and equals what the item froze, and `checks` where every check is
+ * `{ machineRun: true, redBefore: true, greenAfter: true }`. Why: #966, a low-stakes row whose checks a machine ran red then green needs no second agent;
+ * absent fields, empty lists and any other value keep the independence rule, so a board with no stakes field is unchanged. The verify command fills the fields (#11141).
+ * The stakes come from the item's frozen record, so a snapshot that says low for a row frozen at team or critical never self-accepts (#11415).
+ *
+ * @param {{ item?: object, soloLowStakes?: boolean, rows?: { id?: string, stakes?: string, personApproved?: boolean }[], checks?: { machineRun?: boolean, redBefore?: boolean, greenAfter?: boolean }[] }} snapshot
+ * @param {string | undefined} kind - The move kind or name.
+ * @returns {boolean}
+ */
+export function soloLowStakesHolds(snapshot, kind) {
+  return claimsSoloLowStakes(snapshot, kind) && rowsMatchFrozen(snapshot);
+}
+
+/**
+ * Did the snapshot claim a solo self-accept that the item's frozen record contradicts? True exactly when every other solo condition
+ * holds and only the rows disagree with the frozen record: the forgery LOW_STAKES_FORGED names.
+ *
+ * @param {object} snapshot
+ * @param {string | undefined} kind
+ * @returns {boolean}
+ */
+export function soloLowStakesForged(snapshot, kind) {
+  return claimsSoloLowStakes(snapshot, kind) && !rowsMatchFrozen(snapshot);
 }
 
 /**
@@ -74,7 +150,7 @@ export const RULES = defineRules({
   notHeldByAnother: { says: 'no other agent holds it under a live lease', holds: ({ item }, move) => !(item.status === 'claimed' && item.owner !== move.by && leaseLive(item, move.at)) },
   isHolder: { says: 'the caller holds the claim', holds: ({ item }, move) => item.owner === move.by },
   holderOrCoordinator: { says: 'the holder, the coordinator or a maintenance sweep makes the move', holds: ({ item }, move) => move.by === 'coordinator' || item.owner === move.by || Boolean(move[MAINTENANCE]) },
-  notBuilder: { says: 'the caller did not build the item', holds: ({ item }, move) => !(item.builder && item.builder === move.by) },
+  notBuilder: { says: 'the caller did not build the item', holds: (snapshot, move) => !(snapshot.item.builder && snapshot.item.builder === move.by) || soloLowStakesHolds(snapshot, move.kind) },
   coordinatorOnly: { says: 'the caller is the coordinator', holds: (snapshot, move) => move.by === 'coordinator' },
   notMerged: { says: 'the item has no recorded merge receipt', holds: ({ item }) => !item.merged },
   verifiedToLand: { says: 'only a verified item lands', holds: ({ item }) => item.status === 'verified' },
@@ -92,7 +168,9 @@ const REFUSALS = {
   notHeldByAnother: ({ item }) => ({ code: 'HELD', why: `${item.owner} held it under a live lease until ${item.leaseUntil}` }),
   isHolder: ({ item }, move) => ({ code: 'NOT_YOURS', why: `${item.owner ?? 'nobody'} held it, not ${move.by}` }),
   holderOrCoordinator: ({ item }, move) => ({ code: 'NOT_YOURS', why: `${item.owner ?? 'nobody'} held it, not ${move.by}` }),
-  notBuilder: (snapshot, move) => ({ code: 'SELF_VERIFY', why: `${move.by} built it` }),
+  notBuilder: (snapshot, move) => soloLowStakesForged(snapshot, move.kind)
+    ? { code: 'LOW_STAKES_FORGED', why: `${move.by} sent low-stakes rows that the item's frozen record does not hold` }
+    : { code: 'SELF_VERIFY', why: `${move.by} built it` },
   coordinatorOnly: (snapshot, move) => ({ code: 'COORDINATOR_ONLY', why: `${move.by} is not the coordinator` }),
   notMerged: () => ({ code: 'ALREADY_MERGED', why: 'a merge receipt was already recorded' }),
   verifiedToLand: ({ item }, move) => ({ code: `NOT_VERIFIED (${move.forced ? 'forced ' : ''}from ${move.from ?? item.status})`, why: `the item was ${item.status} in the replay when it landed` }),
@@ -173,13 +251,14 @@ export function ruleOf(fact) {
  * @param {object} item - The item before the move.
  * @param {object} fact - A normalized lifecycle fact.
  * @param {Map<number, object>} items - Every item, as it stood before.
+ * @param {object} [snapshotFields] - Fields the caller's snapshot adds for a guard to read (`soloLowStakes`, `rows`, `checks`).
  * @returns {{ rule: string | null, ok: boolean, code?: string, why?: string }}
  */
-export function judge(item, fact, items) {
+export function judge(item, fact, items, snapshotFields = {}) {
   const rule = ruleOf(fact);
   if (!rule) return { rule: null, ok: false, code: 'NO_RULE', why: `no rule describes a ${fact.kind} move` };
   const row = MOVE_RULES.find(entry => entry.id === rule);
-  const snapshot = { item, items };
+  const snapshot = { ...snapshotFields, item, items };
   if (!derive('itemExists', snapshot, fact)) return { rule, ok: false, ...REFUSALS.itemExists(snapshot, fact) };
   if (!row.from.includes(item.status)) return { rule, ok: false, code: `WRONG_STATE (from ${item.status})`, why: `a ${fact.kind} cannot start from ${item.status}` };
   for (const name of row.guards) {

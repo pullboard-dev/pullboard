@@ -1,5 +1,5 @@
 {
-  "enforce": false,
+  "enforce": true,
   "note": "The one list of .md files the repository may hold. Every entry has a reason. A temporary entry names the item that drops its file; the list may only shrink. Set enforce to true to refuse any other .md; it defaults off.",
   "entries": [
     { "pattern": "skills/*/SKILL.md", "reason": "a skill is the one home of an agent procedure" },

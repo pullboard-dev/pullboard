@@ -4,15 +4,18 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { test } from 'node:test';
 
 const PLAN = new URL('../../../../data/plan/', import.meta.url);
 const CLI = new URL('../../../../../../apps/cli/', import.meta.url);
+/** The cli plan file, found by its name: the numbered prefix shifts whenever a cell is added below it [C7]. */
+const CLI_PLAN = readdirSync(PLAN).find(name => /^\d+-app-cli\.json$/u.test(name));
 const OLD = 'apps/cli/src/logic/sweep.js';
 const NEW = 'apps/cli/src/io/sweep/problems.js';
 
 test('codemap.shell-sweep-row.the-cli-sweep-js-row: clause 1: the cli sweep.js row sits in the shell cell in the cells plan with importers repointed [C7]', () => {
-  const rows = JSON.parse(readFileSync(new URL('49-app-cli.json', PLAN), 'utf8')).paths;
+  const rows = JSON.parse(readFileSync(new URL(CLI_PLAN, PLAN), 'utf8')).paths;
   const row = rows.find(([from]) => from === 'src/sweep.js');
   assert.equal(row[1], NEW);
   assert.ok(!rows.some(([, to]) => to === OLD));

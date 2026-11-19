@@ -1,12 +1,13 @@
 /** A contract fingerprint covers an export's file and every relative helper it imports, so a helper edit moves it [C7]. */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import {
   dirname,
   resolve,
 } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
 import { readContractFile } from './file.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const disk = fileSystemAdapter();
 
 const RELATIVE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/gu;
 
@@ -22,7 +23,7 @@ function closureOf(entry) {
     const file = pending.pop();
     if (seen.has(file)) continue;
     let text;
-    try { text = readFileSync(file, 'utf8'); } catch {
+    try { text = disk.readFile(file, 'utf8'); } catch {
       throw new Refused('FINGERPRINT_UNREADABLE', `${file} cannot be read; point the contract at an existing source file and retry`);
     }
     seen.add(file);
@@ -40,7 +41,7 @@ function closureOf(entry) {
  */
 export function fingerprintExport(entry, exportName) {
   const hash = createHash('sha256').update(`export:${exportName}\n`);
-  for (const file of closureOf(entry)) hash.update(`file:${file}\n`).update(readFileSync(file));
+  for (const file of closureOf(entry)) hash.update(`file:${file}\n`).update(disk.readFile(file, null));
   return hash.digest('hex');
 }
 

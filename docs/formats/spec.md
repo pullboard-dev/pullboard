@@ -59,6 +59,7 @@ A bare id names a row in `SPEC.md`. A doctrine row is cited as `doctrine:<id>` i
 | `serves` | Comma-separated ids named by serves, or an empty list. |
 | `signers` | Comma-separated SSH principals named by signers, or an empty list. |
 | `unknown` | Unrecognized trailing fields; spec check reports them. |
+| `stakes` | Optional row stakes: low, team or critical. |
 | `section` | Containing ## heading. |
 | `line` | 1-based source line. |
 <!-- parser-fields:end -->

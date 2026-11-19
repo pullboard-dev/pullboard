@@ -88,6 +88,8 @@ export async function run(io, { first: named, values }) {
     const from = folder.seat ? JSON.stringify(folder.seat) : 'the lane worktree this folder was made from';
     throw new Refused('JOIN_IN_ITEM_FOLDER', `${ctx.info.root} is an item folder, not a lane worktree; a seat joined here is lost with the folder and its work. Run pullboard from ${from} instead, and join only from a lane worktree made with git worktree add ../<repo>-<lane>`);
   }
+  if (values.role !== undefined && values.role !== 'advisor') throw new Refused('BAD_ROLE', 'use --role advisor, or leave --role off for an ordinary seat');
+  if (values.role !== undefined && ctx.info.isMain) throw new Refused('BAD_ROLE', 'the main checkout is the coordinator, not an advisor; join an advisor from a worktree');
   const wake = seatWakeCommand(values.wake, ctx.info.root);
   const runtime = runtimeSessionIdentity();
   const parent = values.parent === undefined ? runtime?.parent : parentIdentity(values.parent);
@@ -127,7 +129,7 @@ export async function run(io, { first: named, values }) {
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
   const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
-  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && !values['lock-lane'] && values['review-limit'] === undefined) {
+  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && values.role === undefined && !values['lock-lane'] && values['review-limit'] === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
     io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, level: existing.agent_route, path: ctx.info.root,
       model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
@@ -142,16 +144,16 @@ export async function run(io, { first: named, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(coordinatorSeat ? { coordinatorSeat: true } : {}), ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(coordinatorSeat ? { coordinatorSeat: true } : {}), ...(values['lock-lane'] ? { lockLane: true } : {}), ...(values.role === undefined ? {} : { role: values.role }), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, level: route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(sameSeat ? { alreadyJoined: true } : {}) });
+  io.result?.({ agent: id, lane: first, route, level: route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(values.role === undefined ? {} : { role: values.role }), ...(sameSeat ? { alreadyJoined: true } : {}) });
   io.say(sameSeat
     ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
-    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
+    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${values.role === undefined ? '' : ` as an ${values.role}`}${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
   return 0;
 }

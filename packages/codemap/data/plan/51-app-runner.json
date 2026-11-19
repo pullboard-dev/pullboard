@@ -1,0 +1,65 @@
+{
+ "order": 51,
+ "name": "app:runner",
+ "kind": "app",
+ "root": "apps/runner",
+ "frontDoor": "apps/runner/index.js",
+ "lightFrontDoor": "apps/runner/light.js",
+ "paths": [
+  ["src/chrome-clone-cleanup.js","apps/runner/src/io/chrome.js","rule"],
+  ["src/private-check-worker.js","apps/runner/src/io/private/check/worker.js","seed"],
+  ["src/runner-custody.js","apps/runner/src/io/custody.js","seed"],
+  ["src/runner-private-check.js","apps/runner/src/io/private/privacy.js","seed"],
+  ["src/runner-private-mode.js","apps/runner/src/io/private/guard.js","seed"],
+  ["src/runner-stage-read.js","apps/runner/src/io/stage.js","seed"],
+  ["src/runner-stage.js","apps/runner/src/logic/stage.js","seed"],
+  ["src/runner-worker.js","apps/runner/src/io/worker.js","seed"],
+  ["src/runner-worker-state.js","apps/runner/src/io/worker/context.js","rule"],
+  ["src/runner-worker-health.js","apps/runner/src/io/worker/health.js","rule"],
+  ["src/runner-worker-spec.js","apps/runner/src/io/worker/spec.js","rule"],
+  ["src/runner-worker-cleanup.js","apps/runner/src/io/worker/cleanup.js","rule"],
+  ["src/runner-worker-environment.js","apps/runner/src/io/worker/environment.js","rule"],
+  ["src/runner-worker-process.js","apps/runner/src/io/worker/process.js","rule"],
+  ["src/runner-worker-git.js","apps/runner/src/io/worker/git.js","rule"],
+  ["src/runner-worker-checkout.js","apps/runner/src/io/worker/checkout.js","rule"],
+  ["src/runner-worker-command.js","apps/runner/src/io/worker/command.js","rule"],
+  ["src/runner-worker-receipt.js","apps/runner/src/io/worker/receipt.js","rule"],
+  ["src/runner-worker-main.js","apps/runner/src/io/worker/entry.js","rule"]
+ ],
+ "reexports": [
+  "src/private-check-worker.js",
+  "src/process-census.js",
+  "src/runner-custody.js",
+  "src/runner-private-check.js",
+  "src/runner-private-mode.js",
+  "src/runner-stage-read.js",
+  "src/runner-stage.js"
+ ],
+ "imports": [
+  {"cell":"kernel","imports":2,"before":true},
+  {"cell":"resources","imports":2,"before":true},
+  {"cell":"config","imports":1,"before":true},
+  {"cell":"verify","imports":1,"before":true},
+  {"cell":"sandbox","imports":4,"before":true},
+  {"cell":"gate","imports":7,"before":true},
+  {"cell":"runners","imports":5,"before":true}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": -1,
+  "shims": 7,
+  "boundaries": 2,
+  "strays": 0,
+  "documents": 0,
+  "cyclesIfUncut": 14,
+  "assetReads": 0
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 40/43: runner moves into apps/runner behind shims",
+  "criterion": "Cells move 40 of 43 (RFC 0006; plan entry 40 in packages/codemap/data/plan/cells.json): the 8 paths the entry lists for app runner move with git mv to their planned targets under apps/runner, and apps/runner/index.js is the front door, re-exporting the 7 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 12 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource -1, shims +7, boundaries +2) and none rises; node packages/codemap/src/io/cells/scripts/plan.js --moved app:runner passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node packages/codemap/src/io/cells/scripts/plan.js --moved app:runner",
+  "after": ["kernel","resources","config","verify","sandbox","gate","runners"]
+ }
+}

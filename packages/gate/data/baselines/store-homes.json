@@ -175,9 +175,6 @@
   "packages/commits/src/io/signoff.js": {
     "pullboard.json": 1
   },
-  "packages/commits/src/logic/change/row/plan.js": {
-    "cells.json": 2
-  },
   "packages/config/src/io/git/sync.js": {
     "git-sync.json": 1
   },

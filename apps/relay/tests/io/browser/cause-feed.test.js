@@ -14,7 +14,7 @@ registerBrowserAliases();
 const { createTransport } = await import('../../../src/io/browser/client.js');
 
 const BOARD = '0123456789abcdef0123456789abcdef';
-const OPEN = 'corey/quant';
+const OPEN = 'owner/project';
 const MACHINE = 'machine-cause-fixture';
 const ENGINE = 1;
 const BOARDS = { version: 1, boards: [{ id: BOARD, repository: OPEN }] };
