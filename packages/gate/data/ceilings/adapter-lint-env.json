@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 562,
+  "total": 561,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -162,7 +162,6 @@
     "packages/outbox/src/io/relay/checkpoint/publish.js": 2,
     "packages/outbox/src/io/relay/ordering.js": 1,
     "packages/outbox/src/io/relay/worker.js": 2,
-    "packages/pages/src/io/relay/cache.js": 1,
     "packages/person/src/io/main.js": 3,
     "packages/person/src/io/signing/cli.js": 1,
     "packages/queue/src/io/settings.js": 1,
