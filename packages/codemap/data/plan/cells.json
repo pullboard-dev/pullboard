@@ -2469,6 +2469,7 @@
     "resources->git",
     "codemap->git",
     "codemap->kernel",
+    "codemap->env",
     "config->kernel",
     "gate->codemap",
     "runners->config",

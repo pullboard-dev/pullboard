@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 562,
+  "total": 553,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -80,12 +80,6 @@
     "packages/api/src/io/pool.js": 1,
     "packages/api/src/io/state/materializer.js": 1,
     "packages/api/src/io/state/materializer/worker.js": 2,
-    "packages/codemap/src/io/cell/uses.js": 2,
-    "packages/codemap/src/io/cells/cache.js": 1,
-    "packages/codemap/src/io/cells/move.js": 1,
-    "packages/codemap/src/io/cells/scripts/plan.js": 2,
-    "packages/codemap/src/io/cells/shims.js": 1,
-    "packages/codemap/src/io/main-facts-cache.js": 2,
     "packages/codemap/src/io/main/lints.js": 1,
     "packages/codemap/src/io/module/imports.js": 7,
     "packages/codemap/src/io/parsed.js": 3,

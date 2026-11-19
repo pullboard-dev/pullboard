@@ -8,6 +8,9 @@ import { spawnSync } from 'node:child_process';
 import { Refused } from '../../../../kernel/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { moveAfterRowRewrite } from './move/rows.js';
+import { environmentAdapter } from '../../../../env/index.js';
+
+const environment = environmentAdapter();
 
 /** The verify.requireRowRewrite setting of this repository; a directory with no pullboard.json has none, so it is off. */
 function rowRewriteEnabled(root) {
@@ -26,7 +29,7 @@ try {
   } else if (mode === '--apply' && args.length === 5) {
     const [from, to, frontDoor, purpose, custody] = args;
     // The app passes its command in through PULLBOARD_CLI (a node entry file), else the pullboard on the PATH runs.
-    const entry = process.env.PULLBOARD_CLI;
+    const entry = environment.get('PULLBOARD_CLI');
     const run = pullboard => spawnSync(entry ? process.execPath : 'pullboard', [...(entry ? [entry] : []), ...pullboard], { cwd: process.cwd(), encoding: 'utf8' });
     // A cited spec row whose text changed with no rewrite edit refuses before anything is planned or moved [B4,R2,#5704].
     const result = moveAfterRowRewrite({ run, enabled: rowRewriteEnabled(process.cwd()) }, () => {
