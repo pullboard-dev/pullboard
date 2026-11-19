@@ -1,4 +1,5 @@
 /** The runner side of a landing job: fetch trunk, merge the accepted items, check, and push only if trunk has not moved [P7]. */
+import { environmentAdapter } from '../../../../env/index.js';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +28,9 @@ import { IDENTITY } from '../land/merge-args.js';
 import { citedIds } from '../land/merge-args.js';
 import { landingMergeArgs } from '../land/merge-args.js';
 import { commitUnionedMerge } from '../land/registry-union.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 export { IDENTITY, citedIds, landingMergeArgs };
 
 /** The board's landing job kind, as packages/api offers it. */
@@ -154,7 +158,7 @@ export function fetchItem(root, remote, entry) {
  */
 function fetchAsync(root, args) {
   return new Promise(resolve => {
-    const { GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, ...env } = process.env;
+    const { GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, ...env } = environment.all();
     let stderr = '', child;
     try { child = gitSpawn(['-C', root, 'fetch', '--no-tags', '--quiet', ...args], { stdio: ['ignore', 'ignore', 'pipe'], env }); }
     catch (error) { resolve({ status: 1, stderr: String(error.message) }); return; }
@@ -204,7 +208,7 @@ const FAILED_CASE = /^\s*(?:not ok \d+|\u2716 )/u;
 export function commandCheck(argv, { deadline = null } = {}) {
   return ({ root, progress = null, signal = null }) => new Promise(resolve => {
     // An enclosing node --test run's context never reaches the project's check, which then reports as its own run.
-    const { NODE_TEST_CONTEXT, ...env } = process.env;
+    const { NODE_TEST_CONTEXT, ...env } = environment.all();
     const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env });
     const named = argv.at(-1).slice(0, 200);
     let output = '', settled = false;
@@ -435,7 +439,7 @@ function firstMerges(root, base, tip, pending, squash = false) {
  *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null, clock = Date.now, stallPollMs = 1000, asyncFetch = false }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = environment.all(), diagnose = null, shards = null, clock = Date.now, stallPollMs = 1000, asyncFetch = false }) {
   const { remote, trunk, expect, items } = payload;
   // asyncFetch (landing.asyncFetch, off by default; the runner's caller reads the setting): the fetches below run without blocking the event loop, so the lease renews while they work [C7,#9516].
   const fetchOne = (...args) => asyncFetch ? fetchItemAsync(...args) : fetchItem(...args);
@@ -559,7 +563,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
  *   checks?: Parameters<typeof runLandingJob>[1]['checks'], env?: NodeJS.ProcessEnv }} options
  * @returns {Promise<{ job: string, receipt: Awaited<ReturnType<typeof runLandingJob>>, recorded: boolean } | null>} null when no landing waits.
  */
-export async function takeLandingJob({ call, runner, capabilities = [], workdir, checks = null, env = process.env, diagnose = null }) {
+export async function takeLandingJob({ call, runner, capabilities = [], workdir, checks = null, env = environment.all(), diagnose = null }) {
   const { claim } = await call({ action: 'claim', runner, capabilities, kinds: [LANDING_JOB_KIND] });
   if (!claim) return null;
   const { job, token } = claim;
