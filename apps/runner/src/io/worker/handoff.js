@@ -1,8 +1,10 @@
 /** The runner job's hand-off branch: the ticket's stages run in the job's checkout and report names, timings and failures only [C7]. */
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The stage entry lives in accepted main's tree; a runner holds it as a checkout of the ticket's pinned main. */
 const STAGE_ENTRY = 'apps/cli/src/io/runner/handoff/child.js';
@@ -31,10 +33,10 @@ export async function runHandoffJob(spec, root, runnerRoot, { entry } = {}) {
 function mainEntry(main, root) {
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(main ?? '')) throw Object.assign(new Error('the ticket pins no main to read the stage code from'), { code: 'RUNNER_SOURCE' });
   const tree = join(root, '..', 'handoff-main');
-  if (!existsSync(tree) && spawnSync('git', ['worktree', 'add', '--detach', '--force', tree, main], { cwd: root, encoding: 'utf8' }).status !== 0) {
+  if (!fs.exists(tree) && spawnSync('git', ['worktree', 'add', '--detach', '--force', tree, main], { cwd: root, encoding: 'utf8' }).status !== 0) {
     throw Object.assign(new Error('the runner could not check out the ticket main for the stage code'), { code: 'RUNNER_SOURCE' });
   }
-  if (!existsSync(join(tree, STAGE_ENTRY))) throw Object.assign(new Error('the ticket main has no hand-off stage code yet'), { code: 'RUNNER_SOURCE' });
+  if (!fs.exists(join(tree, STAGE_ENTRY))) throw Object.assign(new Error('the ticket main has no hand-off stage code yet'), { code: 'RUNNER_SOURCE' });
   return join(tree, STAGE_ENTRY);
 }
 

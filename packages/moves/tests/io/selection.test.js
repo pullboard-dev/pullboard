@@ -7,7 +7,10 @@ import { recordSubmitHandoff } from '../../../jobs/index.js';
 import * as store from '../../../store/index.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { nextSelection } from '../../index.js';
+import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
+import { next } from '../fixtures/next.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** view and docs own folders, as in pullboard.json; tests owns none, as the verifier lane does. */
 const LANES = { view: { owns: ['apps/view/'] }, docs: { owns: ['guides/'] }, tests: { owns: [] } };
@@ -123,4 +126,91 @@ test('moves.selection.derived-gate-port-absent: clause 2: with no port, or a por
   const pick = ports => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, ports).item?.item_id;
   assert.equal(pick(box.ports), first, 'no port');
   assert.equal(pick({ ...box.ports, derivedGateAtHead: () => null }), first, 'a port returning null');
+});
+
+/** The box's claim port, made to refuse `id` as claim refuses a bar naming paths no lane owns; every other claim goes through. */
+function refuseOwnership(box, id) {
+  const through = box.ports.claimOrdered;
+  box.ports.claimOrdered = (ctx, open, args) => {
+    if (args[0] === id) throw new Refused('CROSS_OWNERSHIP', 'the bar names zzz/other.js, which no lane owns, so lane web cannot build it', 'split the item');
+    return through(ctx, open, args);
+  };
+}
+
+test('moves.selection.cross-ownership-passed-over: clause 1: an item whose claim is refused CROSS_OWNERSHIP is passed over, reported once, and the next claimable item is offered [C7,#11862]', async t => {
+  const box = fixture(t);
+  const refused = box.add('Bar names a path no lane owns');
+  const claimable = box.add('Claimable work');
+  refuseOwnership(box, refused);
+  const found = await next(box);
+  assert.equal(found.item?.item_id, claimable);
+  assert.equal(store.getItem(box.board, refused).item_status, 'open', 'the refused item stays open');
+  const reports = store.itemThread(box.board, refused).filter(entry => entry.type === 'fact' && entry.text.includes('"unbuildableBar"') && entry.text.includes('CROSS_OWNERSHIP'));
+  assert.equal(reports.length, 1, 'one coordinator report per bar');
+});
+
+test('moves.selection.wait-never-offers-refused: clause 2: with wait above 0, an item whose claim refuses for the calling seat is never returned to it; the seat gets the next claimable item or none [C7,#11862]', async t => {
+  const box = fixture(t);
+  const refused = box.add('Bar names a path no lane owns');
+  refuseOwnership(box, refused);
+  const alone = await next(box, { wait: 1 });
+  assert.equal(alone.item, undefined, 'a lone refused item is not returned, as an offer or a claim');
+  assert.equal(alone.waitingOffer, undefined);
+  assert.equal(store.getItem(box.board, refused).item_status, 'open');
+  const claimable = box.add('Claimable work');
+  const found = await next(box, { wait: 1 });
+  assert.equal(found.item?.item_id, claimable);
+  assert.equal(found.waitingOffer, undefined);
+  assert.equal(store.getItem(box.board, claimable).item_status, 'claimed');
+});
+
+test('moves.selection.wait-claims-ready-item: clause 1: nextOnce with values.wait above 0 and a ready open item claims it for the calling seat and returns no waitingOffer [C7,#11846]', async t => {
+  const box = fixture(t);
+  const ready = box.add('Ready work');
+  const found = await next(box, { wait: 1 });
+  assert.equal(found.item?.item_id, ready);
+  assert.equal(found.waitingOffer, undefined, 'no offer to claim later');
+  assert.equal(store.getItem(box.board, ready).item_status, 'claimed');
+  assert.deepEqual(actorClaims(box), [ready], 'the claim is the calling seat\'s');
+});
+
+test('moves.selection.wait-held-unchanged: clause 2: nextOnce with values.wait above 0 and an item the seat already holds returns the held item and makes no second claim [C7,#11846]', async t => {
+  const box = fixture(t);
+  const mine = box.add('Work this seat holds');
+  box.add('Other ready work');
+  await next(box, { wait: 1 });
+  assert.deepEqual(actorClaims(box), [mine]);
+  const again = await next(box, { wait: 1 });
+  assert.equal(again.item?.item_id, mine);
+  assert.equal(again.held, true);
+  assert.equal(again.waitingOffer, undefined);
+  assert.deepEqual(actorClaims(box), [mine], 'no second claim');
+});
+
+/** Run pick under `config`, recording the who that reaches the review offer (plain loop) and the default offer (default loop). */
+function whoReaching(t, box, config) {
+  const seen = [];
+  const original = { ...nextSelection };
+  nextSelection.reviewOffer = (board, who) => { seen.push(who); return original.reviewOffer(board, who); };
+  nextSelection.defaultOffer = (board, who) => { seen.push(who); return original.defaultOffer(board, who); };
+  t.after(() => Object.assign(nextSelection, original));
+  const ctx = { ...box.ctx, config: { ...box.ctx.config, ...config } };
+  box.add('Open work');
+  nextSelection.pick(ctx, box.board, { defaultLoop: false, observeIdle: true, omitIds: [] }, box.ports);
+  nextSelection.pick(ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports);
+  return seen;
+}
+
+test('moves.selection.compose-landing-on: clause 1: with slices.composeLanding true in ctx.config, the who handed to the review offer and the default offer carries composeLanding true [C7,#11345]', t => {
+  const seen = whoReaching(t, fixture(t), { slices: { composeLanding: true } });
+  assert.equal(seen.length, 2, 'both offers were reached');
+  for (const who of seen) assert.equal(who.composeLanding, true);
+});
+
+test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding unset, the who carries no composeLanding and the offer is unchanged [C7,#11345]', t => {
+  for (const config of [{}, { slices: { composeLanding: false } }]) {
+    const seen = whoReaching(t, fixture(t), config);
+    assert.equal(seen.length, 2, 'both offers were reached');
+    for (const who of seen) assert.ok(!who.composeLanding, 'composeLanding is false or absent');
+  }
 });

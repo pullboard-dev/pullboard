@@ -59,7 +59,7 @@ import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { relayOperation } from '../../../../packages/link/index.js';
 import { relayRecovered } from '../../../../packages/link/index.js';
-import { coordinatorFile } from './spec.js';
+import { coordinatorFile } from './coordinator-file.js';
 import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
