@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/git/src/io/review-folder-deps.js */
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
