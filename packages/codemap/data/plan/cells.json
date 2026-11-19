@@ -2615,7 +2615,8 @@
     "board->verify",
     "apps/lib->board",
     "apps/cli->fs",
-    "apps/lib->fs"
+    "apps/lib->fs",
+    "apps/runner->fs"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",
