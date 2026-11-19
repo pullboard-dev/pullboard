@@ -36,7 +36,7 @@ export async function run(io, { first, values }) {
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
     const fieldIndex = values.field === undefined ? undefined : (await import('../../../../../packages/store/index.js')).fieldIndex(board, { enabled: true });
     if (values.json) return { items, fieldIndex, needsRescope: store.allItemsNeedingRescope(board) };
-    return { fieldIndex, needsRescope: store.allItemsNeedingRescope(board), items, agents: store.listAgents(board), foreign: new Map(await Promise.all(rows.map(async item => [item.item_id, await foreignStates(board, item)]))),
+    return { fieldIndex, needsRescope: store.allItemsNeedingRescope(board), items, agents: store.listAgents(board), foreign: new Map(await Promise.all(rows.map(async item => [item.item_id, await foreignStates(board, item, async () => (await import('../../../../../packages/store/index.js')).foreignDependencyStates)]))),
       merging: new Set(rows.filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id)) };
   });
   const routed = items.filter((item) => !values.route || item.item_route === values.route);
