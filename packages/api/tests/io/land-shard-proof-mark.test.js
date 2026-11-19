@@ -1,7 +1,7 @@
 /** With landing.shardProof on, offerLandingJob marks the land payload with the gate its proof's shards run; off, it does not [C7,#7818,#8255]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { offerLandingJob } from '../../index.js';
 
 const GATE = { run: ['node', '-e', 'x'], entry: 'gate.js' };
