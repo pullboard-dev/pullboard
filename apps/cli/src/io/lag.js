@@ -35,7 +35,7 @@ export function lagLine(root, nowMs) {
   const base = read(root, ['merge-base', 'HEAD', trunk]);
   const baseSeconds = base ? Number(read(root, ['show', '-s', '--format=%ct', base])) : NaN;
   const age = Number.isFinite(baseSeconds) ? `, its base is ${ageText(nowMs - baseSeconds * 1000)} old` : '';
-  return `this checkout is ${behind} commit${behind === 1 ? '' : 's'} behind ${trunk}${age}; merge ${trunk} before you build`;
+  return `this checkout is ${behind} commit${behind === 1 ? '' : 's'} behind ${trunk}${age}; submit composes current ${trunk}`;
 }
 
 /**
