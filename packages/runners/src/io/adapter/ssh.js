@@ -10,8 +10,11 @@ function requireHost(runner) {
 }
 
 /** The part of a run's answer both forms share: { status, stdout, stderr }, with stdout as bytes. */
-function answer({ status = null, stdout = '', stderr = '' } = {}) {
-  return { status, stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout)), stderr: String(stderr) };
+function answer({ status = null, stdout = '', stderr = '', signal = null, error = null } = {}) {
+  return {
+    status, stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout)), stderr: String(stderr),
+    ...(signal ? { signal } : {}), ...(error ? { error } : {}),
+  };
 }
 
 /**
