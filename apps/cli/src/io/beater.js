@@ -114,10 +114,24 @@ export async function startClaimBeater(cwd, { seat, board }, { env = process.env
  * The beater's whole life: beat the seat while it holds a claim, its worktree exists and the agent session lives, then
  * drop its lock if the lock is still its own. A dead agent stops the beats within one tick, so the two-minute
  * seat-gone release still takes its claim. The gate cell loads here, in the detached process, never in the claim.
+ * A `remote` binding ({ url, token, agent, seatKey? }, a seat joined by board.url) beats the board host through
+ * sendRemoteHeartbeat instead of a local board, and stops once the host refuses a beat or the lock names another beater [P7,B3].
  */
-export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS }, { alive = agentAlive, pid = process.pid, ...options } = {}) {
+export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null }, { alive = agentAlive, pid = process.pid, send = null, ...options } = {}) {
   try {
     const { keepClaimsAlive } = await import('../../../../packages/gate/index.js');
+    if (remote?.url) {
+      const post = send ?? (await import('./remote/moves.js')).sendRemoteHeartbeat;
+      let refused = false;
+      let named = false;
+      return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent), seatOf: () => ({ seat, file: board }),
+        beat: async () => { if (!(await post(remote))) refused = true; },
+        held: async () => {
+          const owner = readLock(lock)?.pid;
+          if (owner === pid) named = true;
+          return !refused && (owner === pid || (owner === undefined && !named));
+        }, ...options });
+    }
     return await keepClaimsAlive(cwd, { everyMs, alive: () => alive(agent),
       // Any file in the board's folder names the board, so the binding names the board itself.
       seatOf: () => ({ seat, file: board }), ...options });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { jobView } from '../../../jobs/index.js';

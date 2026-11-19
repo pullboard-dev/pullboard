@@ -16,7 +16,7 @@ export { itemAuthors, retainedVerifierIdentityProblem, itemAuthorProblem } from 
 export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/logic/decision/queue.js';
 export { dependencyValues, foreignDependencies, dependencyLabel, hasForeignDependencies, dependencyReferences, localDependencyIds, parseDependency, validateNativeDependencies } from './src/logic/dependencies.js';
 export { setItem } from './src/logic/fields.js';
-export { contentionScores, orderByContention, conflictRates } from './src/logic/contention.js';
+export { contentionScores, orderByContention, conflictRates, quietFiles } from './src/logic/contention.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
 export { applyItemHold, applyItemHoldRelease } from './src/logic/holds.js';
 export { splitRecent } from './src/logic/hot-split.js';
@@ -45,7 +45,7 @@ export { readResumeSources } from './src/io/sources.js';
 export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/logic/resume.js';
 export { requireSubmitComposition, composeAfterProof, trunkMoveFact } from './src/logic/submit/composition.js';
 export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitInvariantLine, validateLandingBatch, preserveInvariantEvidence, validateLandingRevision } from './src/logic/submit/invariants.js';
-export { fetchMissingCommits, hasCellsPlan, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';
+export { fetchMissingCommits, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';
 export { ITEM_SIZE_BUDGET, changedLines, oversizeNote } from './src/logic/submit/size.js';
 export { waitForSubmissionVerdict } from './src/io/submit/wait.js';
 export { EFFORT, milestoneRanks, workOrderActive, milestoneOverrides, unblockCounts, computedOrder, workOrderCompare, queueReasons } from './src/logic/order/work.js';
@@ -54,6 +54,8 @@ export { itemEditBar } from './src/logic/edit/bar.js';
 export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/logic/paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/io/patch/submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/logic/lifecycle.js';
+export { returnedRejections, rejectionEchoLine } from './src/logic/returned-rejections.js';
+export { needsJudgement } from './src/logic/needs-judgement.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, withFamilyReads, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/io/declaration.js';
 export { auditFailureItem } from './src/logic/audit/failure.js';
 

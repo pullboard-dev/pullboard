@@ -33,6 +33,21 @@ function capabilityFor(capability, record, method) {
   return capability[method].bind(capability);
 }
 
+/**
+ * The folder transport of link/file.js, loaded at its first send or read: its module stays outside the closure every hot command
+ * (status, next, claim) loads, whose module budgets only ratchet down. The folder and the bound board are checked here, at once.
+ */
+export function createBoardLinkFileTransport(folder, { board } = {}) {
+  if (typeof folder !== 'string' || folder === '') throw new TypeError('board link file transport needs its delivery folder');
+  const id = board === undefined ? null : boardReferenceId(board);
+  let real = null;
+  const loaded = () => (real ??= import('./file.js').then(module => module.createBoardLinkFileTransport(folder, { board })));
+  return Object.freeze({ board: id,
+    async send(value) { return (await loaded()).send(value); },
+    async read(...args) { return (await loaded()).read(...args); },
+  });
+}
+
 /** Bind a transport instance to one explicitly authenticated source or receiving board. */
 export function createBoardLinkRelayTransport(state, { request }) {
   if (typeof request !== 'function') throw new TypeError('board link transport needs its authenticated request port');
@@ -92,17 +107,48 @@ export async function deliverBoardState(board, context, { authority, capability,
   }
   if (pending.receipt) return boardLinkDeliveryReceipt(pending.receipt, pending.envelope);
   const receipt = boardLinkDeliveryReceipt(await transport.send(pending.envelope), pending.envelope);
+  return recordReceipt(board, key, contentDigest, { sourceBoardId: context.sourceBoardId, linkId: record.linkId, correlationId }, receipt);
+}
+
+/** Store a transport receipt on its queued delivery and log board_link_delivered in one write; an earlier receipt wins [E32,H16]. */
+function recordReceipt(board, key, contentDigest, { sourceBoardId, linkId, correlationId }, receipt) {
   return atomic(board, () => {
     const current = saved(board, key);
     if (!current || current.contentDigest !== contentDigest) throw new Refused('BOARD_LINK_CONFLICT', 'restore the exact queued delivery before recording its acknowledgement');
     if (current.receipt) return boardLinkDeliveryReceipt(current.receipt, current.envelope);
     remember(board, key, { ...current, receipt });
-    logEvent(board, context.sourceBoardId, 'board_link_delivered', null, { linkId: record.linkId, correlationId, receipt });
+    logEvent(board, sourceBoardId, 'board_link_delivered', null, { linkId, correlationId, receipt });
     return receipt;
   });
 }
 
-/** Apply a verified incoming state once, with its source-position cursor and durable retry outcome. */
+/**
+ * Send again the stored sealed envelope of every queued delivery that holds no receipt, once each, in key order.
+ * Why: deliverBoardState keeps the exact bytes until the transport acknowledges, but nothing re-sent them after a failed send [E32,H16].
+ *
+ * @param {object} board - The source board.
+ * @param {{ transport: { send: (envelope: object) => Promise<object> } }} port - The transport bound to the source board.
+ * @returns {Promise<{ sent: object[], failed: { key: string, correlationId: string, error: string }[] }>} Receipts stored now, and the entries that still hold none.
+ */
+export async function resendPendingBoardStates(board, { transport }) {
+  const sent = [];
+  const failed = [];
+  const rows = board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'board_link_outbox:*' ORDER BY meta_key").all();
+  for (const { meta_key: key, meta_value: value } of rows) {
+    const pending = JSON.parse(value);
+    if (pending.receipt) continue;
+    const envelope = boardLinkEnvelope(pending.envelope);
+    try {
+      const receipt = boardLinkDeliveryReceipt(await transport.send(envelope), envelope);
+      sent.push(recordReceipt(board, key, pending.contentDigest, envelope, receipt));
+    } catch (error) {
+      failed.push({ key, correlationId: envelope.correlationId, error: String(error?.message ?? error) });
+    }
+  }
+  return { sent, failed };
+}
+
+/** Apply a verified incoming state once, with its source-position cursor and durable retry outcome; the stored state carries the board-clock time it was received. */
 export async function receiveBoardState(board, delivery, { authority, capability }) {
   const envelope = boardLinkEnvelope(delivery?.envelope);
   if (boardId(board) !== envelope.destinationBoardId) throw new Refused('BOARD_LINK_AUTH', 'open this delivery only on its exact receiving board');
@@ -121,7 +167,7 @@ export async function receiveBoardState(board, delivery, { authority, capability
     }
     const latest = saved(board, stateKey);
     if (latest && latest.position >= announcement.position) throw new Refused('BOARD_LINK_REPLAY', 'read the latest source position before applying another announcement');
-    remember(board, stateKey, announcement);
+    remember(board, stateKey, { ...announcement, receivedAt: board.clock.now().toISOString() });
     remember(board, key, receipt);
     logEvent(board, envelope.sourceBoardId, 'board_link_state', null, { announcement, receipt });
     return receipt;

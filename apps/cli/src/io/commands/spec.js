@@ -383,6 +383,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
       const automatic = planAutomaticRigorApply(ctx.info.root, ctx.config, store.rowDrafts(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, automatic);
+      automatic.collisions.forEach(clash => io.say(`${clash.target}: ${clash.id} holds different text, gate or tier than its Rigor draft, so the draft was not written; resolve ${clash.id} by hand`));
       automatic.files.forEach(file => io.say(`${file.file}: materialized unproved Rigor drafts for the person's review`));
       // A lane's board drafts (#878) reach SPEC.md as draft rows at their own ids; the person approves them there as before.
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));

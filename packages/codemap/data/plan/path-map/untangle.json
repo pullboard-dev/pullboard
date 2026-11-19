@@ -3,5 +3,8 @@
   "packages/gate/tests/io/edges/forwarders.test.js": "packages/codemap/tests/io/cells/plan/forwarders.test.js",
   "apps/cli/tests/fixtures/testkit.js": "packages/gate/tests/fixtures/testkit.js",
   "apps/cli/tests/fixtures/runner/ssh.js": "packages/gate/tests/fixtures/runner/ssh.js",
-  "apps/cli/tests/fixtures/runner/agent-host.js": "packages/gate/tests/fixtures/runner/agent-host.js"
+  "apps/cli/tests/fixtures/runner/agent-host.js": "packages/gate/tests/fixtures/runner/agent-host.js",
+  "apps/cli/tests/fixtures/chrome.js": "packages/gate/tests/fixtures/chrome.js",
+  "apps/cli/tests/fixtures/chrome/args.js": "packages/gate/tests/fixtures/chrome/args.js",
+  "apps/cli/tests/fixtures/chrome/shutdown.js": "packages/gate/tests/fixtures/chrome/shutdown.js"
 }

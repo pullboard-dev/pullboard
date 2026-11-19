@@ -133,7 +133,7 @@ export function listItems(board, { lane, all = false, inFlight = false } = {}) {
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
-  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
+  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'review_policy', 'expected_build', 'landed'].includes(key)) : [];
   // Every item's hand-off record in one read of the job tables, where the record lives [C7].
   const records = handoffRecords(board.db, { live: true });
   const pulled = pulledGateRecords(board.db, null, Date.parse(at));
@@ -141,6 +141,9 @@ export function listItems(board, { lane, all = false, inFlight = false } = {}) {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
+    // Labels read these two fields; the level is the route, and strict review is a stored policy with a review family or the sensitive flag (verify is not imported here).
+    item.item_level = item.item_route;
+    if (family !== null || strictPolicy(row.review_policy)) item.item_review_tier = 'strict';
     item.item_stage = itemStage(item, pulled.get(item.item_id) ?? records.get(item.item_id) ?? null, Boolean(row.landed), at);
     if (item.item_stage === 'in the gate' && pulled.get(item.item_id)?.noRunner) item.item_gate_runner = 'none';
     // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
@@ -161,6 +164,15 @@ export function listItems(board, { lane, all = false, inFlight = false } = {}) {
   return items;
 }
 
+/** Whether a stored review policy names a review family or marks the item sensitive; an unreadable policy is not strict. */
+function strictPolicy(stored) {
+  if (stored === null || stored === undefined) return false;
+  try {
+    const policy = JSON.parse(stored);
+    return policy?.sensitive === true || Boolean(policy?.reviewFamily);
+  } catch { return false; }
+}
+
 /**
  * The SQL that lists items, with each item's landed flag read from one scan of the merged events.
  *
@@ -174,10 +186,11 @@ export function listItems(board, { lane, all = false, inFlight = false } = {}) {
 export function listItemsSql({ all, hasLane, inFlight = false }) {
   const scope = inFlight ? "(item_status IN ('claimed','submitted') OR (item_status='verified' AND COALESCE(item_merged_commit,'')=''))"
     : all ? '1' : "item_status NOT IN ('verified','withdrawn')";
-  return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
+  return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, policy.meta_value AS review_policy, expected.meta_value AS expected_build,
       item.item_id IN (SELECT item_id FROM event WHERE event_kind='merged') AS landed
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
       LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
+      LEFT JOIN board_meta policy ON policy.meta_key='review_independence:' || item.item_id
       LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
       AND ${scope}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`;

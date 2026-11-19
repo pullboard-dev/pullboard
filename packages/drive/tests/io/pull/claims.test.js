@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { LEASE_MS } from '../../../../jobs/index.js';
@@ -147,6 +147,26 @@ async t => {
   assert.deepEqual(rivals, [null], 'no second runner claimed the job while its holder kept renewing');
   assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome, entry.receipt?.outcome]), [['land:7815', 'posted', 'green']], said.join('\n'));
   assert.equal(board.attempt, 1, 'one claim');
+});
+
+test('drive.claims.c-11286-clause-1-a-receipt: #11286 clause 1: a land job that finishes green while the board refuses every receipt call keeps its job, retries the receipt with backoff and posts one green receipt when the board answers [C7]', { timeout: 30_000 }, // budget: one instant handler, three refused receipt calls, the sleep injected.
+async t => {
+  // Every receipt call is unreachable until three have failed; the handler is done at once, so only the receipt post waits.
+  let refused = 0;
+  const down = call => call.action === 'receipt' && ++refused <= 3;
+  const board = boardBehindFetch(t, { id: 'land:11286', kind: 'land' }, { down });
+  const handlers = { land: async () => ({ outcome: 'green' }) };
+  const said = [], naps = [];
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-offline', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {},
+    say: line => { said.push(line); }, sleep: async ms => { naps.push(ms); await new Promise(resolve => setImmediate(resolve)); }, timing: { firstMs: 10, maxMs: 40 } });
+  assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome, entry.receipt?.outcome]), [['land:11286', 'posted', 'green']], said.join('\n'));
+  assert.equal(board.attempt, 1, 'one claim, no second runner took the job');
+  assert.ok(board.calls.filter(action => action === 'receipt').length >= 4, 'at least two receipt calls were refused before one landed');
+  assert.ok(refused >= 3, `receipt calls refused: ${refused}`);
+  assert.deepEqual(naps.slice(0, 3), [10, 20, 40], 'the receipt retries back off, doubling to the ceiling');
+  const receipts = jobView(board.db, 'land:11286').steps.filter(step => step.name === 'receipt');
+  assert.equal(receipts.length, 1, 'the board holds one receipt step');
+  assert.equal(receipts[0].payload.runner, 'r-offline');
 });
 
 test('drive.claims.c-6680-clause-1-a-serve: #6680 clause 1: a serve with a free slot claims an offered job within one idle poll, and a second claim never waits for the first job to end [C7]', { timeout: 30_000 }, // budget: two handler jobs on a stand-in board, no git, the sleep injected.

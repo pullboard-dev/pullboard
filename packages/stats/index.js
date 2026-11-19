@@ -49,6 +49,11 @@ export {
   projectReport,
 } from './src/logic/flow/report.js';
 export {
+  chooseTuning,
+  revertTuning,
+} from './src/logic/flow/tune/choose.js';
+export { tuneCycleDue } from './src/logic/flow/tune/cycle.js';
+export {
   WINDOW_STAGES,
   newWindowTrace,
   observeFlowStage,

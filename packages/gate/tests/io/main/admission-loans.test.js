@@ -3,7 +3,7 @@
 import { executionServices } from '../../fixtures/execution.js';
 import { withGateSlot } from '../../../index.js';
 import { awaitNestedRun } from '../../../index.js';
-import { waitFor } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
+import { waitFor } from '../../fixtures/resource.js';
 import { timedFile } from '../../fixtures/file-pool.js';
 import { fixture } from '../../fixtures/file-pool.js';
 import assert from 'node:assert/strict';
@@ -257,7 +257,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { waitFor } from ${JSON.stringify(new URL('../../../../../apps/cli/tests/fixtures/gate/resource.js', import.meta.url).href)};
+import { waitFor } from ${JSON.stringify(new URL('../../fixtures/resource.js', import.meta.url).href)};
 import { awaitNestedRun } from ${JSON.stringify(poolModule)};
 test('gate.io-main-admission-loans.a-broken-private-pool-must-not: a broken private pool must not return a live loan', async () => {
   const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { stdio: ['ignore', 'pipe', 'pipe'] });

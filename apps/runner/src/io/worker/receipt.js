@@ -17,7 +17,7 @@ const RECEIPT = 'PULLBOARD_RUNNER_RESULT';
 /** Send the single nonce-bound result line after the complete merged output has drained. */
 export async function receipt(spec, fields, sink) {
   await flushStdout();
-  const body = { id: spec.id, commit: spec.commit, tree: spec.tree, code: fields.code, signal: fields.signal,
+  const body = { id: spec.id, commit: spec.commit, tree: spec.tree, dependencies: fields.dependencies ?? 'none', code: fields.code, signal: fields.signal,
     environment: executionEnvironment(), testRuntimes: fields.testRuntimes ?? null, gui: fields.gui ?? null, timing: spec.timing === true, executionAdmission: fields.executionAdmission ?? null,
     executionPhases: fields.executionPhases,
     ...(fields.sourcePreparation ? { sourcePreparation: fields.sourcePreparation } : {}),

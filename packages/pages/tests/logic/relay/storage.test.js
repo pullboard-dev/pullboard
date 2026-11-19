@@ -17,10 +17,10 @@ test('pages.storage.only-a-recognized-old-route-response: only a recognized old 
 });
 
 test('pages.storage.storage-status-keeps-only-validated-credential: storage status keeps only validated credential-free fields, and its line reports megabytes [H15]', () => {
-  const status = { account: { id: 'u_1', login: 'corey', token: 'secret' }, usedBytes: 2_500_000, limitBytes: 10_000_000, extra: true };
-  assert.deepEqual(relayStorage(status), { account: { id: 'u_1', login: 'corey' }, usedBytes: 2_500_000, limitBytes: 10_000_000 });
-  assert.equal(relayStorageLine(status), 'relay storage: account corey, 2.5 MB used of 10.0 MB');
-  for (const bad of [null, {}, { ...status, account: { id: 'bad id', login: 'corey' } }, { ...status, account: { id: 'u_1' } }, { ...status, usedBytes: -1 }, { ...status, limitBytes: 0 }, { ...status, usedBytes: 1.5 }]) {
+  const status = { account: { id: 'u_1', login: 'alice', token: 'secret' }, usedBytes: 2_500_000, limitBytes: 10_000_000, extra: true };
+  assert.deepEqual(relayStorage(status), { account: { id: 'u_1', login: 'alice' }, usedBytes: 2_500_000, limitBytes: 10_000_000 });
+  assert.equal(relayStorageLine(status), 'relay storage: account alice, 2.5 MB used of 10.0 MB');
+  for (const bad of [null, {}, { ...status, account: { id: 'bad id', login: 'alice' } }, { ...status, account: { id: 'u_1' } }, { ...status, usedBytes: -1 }, { ...status, limitBytes: 0 }, { ...status, usedBytes: 1.5 }]) {
     assert.equal(relayStorage(bad), null);
     assert.equal(relayStorageLine(bad), '');
   }
