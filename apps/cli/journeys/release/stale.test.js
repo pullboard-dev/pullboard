@@ -627,6 +627,8 @@ test('cli.journeys-release-stale.automatic-idle-review-release-codes-current: au
 
 /** Claim one item for each of the two fixture seats with a ten-minute lease, then let both leases lapse 121 minutes while both seats stay quiet. */
 function deadSeatBoard(f) {
+  f.worktree(store.agentById(f.board, f.builder).agent_path, 'private-dead-seat-builder');
+  f.worktree(store.agentById(f.board, f.reviewer).agent_path, 'private-dead-seat-reviewer');
   const ids = [f.add('Dead seat claim'), f.add('Second quiet claim')];
   [f.builder, f.reviewer].forEach((agentId, index) => store.claim(f.board, ids[index], { agentId, lane: 'web', leaseMs: 10 * MINUTE, freeze: f.freeze }));
   f.advance(131 * MINUTE);
@@ -660,6 +662,7 @@ test('cli.journeys-release-stale.dead-seat-claim-survives-busy-board: clause 1: 
 test('cli.journeys-release-stale.live-heartbeat-claim-refused: clause 2: a lapsed claim whose holder heartbeat is live is refused and is not a dead seat claim [C7]', async t => {
   const { deadSeatClaim, DEAD_SEAT_LAPSE_MS } = await import('../../src/io/commands/release.js');
   const f = fixture(t);
+  f.worktree(store.agentById(f.board, f.builder).agent_path, 'private-live-seat-builder');
   const id = f.add('Lapsed claim of a live seat');
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 10 * MINUTE, freeze: f.freeze });
   f.advance(131 * MINUTE);
