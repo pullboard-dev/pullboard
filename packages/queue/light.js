@@ -5,3 +5,5 @@ export * from './src/logic/settings.js';
 export { labelDeclarationProblems } from './src/logic/labels.js';
 /** The routing capacity a status read prints [C7,#8646]. */
 export { routingCapacity } from './src/logic/capacity.js';
+/** The needs check a higher cell imports through the queue front door [U136,C7,#1888]. */
+export { missingNeeds, validateNeeds } from './src/logic/needs.js';
