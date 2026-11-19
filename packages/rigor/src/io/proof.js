@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/runners/index.js packages/landing/index.js packages/gate/index.js packages/codemap/index.js */
+/** @pullboard-module-loads packages/runners/index.js packages/landing/index.js packages/gate/heavy.js packages/codemap/index.js */
 /** Commit-bound, observed proof for a noticed failure cause; uncertain execution proves no rule [D1,D3,S1]. */
 import {
   spawn,
@@ -32,7 +32,7 @@ function proofPackages() {
   return proofPackagesLoaded ??= {
     runners: requireModule('../../../runners/index.js'),
     landing: requireModule('../../../landing/index.js'),
-    gate: requireModule('../../../gate/index.js'),
+    gate: requireModule('../../../gate/heavy.js'),
     codemap: requireModule('../../../codemap/index.js'),
   };
 }
