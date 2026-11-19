@@ -26,21 +26,21 @@ export function affectedDefault(entries) {
  */
 export function withAffectedDefault(config, entries, pkg = null) {
   if (config.affectedTests !== undefined) return config;
-  if (namesOtherRunner(pkg)) return config;
+  if (!isPlainNodeTest(pkg)) return config;
   const found = affectedDefault(entries);
   return found ? { ...config, affectedTests: found.affectedTests } : config;
 }
 
-const OTHER_RUNNERS = /\b(jest|vitest|mocha|ava|tap|jasmine|karma|playwright|cypress)\b/;
+const PLAIN_NODE_TEST = /^node\s+--test(?:\s+[^\s;&|$`<>()]+)*$/;
 
 /**
- * Whether the package's test script names a runner other than node:test.
- * Why: node --test over files written for another runner fails with "describe is not defined", so init leaves the key unset there.
+ * Whether the package's test script is plain node --test, optionally with flags or paths.
+ * Why: node --test over files written for another runner or loader (jest, bun, tsx, c8, npm run chains, custom scripts) fails or skips them, so init sets the key only when it can tell.
  *
  * @param {{ scripts?: { test?: string } } | null | undefined} pkg - The parsed package.json.
- * @returns {boolean} True when the test script names jest, vitest, mocha or another known runner.
+ * @returns {boolean} True only for a test script that is plain node --test.
  */
-function namesOtherRunner(pkg) {
+function isPlainNodeTest(pkg) {
   const script = pkg?.scripts?.test;
-  return typeof script === 'string' && OTHER_RUNNERS.test(script);
+  return typeof script === 'string' && PLAIN_NODE_TEST.test(script.trim());
 }
