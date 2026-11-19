@@ -16,6 +16,7 @@ import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { claimJob } from '../../index.js';
+import { endJobs } from '../../index.js';
 import { renewJob } from '../../index.js';
 import { postReceipt } from '../../index.js';
 import { runnerCommitPort } from '../../index.js';
@@ -309,13 +310,16 @@ function budgetBoard(t, { cores, shards, tests, offered }) {
   const take = (now) => claimJob(db, { runner: 'r-a', cores, jobs: 20, now })?.job ?? null;
   for (let i = 0; i < shards + tests; i += 1) take(5000 + i);
   for (const [id, kind] of offered) offerJob(db, { id, kind, now: at += 1 });
-  return { take, now: 6000 };
+  return { db, take, now: 6000 };
 }
 
 test('api.jobs.cores-budget-shared-by-heavy-kinds: clause 1: a runner reporting 10 cores holding 3 gate shards and 1 test job is offered no further shard or test job, while a landing job is still offered [C7,#11148]', (t) => {
-  const { take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 1, offered: [['gate:11148:shard:late', 'gate-shard'], ['test:late', 'test'], ['land:late', 'land']] });
+  const { db, take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 1, offered: [['gate:11148:shard:late', 'gate-shard'], ['test:late', 'test'], ['land:late', 'land']] });
   assert.equal(take(now), 'land:late', 'the shard and the test job wait; the landing job is not weighed');
   assert.equal(take(now + 1), null, 'nothing heavy is offered while the held weight fills the cores');
+  assert.deepEqual(endJobs(db, ['test:held:0'], { now: now + 2 }), ['test:held:0'], 'the held test job ends');
+  assert.equal(take(now + 3), 'test:late', 'once a held job ends, the waiting test job fits the freed core and is offered; the shard still waits for three');
+  assert.equal(take(now + 4), null, 'the budget is full again');
 });
 
 test('api.jobs.test-floor-under-full-shard-budget: clause 2: a runner holding no test job is offered one even when its shards fill its budget, and no second one [C7,#11148]', (t) => {
