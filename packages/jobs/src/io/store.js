@@ -23,7 +23,7 @@ export function setWriteHold(hold) {
 
 /** How long atomically() keeps retrying a busy board before it refuses with BOARD_BUSY, in ms [C7]. */
 const BUSY_BOUND_MS = 30000;
-/** The first and the longest pause between retries of a busy BEGIN, in ms; the pause doubles from the first to the longest [C7]. */
+/** The first and the longest busy_timeout a retry of a busy BEGIN waits in SQLite, in ms; it doubles from the first to the longest [C7]. */
 const BUSY_FIRST_PAUSE_MS = 50;
 const BUSY_LONGEST_PAUSE_MS = 500;
 
@@ -40,17 +40,7 @@ function isBusy(error) {
 }
 
 /**
- * Block this thread for `ms`: the store is synchronous, so the retry pause cannot yield.
- *
- * @param {number} ms
- * @returns {void}
- */
-function pause(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-/**
- * Take the write lock with BEGIN IMMEDIATE. A busy board is retried with a short busy_timeout and a doubling pause until
+ * Take the write lock with BEGIN IMMEDIATE. A busy board is retried with a short busy_timeout that doubles each time (SQLite itself waits, so the thread parks nowhere else) until
  * `boundMs` has passed in all, then refused as BOARD_BUSY; the handle's own busy_timeout is restored after.
  *
  * @param {import('node:sqlite').DatabaseSync} db
@@ -68,11 +58,10 @@ function beginImmediate(db, boundMs) {
   const own = db.prepare('PRAGMA busy_timeout').get().timeout;
   let delay = BUSY_FIRST_PAUSE_MS;
   try {
-    db.exec(`PRAGMA busy_timeout = ${BUSY_FIRST_PAUSE_MS}`);
     for (;;) {
       const left = boundMs - (Date.now() - started);
       if (left <= 0) throw new Refused('BOARD_BUSY', `job store is held by another process after ${Date.now() - started}ms; wait for it to finish and retry`);
-      pause(Math.min(delay, left));
+      db.exec(`PRAGMA busy_timeout = ${Math.max(1, Math.min(delay, left))}`);
       delay = Math.min(delay * 2, BUSY_LONGEST_PAUSE_MS);
       try {
         db.exec('BEGIN IMMEDIATE');

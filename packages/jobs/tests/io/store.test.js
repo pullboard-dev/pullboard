@@ -1,10 +1,10 @@
 /** The job store keeps one row per gate job or landing batch with an append-only, idempotent step log [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { spawn } from 'node:child_process';
+import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { holdBoard } from '../fixtures/hold-board.js';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { atomically } from '../../index.js';
 import { createJob } from '../../index.js';
 import { setWriteHold } from '../../index.js';
@@ -121,19 +121,9 @@ test('jobs.store.hold-port-skips-savepoint: clause 2: an atomically() call neste
   assert.deepEqual(calls, ['work']);
 });
 
-/** A child process that holds BEGIN IMMEDIATE on `file` for `holdMs`, then commits; resolves once it holds the lock. */
-async function holdBoard(t, file, holdMs) {
-  const script = `const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(process.argv[1]); db.exec('BEGIN IMMEDIATE'); process.stdout.write('held\\n'); setTimeout(() => { db.exec('COMMIT'); db.close(); }, ${holdMs});`;
-  const child = spawn(process.execPath, ['-e', script, file], { stdio: ['ignore', 'pipe', 'inherit'] });
-  t.after(() => child.kill());
-  await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('error', reject); child.once('exit', reject); });
-  return child;
-}
-
 /** A real board file with the production job tables, its handle on busy_timeout 0, so only atomically's own wait counts. */
 function heldBoard(t) {
-  const files = privateFixtureFiles('pullboard-jobs-busy-');
-  const file = join(files.root, 'board.sqlite');
+  const file = join(privateFixtureFiles('pullboard-jobs-busy-').root, 'board.sqlite');
   const db = cellBoard(t, file, undefined, { real: true }).db;
   db.exec('PRAGMA busy_timeout = 0');
   return { db, file };
