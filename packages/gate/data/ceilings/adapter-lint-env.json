@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 558,
+  "total": 554,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -164,7 +164,6 @@
     "packages/person/src/io/main.js": 3,
     "packages/person/src/io/signing/cli.js": 1,
     "packages/queue/src/io/settings.js": 1,
-    "packages/resources/src/io/environment.js": 4,
     "packages/resources/src/io/heartbeat/blocked.js": 2,
     "packages/resources/src/io/home.js": 1,
     "packages/resources/src/io/main.js": 9,
