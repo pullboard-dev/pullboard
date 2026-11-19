@@ -118,6 +118,7 @@ export {
   browserByLaunchEnabled,
   runnerDispatchMode,
   jobReserve,
+  gateAgedMs,
   localRunnerEnabled,
   localLoadShare,
   staticCheckSlots,
