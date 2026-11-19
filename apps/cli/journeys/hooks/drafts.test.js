@@ -15,13 +15,17 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import {
+  fixtureAdd,
+  fixtureSettledMachine,
+} from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 test('cli.journeys-hooks-drafts.a-lane-agent-drafts-a-row: clause 1: a lane agent drafts a row and cites it without leaving its lane [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists')).code, 0);
   const claimed = (await box.runLocal(box.web, 'claim', '1'));
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
@@ -52,6 +56,7 @@ test('cli.journeys-hooks-drafts.a-lane-agent-drafts-a-row: clause 1: a lane agen
 
 test('cli.journeys-hooks-drafts.a-lane-draft-and-a-coordinator: clause 2: a lane draft and a coordinator draft never share an id, in either order [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const draft = async (cwd, text) => {
     const result = (await box.runLocal(cwd, 'spec', 'draft', text, '--json'));
     assert.equal(result.code, 0, result.out + result.err);
