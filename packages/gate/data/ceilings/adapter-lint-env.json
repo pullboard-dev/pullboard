@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 562,
+  "total": 552,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -172,12 +172,6 @@
     "packages/resources/src/io/main.js": 9,
     "packages/resources/src/io/spans/landing.js": 6,
     "packages/resources/src/io/stale-test-sweep.js": 1,
-    "packages/runners/src/io/bridge.js": 1,
-    "packages/runners/src/io/holders.js": 1,
-    "packages/runners/src/io/keyed.js": 1,
-    "packages/runners/src/io/pack.js": 2,
-    "packages/runners/src/io/package/install.js": 1,
-    "packages/runners/src/io/probe.js": 4,
     "packages/runners/src/io/pull/delegate.js": 3,
     "packages/runners/src/io/pull/mirror.js": 1,
     "packages/runners/src/io/pull/serve.js": 1,

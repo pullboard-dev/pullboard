@@ -1,4 +1,5 @@
 /** Select safe ancestors and tags, then pack only the history objects a runner cache lacks [C7]. */
+import { environmentAdapter } from '../../../env/index.js';
 import { configFromSource } from '../../../config/index.js';
 import { defaults } from '../../../config/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
@@ -141,7 +142,8 @@ function cleanPackFile(root, protect) {
   if (!tree) return null;
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   if (existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'))) return null;
-  const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
+  const environment = environmentAdapter();
+  const home = environment.get('PULLBOARD_MACHINE_HOME') || join(environment.get('HOME') || homedir(), '.pullboard');
   return join(home, 'pack-scan', storeName(createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)));
 }
 

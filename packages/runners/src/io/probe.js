@@ -1,4 +1,5 @@
 /** The controller-side SSH health probe, apart from the transport the worker loads so the worker bundle leaves out its SSH and GUI-session closure [C7]. */
+import { environmentAdapter } from '../../../env/index.js';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
@@ -6,10 +7,10 @@ import { spawnSsh } from '../../../transport/index.js';
 import { guiSession } from '../../../gate/light.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
-function environment() {
+function environment(source = environmentAdapter()) {
   const env = { LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR', 'SystemRoot', 'WINDIR']) {
-    if (process.env[key] !== undefined) env[key] = process.env[key];
+    if (source.has(key)) env[key] = source.get(key);
   }
   return env;
 }
@@ -94,7 +95,8 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   // Each declared toolchain prints its own version; a missing or failing command reports null.
   const checks = names.length ? `const tcRun=require('node:child_process');const tcOut={};for(const n of ${JSON.stringify(names)}){const r=tcRun.spawnSync(n,[n==='go'?'version':'--version'],{encoding:'utf8',timeout:1500});const m=r.error||r.status!==0?null:/(\\d+(?:\\.\\d+)*)/.exec((r.stdout||'')+(r.stderr||''));tcOut[n]=m?m[1]:null;}` : '';
   const desktop = observeGui || observeLoad || enrollSigningKey ? `/* pullboard registration GUI probe */const {spawnSync}=require('node:child_process');const guiSession=${guiSession.toString()};const os=require('node:os');` : '';
-  const signing = enrollSigningKey ? `const fs=require('node:fs');const path=require('node:path');const crypto=require('node:crypto');const signingHome=process.env.PULLBOARD_MACHINE_HOME||path.join(process.env.HOME||os.homedir(),'.pullboard');if(!path.isAbsolute(signingHome))throw new Error('runner signing home must be absolute');fs.mkdirSync(signingHome,{recursive:true,mode:0o700});fs.chmodSync(signingHome,0o700);const pair=crypto.generateKeyPairSync('ed25519');const der=pair.publicKey.export({type:'spki',format:'der'});const enrolledPublicKey=der.toString('base64url');const keyId=crypto.createHash('sha256').update(der).digest('hex');const keyPath=path.join(signingHome,'runner-signing-'+keyId+'.pem');const temporary=keyPath+'.'+crypto.randomUUID()+'.tmp';try{fs.writeFileSync(temporary,pair.privateKey.export({type:'pkcs8',format:'pem'}),{flag:'wx',mode:0o600});fs.renameSync(temporary,keyPath);fs.chmodSync(keyPath,0o600);}finally{fs.rmSync(temporary,{force:true});}` : '';
+  // The signing snippet runs on the runner and reads the runner's own environment, not this process's.
+  const signing = enrollSigningKey ? `const fs=require('node:fs');const path=require('node:path');const crypto=require('node:crypto');const remote=process['env'];const signingHome=remote.PULLBOARD_MACHINE_HOME||path.join(remote.HOME||os.homedir(),'.pullboard');if(!path.isAbsolute(signingHome))throw new Error('runner signing home must be absolute');fs.mkdirSync(signingHome,{recursive:true,mode:0o700});fs.chmodSync(signingHome,0o700);const pair=crypto.generateKeyPairSync('ed25519');const der=pair.publicKey.export({type:'spki',format:'der'});const enrolledPublicKey=der.toString('base64url');const keyId=crypto.createHash('sha256').update(der).digest('hex');const keyPath=path.join(signingHome,'runner-signing-'+keyId+'.pem');const temporary=keyPath+'.'+crypto.randomUUID()+'.tmp';try{fs.writeFileSync(temporary,pair.privateKey.export({type:'pkcs8',format:'pem'}),{flag:'wx',mode:0o600});fs.renameSync(temporary,keyPath);fs.chmodSync(keyPath,0o600);}finally{fs.rmSync(temporary,{force:true});}` : '';
   const answer = `process.stdout.write(JSON.stringify({nonce:${JSON.stringify(nonce)},node:process.versions.node${discoverNode ? ',nodePath:process.execPath' : ''}${observeGui ? ',gui:guiSession(),cores:os.availableParallelism(),memoryMB:Math.floor(os.totalmem()/1048576)' : ''}${observeLoad ? ',cpuLoad:{at:new Date().toISOString(),busyPercent:busy,average:os.loadavg()}' : ''}${enrollSigningKey ? ',publicKey:enrolledPublicKey' : ''}${names.length ? ',toolchains:tcOut' : ''}}))`;
   // Both snapshots run on the destination; controller CPU counters never stand in for a runner.
   const script = observeLoad ? `${desktop}${signing}${checks}const first=os.cpus();setTimeout(()=>{const last=os.cpus();let idle=0,total=0;for(let i=0;i<last.length;i++){if(!first[i])continue;for(const key of Object.keys(last[i].times)){const delta=last[i].times[key]-first[i].times[key];total+=delta;if(key==='idle')idle+=delta;}}const busy=total>0?100*(1-idle/total):null;${answer}},100);` : `${desktop}${signing}${checks}${answer}`;
