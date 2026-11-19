@@ -2604,6 +2604,7 @@
     "github->items",
     "link->kernel",
     "apps/relay->link",
+    "apps/relay->fs",
     "apps/relay->kernel",
     "apps/relay->apps/lib",
     "apps/relay->outbox",
