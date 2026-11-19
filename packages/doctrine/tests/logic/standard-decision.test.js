@@ -1,6 +1,7 @@
 /** A decision on a standard doctrine default becomes the repo row line it projects [C7,#2007]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { loadStandardDecision } from '../../index.js';
 import { standardDecisionLine } from '../../src/logic/standard-decision.js';
 
 const ROW = { id: 'PB2', status: 'approved', tier: 'must', text: "Destructive or irreversible actions wait for the person's OK." };
@@ -16,4 +17,10 @@ test('doctrine.logic-standard-decision.decline-needs-a-reason: clause 2: standar
     assert.throws(() => standardDecisionLine(ROW, choice), error => error.code === 'DECLINE_NEEDS_REASON'
       && error.message.includes('declining a standard rule needs a reason in its text: - PB2 [wont] <why>'));
   }
+});
+
+test('doctrine.standard-decision.front-door-export: clause 1: standardDecisionLine reached through loadStandardDecision() imported from packages/doctrine/index.js returns the same approve line as the packages/doctrine/src/logic/standard-decision.js export [C7,#2007]', async () => {
+  const { standardDecisionLine: doorLine } = await loadStandardDecision();
+  assert.equal(doorLine(ROW, { decision: 'approve' }), standardDecisionLine(ROW, { decision: 'approve' }));
+  assert.equal(doorLine(ROW, { decision: 'approve' }), '- PB2 [approved, must] ' + ROW.text);
 });

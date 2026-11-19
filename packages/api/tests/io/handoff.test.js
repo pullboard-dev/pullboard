@@ -10,8 +10,8 @@ import { restartOnCodeMove } from '../../../drive/index.js';
 import { boardId } from '../../../store/index.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { startServedNode } from '../fixtures/served.js';
 
 /**
