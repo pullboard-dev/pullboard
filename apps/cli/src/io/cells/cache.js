@@ -231,18 +231,22 @@ export function inventoryPending(message, commit) {
     { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, inventoryCommit: commit });
 }
 
+/** The temporary-edges file a finding key or problem line names, wherever the checker reads it from. */
+const TEMPORARY_FILE = /^((?:[\w.-]+\/)*temporary-edges\.json)(?:[:[]|$)/u;
+
 /** Refresh only date-dependent temporary edges; immutable source/report findings stay cached. */
 function currentInventoryReport(report, inventory) {
   const temporary = temporaryCellEdges(inventory.files);
   const metrics = Object.fromEntries(Object.entries(report.metrics).map(([name, value]) => [name, { ...value,
     findings: value.findings.filter(row => name === 'shims' ? !row.key.startsWith('temporary:')
-      : name !== 'unknown' || !row.key.startsWith('packages/codemap/data/plan/temporary-edges.json:')) }]));
-  const unknown = report.unknown.filter(row => row.file !== 'packages/codemap/data/plan/temporary-edges.json');
+      : name !== 'unknown' || !TEMPORARY_FILE.test(row.key)) }]));
+  const unknown = report.unknown.filter(row => !TEMPORARY_FILE.test(`${row.file}:`));
   for (const row of temporary.edges) metrics.shims.findings.push({ key: `temporary:${row.importer}->${row.target}`, count: 1,
     detail: `contract #${row.contractItem}; expires ${row.expires} UTC` });
   for (const reason of temporary.problems) {
-    unknown.push({ file: 'packages/codemap/data/plan/temporary-edges.json', reason });
-    metrics.unknown.findings.push({ key: `packages/codemap/data/plan/temporary-edges.json::${reason}`, count: 1, detail: reason });
+    const file = reason.match(TEMPORARY_FILE)[1];
+    unknown.push({ file, reason });
+    metrics.unknown.findings.push({ key: `${file}::${reason}`, count: 1, detail: reason });
   }
   for (const value of Object.values(metrics)) {
     value.findings.sort((a, b) => a.key.localeCompare(b.key));
