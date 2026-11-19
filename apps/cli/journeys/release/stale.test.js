@@ -672,7 +672,9 @@ test('cli.journeys-release-stale.live-heartbeat-claim-refused: clause 2: a lapse
   const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', 'Lapsed but the seat still beats', '--json');
   assert.equal(result.status, 1, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
   assert.equal(JSON.parse(result.stdout).error.code, 'NOT_YOURS');
-  assert.equal(store.getItem(f.board, id).item_owner, f.builder);
+  // The stored claim row keeps its holder (a lapsed lease reads as unowned through getItem), and no release was written.
+  assert.equal(f.board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id).item_owner, f.builder);
+  assert.ok(!store.events(f.board, { itemId: id }).some(event => event.event_kind === 'release'), 'no release event');
   const now = f.clock.now().toISOString();
   assert.equal(deadSeatClaim(f.board, { actor: f.builder, leaseUntil: store.getItem(f.board, id).item_lease_until, heartbeatAt: now }, now), false);
   const exact = new Date(Date.parse(now) + DEAD_SEAT_LAPSE_MS).toISOString();
