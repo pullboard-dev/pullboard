@@ -176,7 +176,7 @@ import {
   foreignNodeOptions,
   readAcceptedCells,
   warmAcceptedCells,
-} from './packages/gate/index.js';
+} from './packages/gate/heavy.js';
 import { withMainCheckout } from './packages/landing/index.js';
 import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import { readFileSync } from 'node:fs';

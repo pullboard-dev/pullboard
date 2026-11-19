@@ -94,7 +94,7 @@ process.exitCode = status;
  * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
 export const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
-import * as gate from './packages/gate/index.js';
+import * as gate from './packages/gate/heavy.js';
 import * as landing from './packages/landing/index.js';
 import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import { spawn } from 'node:child_process';

@@ -25,7 +25,7 @@ const ANALYZER = 'packages/codemap/src/io/cells-move-fixtures.js';
  */
 const WARM_ENTRY = `import * as codemap from './packages/codemap/index.js';
 import * as cellsCache from './apps/cli/src/io/cells/cache.js';
-import * as gate from './packages/gate/index.js';
+import * as gate from './packages/gate/heavy.js';
 import { readFileSync } from 'node:fs';
 const root = process.argv[2];
 const input = JSON.parse(readFileSync(0, 'utf8'));
