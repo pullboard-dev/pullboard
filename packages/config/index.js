@@ -81,6 +81,7 @@ export {
   settleOnMainReceiptEnabled,
   recordLapseEnabled,
   runnerCommitReportEnabled,
+  runnersCoresPerShard,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
