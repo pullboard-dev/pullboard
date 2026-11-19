@@ -65,6 +65,12 @@ export function register(board, who) {
     const existing = row && { ...row, agent_model: agentModel(board, row.agent_id) };
     if (existing) {
       if (who.moveLane && existing.agent_lane !== lane && lane !== COORDINATOR && existing.agent_lane !== COORDINATOR) {
+        // A seat that holds a claimed, submitted, gate or review item stays where its work is: the move names the items instead [C7].
+        const held = board.db.prepare("SELECT item_id FROM item WHERE (item_owner = ? AND item_status IN ('claimed','submitted')) OR (item_status = 'submitted' AND item_review_by = ? AND item_review_until > ?) ORDER BY item_id").all(existing.agent_id, existing.agent_id, now(board)).map(row => row.item_id);
+        if (held.length) {
+          const ids = held.map(value => `#${value}`).join(', ');
+          throw new Refused('LANE_HELD', `this seat holds ${ids} in the ${existing.agent_lane} lane, so it cannot move to ${lane}`, `land or release ${ids} first (pullboard release ${held[0]} --reason OTHER --note "why"), then pullboard join ${lane}`);
+        }
         // next re-joins this same seat to a lane with takeable work: same id, same worktree, route unchanged (GH #27).
         board.db.prepare('UPDATE agent SET agent_lane = ? WHERE agent_id = ?').run(lane, existing.agent_id);
         logEvent(board, existing.agent_id, 'join', null, { lane, moved: true, from: existing.agent_lane });
@@ -73,7 +79,7 @@ export function register(board, who) {
       if (existing.agent_lane !== lane || existing.agent_route !== route) {
         throw new Refused(
           'ALREADY_JOINED',
-          `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}`,
+          `this worktree is ${existing.agent_id} in the ${existing.agent_lane} lane, routed ${existing.agent_route}; use another worktree for ${lane} routed ${route}, or run pullboard join ${lane} to move this seat`,
         );
       }
       // Read before saveJoinedSession records this join's declaration, which would make the comparison below always equal.
