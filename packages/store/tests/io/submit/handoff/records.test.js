@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../../fixtures/dispatch.js';
 import { GATE_SETTLE_HOLD_MS } from '../../../../src/io/submit/handoff/records.js';
+import { handoffRecords } from '../../../../src/io/submit/handoff/records.js';
 import { gateShardsUnsettled } from '../../../../src/io/submit/handoff/records.js';
 import { awaitingGateOrReview } from '../../../../src/io/submit/handoff/records.js';
 import { getItem } from '../../../../index.js';
@@ -80,4 +81,64 @@ test('store.submit-handoff-records.late-gate-red-settles: clause 2: that late ga
   f.settle('red');
   assert.equal(gateShardsUnsettled(f.box.board, f.item), false);
   assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.id)), false, 'a settled red returns the claim as rework');
+});
+
+/** The query handoffRecords ran before #11920, payloads inside the ORDER BY, kept as the reference for what it must return. */
+function referenceRecords(db, live) {
+  const records = new Map();
+  const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
+    JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
+    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
+    ORDER BY s.job_step_id DESC`).all();
+  for (const row of rows) {
+    if (records.has(row.item) || !row.payload.includes('"record"')) continue;
+    records.set(row.item, JSON.parse(row.payload).record);
+  }
+  return records;
+}
+
+/** Items with two gate jobs each: the newer job's last step may lack a record, and a later note step never counts. */
+function twoJobBoard(t) {
+  const box = fixture(t);
+  const db = box.board.db;
+  const at = box.clock.now().getTime();
+  const step = (job, name, payload) => db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, ?, ?, ?)').run(job, name, JSON.stringify(payload), at);
+  const ids = [];
+  for (let n = 0; n < 4; n++) {
+    const id = box.add(`Handoff item ${n}`);
+    ids.push(id);
+    for (const [order, jobId] of [`gate:${id}:aaaaaaaaaaaa:fixture`, `gate:${id}:bbbbbbbbbbbb:fixture`].entries()) {
+      db.prepare(`INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated)
+        VALUES (?, 'gate', ?, 'done', NULL, 0, ?, ?)`).run(jobId, id, at + order, at + order);
+      // Item 1's newer job has no record on any step, so its older job's record is the current one.
+      if (!(n === 1 && order === 1)) step(jobId, 'finish', { record: { state: 'green', job: order, item: id } });
+      else step(jobId, 'finish', { other: true });
+      step(jobId, 'note:late', { record: { state: 'note', item: id } });
+    }
+  }
+  return { box, ids };
+}
+
+test('store.handoff-records.newest-per-item-keys-sort: clause 1: handoffRecords with and without live returns the map the payload-sorting query returned [C7,#11920]', t => {
+  const { box, ids } = twoJobBoard(t);
+  for (const live of [false, true]) {
+    const got = handoffRecords(box.board.db, { live });
+    assert.deepEqual([...got], [...referenceRecords(box.board.db, live)], `live ${live}`);
+  }
+  assert.equal(handoffRecords(box.board.db).get(ids[1]).job, 0, 'the newer job without a record falls back to the older one');
+  assert.equal(handoffRecords(box.board.db).get(ids[0]).job, 1);
+  assert.equal(handoffRecords(box.board.db, { live: true }).size, ids.length, 'every open item is live');
+});
+
+test('store.handoff-records.no-payload-sort: clause 2: no statement handoffRecords prepares sorts in a temp B-tree [C7,#11920]', t => {
+  const { box } = twoJobBoard(t);
+  const sql = [];
+  const spy = new Proxy(box.board.db, { get: (db, key) => key === 'prepare' ? text => (sql.push(text), db.prepare(text)) : db[key] });
+  for (const live of [false, true]) handoffRecords(spy, { live });
+  const reads = sql.filter(text => text.includes('job_step_payload'));
+  assert.ok(reads.length > 0, 'the payload read is prepared');
+  for (const text of sql) {
+    const plan = box.board.db.prepare(`EXPLAIN QUERY PLAN ${text}`).all(...(text.includes('?') ? [1] : [])).map(row => row.detail).join('\n');
+    assert.doesNotMatch(plan, /USE TEMP B-TREE/u, text);
+  }
 });
