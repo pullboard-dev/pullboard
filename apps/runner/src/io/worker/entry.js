@@ -83,6 +83,7 @@ export async function main(S) {
   let recoveryRoot;
   let setupStep = 'runner directories';
   let gui = null;
+  let dependencies = 'none';
   let final = { code: 1, signal: null, root: '' };
   /** Send the one result receipt before any slow cleanup; a lost transport has no one to tell. */
   async function reportResult() {
@@ -96,7 +97,7 @@ export async function main(S) {
       final.executionPhases = phases.finish();
       final.sourcePreparation = sourceMetrics;
       S.cleanupStage = 'result receipt';
-      await receipt(spec, { ...final, gui }, sink);
+      await receipt(spec, { ...final, gui, dependencies }, sink);
       S.resultSent = true;
       // The delivered result is the job's terminal record: the disk sweep may remove this folder even if the worker dies.
       try { if (runDirectory) writeTerminalResult(runDirectory); } catch { /* The quiet window still protects the folder. */ }
@@ -177,7 +178,7 @@ export async function main(S) {
     phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
-      await installDependencies(S, root, runnerRoot, env, tracker, api);
+      dependencies = await installDependencies(S, root, runnerRoot, env, tracker, api);
     }
     setupStep = 'command start';
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
