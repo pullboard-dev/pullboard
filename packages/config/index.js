@@ -130,6 +130,7 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
+  itemsBarRulesAtAdd,
   itemsTestMirrorAtAdd,
   docsRegenerateOnCommit,
   holdsLiftSettled,
