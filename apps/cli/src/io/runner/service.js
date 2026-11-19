@@ -34,11 +34,16 @@ async function codePort(cache) {
 
 /**
  * Serve until stopped and return the exit code: 0 when serveRunner asked for a restart onto new runner code (the service
- * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal.
+ * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal, and 1 before serving when PULLBOARD_RUNNER_JOBS is unset.
  */
-export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal } = {}) {
+export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal, env = process.env } = {}) {
   const [board, keyFile, cache, hint] = argv;
   const say = line => out(`${new Date().toISOString()} ${line}\n`);
+  // The installed service takes its slot count from install-serve, so a start without it would fall to a cores-based default and starve gates [P7].
+  if (env.PULLBOARD_RUNNER_JOBS === undefined || env.PULLBOARD_RUNNER_JOBS === '') {
+    say('stopped: PULLBOARD_RUNNER_JOBS is not set; run pullboard runner install-serve <host> --board <url> again, which writes it');
+    return 1;
+  }
   try {
     say(`runner serve pulling from ${board}`);
     const runnerCode = await port(cache);

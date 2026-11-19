@@ -1,7 +1,9 @@
 /** @pullboard-test-input source-cell packages/codemap */
 /** The slice that next and claim print with map.slice on is the ranked item slice, read from a real main checkout [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { sayMapSlice } from '../../src/io/slice.js';
@@ -25,7 +27,7 @@ function fixture() {
   return root;
 }
 
-test('clause 3: with map.slice on, sayMapSlice prints the ranked slice naming the item packages/ module within 1,500 tokens, and nothing with map.slice unset [C7]', async () => {
+test('codemap.io-slice.on-prints-ranked-slice: clause 2: with map.slice on, sayMapSlice prints the ranked slice naming the item packages/ module within 1,500 tokens, and with map.slice unset the one line [C7,#11784]', async () => {
   const root = fixture();
   try {
     const item = { item_id: 41, item_title: 'Render the target page', item_criterion: '1. packages/demo/src/io/target.js serves the page [test]', item_brief: '', item_files: '', item_check: '' };
@@ -44,8 +46,26 @@ test('clause 3: with map.slice on, sayMapSlice prints the ranked slice naming th
 
     const quiet = [];
     await sayMapSlice({ say: text => quiet.push(text) }, { config: {}, info }, item, () => root);
-    assert.deepEqual(quiet, []);
+    assert.deepEqual(quiet, ['code map: pullboard map --for 41']);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('codemap.io-slice.off-names-command: clause 1: with map.slice unset or false, sayMapSlice prints exactly one line naming pullboard map --for <item id> and builds no map [C7,#11784]', async () => {
+  const info = { commonDir: join(tmpdir(), 'pullboard-codemap-slice-absent') };
+  for (const config of [{}, { map: {} }, { map: { slice: false } }]) {
+    const said = [];
+    await sayMapSlice({ say: text => said.push(text) }, { config, info }, { item_id: 77 }, () => { throw new Error('off must not resolve a checkout or build a map'); });
+    assert.deepEqual(said, ['code map: pullboard map --for 77']);
+  }
+  assert.equal(existsSync(join(info.commonDir, 'pullboard', 'code-map.json')), false, 'no map file was built');
+});
+
+test('codemap.io-slice.no-item-silent: clause 3: a call with no item prints nothing, with map.slice on or off, so next stays quiet when it hands nothing out [C7,#11784]', async () => {
+  for (const config of [{}, { map: { slice: true } }]) {
+    const said = [];
+    await sayMapSlice({ say: text => said.push(text) }, { config, info: {} }, undefined, () => { throw new Error('no item resolves no checkout'); });
+    assert.deepEqual(said, []);
   }
 });
