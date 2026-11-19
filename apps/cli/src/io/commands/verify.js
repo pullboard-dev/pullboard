@@ -69,6 +69,7 @@ import { reviewPacketRerun } from '../../../../../packages/verify/index.js';
 import { twoTierReviews } from '../../../../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../../../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../../../../packages/items/index.js';
+import { composeSliceReview } from '../verify/slices.js';
 import { outsideVerdict } from '../../../../../packages/items/index.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
@@ -384,7 +385,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         return await queueAccept(ctx, board, { item: id, me, commit, main: reviewMainPolicy(root).commit, check: frozenCheck(item), digest });
       }
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
-      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
+      // slices.composeLanding (off by default): a parent with slice children is reviewed as the parent composed with its slices [C7,#2397].
+      const sliceReview = ctx.config.slices?.composeLanding === true && !reReview ? composeSliceReview(root, board, item) : null;
+      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : sliceReview?.slices.length ? sliceReview.commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => {
         const current = requireTrunkMerge(root, checkedCommit);
