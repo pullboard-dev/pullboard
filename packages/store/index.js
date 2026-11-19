@@ -21,7 +21,7 @@ export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
 export { boardLinkEnvelope, boardLinkEnvelopeDigest, boardLinkDeliveryReceipt, createBoardLinkCapability } from './src/io/board/link/envelope.js';
-export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
+export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, resendPendingBoardStates, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
 export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
@@ -81,7 +81,7 @@ export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudie
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
 export { holdUntilKind, rememberHoldCondition, rememberHoldOwner, itemHoldOwner, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
 export { HEALTH_SHOUT_CAP, hasPendingCpuNotices, hasPendingDispatchNotices, normalizedHealthFindings, healthFindingIdentity, healthFindingNotice, healthTargets, deliverHealthNotices } from './src/logic/board/receipts.js';
-export { MISSED_AFTER, cadenceMs, recurringJobs, missedJobFindings } from './src/logic/board/jobs.js';
+export { MISSED_AFTER, cadenceMs, recurringJobs, recurringRoundDue, missedJobFindings } from './src/logic/board/jobs.js';
 export { releaseClaim } from './src/logic/board/claim.js';
 export { staleClaimRelease } from './src/logic/board/stale/claim.js';
 export { planStaleState } from './src/logic/board/stale/state/maintenance.js';

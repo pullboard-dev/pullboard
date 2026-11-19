@@ -17,8 +17,22 @@ function waitsWithLane(board, item, inFlight, lane, foreignBlockers, reads) {
     .map((id) => reads.itemById(board, id))
     .filter((before) => before && before.item_status !== 'verified')
     .map((before) => `#${before.item_id} (${before.item_status})`);
-  const collisions = reads.itemCollisionPlan?.(board, item, inFlight).blockers ?? reads.itemFileCollisions(item, inFlight);
+  const rivals = withoutLaterSubmissions(board, item, inFlight);
+  const collisions = reads.itemCollisionPlan?.(board, item, rivals).blockers ?? reads.itemFileCollisions(item, rivals);
   return [...after, ...foreignBlockers(board, item).map(ref => `${reads.dependencyLabel(ref)} (${ref.status} on its own board)`), ...collisions, ...(item.item_hold_reason ? [`held: ${item.item_hold_reason}`] : []), ...(lane ? [`${item.item_lane} lane held: ${lane.hold_reason}`] : [])];
+}
+
+/**
+ * The in-flight list a submitted item collides against: submitted items that came after it are left out, so of two
+ * submitted items sharing a file only the later one waits, on the earlier, and never both on each other. Why: a queue
+ * showed two submitted items waiting on each other with reviewers idle. Open and claimed items are unchanged.
+ */
+function withoutLaterSubmissions(board, item, inFlight) {
+  if (item.item_status !== 'submitted') return inFlight;
+  const order = new Map(board.db.prepare("SELECT item_id, MAX(event_id) AS at FROM event WHERE event_kind = 'submit' GROUP BY item_id").all()
+    .map(row => [row.item_id, row.at]));
+  const mine = order.get(item.item_id) ?? 0;
+  return inFlight.filter(other => other.item_status !== 'submitted' || other.item_id === item.item_id || (order.get(other.item_id) ?? 0) <= mine);
 }
 
 /** Read ready open items through the queue's exact dependency, collision and hold checks. */
