@@ -81,7 +81,7 @@ export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudie
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
 export { holdUntilKind, rememberHoldCondition, rememberHoldOwner, itemHoldOwner, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
 export { HEALTH_SHOUT_CAP, hasPendingCpuNotices, hasPendingDispatchNotices, normalizedHealthFindings, healthFindingIdentity, healthFindingNotice, healthTargets, deliverHealthNotices } from './src/logic/board/receipts.js';
-export { MISSED_AFTER, cadenceMs, recurringJobs, missedJobFindings } from './src/logic/board/jobs.js';
+export { MISSED_AFTER, cadenceMs, recurringJobs, recurringRoundDue, missedJobFindings } from './src/logic/board/jobs.js';
 export { releaseClaim } from './src/logic/board/claim.js';
 export { staleClaimRelease } from './src/logic/board/stale/claim.js';
 export { planStaleState } from './src/logic/board/stale/state/maintenance.js';
