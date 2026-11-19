@@ -223,6 +223,9 @@ export function storeBaselineGrowth(current, accepted) {
   return risen;
 }
 
+/** An owner under a logic layer: logic holds no write, so it cannot own a writable store. */
+const LOGIC_OWNER = /^(?:packages|apps)\/[^/]+\/src\/logic\//u;
+
 /**
  * Stores whose owner the registry pins: the owner is the module that writes the store, so moving it needs the pin
  * edited beside the row, in view of the reviewer. Why: the census picked owners by name count, and the three
@@ -232,8 +235,11 @@ export function storeBaselineGrowth(current, accepted) {
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function storeOwnerProblems(registry) {
-  return Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
+  const pinned = Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
     : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
+  const inLogic = Object.entries(registry.stores ?? {}).filter(([, row]) => row.kind !== 'repo-data' && LOGIC_OWNER.test(row.owner ?? ''))
+    .map(([store, row]) => ({ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is owned by ${row.owner}, a logic file; a writable store is owned by the io module that writes it, and only a read-only repo-data file may name a logic owner` }));
+  return [...pinned, ...inLogic];
 }
 
 /** A call that writes a file or a table: what an owner module must hold for the store it owns. The fs adapter names its writes rename, write and copyFile (#11968). */
