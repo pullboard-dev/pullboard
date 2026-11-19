@@ -133,6 +133,19 @@ test('landing.publish.composed-equality-off-saves-no-composition: clause 2: with
   assert.equal('composition' in state.batch.exactTree, false, 'no composition field is saved');
 });
 
+test('landing.publish.parallel-group-regates-only-when-trunk-moved: clause 1: two one-item batches of one start group run exactly one Sprint proof between them, none for the batch trunk did not move under and one, recorded re-proved, for the batch staged after that one landed [C7,#9749]', async t => {
+  const green = treeId => ({ id: 'receipt-1', tree: treeId, green: true });
+  const first = await composedBatch(t, { composedEquality: true, composedEqual: true, receipt: green });
+  const second = await composedBatch(t, { composedEquality: true, composedEqual: false, receipt: green });
+  const firstRecord = await requireSprintProof(first.state);
+  assert.deepEqual(first.calls, [], 'the batch whose staged tree equals its proven tree runs no Sprint retest');
+  assert.equal(firstRecord.composition, 'same-tree');
+  const secondRecord = await requireSprintProof(second.state);
+  assert.deepEqual(second.calls, ['static', 'packages/alpha'], 'the batch staged after the first landed runs the Sprint proof once');
+  assert.equal(secondRecord.composition, 're-proved');
+  assert.equal([...first.calls, ...second.calls].filter(call => call === 'static').length, 1, 'one proof between the two batches');
+});
+
 /** The batch of composedBatch with a bar port that is red for item 7's file, and a write that records the reopen. */
 async function reprovedRed(t, composedEquality) {
   const { state } = await composedBatch(t, { composedEquality, composedEqual: false });
