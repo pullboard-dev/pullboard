@@ -38,13 +38,13 @@
   "packages/gate/tests/fixtures/clone.js": {
     "sleep": 3
   },
-  "apps/cli/tests/fixtures/chrome.js": {
+  "packages/gate/tests/fixtures/chrome.js": {
     "sleep": 1
   },
   "packages/gate/tests/io/clone.test.js": {
     "sleep": 2
   },
-  "apps/cli/tests/fixtures/chrome/shutdown.js": {
+  "packages/gate/tests/fixtures/chrome/shutdown.js": {
     "sleep": 1,
     "poll": 1
   },
@@ -210,7 +210,7 @@
   "apps/relay/tests/fixtures/relay-server-fixture.js": {
     "sleep": 2
   },
-  "apps/cli/tests/fixtures/gate/resource.js": {
+  "packages/gate/tests/fixtures/resource.js": {
     "sleep": 3
   },
   "packages/gate/tests/fixtures/admission/pool.js": {
