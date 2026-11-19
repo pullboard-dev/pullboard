@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { relative } from 'node:path';
 import { test } from 'node:test';
 import { registryStrictEnabled as registryStrict } from '../../config/index.js';
 
@@ -182,4 +183,38 @@ test('gate.registry.logic-all: clause 1: [C7,U148] every test file under the log
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in the logic folder is titled with a registered ID');
   assert.ok(ids.length >= 216, 'all 216 tests of the logic folder are registered');
+});
+
+/** The two view-lane test files left out of the whole-folder check, each with the item that holds its registration: a named exclusion that cannot grow [#10189,#10297]. */
+const VIEW_LANE_EXCLUSIONS = new Map([['stable.test.js', '#10189'], ['io/static/style.test.js', '#10297']]);
+/** A test title anywhere in a file, at any indent, in single quotes or a template literal. */
+const ANY_TITLE = /^[ \t]*(?:test|it)\(\s*[`']([^`':\s]+): /gmu;
+/** A title written out in a quote or template; a title computed from a variable, as a generated fixture's probes do, names no ID to check. */
+const ANY_TEST = /^[ \t]*(?:test|it)\(\s*[`'"]/gmu;
+
+test('gate.registry.all: clause 1: [C7,U148,#10739] every test file under the gate tests folder, the two view-lane files excepted, carries an ID in every test title and no record names no test; an unregistered test fails only with tests.registryStrict on', (t) => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const left = testFiles(DIR).filter((file) => !VIEW_LANE_EXCLUSIONS.has(relative(DIR, file)));
+  assert.equal(testFiles(DIR).length - left.length, VIEW_LANE_EXCLUSIONS.size, 'exactly the named view-lane files are excluded');
+  const findings = [];
+  const written = new Set();
+  for (const file of left) {
+    const source = readFileSync(file, 'utf8');
+    const found = [...source.matchAll(ANY_TITLE)].map((match) => match[1]);
+    const missing = [...source.matchAll(ANY_TEST)].length - found.length;
+    if (missing > 0) findings.push(`${relative(DIR, file)}: ${missing} test title(s) start without an ID and a colon`);
+    for (const id of found) {
+      written.add(id);
+      if (!Object.hasOwn(records, id)) findings.push(`${relative(DIR, file)}: test ${id} has no registry record`);
+    }
+  }
+  const excluded = [...VIEW_LANE_EXCLUSIONS.keys()].map((name) => readFileSync(join(DIR, name), 'utf8'));
+  for (const id of Object.keys(records)) {
+    if (!written.has(id) && !excluded.some((source) => source.includes(`${id}:`))) findings.push(`registry.json: record ${id} names no test`);
+  }
+  assert.ok(left.length >= 150, 'the gate tests folder is present');
+  const outcome = registryOutcome(findings, registryStrict());
+  if (outcome.report) t.diagnostic(outcome.report);
+  assert.equal(outcome.fails, false, outcome.report);
+  assert.deepEqual(findings, [], 'every gate test is titled with a registered ID');
 });
