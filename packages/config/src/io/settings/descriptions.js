@@ -382,6 +382,7 @@ const ROWS = [
   ['commits.noCoAuthor', 'No co-author lines', 'Commits with co-author trailers are refused.', 'Commits', 'on/off'],
   ['commits.noEmoji', 'No emoji', 'Commit messages with emoji are refused.', 'Commits', 'on/off'],
   ['commits.noHostName', 'No computer name', 'Submit refuses commits that name this computer; off only warns.', 'Commits', 'on/off'],
+  ['commits.quotedNames', 'Quoted names', 'Names whose quoted words commits may not carry.', 'Commits', 'list'],
   ['commits.requireIds', 'Types that cite specs', 'Commit types whose header must cite a spec id.', 'Commits', 'list'],
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],
   ['protect.allowed', 'Protected-file exceptions', 'File patterns allowed even though they match a protected one.', 'Protection', 'list'],
