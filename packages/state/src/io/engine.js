@@ -13,7 +13,7 @@ import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
 import { Refused } from '../../../kernel/light.js';
 import { ENGINE_MOVE_STEPS } from './engine/move/steps.js';
-import { behindMessage } from '../logic/engine/behind-message.js';
+import { behindMessage } from '../logic/engine/minimum.js';
 const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 const PEOPLE_ENGINE = engineNumber('PEOPLE_ENGINE');
 
