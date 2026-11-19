@@ -2,7 +2,9 @@
 /** The relay stores one push subscription per paired device, wakes it, and ends it on revoke [C7]. */
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
+import { createDecipheriv } from 'node:crypto';
 import { createECDH } from 'node:crypto';
+import { hkdfSync } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import {
   existsSync,
@@ -92,7 +94,7 @@ async function relay(t, on) {
     linkedBoards() { return []; },
     forgetBoard() {},
     minimumEngineVersion() { return 1; },
-    withBoard(_board, work) { return work({}); },
+    withBoard(board, work) { return work({ id: board, linkedAt: Date.now() }); },
     pendingCleanup() { return []; },
     finishCleanup() {},
     withCleanup(_board, work) { return work(); },
@@ -152,4 +154,55 @@ test('relay.io-push-subscriptions.revoked-pairing-ends-push: clause 2: revoking 
   assert.equal(sender.kinds('acct', DEVICE), null);
   assert.equal(await sender.wake('acct', 'alerts', Uint8Array.from([1])), 0, 'the revoked device is not woken');
   assert.equal(calls.length, sent);
+});
+
+const BOARD = 'b'.repeat(32);
+const SEALED = Buffer.from('opaque sealed alert bytes').toString('base64url');
+
+/** A phone subscriber that keeps its private key, so the test can open what the push service would deliver. */
+function phone() {
+  const ecdh = createECDH('prime256v1');
+  ecdh.generateKeys();
+  const auth = randomBytes(16);
+  return { ecdh, auth, subscription: { endpoint: 'https://push.example/phone', keys: { p256dh: ecdh.getPublicKey().toString('base64url'), auth: auth.toString('base64url') } } };
+}
+
+/** Decrypt a pushed body as the phone's browser does (RFC 8291 aes128gcm) and return the wake-up bytes. */
+function openPush(body, { ecdh, auth }) {
+  const salt = body.subarray(0, 16);
+  const senderPublic = body.subarray(21, 21 + body[20]);
+  const record = body.subarray(21 + body[20]);
+  const keyInfo = Buffer.concat([Buffer.from('WebPush: info\0'), ecdh.getPublicKey(), senderPublic]);
+  const ikm = Buffer.from(hkdfSync('sha256', ecdh.computeSecret(senderPublic), auth, keyInfo, 32));
+  const decipher = createDecipheriv('aes-128-gcm', Buffer.from(hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16)), Buffer.from(hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: nonce\0'), 12)));
+  decipher.setAuthTag(record.subarray(record.length - 16));
+  const plain = Buffer.concat([decipher.update(record.subarray(0, record.length - 16)), decipher.final()]);
+  return plain.subarray(0, plain.length - 1);
+}
+
+test('relay.io-push-subscriptions.wake-route-sealed-only: clause 1: with relay.push on, the board machine posts kind and sealed to the board push/wake route and the paired phone is pushed only the kind byte and the sealed blob [C7,H5]', async t => {
+  const { call, calls } = await relay(t, true);
+  const owner = phone();
+  await call('POST', `/api/v1/devices/${DEVICE}`, {});
+  assert.equal((await call('POST', '/api/v1/push/subscribe', { device: DEVICE, subscription: owner.subscription, kinds: ['alerts'] })).status, 200);
+  const woke = await call('POST', `/api/v1/boards/${BOARD}/push/wake`, { kind: 'alerts', sealed: SEALED });
+  assert.deepEqual([woke.status, woke.body.woke], [200, 1]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://push.example/phone');
+  assert.deepEqual(openPush(calls[0].init.body, owner), Buffer.concat([Buffer.from([1]), Buffer.from(SEALED, 'base64url')]), 'the pushed bytes are the kind byte then the sealed blob, nothing else');
+});
+
+test('relay.io-push-subscriptions.wake-route-refuses-plaintext: clause 2: a wake body with any field beyond kind and sealed is refused and nothing is pushed; with relay.push off nothing is pushed [C7,H5]', async t => {
+  const on = await relay(t, true);
+  await on.call('POST', `/api/v1/devices/${DEVICE}`, {});
+  await on.call('POST', '/api/v1/push/subscribe', { device: DEVICE, subscription: subscription(), kinds: ['alerts'] });
+  const extra = await on.call('POST', `/api/v1/boards/${BOARD}/push/wake`, { kind: 'alerts', sealed: SEALED, text: 'plain alert text' });
+  assert.equal(extra.body.error.code, 'BAD_WAKE');
+  assert.equal(extra.status >= 400, true);
+  assert.equal((await on.call('POST', `/api/v1/boards/${BOARD}/push/wake`, { kind: 'alerts', sealed: 'not base64url!' })).status >= 400, true);
+  assert.equal(on.calls.length, 0);
+  const off = await relay(t, false);
+  const quiet = await off.call('POST', `/api/v1/boards/${BOARD}/push/wake`, { kind: 'alerts', sealed: SEALED });
+  assert.deepEqual([quiet.status, quiet.body.woke], [200, 0]);
+  assert.equal(off.calls.length, 0);
 });

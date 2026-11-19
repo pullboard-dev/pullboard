@@ -38,6 +38,7 @@ import { Refused } from '../../../../packages/kernel/light.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -50,6 +51,7 @@ const RULES = defaults().commits;
 
 test('cli.journeys-hooks-main.a-hook-nudges-and-never-blocks: a hook nudges and never blocks, fails open on error or timeout, and init merges with the user\'s hooks [I6]', async () => {
   const box = e2e.project('true');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const result = await runCliInProcess(['hook', 'SessionStart'], {
     cwd: box.web, env: box.env, input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: box.web }),
   });

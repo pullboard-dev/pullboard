@@ -53,6 +53,7 @@ import { ensureSpecApprovalCoordinator } from '../../../../packages/spec/index.j
 import { initialSpecApprovalBaseline } from '../../../../packages/spec/index.js';
 import { refuseClaimProvesNothing } from '../../../../packages/verify/index.js';
 import { refuseClaimMissingPaths } from './item/bar.js';
+import { refuseClaimCrossOwnership } from './item/bar.js';
 import { firstRefusalArgs } from '../../../../packages/items/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
@@ -270,7 +271,7 @@ function dropsLegacyPolicyPin(board, id, agentId) {
   return !(item.item_status === 'claimed' && item.item_owner === agentId && store.isHeld(board, item));
 }
 
-/** Order a claim on every route (claim, next, run) only after a check green on main is not held and the bar's paths exist [V4,C7]. */
+/** Order a claim on every route (claim, next, run) only after a check green on main is not held, the bar's paths exist and its files are its lane's [V4,C7]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   await refuseClaimMissingPaths(ctx, board, args[0]);
@@ -281,6 +282,8 @@ export async function claimOrdered(ctx, board, args) {
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
+  // One ownership answer for every seat and route: main's lanes, judged by the files the item changes [C7,#11857].
+  refuseClaimCrossOwnership(ctx, board, args[0], args[1].agentId, accepted);
   const perSeat = seatCapOf(accepted);
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);

@@ -1,13 +1,6 @@
 import { clauseReceipts } from '../../../../../packages/state/index.js';
-import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
-import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
-import { machineVerification } from '../../../../../packages/verify/index.js';
-import { testHashRulings } from '../../../../../packages/verify/index.js';
-import { testAuthors } from '../../../../../packages/verify/index.js';
-import { barTestFiles } from '../../../../../packages/verify/index.js';
-import { landedOnMain } from '../../../../../packages/roadmap/index.js';
-import { itemProgress } from '../../../../../packages/roadmap/index.js';
-import { progressLine } from '../../../../../packages/roadmap/index.js';
+import { itemProgress } from '../../../../../packages/roadmap/light.js';
+import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
@@ -26,14 +19,11 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { derivedStateEnabled } from '../../../../../packages/config/index.js';
-import { verdictTrunk } from '../../../../../packages/verify/index.js';
 import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
-import { reviewEligibility } from '../../../../../packages/verify/index.js';
-import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
@@ -47,10 +37,6 @@ import {
 import {
   displayAgentName,
 } from '../../../../../packages/seats/browser.js';
-import {
-  barCorrectionLine,
-  barCorrections,
-} from '../../../../../packages/verify/index.js';
 import * as store from '../../../../../packages/store/light.js';
 import {
   agentApprovalLine,
@@ -63,6 +49,8 @@ import {
   mainMergeLines,
 } from '../../../../../packages/merge/light.js';
 import {
+  showReads,
+  showReviewPacket,
   staleVerdictRefusal,
   verdictProjector,
 } from '../../../../../packages/verify/read.js';
@@ -126,7 +114,7 @@ function newestRunGateJob(db, id, receipts, runs) {
  * Why lazy: the health cell loads only with health.derivedState on, so the cold path of show loads nothing more with it off.
  * An item with no row answers undefined, and the projector computes its freshness as before.
  */
-async function derivedVerdictTable(root, board) {
+async function derivedVerdictTable(root, board, verdictTrunk) {
   let main;
   try { main = verdictTrunk(root, { trunkRef }); } catch { return null; }
   const { readDerivedState } = await import('../../../../../packages/health/index.js');
@@ -140,10 +128,12 @@ export async function run(io, { first, values }) {
   const id = idArg(first);
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
+  // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
+  const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
   const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
-    const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board) : null;
+    const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
     const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), ...(table ? { derived: table.derived } : {}) }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
@@ -163,7 +153,9 @@ export async function run(io, { first, values }) {
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
     const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
     const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
-    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain: landedOnMain(ctx.info.root, ctx.config) }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
+    // The landed-from-main reader lives in the roadmap barrel, which loads only with landing.landedFromMain on, so a cold show reaches the barrel only when it calls it [C7,#11918].
+    const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
+    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names

@@ -11,12 +11,6 @@
  * - every other finding is reported with its count and never fails. Promoting a migrated test into
  *   the list makes it enforced from then on, so the reported count can only fall.
  */
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,25 +23,30 @@ import { VIEW_TEST_ROLES } from '../../../../view/index.js';
 import { lex } from '../../../../../packages/gate/index.js';
 import { report } from '../../../../../packages/gate/index.js';
 import { walk } from '../../../../../packages/gate/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The repo-relative file that declares the enforced roots. */
 export const ENFORCED_FILE = 'apps/view/data/tests/pure-roots.json';
 /** View test files that count as roots: the view cell's tests and the CLI journeys the cockpit tests moved to [V32]. */
 const VIEW_TEST_FILES = /^(?:apps\/view\/tests|apps\/cli\/journeys)\/.+\.test\.js$/u;
+/** The old-to-new rows of the renderer modules the freeze moved; this check owns them, not the restructure plan. */
+const RENDERER_MOVES = fileURLToPath(new URL('renderer-moves.json', import.meta.url));
 const RENDERER_MODULES = /^src\/view\/(?!page-)(?:.*-(?:model|render)|activity-words|needs-panel|needs-list|roadmap-summary|roadmap-block|home|row-component|pipeline|lifecycle-chart|held-items|record-row|items-selection|segmented-control|lifecycle-diagram)\.js$/u;
 
 /**
- * The checked tree's path map, old path to new, read from every shard; an unreadable shard is skipped.
+ * The checked tree's path map, old path to new: its own path-map.json and the renderer moves this check keeps as
+ * data beside it; an unreadable file is skipped.
  *
  * @param {string} root - repository root of the tree being checked
  * @returns {Map<string, string>}
  */
 function pathMap(root) {
-  const map = new Map(), shards = resolve(root, 'packages/codemap/data/plan/path-map');
-  const names = existsSync(shards) ? readdirSync(shards).filter(name => name.endsWith('.json')).map(name => join(shards, name)) : [];
-  for (const file of [resolve(root, 'path-map.json'), ...names]) {
+  const map = new Map();
+  for (const file of [resolve(root, 'path-map.json'), RENDERER_MOVES]) {
     let data;
-    try { data = JSON.parse(readFileSync(file, 'utf8')); } catch { continue; }
+    try { data = JSON.parse(fs.readFile(file, 'utf8')); } catch { continue; }
     if (data && typeof data === 'object' && !Array.isArray(data)) for (const [from, to] of Object.entries(data)) if (typeof to === 'string') map.set(from, to);
   }
   return map;
@@ -70,7 +69,7 @@ function rendererModules(root) {
   const map = pathMap(root), found = new Set(walk(root, RENDERER_MODULES));
   for (const from of map.keys()) if (RENDERER_MODULES.test(from)) {
     const module = movedPath(map, from);
-    try { if (lstatSync(resolve(root, module)).isFile()) found.add(module); } catch { /* A moved-away renderer is not one. */ }
+    try { if (fs.lstat(resolve(root, module)).isFile()) found.add(module); } catch { /* A moved-away renderer is not one. */ }
   }
   return [...found].sort();
 }
@@ -89,7 +88,7 @@ function movedCoverage(root, coverage) {
   return coverage.map(row => {
     const module = movedPath(map, row.module);
     let moved = false;
-    try { moved = module !== row.module && lstatSync(resolve(root, module)).isFile(); } catch { moved = false; }
+    try { moved = module !== row.module && fs.lstat(resolve(root, module)).isFile(); } catch { moved = false; }
     return moved ? { ...row, module } : row;
   });
 }
@@ -102,13 +101,13 @@ function movedCoverage(root, coverage) {
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function viewPureReport(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_RENDERER_COVERAGE } = {}) {
-  const canonical = realpathSync(root);
+  const canonical = fs.realpath(root);
   coverage = movedCoverage(root, coverage);
   /** Refuse a symlink or outside file rather than reading an unrelated file as a dependency. */
   const readSource = file => {
-    const absolute = resolve(canonical, file), actual = realpathSync(absolute);
-    if (!actual.startsWith(canonical + sep) || !lstatSync(absolute).isFile()) throw new Error('source is outside the root or is not a regular file');
-    return readFileSync(absolute, 'utf8');
+    const absolute = resolve(canonical, file), actual = fs.realpath(absolute);
+    if (!actual.startsWith(canonical + sep) || !fs.lstat(absolute).isFile()) throw new Error('source is outside the root or is not a regular file');
+    return fs.readFile(absolute, 'utf8');
   };
   const roots = walk(root, VIEW_TEST_FILES);
   const sources = new Map(), edges = new Map(), unknown = new Map();
@@ -164,7 +163,7 @@ export function viewPureReport(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_
 export function enforcedRoots(root) {
   const problem = text => ({ roots: [], problems: [{ path: ENFORCED_FILE, line: 1, text }] });
   let parsed;
-  try { parsed = JSON.parse(readFileSync(resolve(root, ENFORCED_FILE), 'utf8')); }
+  try { parsed = JSON.parse(fs.readFile(resolve(root, ENFORCED_FILE), 'utf8')); }
   catch (error) { return problem('enforced root list unreadable: ' + error.message); }
   const roots = parsed?.roots;
   if (!Array.isArray(roots) || !roots.length || roots.some(file => typeof file !== 'string')) return problem('enforced root list is empty or not an array of paths');
@@ -204,4 +203,4 @@ function main(argv) {
   report(failures);
 }
 
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main(process.argv.slice(2));
+if (process.argv[1] && fs.exists(process.argv[1]) && fs.realpath(process.argv[1]) === fs.realpath(fileURLToPath(import.meta.url))) main(process.argv.slice(2));

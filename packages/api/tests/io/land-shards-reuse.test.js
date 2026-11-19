@@ -1,7 +1,7 @@
 /** A land job's shards carry the items' own green gate rows first when the runner asks to reuse them; without the ask they carry today's list [C7,#9515]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { recordTestResults } from '../../../store/index.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';

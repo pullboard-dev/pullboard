@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import * as store from '../../../../store/index.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { undoQueued } from '../../../src/io/relay/undo.js';
 import { recordSchemaStamp } from '../../../../store/index.js';
 import { SCHEMA_DIGEST } from '../../../../store/index.js';
