@@ -1,5 +1,5 @@
 /** The read-only replay bench: structural history in, deterministic scheduling predictions out [R1,R2,A1]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { resolve } from 'node:path';
 import {
   context,
@@ -14,6 +14,8 @@ import {
 } from '../../../../../packages/stats/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 const MINUTE = 60_000;
 
@@ -45,7 +47,7 @@ function runTune(io, { values }) {
 
 /** Read explicit JSON data, never a script, with an actionable refusal for a malformed input. */
 function readJson(root, file, label) {
-  try { return JSON.parse(readFileSync(resolve(root, file), 'utf8')); }
+  try { return JSON.parse(fs.readFile(resolve(root, file), 'utf8')); }
   catch { throw new Refused('USAGE', `readable JSON is required for replay ${label}; correct the file and run pullboard flow replay again`); }
 }
 
