@@ -1,4 +1,5 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
@@ -165,7 +166,7 @@ function reportSubmitStage(ctx, name, start) {
 
 /** Write one phase's wall time to stderr when PULLBOARD_SUBMIT_MARKS is set, so a slow submit names the phase that spent it [C7]. */
 export function submitMark(phase, startMs) {
-  if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
+  if (environmentAdapter().get('PULLBOARD_SUBMIT_MARKS')) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
 }
 
 /**
@@ -569,7 +570,7 @@ export async function recordCheckTicks(io, itemId) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
  */
-function hostedSubmitRunner(env = process.env) {
+function hostedSubmitRunner(env = environmentAdapter().all()) {
   const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
   if (!host) return null;
   const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);

@@ -1,4 +1,5 @@
 /** The pullboard spec command, in its own module so an item adding another command never edits these lines. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { answerQuestion } from '../../../../../packages/spec/index.js';
 import { rowDrafts } from '../../../../../packages/store/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
@@ -350,7 +351,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       return requireSignedPerson(ctx, board, whoAmI(ctx, board), { verb: 'spec-answer', args: { row: second, answer: rest.join(' ').trim() } }, shownDecisionRows(ctx.info.root, ctx.config, [row.id], { loadDoctrine }));
     }) : null;
     if (completed !== null) return completed;
-    requirePersonChannel(io.personChannel, process.env, { command: personCommand(primaryCheckoutRoot(ctx.info) ?? ctx.info.root, ['spec', 'answer', second, rest.join(' ')]) });
+    requirePersonChannel(io.personChannel, environmentAdapter().all(), { command: personCommand(primaryCheckoutRoot(ctx.info) ?? ctx.info.root, ['spec', 'answer', second, rest.join(' ')]) });
     return withBoard(ctx, async (board) => {
       const me = whoAmI(ctx, board);
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person answers a pending question, from the main checkout or the view', 'ask the person to answer it in pullboard view, or in their own terminal at the main checkout');

@@ -1,4 +1,5 @@
 import { localDependencyIds } from '../../../../../packages/items/light.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { dependencyLabel } from '../../../../../packages/items/light.js';
 import { itemFileCollisions } from '../../../../../packages/items/light.js';
 import { allItemsNeedingRescope } from '../../../../../packages/store/index.js';
@@ -65,7 +66,7 @@ export async function run(io, { values }) {
   if (hasRelayState) await io.prepareProcessPorts?.();
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
   const unlinkedRelayStatus = hasRelayState ? null : (await import('../../../../../packages/link/index.js')).unlinkedRelayStatus;
-  const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
+  const environment = hasRelayState && environmentAdapter().has('PULLBOARD_RELAY_TOKEN')
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   const reclaim = await fallbackReclaim(ctx, 'status');
