@@ -11,6 +11,8 @@ import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { tailLines } from '../../logic/show/tail.js';
+import { fieldLines } from '../../logic/show/fields.js';
 import { reviewLines } from '../../logic/show/review.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
@@ -264,14 +266,7 @@ export async function run(io, { first, values }) {
   }
   if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
-  if (fields.length) {
-    io.say('fields:');
-    for (const field of fields) io.say(`  ${field.name} (${field.type}): ${field.value}`);
-  }
-  if (links.length) {
-    io.say('related links:');
-    for (const link of links) io.say(`  #${link.id} ${link.title}`);
-  }
+  for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
   for (const { item: other, shared } of related) {
@@ -299,10 +294,8 @@ export async function run(io, { first, values }) {
     const author = authors[path];
     io.say(`  test ${path}: author ${author ? `${agentName(author.seat)} [family ${author.family}]` : 'not recorded'}; reviewer family ${reviewerFamilies.join(', ') || 'none yet'}`);
   }
-  if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
-  if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);
-  if (infra) io.say(`infra note: ${infra.note} (files: ${infra.files.join(', ') || 'none'})`);
-  if (reviewer) io.say(`under review by ${agentName(reviewer)} until ${item.item_review_until}`);
+  const tail = tailLines(item, { builderName: agentName(item.item_built_by), reviewerName: reviewer ? agentName(reviewer) : null, infra });
+  for (const line of tail.before) io.say(line);
   // Earlier verdicts as one line each, so an item sent back several times stays short to read
   // (N30); --history prints every note in full.
   const verdictLine = (verdict) => `${verdict.verdict_decision} ${verdict.verdict_reason} by ${agentName(verdict.verdict_by)}${verdict.verdict_verifier_family ? ` [family ${verdict.verdict_verifier_family}]` : ''} at ${verdict.verdict_commit.slice(0, 12)}`;
@@ -316,10 +309,10 @@ export async function run(io, { first, values }) {
   for (const correction of barCorrections(thread)) io.say(barCorrectionLine(correction));
   for (const receipt of clauseReceipts(thread)) io.say(`fail-before, pass-after receipt, clause ${receipt.number}: ${receipt.text}`);
   for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
-  if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
+  if (tail.mergedAs) io.say(tail.mergedAs);
   for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
   if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
-  if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
+  if (tail.withdrawn) io.say(tail.withdrawn);
   io.say('thread:');
   for (const entry of thread) {
     if (entry.kind === 'proof-run') continue;

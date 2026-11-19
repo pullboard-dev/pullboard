@@ -209,7 +209,7 @@ export function refusalLine(kept) {
 
 /** The ordered operations whose first argument is an item number; a decision's answer names a shout instead. */
 const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBaseline', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify',
-  'merged', 'withdraw', 'refreeze', 'reopen', 'holdItem', 'releaseItemHold', 'appendFact', 'acceptCheck'];
+  'merged', 'withdraw', 'refreeze', 'reopen', 'holdItem', 'releaseItemHold', 'reserveItem', 'appendFact', 'acceptCheck'];
 
 /**
  * Where each ordered operation names an item, as paths into its arguments: `*` is every element of a list. Every

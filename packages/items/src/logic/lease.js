@@ -27,11 +27,12 @@ export function predictedFiles(item) {
  * @param {string} actor the claiming seat
  * @param {{ hubs: string[] }} lease the setting: hub files are shared by design and never leased
  * @param {string} now ISO time; a lapsed lease holds nothing
+ * @param {Set<string>} [quiet] files whose recent conflict rate is low (quietFiles); a leased quiet file is shared, never refused
  * @returns {void}
  */
-export function requireFileLease(db, item, actor, lease, now) {
+export function requireFileLease(db, item, actor, lease, now, quiet) {
   const hubs = new Set(lease.hubs);
-  const mine = predictedFiles(item).filter(file => !hubs.has(file));
+  const mine = predictedFiles(item).filter(file => !hubs.has(file) && !quiet?.has(file));
   if (!mine.length) return;
   for (const holder of db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_id<>? AND item_owner IS NOT NULL AND item_owner<>? AND item_lease_until>? ORDER BY item_id").all(item.item_id, actor, now)) {
     const leased = new Set([...predictedFiles(holder), ...itemFiles(holder)]);
