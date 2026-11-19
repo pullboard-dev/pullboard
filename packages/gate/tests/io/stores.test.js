@@ -254,6 +254,21 @@ test('gate.io-stores.every-store-owner-in-the: #6742 clause 1: every store owner
   assert.ok(registry.writeOwnerDebt.length <= 4, 'the debt list only shrinks');
 });
 
+test('gate.io-stores.adapter-write-counts-as-owner-write: #11968 clause 1: an owner whose only write is fs.rename or fs.write through the fs adapter passes the owner check, and an owner with only reads still fails it [CD2]', () => {
+  const reads = {
+    [OWNER]: 'export const move = (fs, a, b) => fs.rename(a, b);',
+    [OTHER]: 'export const save = (fs, file, text) => fs.write(file, text);',
+    'packages/gate/src/io/copier.js': 'export const dup = (fs, a, b) => fs.copyFile(a, b);',
+    'packages/gate/src/io/reader.js': 'export const load = (fs, file) => fs.read(file) + fs.readFile(file);',
+  };
+  const read = file => reads[file];
+  for (const owner of [OWNER, OTHER, 'packages/gate/src/io/copier.js']) {
+    assert.deepEqual(storeWriteProblems({ stores: { 'fresh.json': { kind: 'json', owner } } }, read), [], owner);
+  }
+  const problems = storeWriteProblems({ stores: { 'fresh.json': { kind: 'json', owner: 'packages/gate/src/io/reader.js' } } }, read);
+  assert.match(problems[0].text, /CD2_OWNER_NO_WRITE: fresh\.json is owned by packages\/gate\/src\/io\/reader\.js, which holds no write call/u);
+});
+
 test('gate.io-stores.a-new-store-whose-owner: #6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
   const reads = { [OWNER]: 'export const x = readFileSync(file);', [OTHER]: 'writeFileSync(file, text);' };
   const read = file => reads[file];
