@@ -667,6 +667,8 @@ test('cli.journeys-release-stale.live-heartbeat-claim-refused: clause 2: a lapse
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 10 * MINUTE, freeze: f.freeze });
   f.advance(131 * MINUTE);
   heartbeatSeat(f.board, f.builder);
+  // A move of its own on the item: a live seat still working, so the idle-release sweep (#3446) leaves the claim to this check.
+  store.appendFact(f.board, id, { agentId: f.builder, kind: 'note', text: 'Still working on the bar' });
   const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', 'Lapsed but the seat still beats', '--json');
   assert.equal(result.status, 1, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
   assert.equal(JSON.parse(result.stdout).error.code, 'NOT_YOURS');
