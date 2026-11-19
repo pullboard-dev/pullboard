@@ -2520,6 +2520,7 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->fs",
     "landing->jobs",
     "landing->kernel",
     "landing->pin",
