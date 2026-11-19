@@ -1,0 +1,30 @@
+{
+  "cli.logic-show-gate.red-line-prints-phase-command": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A red gate's show lines print the command the failing phase ran as one command line under GATE_RED, and print none for a phase that carries no command."
+    },
+    "why": "Without it, a builder cannot see that the proof ran a different command from the one the gate judged.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/gate.js",
+      "apps/cli/tests/logic/show/gate.test.js"
+    ]
+  },
+  "cli.io-submit-pull-phase-command.runner-records-command": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The pulled gate job script records the command a failing phase ran on that phase's receipt row."
+    },
+    "why": "Without it, the receipt names no command, so show and the refusal have nothing to print.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/submit/pull.js",
+      "apps/cli/tests/io/submit/pull-phase-command.test.js"
+    ]
+  }
+}
