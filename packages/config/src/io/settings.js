@@ -138,6 +138,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
+export function failFastShardsEnabled() {
+  return loadMachineSettings().gate?.failFastShards === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -1259,4 +1264,9 @@ export function reuseGateReceiptsEnabled() {
 /** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
 export function relaxRequiredFamilyEnabled() {
   return loadMachineSettings().review?.relaxRequiredFamily === true;
+}
+
+/** Whether line.tune is on (#1099): off by default; only an exact `true` lets the line controller tune its own knobs, until the replay bench proves it better. */
+export function lineTuneEnabled() {
+  return loadMachineSettings().line?.tune === true;
 }
