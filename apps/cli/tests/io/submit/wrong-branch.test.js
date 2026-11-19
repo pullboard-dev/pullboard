@@ -1,9 +1,12 @@
 /** A head carrying commits that name a withdrawn item is submittable for its replacement; a live item still refuses [V1,C7]. */
+// fixture-subject: addItem (the board is seeded with items whose status the guard reads)
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { refuseUnsubmittableStack } from '../../../src/io/submit.js';
+import * as store from '../../../../../packages/store/index.js';
+import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { fixtureBoard } from '../../fixtures/board.js';
 import {
   runFixtureGit,
@@ -11,9 +14,7 @@ import {
 } from '../../fixtures/child.js';
 import { temporaryRepository } from '../../fixtures/board/submit.js';
 
-const AT = '2026-11-18T00:00:00.000Z';
-
-/** A repository with main and one commit naming item 1, and a board holding item 1 in the given status and item 2. */
+/** A repository with main and one commit naming item 1, and a board holding item 1 (withdrawn when asked) and a replacement item. */
 function carried(t, status) {
   const root = temporaryRepository(t, 'pullboard-wrong-branch-');
   const trunk = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
@@ -22,11 +23,14 @@ function carried(t, status) {
   runFixtureSetupGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'test: carried [G1]', '-m', 'Pullboard-Item: #1'], { cwd: root });
   const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
   const board = fixtureBoard(t);
-  const insert = board.db.prepare(`INSERT INTO item (item_lane, item_title, item_criterion, item_status,
-    item_created_by, item_created_at, item_updated_at) VALUES (\x27web\x27, ?, \x27The guard holds.\x27, ?, \x27coordinator\x27, ?, ?)`);
-  insert.run('First item', status, AT, AT);
-  insert.run('Replacement item', 'open', AT, AT);
-  return { root, board, head, trunk: { ref: 'main', commit: trunk }, replacement: { item_id: 2 } };
+  const add = (title) => store.addItem(board, {
+    by: COORDINATOR, lane: 'web', title, criterion: 'The guard holds.',
+    check: 'true', specIds: ['C7'], brief: 'Files: web/guard.js\nTest: the guard holds.',
+  });
+  const first = add('First item');
+  const second = add('Replacement item');
+  if (status === 'withdrawn') store.withdraw(board, first, { agentId: COORDINATOR, reason: 'fixture replaced by a new item' });
+  return { root, board, head, trunk: { ref: 'main', commit: trunk }, replacement: { item_id: second } };
 }
 
 test('cli.io-submit-wrong-branch.withdrawn-item-carried: [C7] refuseWrongBranch passes a head whose new commits name only a withdrawn item', (t) => {
@@ -42,6 +46,6 @@ test('cli.io-submit-wrong-branch.live-item-refused: [C7] a head whose new commit
 test('cli.io-submit-wrong-branch.stack-path: [C7] refuseUnsubmittableStack hands its board to the wrong-branch check, so a withdrawn name passes and a live one refuses', (t) => {
   const withdrawn = carried(t, 'withdrawn');
   assert.doesNotThrow(() => refuseUnsubmittableStack(withdrawn.root, withdrawn.board, withdrawn.replacement, withdrawn.head, withdrawn.trunk));
-  const submitted = carried(t, 'claimed');
-  assert.throws(() => refuseUnsubmittableStack(submitted.root, submitted.board, submitted.replacement, submitted.head, submitted.trunk), (error) => error.code === 'WRONG_BRANCH');
+  const live = carried(t, 'open');
+  assert.throws(() => refuseUnsubmittableStack(live.root, live.board, live.replacement, live.head, live.trunk), (error) => error.code === 'WRONG_BRANCH');
 });
