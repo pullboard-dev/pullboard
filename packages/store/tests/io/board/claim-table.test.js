@@ -36,6 +36,24 @@ test('store.io-board-claim-table.seat-lane-unchanged: clause 2: a seat registere
   assert.equal(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id).item_status, 'open', 'nothing is written');
 });
 
+test('store.io-board-claim-table.lanes-off-claim-lane: clause 1: claimDecision on a laneMode off board, for a seat registered in web claiming a docs item with the claim lane option docs, is not refused WRONG_LANE [C7,#10902]', t => {
+  const { board, root, id } = setup(t);
+  const docs = cellItem(board, { lane: 'docs', title: 'Docs fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
+  const seat = cellSeat(board, { lane: 'web', path: root });
+  let code = null;
+  try { cellClaim(board, docs, seat, { root, lane: 'docs', laneOff: true }); } catch (error) { code = error.code ?? error.name; }
+  assert.notEqual(code, 'WRONG_LANE', 'the table reads the lane the claim runs from, as the writer does');
+  assert.equal(board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(docs).item_owner, seat.id, 'the claim is written');
+});
+
+test('store.io-board-claim-table.lanes-on-registered-lane: clause 2: the same claim on a laneMode on board is still refused WRONG_LANE [C7,#10902]', t => {
+  const { board, root } = setup(t);
+  const docs = cellItem(board, { lane: 'docs', title: 'Docs fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
+  const seat = cellSeat(board, { lane: 'web', path: root });
+  assert.throws(() => cellClaim(board, docs, seat, { root, lane: 'docs' }), { code: 'WRONG_LANE' });
+  assert.equal(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(docs).item_status, 'open', 'nothing is written');
+});
+
 const freeze = () => ({ text: '{}', digest: 'claim-table-fixture' });
 
 test('store.io-board-claim-table.unjoined-seat-refused-joined-allowed: clause 2: with moves.live.claim on, the claim refuses NOT_JOINED for a seat that never joined and writes nothing, and the same claim by a joined seat is written [C7]', t => {
