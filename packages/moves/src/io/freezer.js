@@ -30,6 +30,7 @@ import { barReadinessRequired } from '../../../verify/index.js';
 import { namedTestHashes } from '../../../verify/index.js';
 import { wording } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { liveCriterionSpec } from '../../../doctrine/index.js';
 import { admittedPace } from '../logic/pace.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
@@ -61,7 +62,7 @@ export function committedReader(root, commit) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function criterionFreezer({ root, isMain, config: checkoutConfig }, { captureVerifyPolicy = false, board, applyingDecisions = [], refuseEmpty = refuseEmptyBar() } = {}) {
-  const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
+  const cacheEligible = () => !foreignNodeOptions(environmentAdapter().get('NODE_OPTIONS'));
   let doctrine;
   // agentDoctrine falls back to this checkout's own doctrine only when no main facts were read.
   const reader = { info: { root, isMain }, get doctrine() { return doctrine ??= loadDoctrine(root, checkoutConfig); } };
