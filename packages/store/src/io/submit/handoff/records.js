@@ -138,7 +138,8 @@ export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
 
 /**
  * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard is
- * still open, or every shard is done but the combined result has not applied (no `note:shards.settled` step), and the
+ * still open, every shard is done but the combined result has not applied (no `note:shards.settled` step), or it settled
+ * unknown (red and review outcomes are settled), and the
  * gate job is younger than GATE_SETTLE_HOLD_MS. Why: the gate is the board's work, and the board applies its result only
  * while the submitting seat holds the item. #8249's claim was released while its 10 shards ran [#8342], and #10883's
  * while its 32 done shards waited for their result to apply, so that gate never applied [C7,#10931].
@@ -152,7 +153,9 @@ export function gateShardsUnsettled(board, item) {
       WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
     if (!shards.total) return false;
     if (shards.open > 0) return true;
-    return board.db.prepare("SELECT 1 FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' LIMIT 1").get(gate.job_id) === undefined;
+    const settled = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' ORDER BY job_step_id DESC LIMIT 1").get(gate.job_id);
+    // An unknown outcome (main's receipt missing) is not settled: the board applies it only while the seat still holds the claim [#11711].
+    return settled === undefined || /"outcome"\s*:\s*"unknown"/u.test(settled.payload);
   } catch { return false; } // an older board has no job tables, so it holds no shards
 }
 

@@ -57,6 +57,23 @@ test('commits.io-hooks.shard-read-small-commit: clause 2: a staged change under 
   assert.equal(seen.HEAD.plan, JSON.stringify({ cells: [{ file: SHARD }] }));
 });
 
+test('commits.io-hooks.no-plan-shard-allowance: clause 1: a lane commit that adds a row for its own new file to a cells plan shard outside its lane is refused like any other foreign edit, with no new-file placement allowance [C7]', (t) => {
+  const graph = fixtureCommittedGraph('pullboard-no-plan-allowance-'), root = graph.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const SHARD_PATH = 'packages/codemap/data/plan/01-x.json', shard = paths => JSON.stringify({ order: 1, name: 'x', root: 'packages/x', paths }) + '\n';
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }) + '\n');
+  graph.put(SHARD_PATH, shard([]));
+  graph.commit();
+  graph.put('web/new.js', 'export {};\n');
+  graph.put(SHARD_PATH, shard([['src/new.js', 'web/new.js', 'rule']]));
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  const problems = preCommitProblems({ root, isMain: false, agent: { agent_lane: 'web' },
+    config: { protect: { blocked: [], allowed: [], secrets: false }, laneMode: 'on', lanes: { web: { owns: ['web/'], specs: ['G1'] } } },
+    boardFile: join(root, 'board.sqlite'), approvedRowPorts: { checkLoosening: () => [] } });
+  assert.equal(problems.length, 1, problems.join('\n'));
+  assert.match(problems[0], /outside the web lane: packages\/codemap\/data\/plan\/01-x\.json/u);
+});
+
 const BRIEF = 'Slice.\nFiles:\n- packages/alpha/src/a.js\n- packages/alpha/tests/a.test.js\nCaller files: packages/beta/src/b.js:3.\n';
 
 /** A seat in lane web whose claimed item names two packages/alpha files; the staged change edits the given paths. */

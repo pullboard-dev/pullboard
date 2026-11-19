@@ -43,14 +43,14 @@ const ITEM = { item_id: 1, item_owner: 'a', item_criterion: '1. test/a.test.js p
 const inspect = outcomes => clauseInspectionProblem(ITEM, [], { greenFiles: new Set([FILE]), gateFiles: new Set([FILE]), outcomes });
 
 test('state.logic-clause-proof.clause-1-a-file-whose-cases-were-all-skipped: clause 1: a green run whose cases in the file were all skipped leaves the clause unproven even with the file in greenFiles [C7]', () => {
-  const problem = inspect([{ file: FILE, name: 'x', passed: false, skipped: true, runner: 'vanilla.local' }]);
+  const problem = inspect([{ file: FILE, name: 'x', passed: false, skipped: true, runner: 'pooled-runner-1' }]);
   assert.ok(problem);
   assert.equal(problem.code, 'CLAUSE_UNTICKED');
 });
 
 test('state.logic-clause-proof.clause-2-the-refusal-names-the-runner: clause 2: the refusal names the runner and the skipped case titles [C7]', () => {
-  const problem = inspect([{ file: FILE, name: 'pytest case one', skipped: true, runner: 'vanilla.local' }, { file: FILE, name: 'php case two', skipped: true, runner: 'vanilla.local' }]);
-  assert.match(problem.message, /vanilla\.local/u);
+  const problem = inspect([{ file: FILE, name: 'pytest case one', skipped: true, runner: 'pooled-runner-1' }, { file: FILE, name: 'php case two', skipped: true, runner: 'pooled-runner-1' }]);
+  assert.match(problem.message, /pooled-runner-1/u);
   assert.match(problem.message, /pytest case one; php case two/u);
 });
 
