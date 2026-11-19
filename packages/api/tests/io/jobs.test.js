@@ -286,3 +286,15 @@ test('api.io-jobs.fast-write-unchanged: clause 2: a renewJob and a postReceipt i
   postReceipt(db, { job: 'gate:bound', runner: 'mill', token: claim.token, receipt: { ok: true }, now: 30_000 });
   assert.equal(db.prepare("SELECT job_step AS step FROM job WHERE job_id = 'gate:bound'").get().step, 'done');
 });
+
+test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the claim action a runner holding one test job and offered shards plus tests is handed a shard [C7,#11146]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-shard-first-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  offerJob(db, { id: 'test:two', kind: 'test', now: 1002 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(5000), 'test:one', 'a runner holding no test job takes the oldest test job');
+  assert.equal(claim(5001), 'gate:9:shard:1', 'a runner holding a test job is handed the queued shard before the newer test job');
+  assert.equal(claim(5002), 'test:two');
+});
