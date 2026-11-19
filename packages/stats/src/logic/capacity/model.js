@@ -105,8 +105,10 @@ function graphFor(items) {
     const item = nodes.get(id);
     if (!item.held && !item.needsYou && predecessors.get(id).every(dep => schedulable.has(dep))) schedulable.add(id);
   }
-  const ready = [...schedulable].map(id => nodes.get(id)).filter(item => item.state !== 'accepted');
-  return { pending, nodes, predecessors, order, supply: ready.length, ready, unknown };
+  const supply = [...schedulable].filter(id => nodes.get(id).state !== 'accepted').length;
+  // Ready now means schedulable with no unfinished dependency, unlike supply, which also counts future unlocks.
+  const ready = [...schedulable].map(id => nodes.get(id)).filter(item => item.state !== 'accepted' && !predecessors.get(item.id).length);
+  return { pending, nodes, predecessors, order, supply, ready, unknown };
 }
 /** Greedy disjoint-file waves give an observed conservative width, not a maximum independent set. */
 function waveWidth(items) {
