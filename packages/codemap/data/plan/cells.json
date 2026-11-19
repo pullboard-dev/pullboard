@@ -2593,6 +2593,7 @@
     "store->kernel",
     "github->items",
     "link->kernel",
+    "link->env",
     "apps/relay->link",
     "apps/relay->kernel",
     "apps/relay->apps/lib",

@@ -8,6 +8,7 @@ export { relayStorageLine };
 import { agentSessionDigest } from '../../../../person/index.js';
 import { Refused } from '../../../../kernel/light.js';
 import { legacyPageRoute } from '../../../../pages/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Classify a durable transport limit without trusting arbitrary relay text as executable advice. */
 export function uploadPauseType(pause) {
@@ -43,7 +44,7 @@ export async function uploadRetryReady(state, pause, request) {
 
 /** Hash an existing session identity locally; never change it or persist a raw shell marker. */
 export function firstUploadPauseNotice(state) {
-  const session = agentSessionDigest() ?? snapshotSourceId(process.env.TERM_SESSION_ID || 'terminal-parent:' + process.ppid);
+  const session = agentSessionDigest() ?? snapshotSourceId(environmentAdapter().get('TERM_SESSION_ID') || 'terminal-parent:' + process.ppid);
   const cache = createRelayPageCache(state);
   try { return cache.firstNotice(session); } finally { cache.close(); }
 }

@@ -8,6 +8,7 @@
  * them only at run time, never while the modules load, so the cycle is safe.
  */
 import { createHash } from 'node:crypto';
+import { environmentAdapter } from '../../../../env/index.js';
 import * as store from '../../../../store/index.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { VERIFIER_STANDING_ENGINE } from '../../../../state/index.js';
@@ -124,7 +125,7 @@ export async function actorTransport(root, file, state, actor, io) {
     if (!state.token?.startsWith('pm_')) throw new Refused('HUMAN_REQUIRED', 'run pullboard relay on --all to authorize this board’s machine credential');
     return state;
   }
-  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : process.env.PULLBOARD_RELAY_TOKEN;
+  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : environmentAdapter().get('PULLBOARD_RELAY_TOKEN');
   if (supplied !== undefined) {
     if (!/^pa_[A-Za-z0-9_-]{43}$/.test(supplied)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token, without including it in command arguments');
     const transport = { ...state, token: supplied, agent: actor };
