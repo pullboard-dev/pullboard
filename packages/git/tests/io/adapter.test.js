@@ -21,6 +21,8 @@ import { gitExecFileSync } from '../../index.js';
 import { gitSpawn } from '../../index.js';
 import { gitSpawnSync } from '../../index.js';
 import { realGitAdapter } from '../../index.js';
+import { realGitPath } from '../../index.js';
+import { resolveGitPath } from '../../index.js';
 import { withGitContractAdapter as withGitAdapter } from '../../index.js';
 import { createMemoryGitAdapter } from '../../index.js';
 import {
@@ -364,6 +366,26 @@ test('git.adapter.no-launch-over-allowance: clause 1: no direct Git launch excee
   const report = gitLaunchReport(ROOT);
   assert.deepEqual(gitLaunchGrowth(report, baseline.files), [], 'a direct Git launch beyond the allowance must go through packages/git');
   assert.ok(Object.values(baseline.files).reduce((sum, count) => sum + count, 0) <= baseline.originalTotal, 'the allowance never rises above its original total');
+});
+
+test('git.adapter.real-path-resolution: clause 1: the real adapter spawns the first PATH git that is not the shim, else the xcrun answer, and the process resolves once [C7]', () => {
+  const present = new Set(['/usr/bin/git', '/opt/real/bin/git']);
+  const executable = file => present.has(file);
+  const never = () => assert.fail('xcrun is not asked when a PATH git exists');
+  assert.equal(resolveGitPath({ path: '/usr/bin:/opt/real/bin', executable, xcrun: never }), '/opt/real/bin/git', 'the shim is skipped');
+  assert.equal(resolveGitPath({ path: '/usr/bin', executable, xcrun: () => '/Library/Developer/CommandLineTools/usr/bin/git' }), '/Library/Developer/CommandLineTools/usr/bin/git', 'no PATH git but the shim asks xcrun');
+  const first = realGitPath();
+  assert.equal(realGitPath(), first, 'the resolved path is reused');
+  const real = withGitAdapter(realGitAdapter, () => gitSpawnSync(['--version'], { encoding: 'utf8' }));
+  assert.equal(real.status, 0);
+  assert.match(real.stdout, /^git version /u);
+});
+
+test('git.adapter.real-path-fallback: clause 2: a failed or empty resolution falls back to plain git [C7]', () => {
+  const none = () => false;
+  assert.equal(resolveGitPath({ path: '', executable: none, xcrun: () => '' }), 'git', 'an empty xcrun answer');
+  assert.equal(resolveGitPath({ path: '/usr/bin', executable: none, xcrun: () => { throw new Error('no xcrun'); } }), 'git', 'a failed xcrun');
+  assert.equal(resolveGitPath({ path: '/usr/bin', executable: file => file === '/usr/bin/git', xcrun: () => '' }), 'git', 'only the shim exists');
 });
 
 /** A real one-commit repository for the read-fact cases, removed when the test ends. */
