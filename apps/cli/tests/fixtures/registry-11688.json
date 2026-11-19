@@ -1,0 +1,3 @@
+{
+  "cli.io-cells-cache-door.no-plan-rows": {"proves":{"specs":["C7"],"claim":"The cache, the static view and the event table name no plan path, and the event table renders the same from a tree with no plan folder."},"why":"Without it, a regression where the cache, the static view and the event table name no plan path, and the event table renders the same from a tree with no plan folder would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/cells-cache-door.test.js"]}
+}
