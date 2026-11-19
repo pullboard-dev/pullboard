@@ -60,9 +60,9 @@ export async function withReviewLease(boardFile, itemId, work, options = {}) {
     const lease = readLease(file);
     // A file still being written has no content yet: look again shortly.
     if (lease && lease.taken && (lease.expires <= now() || lease.holder === holder)) dropLease(file);
-    else if (lease && lease.taken) throw new Refused('REVIEW_HELD', `another seat just reserved the review of #${itemId}`);
+    else if (lease && lease.taken) throw new Refused('REVIEW_HELD', `${lease.holder ?? 'another seat'} holds the review of #${itemId}; it was just reserved`);
     else if (lease && (lease.expires <= now() || !alive(lease.pid))) dropLease(file);
-    else if (now() >= deadline) throw new Refused('REVIEW_HELD', `another seat is still reserving the review of #${itemId}`);
+    else if (now() >= deadline) throw new Refused('REVIEW_HELD', `${lease.holder ?? 'another seat'} holds the review of #${itemId}; it is still being reserved`);
     else await sleep(pollMs);
   }
   if (!created) throw new Refused('REVIEW_HELD', `another seat is still reserving the review of #${itemId}`);
