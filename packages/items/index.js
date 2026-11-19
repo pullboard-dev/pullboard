@@ -45,7 +45,7 @@ export { readResumeSources } from './src/io/sources.js';
 export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/logic/resume.js';
 export { requireSubmitComposition, composeAfterProof, trunkMoveFact } from './src/logic/submit/composition.js';
 export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitInvariantLine, validateLandingBatch, preserveInvariantEvidence, validateLandingRevision } from './src/logic/submit/invariants.js';
-export { fetchMissingCommits, hasCellsPlan, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';
+export { fetchMissingCommits, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';
 export { ITEM_SIZE_BUDGET, changedLines, oversizeNote } from './src/logic/submit/size.js';
 export { waitForSubmissionVerdict } from './src/io/submit/wait.js';
 export { EFFORT, milestoneRanks, workOrderActive, milestoneOverrides, unblockCounts, computedOrder, workOrderCompare, queueReasons } from './src/logic/order/work.js';

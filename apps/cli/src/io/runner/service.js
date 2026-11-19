@@ -6,7 +6,7 @@
  * Usage: node service.js <board-url> <key-file> <cache-directory> [<hint>]
  * The hint is what install-serve says to log when the board stays unreachable: the likely macOS block and its fix.
  */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,15 +34,20 @@ async function codePort(cache) {
 
 /**
  * Serve until stopped and return the exit code: 0 when serveRunner asked for a restart onto new runner code (the service
- * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal.
+ * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal, and 1 before serving when PULLBOARD_RUNNER_JOBS is unset.
  */
-export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal } = {}) {
+export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal, env = process.env } = {}) {
   const [board, keyFile, cache, hint] = argv;
   const say = line => out(`${new Date().toISOString()} ${line}\n`);
+  // The installed service takes its slot count from install-serve, so a start without it would fall to a cores-based default and starve gates [P7].
+  if (env.PULLBOARD_RUNNER_JOBS === undefined || env.PULLBOARD_RUNNER_JOBS === '') {
+    say('stopped: PULLBOARD_RUNNER_JOBS is not set; run pullboard runner install-serve <host> --board <url> again, which writes it');
+    return 1;
+  }
   try {
     say(`runner serve pulling from ${board}`);
     const runnerCode = await port(cache);
-    const served = await serve({ board, key: readFileSync(keyFile, 'utf8').trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
+    const served = await serve({ board, key: fileSystemAdapter().readFile(keyFile).trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
