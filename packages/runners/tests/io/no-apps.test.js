@@ -1,6 +1,6 @@
-/** @pullboard-test-input packages/runners/src/io/dispatch.js packages/runners/src/io/pull/delegate.js packages/gate/data/ceilings/cells-edges.json */
+/** @pullboard-test-input packages/runners/src/io/dispatch.js packages/runners/src/io/pull/delegate.js packages/gate/data/ceilings/cells-edges.json packages/runners/tests/fixtures/advance.js packages/runners/tests/fixtures/fleet.js */
 /** @pullboard-world-pin: clause 1 reads the dispatch and pull delegate sources and the committed ceiling to prove no apps/ path remains. */
-/** Runner dispatch and the pull delegate name no apps/ path, so their package-to-app ceiling rows are gone [C7]. */
+/** Runner dispatch, the pull delegate and the advance and fleet fixtures name no apps/ path, so their package-to-app ceiling rows are gone [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -10,6 +10,14 @@ const FILES = ['packages/runners/src/io/dispatch.js', 'packages/runners/src/io/p
 test('runners.no-apps.dispatch-js-and-pull-delegate-js: clause 1: dispatch.js and pull/delegate.js name no apps/ path and the ceiling holds no row for them [C7]', () => {
   const ceilings = JSON.parse(readFileSync(new URL('../../../gate/data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   for (const file of FILES) {
+    assert.doesNotMatch(readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'), /apps\//u, file);
+    assert.equal(ceilings.packageApps[file], undefined, file);
+  }
+});
+
+test('runners.no-apps.advance-and-fleet-fixtures-name-no-app: clause 1: advance.js and fleet.js fixtures name no apps/ path and the ceiling holds no row for them [C7]', () => {
+  const ceilings = JSON.parse(readFileSync(new URL('../../../gate/data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
+  for (const file of ['packages/runners/tests/fixtures/advance.js', 'packages/runners/tests/fixtures/fleet.js']) {
     assert.doesNotMatch(readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'), /apps\//u, file);
     assert.equal(ceilings.packageApps[file], undefined, file);
   }

@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { loadConfig } from '../../../config/index.js';
 import { repoInfo } from '../../../git/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
@@ -31,9 +30,10 @@ export function counted(t, seam, after = {}) {
 /**
  * A real repo and board with an actor seat and a peer builder in the same lane, each in a folder of its own, and the
  * plain take services nextTake runs with: board work on the open board, the current seat as this seat, and claims
- * through the claim move. `box.as(name)` makes another seat the one that runs next.
+ * through the claim move.
+ * The calling test passes the board opener, taken from the board fixture. `box.as(name)` makes another seat the one that runs next.
  */
-export function fixture(t) {
+export function fixture(t, cellBoard) {
   const project = cellProject(t, { real: true });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
