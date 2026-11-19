@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../packages/store/tests/fixtures/cell.js';
