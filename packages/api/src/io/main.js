@@ -486,7 +486,6 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   };
 }
 
-const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** The sibling-cell functions an item detail reads, given to its reader on each thread. */
 const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled, hunkFreshnessEnabled };
 /** Add the request-specific unread count without mutating the reusable snapshot. */
