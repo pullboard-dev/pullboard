@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/roadmap",
  "frontDoor": "packages/roadmap/index.js",
+ "lightFrontDoor": "packages/roadmap/light.js",
  "paths": [
   ["src/focus-milestone.js","packages/roadmap/src/logic/milestone.js","seed"],
   ["src/milestones.js","packages/roadmap/src/logic/milestones.js","seed"],
