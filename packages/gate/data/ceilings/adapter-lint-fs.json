@@ -109,7 +109,6 @@
     "packages/api/src/io/gate.js": 2,
     "packages/api/src/io/http.js": 1,
     "packages/api/src/io/landing.js": 2,
-    "packages/api/src/io/main.js": 1,
     "packages/api/src/io/state/materializer/worker.js": 2,
     "packages/board/src/io/seal.js": 1,
     "packages/codemap/src/io/cell/parser.js": 10,
