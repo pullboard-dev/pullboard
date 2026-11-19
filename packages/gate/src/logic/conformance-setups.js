@@ -40,3 +40,33 @@ export function setupAvailability(which) {
     return { language, status: missing === null ? 'available' : 'unavailable', toolchain: missing };
   });
 }
+
+/** The pipeline stages a conformance run can reach, in order. */
+export const CONFORMANCE_STAGES = Object.freeze(['claim', 'submit', 'gate', 'review', 'accept', 'land']);
+
+/**
+ * One row per setup and pipeline stage: the outcome and run id of the latest recorded run that reached that stage.
+ * Why: the compatibility page shows one cell per language and stage; a missing toolchain is unavailable at every stage, never red, and a setup nothing has run is unknown.
+ * A run is { id, language, at, stages: { [stage]: outcome } }; it reached a stage when that stage is a key of stages, and the latest run has the greatest at (the later one in the list on a tie).
+ *
+ * @param {{ language: string, toolchains: string[] }[]} setups the conformanceSetups() rows
+ * @param {{ id: string, language: string, at: string, stages: Record<string, string> }[]} runs the recorded runs
+ * @param {(name: string) => boolean} which true when the named tool is on the path
+ * @returns {{ language: string, stage: string, outcome: string, run: string | null }[]}
+ */
+export function conformanceResults(setups, runs, which) {
+  const rows = [];
+  for (const { language, toolchains } of setups) {
+    const present = toolchains.every(name => which(name));
+    for (const stage of CONFORMANCE_STAGES) {
+      if (!present) { rows.push({ language, stage, outcome: 'unavailable', run: null }); continue; }
+      let latest = null;
+      for (const run of runs) {
+        if (run.language !== language || !Object.hasOwn(run.stages ?? {}, stage)) continue;
+        if (latest === null || run.at >= latest.at) latest = run;
+      }
+      rows.push(latest === null ? { language, stage, outcome: 'unknown', run: null } : { language, stage, outcome: latest.stages[stage], run: latest.id });
+    }
+  }
+  return rows;
+}

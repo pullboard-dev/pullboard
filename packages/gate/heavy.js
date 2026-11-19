@@ -13,7 +13,9 @@ import { STATIC_CHECKS } from './src/io/static/check/registry.js';
 import { runStaticRegistry } from './src/io/static/check/registry.js';
 import { acceptRelease } from './src/io/release/accept.js';
 import { runAccept } from './src/io/release/accept.js';
+import { conformanceResults } from './src/logic/conformance-setups.js';
 
 export { gateCheckoutPool, exactGateCheckout, discardGateCheckout, borrowGateCheckout, returnGateCheckout, trimGateCheckouts, GATE_CHECKOUT_IDLE_MS };
 export { acceptRelease, runAccept };
 export { changedStaticFailures, stagedHookFailures, STATIC_CHECKS, runStaticRegistry, CEILING_ROW_TABLES };
+export { conformanceResults };
