@@ -3,6 +3,7 @@ import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
+import { adviceThroughNextEnabled } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { nextRouteByTier } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
@@ -387,6 +388,11 @@ async function nextWithProgress(io, values, progress) {
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         for (const line of notices) io.say(`  ${line}`);
+        // health.adviceThroughNext (off by default): this seat's open health advice follows the notices; the module loads only when the setting is on [C7,#2330].
+        if (!review && adviceThroughNextEnabled()) {
+          const { healthAdviceLines } = await import('../next/health.js');
+          for (const line of withBoardRead(ctx, board => healthAdviceLines(board, whoAmI(ctx, board).id))) io.say(`  ${line}`);
+        }
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
         for (const next of more) {
