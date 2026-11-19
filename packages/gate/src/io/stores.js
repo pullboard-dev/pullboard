@@ -234,8 +234,8 @@ export function storeOwnerProblems(registry) {
     : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
 }
 
-/** A call that writes a file or a table: what an owner module must hold for the store it owns. */
-const WRITE_CALL = /writeFileSync|appendFileSync|renameSync|writeFile\(|appendFile\(|createWriteStream|writeSync|DatabaseSync|INSERT|UPDATE |DELETE FROM|atomicWrite|writeJson|writeAtomic/u;
+/** A call that writes a file or a table: what an owner module must hold for the store it owns. The fs adapter names its writes rename, write and copyFile (#11968). */
+const WRITE_CALL = /writeFileSync|appendFileSync|renameSync|writeFile\(|appendFile\(|createWriteStream|writeSync|DatabaseSync|INSERT|UPDATE |DELETE FROM|atomicWrite|writeJson|writeAtomic|\.rename\(|\.write\(|\.copyFile\(/u;
 
 /**
  * Owners that write nothing: a store's owner module must hold a write call to it, unless the row is `kind: "repo-data"`
