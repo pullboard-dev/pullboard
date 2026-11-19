@@ -1,8 +1,6 @@
 /** Account for complete native landing TAP streams without buffering their whole log [B3,C7]. */
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Read positive TAP completion counts while rejecting the canonical runner's incomplete accounts. */
 function completionAccount(allowCancelled = false) {
@@ -48,14 +46,14 @@ export function completeGate(gate, { allowCancelled = false } = {}) {
     for (const line of gate.output.split('\n')) account.line(line);
     return account.complete();
   }
-  if (!gate.logPath || !existsSync(gate.logPath)) return false;
-  const input = openSync(gate.logPath, 'r');
+  if (!gate.logPath || !fs.exists(gate.logPath)) return false;
+  const input = fs.open(gate.logPath, 'r');
   const chunk = Buffer.alloc(64 * 1024);
   let pending = '';
   let oversized = false;
   try {
     let count;
-    while ((count = readSync(input, chunk, 0, chunk.length, null)) > 0) {
+    while ((count = fs.read(input, chunk, 0, chunk.length, null)) > 0) {
       const parts = chunk.toString('latin1', 0, count).split('\n');
       for (const [index, part] of parts.entries()) {
         if (index) {
@@ -70,5 +68,5 @@ export function completeGate(gate, { allowCancelled = false } = {}) {
     if (oversized) account.markerPrefix(pending);
     else account.line(pending);
     return account.complete();
-  } finally { closeSync(input); }
+  } finally { fs.close(input); }
 }

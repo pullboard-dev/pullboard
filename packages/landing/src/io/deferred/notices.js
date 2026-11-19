@@ -1,14 +1,10 @@
 /** A main-moved notice that failed is kept in a repository log and replayed at the start of the next landing wake [C7]. */
-import { appendFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { publishStateFile } from '../pause.js';
 import { refreshLandedCodeMap } from '../../logic/main/notices.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /**
  * The repository's log of notices still to deliver, shared by every worktree.
@@ -30,9 +26,9 @@ export function deferredNoticesFile(root) {
  */
 export function appendDeferredNotice(root, entry, at = new Date().toISOString()) {
   const file = deferredNoticesFile(root);
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const line = { kind: entry.kind, main: entry.main, at };
-  appendFileSync(file, JSON.stringify(line) + '\n');
+  fs.appendFile(file, JSON.stringify(line) + '\n');
   return line;
 }
 
@@ -44,7 +40,7 @@ export function appendDeferredNotice(root, entry, at = new Date().toISOString())
  */
 export function readDeferredNotices(root) {
   let text;
-  try { text = readFileSync(deferredNoticesFile(root), 'utf8'); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  try { text = fs.readFile(deferredNoticesFile(root), 'utf8'); } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   const entries = [];
   for (const line of text.split('\n')) {
     try {
@@ -76,11 +72,11 @@ export async function replayDeferredNotices({ root, say }, warn) {
     }
   }
   const file = deferredNoticesFile(root);
-  if (!kept.length) rmSync(file, { force: true });
+  if (!kept.length) fs.rm(file, { force: true });
   else {
     const draft = `${file}.tmp`;
-    writeFileSync(draft, kept.map(entry => JSON.stringify(entry) + '\n').join(''));
-    renameSync(draft, file);
+    fs.writeFile(draft, kept.map(entry => JSON.stringify(entry) + '\n').join(''));
+    fs.rename(draft, file);
   }
   return { replayed: pending.length - kept.length, kept: kept.length };
 }

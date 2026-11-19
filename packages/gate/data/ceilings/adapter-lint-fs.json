@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1424,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -327,12 +327,6 @@
     "packages/jobs/src/io/launch.js": 7,
     "packages/keys/src/io/relay.js": 1,
     "packages/keys/src/io/relay/client.js": 1,
-    "packages/landing/src/io/completion.js": 4,
-    "packages/landing/src/io/computed/conflict/receipt.js": 1,
-    "packages/landing/src/io/computed/conflict/return.js": 1,
-    "packages/landing/src/io/deferred/notices.js": 6,
-    "packages/landing/src/io/derive.js": 4,
-    "packages/landing/src/io/docs.js": 3,
     "packages/landing/src/io/doctrine.js": 1,
     "packages/landing/src/io/fixups.js": 4,
     "packages/landing/src/io/land/envelope.js": 1,
