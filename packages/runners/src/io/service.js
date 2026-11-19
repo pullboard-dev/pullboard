@@ -28,7 +28,7 @@ import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
-import { runRunnerScript } from './pull/ssh.js';
+import { createSshAdapter } from './adapter/ssh.js';
 import { trunkGit } from './tooling/committed.js';
 import { pullWord } from './pull/scripts.js';
 import { localNetworkHost } from '../logic/service.js';
@@ -424,7 +424,7 @@ export async function installRunnerService(runner, { board, key, remove = false,
     Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles() });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
-  const run = await runRunnerScript(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
+  const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
   const line = run.stdout.toString('utf8').trim().split('\n').at(-1) ?? '';
   let reply = null;
   try { reply = JSON.parse(line); } catch { reply = null; }
