@@ -20,8 +20,9 @@ import { pathToFileURL } from 'node:url';
 import { parseProcessCensus } from '../../../../packages/kernel/light.js';
 import { childJournalPreloadSource } from '../../../../packages/gate/light.js';
 import { exactStart } from '../../../../packages/gate/light.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 
-const safePath = [dirname(process.execPath), process.env.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
+const safePath = [dirname(process.execPath), environmentAdapter().get('PATH') || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
 
 /** Read one all-process POSIX census; a failed or malformed census is never interpreted as an empty machine. */
 export function processCensus({ includeCommand = false } = {}) {

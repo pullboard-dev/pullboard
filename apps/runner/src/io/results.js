@@ -9,6 +9,7 @@ import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 
 const GIB = 1024 ** 3;
 export const RESULTS_MAX_AGE_MS = 6 * 60 * 60_000;
@@ -81,7 +82,7 @@ export function pruneTestResults(root, { capBytes = RESULTS_CAP_BYTES, maxAgeMs 
  * @param {{ env?: NodeJS.ProcessEnv, held?: Set<string>, now?: number }} [options]
  * @returns {{ removed: number, bytes: number } | null} null when throttled, lost the claim, or on failure
  */
-export function maintainTestResults(root, { env = process.env, held = new Set(), now = Date.now() } = {}) {
+export function maintainTestResults(root, { env = environmentAdapter().all(), held = new Set(), now = Date.now() } = {}) {
   try {
     const store = join(root, 'test-results');
     const marker = join(store, MARKER);

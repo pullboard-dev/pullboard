@@ -1,5 +1,6 @@
 /** The runner job runs the real hand-off stages from its ticket, with every stage line in the runner's own log [C7]. */
 import { appendFileSync } from 'node:fs';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { readFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -59,7 +60,7 @@ async function cells(root, input, log, services) {
   const result = await requireSubmitCells(root, input.main, input.commit,
     { item_frozen: JSON.stringify({ criterion: input.criterion ?? '' }), item_title: input.title ?? '' }, {
       withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
-      withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
+      withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(environmentAdapter().get('NODE_OPTIONS')),
       collectMachinery: true, readCutItems: () => input.cutRows ?? [],
       onInventory: (mode, cause) => log(`  submit cells inventory: ${mode}${cause ? `: ${cause}` : ''}`),
       onAllCells: file => log(`  submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) });
@@ -104,8 +105,9 @@ function regenerateComposed(root, input, composed, services, log) {
   const { main, head } = input.compositionTriple;
   // The runner has no author of its own, so the two commits made here (the composition and the regeneration) carry a fixed one when the machine sets none.
   const identity = { GIT_AUTHOR_NAME: 'Pullboard runner', GIT_AUTHOR_EMAIL: 'runner@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard runner', GIT_COMMITTER_EMAIL: 'runner@pullboard.invalid' };
-  const saved = Object.fromEntries(Object.keys(identity).map(key => [key, process.env[key]]));
-  for (const [key, value] of Object.entries(identity)) process.env[key] ??= value;
+  const environment = environmentAdapter();
+  const saved = Object.fromEntries(Object.keys(identity).map(key => [key, environment.get(key)]));
+  for (const [key, value] of Object.entries(identity)) if (environment.get(key) === undefined) environment.set(key, value);
   try {
     const made = runnerGit(['commit-tree', composed, '-p', main, '-p', head, '-m', 'composition'], { cwd: root, encoding: 'utf8' });
     const commit = made.status === 0 ? made.stdout.trim() : '';
@@ -118,7 +120,7 @@ function regenerateComposed(root, input, composed, services, log) {
       throw refusal('GENERATED_STALE', String(error.message));
     }
   } finally {
-    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) environment.delete(key); else environment.set(key, value); }
   }
   input.regeneratedTree = gitOut(root, ['rev-parse', 'HEAD^{tree}']);
   log(`  composed tree ${composed} regenerated as ${input.regeneratedTree}`);
