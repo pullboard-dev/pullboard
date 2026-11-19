@@ -1,4 +1,4 @@
-/** The landing offer fixture: a real repository, board and git shim for offerPulledLanding tests [C7,#11105]. */
+/** The landing offer fixture: a real repository, board and git-start log for offerPulledLanding tests [C7,#11105]. */
 // fixture-subject: addItem
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
@@ -12,6 +12,8 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import { sweepDerivedState } from '../../../../../packages/health/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { realGitAdapter } from '../../../../../packages/git/index.js';
+import { withGitContractAdapter } from '../../../../../packages/git/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { landingItemRef } from '../../../src/io/landing/pull.js';
 import { offerPulledLanding } from '../../../src/io/landing/pull.js';
@@ -22,7 +24,7 @@ import { temporaryDirectory } from '../board.js';
 
 /**
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
- * a git shim on PATH that logs each git start, and the offer's logged  lock seam. Returns what the offer did. With `derived`, the machine turns health.derivedState on (`setting`, default true) and a table is swept
+ * a git adapter wrapper that logs each git start, and the offer's logged  lock seam. Returns what the offer did. With `derived`, the machine turns health.derivedState on (`setting`, default true) and a table is swept
  * before the offer at trunk (`swept: 'current'`, the default) or at another commit (`'older'`), holding `verdicts` by item id (a state, or null for fresh; an item left out gets null).
  * Stale reopens go straight to the store, and `beforeLock` is the number of git starts before the lock was taken.
  */
@@ -30,9 +32,7 @@ export async function offerWithLog(t, { concurrentOffer = false, derived = null 
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
-  const savedPath = process.env.PATH;
   t.after(() => {
-    process.env.PATH = savedPath;
     if (savedHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = savedHome;
     rmSync(directory, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
@@ -66,13 +66,8 @@ export async function offerWithLog(t, { concurrentOffer = false, derived = null 
   process.env.PULLBOARD_MACHINE_HOME = home;
   fixtureMachineSettings(home, { landing: { parallelGates: true }, ...(derived && derived.setting !== false ? { health: { derivedState: true } } : {}) });
   if (derived) sweepDerivedState(board, { mainCommit: derived.swept === 'older' ? '0'.repeat(40) : main, enabled: true, listItems: target => store.listItems(target, { all: true }), verdictState: item => derived.verdicts?.[item.item_id] ?? null, gateAtHead: () => null });
-  // A git shim logs each git start; the lock seam logs where the lock is held, so the log orders git against the lock.
+  // The git adapter seam logs each git start (the real adapter spawns an absolute binary, so a PATH shim sees nothing); the lock seam logs where the lock is held, so the log orders git against the lock.
   const log = join(home, 'git-and-lock.log');
-  const shim = join(home, 'shim');
-  mkdirSync(shim);
-  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
-  writeFileSync(join(shim, 'git'), `#!/bin/sh\necho "git $1" >> '${log}'\nexec '${real}' "$@"\n`, { mode: 0o755 });
-  process.env.PATH = `${shim}:${savedPath}`;
   const mark = line => appendFileSync(log, `${line}\n`);
   const lock = (target, work) => {
     mark('LOCK_ENTER');
@@ -83,9 +78,12 @@ export async function offerWithLog(t, { concurrentOffer = false, derived = null 
     } finally { mark('LOCK_EXIT'); }
   };
   const policy = { config: { flakes: { rerun: true } }, commit: main };
-  const result = await offerPulledLanding({ io: { say() {} }, file: boardFile }, directory,
+  const logged = { spawnSync: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.spawnSync(args, options); },
+    execFileSync: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.execFileSync(args, options); },
+    spawn: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.spawn(args, options); } };
+  const result = await withGitContractAdapter(logged, () => offerPulledLanding({ io: { say() {} }, file: boardFile }, directory,
     { mainPolicy: () => policy, listItems: store.listItems, checkedLandingCommit: (_board, item) => item.item_commit, pairPrefix: () => 'prefix' },
-    { local: async () => ({ running: true }), board, lock, write: async (operation, args) => store[operation](board, args[0], args[1]) });
+    { local: async () => ({ running: true }), board, lock, write: async (operation, args) => store[operation](board, args[0], args[1]) }));
   const lines = readFileSync(log, 'utf8').trim().split('\n');
   const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
     const offered = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job.job_id);

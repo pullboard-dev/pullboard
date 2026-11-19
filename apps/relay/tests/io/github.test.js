@@ -1,6 +1,8 @@
 /** GitHub App authorization and metadata-only access against real loopback HTTP [H8, H1]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { generateKeyPairSync } from 'node:crypto';
+import { verify } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
@@ -111,4 +113,28 @@ test('relay.io-github.github-roles-use-role-name-custom: GitHub roles use role_n
   fixture.state.permissions = { triage: true };
   fixture.state.permissionAccountID = 8;
   assert.equal((await client.access(user, 'fixture/repository')).permission, 'none');
+});
+
+test('relay.io-github.signing-adapter-app-jwt-verifies: the App JWT is signed through the keys signing adapter and verifies against the key public half [C7]', async (t) => {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const seen = [];
+  const server = createServer((req, res) => { seen.push(req.headers.authorization); res.writeHead(404, { 'content-type': 'application/json' }); res.end('{}'); });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => server.close());
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const client = createGitHubClient({ clientId: 'fixture-app', clientSecret: 'secret', callbackURL: origin + '/callback', oauthBase: origin, apiBase: origin, privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  await client.access({ id: '7', login: 'u' }, 'fixture/repository').catch(() => {});
+  const jwt = seen[0].replace('Bearer ', '');
+  const [head, claims, signature] = jwt.split('.');
+  assert.deepEqual(JSON.parse(Buffer.from(head, 'base64url')), { alg: 'RS256', typ: 'JWT' });
+  assert.equal(JSON.parse(Buffer.from(claims, 'base64url')).iss, 'fixture-app');
+  assert.ok(verify('RSA-SHA256', Buffer.from(head + '.' + claims), publicKey, Buffer.from(signature, 'base64url')));
+});
+
+test('relay.io-github.signing-adapter-bad-key-refused: a privateKey that is not a valid RSA key is refused GITHUB_CONFIG [C7]', async () => {
+  const config = { clientId: 'a', clientSecret: 'b', callbackURL: 'http://127.0.0.1/callback' };
+  assert.throws(() => createGitHubClient({ ...config, privateKey: 'not a key' }), { code: 'GITHUB_CONFIG' });
+  const ed = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
+  assert.throws(() => createGitHubClient({ ...config, privateKey: ed }), { code: 'GITHUB_CONFIG' });
 });
