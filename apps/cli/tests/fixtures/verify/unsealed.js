@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from "../../../../../packages/store/index.js";
-import { openCellBoard as openBoard } from "../../../../../packages/store/tests/fixtures/cell.js";
+import { openKitBoard as openBoard } from "../../../../lib/tests/fixtures/board.js";
 import { submitFixture } from "../board/submit.js";
 
 /** Read a successful JSON CLI response; setup failures must not masquerade as eligibility failures. */
