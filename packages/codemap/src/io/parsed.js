@@ -1,6 +1,7 @@
 /** Machine-wide store of real V8 compile results, keyed by source bytes, so a change re-parses only its own files [C7]. */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
@@ -34,7 +35,7 @@ function validRow(row) {
 function openStore() {
   try {
     const directory = storeDirectory();
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    disk.mkdir(directory, { recursive: true, mode: 0o700 });
     // Loaded on first use: codemap's door is imported by every check script, and node:sqlite prints a warning when loaded [C7].
     const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
     const db = new DatabaseSync(join(directory, 'parse-results.sqlite'));

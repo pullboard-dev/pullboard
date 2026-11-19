@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /** Cut every re-export shim in one pass: repoint its importers to the front door it forwards to, then delete it [C7,R62]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -127,8 +126,8 @@ function loadRepo(root) {
   const listed = gitExecFileSync(['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   const files = new Map();
   for (const file of listed) {
-    if (!existsSync(join(root, file))) continue;
-    const bytes = readFileSync(join(root, file));
+    if (!disk.exists(join(root, file))) continue;
+    const bytes = disk.readFile(join(root, file), null);
     if (bytes.includes(0)) continue;
     files.set(file, bytes.toString('utf8'));
   }
@@ -446,7 +445,7 @@ export function cutShims(root, { write = true, frozen = [], reviewed = [] } = {}
     rewritten.push(...live.map(row => ({ file, shim: row.shim })));
   }
   if (write) {
-    for (const [file, source] of changed) writeFileSync(join(root, file), source);
+    for (const [file, source] of changed) disk.writeFile(join(root, file), source);
     if (cut.length) gitExecFileSync(['rm', '-q', '--', ...cut], { cwd: root });
     for (const file of [...repo.files.keys()].filter(path => /^packages\/codemap\/data\/plan\/[^/]+\.json$/u.test(path) && !isFrozen(path))) {
       const text = repo.files.get(file);
@@ -456,7 +455,7 @@ export function cutShims(root, { write = true, frozen = [], reviewed = [] } = {}
       const left = list.filter(path => !cutSet.has(path));
       if (left.length === list.length) continue;
       const body = left.length ? `[\n${left.map(path => `${match[1]} ${JSON.stringify(path)}`).join(',\n')}\n${match[1]}]` : '[]';
-      writeFileSync(join(root, file), text.replace(match[0], `\n${match[1]}"reexports": ${body}`));
+      disk.writeFile(join(root, file), text.replace(match[0], `\n${match[1]}"reexports": ${body}`));
     }
   }
   return { found: shims.size, data, cut, kept: [...kept].sort(), rewritten, files: [...changed.keys()].sort() };
@@ -466,10 +465,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const dry = process.argv.includes('--dry-run');
   const at = process.argv.indexOf('--frozen');
   // --frozen <file> lists one path per line, or a folder ending in /, that this run must not write.
-  const frozen = at > 0 ? readFileSync(process.argv[at + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
+  const frozen = at > 0 ? disk.readFile(process.argv[at + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
   const seen = process.argv.indexOf('--reviewed');
   // --reviewed <file> lists, one per line, files whose path mentions were checked by hand and load nothing.
-  const reviewed = seen > 0 ? readFileSync(process.argv[seen + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
+  const reviewed = seen > 0 ? disk.readFile(process.argv[seen + 1], 'utf8').split('\n').map(line => line.trim()).filter(Boolean) : [];
   const result = cutShims(process.cwd(), { write: !dry, frozen, reviewed });
   for (const shim of result.cut) console.log(`cut ${shim}`);
   for (const [shim, reasons] of result.kept) console.log(`kept ${shim}: ${[...new Set(reasons)].join('; ')}`);

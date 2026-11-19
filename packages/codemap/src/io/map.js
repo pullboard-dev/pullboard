@@ -6,16 +6,8 @@ import {
   execFileSync,
 } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import {
   dirname,
   join,
@@ -308,8 +300,8 @@ const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 /** List JavaScript modules below one source directory in a stable repository order. */
 function listJavaScript(root, directory) {
   const absolute = join(root, directory);
-  if (!existsSync(absolute)) return [];
-  return readdirSync(absolute, { withFileTypes: true }).flatMap(entry => {
+  if (!disk.exists(absolute)) return [];
+  return disk.list(absolute, { withFileTypes: true }).flatMap(entry => {
     const path = posix.join(directory, entry.name);
     return entry.isDirectory() ? listJavaScript(root, path) : (/\.(?:m?js)$/u.test(entry.name) ? [path] : []);
   }).sort();
@@ -354,12 +346,12 @@ function committedInputs(root, commit) {
 function readPinnedInput(root, path, inputs) {
   const expected = inputs.get(path);
   const file = join(root, path);
-  const mode = lstatSync(file);
+  const mode = disk.lstat(file);
   if (!expected || !['100644', '100755'].includes(expected.mode) || !mode.isFile()
     || Boolean(mode.mode & 0o111) !== (expected.mode === '100755')) {
     throw new Error(`${path} differs from the committed main source`);
   }
-  const bytes = readFileSync(file);
+  const bytes = disk.readFile(file, null);
   const object = createHash(expected.object.length === 64 ? 'sha256' : 'sha1')
     .update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
   if (object !== expected.object) throw new Error(`${path} differs from the committed main source`);
@@ -564,14 +556,14 @@ export function writeCodeMap(root, cacheFile, mainCommit) {
   const sourceRoot = resolve(root);
   const map = buildCodeMap(sourceRoot, mainCommit);
   requireSourcePin(sourceRoot, map.mainCommit);
-  mkdirSync(dirname(cacheFile), { recursive: true, mode: 0o700 });
+  disk.mkdir(dirname(cacheFile), { recursive: true, mode: 0o700 });
   const temporary = `${cacheFile}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   try {
-    writeFileSync(temporary, `${JSON.stringify(map)}\n`, { mode: 0o600, flag: 'wx' });
+    disk.writeFile(temporary, `${JSON.stringify(map)}\n`, { mode: 0o600, flag: 'wx' });
     requireSourcePin(sourceRoot, map.mainCommit);
-    renameSync(temporary, cacheFile);
+    disk.rename(temporary, cacheFile);
   } finally {
-    try { if (existsSync(temporary)) rmSync(temporary); } catch { /* A partial temp is harmless and never read as the cache. */ }
+    try { if (disk.exists(temporary)) disk.rm(temporary); } catch { /* A partial temp is harmless and never read as the cache. */ }
   }
   return map;
 }
@@ -595,7 +587,7 @@ export function refreshLandedCodeMap(root) {
 /** Read only a map with the exact current commit stamp; malformed or stale caches miss safely. */
 export function readCodeMap(cacheFile, mainCommit) {
   try {
-    const map = JSON.parse(readFileSync(cacheFile, 'utf8'));
+    const map = JSON.parse(disk.readFile(cacheFile, 'utf8'));
     return map.format === CODE_MAP_FORMAT && map.mainCommit === mainCommit && map.sourceCommit === mainCommit
       && /^[\da-f]{40,64}$/u.test(map.sourceTree) && Array.isArray(map.modules) ? map : null;
   } catch { return null; }
