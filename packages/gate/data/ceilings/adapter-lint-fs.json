@@ -155,8 +155,6 @@
     "packages/drive/src/io/handoff.js": 2,
     "packages/drive/src/io/local.js": 6,
     "packages/drive/src/io/progress.js": 1,
-    "packages/drive/src/io/prune.js": 8,
-    "packages/drive/src/io/pull.js": 12,
     "packages/drive/src/io/queue.js": 5,
     "packages/drive/src/io/runner-settings.js": 1,
     "packages/drive/src/io/screen.js": 2,
