@@ -7,7 +7,9 @@ import { classifyGateRed } from '../../../drive/index.js';
 import { mainRedLookup } from '../../../drive/index.js';
 import { MAIN_TEST_JOB } from '../../../drive/index.js';
 import * as jobs from '../../../jobs/index.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { applyMainTestReceipt } from '../../src/io/recheck.js';
+import { seedWideMainTests } from '../../src/io/recheck.js';
 import { MAIN_TEST_ENTRY } from '../../src/io/recheck.js';
 
 const root = fileURLToPath(new URL('../../../..', import.meta.url));
@@ -121,4 +123,31 @@ test('api.recheck.red-whose-cases-truly-cannot: clause 3: a red whose cases trul
   const { board, job } = queued(t, 'f'.repeat(40));
   assert.equal(applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 }).applied, false);
   assert.deepEqual(returnedMainReceipts(board.db), []);
+});
+
+/** One finished gate shard of `item` whose receipt names `files` as failed, as a pulled gate records it. */
+function redShard(db, item, files, now) {
+  const job = `gate:${item}:fixture:shard:${files[0]}`;
+  jobs.createJob(db, { id: job, kind: 'gate-shard', item, now });
+  jobs.writeStep(db, job, 'receipt', { runner: 'r', attempt: 1, receipt: { status: 1, gate: { phases: [{ role: 'proof', status: 1, failures: files.map(name => ({ file: name, name: 'case' })) }] } } }, { seq: 1, now });
+}
+
+test('api.io-recheck.seed-wide-main-tests: clause 1: seedWideMainTests(board, { main, now }) queues one main-test row per file red in the gates of 10 or more distinct items in the last 24 h, none for a file that already has a fresh receipt at main\'s tree [C7,P7,#12035]', t => {
+  const project = cellProject(t, { real: true, config: { affectedTests: 'node --test' } });
+  const main = project.git(project.repo, 'rev-parse', 'HEAD');
+  const tree = project.git(project.repo, 'rev-parse', 'HEAD^{tree}');
+  const { db } = fixtureBoard(t);
+  const board = { db, gitRoot: project.repo };
+  const now = 10 * 3_600_000;
+  for (let item = 1; item <= 12; item++) redShard(db, item, ['tests/wide.test.js', 'tests/answered.test.js'], now - 1000);
+  for (let item = 1; item <= 9; item++) redShard(db, 100 + item, ['tests/narrow.test.js'], now - 1000);
+  for (let item = 1; item <= 12; item++) redShard(db, 200 + item, ['tests/old.test.js'], now - 25 * 3_600_000);
+  const answered = `main-test:${tree}:tests/answered.test.js:node --test`;
+  jobs.createJob(db, { id: answered, kind: MAIN_TEST_JOB, base: tree, now });
+  jobs.writeStep(db, answered, 'receipt', { id: answered, tree, file: 'tests/answered.test.js', command: 'node --test', verdict: 'red', failing: ['case'], signatures: [null], main, at: now }, { seq: 0, now });
+  const queuedNow = seedWideMainTests(board, { main, now });
+  assert.deepEqual(queuedNow, [`main-test:${tree}:tests/wide.test.js:node --test`], 'only the file red for 12 items in the window and with no receipt is queued');
+  const at = jobs.jobView(db, queuedNow[0]).steps.find(step => step.name === 'queued').payload;
+  assert.deepEqual(at, { tree, file: 'tests/wide.test.js', command: 'node --test' }, 'the row keys the tree, file and command a gate looks up');
+  assert.deepEqual(seedWideMainTests(board, { main, now }), [], 'main has not moved, so nothing is read or queued again');
 });
