@@ -80,7 +80,7 @@ function attachRecordedHolds(rows, now, boardFile, readLog) {
  * Read every surface once. `paths` names the files: { commonDir, boardFile, machineHome, handoffQueue }. Orphans are
  * read last, so every pid a pool, lease or landing run accounts for is exempt from them.
  */
-export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = [], runnerTimeoutMs = 500, census = localCensus(), readers = {} }) {
+export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = [], boardUsedHost = null, runnerTimeoutMs = 500, census = localCensus(), readers = {} }) {
   const repoResources = join(paths.commonDir, 'pullboard', 'resources.sqlite');
   const machineResources = join(paths.machineHome, 'resources.sqlite');
   const machine = readPools(machineResources, 'machine', now, census);
@@ -103,7 +103,10 @@ export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = 
   rows.push(...readOrphans(census, accounted).filter(row => !rows.some(other => other.pid === row.pid && other.surface === 'heartbeat-loop')));
   const judged = attachRecordedHolds(judgeWaits(rows, budgets), now, paths.boardFile, readers.boardWrites ?? (() => readBoardWriteLog(boardWritesLog())))
     .sort((a, b) => Number(b.breach) - Number(a.breach) || b.ageMs - a.ageMs);
-  return { at: new Date(now).toISOString(), budgets, rows: judged, notes: runners.notes };
+  // A runner-unavailable row comes from the machine-wide database: it is this board's wait only when this board used that host.
+  // Any other row stays in the table, marked machine-level, and recordWaits never files it [C7].
+  const marked = boardUsedHost ? judged.map(row => row.surface === 'runner-unavailable' && !boardUsedHost(row.holder) ? { ...row, machine: true } : row) : judged;
+  return { at: new Date(now).toISOString(), budgets, rows: marked, notes: runners.notes };
 }
 
 /** One table line per row: surface, holder, age, waiters and budget, breaches marked first. */
@@ -147,7 +150,7 @@ function removeDead(file) {
  * Reclaim each clearly dead holder at once, then file one item per new cause and record the run in one shout.
  * observeHolder(row), when given (sentinels.recordWriteHolder on), keeps each over-budget live board write's holder.
  * Ports keep this testable on a real board: openKey(key) says whether an open item carries the key, fileItem(draft)
- * files one, shout(text) records, prunePools(scope) runs the queue's own prune, release(heartbeat) frees a claim.
+ * files one (null when this board has nowhere to file it), shout(text) records, prunePools(scope) runs the queue's own prune, release(heartbeat) frees a claim.
  */
 export async function recordWaits(snapshot, { openKey, repeat = async () => {}, fileItem, shout, prunePools = () => {}, release = async () => false, terminate = terminateOrphan, remove = removeDead, observeHolder = null }) {
   const { budgets } = snapshot;
@@ -191,7 +194,7 @@ export async function recordWaits(snapshot, { openKey, repeat = async () => {}, 
     for (const row of snapshot.rows) if (row.breach && row.surface === 'board-write' && row.pid) observeHolder(row);
   }
   for (const row of snapshot.rows) {
-    if (!row.breach || handled.has(row) || !budgets.file) continue;
+    if (!row.breach || handled.has(row) || !budgets.file || row.machine) continue;
     const key = waitKey(row);
     const open = openKey(key);
     if (open) {
@@ -201,7 +204,9 @@ export async function recordWaits(snapshot, { openKey, repeat = async () => {}, 
       continue;
     }
     const draft = waitItemDraft(row);
-    filed.push({ id: await fileItem(draft), key, title: draft.title });
+    const id = await fileItem(draft);
+    if (id === null) { notes.push(`${key}: not filed, this board has no core lane to file into`); continue; }
+    filed.push({ id, key, title: draft.title });
   }
   if (filed.length || reclaimed.length) {
     await shout(waitShout(snapshot.rows.filter(row => row.breach).length, filed.map(row => row.id), reclaimed.length));
