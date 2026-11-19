@@ -34,7 +34,7 @@ import {
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 const OLD = '876df36c23a63993b371d4d85b9cf3b54f8ed38d';
 
-test('outbox.relay.reserve-item-names-its-item: the relay lists name reserveItem as an ordered operation whose first argument is an item number [C7]', () => {
+test('outbox.relay.reserve-item-names-its-item: clause 1: the relay lists name reserveItem as an ordered operation whose first argument is an item number [C7]', () => {
   assert.deepEqual(ITEM_SLOTS.reserveItem, [[0]]);
   assert.deepEqual(ITEM_SLOTS.reserveItem, ITEM_SLOTS.holdItem);
 });
