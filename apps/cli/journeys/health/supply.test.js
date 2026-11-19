@@ -5,7 +5,7 @@ import {
   after,
   test,
 } from 'node:test';
-import { seedLimitedReviewQueue } from '../../../../packages/store/tests/fixtures/cell.js';
+import { seedLimitedReviewQueue } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
 const e2e = createE2eHelpers();
