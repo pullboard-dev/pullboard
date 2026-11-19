@@ -20,6 +20,7 @@ import { constants } from 'node:fs';
 import { cpSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { relative } from 'node:path';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 
 /**
  * The Git index a shared snapshot keeps inside its own folder, so the folder moves as one rename and a later
@@ -39,7 +40,7 @@ export const TOOLS_IDLE_MS = 10 * 60_000;
 
 /** The process environment without the caller's Git variables, so no inherited GIT_DIR or index redirects a command. */
 function cleanGitEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+  return Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([name]) => !name.startsWith('GIT_')));
 }
 
 /**

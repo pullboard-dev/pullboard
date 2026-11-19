@@ -29,6 +29,7 @@ import { maintenanceDurations } from '../../../../../../packages/config/light.js
 import { readTimer } from '../../tool/build.js';
 import { timerFiles } from '../../tool/build.js';
 import { writeTimer } from '../../tool/build.js';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 
 const TOKEN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 const NOFOLLOW = constants.O_NOFOLLOW;
@@ -97,7 +98,7 @@ function workerEnvironment(root) {
 export async function scheduleWorktreeMaintenance(ctx) {
   if (ctx.config.worktreeMaintenance?.enabled !== true) return { scheduled: false, reason: 'disabled' };
   // A runner job's processes die with the job; a detached timer would outlive it in the job's checkout (#2513).
-  if (process.env.PULLBOARD_RUNNER_JOB) return { scheduled: false, reason: 'runner-job' };
+  if (environmentAdapter().get('PULLBOARD_RUNNER_JOB')) return { scheduled: false, reason: 'runner-job' };
   let stage = 'lookup';
   try {
     const current = await canonical(ctx);
