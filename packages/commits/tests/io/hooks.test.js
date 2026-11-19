@@ -57,6 +57,23 @@ test('commits.io-hooks.shard-read-small-commit: clause 2: a staged change under 
   assert.equal(seen.HEAD.plan, JSON.stringify({ cells: [{ file: SHARD }] }));
 });
 
+test('commits.io-hooks.no-plan-shard-allowance: clause 1: a lane commit that adds a row for its own new file to a cells plan shard outside its lane is refused like any other foreign edit, with no new-file placement allowance [C7]', (t) => {
+  const graph = fixtureCommittedGraph('pullboard-no-plan-allowance-'), root = graph.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const SHARD_PATH = 'packages/codemap/data/plan/01-x.json', shard = paths => JSON.stringify({ order: 1, name: 'x', root: 'packages/x', paths }) + '\n';
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }) + '\n');
+  graph.put(SHARD_PATH, shard([]));
+  graph.commit();
+  graph.put('web/new.js', 'export {};\n');
+  graph.put(SHARD_PATH, shard([['src/new.js', 'web/new.js', 'rule']]));
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  const problems = preCommitProblems({ root, isMain: false, agent: { agent_lane: 'web' },
+    config: { protect: { blocked: [], allowed: [], secrets: false }, laneMode: 'on', lanes: { web: { owns: ['web/'], specs: ['G1'] } } },
+    boardFile: join(root, 'board.sqlite'), approvedRowPorts: { checkLoosening: () => [] } });
+  assert.equal(problems.length, 1, problems.join('\n'));
+  assert.match(problems[0], /outside the web lane: packages\/codemap\/data\/plan\/01-x\.json/u);
+});
+
 const BRIEF = 'Slice.\nFiles:\n- packages/alpha/src/a.js\n- packages/alpha/tests/a.test.js\nCaller files: packages/beta/src/b.js:3.\n';
 
 /** A seat in lane web whose claimed item names two packages/alpha files; the staged change edits the given paths. */
@@ -88,4 +105,46 @@ test('commits.io-hooks.lanes-on-unchanged: clause 2: with laneMode on the named 
   const problems = laneChange(t, 'on', ['packages/alpha/src/a.js']);
   assert.equal(problems.length, 1);
   assert.match(problems[0], /outside the web lane: packages\/alpha\/src\/a\.js/u);
+});
+
+/** A repository with one commit per message after a base commit; a message starting "Merge " is made as a merge commit. */
+function messages(t, list) {
+  const graph = fixtureCommittedGraph('pullboard-range-messages-'), root = graph.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('a.txt', 'a\n');
+  const base = graph.commit();
+  const run = args => runFixtureSetupGit(['-c', 'user.name=Test Agent', '-c', 'user.email=agent@example.com', ...args], { cwd: root });
+  for (const [index, message] of list.entries()) {
+    if (message.startsWith('Merge ')) {
+      run(['checkout', '-q', '-b', `side${index}`]);
+      run(['commit', '-q', '--allow-empty', '-m', 'chore: side work']);
+      run(['checkout', '-q', 'main']);
+      run(['commit', '-q', '--allow-empty', '-m', 'chore: main work']);
+      run(['merge', '-q', '--no-ff', '-m', message, `side${index}`]);
+    } else run(['commit', '-q', '--allow-empty', '-m', message]);
+  }
+  return { root, range: `${base}..HEAD` };
+}
+
+test('commits.io-hooks.range-refuses-co-author-trailer: clause 1: a range check refuses a Co-Authored-By trailer in any commit of the range when noCoAuthor is on and passes it when off [C1,C7]', async t => {
+  const { root, range } = messages(t, ['docs: note\n\nCo-Authored-By: Ada Example <ada@example.com>', 'chore: tidy']);
+  const { checkRangeMessages } = await import('../../light.js');
+  await assert.rejects(checkRangeMessages(root, range, { noCoAuthor: true }), error => error.code === 'CO_AUTHOR');
+  await checkRangeMessages(root, range, { noCoAuthor: false });
+});
+
+test('commits.io-hooks.range-refuses-home-path: clause 2: a range check refuses a merge subject naming a home-folder path whatever the setting, passes a clean range, and never echoes the path [C1,C7]', async t => {
+  const { checkRangeMessages } = await import('../../light.js');
+  for (const [folder, name] of [['Users', 'ada'], ['home', 'bob']]) {
+    const { root, range } = messages(t, ['feat: one', `Merge branch 'side' of /${folder}/${name}/work/repo`]);
+    for (const noCoAuthor of [false, true]) {
+      await assert.rejects(checkRangeMessages(root, range, { noCoAuthor }), error => {
+        assert.equal(error.code, 'HOME_PATH');
+        assert.ok(!String(error.message).includes(name) && !String(error.message).includes(`/${folder}/`));
+        return true;
+      });
+    }
+  }
+  const clean = messages(t, ['feat: one', "Merge branch 'side' into main"]);
+  await checkRangeMessages(clean.root, clean.range, { noCoAuthor: true });
 });
