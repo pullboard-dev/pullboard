@@ -9,7 +9,6 @@ export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPat
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/io/bar/readiness.js';
 export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
-export { cellVerdictKey } from './src/logic/cell-key.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
 export { changedTestFiles, contentHash, frozenTestHashes, frozenTestsProblem, namedTestHashes, testHashProblem, testHashRulings, testAuthors, testAuthorNotes, authorSplitProblem } from './src/logic/testHashes.js';
 export { nextReview, forcedLandedUnreviewed, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';

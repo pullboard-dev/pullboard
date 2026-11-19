@@ -1,7 +1,7 @@
 /** The pure cell verdict key: stable under order, moved by the cell's own files and reached contracts, not by another cell [C7,R38,S10]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellVerdictKey } from '../../index.js';
+import { cellVerdictKey } from '../../src/logic/cell-key.js';
 
 const cell = { files: { 'a/one.js': 'd1', 'a/two.js': 'd2' }, contracts: { gate: 'k1', store: 'k2' } };
 
