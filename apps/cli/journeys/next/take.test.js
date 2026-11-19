@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { fixtureBoard } from '../../tests/fixtures/board.js';
+import { waitForState } from '../../tests/fixtures/check-baseline.js';
 import { main } from '../../tests/fixtures/native.js';
 import { applyRelayMove } from '../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../packages/state/index.js';
@@ -255,4 +256,27 @@ test('cli.journeys-next-take.health-observes-each-of-two-free: health observes e
   box.scan(); box.advance(300000); box.scan();
   const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
   assert.equal(messages.length, 2, 'each free seat has one loud warning');
+});
+
+test('cli.journeys-next-take.take-build-one-step: clause 1: next --take --build claims the one open build item, with a submitted review waiting, in a single call that reserves no review [C7,#11942]', async t => {
+  const box = await fixture(t, { route: 'light' });
+  const review = box.add('Submitted work waiting for review', { route: 'light' });
+  box.submit(review);
+  const open = box.add('The one open build item', { route: 'light' });
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take', '--build']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.item.item_id, open);
+  assert.equal(store.getItem(box.board, open).item_owner, box.seats.actor.id);
+  assert.notEqual(store.getItem(box.board, review).item_review_by, box.seats.actor.id, 'the waiting review is never reserved');
+});
+
+test('cli.journeys-next-take.take-build-wait: clause 2: next --take --build --wait 1 blocks while no build item is open, then returns the claim once one is filed [C7,#11942]', async t => {
+  const box = await fixture(t, { route: 'light' });
+  const waiting = cli(box, box.seats.actor.path, ['next', '--take', '--build', '--wait', '1']);
+  await waitForState(() => box.board.db.prepare("SELECT 1 FROM event WHERE event_by = ? AND event_kind = 'next-idle'").get(box.seats.actor.id), 'the waiting take records its idle observation before work is filed');
+  const filed = box.add('Filed while the take waits', { route: 'light' });
+  const taken = await waiting;
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.item.item_id, filed);
+  assert.equal(store.getItem(box.board, filed).item_owner, box.seats.actor.id);
 });
