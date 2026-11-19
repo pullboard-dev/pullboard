@@ -103,6 +103,7 @@ export const MACHINE_DEFAULTS = {
   'holds.liftSettled': false,
   'holds.requireOwner': false,
   'inspection.clauses': false,
+  'items.barRulesAtAdd': false,
   'items.testMirrorAtAdd': false,
   'items.typedFields': false,
   'jobs.avoidRunners': false,
