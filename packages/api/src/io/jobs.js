@@ -25,6 +25,7 @@ import { firstDifference } from '../../../store/index.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
+import { SHARD_JOB_KIND } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { noteLapse } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
@@ -32,8 +33,7 @@ import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
 import { freeGateHop } from './hop.js';
 
-/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
-export const SHARD_JOB_KIND = 'gate-shard';
+export { SHARD_JOB_KIND };
 // Budget: a runner holds one gate shard per this many cores at a time, as a serve's default slots do (drive's CORES_PER_JOB), however many slots it was set to.
 const CORES_PER_SHARD = 3;
 // Budget: a test job (a builder run, a census job) weighs this many cores against its runner, and a runner holding no test job may always take one, as the builder floor of TEST_FLOOR_CORES.

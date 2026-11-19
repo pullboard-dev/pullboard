@@ -13,6 +13,7 @@ import { startDetachedCheck } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
+import { withdrawCancelsJob } from '../../../../../packages/config/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { landMerged } from '../../../../../packages/land/index.js';
 import {
@@ -192,7 +193,7 @@ export async function run(io, { first, second, values }) {
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }), ...(withdrawCancelsJob() ? { endGateJobs: true } : {}) }]);
     return {};
   };
   let announced = false;
