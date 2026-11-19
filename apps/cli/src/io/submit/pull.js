@@ -283,6 +283,14 @@ const checkoutState = () => {
   const tracked = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' });
   return head.status === 0 && tracked.status === 0 ? { head: head.stdout.trim(), tracked: tracked.stdout.trim() } : null;
 };
+/**
+ * The result store a submit proof shares: one folder under the runner root, above the 'pull' folder of the slot checkout, which the runner prunes with its other test results.
+ * Why: slot checkouts each held their own store, so a file another slot or gate had already proved ran again. Only a proof that owes a test account (\`selected\`) shares it, so a landing shard, which owes none, keeps its slot's own; a store or reuse setting already in the environment is never replaced [C7,#11114].
+ */
+const sharedResultStore = (role, selected, checkout, env) => {
+  const parts = String(checkout).split('/'), at = parts.lastIndexOf('pull');
+  return role === 'proof' && selected?.length && at > 0 && !env.PULLBOARD_TEST_RESULT_STORE ? { PULLBOARD_TEST_RESULT_STORE: parts.slice(0, at).join('/') + '/test-results/pull-gate' } : {};
+};
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
   if (role === 'proof' && !pipefailShell && /(?:^|[^|])\\|(?:[^|]|$)/u.test(command)) return { role, status: 1, signal: null, tail: 'PIPEFAIL_UNAVAILABLE: the runner shell cannot enable pipefail; rewrite the gate without a pipe', exit: ['PIPEFAIL_UNAVAILABLE'] };
@@ -291,7 +299,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const started = performance.now();
   // Each test child reports its runtime into a private capture folder, as under the controller gate; the proof phase alone is admitted proof [C7].
-  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) };
+  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}), ...sharedResultStore(role, selected, root, process.env) };
   const capture = role === 'proof' && typeof sandbox?.captureTestRuntimes === 'function' ? sandbox.captureTestRuntimes(phaseEnv) : null;
   const ran = await new Promise(resolve => {
     const child = spawn('(' + (role === 'proof' && pipefailShell ? 'set -o pipefail\\n' : '') + command + '\\n) 2>&1', { shell: role === 'proof' && pipefailShell ? pipefailShell : true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });

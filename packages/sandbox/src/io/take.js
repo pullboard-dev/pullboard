@@ -159,7 +159,7 @@ export async function nextTake(ctx, values = {}, services) {
     }
     try {
       await claimOrdered(ctx, board, [looked.item.item_id, {
-        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, leaseMs: ctx.config.leaseMs,
+        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, laneOff, leaseMs: ctx.config.leaseMs,
         freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
       }]);
       if (!looked.held) await services.shoutReviewCoverStuck?.(ctx, board, (c, b, op, args) => ordered(c, b, op, args), me);
