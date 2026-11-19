@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "total": 1369,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
