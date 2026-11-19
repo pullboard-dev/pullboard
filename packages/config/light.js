@@ -1,5 +1,4 @@
 /** Config light door [C7,D3]. */
-export { gitSyncMarkerLinked } from './src/io/git/sync.js';
 export {
   CONFIG_FILE,
   COORDINATOR,
@@ -23,5 +22,6 @@ export {
   reofferInfraEndEnabled,
   retireIdleSeatHours,
   submitProofOnly,
+  typedFieldsEnabled,
   validateRunner,
 } from './src/logic/settings.js';
