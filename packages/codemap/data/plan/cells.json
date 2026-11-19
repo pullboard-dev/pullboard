@@ -2471,6 +2471,7 @@
     "resources->jobs",
     "resources->git",
     "codemap->git",
+    "codemap->fs",
     "codemap->kernel",
     "config->kernel",
     "gate->codemap",
