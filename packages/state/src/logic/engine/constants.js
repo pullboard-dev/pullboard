@@ -204,6 +204,7 @@ export const USAGE_BATCH_ENGINE = engineNumber('USAGE_BATCH_ENGINE');
 export const VENDOR_FAMILY_ENGINE = engineNumber('VENDOR_FAMILY_ENGINE');
 export const VERDICT_WITHDRAW_ENGINE = engineNumber('VERDICT_WITHDRAW_ENGINE');
 export const VERIFIED_ITEM_HOLD_ENGINE = engineNumber('VERIFIED_ITEM_HOLD_ENGINE');
+export const MILESTONE_BUMP_ENGINE = engineNumber('MILESTONE_BUMP_ENGINE');
 export const WITHDRAW_MILESTONE_ENGINE = engineNumber('WITHDRAW_MILESTONE_ENGINE');
 export const WORK_ORDER_ENGINE = engineNumber('WORK_ORDER_ENGINE');
 export { CAUSE_ENGINE } from '../move/constants.js';
