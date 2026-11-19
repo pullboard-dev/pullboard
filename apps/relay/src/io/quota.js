@@ -1,23 +1,19 @@
 /** Account-wide logical sealed storage, checked under the same cross-process lifecycle lock as publication [H15,H17,H18]. */
 import {
-  closeSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 export const ACCOUNT_STORAGE_BYTES = 256_000_000;
 
 /** Read only byte counts from a private relay database; never decode or return stored payloads. */
 function storedBytes(file) {
   let stat;
-  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return 0; throw error; }
+  try { stat = fs.lstat(file); } catch (error) { if (error.code === 'ENOENT') return 0; throw error; }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.mode & 0o077) throw new Refused('RELAY_STORAGE', 'Keep account storage in private regular relay databases.');
   const db = new DatabaseSync(file, { readOnly: true });
   try {
@@ -53,12 +49,12 @@ function storageWarningMessage(storage) {
 export function createStorageQuota({ directory, auth, limitBytes = ACCOUNT_STORAGE_BYTES }) {
   if (typeof directory !== 'string' || !Number.isSafeInteger(limitBytes) || limitBytes < 1 || !auth?.withBoard) throw new Refused('RELAY_CONFIG', 'Configure a positive account storage quota and the shared relay lifecycle lock.');
   const root = resolve(directory);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(root);
+  fs.mkdir(root, { recursive: true, mode: 0o700 });
+  const parent = fs.lstat(root);
   if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw new Refused('RELAY_STORAGE', 'Keep quota notices in private relay storage.');
   const file = join(root, 'storage-quota.sqlite');
-  try { closeSync(openSync(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const stat = lstatSync(file);
+  try { fs.close(fs.open(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const stat = fs.lstat(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.mode & 0o077) throw new Refused('RELAY_STORAGE', 'Keep quota notices in a private regular database.');
   const db = new DatabaseSync(file);
   try { db.exec('PRAGMA busy_timeout=30000; CREATE TABLE IF NOT EXISTS storage_warning (board TEXT PRIMARY KEY, storage TEXT NOT NULL, needed INTEGER NOT NULL)'); }

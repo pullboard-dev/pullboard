@@ -1,18 +1,14 @@
 /** Durable opaque upload ordering; record interpretation belongs to a later relay adapter [A4,H7]. */
 import { DatabaseSync } from 'node:sqlite';
 import {
-  closeSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { SEALED_SNAPSHOT_BYTES } from '../../../../packages/link/index.js';
 import { createRelayPages } from './store/page.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const FORMAT = 4;
 const DEFAULT_BYTES = 100_000;
@@ -33,12 +29,12 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
   if (typeof directory !== 'string' || !directory.trim() || typeof now !== 'function') throw new Refused('RELAY_CONFIG', 'configure a private journal directory and clock');
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > SEALED_SNAPSHOT_BYTES) throw new Refused('RELAY_CONFIG', 'bound each opaque upload to the shared snapshot limit');
   const root = resolve(directory);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(root);
+  fs.mkdir(root, { recursive: true, mode: 0o700 });
+  const parent = fs.lstat(root);
   if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077) !== 0) throw new Refused('RELAY_STORAGE', 'use a private directory with mode 700 for relay journals');
   const file = join(root, id + '.journal.sqlite');
-  try { closeSync(openSync(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const stat = lstatSync(file);
+  try { fs.close(fs.open(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const stat = fs.lstat(file);
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) throw new Refused('RELAY_STORAGE', 'the journal must be a private regular database file');
   const db = new DatabaseSync(file);
   let closed = false;

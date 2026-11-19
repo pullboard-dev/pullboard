@@ -2,21 +2,14 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import {
-  closeSync,
-  linkSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readdirSync,
-  unlinkSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { SEALED_SNAPSHOT_BYTES } from '../../../../packages/link/index.js';
 import { createRelayJournal } from './journal.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const DAY = 86_400_000;
 const WARN = 60 * DAY;
@@ -34,15 +27,15 @@ function identity(id) {
 /** Refuse unexpected file types and public permissions; never follow a managed symlink. */
 function regular(file) {
   let stat;
-  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  try { stat = fs.lstat(file); } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay files as private regular files');
   return true;
 }
 
 /** Create/check a private directory without accepting a substituted symlink. */
 function privateDirectory(directory) {
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const stat = lstatSync(directory);
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  const stat = fs.lstat(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'use a private relay directory with mode 700');
 }
 
@@ -70,10 +63,10 @@ export function createRelayRetention({ directory, backupsDirectory = directory +
   /** Existing managed backup names, with validated regular files; unrelated files remain untouched. */
   function backupFiles() {
     try {
-      const stat = lstatSync(backups);
+      const stat = fs.lstat(backups);
       if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore the private backup directory');
     } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-    return readdirSync(backups).flatMap((name) => {
+    return fs.list(backups).flatMap((name) => {
       const match = BACKUP.exec(name) ?? PENDING.exec(name);
       if (!match) return [];
       if (!Number.isSafeInteger(Number(match[2]))) throw new Refused('RELAY_STORAGE', 'restore backup filenames with valid creation times');
@@ -125,7 +118,7 @@ export function createRelayRetention({ directory, backupsDirectory = directory +
     auth.withCleanup(id, () => {
       const files = affected(id);
       for (const file of files) {
-        try { unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        try { fs.unlink(file); } catch (error) { if (error.code !== 'ENOENT') throw error; }
       }
       const result = onDelete(id);
       if (result && typeof result.then === 'function') throw new Refused('RELAY_CONFIG', 'Finish relay cleanup notices synchronously before completing deletion.');
@@ -165,7 +158,7 @@ export function createRelayRetention({ directory, backupsDirectory = directory +
   function prune() {
     const cutoff = time() - KEEP;
     const expired = backupFiles().filter((entry) => entry.createdAt < cutoff);
-    for (const entry of expired) unlinkSync(entry.file);
+    for (const entry of expired) fs.unlink(entry.file);
     return expired.map((entry) => entry.name);
   }
 
@@ -187,17 +180,17 @@ export function createRelayRetention({ directory, backupsDirectory = directory +
         const target = join(backups, name);
         if (regular(target)) return;
         const pending = join(backups, link.id + '.' + at + '.' + randomUUID() + '.pending');
-        closeSync(openSync(pending, 'wx', 0o600));
+        fs.close(fs.open(pending, 'wx', 0o600));
         let db;
         try {
           db = new DatabaseSync(source, { readOnly: true });
           db.prepare('VACUUM INTO ?').run(pending);
           db.close(); db = null;
-          try { linkSync(pending, target); written.push(name); }
+          try { fs.link(pending, target); written.push(name); }
           catch (error) { if (error.code !== 'EEXIST' || !regular(target)) throw error; }
         } finally {
           db?.close();
-          unlinkSync(pending);
+          fs.unlink(pending);
         }
       }); } catch (error) { if (error.code !== 'BOARD_NOT_LINKED') throw error; }
     }
