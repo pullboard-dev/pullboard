@@ -1,0 +1,5 @@
+{
+  "cli.logic-changelog-between.newer-than-from-up-to-to": {"proves":{"specs":["C7"],"claim":"changelogBetween returns the CHANGELOG.md sections newer than from up to and including to, in file order"},"why":"Without it, pullboard update could show the wrong span of the changelog or sort versions as text.","kind":"cell unit","inputs":["apps/cli/src/logic/changelog-between.js"]},
+  "cli.logic-changelog-between.compares-numbers-not-text": {"proves":{"specs":["C7"],"claim":"changelogBetween orders versions by number, so 0.9.10 is newer than 0.9.4"},"why":"Without it, pullboard update could show the wrong span of the changelog or sort versions as text.","kind":"cell unit","inputs":["apps/cli/src/logic/changelog-between.js"]},
+  "cli.logic-changelog-between.empty-when-from-equals-to": {"proves":{"specs":["C7"],"claim":"changelogBetween returns an empty result when from equals to"},"why":"Without it, pullboard update could show the wrong span of the changelog or sort versions as text.","kind":"cell unit","inputs":["apps/cli/src/logic/changelog-between.js"]}
+}
