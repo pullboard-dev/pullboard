@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { runnerServiceInstaller } from '../../../src/io/service.js';
 import { SERVICE_LABEL } from '../../../src/io/service.js';
 
-/** Run the installer in this process against a fake launchctl that logs its arguments and a throwaway HOME; no real launchctl runs. */
+/** Run the installer in this process against a fake launchctl that logs its arguments and a throwaway HOME and daemons folder; no real launchctl runs and no machine daemon plist is seen. */
 async function install(t) {
   const base = privateFixtureFiles('pb6070-').root;
   t.after(() => rmSync(base, { recursive: true, force: true }));
@@ -20,7 +20,7 @@ async function install(t) {
   mkdirSync(bin); mkdirSync(home);
   writeFileSync(join(bin, 'launchctl'), `#!/bin/sh\necho "$@" >> '${log}'\nexit 0\n`);
   chmodSync(join(bin, 'launchctl'), 0o755);
-  const plan = { label: SERVICE_LABEL, root: join(base, 'root'), remove: false, board: 'http://127.0.0.1:1/api/v1/boards/b', key: 'k', entry: 'svc.js', files: { 'svc.js': '' } };
+  const plan = { label: SERVICE_LABEL, root: join(base, 'root'), daemons: join(base, 'daemons'), remove: false, board: 'http://127.0.0.1:1/api/v1/boards/b', key: 'k', entry: 'svc.js', files: { 'svc.js': '' } };
   const saved = { PATH: process.env.PATH, HOME: process.env.HOME }, stdin = Object.getOwnPropertyDescriptor(process, 'stdin'), write = process.stdout.write;
   t.after(() => { Object.assign(process.env, saved); Object.defineProperty(process, 'stdin', stdin); process.stdout.write = write; });
   Object.assign(process.env, { PATH: `${bin}:${saved.PATH}`, HOME: home });
