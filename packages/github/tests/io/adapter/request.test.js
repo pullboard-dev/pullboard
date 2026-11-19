@@ -72,3 +72,40 @@ test('github.io-adapter-request.base-front-door-passes-the-contract: clause 2: c
     await assert.rejects(adapter.request('repos/owner/name'), (error) => error.code === 'GITHUB_PATH_RELATIVE', `${form} form refuses a relative path`);
   }
 });
+
+test('github.io-adapter-request.method-sends-method-headers-body: clause 1: request(path, { method, headers, body, signal }) reaches fetch with redirect manual, and the response gives { status, headers, body } with the Link header readable [C7,#1429]', async () => {
+  const seen = [];
+  const stubbedFetch = async (url, init) => {
+    seen.push({ url, init });
+    return { status: 201, headers: new Headers({ 'content-type': 'application/json', link: '<https://api.github.com/user/repos?page=2>; rel="next"' }), json: async () => ({ ok: true }), text: async () => 'unused' };
+  };
+  const controller = new AbortController();
+  const answer = await createGithubAdapter(stubbedFetch).request('/repos/owner/name/statuses/abc', { method: 'POST', headers: { authorization: 'token t' }, body: '{"state":"success"}', signal: controller.signal });
+  assert.equal(seen[0].url, 'https://api.github.com/repos/owner/name/statuses/abc');
+  assert.equal(seen[0].init.method, 'POST');
+  assert.deepEqual(seen[0].init.headers, { accept: 'application/vnd.github+json', authorization: 'token t' });
+  assert.equal(seen[0].init.body, '{"state":"success"}');
+  assert.equal(seen[0].init.redirect, 'manual');
+  assert.equal(seen[0].init.signal, controller.signal);
+  assert.equal(answer.status, 201);
+  assert.match(answer.headers.link, /rel="next"/u);
+  assert.deepEqual(answer.body, { ok: true });
+});
+
+test('github.io-adapter-request.method-body-parses-json-only-for-json: clause 1: a response body is parsed as JSON only when its content type says json, else it is text [C7,#1429]', async () => {
+  const reply = (type, text) => async () => ({ status: 200, headers: new Headers({ 'content-type': type }), json: async () => JSON.parse(text), text: async () => text });
+  assert.deepEqual((await createGithubAdapter(reply('application/json; charset=utf-8', '{"a":1}')).request('/x')).body, { a: 1 });
+  assert.equal((await createGithubAdapter(reply('application/x-www-form-urlencoded', 'a=1&b=2')).request('/x')).body, 'a=1&b=2');
+});
+
+test('github.io-adapter-request.method-fake-answers-by-method-and-path: clause 2: createFakeGithubAdapter answers the same contract table keyed by method and path, and a GET with no options behaves as today [C7,#1429]', async () => {
+  const fake = createFakeGithubAdapter({
+    '/repos/owner/name': REPOSITORY,
+    'POST /repos/owner/name/statuses/abc': { status: 201, headers: { link: 'x' }, body: { state: 'success' } },
+  });
+  assert.deepEqual(await fake.request('/repos/owner/name'), REPOSITORY, 'a GET with no options answers from the bare path');
+  assert.deepEqual(await fake.request('/repos/owner/name/statuses/abc', { method: 'POST', body: '{}' }), { status: 201, headers: { link: 'x' }, body: { state: 'success' } });
+  assert.equal((await fake.request('/repos/owner/name/statuses/abc')).status, 404, 'a GET does not hit the POST row');
+  assert.equal((await fake.request('/repos/owner/name', { method: 'DELETE' })).status, 404, 'a method with no row is 404');
+});
+

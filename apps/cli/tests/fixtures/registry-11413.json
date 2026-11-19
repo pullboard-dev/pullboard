@@ -1,0 +1,44 @@
+{
+  "cli.io-commands-update.runs-the-upgrade-for-each-install-kind": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "For global, npx and project installs, update runs exactly the upgrade line for that install kind through its run port and prints the changelog sections between the old and new version."
+    },
+    "why": "Without it, update could run the wrong upgrade for an install or show changes outside the old-to-new range.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/update.js",
+      "apps/cli/tests/io/commands/update.test.js"
+    ]
+  },
+  "cli.io-commands-update.already-current-runs-nothing": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "When the latest published version equals the running version, update says it is already current and runs no upgrade."
+    },
+    "why": "Without it, update would reinstall the same version every time it is run.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/update.js",
+      "apps/cli/tests/io/commands/update.test.js"
+    ]
+  },
+  "cli.io-commands-update.unknown-install-refuses": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "For an unknown install, update refuses UPDATE_KIND_UNKNOWN naming the one manual command and runs nothing."
+    },
+    "why": "Without it, update would guess a way to upgrade an install it cannot classify.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/update.js",
+      "apps/cli/tests/io/commands/update.test.js"
+    ]
+  }
+}
