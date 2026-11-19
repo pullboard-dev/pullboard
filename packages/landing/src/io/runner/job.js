@@ -26,6 +26,7 @@ import { watchDeadline } from './deadline.js';
 import { IDENTITY } from '../land/merge-args.js';
 import { citedIds } from '../land/merge-args.js';
 import { landingMergeArgs } from '../land/merge-args.js';
+import { commitUnionedMerge } from '../land/registry-union.js';
 export { IDENTITY, citedIds, landingMergeArgs };
 
 /** The board's landing job kind, as packages/api offers it. */
@@ -339,10 +340,12 @@ async function stallWatched(check, context, { clock, pollMs }) {
  * squashOnto, with the same message, and HEAD moves to it. Why: main keeps one commit per item, and the branch stays
  * under refs/pullboard/items/<id> for audit [C7,#9219].
  */
-function mergeItem(root, entry, base, squash = false) {
+function mergeItem(root, entry, base, squash = false, union = false) {
   if (squash) return squashItem(root, entry, base);
   const merged = tryGit(root, landingMergeArgs(root, entry));
   if (merged.status === 0) return null;
+  // payload.unionRegistries: a stop on cell test-registry conflicts alone is two items adding records, so union them and land [C7,U148].
+  if (union && commitUnionedMerge(root)) return null;
   tryGit(root, ['merge', '--abort']);
   return `#${entry.id} does not merge on ${base.slice(0, 12)}: ${(merged.stdout || merged.stderr).slice(0, 240)}`;
 }
@@ -382,7 +385,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
   let detail = null;
   for (const entry of pending) {
     const before = must(root, ['rev-parse', 'HEAD']);
-    if (mergeItem(root, entry, base, payload.squash === true)) { red.push(entry.id); continue; }
+    if (mergeItem(root, entry, base, payload.squash === true, payload.unionRegistries === true)) { red.push(entry.id); continue; }
     if (!await renew()) return null;
     const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
@@ -480,7 +483,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const mergeStart = Date.now();
     const squash = payload.squash === true;
     let pending = waiting.filter(entry => {
-      const collided = mergeItem(root, entry, base, squash);
+      const collided = mergeItem(root, entry, base, squash, payload.unionRegistries === true);
       if (collided) giveBack(entry.id, 'conflict', collided);
       return !collided;
     });
