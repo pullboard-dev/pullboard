@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1428,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -62,12 +62,6 @@
     "apps/cli/src/io/resident/daemons.js": 2,
     "apps/cli/src/io/resident/socket.js": 1,
     "apps/cli/src/io/resume.js": 3,
-    "apps/cli/src/io/resume/adopt.js": 1,
-    "apps/cli/src/io/runner/service.js": 1,
-    "apps/cli/src/io/runner/stderr.js": 1,
-    "apps/cli/src/io/scale.js": 5,
-    "apps/cli/src/io/setup.js": 6,
-    "apps/cli/src/io/skills.js": 1,
     "apps/cli/src/io/spec.js": 1,
     "apps/cli/src/io/static/view.js": 5,
     "apps/cli/src/io/submit.js": 1,

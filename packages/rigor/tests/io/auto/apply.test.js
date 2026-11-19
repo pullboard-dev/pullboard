@@ -1,4 +1,4 @@
-/** An automatic Rigor draft that differs from its file row only by the layout move's path renames is the same row [D1,S1]. */
+/** An automatic Rigor draft that differs from its file row in any word, a path included, is a different row [D1,S1]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadConfig } from '../../../../config/index.js';
@@ -11,14 +11,13 @@ const OLD = 'test/relay-credential.test.js';
 const RENAMED = 'apps/cli/journeys/relay/credential.test.js';
 const CONFIG = { name: 'Rename fixture', gate: 'true', spec: 'SPEC.md', lanes: { app: { owns: ['src/'] } } };
 
-/** A repo whose spec holds one draft row, and whose rename map names the old and the renamed path. */
+/** A repo whose spec holds one draft row and no plan folder. */
 function repo(rowText, more = []) {
   const { root, write } = privateFixtureFiles('pullboard-rigor-apply-');
   const spec = '# Spec\n\n## G · Goals\n- G1 [approved, must] Keep the product coherent. | gate: review\n\n'
     + `## RG · Rigor proposals\n- RG1 [draft, aim] ${rowText} | gate: review\n${more.map(row => `${row}\n`).join('')}`;
   fixtureProjectPolicy(root, { config: CONFIG, spec });
   write('DOCTRINE.md', '# Doctrine\n\n## DR · Rulings\n');
-  write('packages/codemap/data/plan/renames.tsv', `${OLD}\t${RENAMED}\n`);
   return root;
 }
 
@@ -35,11 +34,17 @@ function movedRow(renamed, before) {
   return `${renamed.text.slice(0, renamed.text.indexOf(' Source: '))} Source: ${before.text.split(' Source: ')[1]}`;
 }
 
-test('rigor.auto.apply-renamed-path-same-row: clause 1: a draft naming an old path and a file row naming its renamed path are the same row, so apply skips it [D1,S1]', () => {
+test('rigor.auto.apply-old-path-draft-collides: clause 2: a draft naming an old path and a file row naming its renamed path are different rows, so apply lists the draft as a collision and plans no write for it [D1,S1]', () => {
   const before = draft(OLD), root = repo(movedRow(draft(RENAMED), before));
   const plan = planAutomaticRigorApply(root, loadConfig(root), [before]);
   assert.deepEqual(plan.files, [], 'no file write is planned');
   assert.deepEqual(plan.records, []);
+  assert.deepEqual(plan.collisions.map(({ id, target }) => ({ id, target })), [{ id: 'RG1', target: 'spec' }]);
+  assert.match(plan.collisions[0].why, /RG1 already names different spec text, gate or tier/u);
+  const same = draft(RENAMED), sameRoot = repo(movedRow(same, same));
+  const samePlan = planAutomaticRigorApply(sameRoot, loadConfig(sameRoot), [same]);
+  assert.deepEqual(samePlan.files, [], 'a draft and a file row with the same text plan no write');
+  assert.deepEqual(samePlan.collisions, []);
 });
 
 /** A spec with a colliding draft row RG1 and no row yet for the fresh draft RG2. */

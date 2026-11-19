@@ -19,6 +19,7 @@ export const MOVES = [
       { code: 'CLAUSE_EVIDENCE_REQUIRED', rule: 'each frozen clause declares its evidence kind', next: 'ask the coordinator to declare the missing clause evidence kind' },
       { code: 'CLAUSE_REASONING_ONLY', rule: 'observable outcomes require observable evidence', next: 'declare test, command, screenshot or measurement evidence' },
       { code: 'SUBMIT_RED_LOOP', rule: 'two red test gates that still match the item code stop another unchanged submit', next: 'change the failing code before another submit' },
+      { code: 'CROSS_OWNERSHIP', rule: 'a lane item\'s brief Files list names no path that no lane owns', next: 'split the item so each piece names only its own lane\u2019s folders, or shout the owning lane to build the other paths' },
       { code: 'BAR_PATH_MISSING', rule: 'every path the frozen bar names exists on main', next: 'name the paths where they live on main now (pullboard edit <id> --criterion/--check/--brief), or withdraw the item' },
       { code: 'TEST_HASH_CHANGED', rule: 'a test file the frozen bar named keeps its frozen content unless the person ruled on the new content', next: 'restore the file, or ask the coordinator to bring the change to the person for a test-hash ruling' },
       { code: 'TEST_AUTHOR_SAME_SEAT', rule: 'when verify.testAuthorSplit is on, a bar-named test file the submitting seat changed was authored by another seat', next: 'restore the test to accepted main and build against it as written, or have another seat write it and record itself as the author' },
