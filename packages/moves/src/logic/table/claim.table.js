@@ -27,6 +27,7 @@ export const CLAIM_IO = Object.freeze({
   laneSeat: "git + filesystem: a free seat of this session in the item's lane (WRONG_LANE guidance)",
   primaryRoot: 'git: the primary checkout, named when no lane seat is free',
   foreignBlocker: 'another board: the first unlanded cross-repo dependency (BLOCKED)',
+  takeoverReady: 'board: the line takeover wait (line.takeoverMinutes) has passed for this returned item, which ends its first-refusal window',
   builderGone: "heartbeats: the first-refusal builder's seat is gone, which ends its window early",
   buildBudgetMinutes: 'git: accepted itemBuildBudgetMinutes (default 30)',
   seatCap: 'runners + settings: { n, how }, the N top-level item-folder claims a seat may hold, sealed into the claim',
@@ -85,7 +86,7 @@ export function firstRefusalWindow(s) {
   return null;
 }
 
-/** Why the first-refusal window keeps this seat off, or null; the board never set takeover minutes, so takeover is off. */
+/** Why the first-refusal window keeps this seat off, or null; an elapsed line takeover wait ends the window as it does for the writer. */
 function firstRefusalReason(s, m) {
   const window = firstRefusalWindow(s);
   if (!window) return null;
@@ -93,7 +94,7 @@ function firstRefusalReason(s, m) {
     const reviewed = s.history.some(e => e.by === m.actor && ['accept', 'reject', 'reserve'].includes(e.kind));
     return reviewed ? `item #${m.id} returned for lack of progress; a reviewer of it cannot take the first refusal; take another item` : null;
   }
-  return window.builder !== m.actor && !s.io.builderGone
+  return window.builder !== m.actor && !s.io.builderGone && !s.io.takeoverReady
     ? `item #${m.id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it` : null;
 }
 
