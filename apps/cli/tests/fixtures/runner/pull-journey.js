@@ -24,7 +24,7 @@ export function definePullJourney(count) {
   const requests = join(box.dir, 'requests.jsonl');
   for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
-  const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/heavy.js')).href;
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
   const script = `
     import { readdirSync, readFileSync, writeFileSync } from 'node:fs';

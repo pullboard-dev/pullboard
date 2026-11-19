@@ -1,5 +1,5 @@
 /** @pullboard-test-loads packages/resources/index.js */
-/** @pullboard-test-loads packages/gate/index.js */
+/** @pullboard-test-loads packages/gate/heavy.js */
 /** Private native admission restricts placement without granting capacity or capabilities [Q1,Q2,E27]. */
 import { executionServicesSource } from '../gate/execution.js';
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import { runFixtureChildAsync } from '../child.js';
 import { createE2eHelpers } from '../e2e.js';
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/resources/index.js')).href;
-const GATE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
+const GATE = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/heavy.js')).href;
 
 /** Execute only fixture-owned admission against an isolated machine database. */
 async function privateAdmission(t, body) {

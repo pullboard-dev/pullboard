@@ -2,7 +2,7 @@
 import { executionServicesSource } from '../gate/execution.js';
 import { repoPath } from '../../../../../packages/kernel/light.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
-import { awaitNestedRun } from '../../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../../packages/gate/heavy.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
@@ -233,7 +233,7 @@ export async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const files = NAMES.map(name => `./test/${name}.test.js`);
   const script = `const { runLandingShards } = await import(${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/landing/index.js')).href)});
 const { parseProcessCensus } = await import(${url('packages/kernel/src/logic/census.js')});
-const { landingShardProfile } = await import(${url('packages/gate/index.js')});
+const { landingShardProfile } = await import(${url('packages/gate/heavy.js')});
 const { Refused } = await import(${url('packages/kernel/index.js')});
 const { RunnerDropped } = await import(${url('packages/gate/light.js')});
 const { appendFileSync, writeFileSync } = await import('node:fs');

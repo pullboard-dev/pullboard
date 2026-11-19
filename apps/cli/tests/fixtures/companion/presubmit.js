@@ -95,7 +95,7 @@ export async function attach(f, key = 'approved-view', source = f.source, file =
 
 /** Produce a second genuine phase pair on the same private item, retaining native admission and receipt writing. */
 export async function repeatNativePhases(f, binding) {
-  const gate = new URL('../../../../../packages/gate/index.js', import.meta.url).href;
+  const gate = new URL('../../../../../packages/gate/heavy.js', import.meta.url).href;
   const script = join(f.box.dir, 'repeat-phases.mjs');
   // The store front door replaced src/board.js in #1776.
   writeFileSync(script, `import * as store from ${JSON.stringify(new URL('../../../../../packages/store/index.js', import.meta.url).href)};

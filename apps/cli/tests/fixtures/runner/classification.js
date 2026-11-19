@@ -12,8 +12,8 @@ import {
   resolve,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { cpuLoadOptionsIn } from '../../../../../packages/gate/index.js';
-import { testsNeedCpuRunner } from '../../../../../packages/gate/index.js';
+import { cpuLoadOptionsIn } from '../../../../../packages/gate/heavy.js';
+import { testsNeedCpuRunner } from '../../../../../packages/gate/heavy.js';
 import { runFixtureChild } from '../child.js';
 
 /** Exercise both ordinary executable shapes and explicit positive/negative declarations. */
@@ -71,8 +71,8 @@ export function guiCpuPolicyCase() {
       runners: [{ host: 'private-non-gui-fixture', slots: 1, browser: 1, gui: false }] }));
     writeFileSync(join(directory, 'gui.test.js'), "/** @pullboard-test-gui */\nimport test from 'node:test'; function fixture(context) { context.after(() => {}); } test('GUI', t => { fixture(t); });\n");
     writeFileSync(join(directory, 'cpu.test.js'), "import test from 'node:test'; test('busy', { cpuLoad: true }, () => {});\n");
-    const classify = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
-    const gui = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
+    const classify = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/heavy.js')).href;
+    const gui = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/heavy.js')).href;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
       import { cpuRunnerRequired } from ${JSON.stringify(classify)};
       import { testsNeedGui } from ${JSON.stringify(gui)};

@@ -1,6 +1,6 @@
 /** @pullboard-test-input apps/cli/src/io/landing/audit.js apps/lib/src/logic/native.js packages/codemap/data/plan/cells.json packages/landing/index.js packages/runners/index.js */
 /** Shared private-fixture helpers for the native train receipt journeys [C7]. */
-import { receiptBinds } from '../../../../../packages/gate/index.js';
+import { receiptBinds } from '../../../../../packages/gate/heavy.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { policyAt } from '../../../../../packages/sandbox/index.js';
@@ -20,14 +20,14 @@ import {
   openBoard,
   recordGateRun,
 } from '../../../../lib/index.js';
-import { boardReceiptStore } from '../../../../../packages/gate/index.js';
-import { readGateReceipt } from '../../../../../packages/gate/index.js';
-import { receiptStore } from '../../../../../packages/gate/index.js';
+import { boardReceiptStore } from '../../../../../packages/gate/heavy.js';
+import { readGateReceipt } from '../../../../../packages/gate/heavy.js';
+import { receiptStore } from '../../../../../packages/gate/heavy.js';
 import { nativePushReceiptProblems as evaluateNativePushReceipts } from '../../../../../packages/git/index.js';
 import { runFixtureChild } from '../child.js';
 import { createE2eHelpers } from '../e2e.js';
 import { submitFixture } from '../board/submit.js';
-import { mainAuditKey } from '../../../../../packages/gate/index.js';
+import { mainAuditKey } from '../../../../../packages/gate/heavy.js';
 
 
 /** Exercise the production evaluator with its genuine native store, policy and receipt providers. */
@@ -186,10 +186,10 @@ export async function audit(box, batch) {
     && JSON.parse(event.event_detail).batch.state === 'landed').at(-1));
   assert.equal(JSON.parse(latest.event_detail).batch.id, batchId, 'the explicit full audit covers the requested latest landing');
   if (await finishAudits(box, box.waitFor)) return;
-  const source = `import {runGate} from ${JSON.stringify(new URL('../../../../../packages/gate/index.js', import.meta.url).href)};
+  const source = `import {runGate} from ${JSON.stringify(new URL('../../../../../packages/gate/heavy.js', import.meta.url).href)};
 import * as store from ${JSON.stringify(new URL('../../../../../packages/store/index.js', import.meta.url).href)};
 import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../../../../lib/src/logic/native.js", import.meta.url).href)};
-import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../../../../../packages/gate/index.js', import.meta.url).href)};
+import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../../../../../packages/gate/heavy.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../../../../../packages/runners/index.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../../../../../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';

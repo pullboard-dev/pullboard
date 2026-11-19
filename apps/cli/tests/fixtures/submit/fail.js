@@ -13,7 +13,7 @@ import { put } from './gate.js';
 import { withBrief } from './gate.js';
 
 export const MARK = path => `node test/mark.mjs ${path}`;
-const GATE_FRONT_DOOR = fileURLToPath(new URL('../../../../../packages/gate/index.js', import.meta.url));
+const GATE_FRONT_DOOR = fileURLToPath(new URL('../../../../../packages/gate/heavy.js', import.meta.url));
 
 /** Run one public command in this process from a directory with the fixture's environment, in the child runner's result shape. */
 export async function inProcess(box, cwd, ...args) {
