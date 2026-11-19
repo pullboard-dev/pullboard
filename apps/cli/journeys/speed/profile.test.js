@@ -17,6 +17,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
 import { residentPoolSize } from '../../src/io/resident/client.js';
 import { residentSocket } from '../../src/io/resident/client.js';
@@ -124,6 +125,12 @@ test('cli.journeys-speed-profile.one-submit-on-a-large-board: clause 1: one subm
   const submits = [0, 1, 2].map(run => added(`Speed submit ${run}`));
   json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: this test measures real spawns
   json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: this test measures real spawns
+  // A submitted item whose gate is not queued or running no longer counts as waiting, and the fixture seat holds one claim; the
+  // three runs each claim their own item, so the seat may hold the three, whatever state an earlier run's gate is in.
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, claims: { ...config.claims, perSeat: submits.length } } });
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.repo, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', 'chore: let the speed seat hold three claims'], { cwd: box.repo, env: box.env });
   const counts = [];
   const shapes = new Map();
   submits.forEach((id, run) => {
