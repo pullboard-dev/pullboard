@@ -218,6 +218,11 @@ export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
 }
 
+/** Whether the static check refuses new direct GitHub network access outside the GitHub adapter: off by default; only an exact `true` turns it on [C7,#1429]. */
+export function adapterLintGithubEnabled() {
+  return loadMachineSettings().gate?.adapterLintGithub === true;
+}
+
 /** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
 export function idiomSpreadEnabled() {
   return loadMachineSettings().gate?.idiomSpread === true;

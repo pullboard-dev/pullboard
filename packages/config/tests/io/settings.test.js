@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { joinCoordinatorSeat } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
+import { adapterLintGithubEnabled } from '../../index.js';
+import { MACHINE_DEFAULTS } from '../../src/io/settings/machine-defaults.js';
+import { describeSetting } from '../../src/io/settings/descriptions.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -36,4 +39,18 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.adapter-lint-github-enabled: clause 1: adapterLintGithubEnabled() reads false when unset and true only when gate.adapterLintGithub is set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#1429]', () => {
+  assert.equal(withSettings({}, adapterLintGithubEnabled), false);
+  assert.equal(withSettings({ 'gate.adapterLintGithub': false }, adapterLintGithubEnabled), false);
+  assert.equal(withSettings({ 'gate.adapterLintGithub': true }, adapterLintGithubEnabled), true);
+  assert.throws(() => withSettings({ 'gate.adapterLintGithub': 'yes' }, adapterLintGithubEnabled), { code: 'BAD_MACHINE_SETTINGS' });
+});
+
+test('config.io-settings.adapter-lint-github-described: clause 2: describeSetting(gate.adapterLintGithub) names the GitHub adapter and MACHINE_DEFAULTS holds the setting false [C7,#1429]', () => {
+  const row = describeSetting('gate.adapterLintGithub');
+  assert.ok(row, 'description row exists');
+  assert.match(JSON.stringify(row), /GitHub adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintGithub'], false);
 });
