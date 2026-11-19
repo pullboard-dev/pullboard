@@ -19,6 +19,8 @@ import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { barOwnerOptions } from '../item/bar.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
@@ -135,7 +137,8 @@ export async function run(io, args) {
     splitAdvice(first, title, split.paths));
   const laneBar = split ? split.lane : wholeBar;
   // Before the brief's own lane check, so a coordinator-owned path gets the cross-ownership code and the split, not a bare lane refusal [C7,#2650].
-  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title, ...laneBar });
+  const owners = barOwnerOptions(ctx, itemsBarRulesAtAdd());
+  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title, ...laneBar }, owners);
   let item = {
     by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id,
     lane: first,
@@ -183,7 +186,7 @@ export async function run(io, args) {
   const authors = referenceAuthors(ctx.info.root, item.brief, { githubPullClient });
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
-  requireNoCoordinatorPath(ctx.config, me, item);
+  requireNoCoordinatorPath(ctx.config, me, item, owners);
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());

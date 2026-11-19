@@ -1,5 +1,8 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { barOwnerOptions } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
@@ -100,6 +103,11 @@ export async function run(io, args) {
     if (authors.length) change.referenceAuthors = authors;
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
+  // With items.barRulesAtAdd on, an edit that changes the Files list is judged by who owns the files it changes, as claim does [C7,#11777].
+  if (change.brief !== undefined && itemsBarRulesAtAdd()) {
+    const filed = store.getItem(board, id);
+    requireNoCoordinatorPath(ctx.config, me, { by: asPerson ? store.PERSON : me.id, lane: filed.item_lane, title: filed.item_title, brief: change.brief }, barOwnerOptions(ctx, true));
+  }
   const barWarnings = sealed ? [] : guardBar(change.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
   // A changed bar may not name a path missing from main, refused before any other bar rule; an edit that leaves the
   // criterion and check alone never refuses on it (#5709).
