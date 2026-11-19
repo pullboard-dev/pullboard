@@ -201,6 +201,9 @@ export function loadMachineSettings() {
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
+  if (value.gate?.failFastShards !== undefined && typeof value.gate.failFastShards !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.failFastShards in ${file} must be true or false`);
+  }
   if (value.gate?.retryNewRedsOnce !== undefined && typeof value.gate.retryNewRedsOnce !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.retryNewRedsOnce in ${file} must be true or false`);
   }
