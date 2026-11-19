@@ -115,3 +115,20 @@ test('cli.logic-show-gate.show-prints-queuewaitseconds-in-under-200-ms: clause 2
   assert.deepEqual(lines, ['queueWaitSeconds: 7.5']);
   assert.deepEqual(queueWaitLines({ id: 'g', step: 'done', gate: settledGate('g', { receipt: { gate: { green: true } } }) }), [], 'a receipt with no wait prints no line');
 });
+
+test('cli.logic-show-gate.stale-settle-says-resubmit: clause 1: a gate job that settled stale prints a resubmit line, not GATE_WAITING [C7,#11935]', () => {
+  const item = { item_id: 5, item_status: 'claimed' };
+  const lines = pulledWaitingLines({ id: 'gate:5', step: 'done', gate: DEFERRED, settle: 'stale' }, item, [{ type: 'fact', text: 'Gate job gate:5 passed its checks at abc; its proof of 9 files is offered as 3 shard jobs' }]);
+  assert.deepEqual(lines, ['GATE_STALE: gate job gate:5 settled stale; build at your claim and run pullboard submit 5']);
+  assert.doesNotMatch(lines.join('\n'), /GATE_WAITING|do not resubmit/u);
+  assert.deepEqual(pulledWaitingLines({ id: 'gate:5', step: 'done', gate: DEFERRED, settle: 'stale' }, { item_id: 5, item_status: 'submitted' }), [], 'a held item prints no stale line');
+});
+
+test('cli.logic-show-gate.unsettled-gate-still-says-waiting: clause 1: a gate job with no settle step, or an unknown one, still prints GATE_WAITING [C7,#11935]', () => {
+  const item = { item_id: 6, item_status: 'claimed' };
+  for (const settle of [undefined, 'review', 'unknown']) {
+    const [line, ...rest] = pulledWaitingLines({ id: 'gate:6', step: 'done', gate: DEFERRED, ...(settle ? { settle } : {}) }, item);
+    assert.match(line, /^GATE_WAITING: gate job gate:6 passed its checks; its proof waits on its shard jobs, so do not resubmit #6/u, String(settle));
+    assert.deepEqual(rest, []);
+  }
+});

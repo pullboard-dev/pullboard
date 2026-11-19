@@ -29,6 +29,7 @@ import {
 } from 'node:path';
 import { Refused } from '../../../../kernel/index.js';
 import { BROWSER_MARKER } from '../../logic/declaration.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 // Node registers this symbol globally; looking it up needs no util facade or dynamic loader.
 const PROMISIFY_CUSTOM = Symbol.for('nodejs.util.promisify.custom');
@@ -52,7 +53,8 @@ const INSTALLED = Symbol.for('pullboard.browserSlotGuard');
  * @returns {Refused}
  */
 export function browserSlotRefusal(what) {
-  const absolute = process.env.PULLBOARD_TEST_FILE ? resolve(process.env.PULLBOARD_TEST_FILE) : '';
+  const testFile = environmentAdapter().get('PULLBOARD_TEST_FILE');
+  const absolute = testFile ? resolve(testFile) : '';
   const local = absolute ? relative(process.cwd(), absolute) : '';
   const file = !absolute ? 'this test file' : (local && !local.startsWith('..') && !isAbsolute(local) ? local : absolute).split('\\').join('/');
   return new Refused('BROWSER_UNDECLARED', `${file} launched Chrome (${what}) without declaring it, so it holds no browser lease; make its first line ${BROWSER_MARKER}`,
@@ -87,11 +89,11 @@ export function isBrowserExecutable(word, { cwd, env } = {}) {
   if (!text) return false;
   if (BROWSER_NAME.test(basename(text))) return true;
   const base = cwd instanceof URL ? cwd.pathname : (cwd ?? process.cwd());
-  const path = text.includes('/') ? resolve(String(base), text) : onPath(text, env?.PATH ?? process.env.PATH);
+  const path = text.includes('/') ? resolve(String(base), text) : onPath(text, env?.PATH ?? environmentAdapter().get('PATH'));
   if (!path) return false;
   const real = canonical(path);
   if (BROWSER_NAME.test(basename(real))) return true;
-  const targets = [process.env.PULLBOARD_CHROME, env?.PULLBOARD_CHROME, ...KNOWN_BROWSERS].filter(Boolean).map(canonical);
+  const targets = [environmentAdapter().get('PULLBOARD_CHROME'), env?.PULLBOARD_CHROME, ...KNOWN_BROWSERS].filter(Boolean).map(canonical);
   return targets.includes(real);
 }
 
@@ -103,7 +105,7 @@ export function isBrowserExecutable(word, { cwd, env } = {}) {
  * @returns {string[]}
  */
 function shellWords(command) {
-  const chrome = process.env.PULLBOARD_CHROME ?? '';
+  const chrome = environmentAdapter().get('PULLBOARD_CHROME', '');
   const expanded = String(command).replace(/\$\{PULLBOARD_CHROME\}|\$PULLBOARD_CHROME\b/gu, () => (chrome ? `'${chrome}'` : 'google-chrome'));
   const words = [];
   let word = '';
@@ -160,7 +162,7 @@ export function browserInCall(method, input) {
  * @returns {boolean} whether the guard is installed
  */
 export function installBrowserSlotGuard() {
-  if (process.env[BROWSER_SLOT_ENV] !== 'none') return false;
+  if (environmentAdapter().get(BROWSER_SLOT_ENV) !== 'none') return false;
   if (globalThis[INSTALLED]) return true;
   globalThis[INSTALLED] = true;
   for (const method of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) {

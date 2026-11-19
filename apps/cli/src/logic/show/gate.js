@@ -38,7 +38,7 @@ export function queuedGateLines(queued, gateText = null) {
  * proof is waiting, not red. Why: a deferred receipt has gate.green false yet names no failing case, and the GATE_RED
  * line sent builders to resubmit and re-queue the whole gate while the shards were only queued [C7].
  *
- * @param {{ id: string, step: string, gate: Record<string, any> | null } | null} gateJob - show's newest gate job.
+ * @param {{ id: string, step: string, gate: Record<string, any> | null, settle?: string } | null} gateJob - show's newest gate job; its settle is the outcome of its newest note:shards.settled step, "stale" when the claim moved while shards ran.
  * @param {{ item_id: number, item_status?: string }} item
  * @param {Array<{ type?: string, text?: string }>} [thread] - show's thread; a settled red or unknown fact for this gate job replaces the waiting line.
  * @returns {string[]} none unless the gate is done, deferred, and the item is still claimed.
@@ -46,6 +46,7 @@ export function queuedGateLines(queued, gateText = null) {
 export function pulledWaitingLines(gateJob, item, thread = []) {
   const gate = gateJob?.gate;
   if (gateJob?.step !== 'done' || !gate || gate.green === true || gate.deferred !== true || item?.item_status !== 'claimed') return [];
+  if (gateJob.settle === 'stale') return [`GATE_STALE: gate job ${gateJob.id} settled stale; build at your claim and run pullboard submit ${item.item_id}`];
   const settled = settledGateWord(thread, gateJob.id);
   if (settled === 'red') return [`GATE_RED: gate job ${gateJob.id} settled red when its shards posted; read the failing parts in the thread, fix, commit, and run pullboard submit ${item.item_id} again`];
   if (settled === 'unknown') return [`GATE_UNKNOWN: gate job ${gateJob.id} settled unknown until main's missing receipts record; run pullboard submit ${item.item_id} again once they do`];
