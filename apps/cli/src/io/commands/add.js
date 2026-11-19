@@ -19,9 +19,11 @@ import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireSpecRow } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
@@ -128,6 +130,7 @@ export async function run(io, args) {
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
   const title = [second, ...rest].filter(Boolean).join(' ');
+  requireSpecRow({ lane: first, title, specIds }, itemsBarRulesAtAdd());
   const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
   // With --split-coordinator the coordinator-owned part of the bar leaves for its own item, filed after this one [C7,#3246].
   const split = values['split-coordinator'] === true ? splitBar(ctx.config, wholeBar) : null;
