@@ -376,6 +376,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout_open_decision` | `shout` | `shout_decision`, `shout_to` | no |
 | `shout_open_request` | `shout` | `shout_request` | no |
 | `shout_target_id` | `shout` | `shout_to`, `shout_id` | no |
+| `test_result_commit_file` | `test_result` | `test_result_commit`, `test_result_command`, `test_result_file` | no |
 | `test_result_key` | `test_result` | `test_result_input_key`, `test_result_command`, `test_result_context` | no |
 | `verdict_item_id_verdict_id` | `verdict` | `item_id`, `verdict_id` | no |
 <!-- board-indexes:end -->
