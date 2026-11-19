@@ -2472,7 +2472,6 @@
     "drive->env",
     "resources->jobs",
     "resources->git",
-    "resources->fs",
     "codemap->git",
     "codemap->fs",
     "codemap->kernel",
