@@ -10,6 +10,7 @@ import { createRelayAuth } from '../../../index.js';
 import { createGitHubClient } from '../../../index.js';
 import { createRelayHandler } from '../../../index.js';
 import { health } from './health.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
@@ -54,19 +55,19 @@ function dropPrivileges() {
 }
 
 /** Start the authenticated opaque relay on Railway's assigned port and public origin. */
-async function startRelay() {
-  const publicOrigin = process.env.PULLBOARD_PUBLIC_ORIGIN || '';
-  const data = resolve(process.env.PULLBOARD_RELAY_DATA || '/data');
-  const port = Number(process.env.PORT || 3000);
+async function startRelay(environment = environmentAdapter()) {
+  const publicOrigin = environment.get('PULLBOARD_PUBLIC_ORIGIN') || '';
+  const data = resolve(environment.get('PULLBOARD_RELAY_DATA') || '/data');
+  const port = Number(environment.get('PORT') || 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Refused('RELAY_PORT', 'set PORT to an available TCP port from 1 to 65535 and restart the service');
   }
-  const quotaSetting = process.env.PULLBOARD_ACCOUNT_STORAGE_BYTES;
+  const quotaSetting = environment.get('PULLBOARD_ACCOUNT_STORAGE_BYTES');
   const accountStorageBytes = quotaSetting === undefined ? undefined : Number(quotaSetting);
   if (quotaSetting !== undefined && (!/^[1-9][0-9]*$/u.test(quotaSetting) || !Number.isSafeInteger(accountStorageBytes))) {
     throw new Refused('RELAY_CONFIG', 'Set PULLBOARD_ACCOUNT_STORAGE_BYTES to a positive whole-byte account quota, then restart the relay.');
   }
-  const privateKey = (process.env.GITHUB_APP_PRIVATE_KEY || '').replaceAll('\\n', '\n');
+  const privateKey = (environment.get('GITHUB_APP_PRIVATE_KEY') || '').replaceAll('\\n', '\n');
   try { prepareStorage(data); }
   catch (error) {
     if (error instanceof Refused) throw error;
@@ -79,8 +80,8 @@ async function startRelay() {
   const auth = createRelayAuth({
     database: join(data, AUTH_DATABASE_FILE),
     github: createGitHubClient({
-      clientId: process.env.GITHUB_APP_CLIENT_ID || '',
-      clientSecret: process.env.GITHUB_APP_CLIENT_SECRET || '',
+      clientId: environment.get('GITHUB_APP_CLIENT_ID') || '',
+      clientSecret: environment.get('GITHUB_APP_CLIENT_SECRET') || '',
       privateKey,
       callbackURL: callbackURL(publicOrigin),
     }),
