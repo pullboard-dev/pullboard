@@ -197,7 +197,6 @@
     "packages/pin/src/io/keyed.js",
     "packages/pin/src/io/tooling.js",
     "packages/resources/src/io/controller/custody.js",
-    "packages/resources/src/io/handoff/worker/cap.js",
     "packages/resources/src/io/write/queue.js",
     "packages/runners/src/io/checkouts.js",
     "packages/runners/src/io/module/parser.js",
