@@ -123,7 +123,7 @@ function openAndRun(ctx, work, opened) {
   // release.rerouteUntouched (off by default): an untouched release counts toward the route-up rule [C7,#2970].
   board.rerouteUntouched = releaseRerouteUntouched();
   // claims.fileLease (off by default): live claims lease their predicted files, hub files excepted [C7,#8521].
-  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [] } : null;
+  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [], quietThreshold: ctx.config.queue?.contentionThreshold ?? 1 } : null;
   // inbox.keepUntilActed (off by default): shouts record their kind and stay listed until an allowed action is recorded [C7,#8519].
   board.inboxKeep = ctx.config.inbox?.keepUntilActed === true;
   return withOpenedBoard(ctx, work, board);
