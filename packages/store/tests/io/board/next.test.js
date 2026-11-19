@@ -107,13 +107,29 @@ function submittedPair(t) {
 
 const REVIEW = { agentId: 'rev-1', lane: 'web', verify: true, familyPolicy: 'prefer' };
 
-test('store.next.derived-seat-family-used: clause 1: nextFor given a derivedSeatFamily answer uses it for the seat and builder families of its review family check, and the review is still offered [C7,#11383]', t => {
-  const { board, first } = submittedPair(t);
+/** Every family-table read the connection prepares, with the arguments each read ran with, so a test sees which seat ids were looked up. */
+function familyReads(board) {
+  const prepare = board.db.prepare.bind(board.db), args = [];
+  board.db.prepare = sql => {
+    const statement = prepare(sql);
+    if (!/famil/iu.test(sql)) return statement;
+    return new Proxy(statement, { get: (target, key) => typeof target[key] === 'function' && ['get', 'all', 'run'].includes(key) ? (...values) => { args.push(...values.flat()); return target[key](...values); } : target[key] });
+  };
+  return args;
+}
+
+test('store.next.derived-seat-family-used: clause 1: nextFor given a derivedSeatFamily answer uses it for the seat and builder families of its review family check, and no seatFamily or builderFamilyOf read runs for an id it names [C7,#11383]', t => {
+  const { board, first, second } = submittedPair(t);
+  const families = { 'rev-1': 'anthropic', 'same-1': 'anthropic', 'other-1': 'openai' };
+  const before = nextFor(board, REVIEW);
+  assert.equal(before.item?.item_id, first, 'with no family known for any seat the lower id is offered');
+  const reads = familyReads(board);
   const asked = [];
-  const families = { 'rev-1': 'openai', 'same-1': 'openai', 'other-1': 'anthropic' };
   const offered = nextFor(board, { ...REVIEW, derivedSeatFamily: id => { asked.push(id); return families[id]; } });
-  assert.equal(offered.item?.item_id, first, 'the later review order, not the family preference, picks the lower id');
+  assert.equal(offered.item?.item_id, second, 'the answer alone makes the other family preferred, so the later item is offered');
   assert.ok(asked.includes('rev-1') && asked.includes('same-1') && asked.includes('other-1'), `the answer was asked for every seat: ${asked}`);
+  const looked = reads.filter(value => Object.keys(families).includes(value));
+  assert.deepEqual(looked, [], `no family read ran for an id the answer names: ${looked}`);
 });
 
 test('store.next.derived-seat-family-fallback: clause 2: without the answer, or for an id it does not name, nextFor computes the families as before and offers the same item [C7,#11383]', t => {
@@ -122,6 +138,8 @@ test('store.next.derived-seat-family-fallback: clause 2: without the answer, or 
     const offered = nextFor(board, { ...REVIEW, ...options });
     assert.equal(offered.item?.item_id, first, offered.reasons.join(' | '));
   }
+  const partial = nextFor(board, { ...REVIEW, derivedSeatFamily: id => (id === 'rev-1' ? 'openai' : undefined) });
+  assert.equal(partial.item?.item_id, first, 'an id the answer does not name is computed from the board, as on main');
 });
 
 test('store.next.derived-seat-family-beside-gate: clause 3: nextFor reads derivedSeatFamily beside derivedGateAtHead from the same options, each answering its own check [C7,#11383]', t => {

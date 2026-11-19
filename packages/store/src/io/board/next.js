@@ -199,11 +199,10 @@ export function nextFor(board, options) {
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    // With a derived seat-family answer, a seat it names takes that family and a builder it names with no recorded family takes its answer; any other id is computed as before [C7,#11383].
+    // With a derived seat-family answer, a seat it names takes that family and a builder it names takes its answer; any other id is computed as before [C7,#11383].
     const family = derivedSeatFamily?.(agentId) ?? seatFamily(board, agentId);
     const builderFamily = (entry) => {
-      const recorded = entry.item_builder_family;
-      const derived = typeof recorded === 'string' && recorded.trim() !== '' || !entry.item_built_by ? undefined : derivedSeatFamily?.(entry.item_built_by);
+      const derived = entry.item_built_by ? derivedSeatFamily?.(entry.item_built_by) : undefined;
       return derived ?? builderFamilyOf(board, entry);
     };
     const hasDifferentFamily = (entry) => familiesDiffer(board, family, builderFamily(entry));
