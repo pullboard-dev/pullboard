@@ -1,7 +1,7 @@
 /** A block is a named set of items with a tier, and newBlock refuses anything that cannot make one [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { newBlock } from '../../src/logic/block.js';
+import { newBlock } from '../../src/logic/claims.js';
 import { newBlock as frontDoorNewBlock } from '../../index.js';
 
 test('items.block.new-block-returns-record: clause 1: newBlock(name, ids, tier) returns { name, ids, tier } for two or more distinct item ids and a tier of light, mid or strong [C7]', () => {
@@ -21,7 +21,7 @@ test('items.block.new-block-refuses-usage: clause 2: newBlock refuses USAGE for 
   assert.throws(() => newBlock('tier', [1, 2], undefined), usage);
 });
 
-test('items.block.front-door-export: clause 1: newBlock imported from packages/items/index.js returns the same record and the same USAGE refusals as the packages/items/src/logic/block.js export [C7]', () => {
+test('items.block.front-door-export: clause 1: newBlock imported from packages/items/index.js returns the same record and the same USAGE refusals as the packages/items/src/logic/claims.js export [C7]', () => {
   assert.equal(frontDoorNewBlock, newBlock, 'the front door re-exports the one function');
   assert.deepEqual(frontDoorNewBlock('pair', [1, 2], 'light'), newBlock('pair', [1, 2], 'light'));
   const refusal = run => { try { run(); } catch (error) { return error; } return null; };
