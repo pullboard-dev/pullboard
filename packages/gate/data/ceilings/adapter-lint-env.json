@@ -55,8 +55,6 @@
     "apps/cli/src/io/worktree/maintenance/observation.js": 1,
     "apps/cli/src/io/worktree/maintenance/scheduler.js": 1,
     "apps/cli/src/logic/why.js": 1,
-    "apps/relay/src/io/deploy/server.mjs": 7,
-    "apps/relay/src/io/deploy/smoke.mjs": 2,
     "apps/runner/src/io/sweep.js": 1,
     "apps/runner/src/io/worker/context.js": 1,
     "apps/runner/src/io/worker/entry.js": 4,
