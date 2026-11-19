@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import {
   FS_CEILING_FILE,
+  coveredByFsLint,
+  fsFindings,
   fsLintRows,
 } from '../../../src/io/adapter-lints/fs.js';
 
@@ -51,4 +53,13 @@ test('gate.logic-adapter-lints-fs.with-the-setting-off-which-is: clause 2: with 
   assert.deepEqual(fsLintRows(root), []);
   assert.deepEqual(fsLintRows(root, { enabled: false }), []);
   assert.deepEqual(fsLintRows(root, { enabled: 'yes' }), []);
+});
+
+test('gate.logic-adapter-lints-fs.watchdog-source-is-exempt: clause 1: the watchdog worker program text is not covered, a sibling file is, and its require reports nothing with no ceiling entry [C7,#11600]', () => {
+  const path = 'packages/gate/src/io/run-tests-watchdog-source.js';
+  const text = "const { writeSync } = require('node:fs');\n";
+  assert.equal(coveredByFsLint(path), false);
+  assert.equal(coveredByFsLint('packages/gate/src/io/run-tests-other.js'), true);
+  assert.deepEqual(fsFindings({ [path]: text }), []);
+  assert.equal(fsFindings({ 'packages/gate/src/io/run-tests-other.js': text }).length, 1);
 });
