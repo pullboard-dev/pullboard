@@ -7,6 +7,7 @@ import { boardReferenceId } from "../../../../../kernel/index.js";
 import { boardLinkBody } from "../../../../../kernel/index.js";
 import { boardLinkName } from "../../../../../kernel/index.js";
 import { boardLinkFormat } from "../../../../../kernel/index.js";
+import { boardLinkStates } from "../../../../../kernel/index.js";
 import { discloseBoardState } from "../../../../../kernel/index.js";
 
 const LIMIT = 65536;
@@ -52,7 +53,7 @@ export function boardLinkDeliveryReceipt(value, input) {
 function announcement(value, body) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
       || Object.keys(value).some(key => !['version', 'linkId', 'generation', 'sourceBoardId', 'destinationBoardId', 'position', 'disclosure', 'rows'].includes(key))
-      || value.version !== 1 || value.linkId !== body.linkId || value.generation !== body.generation
+      || ![1, 2].includes(value.version) || value.linkId !== body.linkId || value.generation !== body.generation
       || value.sourceBoardId !== body.child.boardId || value.destinationBoardId !== body.parent.boardId
       || value.disclosure !== body.disclosure || !Number.isSafeInteger(value.position) || value.position < 0) boardLinkFormat('The announcement does not match its signed link');
   let rows;
@@ -61,13 +62,13 @@ function announcement(value, body) {
     rows = {};
     let count = 0;
     for (const [state, amount] of Object.entries(value.rows)) {
-      if (!['open', 'claimed', 'submitted', 'verified', 'withdrawn'].includes(state)
+      if (!boardLinkStates(value.version).includes(state)
         || !Number.isSafeInteger(amount) || amount < 1 || amount > 10000) boardLinkFormat('Use bounded positive native state counts');
       rows[state] = amount; count += amount;
     }
     if (count > 10000) boardLinkFormat('The state-count payload exceeds its bound');
   } else {
-    rows = discloseBoardState(body.disclosure, value.rows);
+    rows = discloseBoardState(body.disclosure, value.rows, value.version);
     if (JSON.stringify(rows) !== JSON.stringify(value.rows)
         || rows.some(row => row.board !== body.child.boardId)) boardLinkFormat('The state payload contains forbidden fields or another board’s items');
   }
