@@ -48,7 +48,7 @@ test('store.submit-handoff-records.unknown-settles-red: clause 2: once the recei
   const f = settledGate(t);
   f.settle('unknown');
   f.box.advance(GATE_SETTLE_HOLD_MS + 1);
-  f.settle('red');
+  f.box.board.db.prepare("UPDATE job_step SET job_step_payload = ? WHERE job_step_name = 'note:shards.settled'").run(JSON.stringify({ outcome: 'red' }));
   assert.equal(gateShardsUnsettled(f.box.board, f.item), false);
   assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.item.item_id)), false, 'a settled red returns the claim as rework');
 });
