@@ -59,7 +59,14 @@ test('cli.journeys-list-derived-state.current: clause 1: with health.derivedStat
   setting(true);
   sweep(fresh);
   assert.deepEqual((await listed()).doc, computed.doc, 'a table of the computed state prints the same rows');
+});
+
+test('cli.journeys-list-derived-state.wired: clause 3: the production list command reads the table through verdictProjector: a state only the table holds is what list prints, and with the setting off it is never read [C7,#11373]', async t => {
+  const { listed, setting, sweep } = await acceptedItem(t);
+  setting(false);
+  const fresh = (await listed()).row.item_verdict_state ?? null;
   // The table holds a state the projector cannot produce for this item: list prints it, so no event-log verdict read ran for the item.
+  setting(true);
   sweep(SENTINEL);
   assert.deepEqual((await listed()).row.item_verdict_state, SENTINEL);
   setting(false);
