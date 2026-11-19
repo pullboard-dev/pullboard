@@ -36,7 +36,7 @@ test('cli.io-item-bar-owners.coordinator-filer-refused: clause 1: with items.bar
   const split = await add(box, { criterion, files: ['web/x.js', READ_ONLY], extra: ['--split-coordinator'] });
   assert.equal(refusal(split), null, split.out + split.err);
   assert.equal(store.getItem(box.board, split.document.coordinatorPiece.item_id).item_lane, 'coordinator', 'the coordinator piece is filed too');
-  const own = await add(box, { criterion: 'the clock answers', files: [READ_ONLY], lane: 'coordinator', title: 'Vendored clock cell answers the time' });
+  const own = await add(box, { criterion: 'the clock answers', files: [READ_ONLY], lane: 'coordinator', title: 'Vendored clock cell answers the time', extra: ['--not-duplicate-of', `${split.document.coordinatorPiece.item_id} a coordinator-lane item in a fixture`] });
   assert.equal(refusal(own), null, 'a coordinator-lane item may name any path: ' + own.out + own.err);
   const plain = await add(box, { criterion: 'the clock page renders', files: ['web/x.js'], title: 'Plain web renderer for login screens' });
   assert.equal(refusal(plain), null, plain.out + plain.err);
@@ -55,6 +55,6 @@ test('cli.io-item-bar-owners.setting-off-unchanged: clause 3: with the setting o
   const box = await board(t, undefined, { laneMode: 'off' });
   const lane = await add(box, { criterion: 'the clock page renders', files: ['web/x.js', READ_ONLY] });
   assert.equal(refusal(lane), null, lane.out + lane.err);
-  const own = await add(box, { criterion: 'the clock answers', files: [READ_ONLY], lane: 'coordinator', title: 'Vendored clock cell answers the time' });
+  const own = await add(box, { criterion: 'the clock answers', files: [READ_ONLY], lane: 'coordinator', title: 'Vendored clock cell answers the time', extra: ['--not-duplicate-of', `${lane.document.item.item_id} a coordinator-lane item in a fixture`] });
   assert.equal(refusal(own), null, own.out + own.err);
 });
