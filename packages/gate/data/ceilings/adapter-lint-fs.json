@@ -367,8 +367,6 @@
     "packages/runners/src/io/result.js": 1,
     "packages/runners/src/io/run.js": 7,
     "packages/runners/src/io/runtime.js": 4,
-    "packages/runners/src/io/service.js": 10,
-    "packages/runners/src/io/slots.js": 8,
     "packages/runners/src/io/source/cache.js": 12,
     "packages/runners/src/io/source/scan.js": 11,
     "packages/runners/src/io/tooling/bundle.js": 5,

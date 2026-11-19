@@ -1,10 +1,13 @@
 /** @pullboard-test-input source-cell gate */
 /** The file-system lint names a direct node:fs import outside the kernel and holds today's offenders at a ceiling [C7,#9449]. */
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import {
   FS_CEILING_FILE,
+  coveredByFsLint,
+  fsFindings,
   fsLintRows,
 } from '../../../src/io/adapter-lints/fs.js';
 
@@ -51,4 +54,19 @@ test('gate.logic-adapter-lints-fs.with-the-setting-off-which-is: clause 2: with 
   assert.deepEqual(fsLintRows(root), []);
   assert.deepEqual(fsLintRows(root, { enabled: false }), []);
   assert.deepEqual(fsLintRows(root, { enabled: 'yes' }), []);
+});
+
+const GENERATED_CHILD = 'packages/runners/src/io/service.js';
+
+test('gate.logic-adapter-lints-fs.generated-child-is-exempt: clause 1: the runner service installer is exempt by exact path, a sibling file is not, and its program text reports nothing [C7,#11636]', () => {
+  assert.equal(coveredByFsLint(GENERATED_CHILD), false);
+  assert.equal(coveredByFsLint('packages/runners/src/io/slots.js'), true);
+  const text = "const program = [\n  \"import { rmSync } from 'node:fs';\",\n];\n";
+  assert.deepEqual(fsFindings({ [GENERATED_CHILD]: text }), []);
+  assert.equal(fsFindings({ 'packages/runners/src/io/slots.js': text }).length, 1);
+});
+
+test('gate.logic-adapter-lints-fs.real-tree-generated-child: clause 2: the lint over this checkout with the setting on returns no row naming the runner service installer or slots [C7,#11636]', () => {
+  const rows = fsLintRows(join(import.meta.dirname, '..', '..', '..', '..', '..'), { enabled: true });
+  assert.deepEqual(rows.filter(row => row.startsWith(`${GENERATED_CHILD}:`) || row.startsWith('packages/runners/src/io/slots.js:')), []);
 });

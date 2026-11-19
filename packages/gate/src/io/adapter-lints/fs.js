@@ -1,5 +1,5 @@
 /**
- * Count direct imports of node:fs in source files outside the kernel folder, and refuse new ones [C7,#9449].
+ * Count direct imports of node:fs in source files outside the kernel folder and the runner service installer, and refuse new ones [C7,#9449].
  * A source file reaches the file system through the file-system adapter in packages/kernel, so a test can hand it a fake one. The
  * offenders that exist today are held by a per-file ceiling that never rises; a file past its ceiling is a finding naming file, line and adapter.
  *
@@ -14,11 +14,13 @@ import { walk } from '../scan.js';
 export const FS_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-fs.json';
 
 const KERNEL = 'packages/kernel/';
+/** The runner service installer, exempt by exact path: it sends its installer to a runner as program text whose own node:fs import the adapter cannot reach [C7,#11636]. */
+const GENERATED_CHILD = 'packages/runners/src/io/service.js';
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const FS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(['"`])(?:node:)?fs(?:\/promises)?\1/gu;
 
 /** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test. */
-export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL)
+export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && path !== GENERATED_CHILD
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**
