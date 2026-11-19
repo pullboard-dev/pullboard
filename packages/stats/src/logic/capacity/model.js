@@ -105,8 +105,8 @@ function graphFor(items) {
     const item = nodes.get(id);
     if (!item.held && !item.needsYou && predecessors.get(id).every(dep => schedulable.has(dep))) schedulable.add(id);
   }
-  const supply = [...schedulable].filter(id => nodes.get(id).state !== 'accepted').length;
-  return { pending, nodes, predecessors, order, supply, unknown };
+  const ready = [...schedulable].map(id => nodes.get(id)).filter(item => item.state !== 'accepted');
+  return { pending, nodes, predecessors, order, supply: ready.length, ready, unknown };
 }
 /** Greedy disjoint-file waves give an observed conservative width, not a maximum independent set. */
 function waveWidth(items) {
@@ -396,6 +396,9 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
     for (const reason of landingRepair(baseline.routes.get(route)).unknown) unknown.push(`${route}: ${reason}`);
   }
   const active = graph.pending.filter(item => item.state !== 'accepted');
+  // Ready supply and file collisions need no history, so the width of what can be built now is known without a fit.
+  const readyFiles = waveWidth(graph.ready);
+  const readyWidth = readyFiles === null ? null : Math.min(graph.ready.length, readyFiles);
   const width = !graph.unknown.length && fit?.available ? waveWidth(active) : null;
   if (fit?.available && !graph.unknown.length && width === null) unknown.push('unfinished work has invalid file collision inputs');
   if (!fit?.available) unknown.push('empirical fit is unavailable');
@@ -436,7 +439,7 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
     if (!curve.some(row => row.agents === estimate.recommended) && estimate.recommended > 0) curve.push({ agents: estimate.recommended, hours: Math.max(estimate.infinity, estimate.work / estimate.recommended) });
     curve.sort((a, b) => a.agents - b.agents);
   }
-  return { version: 1, available: Boolean(estimate), asOf: Number.isFinite(timeOf(now)) ? new Date(now).toISOString() : null, source: { sequence: sequence ?? null, fitFrom: fit?.from ?? null, fitTo: fit?.to ?? null, samples: fit?.samples ?? 0 },
+  return { version: 1, available: Boolean(estimate), readyWidth, asOf: Number.isFinite(timeOf(now)) ? new Date(now).toISOString() : null, source: { sequence: sequence ?? null, fitFrom: fit?.from ?? null, fitTo: fit?.to ?? null, samples: fit?.samples ?? 0 },
     workHours: estimate?.work ?? independentWork, bounds: { criticalPathHours: estimate?.critical ?? null, stragglerHours: estimate?.tail ?? null, landingHours: estimate?.landing ?? null },
     tInfinityHours: estimate?.infinity ?? null, agents: { recommended: estimate?.recommended ?? null, lower: empty ? 0 : finite(quantile(ks, 0.1)), upper: empty ? 0 : finite(quantile(ks, 0.9)) },
     finishHours: { lower: empty ? 0 : finite(quantile(times, 0.1)), upper: empty ? 0 : finite(quantile(times, 0.9)) },
@@ -483,6 +486,7 @@ export function capacityLines(planner) {
   return [`Max useful agents now: ${show(planner.agents.recommended)} (${show(planner.agents.lower)}-${show(planner.agents.upper)}).`,
     typeof planner.finishHours.lower === 'number' && typeof planner.finishHours.upper === 'number'
       ? `Finish in about ${show(planner.finishHours.lower)}-${show(planner.finishHours.upper)} h.` : 'Finish time: unknown.',
+    ...(Number.isSafeInteger(planner.readyWidth) ? [`${planner.readyWidth} ${planner.readyWidth === 1 ? 'item can' : 'items can'} be built at once now.`] : []),
     `Binding: ${planner.binding.kind}. ${planner.binding.text}`, `Lever: ${planner.lever.text}`,
     needs ? `${needs.length} items lack recorded approval evidence${needs.length ? `: ${needs.slice(0, 5).map(id => `#${id}`).join(', ')}${needs.length > 5 ? ` +${needs.length - 5} more` : ''}` : ''}.` : 'Approval evidence count: unknown.',
     ...(planner.staffing?.measuredLive === false ? [`Forecast assumes ${planner.staffing.seats} available seats from recent activity; live presence is unknown.`] : []),
