@@ -138,6 +138,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
+export function failFastShardsEnabled() {
+  return loadMachineSettings().gate?.failFastShards === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
