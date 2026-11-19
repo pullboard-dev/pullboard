@@ -298,3 +298,39 @@ test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the 
   assert.equal(claim(5001), 'gate:9:shard:1', 'a runner holding a test job is handed the queued shard before the newer test job');
   assert.equal(claim(5002), 'test:two');
 });
+
+/** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */
+function budgetBoard(t, { cores, shards, tests, offered }) {
+  const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  let at = 1000;
+  for (let i = 0; i < shards; i += 1) offerJob(db, { id: `gate:11148:shard:${i}`, kind: 'gate-shard', now: at += 1 });
+  for (let i = 0; i < tests; i += 1) offerJob(db, { id: `test:held:${i}`, kind: 'test', now: at += 1 });
+  const take = (now) => claimJob(db, { runner: 'r-a', cores, jobs: 20, now })?.job ?? null;
+  for (let i = 0; i < shards + tests; i += 1) take(5000 + i);
+  for (const [id, kind] of offered) offerJob(db, { id, kind, now: at += 1 });
+  return { take, now: 6000 };
+}
+
+test('api.jobs.cores-budget-shared-by-heavy-kinds: clause 1: a runner reporting 10 cores holding 3 gate shards and 1 test job is offered no further shard or test job, while a landing job is still offered [C7,#11148]', (t) => {
+  const { take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 1, offered: [['gate:11148:shard:late', 'gate-shard'], ['test:late', 'test'], ['land:late', 'land']] });
+  assert.equal(take(now), 'land:late', 'the shard and the test job wait; the landing job is not weighed');
+  assert.equal(take(now + 1), null, 'nothing heavy is offered while the held weight fills the cores');
+});
+
+test('api.jobs.test-floor-under-full-shard-budget: clause 2: a runner holding no test job is offered one even when its shards fill its budget, and no second one [C7,#11148]', (t) => {
+  const { take, now } = budgetBoard(t, { cores: 9, shards: 3, tests: 0, offered: [['test:first', 'test'], ['test:second', 'test']] });
+  assert.equal(take(now), 'test:first', 'the builder floor offers one test job over a full shard budget');
+  assert.equal(take(now + 1), null, 'a second test job waits for the budget');
+});
+
+test('api.jobs.no-cores-and-shard-cap-unchanged: clause 3: a claim reporting no cores takes shards and tests as on main, and 10 cores still cap a runner at 3 shards [C7,#11148]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-off-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  for (let i = 0; i < 4; i += 1) offerJob(db, { id: `gate:11148:shard:${i}`, kind: 'gate-shard', now: 1000 + i });
+  for (let i = 0; i < 4; i += 1) offerJob(db, { id: `test:${i}`, kind: 'test', now: 2000 + i });
+  const none = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => claimJob(db, { runner: 'r-none', now: 5000 + i })?.job ?? null);
+  assert.ok(none.every(Boolean), 'a claim with no cores weighs nothing, so eight jobs are handed out');
+  const { take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 0, offered: [['gate:11148:shard:extra', 'gate-shard']] });
+  assert.equal(take(now), null, 'the per-runner cap of floor(10 / 3) shards holds');
+});
