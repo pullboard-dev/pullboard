@@ -94,7 +94,7 @@ export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = 
   const busyHosts = new Set(runners.rows.filter(row => row.working).map(row => row.host));
   const rows = [
     ...repo.rows, ...machine.rows, ...machine.unavailable.filter(row => !busyHosts.has(row.holder)),
-    ...readCheckoutWriters(paths.commonDir, now, census),
+    ...readCheckoutWriters(paths.commonDir, now, census).filter(row => !clearedDeadWriter(row)),
     ...readBoardWriters(paths.boardFile, now, census),
     ...readResourceWriteQueue(machineResources, now, census),
     ...readResourceWriteQueue(repoResources, now, census),
@@ -132,6 +132,14 @@ function terminateOrphan(pid, started) {
   const ppid = Number(words[0]);
   if (words.slice(1, 6).join(' ') !== started || !(ppid === 1 || !pidAlive(ppid))) return false;
   try { process.kill(pid, 'SIGTERM'); return true; } catch { return false; }
+}
+
+/**
+ * Whether a checkout-writer row is a gone pid's record, removed here so a plain read never lists it as DEAD.
+ * Why: only the coordinator's recordWaits cleared these records, so a trial board kept printing one after its item landed; takeover already removes a gone pid's record, so removing it on read is safe [C7].
+ */
+function clearedDeadWriter(row) {
+  return row.surface === 'checkout-writer' && row.dead?.kind === 'file' && !pidAlive(row.dead.pid) && row.dead.files.every(removeDead);
 }
 
 /** Remove a file a dead holder left, saying whether it went. */
