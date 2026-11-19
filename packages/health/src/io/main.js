@@ -206,6 +206,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
 
+  report.stuck.push(...unansweredShoutFindings(db, limits.ms.stuck, now, finding));
   report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
@@ -855,6 +856,28 @@ function ageText(minutes) {
   if (minutes < 60) return `${minutes}m`;
   if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h`;
   return `${Math.floor(minutes / 1440)}d`;
+}
+
+/**
+ * One finding per seat shout to the coordinator that nobody answered within the stuck threshold. Why: a builder's own
+ * free-text blocker matches none of the sentinel phrasings the next footer counts, so it was never escalated [C7].
+ *
+ * @param {any} db An open board connection.
+ * @param {number} limitMs The health.stuck threshold in milliseconds.
+ * @param {Date} now
+ * @param {typeof finding} make
+ * @returns {Finding[]}
+ */
+function unansweredShoutFindings(db, limitMs, now, make) {
+  const rows = db.prepare(`SELECT shout_id, shout_from, shout_text, shout_at, shout_evidence_item FROM shout
+    WHERE shout_to = ? AND shout_from NOT IN (?, ?) AND shout_answers IS NULL AND shout_decision = 0
+      AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = shout.shout_id) ORDER BY shout_id`).all(COORDINATOR, COORDINATOR, PERSON);
+  return rows.filter(row => now.getTime() - Date.parse(row.shout_at) >= limitMs).map(row => make('SHOUT_UNANSWERED', row.shout_evidence_item === null ? null : { item_id: row.shout_evidence_item }, {
+    subject: `shout #${row.shout_id} from ${row.shout_from}${row.shout_evidence_item === null ? '' : ` about #${row.shout_evidence_item}`}`, key: `SHOUT_UNANSWERED:shout:${row.shout_id}`, since: row.shout_at, now: now.getTime(),
+    title: 'unanswered shout to the coordinator',
+    why: `${row.shout_from} shouted to the coordinator and nobody has answered: ${capText(row.shout_text).slice(0, 200)}`,
+    next: `answer shout #${row.shout_id} with pullboard answer`, owner: { role: 'coordinator', who: COORDINATOR }, detail: { shout: row.shout_id, from: row.shout_from, item: row.shout_evidence_item },
+  }));
 }
 
 /**
