@@ -9,8 +9,8 @@ registerBrowserAliases();
 const { createTransport } = await import("../../../src/io/browser/client.js");
 
 const BOARD = "0123456789abcdef0123456789abcdef";
-const BOARDS = { version: 1, boards: [{ id: BOARD, repository: "corey/quant" }] };
-const AVAILABLE = [{ id: BOARD, repository: "corey/quant" }];
+const BOARDS = { version: 1, boards: [{ id: BOARD, repository: "owner/project" }] };
+const AVAILABLE = [{ id: BOARD, repository: "owner/project" }];
 
 test("relay.io-browser-notice.a-known-device-with-empty-storage-is-told: clause 1: a known device with empty storage is told its pairing was lost because site storage was cleared, with one re-pair step [H5,#1010]", () => {
   const step = emptyBoardStep({ available: AVAILABLE, loaded: true, browserPaired: false, knownDevice: true });
