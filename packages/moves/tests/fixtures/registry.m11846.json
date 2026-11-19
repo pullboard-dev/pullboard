@@ -1,0 +1,4 @@
+{
+  "moves.selection.wait-claims-ready-item": {"proves":{"specs":["C7"],"claim":"clause 1: nextOnce with values.wait above 0 and a ready open item claims it for the calling seat and returns no waitingOffer."},"why":"Seats looping on next --wait were offered the item and raced other seats to claim it, losing HELD repeatedly (#11846).","kind":"contract","inputs":["packages/moves/src/io/selection.js","packages/moves/tests/io/selection.test.js","packages/moves/tests/fixtures/next.js"]},
+  "moves.selection.wait-held-unchanged": {"proves":{"specs":["C7"],"claim":"clause 2: nextOnce with values.wait above 0 and an item the seat already holds returns the held item with no second claim."},"why":"The held path must stay unchanged once waiting claims like plain next (#11846).","kind":"contract","inputs":["packages/moves/src/io/selection.js","packages/moves/tests/io/selection.test.js","packages/moves/tests/fixtures/next.js"]}
+}
