@@ -165,3 +165,32 @@ export function specOrder(ids, spec) {
     .sort((left, right) => left.at - right.at || left.index - right.index)
     .map((entry) => entry.id);
 }
+
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/gu;
+
+/**
+ * The lines of a message that quote a configured person: the name as a whole word, any case, followed within 30
+ * characters by a colon and an opening quote, or by said/says/wrote/told/asked/replied/ruled and a quote. A plain
+ * mention or a dated ruling citation without quoted words passes, and an empty names list checks nothing [C7,#11300].
+ *
+ * @param {string} text
+ * @param {string[]} names - commits.quotedNames.
+ * @returns {string[]} One refusal per offending line, naming the line and the next step.
+ */
+export function quotedPersonProblems(text, names) {
+  const wanted = (names ?? []).map(name => String(name).trim()).filter(Boolean);
+  if (!wanted.length) return [];
+  const alternation = wanted.map(name => name.replace(REGEX_SPECIALS, '\\$&')).join('|');
+  const speaker = `\\b(?:${alternation})\\b`;
+  const patterns = [
+    new RegExp(`${speaker}[^\\n]{0,30}:\\s*["“]`, 'iu'),
+    new RegExp(`${speaker}(?:,[^\\n"]{0,24})?\\s+(?:said|says|wrote|asked|told|replied|ruled)\\b[^\\n]{0,40}["“]`, 'iu'),
+  ];
+  const problems = [];
+  String(text).split('\n').forEach((line, index) => {
+    if (patterns.some(pattern => pattern.test(line))) {
+      problems.push(`line ${index + 1} quotes a configured person; state the rule itself or cite its item or spec id`);
+    }
+  });
+  return problems;
+}
