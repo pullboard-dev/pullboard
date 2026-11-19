@@ -382,7 +382,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
   }
   // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
-  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+  // With submit.composeOnRunner on there is no composed tree here: the runner composes, so this command sends the head as it is [C7,#10757].
+  if (!isSubmitHandoffWorker(ctx) && !composeOnRunner && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
     let declared;
     try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
     catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }

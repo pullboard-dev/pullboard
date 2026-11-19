@@ -24,6 +24,7 @@ import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
 import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
+import { namedFileRunner } from '../../../../../packages/gate/index.js';
 import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
@@ -283,6 +284,14 @@ const checkoutState = () => {
   const tracked = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' });
   return head.status === 0 && tracked.status === 0 ? { head: head.stdout.trim(), tracked: tracked.stdout.trim() } : null;
 };
+/**
+ * The result store a submit proof shares: one folder under the runner root, above the 'pull' folder of the slot checkout, which the runner prunes with its other test results.
+ * Why: slot checkouts each held their own store, so a file another slot or gate had already proved ran again. Only a proof that owes a test account (\`selected\`) shares it, so a landing shard, which owes none, keeps its slot's own; a store or reuse setting already in the environment is never replaced [C7,#11114].
+ */
+const sharedResultStore = (role, selected, checkout, env) => {
+  const parts = String(checkout).split('/'), at = parts.lastIndexOf('pull');
+  return role === 'proof' && selected?.length && at > 0 && !env.PULLBOARD_TEST_RESULT_STORE ? { PULLBOARD_TEST_RESULT_STORE: parts.slice(0, at).join('/') + '/test-results/pull-gate' } : {};
+};
 /** Run one phase; \`selected\` names the files a green proof must account for, when the plan has test tiers. */
 const runPhase = async (role, command, PATH, selected = null) => {
   if (role === 'proof' && !pipefailShell && /(?:^|[^|])\\|(?:[^|]|$)/u.test(command)) return { role, status: 1, signal: null, tail: 'PIPEFAIL_UNAVAILABLE: the runner shell cannot enable pipefail; rewrite the gate without a pipe', exit: ['PIPEFAIL_UNAVAILABLE'] };
@@ -291,7 +300,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const started = performance.now();
   // Each test child reports its runtime into a private capture folder, as under the controller gate; the proof phase alone is admitted proof [C7].
-  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}) };
+  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}), ...sharedResultStore(role, selected, root, process.env) };
   const capture = role === 'proof' && typeof sandbox?.captureTestRuntimes === 'function' ? sandbox.captureTestRuntimes(phaseEnv) : null;
   const ran = await new Promise(resolve => {
     const child = spawn('(' + (role === 'proof' && pipefailShell ? 'set -o pipefail\\n' : '') + command + '\\n) 2>&1', { shell: role === 'proof' && pipefailShell ? pipefailShell : true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -549,6 +558,24 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
 }
 
 /**
+ * The line submit prints naming the runner its proof will use and where that choice came from. Why: a proof once ran under
+ * node --test after main moved to Jest, and nothing said whether main or the item's own pinned policy chose it [C7].
+ *
+ * @param {{ affectedTests?: string }} config - The config the gate job carries.
+ * @param {{ commit: string, config: { affectedTests?: string } }} main - The accepted main the gate pins.
+ * @param {string} source - The commit the gate judges.
+ * @returns {string}
+ */
+export function proofRunnerNote(config, main, source) {
+  const runner = typeof config.affectedTests === 'string' ? config.affectedTests.trim() : '';
+  const mains = typeof main.config?.affectedTests === 'string' ? main.config.affectedTests.trim() : '';
+  if (!runner && !mains) return `test runner: none set (named .js files run under ${namedFileRunner('', ['named.js'])})`;
+  if (!runner) return `test runner: none set (affectedTests from this item's policy ${source.slice(0, 12)}; main sets ${mains})`;
+  if (runner === mains) return `test runner: ${runner} (affectedTests from main ${main.commit.slice(0, 12)})`;
+  return `test runner: ${runner} (affectedTests from this item's policy ${source.slice(0, 12)}; main sets ${mains || 'none'})`;
+}
+
+/**
  * Write the submit's gate job row and return at once. The candidate is pinned under refs/pullboard/gate so a runner can
  * fetch it from the trunk remote; everything else this does is reads and one board write. A companion submit's gate
  * judges its composed source, and its submit record carries the composition, so the board binds the receipts to it [P7].
@@ -632,6 +659,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   if (ctx.json) ctx.io.result(acknowledgment);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
+  if (!ctx.json) ctx.io.say(proofRunnerNote(config, main, source));
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
   const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);

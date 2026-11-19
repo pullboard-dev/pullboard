@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { describe } from 'node:test';
 import { test } from 'node:test';
 import * as store from "../../../../packages/store/src/io/board.js";
-import { openCellBoard as openBoard } from "../../../../packages/store/tests/fixtures/cell.js";
+import { openCellBoard as openBoard } from "../../../../packages/board/tests/fixtures/cell-board.js";
 import { requireSessionIndependence } from "../../tests/fixtures/testkit.js";
 import { joinFixtureSeat } from "../../tests/fixtures/testkit.js";
 import { submitFixture } from "../../tests/fixtures/board/submit.js";

@@ -30,8 +30,13 @@ import { rowDecisionReplacement } from '../../logic/row/replacement.js';
 import { rowDecisionContext } from './stale.js';
 import { staleRowDecision } from './stale.js';
 
-/** Resolve qualified doctrine ids while bare ids continue to name the spec. */
-function decisionRows(root, config, ids, { loadDoctrine }) {
+/**
+ * Resolve qualified doctrine ids while bare ids continue to name the spec. A doctrine id no repo row
+ * holds resolves to a standard default (origin standard) when the standardDecisionLine port is
+ * injected: its source is empty and its line is the port's. The port is injected because spec sits
+ * below doctrine in the cell order [C7,#2007].
+ */
+function decisionRows(root, config, ids, { loadDoctrine, standardDecisionLine }, { decision, reason = '', text } = {}) {
   const spec = loadSpec(root, config);
   const doctrine = loadDoctrine(root, config);
   const lines = new Map();
@@ -40,6 +45,13 @@ function decisionRows(root, config, ids, { loadDoctrine }) {
     const id = kind === 'doctrine' ? reference.slice('doctrine:'.length) : reference;
     const parsed = kind === 'doctrine' ? doctrine.repo : spec;
     const matches = parsed.rows.filter((row) => row.id === id);
+    const inherited = kind === 'doctrine' && matches.length === 0 && standardDecisionLine
+      ? doctrine.rows.filter((row) => row.origin === 'standard' && row.id === id) : [];
+    if (inherited.length === 1) {
+      const row = inherited[0];
+      const shown = text === undefined ? row : { ...row, text };
+      return { kind, file: doctrine.name, row, source: '', standard: true, line: decision ? standardDecisionLine(shown, { decision, reason }) : '' };
+    }
     if (matches.length !== 1) throw new Refused('NO_ROW', `${reference} names ${matches.length} repo rows; use one id from ${parsed.name}`);
     const file = kind === 'doctrine' ? doctrine.name : config.spec;
     if (!lines.has(file)) lines.set(file, readFileSync(join(root, file), 'utf8').split(/\r?\n/u));
@@ -49,8 +61,8 @@ function decisionRows(root, config, ids, { loadDoctrine }) {
 }
 
 /** Capture the complete original source row a passkey confirms, including gate and required SSH signer fields. */
-export function shownDecisionRows(root, config, ids, { loadDoctrine }) {
-  return decisionRows(root, config, ids, { loadDoctrine }).map(({ kind, row, source }) => ({ id: kind === 'doctrine' ? `doctrine:${row.id}` : row.id, text: row.text, source }));
+export function shownDecisionRows(root, config, ids, { loadDoctrine, standardDecisionLine }) {
+  return decisionRows(root, config, ids, { loadDoctrine, standardDecisionLine }).map(({ kind, row, source }) => ({ id: kind === 'doctrine' ? `doctrine:${row.id}` : row.id, text: row.text, source }));
 }
 
 /**
@@ -58,18 +70,17 @@ export function shownDecisionRows(root, config, ids, { loadDoctrine }) {
  * a pending question is an approval of its answered text and carries no separate answer field: the
  * answer shown is read back from the signed source and text by decisionAnswer.
  */
-export function prepareRowDecisions(root, config, { ids, decision, reason = '', text: proposedText, by, on, commit = '', note = '', sshSign = true, passkeyRequest }, { loadDoctrine }) {
+export function prepareRowDecisions(root, config, { ids, decision, reason = '', text: proposedText, by, on, commit = '', note = '', sshSign = true, passkeyRequest }, { loadDoctrine, standardDecisionLine }) {
   if (!ids.length) throw new Refused('USAGE', 'name rows: pullboard spec approve <ids> or spec decline <ids> --reason "why"');
   if (!['approve', 'decline'].includes(decision)) throw new Refused('ROW_DECISION', 'use pullboard spec approve or decline');
   if (decision === 'decline' && (!reason.trim() || /[\r\n|]/u.test(reason))) throw new Refused('ROW_DECISION', 'a decline needs a one-line reason without a field separator; use --reason "why"');
   if (proposedText !== undefined && (decision !== 'approve' || ids.length !== 1 || !proposedText.trim() || /[\r\n|]/u.test(proposedText))) throw new Refused('ROW_DECISION', 'approve one row with --text "exact one-line text", without a field separator');
   const signed = sshSign && decision === 'approve' && hasSignerFile(root);
   const principal = by ?? (signed ? defaultPrincipal(root) : 'person');
-  return decisionRows(root, config, ids, { loadDoctrine }).map(({ kind, file, row, source }) => {
-    const status = decision === 'approve' ? 'approved' : 'wont';
+  return decisionRows(root, config, ids, { loadDoctrine, standardDecisionLine }, { decision, reason: reason.trim(), text: proposedText?.trim() }).map(({ kind, file, row, source, standard, line }) => {
     const text = decision === 'approve' ? proposedText?.trim() ?? row.text : row.text;
-    const replacement = rowDecisionReplacement(source, decision, text);
-    const record = { ...(passkeyRequest ? { passkeyRequest } : {}), version: 1, type: 'row-decision', kind, file, id: row.id, source, replacement, text, decision, reason: decision === 'decline' ? reason.trim() : '', by: principal, on, commit, note };
+    const replacement = standard ? line : rowDecisionReplacement(source, decision, text);
+    const record = { ...(passkeyRequest ? { passkeyRequest } : {}), version: 1, type: 'row-decision', kind, file, id: row.id, source, replacement, text, ...(standard ? { standard } : {}), decision, reason: decision === 'decline' ? reason.trim() : '', by: principal, on, commit, note };
     return signed ? signRowDecision(root, record) : record;
   });
 }
@@ -210,6 +221,13 @@ export function planRowApply(root, config, records, { passkeyDecision = () => fa
     const parsed = loadSpec(root, { ...config, spec: file });
     const matches = parsed.rows.filter((row) => row.id === record.id);
     if (verifiedPasskey && matches[0]?.signers?.length) throw new Refused('PERSON_SIGNER_REQUIRED', `${record.id} names its SSH signers ${matches[0].signers.join(', ')}`, 'a passkey does not claim any named SSH identity');
+    if (record.kind === 'doctrine' && record.source === '' && matches.length === 0) {
+      // A standard default has no repo line: append its decision line once [#2007].
+      const tail = lines.at(-1) === '' ? lines.length - 1 : lines.length;
+      lines.splice(tail, 0, record.replacement);
+      change.after = lines.join('\n');
+      continue;
+    }
     const index = matches.length === 1 ? matches[0].line - 1 : -1;
     const source = index < 0 ? '' : lines[index].replace(/\r$/u, '');
     if (source !== record.source && source !== record.replacement) throw new Refused('STALE_ROW_DECISION', `${record.id}'s exact row changed after the person's decision; ask the person to approve its current text again`);

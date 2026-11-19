@@ -1,0 +1,3 @@
+{
+  "cli.journeys-next-herd.twelve-seats-distinct": {"proves":{"specs":["C7"],"claim":"12 pullboard next calls started together in process on one board with one submitted review and 12 open builds each end with a distinct item, one of them the review, and none BOARD_BUSY or NEXT_TIMEOUT."},"why":"Without it, a herd of seats calling next at once could collide on the one board writer and hand two seats the same item or none.","kind":"journey","inputs":["apps/cli/journeys/next/herd.test.js"]}
+}

@@ -1,6 +1,8 @@
+/** @pullboard-test-input source-cell landing */
 /** landing.staticAffectedOnly: a changed gate data file no longer widens the landing static guard to the whole run [C7,#9077]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { staticGuardCheck } from '../../src/io/runner/static.js';
 import { fixture } from '../fixtures/plan.js';
 import { git } from '../fixtures/plan.js';
@@ -54,4 +56,51 @@ test('landing.static-affected.with-landing-staticaffectedonly-off-the-default: c
   assert.equal(off.seen, 'node static.js');
   const explicit = await commandFor(t, { [DATA]: '{"a":1}\n' }, { affectedOnly: false });
   assert.equal(explicit.seen, 'node static.js');
+});
+
+const RATCHET = 'packages/gate/data/baselines/new-ratchet.json';
+/** The new ratchet's check: prints path:line: text for each web/ line holding the marker, over PULLBOARD_STATIC_SCOPE when set, else every web/ file. */
+const CHECK = `import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const scope = process.env.PULLBOARD_STATIC_SCOPE ? JSON.parse(process.env.PULLBOARD_STATIC_SCOPE) : null;
+const files = (scope ?? execFileSync('git', ['ls-files', 'web'], { encoding: 'utf8' }).split('\\n').filter(Boolean)).filter(file => file.startsWith('web/'));
+let red = false;
+for (const file of files) readFileSync(file, 'utf8').split('\\n').forEach((text, index) => { if (/OFF[E]NDER/u.test(text)) { red = true; console.log(file + ':' + (index + 1) + ': ' + text); } });
+process.exit(red ? 1 : 0);
+`;
+
+/** job.js's command runner in miniature: the argv really runs in the root and answers ok, detail and output. */
+const realCommand = argv => async ({ root }) => {
+  const ran = spawnSync(argv[0], argv.slice(1), { cwd: root, encoding: 'utf8' });
+  return { ok: ran.status === 0, detail: ran.status === 0 ? null : `exit ${ran.status}`, output: `${ran.stdout}${ran.stderr}` };
+};
+
+/** The branch point holds a file with an offender the batch never touches; the batch adds a new ratchet and its check. */
+function offenderOnMain(t) {
+  const { root, put } = fixture(t);
+  put('web/old.txt', 'fine\nOFFENDER here\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'chore: main holds an offender');
+  const base = git(root, 'rev-parse', 'HEAD').trim();
+  put(RATCHET, '{"ceiling":0}\n');
+  put('web/check.mjs', CHECK);
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'feat: a new ratchet and its check');
+  return { root, base };
+}
+
+test('landing.static-affected.a-new-ratchet-meets-a-new-offender-on-main: clause 1: a batch that adds a gate data ratchet and its check is judged on the whole merged tree, so an offender main holds in an untouched file is LAND_STATIC_RED with affectedOnly false and true [C7,#7068]', async t => {
+  for (const affectedOnly of [false, true]) {
+    const { root, base } = offenderOnMain(t);
+    const result = await staticGuardCheck('node web/check.mjs', realCommand, { affectedOnly })({ root, base });
+    assert.equal(result.ok, false, `affectedOnly ${affectedOnly}`);
+    assert.match(result.detail, /^LAND_STATIC_RED: .*web\/old\.txt:2: OFFENDER here/u, `affectedOnly ${affectedOnly}`);
+  }
+});
+
+test('landing.static-affected.an-added-gate-data-json-keeps-the-whole-command: clause 2: with affectedOnly on, an added (status A) gate data JSON keeps the whole static command, while a modified one still hands the command just its path [C7,#7068]', async t => {
+  const added = await commandFor(t, { 'packages/gate/data/baselines/brand-new.json': '{}\n' }, { affectedOnly: true });
+  assert.equal(added.seen, 'node static.js');
+  const modified = await commandFor(t, { [DATA]: '{"a":2}\n' }, { affectedOnly: true });
+  assert.match(modified.seen, /^export PULLBOARD_STATIC_SCOPE='\["packages\/gate\/data\/baselines\/cli-launches\.json"\]'; node static\.js$/u);
 });
