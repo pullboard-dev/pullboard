@@ -1,7 +1,7 @@
 /** A queued job past its kind's limit with no waiter is expired with a recorded reason, and a waited-on or offered one stays [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { QUEUED_EXPIRY_MS } from '../../index.js';
 import { createJob } from '../../index.js';
 import { expireQueuedJobs } from '../../index.js';
