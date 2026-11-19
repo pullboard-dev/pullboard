@@ -97,6 +97,7 @@ export {
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
+  adapterLintSshEnabled,
   idiomSpreadEnabled,
   literalPinsEnabled,
   movesLiveEnabled,

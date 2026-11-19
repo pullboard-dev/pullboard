@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { MACHINE_DEFAULTS } from '../../index.js';
+import { adapterLintSshEnabled } from '../../index.js';
+import { describeSetting } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
@@ -36,4 +39,16 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.adapter-lint-ssh-reads-off-unless-true: clause 1: gate.adapterLintSsh reads false when unset and true only when set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#11369]', () => {
+  assert.equal(withSettings({}, adapterLintSshEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSsh: false } }, adapterLintSshEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSsh: true } }, adapterLintSshEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintSsh: 'yes' } }, adapterLintSshEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.adapterLintSsh/u.test(error.message));
+});
+
+test('config.io-settings.adapter-lint-ssh-described-and-off: clause 2: describeSetting names the SSH runner adapter and MACHINE_DEFAULTS holds gate.adapterLintSsh false [C7,#11369]', () => {
+  assert.match(describeSetting('gate.adapterLintSsh').description, /SSH runner adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintSsh'], false);
 });
