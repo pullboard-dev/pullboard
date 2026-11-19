@@ -2497,6 +2497,7 @@
     "api->git",
     "api->store",
     "apps/lib->store",
+    "blueprints->fs",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
