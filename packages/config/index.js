@@ -149,6 +149,7 @@ export {
   nextReadinessCheck,
   nextOneGitRead,
   nextReadinessCache,
+  nextReturnedFirst,
   refuseTempWorktree,
   claimKeepWhileRunning,
   refuseOffMainHead,
