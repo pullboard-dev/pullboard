@@ -7,8 +7,8 @@ import { cellProject } from '../../../../../../packages/store/tests/fixtures/cel
 import { cellItem } from '../../../../../../packages/store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../../packages/store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../../../../packages/board/tests/fixtures/cell-board.js';
 import { agentById } from '../../../../../../packages/store/index.js';
 import { getItem } from '../../../../../../packages/store/index.js';
 import { openBoardForRead } from '../../../../../../packages/store/index.js';
