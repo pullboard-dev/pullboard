@@ -1,17 +1,16 @@
-/** @pullboard-test-input source-cell packages/store */
 /** With gate.machineVerifyPulled on, an applied green pulled-gate receipt lands a machine-eligible item with its clause receipts [C7,#10253]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { cellBoard } from '../fixtures/cell.js';
-import { cellClaim } from '../fixtures/cell.js';
-import { submitFixture } from '../fixtures/submit.js';
-import { cellItem } from '../fixtures/cell.js';
-import { cellRepo } from '../fixtures/cell.js';
-import { cellSeat } from '../fixtures/cell.js';
-import { applyRunReceipt } from '../../index.js';
-import { getItem } from '../../index.js';
-import { recordQueuedRun } from '../../index.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
+import { cellItem } from '../../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
+import { applyRunReceipt } from '../../../../store/index.js';
+import { getItem } from '../../../../store/index.js';
+import { recordQueuedRun } from '../../../../store/index.js';
 
 const CHECK = 'node --test one.test.js';
 const CLAUSE = 'node --test two.test.js';
@@ -51,7 +50,7 @@ function fixture(t) {
 
 const GREEN = { outcome: 'review', summary: { gate: { green: true, source: MAIN }, machineReceipts: ['r1', 'r2'] } };
 
-test('store.io-machine-pulled-lands.clause-1-green-receipt-accepts: clause 1: with gate.machineVerifyPulled on, a green applied receipt on a machine-eligible item records an accept verdict and the item reaches landing [C7,#10253]', t => {
+test('board.machine-pulled-lands.clause-1-green-receipt-accepts: clause 1: with gate.machineVerifyPulled on, a green applied receipt on a machine-eligible item records an accept verdict and the item reaches landing [C7,#10253]', t => {
   const { board, id } = fixture(t);
   const answer = applyRunReceipt(board, { by: 'coordinator', job: 'gate-1', attempt: 1, ...GREEN }, { machineVerifyPulled: true });
   assert.deepEqual(answer, { applied: true, machineAccepted: true });
@@ -63,7 +62,7 @@ test('store.io-machine-pulled-lands.clause-1-green-receipt-accepts: clause 1: wi
   assert.match(verdicts[0].verdict_note, /clause 1: node --test two\.test\.js \(receipt r2\)/u);
 });
 
-test('store.io-machine-pulled-lands.clause-2-setting-off-leaves-review: clause 2: with gate.machineVerifyPulled off the same green receipt leaves the item in review and records no verdict [C7,#10253]', t => {
+test('board.machine-pulled-lands.clause-2-setting-off-leaves-review: clause 2: with gate.machineVerifyPulled off the same green receipt leaves the item in review and records no verdict [C7,#10253]', t => {
   const { board, id } = fixture(t);
   const answer = applyRunReceipt(board, { by: 'coordinator', job: 'gate-1', attempt: 1, ...GREEN }, { machineVerifyPulled: false });
   assert.deepEqual(answer, { applied: true });
@@ -71,7 +70,7 @@ test('store.io-machine-pulled-lands.clause-2-setting-off-leaves-review: clause 2
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM verdict WHERE item_id = ?').get(id).n, 0);
 });
 
-test('store.io-machine-pulled-lands.clause-1-no-receipts-stays: clause 1: with the setting on, a green receipt naming no machine receipts leaves the item in review [C7,#10253]', t => {
+test('board.machine-pulled-lands.clause-1-no-receipts-stays: clause 1: with the setting on, a green receipt naming no machine receipts leaves the item in review [C7,#10253]', t => {
   const { board, id } = fixture(t);
   const answer = applyRunReceipt(board, { by: 'coordinator', job: 'gate-1', attempt: 1, outcome: 'review', summary: { gate: { green: true, source: MAIN } } }, { machineVerifyPulled: true });
   assert.deepEqual(answer, { applied: true, machineAccepted: false });

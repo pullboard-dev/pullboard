@@ -1,10 +1,10 @@
 /** relandAccepted returns a landing-reopened item to verified through the reland move MOVES declares, and refuses without the coordinator or the accept's proof note [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { MOVES } from '../../../../state/index.js';
-import { COORDINATOR } from '../../../../config/index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { MOVES } from '../../../../../state/index.js';
+import { COORDINATOR } from '../../../../../config/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const AT = Date.parse('2026-11-18T12:00:00.000Z');
 const STAMP = new Date(AT).toISOString();
@@ -42,25 +42,25 @@ function refusal(board, agentId) {
   try { store.relandAccepted(board, 7, { agentId, main: MAIN }); return null; } catch (error) { return error.code; }
 }
 
-test('store.logic-board-reland.the-reland-move-is-declared-in: clause 1: MOVES declares reland from open to verified for the coordinator with the coordinatorOnly and proofNoted guards, so relandAccepted names no transition of its own [C7]', () => {
+test('board.reland.the-reland-move-is-declared-in: clause 1: MOVES declares reland from open to verified for the coordinator with the coordinatorOnly and proofNoted guards, so relandAccepted names no transition of its own [C7]', () => {
   const move = MOVES.find(candidate => candidate.verb === 'reland');
   assert.deepEqual([move.from, move.to, move.by], [['open'], 'verified', ['coordinator']]);
   assert.ok(move.guards.includes('coordinatorOnly') && move.guards.includes('proofNoted'));
 });
 
-test('store.logic-board-reland.a-caller-who-is-not-the: clause 1: a caller who is not the coordinator is refused COORDINATOR_ONLY and the item stays open [C7]', t => {
+test('board.reland.a-caller-who-is-not-the: clause 1: a caller who is not the coordinator is refused COORDINATOR_ONLY and the item stays open [C7]', t => {
   const board = reopened(t, 'run abc green');
   assert.equal(refusal(board, 'core-2'), 'COORDINATOR_ONLY');
   assert.equal(store.getItem(board, 7).item_status, 'open');
 });
 
-test('store.logic-board-reland.an-accept-that-records-no-proof: clause 1: an accept that records no proof note is refused PROOF_REQUIRED and the item stays open [C7]', t => {
+test('board.reland.an-accept-that-records-no-proof: clause 1: an accept that records no proof note is refused PROOF_REQUIRED and the item stays open [C7]', t => {
   const board = reopened(t, '');
   assert.equal(refusal(board, COORDINATOR), 'PROOF_REQUIRED');
   assert.equal(store.getItem(board, 7).item_status, 'open');
 });
 
-test('store.logic-board-reland.an-eligible-item-whose-accept-carries: clause 2: an eligible item whose accept carries a proof note returns to verified for the coordinator [C7]', t => {
+test('board.reland.an-eligible-item-whose-accept-carries: clause 2: an eligible item whose accept carries a proof note returns to verified for the coordinator [C7]', t => {
   const board = reopened(t, 'run abc green');
   assert.equal(refusal(board, COORDINATOR), null);
   const item = store.getItem(board, 7);
