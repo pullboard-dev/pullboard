@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { ENGINE_VERSION } from '../../../packages/state/index.js';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 
 const PRODUCTION_POLL_MS = 200;
 const WINDOW_MS = 2_000;
@@ -38,7 +40,7 @@ async function streamPolls(box) {
 }
 
 test("relay.relay-client-fixture.the-relay-client-fixture-polls-at: the relay client fixture polls at the relay's production interval by default [H5,C7]", async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   await box.link();
   const polls = await streamPolls(box);
   const ceiling = Math.ceil(WINDOW_MS / PRODUCTION_POLL_MS) + 3;
@@ -47,7 +49,7 @@ test("relay.relay-client-fixture.the-relay-client-fixture-polls-at: the relay cl
 });
 
 test('relay.relay-client-fixture.a-relay-client-fixture-case-can: a relay client fixture case can ask for a faster poll by name [H5,C7]', async t => {
-  const box = await relayDirectFixture(t, { pollMs: 20 });
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard, pollMs: 20 });
   await box.link();
   const polls = await streamPolls(box);
   assert.ok(polls > Math.ceil(WINDOW_MS / PRODUCTION_POLL_MS) + 3, `a 20 ms poll asked for by name polls faster than the default: ${polls} polls in ${WINDOW_MS} ms`);
