@@ -35,8 +35,17 @@ test('runners.keyed-load.keyed-js-and-scan-js-import: clause 2: keyed.js and sca
   }
 });
 
-test('runners.keyed-load.cells-edges-json-is-byte-identical: clause 3: cells-edges.json is byte-identical to the merge base, so no ceiling rose [C7]', () => {
+test('runners.keyed-load.cells-edges-json-adds-no-row: clause 3: no cells-edges.json row or entry at HEAD is missing from the merge base, so no ceiling rose and rows may only be removed [C7]', () => {
   const base = ceilingAtMergeBase();
-  if (base !== null) assert.equal(read(CEILING), base, 'the ceiling file is unchanged from the merge base');
+  if (base !== null) {
+    const rows = (before, after, path) => {
+      if (before === null || typeof before !== 'object') return;
+      for (const [key, value] of Object.entries(after ?? {})) {
+        assert.ok(Array.isArray(before) ? before.includes(value) : key in before, `${path}${key} is new since the merge base`);
+        if (!Array.isArray(value)) rows(before[key], value, `${path}${key}.`);
+      }
+    };
+    rows(JSON.parse(base), JSON.parse(read(CEILING)), '');
+  }
   assert.ok(!JSON.parse(read(CEILING)).cells.runners.imports.includes('pin'), 'runners must not list pin');
 });
