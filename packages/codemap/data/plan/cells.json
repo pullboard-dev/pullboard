@@ -2473,6 +2473,7 @@
     "config->kernel",
     "gate->codemap",
     "runners->config",
+    "runners->env",
     "items->config",
     "items->state",
     "runners->verify",
@@ -2614,7 +2615,10 @@
     "board->store",
     "board->verify",
     "apps/lib->board",
-    "apps/lib->fs"
+    "apps/cli->fs",
+    "apps/lib->fs",
+    "apps/runner->env",
+    "apps/runner->fs"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",
