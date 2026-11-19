@@ -2505,6 +2505,7 @@
     "gate->drive",
     "gate->config",
     "merge->config",
+    "merge->env",
     "rigor->config",
     "spec->config",
     "gate->seats",
