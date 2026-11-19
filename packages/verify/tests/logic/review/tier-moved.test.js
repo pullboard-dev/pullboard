@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/codemap/data/plan/28-pages.json packages/codemap/data/plan/renames.tsv packages/verify/data/tests/guard.json */
+/** @pullboard-test-input packages/codemap/data/plan/31-pages.json packages/codemap/data/plan/renames.tsv packages/verify/data/tests/guard.json */
 /** @pullboard-world-pin reads the committed plan, rename and guard-test move data to prove no Strict path lost its tier in a cells move. */
 /** A path marked Strict before a cells move is Strict at its new home, read from the plan, rename and guard-test data, never a second list [V4,B26,#2339]. */
 import assert from 'node:assert/strict';
@@ -33,7 +33,7 @@ test('every path marked Strict before a cells move is Strict at its new home [V4
 });
 
 test('the pages cell\'s seven moved bodies keep the tier of their old paths [V4,B26,#2339]', () => {
-  const pages = JSON.parse(readFileSync(new URL('28-pages.json', PLAN), 'utf8')).paths;
+  const pages = JSON.parse(readFileSync(new URL('31-pages.json', PLAN), 'utf8')).paths;
   assert.equal(pages.length, 7, 'the pages plan lists its seven moved bodies');
   const strict = pages.filter(([old]) => gateJudgmentPath(old));
   assert.ok(strict.length > 0, 'some old pages paths were Strict');

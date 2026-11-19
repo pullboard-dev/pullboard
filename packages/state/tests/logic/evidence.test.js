@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { checkRunTickNotes } from '../../index.js';
 import { checklistEvidenceProblem } from '../../index.js';
 import { clauseInspectionProblem } from '../../index.js';
+import { guardBar } from '../../index.js';
 import { testRunTickNotes } from '../../index.js';
 
 const FILE = 'test/example.test.js';
@@ -122,4 +123,17 @@ test('state.logic-evidence.run-cases-tick-a-checkless-bar: clause 2: a green run
   assert.equal(clauseInspectionProblem(checkless, thread(all), { head: HEAD }), null, 'submit reads them as ticks');
   assert.deepEqual(testRunTickNotes(checkless, [own], HEAD), [], 'a run with no outcome rows ticks nothing');
   assert.equal(testRunTickNotes(PAIR, ['test/a.test.js', 'test/b.test.js'], HEAD, { outcomes: rows, run }).length, 2, 'a bar with check files keeps its check-file ticks');
+});
+
+test('state.logic-evidence.refuse-empty-bar-on: clause 1: guardBar with refuseEmpty refuses a missing, blank or unnumbered bar BAR_EMPTY with the edit --criterion step [C7]', () => {
+  for (const bar of [undefined, '', '   \n', 'make it faster']) {
+    assert.throws(() => guardBar(bar, { refuseEmpty: true }), error => error.code === 'BAR_EMPTY' && /edit <id> --criterion/u.test(error.next ?? error.message), `refused: ${JSON.stringify(bar)}`);
+  }
+  assert.deepEqual(guardBar('1. It prints the heading [test]', { refuseEmpty: true }), [], 'a numbered bar passes');
+});
+
+test('state.logic-evidence.refuse-empty-bar-off: clause 2: guardBar without refuseEmpty returns no warnings for an undefined bar, as before [C7]', () => {
+  assert.deepEqual(guardBar(undefined), []);
+  assert.deepEqual(guardBar(undefined, {}), []);
+  assert.deepEqual(guardBar(undefined, { refuseEmpty: false }), []);
 });
