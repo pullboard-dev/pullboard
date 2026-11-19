@@ -6,16 +6,14 @@
  * with nothing to detect or break. These live apart from apps/cli/src/io/resident/board.js, which starts a server when imported,
  * so a test can prove them on real sockets.
  */
-import {
-  readFileSync,
-  statSync,
-  unlinkSync,
-} from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A path's file identity now, or null when nothing is there. */
 export function pathIdentity(path) {
-  try { const stat = statSync(path); return `${stat.dev}:${stat.ino}`; } catch { return null; }
+  try { const stat = fs.stat(path); return `${stat.dev}:${stat.ino}`; } catch { return null; }
 }
 
 /** Whether a process id names a live process other than this one. */
@@ -68,8 +66,8 @@ export function releaseOwnSocket(path, own, pidFile) {
   if (!unlock) return false;
   try {
     const mine = own !== null && pathIdentity(path) === own;
-    if (mine) try { unlinkSync(path); } catch { /* Already gone. */ }
-    try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
+    if (mine) try { fs.unlink(path); } catch { /* Already gone. */ }
+    try { if (fs.readFile(pidFile, 'utf8').trim() === String(process.pid)) fs.unlink(pidFile); } catch { /* Already gone. */ }
     return mine;
   } finally { unlock(); }
 }

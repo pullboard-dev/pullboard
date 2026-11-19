@@ -1,9 +1,10 @@
 /** The running resident board processes of this checkout, with what doctor needs to know about how each started [C7,#5760]. */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitLocation } from './client.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The label prefix of the launchd jobs the daemons start as (packages/jobs/src/io/launch.js). */
 const LAUNCH_LABEL = 'dev.pullboard.daemon.';
@@ -33,8 +34,8 @@ export function residentDaemons(cwd, { run = (command, args) => spawnSync(comman
   if (!location) return [];
   const folder = join(location.commonDir, 'pullboard');
   let files = [];
-  try { files = readdirSync(folder).filter(name => /^resident-.*\.pid$/u.test(name)); } catch { return []; }
-  const pids = files.map(name => ({ name, pid: Number(readFileSync(join(folder, name), 'utf8').trim()) })).filter(({ pid }) => Number.isSafeInteger(pid) && pid > 0 && alive(pid));
+  try { files = fs.list(folder).filter(name => /^resident-.*\.pid$/u.test(name)); } catch { return []; }
+  const pids = files.map(name => ({ name, pid: Number(fs.readFile(join(folder, name), 'utf8').trim()) })).filter(({ pid }) => Number.isSafeInteger(pid) && pid > 0 && alive(pid));
   if (!pids.length) return [];
   const jobs = launchdPids(run);
   return pids.map(({ name, pid }) => ({ name: `the resident board (${name.replace(/\.pid$/u, '')})`, pid, appBundle: appBundleOf(pid, run), launchd: jobs.has(pid) }));
