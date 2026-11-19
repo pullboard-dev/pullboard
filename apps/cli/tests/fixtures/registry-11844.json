@@ -1,0 +1,3 @@
+{
+  "cli.journeys-submit-frozen-check.submits-without-pullboard-check": {"proves":{"specs":["C7"],"claim":"An item whose coordinator check is unticked is submitted in a scratch repo without the builder running pullboard check."},"why":"Without it, submit could stop reaching the frozen check step and every builder would again have to call check --yes before submitting.","kind":"journey","inputs":["apps/cli/journeys/submit/frozen-check.test.js"]}
+}
