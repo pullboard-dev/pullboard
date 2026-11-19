@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 import {
   nativeRevocations,
   pairChromePhone,
@@ -107,7 +109,7 @@ async function waitForApprovalCardRemoval(chrome, requestId, timeoutMs) {
 test('relay.approval-revoke.expired-and-unreachable-approvals-fail-with: expired and unreachable approvals fail with their exact request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   await pairChromePhone(box, t);
   const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-expired');
@@ -129,7 +131,7 @@ test('relay.approval-revoke.expired-and-unreachable-approvals-fail-with: expired
 test('relay.approval-revoke.elapsed-fixture-wall-time-never-manufactures: elapsed fixture wall time never manufactures an approval expiry refusal [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   const { chrome } = await pairChromePhone(box, t);
   const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-elapsed-clock');
