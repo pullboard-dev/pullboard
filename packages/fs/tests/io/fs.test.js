@@ -2,6 +2,7 @@
 /** The file-system adapter returns the injected source, or the real one by default, and no other cell reaches it yet [C7]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -70,4 +71,42 @@ test('fs.adapter.promises-pass-through: clause 2: promises passes readFile, read
   assert.match(await real.promises.readFile(join(dir, 'fs.test.js'), 'utf8'), /file-system adapter returns/);
   assert.ok((await real.promises.readdir(dir)).includes('fs.test.js'));
   assert.equal((await real.promises.stat(join(dir, 'fs.test.js'))).isFile(), true);
+});
+
+const METADATA = [
+  ['stat', 'statSync', ['/a', { bigint: true }]],
+  ['lstat', 'lstatSync', ['/a', { throwIfNoEntry: false }]],
+  ['realpath', 'realpathSync', ['/a', { encoding: 'utf8' }]],
+  ['readlink', 'readlinkSync', ['/a', 'utf8']],
+  ['access', 'accessSync', ['/a', 4]],
+  ['statfs', 'statfsSync', ['/a', { bigint: true }]],
+  ['list', 'readdirSync', ['/a', { withFileTypes: true, recursive: true }]],
+];
+
+test('fs.adapter.metadata-passes-through: clause 1: stat, lstat, realpath, readlink, access, statfs and list pass their arguments and options to the injected source [C7]', () => {
+  for (const [name, syncName, args] of METADATA) {
+    const calls = [];
+    const fs = fileSystemAdapter({ [syncName]: (...given) => { calls.push(given); return `${name}-result`; } });
+    assert.equal(fs[name](...args), `${name}-result`, name);
+    assert.deepEqual(calls, [args], name);
+  }
+});
+
+test('fs.adapter.constants-from-source: clause 1: the adapter exposes the constants of the injected source [C7]', () => {
+  const constants = { R_OK: 4, COPYFILE_EXCL: 1 };
+  assert.equal(fileSystemAdapter({ constants }).constants, constants);
+});
+
+test('fs.adapter.metadata-real-by-default: clause 2: with no source the metadata functions reach node:fs and its constants [C7]', () => {
+  const dir = fileURLToPath(new URL('.', import.meta.url));
+  const file = join(dir, 'fs.test.js');
+  const fs = fileSystemAdapter();
+  assert.equal(fs.stat(file).isFile(), true);
+  assert.equal(fs.lstat(dir).isDirectory(), true);
+  assert.equal(fs.realpath(file), realpathSync(file));
+  assert.equal(fs.access(file, fs.constants.R_OK), undefined);
+  assert.equal(typeof fs.statfs(dir).bsize, 'number');
+  assert.equal(fs.list(dir, { withFileTypes: true }).some((entry) => entry.name === 'fs.test.js'), true);
+  assert.equal(fs.constants.R_OK, 4);
+  assert.throws(() => fs.readlink(file), { code: 'EINVAL' });
 });
