@@ -1,0 +1,4 @@
+{
+  "moves.add-block.descriptor": {"proves":{"specs":["C7"],"claim":"clause 1: the addBlock descriptor names operation addBlock, reads its actor from args[0].agentId and routes at BLOCK_ENGINE."},"why":"A block move that routes below its engine would replay on boards that have no block record.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/addBlock.test.js","packages/state/light.js"]},
+  "moves.add-block.next-step": {"proves":{"specs":["C7"],"claim":"clause 2: nextSteps maps BLOCK_EXISTS to a step naming pullboard block add with another name."},"why":"A refused duplicate block name must tell the agent what to run next.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/addBlock.test.js"]}
+}

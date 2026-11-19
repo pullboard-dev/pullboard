@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell landing */
 /** landing.staticAffectedOnly: a changed gate data file no longer widens the landing static guard to the whole run [C7,#9077]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
