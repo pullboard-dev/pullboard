@@ -7,6 +7,7 @@ const ROW = { id: 'PB2', status: 'approved', tier: 'must', text: "Destructive or
 
 test('doctrine.logic-standard-decision.approve-returns-the-row-line: clause 1: standardDecisionLine(row, { decision: approve }) returns the DOCTRINE.md row line for that standard id with status approved and the row text unchanged [C7,#2007]', () => {
   assert.equal(standardDecisionLine(ROW, { decision: 'approve' }), `- PB2 [approved, must] ${ROW.text}`);
+  assert.equal(standardDecisionLine({ ...ROW, gate: 'review' }, { decision: 'approve' }), `- PB2 [approved, must] ${ROW.text} | gate: review`, 'a gate the standard row names travels with the approval');
   assert.equal(standardDecisionLine({ id: 'PB7', text: 'Tests touch nothing outside a sandbox.' }, { decision: 'approve' }), '- PB7 [approved] Tests touch nothing outside a sandbox.');
 });
 
