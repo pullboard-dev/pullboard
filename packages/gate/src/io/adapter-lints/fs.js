@@ -14,13 +14,13 @@ import { walk } from '../scan.js';
 export const FS_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-fs.json';
 
 const KERNEL = 'packages/kernel/';
-/** The runner probe, exempt by exact path: its node:fs import sits inside a script text that runs on the runner, which cannot import an adapter [C7,#11632]. */
-const GENERATED_SCRIPT = 'packages/runners/src/io/probe.js';
+/** Files exempt by exact path: their node:fs use runs inside a script text sent to a runner (the probe, and the capsule installer stringified into the remote install script), which cannot import an adapter [C7,#11632]. */
+const GENERATED_SCRIPTS = new Set(['packages/runners/src/io/probe.js', 'packages/runners/src/io/package/install.js']);
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const FS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(['"`])(?:node:)?fs(?:\/promises)?\1/gu;
 
 /** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test. */
-export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && path !== GENERATED_SCRIPT
+export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && !GENERATED_SCRIPTS.has(path)
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**
