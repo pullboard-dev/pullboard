@@ -177,6 +177,7 @@ const BEFORE = {
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
+  'runners.coresPerShard': 3,
   'runners.drainOnFetchFailure': false,
   'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
