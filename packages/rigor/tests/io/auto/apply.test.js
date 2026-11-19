@@ -42,7 +42,31 @@ test('rigor.auto.apply-renamed-path-same-row: clause 1: a draft naming an old pa
   assert.deepEqual(plan.records, []);
 });
 
-test('rigor.auto.apply-real-text-diff-refuses: clause 2: a real text difference besides the path still throws ROW_DRAFT [D1,S1]', () => {
-  const before = draft(OLD), root = repo(movedRow(draft(RENAMED, 'avoid'), before));
-  assert.throws(() => planAutomaticRigorApply(root, loadConfig(root), [before]), error => error.code === 'ROW_DRAFT');
+/** A spec with a colliding draft row RG1 and no row yet for the fresh draft RG2. */
+function collidingRepo() {
+  const before = draft(OLD);
+  return { before, root: repo(movedRow(draft(RENAMED, 'avoid'), before)) };
+}
+
+/** A second draft whose id the spec does not hold yet, so it plans a fresh row. */
+function freshDraft() {
+  return { ...draft(RENAMED), id: 'RG2' };
+}
+
+test('rigor.auto.apply-collision-does-not-block: clause 1: a colliding draft is listed in collisions while the fresh draft still plans its row [D1,S1]', () => {
+  const { before, root } = collidingRepo();
+  const plan = planAutomaticRigorApply(root, loadConfig(root), [before, freshDraft()]);
+  assert.equal(plan.files.length, 1, 'the fresh draft plans one file write');
+  assert.match(plan.files[0].after, /^- RG2 \[draft, aim\] /mu);
+  assert.deepEqual(plan.collisions.map(({ id, target }) => ({ id, target })), [{ id: 'RG1', target: 'spec' }]);
+  assert.match(plan.collisions[0].why, /RG1 already names different spec text, gate or tier/u);
+});
+
+test('rigor.auto.apply-collision-never-overwrites: clause 2: a colliding draft is never written over; its file row stays byte for byte [D1,S1]', () => {
+  const { before, root } = collidingRepo();
+  const plan = planAutomaticRigorApply(root, loadConfig(root), [before, freshDraft()]);
+  assert.ok(plan.collisions.some(({ id }) => id === 'RG1'));
+  const [{ before: original, after }] = plan.files;
+  const row = /^- RG1 .*$/mu.exec(original)[0];
+  assert.deepEqual(after.split('\n').filter(line => line.startsWith('- RG1 ')), [row], 'the planned text keeps the colliding row exactly, with no second RG1 row');
 });
