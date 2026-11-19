@@ -1,7 +1,6 @@
 /** The board reads a light consumer needs, open read-only, the board id and the item list, without heavy imports [C7,V4]. */
 // Why a module of its own: query.js reaches verify, seats and items, so a light door exporting from it broke its cold-load budget.
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../../kernel/light.js';
 import { ENGINE_VERSION } from '../../../../../state/light.js';
@@ -14,6 +13,8 @@ import { pulledGateRecords } from '../../submit/handoff/records.js';
 import { withSeatPresence } from '../../presence.js';
 import { withDerivedFamily } from '../../../../../items/light.js';
 import { agentParent } from '../../../../../seats/light.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A value that changes whenever the board's data may have, for per-revision read caches [H24]: another connection's commit moves
@@ -60,7 +61,7 @@ function isCantOpen(error) {
 
 /** Count this process's open descriptors, or null where the platform lists none. */
 function openFileCount() {
-  try { return readdirSync('/dev/fd').length; } catch { return null; }
+  try { return fs.list('/dev/fd').length; } catch { return null; }
 }
 
 /** Open an existing board without migrations, waiting for the same locks as openBoard. The caller may pass a richer `busyError` that names the lock holder. */
@@ -235,7 +236,7 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 export function landingMayWait(file) {
   let db;
   // No board file means nothing was ever accepted here.
-  if (!existsSync(file)) return false;
+  if (!fs.exists(file)) return false;
   try {
     db = openBoardReadOnly(file);
     return db.prepare("SELECT 1 AS waiting FROM item WHERE item_status = 'verified' AND (item_merged_commit IS NULL OR item_merged_commit = '') LIMIT 1").get() !== undefined;
