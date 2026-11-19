@@ -50,8 +50,8 @@ export function claimDecision(board, id, { options, plan }) {
   const { agentId, head = null, reviewSkipped = null, buildBudgetMinutes = 30, gateWaits = null } = options;
   const row = itemById(board, id);
   const seat = db.prepare('SELECT agent_lane, agent_route FROM agent WHERE agent_id=?').get(agentId);
-  // The writer checks the lane the claim runs from; only the coordinator seat claims from a worktree outside its registered lane, so only its lane follows the claim.
-  const lane = seat?.agent_lane === COORDINATOR && typeof options.lane === 'string' ? options.lane : seat?.agent_lane;
+  // The writer checks the lane the claim runs from; the coordinator seat claims from a worktree outside its registered lane, and with laneMode off every seat claims in the item's lane, so those lanes follow the claim.
+  const lane = (seat?.agent_lane === COORDINATOR || options.laneOff === true) && typeof options.lane === 'string' ? options.lane : seat?.agent_lane;
   const waits = detailWaits(db, id);
   const deps = {};
   for (const dep of [...afterOf(row), ...waits]) {
