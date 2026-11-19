@@ -2461,6 +2461,7 @@
     "sandbox->kernel",
     "apps/cli->state",
     "apps/lib->transport",
+    "apps/lib->env",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
