@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 552,
+  "total": 548,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -56,8 +56,6 @@
     "apps/cli/src/io/worktree/maintenance/observation.js": 1,
     "apps/cli/src/io/worktree/maintenance/scheduler.js": 1,
     "apps/cli/src/logic/why.js": 1,
-    "apps/lib/src/io/drive/worker.js": 3,
-    "apps/lib/src/io/main/audit.js": 1,
     "apps/relay/src/io/deploy/server.mjs": 7,
     "apps/relay/src/io/deploy/smoke.mjs": 2,
     "apps/runner/src/io/custody.js": 1,
