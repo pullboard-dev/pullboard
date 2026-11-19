@@ -1,16 +1,7 @@
 /** Device-only board keys, kept outside repositories and relay requests [H1,H15,H17]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import {
   decodeBoardKey,
@@ -18,6 +9,9 @@ import {
 } from '../../../kernel/index.js';
 import { relayKeyDirectory } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 /** Validate a persistent board identity before using it as a file or credential name. */
 function identity(boardId) {
@@ -46,14 +40,14 @@ function keychain() {
 function writeKeyFile(id, encoded) {
   const file = keyFile(id);
   const directory = join(file, '..');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(directory);
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  const parent = fs.lstat(directory);
   if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'use an owner-only relay-keys directory with mode 700');
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, encoded + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
+    fs.writeFile(temporary, encoded + '\n', { mode: 0o600, flag: 'wx' });
+    fs.rename(temporary, file);
+  } finally { fs.rm(temporary, { force: true }); }
   return file;
 }
 
@@ -82,11 +76,11 @@ function removeKeychainValue(service, id) {
 export function readBoardKey(boardId, { legacyKeychain = true } = {}) {
   const id = identity(boardId);
   const file = keyFile(id);
-  if (existsSync(file)) {
-    const stat = lstatSync(file);
+  if (fs.exists(file)) {
+    const stat = fs.lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_KEY_STORAGE', 'restore the board key as an owner-only regular file with mode 600');
     let encoded;
-    try { encoded = readFileSync(file, 'utf8').trim(); }
+    try { encoded = fs.readFile(file, 'utf8').trim(); }
     catch (error) {
       if (!['EACCES', 'EPERM'].includes(error.code)) throw error;
       throw new Refused('RELAY_KEY_MISSING', 'the board key is unreadable in this shell (' + error.code + '); run this command where the key is available, or pair this device');
@@ -113,7 +107,7 @@ export function readBoardKey(boardId, { legacyKeychain = true } = {}) {
       // Keep the legacy value until a verified private file exists; roll back if deletion fails.
       const migrated = writeKeyFile(id, encoded);
       try { removeKeychainValue(service, id); }
-      catch (error) { rmSync(migrated, { force: true }); throw error; }
+      catch (error) { fs.rm(migrated, { force: true }); throw error; }
       return key;
     }
   }
@@ -125,7 +119,7 @@ export function readBoardKey(boardId, { legacyKeychain = true } = {}) {
 export function forgetBoardKey(boardId, storage) {
   const id = identity(boardId);
   const file = keyFile(id);
-  const hasFile = existsSync(file);
+  const hasFile = fs.exists(file);
   const service = hasFile ? null : keychain();
   if (!hasFile && !service && storage === 'keychain') throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay off again to finish forgetting its key');
   if (service) {
@@ -135,18 +129,18 @@ export function forgetBoardKey(boardId, storage) {
     const absent = service === 'security' ? removed.status === 44 : removed.status === 1 && !removed.stderr;
     if (removed.status !== 0 && !absent) throw new Refused('RELAY_KEYCHAIN', 'unlock the system keychain and run pullboard relay off again to finish forgetting its key');
   }
-  rmSync(file, { force: true });
+  fs.rm(file, { force: true });
 }
 
 /** Delete the retired same-user person-session files without ever reading or hydrating a credential. */
 export function scrubLegacyPersonSessions() {
   const directory = join(keyFile('0'.repeat(32)), '..');
-  if (!existsSync(directory)) return;
-  const parent = lstatSync(directory);
+  if (!fs.exists(directory)) return;
+  const parent = fs.lstat(directory);
   if (!parent.isDirectory() || parent.isSymbolicLink() || (parent.mode & 0o077)) {
     throw new Refused('RELAY_KEY_STORAGE', 'Restore the owner-only relay-keys directory before removing retired person sessions.');
   }
-  for (const name of readdirSync(directory)) {
-    if (/^[0-9a-f]{32}\.session\.json(?:\.[0-9a-f-]+\.tmp)?$/u.test(name)) rmSync(join(directory, name), { force: true });
+  for (const name of fs.list(directory)) {
+    if (/^[0-9a-f]{32}\.session\.json(?:\.[0-9a-f-]+\.tmp)?$/u.test(name)) fs.rm(join(directory, name), { force: true });
   }
 }
