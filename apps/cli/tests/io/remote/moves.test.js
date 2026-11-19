@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -21,6 +22,7 @@ import { startFixtureLocalRunner } from '../../fixtures/runner/local-start.js';
 import { whenRunnerSettles } from '../../fixtures/runner/local-start.js';
 import { CLI_ENTRY } from '../../fixtures/runner/entry.js';
 import { stopFixtureLocalRunner } from '../../fixtures/runner/local-stop.js';
+import { sendRemoteHeartbeat } from '../../../src/io/remote/moves.js';
 
 /** One successful versioned CLI call on the served board's own checkouts, run in this process. */
 async function served(box, cwd, ...args) {
@@ -233,3 +235,24 @@ onRemoteSeats(async (seats) => {
   assert.deepEqual(folders, [], 'no item folder appeared beside the board host checkout');
   assert.equal(cloneBoard(seats.clone), false, 'the claim opened no local board');
 }));
+
+test('cli.io-remote-moves.heartbeat-posts-the-move: sendRemoteHeartbeat posts {verb: heartbeat, args: {}, agent} to the fixture server /moves and reports a refusal as not held [P7,B3]', async (t) => {
+  const posts = [];
+  let refuse = false;
+  const server = createServer((request, response) => {
+    let body = '';
+    request.on('data', (part) => { body += part; });
+    request.on('end', () => {
+      posts.push({ path: request.url, body: JSON.parse(body) });
+      response.writeHead(refuse ? 409 : 200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(refuse ? { error: { code: 'NOT_HELD', message: 'this seat holds no claim' } } : { result: {} }));
+    });
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => server.close());
+  const remote = { url: `http://127.0.0.1:${server.address().port}/api/v1/boards/b1`, token: 'k', agent: 'core-9' };
+  assert.equal(await sendRemoteHeartbeat(remote), true);
+  assert.deepEqual(posts, [{ path: '/api/v1/boards/b1/moves', body: { verb: 'heartbeat', args: {}, agent: 'core-9' } }]);
+  refuse = true;
+  assert.equal(await sendRemoteHeartbeat(remote), false, 'a refused beat reads as not held');
+});

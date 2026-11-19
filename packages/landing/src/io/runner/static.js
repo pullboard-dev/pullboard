@@ -18,6 +18,8 @@ function staticRows(output) {
 /**
  * Whether a changed path makes the static run whole. With landing.staticAffectedOnly on, a JSON data file under
  * packages/gate/data does not: the registry classes that declare it in jsonInputs run, and no others [C7,#9077].
+ * Why an added one does: a new ratchet is judged on the merged tree, so an offender main already holds in a file the
+ * batch did not touch is found at the landing and the batch is returned, never landed with a ratchet born red [C7,#7068].
  */
 function wholeInput(path, affectedOnly) {
   return WHOLE_REPO_INPUT.test(path) && !(affectedOnly && DATA_FILE.test(path));
@@ -31,7 +33,7 @@ function scopedGuard(root, base, command, affectedOnly = false) {
   const ran = tryGit(root, ['--no-replace-objects', 'diff', '--no-renames', '--name-status', base, 'HEAD']);
   if (ran.status !== 0) return command;
   const changes = ran.stdout.split('\n').filter(Boolean).map(row => { const [status, ...path] = row.split('\t'); return { status: status[0], path: path.join('\t') }; });
-  if (changes.some(change => change.status === 'D' || wholeInput(change.path, affectedOnly)) || changes.length > SCOPE_PATH_LIMIT) return command;
+  if (changes.some(change => change.status === 'D' || wholeInput(change.path, affectedOnly && change.status !== 'A')) || changes.length > SCOPE_PATH_LIMIT) return command;
   const files = changes.map(change => change.path).sort();
   return `export ${STATIC_SCOPE_ENV}='${JSON.stringify(files).replaceAll("'", "'\\''")}'; ${command}`;
 }
