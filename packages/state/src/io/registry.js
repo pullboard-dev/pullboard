@@ -8,7 +8,7 @@ function versionAt(root, source) {
   if (source?.kind === 'engines') {
     const folder = join(root, 'packages/state/src/logic/engines');
     const values = fileSystemAdapter().list(folder).filter(file => /^[a-z][a-z0-9-]*-engine\.js$/u.test(file))
-      .flatMap(file => [...readFileSync(join(folder, file), 'utf8').matchAll(/^export const [A-Z][A-Z0-9_]*_ENGINE = (\d+|unassignedEngine\(\));$/gmu)].map(match => match[1]));
+      .flatMap(file => [...fileSystemAdapter().readFile(join(folder, file), 'utf8').matchAll(/^export const [A-Z][A-Z0-9_]*_ENGINE = (\d+|unassignedEngine\(\));$/gmu)].map(match => match[1]));
     const highest = Math.max(1, ...values.filter(value => /^\d+$/u.test(value)).map(Number));
     return highest;
   }
