@@ -9,19 +9,16 @@ function requireHost(runner) {
   }
 }
 
-/** The part of a run's answer both forms share: { status, stdout, stderr }, with stdout as bytes. */
-function answer({ status = null, stdout = '', stderr = '', signal = null, error = null } = {}) {
-  return {
-    status, stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout)), stderr: String(stderr),
-    ...(signal ? { signal } : {}), ...(error ? { error } : {}),
-  };
+/** The part of a run's answer both forms share: { status, signal, stdout, stderr, error }, with stdout as bytes; error is null unless ssh itself failed. */
+function answer({ status = null, signal = null, stdout = '', stderr = '', error = null } = {}) {
+  return { status, signal, stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout)), stderr: String(stderr), error };
 }
 
 /**
  * The real form: run a script on a runner over ssh through runRunnerScript, with `spawnFn` (default node's spawn) so a
  * test can stub the process. Why: callers reach ssh through one object, so a later lint can refuse ssh access anywhere else [C7,#1427].
  * @param {{ spawnFn?: Function, ssh?: string, dir?: string, env?: object, timeoutMs?: number }} [defaults] Options every run starts from.
- * @returns {Readonly<{ run: (runner: { host: string }, script: string, options?: object) => Promise<{ status: number | null, stdout: Buffer, stderr: string }> }>}
+ * @returns {Readonly<{ run: (runner: { host: string }, script: string, options?: object) => Promise<{ status: number | null, signal: string | null, stdout: Buffer, stderr: string, error: string | null }> }>}
  */
 export function createSshAdapter(defaults = {}) {
   return Object.freeze({
@@ -35,7 +32,7 @@ export function createSshAdapter(defaults = {}) {
 /**
  * The fake form: answer each run from `handler(runner, script)` ({ status, stdout, stderr }, text or bytes), spawning nothing.
  * @param {(runner: { host: string }, script: string) => object | Promise<object>} [handler] The answer; success with empty output by default.
- * @returns {Readonly<{ run: (runner: { host: string }, script: string) => Promise<{ status: number | null, stdout: Buffer, stderr: string }> }>}
+ * @returns {Readonly<{ run: (runner: { host: string }, script: string) => Promise<{ status: number | null, signal: string | null, stdout: Buffer, stderr: string, error: string | null }> }>}
  */
 export function createFakeSshAdapter(handler = () => ({ status: 0 })) {
   return Object.freeze({

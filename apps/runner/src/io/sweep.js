@@ -12,6 +12,7 @@ import { relative } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { sep } from 'node:path';
 import { Refused } from '../../../../packages/kernel/light.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { processCensus } from './custody.js';
 import { acquireResourceApi } from './worker/environment.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -270,8 +271,9 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
 
 /** Read a whole-number byte budget from the environment, falling back when it is unset or invalid. */
 function envBytes(name, fallback) {
-  const value = Number(process.env[name]);
-  return Number.isSafeInteger(value) && value >= 0 && process.env[name] !== '' ? value : fallback;
+  const raw = environmentAdapter().get(name);
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 0 && raw !== '' ? value : fallback;
 }
 
 /**
