@@ -2462,6 +2462,7 @@
     "apps/cli->state",
     "apps/lib->transport",
     "apps/lib->env",
+    "transport->env",
     "apps/cli->kernel",
     "gate->jobs",
     "gate->env",
@@ -2574,6 +2575,7 @@
     "moves->roadmap",
     "moves->config",
     "moves->link",
+    "moves->env",
     "rigor->state",
     "sandbox->state",
     "sandbox->items",
@@ -2623,7 +2625,8 @@
     "apps/cli->fs",
     "apps/lib->fs",
     "apps/runner->env",
-    "apps/runner->fs"
+    "apps/runner->fs",
+    "flakes->env"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",
