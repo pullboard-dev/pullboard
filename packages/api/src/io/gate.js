@@ -290,7 +290,9 @@ function shellWord(value) {
 /** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. */
 export function shardJobs(db, job, { runs = null } = {}) {
   const prefix = `${job}:shard:`;
-  return (runs ? runs.db : db).prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
+  // A key range on job_id (the primary key) rather than substr(), which scans every shard row; ';' is the character after ':'. The unary plus keeps the planner on that range instead of the job_kind index [C7].
+  const end = `${prefix.slice(0, -1)};`;
+  return (runs ? runs.db : db).prepare('SELECT job_id, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix, end);
 }
 
 /**

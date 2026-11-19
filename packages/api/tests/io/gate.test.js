@@ -24,6 +24,7 @@ import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { shardJobs } from '../../index.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
 const MAIN = 'a'.repeat(40);
@@ -179,4 +180,16 @@ test('api.io-gate.seeded-receipt-settles-main-owned: clause 2: with the seeded r
   assert.deepEqual(same.after, same.before, 'no new main-test row');
   const differs = await seededGate(t, 'd'.repeat(64));
   assert.notEqual(differs.outcome, 'review', 'a case whose signature differs stays red');
+});
+
+test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a gate\'s own shard rows in order, not a sibling gate whose job id extends the same text, and its query plan searches job_id with no scan of job [C7]', t => {
+  const board = cellBoard(t, ':memory:');
+  for (const [id, kind, created] of [['gate:1:a:shard:2', 'gate-shard', 2], ['gate:1:a:shard:1', 'gate-shard', 1], ['gate:1:ab:shard:1', 'gate-shard', 1], ['gate:1:a', 'gate', 0], ['gate:1:a:shard:3', 'gate', 3]]) {
+    board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_created) VALUES (?, ?, ?, ?)').run(id, kind, 'offered', created);
+  }
+  assert.deepEqual(shardJobs(board.db, 'gate:1:a').map(shard => shard.job_id), ['gate:1:a:shard:1', 'gate:1:a:shard:2']);
+  assert.deepEqual(shardJobs(board.db, 'gate:1:ab').map(shard => shard.job_id), ['gate:1:ab:shard:1']);
+  const plan = board.db.prepare("EXPLAIN QUERY PLAN SELECT job_id, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? ORDER BY job_created, job_id").all('gate-shard', 'gate:1:a:shard:', 'gate:1:a:shard;').map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job/u, plan);
+  assert.doesNotMatch(plan, /SCAN job/u, plan);
 });
