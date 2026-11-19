@@ -37,6 +37,18 @@ export function cadenceMs(every) {
 }
 
 /**
+ * Whether a recurring round is due: true from lastRoundAt plus one cadence on, false before.
+ * Why: the reopen sweep of a recurring item needs one exact answer to "has the cadence passed", and it reuses the job cadence parser rather than reading cadences a second way (#997) [D1,C7].
+ *
+ * @param {{ every: unknown, lastRoundAt: number, now: number }} round - Times are epoch milliseconds.
+ * @returns {boolean}
+ * @throws {Refused} BAD_JOB when cadenceMs refuses the cadence.
+ */
+export function recurringRoundDue({ every, lastRoundAt, now }) {
+  return now >= lastRoundAt + cadenceMs(every);
+}
+
+/**
  * Read every declared job with its latest run. A later declaration replaces an earlier one's cadence
  * and owner but keeps its run history.
  *

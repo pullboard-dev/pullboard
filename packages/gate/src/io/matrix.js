@@ -14,14 +14,11 @@
  * Why a matrix: on 8 Nov about ten gate fixes landed and gate deaths fell, partly because fewer builders ran; nothing
  * proved any hop worked. A row is a claim only when a harness proves it and production agrees.
  */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   spawn,
   spawnSync,
 } from 'node:child_process';
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import {
   join,
   resolve,
@@ -31,9 +28,11 @@ import {
   pathToFileURL,
 } from 'node:url';
 
+const fs = fileSystemAdapter();
+
 const ROOT = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
 /** The CLI entry the package manifest names as its pullboard bin, so this file names no app path. */
-const CLI = join(ROOT, JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).bin.pullboard);
+const CLI = join(ROOT, JSON.parse(fs.readFile(join(ROOT, 'package.json'), 'utf8')).bin.pullboard);
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
@@ -194,7 +193,7 @@ export function parseArgs(argv) {
 const ROW_MARK = '# hop-row ';
 
 /** Harnesses the owning app holds, by hop harness name: repository-relative paths kept as data so this package names no app file. */
-export const APP_HARNESSES = Object.freeze(JSON.parse(readFileSync(join(ROOT, 'packages/gate/data/tests/app-harnesses.json'), 'utf8')));
+export const APP_HARNESSES = Object.freeze(JSON.parse(fs.readFile(join(ROOT, 'packages/gate/data/tests/app-harnesses.json'), 'utf8')));
 
 /** The absolute path of one harness file: under the owning app when APP_HARNESSES names it, else under the pipeline folder. */
 export function harnessFile(name) {
@@ -310,7 +309,7 @@ function liveReceipts(since) {
 export async function main(argv) {
   const options = parseArgs(argv);
   const names = [...new Set(HOPS.map(hop => hop.harness).filter(Boolean))].filter(name => !options.only || options.only.includes(name));
-  if (!existsSync(HARNESSES)) {
+  if (!fs.exists(HARNESSES)) {
     process.stderr.write(`no harnesses at ${HARNESSES}; they ship in the repository, not the package\n`);
     return 1;
   }

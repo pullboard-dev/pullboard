@@ -6,6 +6,7 @@
  *
  * The CLI-owned entry supplies its board service to runRelaySender.
  */
+import { environmentAdapter } from '../../../../env/index.js';
 import {
   appendFileSync,
   existsSync,
@@ -28,11 +29,14 @@ import {
   senderHolding,
 } from '../../../../link/index.js';
 
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
+
 const files = senderFiles();
 // Budget: a board is pulled this often while the sender runs, so another machine's move shows here within seconds.
-const PULL_MS = Number(process.env.PULLBOARD_RELAY_SENDER_PULL_MS) || 3_000;
+const PULL_MS = Number(environment.get('PULLBOARD_RELAY_SENDER_PULL_MS')) || 3_000;
 // Budget: the sender stays this long after the last nudge, so a working session keeps one warm sender.
-const IDLE_MS = Number(process.env.PULLBOARD_RELAY_SENDER_IDLE_MS) || 60_000;
+const IDLE_MS = Number(environment.get('PULLBOARD_RELAY_SENDER_IDLE_MS')) || 60_000;
 // Budget: a failing board is retried no more often than this at worst, and once a second at best.
 const BACKOFF_MAX_MS = 30_000;
 const TICK_MS = 100;

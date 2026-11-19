@@ -1,0 +1,3 @@
+{
+  "config.io-settings-machine-defaults.line-tune-listed": {"proves":{"specs":["C7"],"claim":"clause 1: line.tune is a machine setting, false by default, accepted as a boolean, with a description row in the Line group."},"why":"Keeps the self-tuning line setting declared, described and off by default until the tune apply slice reads it.","kind":"cell unit","inputs":["packages/config/tests/io/settings/machine-defaults.test.js"]}
+}
