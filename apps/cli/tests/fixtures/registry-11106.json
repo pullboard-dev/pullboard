@@ -1,0 +1,31 @@
+{
+  "cli.io-beater.remote-binding-beats-until-refused": {
+    "proves": {
+      "specs": [
+        "P7",
+        "B3",
+        "C7"
+      ],
+      "claim": "runBeater with a remote binding beats through an injected sender every injected everyMs and stops after the first refusal."
+    },
+    "why": "Without it, a URL-joined seat could lose its claim to the two-minute seat-gone sweep with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/beater.js"
+    ]
+  },
+  "cli.io-remote-moves.heartbeat-posts-the-move": {
+    "proves": {
+      "specs": [
+        "P7",
+        "B3"
+      ],
+      "claim": "sendRemoteHeartbeat posts {verb: heartbeat, args: {}, agent} to the host's /moves and reports a refusal as not held."
+    },
+    "why": "Without it, the remote beat could post the wrong body or hide a refusal with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/remote/moves.js"
+    ]
+  }
+}
