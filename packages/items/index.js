@@ -55,6 +55,8 @@ export { itemEditBar } from './src/logic/edit/bar.js';
 export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/logic/paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/io/patch/submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/logic/lifecycle.js';
+export { returnedRejections, rejectionEchoLine } from './src/logic/returned-rejections.js';
+export { needsJudgement } from './src/logic/needs-judgement.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies, withFamilyReads, recordFamily, FAMILY_RECORD_PREFIX, warmFamilyProjection, familyProjectionCurrent } from './src/io/declaration.js';
 export { auditFailureItem } from './src/logic/audit/failure.js';
 
