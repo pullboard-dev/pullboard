@@ -4,7 +4,11 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { joinCoordinatorSeat } from '../../index.js';
+import { jsdocCheckEnabled } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
+import { loadMachineSettings } from '../../index.js';
+import { describeSetting } from '../../index.js';
+import { MACHINE_DEFAULTS } from '../../src/io/settings/machine-defaults.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -36,4 +40,17 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.jsdoc-check-reads-false-unset: clause 1: gate.jsdocCheck reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and jsdocCheckEnabled() follows it [C7,#1807]', () => {
+  assert.equal(withSettings({}, jsdocCheckEnabled), false);
+  assert.equal(withSettings({ gate: { jsdocCheck: false } }, jsdocCheckEnabled), false);
+  assert.equal(withSettings({ gate: { jsdocCheck: true } }, jsdocCheckEnabled), true);
+  assert.equal(withSettings({ gate: { jsdocCheck: true } }, () => loadMachineSettings().gate?.jsdocCheck === true), true);
+  assert.throws(() => withSettings({ gate: { jsdocCheck: 'yes' } }, jsdocCheckEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.jsdocCheck/u.test(error.message));
+});
+
+test('config.io-settings.jsdoc-check-described-default-off: clause 2: describeSetting names JSDoc in the description of gate.jsdocCheck and MACHINE_DEFAULTS holds it false [C7,#1807]', () => {
+  assert.match(JSON.stringify(describeSetting('gate.jsdocCheck')), /JSDoc/u);
+  assert.equal(MACHINE_DEFAULTS['gate.jsdocCheck'], false);
 });

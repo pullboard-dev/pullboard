@@ -45,3 +45,18 @@ test('api.jobs-claim-order.aged-test-job-outranks-shards: clause 1: a runner hol
   assert.equal(claim(126_001), 'gate:1:shard:1', 'the shards follow in their order');
   assert.equal(claim(126_002), 'gate:1:shard:2', 'a test job offered seconds before still yields to them');
 });
+
+test('api.jobs-claim-order.aged-census-test-job-yields-to-shards: clause 1: an aged census test job (its offer carries censusPerRunner) stays behind queued gate shards while an aged non-census test job moves ahead of them [C7,#11773]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-claim-order-census-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  for (let i = 1; i <= 5; i++) offerJob(db, { id: `gate:1:shard:${i}`, kind: 'gate-shard', now: 1000 + i });
+  offerJob(db, { id: 'test:held', kind: 'test', now: 2000 });
+  const claim = (now) => claimJob(db, { runner: 'r1', now, leaseMs: 600000 })?.job;
+  assert.equal(claim(5000), 'test:held');
+  offerJob(db, { id: 'test:census:aged', kind: 'test', censusPerRunner: 4, now: 5500 });
+  offerJob(db, { id: 'test:review:aged', kind: 'test', now: 6000 });
+  assert.equal(claim(126_000), 'test:review:aged', 'an aged non-census test job goes first');
+  assert.equal(claim(126_001), 'gate:1:shard:1', 'the aged census job does not outrank the shards');
+  for (let i = 2; i <= 5; i++) assert.equal(claim(126_001 + i), `gate:1:shard:${i}`);
+  assert.equal(claim(126_100), 'test:census:aged', 'census runs once the shards are gone');
+});
