@@ -1,0 +1,30 @@
+{
+  "cli.io-commands-contribute.issue-matches-file-form": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "contribute check --issue N prints the same failures and returns the same exit code as the file form for the same record body, with a fake GitHub client and no network."
+    },
+    "why": "Without it, the issue form could drift from the file form and tell a contributor a different list of fixes.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/contribute.js",
+      "apps/cli/tests/io/commands/contribute.test.js"
+    ]
+  },
+  "cli.io-commands-contribute.issue-read-fails": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A failed issue read is refused as ISSUE_READ naming the issue and a next step, with no stack trace."
+    },
+    "why": "Without it, a GitHub outage would show a contributor a raw error instead of what to do.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/contribute.js",
+      "apps/cli/tests/io/commands/contribute.test.js"
+    ]
+  }
+}
