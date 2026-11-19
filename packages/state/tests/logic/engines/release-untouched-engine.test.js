@@ -36,6 +36,7 @@ function boardAtLanding(t) {
   const landed = readEngineLeaves(join(root, FOLDER)).find(leaf => leaf.file === LEAF).number;
   if (landed !== null) {
     for (const leaf of readEngineLeaves(join(root, FOLDER))) {
+      if (leaf.number === null && leaf.file !== LEAF) { rmSync(join(root, FOLDER, leaf.file)); continue; }
       if (leaf.number === null || leaf.number < landed) continue;
       table = table.replace(new RegExp(`^\\s*${leaf.name}: ${leaf.number},\\n`, 'mu'), '');
       if (leaf.file !== LEAF) rmSync(join(root, FOLDER, leaf.file));
