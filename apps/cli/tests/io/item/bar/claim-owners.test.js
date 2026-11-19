@@ -36,14 +36,14 @@ test('cli.io-item-bar-claim-owners.read-only-path-claims: clause 1: an item nami
   assert.equal(store.getItem(box.board, byNext).item_owner, box.seats.builder.id, 'the claim next makes takes the read-only item too');
 });
 
-test('cli.io-item-bar-claim-owners.claim-and-next-agree: clause 2: an item whose Files list changes an unowned path gets CROSS_OWNERSHIP from claim <id> and from next [C7,#11857]', async t => {
+test('cli.io-item-bar-claim-owners.claim-and-next-agree: clause 2: an item whose Files list changes an unowned path gets CROSS_OWNERSHIP from claim <id> and next passes over it [C7,#11857]', async t => {
   const box = await board(t);
   const id = changesUnowned(box, 'Change the clock cell');
   const claimed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
   assert.equal(refusal(claimed), 'CROSS_OWNERSHIP', claimed.out + claimed.err);
   assert.match(claimed.document.error.message, new RegExp(READ_ONLY.replaceAll('.', '\\.'), 'u'));
   const next = await cli(box, box.seats.builder.path, ['next', '--build']);
-  assert.equal(refusal(next), 'CROSS_OWNERSHIP', next.out + next.err);
+  assert.equal(refusal(next), 'NOTHING_FREE', next.out + next.err);
   assert.equal(store.getItem(box.board, id).item_status, 'open', 'neither route claims it');
 });
 

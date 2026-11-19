@@ -2466,6 +2466,7 @@
     "gate->jobs",
     "drive->jobs",
     "drive->kernel",
+    "drive->env",
     "resources->jobs",
     "resources->git",
     "codemap->git",
@@ -2520,6 +2521,7 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->fs",
     "landing->jobs",
     "landing->kernel",
     "landing->pin",
@@ -2616,6 +2618,7 @@
     "apps/lib->board",
     "apps/cli->fs",
     "apps/lib->fs",
+    "apps/runner->env",
     "apps/runner->fs"
   ],
   "upwardEdgesGrandfathered": [
