@@ -1,7 +1,7 @@
 /** The board withdraws a land job's unfinished shards when the land job ends, and a re-offered land job never reuses an earlier tree's shards [C7,#7818,#8198]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
