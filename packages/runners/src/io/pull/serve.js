@@ -23,14 +23,9 @@ import { fetchScript } from './scripts.js';
 import { packScript } from './scripts.js';
 import { sshBurst } from './transfer.js';
 import { createHash } from 'node:crypto';
-import { accessSync } from 'node:fs';
-import { constants } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { environmentAdapter } from '../../../../env/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** The modes a pull-aware controller entry accepts after `--pullboard-runner-controller`. */
 export const PULL_MODES = ['--submit', '--serve-need', '--finish'];
@@ -61,7 +56,7 @@ export async function submitJob(payload, ports) {
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
     Object.assign(request.phaseAt, { prepare: preparing, prepared });
-    if (request.rawOutputPath) closeSync(openSync(request.rawOutputPath, 'wx', 0o600));
+    if (request.rawOutputPath) fileSystem.close(fileSystem.open(request.rawOutputPath, 'wx', 0o600));
     const job = { version: 1, id: request.spec.id, runner: request.runner, spec: { ...request.spec, ...(request.spec.testResults ? { testResults: { ...request.spec.testResults, packet: null } } : {}) },
       phaseAt: request.phaseAt, phase: request.phase, root: request.root, source: request.source, args: request.args,
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath } : {}), reusedRuntime: request.reusedRuntime, hasExchange: Boolean(request.exchange),
@@ -89,11 +84,11 @@ export async function serveNeed({ id, inventory }) {
     updateJob(id, { phaseAt: { inventory: Date.now() } });
     const packed = Date.now();
     const pack = historyPack(job.root, job.source, tips, directory, job.spec.tags, tagObjects);
-    const sent = await sshBurst(job, packScript(job.runner, { id, bytes: statSync(pack).size }), { inputFile: pack });
+    const sent = await sshBurst(job, packScript(job.runner, { id, bytes: fileSystem.stat(pack).size }), { inputFile: pack });
     if (!burstOk(sent)) throw runnerFailure(job, { status: sent.status, signal: sent.signal, error: sent.error, stderr: sent.stderr }, 'pack-upload');
     updateJob(id, { phaseAt: { pack: packed, 'source-sent': Date.now() } });
     return { sent: true };
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fileSystem.rm(directory, { recursive: true, force: true }); }
 }
 
 /**
@@ -112,7 +107,7 @@ async function fetchBurst(job, name) {
 
 /** Stream a finished job's private-check output to its capture file, keeping the controller's hash and 8 MiB head and tail. */
 async function captureRaw(job) {
-  const fd = openSync(job.rawOutputPath, 'w', 0o600);
+  const fd = fileSystem.open(job.rawOutputPath, 'w', 0o600);
   const hash = createHash('sha256'), half = 4 * 1024 ** 2;
   let bytes = 0, head = Buffer.alloc(0), tail = Buffer.alloc(0), failed = false;
   try {
@@ -120,7 +115,7 @@ async function captureRaw(job) {
       if (failed) return;
       try {
         for (let offset = 0; offset < chunk.length;) {
-          const written = writeSync(fd, chunk, offset, chunk.length - offset);
+          const written = fileSystem.write(fd, chunk, offset, chunk.length - offset);
           if (written <= 0) throw new Error('private-check output made no capture progress');
           offset += written;
         }
@@ -132,7 +127,7 @@ async function captureRaw(job) {
     } });
     if (failed) throw new Refused('RUNNER_OUTPUT_LIMIT', 'the full private-check output could not be captured; restore its artifact storage before retrying');
     return { got, bounded: Buffer.concat([head, ...(bytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]), extra: { rawOutputPath: job.rawOutputPath, rawBytes: bytes, rawSha256: hash.digest('hex') } };
-  } finally { closeSync(fd); }
+  } finally { fileSystem.close(fd); }
 }
 
 /**
@@ -203,7 +198,7 @@ export const REQUIRED_TOOLS = ['ps', 'lsof'];
 export function requireRunnerTools(env = environmentAdapter().all(), tools = REQUIRED_TOOLS) {
   const directories = String(env.PATH ?? '').split(':').filter(Boolean);
   for (const tool of tools) {
-    const found = directories.some(directory => { try { accessSync(`${directory}/${tool}`, constants.X_OK); return true; } catch { return false; } });
+    const found = directories.some(directory => { try { fileSystem.access(`${directory}/${tool}`, fileSystem.constants.X_OK); return true; } catch { return false; } });
     if (!found) throw new Refused('RUNNER_TOOL_MISSING', `${tool} is not on this runner's PATH (${env.PATH ?? 'unset'}); jobs that spawn ${tool} would fail`, `put the directory holding ${tool} (on macOS /usr/sbin and /sbin) on the service PATH, then run pullboard runner install-serve again`);
   }
 }
