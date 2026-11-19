@@ -1,0 +1,4 @@
+{
+  "moves.reserve-item.records-holder-by-at-and-replaces": {"proves":{"specs":["C7"],"claim":"clause 1: reserveItem records holder, by and at, and a second reservation replaces the first."},"why":"A reservation that is not recorded, or that stacks, would misroute the item.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/reserveItem.test.js","packages/store/index.js","packages/state/light.js"]},
+  "moves.reserve-item.older-engine-refuses": {"proves":{"specs":["C7"],"claim":"clause 2: an engine below RESERVATION_ENGINE refuses reserveItem with ENGINE_VERSION."},"why":"Older boards must replay without ever seeing a reservation.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/reserveItem.test.js","packages/store/index.js","packages/state/light.js"]}
+}
