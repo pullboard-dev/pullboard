@@ -126,3 +126,24 @@ test('sandbox.take.closing-reads-no-list-without-main-run: clause 1: closePassin
   const closing = await preparedBy(t, () => closePassingMainReds(box.ctx, { ...box.services, passingMainRedItems }));
   assert.deepEqual(closing.filter(sql => listing.includes(sql)), [], `the closing read prepared a list query: ${JSON.stringify(closing)}`);
 });
+
+test('sandbox.take.claim-substeps-profile: after progress.enter claim, entering claim freezer, claim head and claim write lists each as its own profile row, the rows sum to the claim phase, and a claim step past the routing budget does not throw NEXT_TIMEOUT [N2,C7]', async t => {
+  const { clock, progress } = slowProgress(t);
+  progress.enter('claim', 7);
+  clock.at += 10;
+  progress.enter('claim freezer', 7);
+  clock.at += 30;
+  progress.enter('claim head', 7);
+  clock.at += 5;
+  progress.enter('claim write', 7);
+  clock.at += 2_000; // the routing budget (1,000 ms) runs out inside the write
+  assert.doesNotThrow(() => progress.enter('claim cover-stuck', 7), 'a claim step past the budget keeps custody and never refuses');
+  clock.at += 8;
+  const rows = new Map(progress.profile().map(row => [row.phase, row.ms]));
+  assert.equal(rows.get('claim'), 10);
+  assert.equal(rows.get('claim freezer'), 30);
+  assert.equal(rows.get('claim head'), 5);
+  assert.equal(rows.get('claim write'), 2_000);
+  assert.equal(rows.get('claim cover-stuck'), 8);
+  assert.equal([...rows].filter(([name]) => name.startsWith('claim')).reduce((sum, [, ms]) => sum + ms, 0), 2_053, 'the claim rows sum to the time the claim phase took');
+});
