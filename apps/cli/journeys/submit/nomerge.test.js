@@ -11,7 +11,7 @@ import { privateRepo } from '../../tests/fixtures/submit/gate.js';
 import { mergeSubmissionMain } from '../../../../packages/merge/index.js';
 
 /** A private repo with independent builder and main changes, plus a pre-merge-commit hook that refuses until a flag file exists. */
-function project(t) {
+function project(t, moved = 0) {
   const box = privateRepo(t);
   // The submit merge copies the committer identity from this process, so give it the fixture's for the test.
   const keys = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'];
@@ -26,7 +26,8 @@ function project(t) {
   writeFileSync(join(work, 'builder.txt'), 'builder\n');
   git(work, ...quiet, 'add', '.'); git(work, ...quiet, 'commit', '-q', '-m', 'builder');
   writeFileSync(join(main, 'trunk.txt'), 'main\n');
-  git(main, ...quiet, 'add', 'trunk.txt'); git(main, ...quiet, 'commit', '-q', '-m', 'main');
+  for (let n = 0; n < moved; n++) writeFileSync(join(main, `moved-${n}.txt`), `main ${n}\n`);
+  git(main, ...quiet, 'add', '-A'); git(main, ...quiet, 'commit', '-q', '-m', 'main');
   const flag = join(box.dir, 'joined');
   const hooks = join(box.dir, 'hooks');
   mkdirSync(hooks);
@@ -51,4 +52,24 @@ test('cli.journeys-submit-nomerge.rerunning-the-submit-merge-after-the: clause 2
   const result = mergeSubmissionMain(p.work, p.trunk);
   assert.equal(result.merged, true);
   assert.equal(p.git(p.work, 'status', '--porcelain'), '');
+});
+
+test('cli.journeys-submit-nomerge.a-sixty-file-main-merge-leaves-the-folder: clause 1: a submit merge of a 60-file main move, called as submit.js calls it with checkout:false, leaves git status empty and HEAD unchanged [test] [C7]', t => {
+  const p = project(t, 60);
+  const result = mergeSubmissionMain(p.work, p.trunk, { checkout: false });
+  assert.equal(result.merged, true);
+  assert.notEqual(result.commit, p.source);
+  assert.equal(p.git(p.work, 'status', '--porcelain', '--untracked-files=all'), '');
+  assert.equal(p.git(p.work, 'rev-parse', 'HEAD'), p.source);
+  assert.equal(existsSync(join(p.work, 'moved-59.txt')), false, 'main files are not written into the folder');
+  assert.deepEqual(p.git(p.work, 'show', '-s', '--format=%P', result.commit).split(' '), [p.source, p.trunk]);
+});
+
+test('cli.journeys-submit-nomerge.a-second-submit-merge-from-the-same-folder: clause 2: a second submit merge from the same folder is not refused DIRTY and composes the same tree [test] [C7]', t => {
+  const p = project(t, 60);
+  const first = mergeSubmissionMain(p.work, p.trunk, { checkout: false });
+  const second = mergeSubmissionMain(p.work, p.trunk, { checkout: false });
+  assert.equal(second.merged, true);
+  assert.equal(p.git(p.work, 'rev-parse', `${second.commit}^{tree}`), p.git(p.work, 'rev-parse', `${first.commit}^{tree}`));
+  assert.equal(p.git(p.work, 'status', '--porcelain', '--untracked-files=all'), '');
 });
