@@ -37,6 +37,9 @@ import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
 import { storeName } from '../../store-names.js';
 
+/** The longest a baseline may hold its gate slot on a runner: the runners' own 20-minute run ceiling, which starts only once a run is READY. */
+export const BASELINE_CAP_MS = 20 * 60_000;
+
 /** Resolve private completion storage beside this repository's shared board. */
 function locations(root) {
   const info = repoInfo(root);
@@ -144,9 +147,10 @@ function mainSource(root, commit) {
  * @param {number} id
  * @param {{ command: string, main: string }} expected
  * @param {{ gateExecutionServices?: () => Promise<{ runners: object, landing: object }> }} services
+ * @param {{ capMs?: number }} [options] - How long the runner call may hold its gate slot; BASELINE_CAP_MS by default.
  * @returns {Promise<object|null>} The observation, or null when no runner can take it.
  */
-export async function measureBaseline(root, id, expected, services) {
+export async function measureBaseline(root, id, expected, services, { capMs = BASELINE_CAP_MS } = {}) {
   const executionServices = await services.gateExecutionServices?.();
   if (!executionServices || !runnersRegistered(executionServices)) return null;
   const source = mainSource(root, expected.main);
@@ -154,9 +158,19 @@ export async function measureBaseline(root, id, expected, services) {
   return withGateSlot(root, async lease => {
     const started = Date.now();
     const command = runnerBaselineCommand(root, expected);
-    const run = await lease.executionServices.runners.runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source,
-      browser: lease.browser, metadata: lease.runMetadata });
-    return runnerBaseline(expected, run, (Date.now() - started) / 1000);
+    const controller = new AbortController();
+    let capped = false;
+    const timer = setTimeout(() => { capped = true; controller.abort(); }, capMs);
+    try {
+      const run = await lease.executionServices.runners.runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source,
+        browser: lease.browser, metadata: lease.runMetadata, signal: controller.signal });
+      return runnerBaseline(expected, run, (Date.now() - started) / 1000);
+    } catch (error) {
+      // Return, never throw, at the cap: a thrown RunnerDropped makes withGateSlot requeue for its 30-minute window.
+      if (!capped) throw error;
+      return { command: expected.command, main: expected.main, result: 'unavailable',
+        reason: `baseline exceeded ${Math.round(capMs / 1000)} s on the runner; set --check again from the coordinator` };
+    } finally { clearTimeout(timer); }
   }, { executionServices, runnerOnly: true, remote: true,
     agent: 'coordinator', item: String(id), kind: 'check-baseline', pinnedSource: source });
 }

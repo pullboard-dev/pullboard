@@ -68,6 +68,34 @@ function missingOwnerStatusIndex(db) {
   return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(OWNER_STATUS_INDEX);
 }
 
+/**
+ * The reservation columns #9181 put into SCHEMA and ADDED_COLUMNS without a SCHEMA_VERSION bump, so every board stamped before it read as drifted (#11172).
+ * Why additive, not in SCHEMA: SCHEMA and ADDED_COLUMNS feed the digest, and repairDrift repairs no column. Each is nullable, so no row is rewritten.
+ */
+const ADDITIVE_COLUMNS = [
+  ['item', 'item_reservation_holder', 'TEXT'],
+  ['item', 'item_reservation_by', 'TEXT'],
+  ['item', 'item_reservation_at', 'TEXT'],
+];
+
+/** The same columns as DDL, for the shared-schema declaration a worktree compares a trunk board against. */
+export const ADDITIVE_COLUMNS_SQL = ADDITIVE_COLUMNS.map(([table, column, type]) => `ALTER TABLE ${table} ADD COLUMN ${column} ${type};`).join('\n');
+
+/** True when the board has the table and lacks one of the additive columns. */
+function missingAdditiveColumns(db) {
+  return ADDITIVE_COLUMNS.some(([table, column]) => {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    return columns.length > 0 && !columns.some(entry => entry.name === column);
+  });
+}
+
+/** Add each additive column only when absent. Why public: the shared-schema declaration must know the columns a trunk board carries. */
+export function ensureAdditiveColumns(db) {
+  for (const [table, column, type] of ADDITIVE_COLUMNS) {
+    if (!db.prepare(`PRAGMA table_info(${table})`).all().some(entry => entry.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
 /** True when the ledger table has no commit index, which the landing proof lookups read through [C7,#11191]. */
 function missingLedgerCommitIndex(db) {
   return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='test_result_commit_file'").get();
@@ -75,11 +103,12 @@ function missingLedgerCommitIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
+  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
 export function ensureAdditiveIndexes(db) {
+  ensureAdditiveColumns(db);
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
@@ -96,7 +125,7 @@ export function ensureAdditiveIndexes(db) {
  */
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
-  return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
+  return missingAdditiveColumns(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
     || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
 }
 
@@ -105,6 +134,7 @@ export function missingAdditiveSchema(db) {
  * Why the hop table: the fenced hop creates it on a live board, so a drifted board that has it must still match this declaration [C7,#8465].
  */
 export function ensureAdditiveSchema(db) {
+  ensureAdditiveColumns(db);
   for (const sql of HOT_INDEXES) db.exec(sql);
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
