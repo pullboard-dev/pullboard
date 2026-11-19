@@ -35,6 +35,7 @@ export function normalizeCheckBaseline(agentId, command, baseline, { authorized 
     || (baseline.reason !== undefined && typeof baseline.reason !== 'string')
     || (baseline.testEvidence !== undefined && (!baseline.testEvidence || typeof baseline.testEvidence.noTestsMatched !== 'boolean'
       || !['failed','passed'].every(key => Array.isArray(baseline.testEvidence[key]) && baseline.testEvidence[key].length <= 512 && baseline.testEvidence[key].every(name => typeof name === 'string' && name.length <= 4096))))
+    || (baseline.strict !== undefined && typeof baseline.strict !== 'boolean')
     || (baseline.seconds !== undefined && (!Number.isSafeInteger(baseline.seconds) || baseline.seconds < 0))) {
     throw new Refused('BAD_CHECK_BASELINE', 'the check baseline must describe this command at a main commit; set --check again from the coordinator');
   }
@@ -46,6 +47,7 @@ export function normalizeCheckBaseline(agentId, command, baseline, { authorized 
       ...(Array.isArray(baseline.testEvidence.failedCases) ? { failedCases: failedCasesOf(baseline.testEvidence.failedCases) } : {}),
       noTestsMatched: baseline.testEvidence.noTestsMatched } }),
     ...(baseline.seconds === undefined ? {} : { seconds: baseline.seconds }),
+    ...(baseline.strict === undefined ? {} : { strict: baseline.strict }),
     ...(baseline.result === 'green' ? { warning: 'CRITERION_PROVES_NOTHING' } : {}),
   };
 }
@@ -70,7 +72,10 @@ export function completeCheckBaseline(board, id, { agentId, expected, baseline, 
     const item = itemById(board, id);
     const current = itemCheckBaseline(board, item);
     if (current?.result !== 'pending' || current.request !== expected.request || current.command !== expected.command || current.main !== expected.main) return false;
+    // A check is strict when its pending baseline said so; the completing result never decides it, so the flag rides from the pending record to the completed one.
     const recorded = { ...result, request: expected.request };
+    delete recorded.strict;
+    if (current.strict !== undefined) recorded.strict = current.strict;
     saveCheckBaseline(board, id, recorded);
     logEvent(board, agentId, 'check-baseline', id, { checkBaseline: recorded });
     if (holdProvesNothing === true && recorded.result === 'green' && ['open', 'claimed'].includes(item.item_status) && !item.item_hold_reason
