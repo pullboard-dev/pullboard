@@ -11,6 +11,7 @@ import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { SHARD_JOBS_SQL } from '../../src/io/gate.js';
 import { shardJobs } from '../../index.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
@@ -106,7 +107,7 @@ test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a ga
   }
   assert.deepEqual(shardJobs(board.db, 'gate:1:a').map(shard => shard.job_id), ['gate:1:a:shard:1', 'gate:1:a:shard:2']);
   assert.deepEqual(shardJobs(board.db, 'gate:1:ab').map(shard => shard.job_id), ['gate:1:ab:shard:1']);
-  const plan = board.db.prepare("EXPLAIN QUERY PLAN SELECT job_id, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? ORDER BY job_created, job_id").all('gate-shard', 'gate:1:a:shard:', 'gate:1:a:shard;').map(step => step.detail).join(' | ');
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', 'gate:1:a:shard:', 'gate:1:a:shard;').map(step => step.detail).join(' | ');
   assert.match(plan, /SEARCH job/u, plan);
   assert.doesNotMatch(plan, /SCAN job/u, plan);
 });
