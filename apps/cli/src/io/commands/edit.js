@@ -6,6 +6,7 @@ import { guardBar } from '../../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
+import { requireLinkedAfter } from './add-foreign.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
@@ -87,6 +88,8 @@ export async function run(io, args) {
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
+  // A prerequisite on another repository needs a live link to it; items already filed stay as they are [XB1].
+  requireLinkedAfter(board, change.after);
   const asPerson = personBarMode(ctx, board, me, values, personMode);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'edit', item: id,
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
