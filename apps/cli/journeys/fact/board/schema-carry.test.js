@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { submittedWithoutGate } from '../../../tests/fixtures/submitted-seam.js';
 
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { storeTriggers } from '../../../../../packages/state/index.js';
@@ -52,11 +53,10 @@ test('cli.journeys-fact-board-schema-carry.a-stamped-pre-carry-board-upgrades: a
   const id = JSON.parse(added.out).item.item_id;
   await succeeds(box, box.web, 'claim', String(id));
   const accepted = choice(box, box.web, 'accepted');
-  await succeeds(box, box.web, 'submit', String(id));
-  // A pulled submit returns queued; the item is submitted only once the gate job's receipt lands, so wait on the item itself [P7,C7].
+  // The setup submit takes the seam: a recorded pass receipt and the real submit move, with no pulled gate settle; only the carry submit below pays one [C7,#9842].
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   console.log('TIMING waitstart ' + (Date.now() - T0));
-  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'submitted', `the pulled gate submits #${id}`, { signal: AbortSignal.timeout(150_000) });
+  submittedWithoutGate(box, box.web, id);
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
   try { await succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
