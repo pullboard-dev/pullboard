@@ -1,7 +1,7 @@
 /** A runner job's token is scoped to its own claim, and only a landing job's claim carries the permit that moves trunk [P7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { trunkPushVerdict } from '../../../git/index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
