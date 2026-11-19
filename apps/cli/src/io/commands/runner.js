@@ -28,6 +28,7 @@ import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingNumber } from '../../../../../packages/drive/index.js';
 import { runnerSettingOn } from '../../../../../packages/drive/index.js';
 import { machineSettingsFile } from '../../../../../packages/resources/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
@@ -78,7 +79,7 @@ function toolchainLine(host, problem) {
 }
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */
-export async function runnerCommand(io, { first, second, rest, values }) {
+export async function runnerCommand(io, { first, second, rest, values }, { serve = serveRunner } = {}) {
   if (first === 'list') {
     if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner list');
     // Registered capacity is what each runner enforces, whatever its own settings say (#1066).
@@ -144,12 +145,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs), { atomic, logEvent });
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
-    const served = await serveRunner({ board: second, key: values.key ?? environmentAdapter().get('PULLBOARD_BOARD_KEY'), runner: values.as,
+    const served = await serve({ board: second, key: values.key ?? environmentAdapter().get('PULLBOARD_BOARD_KEY'), runner: values.as,
       ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
-      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled() })
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled(),
+      jobWorkerFactor: runnerSettingNumber(machineSettingsFile(), 'runners.jobWorkerFactor', 2) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
