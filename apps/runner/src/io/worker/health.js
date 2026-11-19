@@ -1,4 +1,5 @@
 import { processCensus } from '../custody.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { orphanObserver } from '../orphans.js';
 /** Answer the controller's health request from the worker's own runner root [C7]. */
 import { runnerHealthReply } from '../../../../../packages/runners/light.js';
@@ -32,7 +33,7 @@ export function serveHealth(encodedRequest) {
 function readRequest(encodedRequest) {
   const request = JSON.parse(Buffer.from(encodedRequest ?? '', 'base64').toString('utf8'));
   if (!/^[a-f0-9-]{36}$/u.test(request.nonce ?? '') || request.root !== undefined && !isAbsolute(request.root)) throw new Error('invalid health request');
-  return { request, root: request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner') };
+  return { request, root: request.root ?? join(isAbsolute(environmentAdapter().get('HOME') || '') ? environmentAdapter().get('HOME') : userInfo().homedir, '.pullboard-runner') };
 }
 
 /** Preserve the exact failing observation instead of treating unknown custody as an empty runner. */
@@ -129,8 +130,8 @@ function idleWorkerSnapshot(root, diagnostic) {
         return unknown(diagnostic, 'live job owner remains: pid ' + owner.pid);
     } catch (error) { return unknown(diagnostic, error instanceof SyntaxError ? 'job owner JSON is malformed: ' + directory.name : 'job owner record could not be read: ' + directory.name, error); }
   }
-  const home = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
-  const machineHome = process.env.PULLBOARD_MACHINE_HOME ?? join(home, '.pullboard');
+  const home = isAbsolute(environmentAdapter().get('HOME') || '') ? environmentAdapter().get('HOME') : userInfo().homedir;
+  const machineHome = environmentAdapter().get('PULLBOARD_MACHINE_HOME') ?? join(home, '.pullboard');
   if (!isAbsolute(machineHome)) return unknown(diagnostic, 'resource database location is not absolute');
   const resourceFile = join(machineHome, 'resources.sqlite');
   let resourceStat;
