@@ -7,8 +7,8 @@ import { claimOrder } from '../logic/priority.js';
 const CLASS = `COALESCE(json_extract(step.job_step_payload, '$.priority'), '${DEFAULT_JOB_CLASS}')`;
 /** SQL ranking an offered row by its class, highest first, so the scan reads high classes before its row cap. */
 const BY_CLASS = `CASE ${CLASS} ${JOB_CLASSES.map((name, index) => `WHEN '${name}' THEN ${index}`).join(' ')} ELSE ${JOB_CLASSES.length} END`;
-/** The order with no reserve set: pre-push gate shards first, then landing jobs, an agent's test run, then other bulk work. */
-const PLAIN = "CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 ELSE 2 END";
+/** The order with no reserve set: pre-push gate shards first, then landing jobs, then an agent's test run or a main-test run by age, then other bulk work. A main-test run settles a finished item's gate on a missing main receipt, so it does not wait behind the gate-shard backlog; 'main-test' is the MAIN_TEST_KIND constant of the api cell's recheck module. */
+const PLAIN = "CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 WHEN 'main-test' THEN 1 ELSE 2 END";
 
 /** SQL ranking a pre-push gate shard (a gate-shard job whose id starts with `push:`) ahead of every other job, so a free slot takes it before an item gate or a test (#7790). */
 const PUSH_FIRST = "CASE WHEN job.job_kind = 'gate-shard' AND job.job_id LIKE 'push:%' THEN 0 ELSE 1 END";
@@ -32,7 +32,7 @@ function heldClasses(db, runner, now) {
  */
 export function claimableJobs(db, { runner, now, limit, reserve = null, slots = null, runnable = () => true }) {
   // Order and limit on job ids alone, so the sorter never carries a payload (up to 57 KB each); read each payload only for the rows kept.
-  const ids = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt FROM job JOIN job_step AS step
+  const ids = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt, job.job_created FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY ${PUSH_FIRST}, ${reserve ? BY_CLASS : PLAIN}, job.job_created, job.job_id LIMIT ?`).all(now, limit);
   const payload = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0");
