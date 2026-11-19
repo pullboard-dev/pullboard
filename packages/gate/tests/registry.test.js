@@ -124,6 +124,15 @@ test('gate.registry.io-a: clause 2: [C7,U148] the io top-level a test files each
   assert.equal(ids.length, 32, 'all 32 tests of the io top-level a files are registered');
 });
 
+test('gate.registry.io-stores: clause 2: [C7,U148] the io stores test file carries an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const files = [join(DIR, 'io', 'stores.test.js')].map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in that file is titled with a registered ID');
+  assert.equal(ids.length, 39, 'all 39 tests of the io stores file are registered');
+});
+
 test('gate.registry.io-moves-to-watchdog: clause 3: [C7,U148] the io folders moves through watchdog, style.test.js excepted, each carry an ID in every test title and one record per ID', () => {
   const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
   const folders = ['moves', 'paths', 'requeue', 'run', 'scripts', 'shards', 'slot', 'static', 'submit', 'sync', 'test', 'watchdog'];
