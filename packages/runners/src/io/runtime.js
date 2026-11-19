@@ -1,12 +1,11 @@
 /** Which runner holds which installed worker runtime, so a launch sends an empty capsule instead of bytes it has [C7]. */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** How long a runner's READY with a runtime vouches for it; past this the next launch sends the full capsule again. */
 const HELD_MS = 24 * 60 * 60_000;
@@ -21,7 +20,7 @@ function heldFile(env = process.env) {
 
 /** The record by host then runtime digest, as epoch ms of the last READY; an unreadable record holds nothing. */
 function readHeld() {
-  try { const held = JSON.parse(readFileSync(heldFile(), 'utf8')); return held && typeof held === 'object' && !Array.isArray(held) ? held : {}; }
+  try { const held = JSON.parse(fs.readFile(heldFile(), 'utf8')); return held && typeof held === 'object' && !Array.isArray(held) ? held : {}; }
   catch { return {}; }
 }
 
@@ -29,10 +28,10 @@ function readHeld() {
 function writeHeld(held) {
   try {
     const file = heldFile();
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
     const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, JSON.stringify(held), { mode: 0o600 });
-    renameSync(temporary, file);
+    fs.writeFile(temporary, JSON.stringify(held), { mode: 0o600 });
+    fs.rename(temporary, file);
   } catch { /* The record is an optimization. */ }
 }
 
