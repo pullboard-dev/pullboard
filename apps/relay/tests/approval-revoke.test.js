@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 import {
   enrollProtocolPhone,
   nativeRevocations,
@@ -205,7 +207,7 @@ async function waitForApprovalCardRemoval(chrome, requestId, timeoutMs) {
 test('relay.approval-revoke.an-approval-delivered-while-the-page: an approval delivered while the page is busy still becomes a card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   const { chrome } = await pairChromePhone(box, t);
   const native = nativeRevocations(box, t);
   await observeApprovals(chrome);
@@ -332,7 +334,7 @@ test('relay.approval-revoke.an-approval-delivered-while-the-page: an approval de
 
   // A separate paired phone keeps the actual prior-action control independent of device revocation.
   {
-    const box = await relayDirectFixture(t);
+    const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
     const { chrome } = await pairChromePhone(box, t);
     const native = nativeRevocations(box, t);
     await observeApprovals(chrome);
@@ -360,7 +362,7 @@ test('relay.approval-revoke.an-approval-delivered-while-the-page: an approval de
 test('relay.approval-revoke.a-completed-approval-keeps-its-visible: a completed approval keeps its visible refusal in the retained card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   const { chrome } = await pairChromePhone(box, t);
   const native = nativeRevocations(box, t);
   await observeApprovals(chrome);
@@ -420,7 +422,7 @@ test('relay.approval-revoke.a-completed-approval-keeps-its-visible: a completed 
 test('relay.approval-revoke.an-approval-the-relay-refuses-fails: an approval the relay refuses fails the Mac command with its request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   await pairChromePhone(box, t);
   const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-clock-refusal');

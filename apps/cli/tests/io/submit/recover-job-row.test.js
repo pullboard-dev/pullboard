@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellSandbox } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { RUNS_STORE_KEY } from '../../../../../packages/store/index.js';
 import { queueFor } from '../../../../../packages/api/index.js';

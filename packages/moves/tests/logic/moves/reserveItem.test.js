@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../store/index.js';
 import { RESERVATION_ENGINE } from '../../../../state/light.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 

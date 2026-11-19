@@ -44,11 +44,7 @@ import {
   CHOICES,
   MOST_CHOICE_PARTS,
 } from '../../../spec/index.js';
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   basename,
   join,
@@ -61,6 +57,8 @@ import {
   nextRowId,
 } from '../../../spec/index.js';
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** The blueprint file format this Pullboard reads and writes. */
 export const BLUEPRINT_FORMAT = 1;
@@ -84,8 +82,8 @@ const ROUTES = ['light', 'mid', 'strong'];
  * @returns {string[]}
  */
 export function bundledBlueprints() {
-  if (!existsSync(BUNDLED_DIR)) return [];
-  return readdirSync(BUNDLED_DIR).filter((file) => file.endsWith('.json')).map((file) => file.slice(0, -5)).sort();
+  if (!fs.exists(BUNDLED_DIR)) return [];
+  return fs.list(BUNDLED_DIR).filter((file) => file.endsWith('.json')).map((file) => file.slice(0, -5)).sort();
 }
 
 /** Scope only trusted bundled starters to a unique owned folder; arbitrary local checks keep their meaning. */
@@ -115,11 +113,11 @@ export function readBlueprint(reference, cwd) {
   }
   const bundled = NAME_RE.test(text) && bundledBlueprints().includes(text);
   const file = bundled ? resolve(BUNDLED_DIR, `${storeName(text)}`) : resolve(cwd, text);
-  if (!bundled && !existsSync(file)) {
+  if (!bundled && !fs.exists(file)) {
     throw new Refused('NO_BLUEPRINT', `no blueprint "${text}"; use a bundled one (${bundledBlueprints().join(', ')}) or a path to a blueprint JSON file`);
   }
   let value;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); }
+  try { value = JSON.parse(fs.readFile(file, 'utf8')); }
   catch (error) {
     throw new Refused('BAD_BLUEPRINT', `${bundled ? text : file} is not readable JSON (${error.message.split('\n')[0]}); fix the file and run pullboard blueprint add again`);
   }
@@ -463,9 +461,9 @@ function onlyAnswer(found) {
  */
 export function repoAnswers(root) {
   const file = join(root, 'package.json');
-  if (!existsSync(file)) return {};
+  if (!fs.exists(file)) return {};
   let manifest;
-  try { manifest = JSON.parse(readFileSync(file, 'utf8')); }
+  try { manifest = JSON.parse(fs.readFile(file, 'utf8')); }
   catch { return {}; }
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return {};
   const table = (name) => (manifest[name] && typeof manifest[name] === 'object' && !Array.isArray(manifest[name]) ? manifest[name] : {});

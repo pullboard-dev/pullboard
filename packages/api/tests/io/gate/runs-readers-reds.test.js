@@ -1,7 +1,7 @@
 /** pulledGateReds, recordPhaseReceipts and reportRunaway take a runs option: with runs_store on they read the gate's job from the runs file, with it off as on main [P7,#9150]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';

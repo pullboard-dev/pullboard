@@ -11,7 +11,7 @@ import { importBoard } from '../../../../store/index.js';
 import { applyRelayMove } from '../../../../state/index.js';
 import { prepareEngineMove } from '../../../../state/index.js';
 import { heldCounted } from '../../../index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../../store/tests/fixtures/submit.js';

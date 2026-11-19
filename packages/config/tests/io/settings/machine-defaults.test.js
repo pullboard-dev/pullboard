@@ -40,6 +40,9 @@ const BEFORE = {
   'gate.adapterLintClock': false,
   'gate.adapterLintEnv': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintGithub': false,
+  'gate.adapterLintSigning': false,
+  'gate.adapterLintSsh': false,
   'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
@@ -80,6 +83,7 @@ const BEFORE = {
   'gate.refuseTempWorktree': false,
   'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
+  'gate.retryNewRedsOnce': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300000,
@@ -108,6 +112,7 @@ const BEFORE = {
   'holds.liftSettled': false,
   'holds.requireOwner': false,
   'inspection.clauses': false,
+  'items.barRulesAtAdd': false,
   'items.testMirrorAtAdd': false,
   'items.typedFields': false,
   'jobs.avoidRunners': false,
@@ -158,6 +163,7 @@ const BEFORE = {
   'next.oneGitRead': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
+  'next.returnedFirst': false,
   'next.routeByTier': false,
   'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
@@ -182,6 +188,7 @@ const BEFORE = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
+  'runners.jobWorkerFactor': 2,
   'runners.localWake': false,
   'runners.postedLineNamesCase': false,
   'runners.reportCommit': false,
@@ -376,6 +383,36 @@ test('config.io-settings-machine-defaults.items-test-mirror-at-add-exact-true: c
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: false } }), false);
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: true } }), true);
   await assert.rejects(testMirrorWith({ items: { testMirrorAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.testMirrorAtAdd/u.test(error.message));
+});
+
+/** Read items.barRulesAtAdd through a private machine home holding the given settings. */
+async function barRulesWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { itemsBarRulesAtAdd } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-bar-rules-at-add-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return itemsBarRulesAtAdd();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.items-bar-rules-at-add-exact-true: clause 1: items.barRulesAtAdd defaults false and itemsBarRulesAtAdd() is true only for an exact true [C7,#11738]', async () => {
+  assert.equal(BEFORE['items.barRulesAtAdd'], false);
+  assert.equal(MACHINE_DEFAULTS['items.barRulesAtAdd'], false);
+  assert.equal(await barRulesWith({}), false);
+  assert.equal(await barRulesWith({ items: { barRulesAtAdd: false } }), false);
+  assert.equal(await barRulesWith({ items: { barRulesAtAdd: true } }), true);
+});
+
+test('config.io-settings-machine-defaults.items-bar-rules-at-add-refuses-non-boolean: clause 2: a non-boolean items.barRulesAtAdd refuses BAD_MACHINE_SETTINGS [C7,#11738]', async () => {
+  await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.barRulesAtAdd/u.test(error.message));
+  await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 1 } }), error => error.code === 'BAD_MACHINE_SETTINGS');
 });
 
 async function reviewHoldWith(settings) {
