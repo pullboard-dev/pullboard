@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "total": 4,
+  "files": {
+    "packages/runners/src/io/pull/ssh.js": 1,
+    "packages/runners/src/io/worktree.js": 1,
+    "packages/sentinels/src/io/surfaces.js": 1,
+    "packages/transport/src/io/ssh.js": 1
+  }
+}
