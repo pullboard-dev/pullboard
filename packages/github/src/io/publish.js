@@ -7,10 +7,7 @@
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from '../../../landing/index.js';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { runGate } from '../../../gate/index.js';
@@ -32,7 +29,7 @@ function stateFile(root) {
 
 /** The head publish last found red, or null. */
 function lastRed(root) {
-  try { return JSON.parse(readFileSync(stateFile(root), 'utf8')).red ?? null; } catch { return null; }
+  try { return JSON.parse(fileSystemAdapter().readFile(stateFile(root), 'utf8')).red ?? null; } catch { return null; }
 }
 
 /** The commit the remote branch names now, or null when it names none. */
@@ -87,7 +84,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     return { head, published: false, red: [], waiting: true };
   }
   const directory = join(repoInfo(root).commonDir, 'pullboard', 'publish', randomUUID());
-  mkdirSync(join(directory, '..'), { recursive: true });
+  fileSystemAdapter().mkdir(join(directory, '..'), { recursive: true });
   git(root, ['worktree', 'add', '--detach', directory, head]);
   let gate;
   try {
@@ -101,7 +98,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     }
   } finally {
     tryGit(root, ['worktree', 'remove', '--force', directory]);
-    if (existsSync(directory)) rmSync(directory, { recursive: true, force: true });
+    if (fileSystemAdapter().exists(directory)) fileSystemAdapter().rm(directory, { recursive: true, force: true });
   }
   if (gate.isGreen) {
     writePublishState(root, { published: head, receipt: gate.receiptId ?? null });
