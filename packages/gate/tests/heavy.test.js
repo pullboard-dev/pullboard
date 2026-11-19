@@ -8,8 +8,16 @@ import * as light from '../light.js';
 /** The index names status still reads from the index itself. */
 const STAYS = new Set(['diskStores', 'gateControlFindings', 'performanceCores', 'retainedReceipts']);
 
-test('gate.heavy.exports-index-heavy-names: clause 1: every index export except the light door names and four status names is also exported by heavy.js as the same binding [C7]', () => {
-  const names = Object.keys(index).filter(name => !(name in light) && !STAYS.has(name));
+/** The names whose index modules reach apps/cli: they stay off heavy.js until a later slice gives them their own door. */
+const CLI_REACH = new Set([
+  'runMainAudits', 'mainAuditJobs', 'routeAuditFailures', 'closeAuditedMainReds', 'withAuditedMain', 'testActionKeys', 'testResultStore',
+  'reusableResult', 'suiteProven', 'planTestActions', 'preQueueReuse', 'reuseReceipt', 'RECORD_ONLY_PREFIX', 'TEST_REUSE_RECORD',
+  'settleTestActions', 'recordTestAction', 'LEDGER_HITS_ENV', 'TEST_ACTIONS_ENV', 'TEST_STAGE_ENV', 'prepareTestResultExchange',
+  'runFullSuite', 'testFiles', 'runTestFiles', 'inCleanCheckout', 'uncommittedNotice',
+]);
+
+test('gate.heavy.exports-index-heavy-names: clause 1: every index export except the light door names, four status names and the 25 apps/cli-reaching names is also exported by heavy.js as the same binding [C7]', () => {
+  const names = Object.keys(index).filter(name => !(name in light) && !STAYS.has(name) && !CLI_REACH.has(name));
   assert.ok(names.length > 400, 'the index still exports its heavy names');
   const missing = names.filter(name => !(name in heavy));
   assert.deepEqual(missing, [], 'heavy.js exports every index heavy name');
