@@ -1,15 +1,6 @@
 /** Detached baseline measurements and durable completion receipts use the ordered board engine [V2,H16]. */
 import { spawn } from 'node:child_process';
 import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   isAbsolute,
   join,
 } from 'node:path';
@@ -36,6 +27,9 @@ import {
 import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
 import { storeName } from '../../store-names.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The longest a baseline may hold its gate slot on a runner: the runners' own 20-minute run ceiling, which starts only once a run is READY. */
 export const BASELINE_CAP_MS = 20 * 60_000;
@@ -70,24 +64,24 @@ async function complete(root, receipt, io, services) {
 /** Persist a completed observation before attempting relay delivery; retries never rerun its shell. */
 function saveReceipt(root, receipt) {
   const directory = locations(root).receipts;
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const file = join(directory, storeName(receipt.expected.request));
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(receipt), { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(receipt), { mode: 0o600 });
+  fs.rename(temporary, file);
   return file;
 }
 
 /** Retry only finished observations, retaining a receipt if the relay cannot acknowledge it yet. */
 export async function retryCheckBaselines(root, io, services) {
   const directory = locations(root).receipts;
-  if (!existsSync(directory)) return;
-  for (const name of readdirSync(directory).filter((name) => BASELINE_RECEIPT.test(name))) {
+  if (!fs.exists(directory)) return;
+  for (const name of fs.list(directory).filter((name) => BASELINE_RECEIPT.test(name))) {
     const file = join(directory, name);
     try {
-      const receipt = JSON.parse(readFileSync(file, 'utf8'));
+      const receipt = JSON.parse(fs.readFile(file, 'utf8'));
       await complete(root, receipt, io, services);
-      rmSync(file, { force: true });
+      fs.rm(file, { force: true });
     } catch (error) {
       if (error.code === 'ENOENT') continue; // Another delivery may have removed this same receipt.
       io.err(`pullboard: baseline completion pending; retry with pullboard show (${error instanceof Refused ? error.code : 'BASELINE_RECEIPT'})`);
@@ -227,6 +221,6 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   };
   try {
     await complete(root, receipt, io, services);
-    rmSync(file, { force: true });
+    fs.rm(file, { force: true });
   } catch { /* The next CLI command retries the durable captured result. */ }
 }

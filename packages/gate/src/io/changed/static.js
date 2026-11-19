@@ -1,10 +1,11 @@
 /** The gate's changed-file static checks as one function, so the gate and the pre-commit hook run the same list [C7]. */
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runStaticRegistry } from '../static/check/registry.js';
 import { STATIC_CHECKS } from '../static/check/registry.js';
 import { gitSpawnSync } from '../../../../git/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Judge only the named files with the static checks the gate runs on changed files.
@@ -56,7 +57,7 @@ export function changedStaticFailures(root, files, { staged = false, only = null
   const text = file => {
     if (!cache.has(file)) {
       if (staged) cache.set(file, (indexed ??= indexReader(root))(file));
-      else cache.set(file, readFileSync(join(root, file), 'utf8'));
+      else cache.set(file, fs.readFile(join(root, file), 'utf8'));
     }
     return cache.get(file);
   };
@@ -92,7 +93,7 @@ function indexReader(root) {
   const differs = new Set(dirty.stdout.split('\0').filter(Boolean));
   const plain = new Set(listed.stdout.split('\0').filter(row => row.startsWith('H ')).map(row => row.slice(2)).filter(file => !differs.has(file)));
   return file => {
-    if (plain.has(file) && lstatSync(join(root, file), { throwIfNoEntry: false })?.isFile()) return readFileSync(join(root, file), 'utf8');
+    if (plain.has(file) && fs.lstat(join(root, file), { throwIfNoEntry: false })?.isFile()) return fs.readFile(join(root, file), 'utf8');
     const result = gitSpawnSync(['show', `:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     if (result.status !== 0) throw new Error(`cannot read staged ${file}: ${result.stderr || result.error?.message}`);
     return result.stdout;
@@ -130,7 +131,7 @@ function movedFrom(root, staged) {
   for (const shard of (listed.status === 0 ? listed.stdout : '').split('\0').filter(name => name.endsWith('.json'))) {
     let data;
     try {
-      data = JSON.parse(staged ? staged(shard) : readFileSync(join(root, shard), 'utf8'));
+      data = JSON.parse(staged ? staged(shard) : fs.readFile(join(root, shard), 'utf8'));
     } catch { continue; } // an unreadable shard maps nothing
     if (data && typeof data === 'object' && !Array.isArray(data)) for (const [from, to] of Object.entries(data)) if (typeof to === 'string') map.set(from, to);
   }
