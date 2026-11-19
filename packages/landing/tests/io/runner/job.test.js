@@ -99,3 +99,39 @@ test('landing.job.a-land-red-that-passes-on-rerun-lands: clause 2: with payload.
   assert.deepEqual(on.rerun, { files: ['item.txt'], green: true }, 'the receipt names the rerun files');
   assert.notEqual(box.tip(), before, 'the landing moved trunk');
 });
+
+/** A bare trunk remote whose main holds a cell test registry, and two accepted item commits that each add a different record to it. */
+function registryFixture(t) {
+  const { root: dir } = privateFixtureFiles('pullboard-land-union-');
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const { root: work, put } = fixture(t);
+  const file = 'packages/demo/tests/fixtures/registry.json';
+  const body = keys => `{\n${keys.map(key => `  "${key}": {"proves":{"specs":["C7"],"claim":"${key}."}}`).join(',\n')}\n}\n`;
+  put(file, body(['demo.a']));
+  git(work, 'add', '-A');
+  git(work, 'commit', '-q', '-m', 'feat: registry [C7]');
+  const remote = join(dir, 'remote.git');
+  git(dir, 'clone', '-q', '--bare', work, remote);
+  const items = [42, 43].map(id => {
+    git(work, 'checkout', '-q', '-b', `item-${id}`, 'main');
+    put(file, body(['demo.a', `demo.item${id}`]));
+    put(`item-${id}.txt`, `${id}\n`);
+    git(work, 'add', '-A');
+    git(work, 'commit', '-q', '-m', `feat: item ${id} [C7]`);
+    git(work, 'push', '-q', remote, `item-${id}:refs/heads/item-${id}`);
+    return { id, commit: git(work, 'rev-parse', 'HEAD').trim(), ref: `refs/heads/item-${id}` };
+  });
+  git(work, 'push', '-q', remote, 'main:refs/heads/main');
+  const rev = (...args) => git(dir, '--git-dir', remote, ...args).trim();
+  const payload = { remote, trunk: 'refs/heads/main', expect: rev('rev-parse', 'refs/heads/main'), publish: 'separate', items, unionRegistries: true };
+  return { payload, rev, file, workdir: join(dir, 'runner') };
+}
+
+test('landing.job.two-items-adding-registry-records-land-together: clause 2: with payload.unionRegistries on, two items that each add a record to the same cell test registry land together in one real land job [C7,U148]', async t => {
+  const box = registryFixture(t);
+  const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => ({ ok: true }) });
+  assert.equal(receipt.outcome, 'landed');
+  assert.deepEqual(receipt.landed, [42, 43]);
+  assert.deepEqual(Object.keys(JSON.parse(box.rev('show', `refs/heads/main:${box.file}`))), ['demo.a', 'demo.item42', 'demo.item43']);
+  for (const id of [42, 43]) assert.equal(box.rev('cat-file', '-t', `refs/heads/main:item-${id}.txt`), 'blob', `#${id}'s own file landed`);
+});
