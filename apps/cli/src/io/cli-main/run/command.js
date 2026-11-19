@@ -28,6 +28,7 @@ export async function runCommand(argv, io) {
   io.jsonMode?.(values.json);
   // --level is the approved name (U136); --route still works, and the line goes to stderr so no document or stdout reader sees it.
   if (argv.some(token => token === '--route' || token.startsWith('--route='))) io.err('pullboard: --route is now --level; give --level light|mid|strong');
+  if (argv.some(token => token === '--review-tier' || token.startsWith('--review-tier='))) io.err('pullboard: --review-tier is now --review; give --review standard|strict');
   const [command = '', first, second, ...rest] = positionals;
   const args = { first, second, rest, values };
   if ((values.version || command === 'version') && !values.help) return await (await COMMANDS.version()).run(io, args);
