@@ -2575,6 +2575,7 @@
     "moves->roadmap",
     "moves->config",
     "moves->link",
+    "moves->env",
     "rigor->state",
     "sandbox->state",
     "sandbox->items",

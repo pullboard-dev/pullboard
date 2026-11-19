@@ -132,7 +132,6 @@
     "packages/link/src/io/relay/proof.js": 2,
     "packages/link/src/io/relay/seats.js": 1,
     "packages/merge/src/io/auto.js": 2,
-    "packages/moves/src/io/freezer.js": 1,
     "packages/outbox/src/io/relay.js": 2,
     "packages/outbox/src/io/relay/checkpoint.js": 3,
     "packages/outbox/src/io/relay/checkpoint/publish.js": 2,
