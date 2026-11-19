@@ -372,8 +372,6 @@
     "packages/runners/src/io/source/cache.js": 12,
     "packages/runners/src/io/source/scan.js": 11,
     "packages/runners/src/io/tooling/bundle.js": 5,
-    "packages/runners/src/io/tooling/committed.js": 7,
-    "packages/runners/src/io/tooling/dirty.js": 1,
     "packages/runners/src/io/tooling/remote.js": 13,
     "packages/runners/src/io/tooling/saved.js": 5,
     "packages/runners/src/io/tooling/snapshot.js": 3,
