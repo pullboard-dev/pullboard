@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
-import { handoffQueueDirectory } from '../../../../../packages/resources/index.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
 import { cli } from '../../../tests/fixtures/next/take.js';
@@ -22,9 +21,10 @@ test('cli.journeys-shout-sentinel-model.a-sentinel-shout-from-waits-record: clau
   const box = await fixture(t);
   const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
   assert.equal(joined.code, 0, joined.out + joined.err);
-  // A reservation held by a gone submitter is reclaimed at once, and a reclaim is what the audit shouts about.
-  mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '000000000002-job-b.reserved'), JSON.stringify({ pid: 4194301, started: 'x' }));
+  // A checkout writer record held by a gone process is reclaimed at once, and a reclaim is what the audit shouts about.
+  const writers = join(box.root, box.git(box.root, 'rev-parse', '--git-common-dir').trim(), 'pullboard-checkout-writers');
+  mkdirSync(writers, { recursive: true });
+  writeFileSync(join(writers, '00000000-0000-4000-8000-000000000002.json'), JSON.stringify({ pid: 4194301, at: Date.now() }));
   const recorded = await cli(box, box.root, ['waits', 'record']);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   const shouts = sentinelShouts(box);
