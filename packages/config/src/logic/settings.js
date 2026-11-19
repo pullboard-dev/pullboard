@@ -331,6 +331,9 @@ export function loadMachineSettings() {
   if (value.gate?.sampleDiskIo !== undefined && typeof value.gate.sampleDiskIo !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleDiskIo in ${file} must be true or false`);
   }
+  if (value.gate?.jsdocCheck !== undefined && typeof value.gate.jsdocCheck !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.jsdocCheck in ${file} must be true or false`);
+  }
   if (value.gate?.sampleSwap !== undefined && typeof value.gate.sampleSwap !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleSwap in ${file} must be true or false`);
   }
