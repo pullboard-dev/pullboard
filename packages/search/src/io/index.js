@@ -1,11 +1,7 @@
 /** The search sidecar: a TF-IDF index over every item's title, criterion and brief, derived from the board and safe to delete [C7]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { listItems } from '../../../store/light.js';
 import { buildIndex } from '../logic/tfidf.js';
 import { indexFromJson } from '../logic/tfidf.js';
@@ -36,16 +32,16 @@ export function boardDocuments(board) {
  * Build the index from the board and write it to the sidecar file, replacing any earlier one whole.
  *
  * @param {object} board - An open board.
- * @param {{ sidecar: string }} options - The sidecar file path.
+ * @param {{ sidecar: string, fs?: ReturnType<typeof fileSystemAdapter> }} options - The sidecar file path, and the file-system adapter where a test needs a fake.
  * @returns {{ ids: number[], idf: Map<string, number>, vectors: Map<string, number>[], digest: string }}
  */
-export function buildSearchIndex(board, { sidecar }) {
+export function buildSearchIndex(board, { sidecar, fs = fileSystemAdapter() }) {
   const { docs, digest } = boardDocuments(board);
   const index = buildIndex(docs);
-  mkdirSync(dirname(sidecar), { recursive: true });
+  fs.mkdir(dirname(sidecar), { recursive: true });
   const temporary = `${sidecar}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ version: SEARCH_SIDECAR_VERSION, digest, ...indexToJson(index) }) + '\n');
-  renameSync(temporary, sidecar);
+  fs.writeFile(temporary, JSON.stringify({ version: SEARCH_SIDECAR_VERSION, digest, ...indexToJson(index) }) + '\n');
+  fs.rename(temporary, sidecar);
   return { ...index, digest };
 }
 
@@ -53,12 +49,13 @@ export function buildSearchIndex(board, { sidecar }) {
  * Read the sidecar, or null when it is missing, unreadable or of another version.
  *
  * @param {string} sidecar
+ * @param {ReturnType<typeof fileSystemAdapter>} [fs] - The file-system adapter, injectable where a test needs a fake.
  * @returns {{ ids: number[], idf: Map<string, number>, vectors: Map<string, number>[], digest: string } | null}
  */
-export function readSearchIndex(sidecar) {
-  if (!existsSync(sidecar)) return null;
+export function readSearchIndex(sidecar, fs = fileSystemAdapter()) {
+  if (!fs.exists(sidecar)) return null;
   try {
-    const data = JSON.parse(readFileSync(sidecar, 'utf8'));
+    const data = JSON.parse(fs.readFile(sidecar, 'utf8'));
     if (data?.version !== SEARCH_SIDECAR_VERSION) return null;
     return { ...indexFromJson(data), digest: data.digest };
   } catch { return null; }
