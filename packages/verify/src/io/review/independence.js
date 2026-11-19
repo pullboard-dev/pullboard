@@ -134,3 +134,14 @@ export function earlierHolderProblem(board, item, reviewer) {
     .some(event => event.event_kind !== 'release' || JSON.parse(event.event_detail ?? '{}').review !== true);
   return held ? new Refused('REVIEW_EARLIER_HOLDER', `${reviewer} claimed, built or released #${item.item_id} earlier, and review.excludeEarlierHolders is on; ask a seat that never held it`) : null;
 }
+
+/**
+ * Insert the immutable native verdict and return its row id; the one write of the verdict table [V1,B3].
+ * Why here: this module is already loaded wherever verdicts are recorded, so the write adds no module to the status path.
+ */
+export function insertVerdict(board, item, { agentId, decision, reason, note, digest, head, family }) {
+  return board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
+    verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,
+    digest, head, family, board.clock.now().toISOString()).lastInsertRowid;
+}

@@ -97,7 +97,7 @@ test('gate.registry.io-c: clause 2: [C7,U148] the io top-level red-fact-text, re
 test('gate.registry.logic-d: clause 2: [C7,U148] the logic test conversion, freeze-paths, journey-check, manifest-keep, progress and source tests each carry an ID in every test title and one record per ID', () => {
   const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
   const names = ['conversion', 'freeze-paths', 'journey-check', 'manifest-keep', 'progress', 'source/edits', 'source/loads'];
-  const files = names.map((name) => join(DIR, 'logic', 'test', `${name}.test.js`)).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const files = names.map((name) => join(DIR, `logic/test/${name}.test.js`)).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
@@ -112,6 +112,16 @@ test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each car
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
   assert.equal(ids.length, 40, 'all 40 tests of the logic b files are registered');
+});
+
+test('gate.registry.io-a: clause 2: [C7,U148] the io top-level a test files each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = ['assumptions', 'budgets', 'clone', 'edges', 'engine-lazy-door', 'imports', 'keepalive'];
+  const files = names.map((name) => join(DIR, "io", name + ".test.js")).map((file) => ({ file, source: readFileSync(file, "utf8") }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith("registry.json:"));
+  assert.deepEqual(mine, [], "every test in those files is titled with a registered ID");
+  assert.equal(ids.length, 32, 'all 32 tests of the io top-level a files are registered');
 });
 
 test('gate.registry.io-moves-to-watchdog: clause 3: [C7,U148] the io folders moves through watchdog, style.test.js excepted, each carry an ID in every test title and one record per ID', () => {
