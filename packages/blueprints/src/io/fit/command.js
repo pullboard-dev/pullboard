@@ -1,6 +1,6 @@
 /** The blueprint fit verbs: blueprint fit, spec fit, spec fit edit and spec fit approve [S1,E3]. */
 import { loadDoctrine } from '../../../../doctrine/light.js';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import * as store from '../../../../store/index.js';
 import {
   approveFit,
@@ -21,6 +21,8 @@ import {
 import { Refused } from '../../../../kernel/index.js';
 import { prepareRowDecisions } from '../../../../spec/index.js';
 import { loadSpec } from '../../../../spec/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Blueprint fit (#730): a seat proposes how a blueprint's target fits this repo; the person lists,
@@ -56,7 +58,7 @@ export async function fitCommand(ctx, board, me, verb, args, values, { ordered, 
     // Only the proposal's own words are flags; who proposed it is this seat, so no flag can name another.
     const flag = Object.keys(values).find((key) => !['text', 'reason', 'json'].includes(key));
     if (flag) throw new Refused('FLAG_NOT_ALLOWED', `blueprint fit does not take --${flag}; it records this seat as the proposer and takes only --text and --reason`);
-    const proposal = proposeFit({ commonDir: ctx.info.commonDir, blueprint: readBlueprint(reference, io.cwd), specSource: readFileSync(spec.file, 'utf8'),
+    const proposal = proposeFit({ commonDir: ctx.info.commonDir, blueprint: readBlueprint(reference, io.cwd), specSource: fs.readFile(spec.file, 'utf8'),
       spec, items, by: me.id, session: agentSessionDigest(), at }, { target, decision, text: values.text, reason: values.reason });
     io.result?.({ proposals: [proposal] });
     io.say(`recorded ${fitLine(proposal)}\nnext: nothing applies until the person reads the batch with pullboard spec fit and approves it with pullboard spec fit approve <batch>`);

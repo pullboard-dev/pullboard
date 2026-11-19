@@ -1,6 +1,6 @@
 import { listThinRead } from '../../../../../packages/config/light.js';
-import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
-import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { typedFieldsEnabled } from '../../../../../packages/config/light.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/light.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { thinListRows } from '../list/thin.js';
 import { trunkRef } from '../../../../../packages/sandbox/light.js';

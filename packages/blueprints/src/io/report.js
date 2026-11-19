@@ -1,5 +1,5 @@
 /** What blueprint commands report back: a blueprint's starters on this board and the rows that wait [S1,I1]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import {
@@ -11,6 +11,8 @@ import { loadConfig } from '../../../config/index.js';
 import { loadDoctrine } from '../../../doctrine/light.js';
 import { Refused } from '../../../kernel/index.js';
 import { loadSpec } from '../../../spec/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * @typedef {object} StarterState
@@ -200,7 +202,7 @@ export function startersCommand(io, { second, rest, context, withBoard }) {
   if (!second || rest.length) throw new Refused('USAGE', `pullboard blueprint starters <name or file>; bundled: ${bundledBlueprints().join(', ')}`);
   const blueprint = readBlueprint(second, io.cwd);
   const ctx = context(io);
-  const rowIds = blueprintRowIds(blueprint, loadSpec(ctx.info.root, ctx.config), readFileSync(join(ctx.info.root, ctx.config.spec), 'utf8'));
+  const rowIds = blueprintRowIds(blueprint, loadSpec(ctx.info.root, ctx.config), fs.readFile(join(ctx.info.root, ctx.config.spec), 'utf8'));
   const starters = withBoard(ctx, (board) => {
     const items = store.listItems(board, { all: true });
     return starterStates(blueprint, items, rowIds, new Map(items.map((item) => [item.item_id, starterLink(store.itemThread(board, item.item_id))])));

@@ -45,7 +45,7 @@ function stateFor(board, ref, readReceivedBoardState) {
     || !Number.isSafeInteger(state.position) || state.position < 0 || !Array.isArray(state.rows)) return { cause: 'no state yet' };
   const items = state.rows.filter(row => row.board === record.child.boardId && row.id === ref.id);
   if (items.length !== 1 || !boardLinkStates(2).includes(items[0].state)) return { cause: 'no state yet' };
-  return { board: record.child.boardId, status: items[0].state };
+  return { board: record.child.boardId, status: items[0].state, announced: state.version };
 }
 
 /** Missing, ambiguous, stale-generation or undisclosed foreign state stays an explicit blocker. */
