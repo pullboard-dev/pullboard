@@ -1,11 +1,13 @@
 /** Observe native next phases independently of its synchronous board work, without any board authority [C7]. */
-import { writeSync } from 'node:fs';
 import {
   isMainThread,
   parentPort,
   Worker,
   workerData,
 } from 'node:worker_threads';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Use the same monotonic process clock in both threads, without depending on wall-clock corrections. */
 function monotonicMs() { return Number(process.hrtime.bigint() / 1_000_000n); }
@@ -13,7 +15,7 @@ function monotonicMs() { return Number(process.hrtime.bigint() / 1_000_000n); }
 /** Write one phase line straight to the inherited descriptor; Worker stdio forwarding would itself block on the parent. */
 function phaseLine(fd, phase, item, started) {
   const text = `next phase ${phase}; item ${item === null ? 'not yet selected' : '#' + item}; ${Math.max(0, monotonicMs() - started)} ms\n`;
-  writeSync(fd, text);
+  fs.write(fd, text);
 }
 
 /** Own only a timer and the inherited diagnostic descriptor; no native role, board, claim or process-killing capability exists here. */
