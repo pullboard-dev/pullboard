@@ -16,7 +16,7 @@ import { getItem } from '../../store/index.js';
 import { board_ensureCoordinator } from '../../store/index.js';
 import { shipMilestone } from '../../store/index.js';
 import { coordinatorMilestoneRelease } from '../../stats/light.js';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from './fixtures/cell-board.js';
 import { cellProject } from '../../store/tests/fixtures/cell.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
