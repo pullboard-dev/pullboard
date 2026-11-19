@@ -4,8 +4,10 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
+import { once } from 'node:events';
+import { Worker } from 'node:worker_threads';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
@@ -259,9 +261,10 @@ test('api.jobs.claim-runner-commit-off: clause 3: with runners.reportCommit off 
 });
 
 /** A board with one claimed gate job and a shadow whose decide takes `spinMs` inside the write transaction. */
-function claimedWithShadow(t, spinMs, boundMs) {
+function claimedWithShadow(t, spinMs, boundMs, real = false) {
   const { root } = privateFixtureFiles('pullboard-jobs-bound-');
-  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  const file = join(root, 'board.sqlite');
+  const { db } = cellBoard(t, file, undefined, { real });
   offerJob(db, { id: 'gate:bound', kind: 'gate', now: 1000 });
   const claim = claimJob(db, { runner: 'mill', now: 10_000, leaseMs: 120_000 });
   db.jobWriteBoundMs = boundMs;
@@ -269,7 +272,7 @@ function claimedWithShadow(t, spinMs, boundMs) {
     decide: () => { const end = Date.now() + spinMs; while (Date.now() < end); return { patch: {} }; },
     seen: () => {},
   };
-  return { db, claim };
+  return { db, claim, file };
 }
 
 test('api.io-jobs.write-time-bound: clause 1: a renewJob whose write runs past the bound rolls back and refuses, and a peer BEGIN IMMEDIATE succeeds right after [C7,#11029]', (t) => {
@@ -288,6 +291,38 @@ test('api.io-jobs.fast-write-unchanged: clause 2: a renewJob and a postReceipt i
   assert.equal(db.prepare("SELECT job_step AS step FROM job WHERE job_id = 'gate:bound'").get().step, 'done');
 });
 
+/** Hold the board lock from another thread for `holdMs`, returning once it is held: the caller's next write queues behind it. */
+function holdLockFromThread(file, holdMs) {
+  const flag = new Int32Array(new SharedArrayBuffer(4));
+  const code = `const { workerData: w } = require('node:worker_threads');
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(w.file);
+    db.exec('BEGIN IMMEDIATE');
+    Atomics.store(w.flag, 0, 1); Atomics.notify(w.flag, 0);
+    const end = Date.now() + w.holdMs; while (Date.now() < end);
+    db.exec('COMMIT'); db.close();`;
+  const worker = new Worker(code, { eval: true, workerData: { file, holdMs, flag } });
+  Atomics.wait(flag, 0, 0, 10_000);
+  return worker;
+}
+
+test('api.io-jobs.bound-counts-hold-not-wait: clause 1: a job write queued behind another connection holding the lock past the bound commits once that lock frees, when its own hold is short [C7,#11914]', async (t) => {
+  const { db, claim, file } = claimedWithShadow(t, 0, 100, true);
+  const holder = holdLockFromThread(file, 400);
+  const renewed = renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 });
+  await once(holder, 'exit');
+  assert.deepEqual(renewed, { renewed: true, leaseUntil: 140_000 });
+  assert.equal(db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'gate:bound'").get().until, 140_000, 'the renewal committed');
+});
+
+test('api.io-jobs.bound-still-rolls-back-long-hold: clause 2: a job write whose own hold passes the bound is still rolled back with JOB_WRITE_TIMEOUT [C7,#11914]', async (t) => {
+  const { db, claim, file } = claimedWithShadow(t, 150, 100, true);
+  const holder = holdLockFromThread(file, 200);
+  assert.throws(() => renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 }), { code: 'JOB_WRITE_TIMEOUT' });
+  await once(holder, 'exit');
+  assert.equal(db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'gate:bound'").get().until, 130_000, 'the renewal rolled back');
+});
+
 test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the claim action a runner holding one test job and offered shards plus tests is handed a shard [C7,#11146]', (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-shard-first-');
   const { db } = cellBoard(t, join(root, 'board.sqlite'));
@@ -298,6 +333,18 @@ test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the 
   assert.equal(claim(5000), 'test:one', 'a runner holding no test job takes the oldest test job');
   assert.equal(claim(5001), 'gate:9:shard:1', 'a runner holding a test job is handed the queued shard before the newer test job');
   assert.equal(claim(5002), 'test:two');
+});
+
+test('api.jobs.claims-aged-gate-job-over-claim-action: clause 3: over the claim action a runner holding a test job is handed a gate job offered 6 minutes earlier before the queued shards [C7,#11873]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-gate-aged-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 280_000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  offerJob(db, { id: 'gate:9', kind: 'gate', now: 1002 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(290_000), 'test:one', 'a runner holding no test job takes the test job; the gate job is 4.8 minutes old');
+  assert.equal(claim(302_000), 'gate:9', 'the gate job is now 5 minutes old and is handed before the queued shard');
+  assert.equal(claim(302_001), 'gate:9:shard:1');
 });
 
 /** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */

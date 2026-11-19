@@ -1,5 +1,5 @@
 /** A fresh seat's resume adopts the claim an orphaned seat left behind, from the ref that pinned its work [C7]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { itemsInStatus } from '../../../../../packages/store/index.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -53,7 +53,7 @@ export function orphanedClaim(board, me, root) {
     if (item.item_status !== 'open' || item.item_lane !== me.lane) continue;
     const claimed = store.events(board, { itemId: item.item_id }).filter(event => event.event_kind === 'claim').at(-1);
     const holder = claimed ? store.agentById(board, claimed.event_by) : null;
-    if (!holder || holder.agent_id === me.id || (holder.agent_path && existsSync(holder.agent_path))) continue;
+    if (!holder || holder.agent_id === me.id || (holder.agent_path && fileSystemAdapter().exists(holder.agent_path))) continue;
     const pinned = newestPin(root, item.item_id);
     if (pinned) return { id: item.item_id, holder: holder.agent_id, ...pinned };
   }
