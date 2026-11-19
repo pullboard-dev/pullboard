@@ -405,7 +405,10 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Serve the push routes: the config a paired page reads (the VAPID public key, while relay.push is on) and the device's subscription with its chosen kinds [C7]. */
   async function pushHandler(req, res) {
-    const route = /^\/api\/v1\/push\/(config|subscribe)$/u.exec(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
+    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+    const wakeRoute = /^\/api\/v1\/boards\/([^/]+)\/push\/wake$/u.exec(pathname);
+    if (wakeRoute) return wakeHandler(req, res, wakeRoute[1]);
+    const route = /^\/api\/v1\/push\/(config|subscribe)$/u.exec(pathname);
     if (!route) return false;
     try {
       const who = deviceStore.authorizeSession(await auth.authenticate(credential(req, origin, req.method !== 'GET')));
@@ -417,6 +420,25 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       if (!/^device-[0-9a-f]{32}$/u.test(body?.device ?? '') || deviceStore.status(who.user.id, body.device).revoked !== false) throw new Refused('DEVICE_NOT_ENROLLED', 'Pair this device from the linked Mac before subscribing it to notifications.');
       pushStore.subscribe(who.user.id, body.device, body.subscription, body.kinds);
       apiJson(res, 200, { subscribed: true, kinds: pushStore.kinds(who.user.id, body.device) });
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
+    return true;
+  }
+
+  /**
+   * Serve the board machine's wake: its sealed alert goes to the board owner's paired devices as the kind plus the sealed blob and nothing else [C7,H5].
+   * Why: the board machine seals the alert, so the relay never sees plaintext; a body with any other field is refused before anything is pushed.
+   */
+  async function wakeHandler(req, res, boardId) {
+    try {
+      if (req.method !== 'POST') throw new Refused('NO_ENDPOINT', 'Send the wake as POST with a kind and a sealed alert.');
+      const who = await authorizedRequest(req, boardId, true);
+      const body = await readApiBody(req, { maxBytes: 16_384 });
+      if (!body || Object.keys(body).some(key => key !== 'kind' && key !== 'sealed') || typeof body.kind !== 'string') {
+        throw new Refused('BAD_WAKE', 'Send only kind and sealed; keep the alert text sealed on the board machine.');
+      }
+      const blob = sealed({ sealed: body.sealed });
+      const sent = await pushStore.wake(who.user.id, body.kind, new Uint8Array(blob));
+      apiJson(res, 200, { woke: sent });
     } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
     return true;
   }
