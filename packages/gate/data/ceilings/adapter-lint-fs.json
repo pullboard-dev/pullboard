@@ -506,6 +506,5 @@
     "packages/verify/src/io/review/tier.js": 1,
     "packages/verify/src/io/rule/proof/append.js": 1,
     "packages/verify/src/io/rule/proof/coverage.js": 1
-  },
-  "total": 1371
+  }
 }
