@@ -136,6 +136,11 @@ export function recaptureHandoffEnabled() {
   return loadMachineSettings().gate?.recaptureHandoff === true;
 }
 
+/** Rerun a gate's new reds once on the board only when this machine opted in [C7]; off by default, and only an exact true turns it on. */
+export function retryNewRedsOnceEnabled() {
+  return loadMachineSettings().gate?.retryNewRedsOnce === true;
+}
+
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
@@ -177,6 +182,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
@@ -196,6 +202,11 @@ export function requireDeclaredInputsEnabled() {
 /** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
 export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
+}
+
+/** Whether the static check refuses new direct signing outside the signing adapter: off by default; only an exact `true` turns it on [C7,#1428]. */
+export function adapterLintSigningEnabled() {
+  return loadMachineSettings().gate?.adapterLintSigning === true;
 }
 
 /** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
@@ -226,6 +237,16 @@ export function viewTimerLayoutEnabled() {
 /** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
 export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
+}
+
+/** Whether the static check refuses new direct GitHub network access outside the GitHub adapter: off by default; only an exact `true` turns it on [C7,#1429]. */
+export function adapterLintGithubEnabled() {
+  return loadMachineSettings().gate?.adapterLintGithub === true;
+}
+
+/** Whether the static check refuses new SSH runner access outside the adapter: off by default; only an exact `true` turns it on [C7,#11369]. */
+export function adapterLintSshEnabled() {
+  return loadMachineSettings().gate?.adapterLintSsh === true;
 }
 
 /** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
@@ -559,10 +580,6 @@ export function nameBehindDeviceEnabled() {
   return loadMachineSettings().engine?.nameBehindDevice === true;
 }
 
-/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
-export function typedFieldsEnabled() {
-  return loadMachineSettings().items?.typedFields === true;
-}
 
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
@@ -622,6 +639,11 @@ export function lapsedSweepEnabled() {
 /** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
 export function docsRegenerateOnCommit() {
   return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
+/** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
+export function itemsBarRulesAtAdd() {
+  return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
@@ -749,6 +771,11 @@ export function nextOneGitRead() {
  */
 export function nextReadinessCache() {
   return loadMachineSettings().next?.readinessCache === true;
+}
+
+/** Whether next puts returned work (an abandoned or reworked item) ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
+export function nextReturnedFirst() {
+  return loadMachineSettings().next?.returnedFirst === true;
 }
 
 /**

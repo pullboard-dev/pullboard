@@ -3,6 +3,11 @@ import { spawn } from 'node:child_process';
 import { cleanGitEnvironment } from "./main.js";
 import { Refused } from "../../../kernel/light.js";
 
+/** The refusal for a review folder with no package-lock.json to key its dependency cache [C7,#1112]; here because this file already imports Refused from the kernel. */
+export function missingLockfileRefusal(folder) {
+  return new Refused("NO_FILE", `the review folder ${folder} has no package-lock.json to key its dependency cache`, "commit a package-lock.json at the folder root, then retry");
+}
+
 /** Keep one child for sequential dependent file requests, and drain it on success or the original read failure. */
 export async function withCommittedFiles(root, action) {
   const child = spawn('git', ['--no-replace-objects', 'cat-file', '--batch'], {
