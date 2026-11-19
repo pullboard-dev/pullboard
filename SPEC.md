@@ -28,7 +28,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 
 ## B · Board
 - B1 [approved, must] One SQLite file in the git common dir. Every worktree sees it; nothing is committed. | gate: apps/cli/journeys/merged/e2e.test.js
-- B2 [approved, must] Every move is one immediate transaction. Two agents never hold one item. | gate: apps/cli/journeys/merged/e2e.test.js | serves: P1
+- B2 [approved, must] Every move is one immediate transaction on the board file. Two agents never hold one item. Runner work lives in a separate runs file that no move writes. A move that queues a job records the run on the board, and the job is offered only once that record commits. A receipt changes the board only through a move keyed by job and attempt, so applying it twice changes nothing. Where the two files disagree, the board wins. | gate: apps/cli/journeys/merged/e2e.test.js | serves: P1
 - B3 [approved, must] An agent is its worktree. The main checkout is the coordinator. | gate: apps/cli/journeys/merged/e2e.test.js
 - B4 [approved, must] A claim is a lease, 2h by default. Claiming again renews it. | gate: apps/cli/journeys/resume/board.test.js
 - B5 [approved, must] An agent may hold several live claims at once, each in its own item folder, up to a settable cap (default 10). | gate: apps/cli/journeys/resume/board.test.js
@@ -123,7 +123,7 @@ New to specs? Read [Lesson 2: Spec](https://pullboard.dev/tutorials/spec/).
 - L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: packages/seats/tests/io/lanes.test.js
 - L3 [approved, must] In a lane's worktree, pre-commit refuses changes outside the lane, moves included. | gate: apps/cli/journeys/merged/e2e.test.js
 - L4 [approved, must] A worktree that has not joined a lane cannot commit. | gate: apps/cli/journeys/merged/e2e.test.js
-- L5 [draft, must] When lanes are off, a seat joins the board, next offers any item its route covers, and pre-commit and submit check the claimed item's cells. (Corey approved lanes off, 3 Nov.) | gate: review
+- L5 [approved, must] When lanes are off, a seat joins the board, next offers any item its route covers, and pre-commit and submit check the claimed item's cells. (Corey approved lanes off, 3 Nov.) | gate: review
 - L6 [draft, must] When lanes are on, in a lane's worktree pre-commit refuses changes outside the lane, moves included. (Proposed change to L3, Corey approved 3 Nov.) | gate: review
 - L7 [draft, must] When lanes are on, a worktree that has not joined a lane cannot commit. (Proposed change to L4, Corey approved 3 Nov.) | gate: review
 
