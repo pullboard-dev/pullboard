@@ -2,20 +2,6 @@
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
-  cpSync,
-  constants,
-  mkdirSync,
-  readFileSync,
-  existsSync,
-  readdirSync,
-  realpathSync,
-  rmSync,
-  statSync,
-  statfsSync,
-  utimesSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   basename,
   dirname,
   join,
@@ -25,6 +11,9 @@ import { Refused } from '../../../../kernel/index.js';
 import { processMachineHome } from '../../../../kernel/light.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The shared snapshot's folder name: one clone per Pullboard commit, named by its 40-hex hash [C7]. */
 const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
@@ -39,9 +28,9 @@ const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
  */
 export function removeJobToolSnapshot(request, tools) {
   if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
-    && dirname(realpathSync(tools)) === realpathSync(scratchRoot())
-    && request.tools && realpathSync(request.tools) === realpathSync(tools)) {
-    rmSync(tools, { recursive: true, force: true });
+    && dirname(fs.realpath(tools)) === fs.realpath(scratchRoot())
+    && request.tools && fs.realpath(request.tools) === fs.realpath(tools)) {
+    fs.rm(tools, { recursive: true, force: true });
   }
 }
 
@@ -102,7 +91,7 @@ function awaitsRecoveryRetry(file, read, now) {
   const refusal = read(file);
   const code = refusal?.error?.code ?? refusal?.code;
   if (!['SUBMIT_HANDOFF_DEAD', 'GATE_INFRA_EXHAUSTED'].includes(code)) return false;
-  try { return now - statSync(file).mtimeMs <= RECOVERY_RETRY_WINDOW_MS; } catch { return false; }
+  try { return now - fs.stat(file).mtimeMs <= RECOVERY_RETRY_WINDOW_MS; } catch { return false; }
 }
 
 /**
@@ -116,11 +105,11 @@ export function queuedToolOwners({ queue = join(processMachineHome(), 'handoff-q
   const owned = new Set();
   const roots = new Set(commonDirs);
   /** Read one JSON file, ignoring anything missing or damaged. */
-  const read = file => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
+  const read = file => { try { return JSON.parse(fs.readFile(file, 'utf8')); } catch { return null; } };
   /** Record a tools path as owned. */
   const own = tools => { if (typeof tools === 'string') owned.add(tools); };
   try {
-    for (const name of readdirSync(queue).filter(entry => entry.endsWith('.json') && !entry.startsWith('.'))) {
+    for (const name of fs.list(queue).filter(entry => entry.endsWith('.json') && !entry.startsWith('.'))) {
       const ticket = read(join(queue, name));
       own(ticket?.tools);
       if (typeof ticket?.commonDir === 'string') roots.add(ticket.commonDir);
@@ -129,11 +118,11 @@ export function queuedToolOwners({ queue = join(processMachineHome(), 'handoff-q
   for (const commonDir of roots) {
     const jobs = join(commonDir, 'pullboard', 'submit-handoffs');
     let names = [];
-    try { names = readdirSync(jobs); } catch { continue; }
+    try { names = fs.list(jobs); } catch { continue; }
     for (const job of names) {
       const directory = join(jobs, job);
-      if (existsSync(join(directory, 'submission.json'))) continue;
-      if (existsSync(join(directory, 'refusal.json')) && !awaitsRecoveryRetry(join(directory, 'refusal.json'), read, now)) continue;
+      if (fs.exists(join(directory, 'submission.json'))) continue;
+      if (fs.exists(join(directory, 'refusal.json')) && !awaitsRecoveryRetry(join(directory, 'refusal.json'), read, now)) continue;
       own(read(join(directory, 'request.json'))?.tools);
     }
   }
@@ -146,7 +135,7 @@ export function queuedToolOwners({ queue = join(processMachineHome(), 'handoff-q
  * @param {string} path - A tool-tree folder.
  */
 export function touchToolTree(path) {
-  try { const now = new Date(); utimesSync(path, now, now); } catch { /* A vanished tree is rebuilt by the caller. */ }
+  try { const now = new Date(); fs.utimes(path, now, now); } catch { /* A vanished tree is rebuilt by the caller. */ }
 }
 
 /**
@@ -161,12 +150,12 @@ export function sweepToolTrees({ temp = scratchRoot(), now = Date.now(), maxAgeM
   const queued = live ? new Set() : queuedToolOwners({ queue, commonDirs, now });
   const owned = live ?? (path => queued.has(path) || toolTreeHasLiveOwner(path));
   let names;
-  try { names = readdirSync(temp).filter(name => TOOL_TREE_NAME.test(name)); } catch { return removed; }
+  try { names = fs.list(temp).filter(name => TOOL_TREE_NAME.test(name)); } catch { return removed; }
   for (const name of names) {
     const path = join(temp, name);
     try {
-      if (now - statSync(path).mtimeMs <= maxAgeMs || owned(path)) continue;
-      rmSync(path, { recursive: true, force: true });
+      if (now - fs.stat(path).mtimeMs <= maxAgeMs || owned(path)) continue;
+      fs.rm(path, { recursive: true, force: true });
       removed.push(path);
     } catch { /* One unreadable folder must not stop the sweep. */ }
   }
@@ -181,7 +170,7 @@ export function sweepToolTrees({ temp = scratchRoot(), now = Date.now(), maxAgeM
 export function assertToolTreeRoom({ temp = scratchRoot(), commonDirs = [], minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
   sweepToolTrees({ temp, commonDirs });
   let free;
-  try { const stat = statfsSync(temp); free = stat.bavail * stat.bsize; } catch { return; }
+  try { const stat = fs.statfs(temp); free = stat.bavail * stat.bsize; } catch { return; }
   if (free < minFree) {
     throw new Refused('TOOL_TREE_DISK_LOW', `only ${Math.floor(free / 1024 ** 2)} MB free in ${temp}; the sweep removed every unowned pullboard-handoff-tools-* and pullboard-compare-tools-* older than 60 minutes, so free space or retry once running jobs finish`);
   }
@@ -190,11 +179,11 @@ export function assertToolTreeRoom({ temp = scratchRoot(), commonDirs = [], minF
 /** Validate source custody before copying any tools or offering a new native queue identity. */
 export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit = 3, retries = job.recoveryRetries ?? 0, refresh = null } = {}) {
   if (retries >= limit) return null;
-  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  const request = JSON.parse(fs.readFile(join(directory, 'request.json'), 'utf8'));
   if (request.job !== job.id || request.item !== item || request.commit !== job.commit || !sameCommonDir(request.commonDir, commonDir)
     || (request.companion?.commit ?? job.commit) !== job.executionCommit || (request.companion?.tree ?? job.tree) !== job.executionTree
     || !handoffToolsAllowed(request.tools, job.id)
-    || dirname(realpathSync(request.tools)) !== realpathSync(scratchRoot())) {
+    || dirname(fs.realpath(request.tools)) !== fs.realpath(scratchRoot())) {
     throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'retain the stopped job: its captured tools or source identity cannot be proved');
   }
   const id = randomUUID();
@@ -206,13 +195,13 @@ export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit
   const tools = fresh?.tools ?? (shared ? request.tools : scratchFolder(`pullboard-handoff-tools-${id}-`));
   const target = join(dirname(directory), id);
   try {
-    if (!fresh && !shared) cpSync(request.tools, tools, { recursive: true, mode: constants.COPYFILE_FICLONE });
-    mkdirSync(target, { recursive: true, mode: 0o700 });
-    writeFileSync(join(target, 'request.json'), JSON.stringify({ ...request, job: id, tools, ...(fresh ? { toolsCommit: fresh.toolsCommit } : {}) }) + '\n', { flag: 'wx', mode: 0o600 });
+    if (!fresh && !shared) fs.cp(request.tools, tools, { recursive: true, mode: fs.constants.COPYFILE_FICLONE });
+    fs.mkdir(target, { recursive: true, mode: 0o700 });
+    fs.writeFile(join(target, 'request.json'), JSON.stringify({ ...request, job: id, tools, ...(fresh ? { toolsCommit: fresh.toolsCommit } : {}) }) + '\n', { flag: 'wx', mode: 0o600 });
     /** Remove only this unqueued preparation if the captured native claim changed concurrently. */
-    const discard = () => { if (!shared) rmSync(tools, { recursive: true, force: true }); rmSync(target, { recursive: true, force: true }); };
+    const discard = () => { if (!shared) fs.rm(tools, { recursive: true, force: true }); fs.rm(target, { recursive: true, force: true }); };
     return { id, tools, directory: target, discard };
-  } catch (error) { if (!shared) rmSync(tools, { recursive: true, force: true }); throw error; }
+  } catch (error) { if (!shared) fs.rm(tools, { recursive: true, force: true }); throw error; }
 }
 
 /**
@@ -232,5 +221,5 @@ function freshRetryTools(refresh, id, request) {
   let fresh;
   try { fresh = refresh(id, request); } catch { return null; }
   if (!fresh || typeof fresh.tools !== 'string' || !/^[0-9a-f]{40}$/u.test(fresh.toolsCommit ?? '') || !handoffToolsAllowed(fresh.tools, id)) return null;
-  try { return dirname(realpathSync(fresh.tools)) === realpathSync(scratchRoot()) ? fresh : null; } catch { return null; }
+  try { return dirname(fs.realpath(fresh.tools)) === fs.realpath(scratchRoot()) ? fresh : null; } catch { return null; }
 }
