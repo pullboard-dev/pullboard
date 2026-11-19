@@ -1,0 +1,3 @@
+{
+  "cli.journeys-queue-submitted-overlap.two-submitted-items-sharing-a-file": {"proves":{"specs":["C7","#11771"],"claim":"pullboard queue on two submitted items that share a file shows the later one waiting on the earlier and the earlier waiting on nothing."},"why":"Two submitted items waiting on each other left both unreviewed with reviewers idle, so the real queue output must show the ordering.","kind":"journey","inputs":["apps/cli/journeys/queue/submitted-overlap.test.js"]}
+}
