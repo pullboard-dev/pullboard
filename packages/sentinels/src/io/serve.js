@@ -6,6 +6,7 @@ import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { lapsedSweepEnabled } from "../../../config/index.js";
 import { startRelayCanaryWatch } from "../../../link/index.js";
+import { environmentAdapter } from "../../../env/index.js";
 
 /** Ten minutes is the declared background cadence, not a test performance budget. */
 export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;
@@ -27,7 +28,7 @@ function refreshBoard(cli, root, signal, words = ['sentinel', 'run', '--health-o
   if (typeof cli !== 'string' || !cli) throw new Refused('NO_CLI_ENTRY', 'name the CLI entry the scan child runs: startServeSentinel({ cli: <path to the pullboard entry> })');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...words], {
-      cwd: root, env: process.env, stdio: 'ignore', signal,
+      cwd: root, env: environmentAdapter().all(), stdio: 'ignore', signal,
     });
     let timer;
     /** Bound shutdown of this exact child; never signal a peer or a process selected by name. */

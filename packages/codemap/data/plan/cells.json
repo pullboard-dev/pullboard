@@ -2584,6 +2584,7 @@
     "rigor->doctrine",
     "rigor->config",
     "sentinels->config",
+    "sentinels->env",
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
