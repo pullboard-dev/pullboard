@@ -1,11 +1,6 @@
 /**
  * `pullboard.json`: repo settings, merged over defaults and checked once per command.
  */
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
 import { registryGuardsProblem } from '../../../kernel/light.js';
@@ -25,6 +20,8 @@ export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
@@ -80,11 +77,12 @@ export function defaults() {
     families: {},
     labels: {},
     // The route table is data: data/ceilings/model-tiers.json [P5].
-    modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
+    modelTiers: JSON.parse(fileSystem.readFile(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
-    slices: { enforcePaths: false },
+    // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
+    slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
     next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
@@ -106,6 +104,7 @@ export function defaults() {
       maxHeader: 72,
       requireIds: ['feat', 'fix'],
       banned: [],
+      quotedNames: [],
       noEmoji: false,
       noCoAuthor: false,
       // Refuse a submit whose new commits name this machine; false only warns (C1).
@@ -198,7 +197,7 @@ const notPlain = value => !value || typeof value !== 'object' || Array.isArray(v
 
 /** Whether a repo-relative path names a folder in the repo. */
 function isFolder(root, entry) {
-  try { return statSync(join(root, entry)).isDirectory(); } catch { return false; }
+  try { return fileSystem.stat(join(root, entry)).isDirectory(); } catch { return false; }
 }
 
 /**
@@ -513,6 +512,9 @@ export function configProblems(config, root) {
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
   }
+  if (config.slices?.composeLanding !== undefined && typeof config.slices.composeLanding !== 'boolean') {
+    problems.push('"slices.composeLanding" is true or false');
+  }
   if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
@@ -556,6 +558,7 @@ export function configProblems(config, root) {
   if (!isStringList(config.commits.types)) problems.push('"commits.types" is a list of words');
   if (!isStringList(config.commits.requireIds)) problems.push('"commits.requireIds" is a list of types');
   if (!isStringList(config.commits.banned)) problems.push('"commits.banned" is a list of words');
+  if (!isStringList(config.commits.quotedNames)) problems.push('"commits.quotedNames" is a list of names');
   if (typeof config.commits.noHostName !== 'boolean') problems.push('"commits.noHostName" is true or false: whether a submit naming this machine is refused');
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
@@ -572,18 +575,18 @@ export function configProblems(config, root) {
  */
 export function loadConfig(root) {
   const file = join(root, CONFIG_FILE);
-  if (!existsSync(file)) {
+  if (!fileSystem.exists(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  const config = configFromSource(readFileSync(file, 'utf8'), root);
+  const config = configFromSource(fileSystem.readFile(file, 'utf8'), root);
   return { ...config, practice: doctrineFile(root, config.practice) };
 }
 
 /** Resolve the doctrine's current name while preserving legacy and explicitly configured paths. */
 export function doctrineFile(root, name = DOCTRINE_FILE) {
   if (![DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) return name;
-  const current = existsSync(join(root, DOCTRINE_FILE));
-  const legacy = existsSync(join(root, LEGACY_DOCTRINE_FILE));
+  const current = fileSystem.exists(join(root, DOCTRINE_FILE));
+  const legacy = fileSystem.exists(join(root, LEGACY_DOCTRINE_FILE));
   if (current && legacy) {
     throw new Refused('BAD_CONFIG', `${DOCTRINE_FILE} and ${LEGACY_DOCTRINE_FILE} both define the repo doctrine; restore one doctrine file: merge their rules into ${DOCTRINE_FILE} and remove ${LEGACY_DOCTRINE_FILE}`);
   }

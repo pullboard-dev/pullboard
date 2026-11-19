@@ -30,6 +30,7 @@ import { openSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** The modes a pull-aware controller entry accepts after `--pullboard-runner-controller`. */
 export const PULL_MODES = ['--submit', '--serve-need', '--finish'];
@@ -199,7 +200,7 @@ export const REQUIRED_TOOLS = ['ps', 'lsof'];
  * @param {NodeJS.ProcessEnv} [env] - The environment whose PATH is searched.
  * @param {string[]} [tools] - The program names to find.
  */
-export function requireRunnerTools(env = process.env, tools = REQUIRED_TOOLS) {
+export function requireRunnerTools(env = environmentAdapter().all(), tools = REQUIRED_TOOLS) {
   const directories = String(env.PATH ?? '').split(':').filter(Boolean);
   for (const tool of tools) {
     const found = directories.some(directory => { try { accessSync(`${directory}/${tool}`, constants.X_OK); return true; } catch { return false; } });
