@@ -17,6 +17,7 @@ import { saveReviewFamily } from "../../../../verify/index.js";
 import { saveCheckTiming } from "../../../../items/light.js";
 import { validateCheckTiming } from "../../../../items/light.js";
 import { validateItemDependencies } from "./item/dependencies.js";
+import { setAfterGate } from "./item/after-gate.js";
 import { validateRehomeCheck } from "./facade.js";
 import { recordBarRevision } from "../../../../verify/index.js";
 import { normalizeCheckBaseline } from "../baseline/check.js";
@@ -41,12 +42,12 @@ import { laneOf } from "../../../../seats/index.js";
  * ids (B6).
  *
  * @param {any} board
- * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string, checkTiming?: boolean }} item
+ * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], afterGate?: number[], brief?: string, route?: string, check?: string, checkTiming?: boolean }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], afterGate = [], brief = '', route = 'strong', check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }) {
   return atomic(board, () => {
-    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand };
+    const item = { by, lane, title, criterion, specIds, parentId, after, afterGate, brief, route, check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand };
     const id = insertItem(board, item, validateItemAddition(board, item));
     placeNewItem(board, id, item);
     return id;
@@ -71,6 +72,7 @@ export function insertItem(board, item, { command, cleanTitle, brief: normalized
   saveCheckTiming(board, id, item.checkTiming);
   saveExpectedBuildMinutes(board, id, item.expectedBuildMinutes);
   saveReadinessCommand(board, id, item.readinessCommand);
+  if (item.afterGate?.length) setAfterGate(board, id, item.afterGate);
   const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
   saveItemReviewPolicy(board, id, reviewPolicy);
   saveReviewFamily(board, id, reviewFamily);
@@ -80,7 +82,7 @@ export function insertItem(board, item, { command, cleanTitle, brief: normalized
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
-export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, keptCheckFrom, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }, { sourceMove = null } = {}) {
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], afterGate = [], brief = '', route = 'strong', check, keptCheckFrom, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }, { sourceMove = null } = {}) {
   // A follow-up may keep its landed parent's check unchanged, never set or edit one [#9637].
   const kept = typeof keptCheckFrom === 'string' && check === keptCheckFrom;
   const command = sourceMove
@@ -118,6 +120,6 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
       throw new Refused('PARENT_CLOSED', `item #${parentId} is ${parent.item_status}`);
     }
   }
-  validateItemDependencies(board, null, after);
+  validateItemDependencies(board, null, [...after, ...afterGate]);
   return { command, cleanTitle, brief: normalizedBrief, evidenceWarnings };
 }
