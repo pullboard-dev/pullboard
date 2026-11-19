@@ -57,7 +57,6 @@
     "packages/landing/src/io/step/publish.js",
     "packages/landing/src/io/worker.js",
     "packages/outbox/src/io/relay/checkpoint.js",
-    "packages/resources/src/io/handoff/worker/detach.js",
     "packages/resources/src/io/liveness.js",
     "packages/rigor/src/io/proof.js",
     "packages/runners/src/io/run.js",

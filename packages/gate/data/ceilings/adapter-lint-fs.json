@@ -400,7 +400,6 @@
     "packages/resources/src/io/handoff/owner.js": 2,
     "packages/resources/src/io/handoff/prune.js": 1,
     "packages/resources/src/io/handoff/worker/cap.js": 1,
-    "packages/resources/src/io/handoff/worker/detach.js": 1,
     "packages/resources/src/io/liveness.js": 3,
     "packages/resources/src/io/main.js": 1,
     "packages/resources/src/io/write/queue.js": 12,
