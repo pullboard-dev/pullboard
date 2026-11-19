@@ -38,13 +38,14 @@ const WRITER_SCRIPT = [
 function child(argv, { cwd, env }) {
   return new Promise((done, fail) => {
     const proc = spawn(process.execPath, argv, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const began = Date.now();
     let out = '', err = '';
     proc.stdout.on('data', chunk => { out += chunk; });
     proc.stderr.on('data', chunk => { err += chunk; });
     proc.on('error', fail);
     proc.on('close', code => {
       const cpu = /CPU_SECONDS ([0-9.]+)/u.exec(err);
-      done({ code, out, err, cpu: cpu ? Number(cpu[1]) : null });
+      done({ code, out, err, cpu: cpu ? Number(cpu[1]) : null, seconds: (Date.now() - began) / 1000 });
     });
   });
 }
@@ -70,6 +71,7 @@ test('cli.io-commands-next-wait.busy-board-cpu: clause 1: a real next --wait on 
   writeFileSync(writer, WRITER_SCRIPT);
   const env = { ...box.env, PULLBOARD_WAIT_BIN_URL: pathToFileURL(BIN).href };
   // The cost of starting the real command and answering once, so the wait's own figure can be told from it.
+  await child([runner, BIN, 'next'], { cwd: seat, env });
   const start = await child([runner, BIN, 'next'], { cwd: seat, env });
   assert.equal(start.cpu !== null, true, start.err);
   const board = join(repo, '.git', 'pullboard', 'board.sqlite');
@@ -80,6 +82,7 @@ test('cli.io-commands-next-wait.busy-board-cpu: clause 1: a real next --wait on 
   assert.doesNotMatch(waiting.err, /\n\s+at [^\n]*\.js:\d+|Error:/u, `the wait ended in an error: ${waiting.err}`);
   assert.ok(waiting.code === 0 || waiting.code === 1, `exit ${waiting.code}: ${waiting.err}`);
   assert.equal(waiting.cpu !== null, true, waiting.err);
+  t.diagnostic(`the wait ran ${waiting.seconds} s, exit ${waiting.code}: ${(waiting.out + waiting.err).replace(/\s+/gu, ' ').slice(0, 300)}`);
   const figure = Math.round((waiting.cpu - start.cpu) * 100) / 100;
   t.diagnostic(`next --wait under board writes: process CPU ${waiting.cpu} s in all, ${start.cpu} s for one plain next, so ${figure} s for the wait over ${Number(WAIT_MINUTES) * 60} s of writes`);
   console.log(`BUSY_BOARD_WAIT_CPU_SECONDS ${figure} (total ${waiting.cpu}, plain next ${start.cpu})`);
