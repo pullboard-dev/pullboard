@@ -2464,6 +2464,7 @@
     "apps/lib->env",
     "apps/cli->kernel",
     "gate->jobs",
+    "gate->env",
     "drive->jobs",
     "drive->kernel",
     "drive->env",
