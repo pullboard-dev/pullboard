@@ -10,6 +10,8 @@ import { confirmRelaxation } from '../../../../src/io/relaxation.js';
 import { itemReviewPolicy } from '../../../../../verify/index.js';
 import { familiesDiffer } from '../../../../../verify/index.js';
 import { seatFamily } from '../../../../../verify/index.js';
+import { REVIEW_RELEASE_TWICE_ENGINE } from '../../../../../state/light.js';
+import { RELEASE_UNTOUCHED_REROUTE_ENGINE } from '../../../../../state/light.js';
 
 const SUBMITTED = 30;
 const SEATS = 15;
@@ -267,4 +269,37 @@ test('store.io-board-reserve-next.next-verify-renews-the-caller-s: clause 2: nex
   const renewed = store.reserveNextReview(board, who);
   assert.equal(renewed.item.item_id, first.item.item_id, 'the same review is renewed');
   assert.ok(renewed.item.item_review_until > until, 'the lease moved forward');
+});
+
+/** A submitted item whose review core-2 and core-3 (openai) released, with core-5 (openai) and core-4 (claude) free to take reviews, under the release-twice rule. */
+// fixture-subject: addItem (a store unit test of review selection over a hand-built submitted item)
+const SYNTHETIC_MODEL = 'Synthetic fixture model';
+function releasedTwice(t, flag) {
+  const board = fixtureBoard(t);
+  board.holdAfterTwoReleases = flag;
+  board.executionEngineVersion = Math.max(REVIEW_RELEASE_TWICE_ENGINE, RELEASE_UNTOUCHED_REROUTE_ENGINE);
+  for (const [id, family, parent] of [['coordinator', 'human', 'f'], ['core-1', 'openai', 'a'], ['core-2', 'openai', 'b'], ['core-3', 'openai', 'c'], ['core-4', 'claude', 'd'], ['core-5', 'openai', 'e']]) {
+    store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), session: parent.repeat(64), model: SYNTHETIC_MODEL });
+    store.heartbeatSeat(board, id);
+  }
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Released twice review' });
+  store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000, freeze: () => ({ text: '{}', digest: 'fixture-digest' }) });
+  submitFixture(board, id, { agentId: 'core-1', commit: 'c'.repeat(40), tree: 'd'.repeat(40) });
+  for (const seat of ['core-2', 'core-3']) {
+    store.reserveReview(board, id, { agentId: seat, leaseMs: 60_000, policy: 'any', familyPolicy: 'off' });
+    store.release(board, id, seat, 'no time to judge this one', 'OTHER');
+  }
+  if (store.getItem(board, id).item_hold_by) store.releaseItemHold(board, id, { agentId: 'coordinator' });
+  return { board, id };
+}
+
+test('store.io-board-reserve-next.a-seat-of-the-releasing-family-is-not-offered: clause 3: reserveNextReview never offers a review to a seat of the family that released it twice while the flag is on, and offers it to another family or with the flag off [C7,#10932]', t => {
+  const selection = agentId => ({ agentId, lane: 'core', leaseMs: 60_000, policy: 'any', familyPolicy: 'off' });
+  const on = releasedTwice(t, true);
+  const refused = store.reserveNextReview(on.board, selection('core-5'));
+  assert.equal(refused.item, null, 'the releasing family is offered nothing, so next --verify does not loop on the refusal');
+  assert.equal(store.getItem(on.board, on.id).item_review_by, null);
+  assert.equal(store.reserveNextReview(on.board, selection('core-4')).item?.item_id, on.id, 'another family is offered it');
+  const off = releasedTwice(t, false);
+  assert.equal(store.reserveNextReview(off.board, selection('core-5')).item?.item_id, off.id, 'with the flag off the releasing family is offered it as on main');
 });
