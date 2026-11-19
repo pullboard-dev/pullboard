@@ -76,6 +76,7 @@ export const MACHINE_DEFAULTS = {
   'gate.runnersFirst': false,
   'gate.runnersOnly': false,
   'gate.sampleDiskIo': false,
+  'gate.sampleSwap': false,
   'gate.selectionUnit': 'file',
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
@@ -206,6 +207,7 @@ export const MACHINE_DEFAULTS = {
   'tests.requireRegistered': false,
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
+  'verify.soloLowStakes': false,
   'view.background': true,
   'watch.quietReads': false,
 };
