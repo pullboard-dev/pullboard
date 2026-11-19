@@ -1260,3 +1260,8 @@ export function reuseGateReceiptsEnabled() {
 export function relaxRequiredFamilyEnabled() {
   return loadMachineSettings().review?.relaxRequiredFamily === true;
 }
+
+/** Whether line.tune is on (#1099): off by default; only an exact `true` lets the line controller tune its own knobs, until the replay bench proves it better. */
+export function lineTuneEnabled() {
+  return loadMachineSettings().line?.tune === true;
+}
