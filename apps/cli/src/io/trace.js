@@ -3,15 +3,12 @@
  * so an agent's behaviour, refusals and timings can be rebuilt from one folder shared by all worktrees [C7].
  * Tracing never fails or slows a command: one synchronous append, every error swallowed.
  */
-import { appendFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The store file name for the record held under a key, with its extension; local so a cold command loads one module fewer (closure-budget) [C7]. */
 function storeName(key, ext = '.json') { return key + ext; }
@@ -69,22 +66,22 @@ export function itemOf(argv) {
 /** The worktree root, its git dir and the common git dir for cwd, or null outside a repository. */
 function locate(cwd) {
   let root = resolve(cwd);
-  while (!existsSync(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
+  while (!fs.exists(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
   const marker = join(root, '.git');
   let gitDir = marker;
-  if (!statSync(marker).isDirectory()) {
-    const match = /^gitdir:\s*(.+)\s*$/u.exec(readFileSync(marker, 'utf8').trim());
+  if (!fs.stat(marker).isDirectory()) {
+    const match = /^gitdir:\s*(.+)\s*$/u.exec(fs.readFile(marker, 'utf8').trim());
     if (!match) return null;
     gitDir = resolve(root, match[1]);
   }
   const commonFile = join(gitDir, 'commondir');
-  const common = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+  const common = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile, 'utf8').trim()) : gitDir;
   return { root, gitDir, common };
 }
 
 /** The checked-out branch name from HEAD, or null when detached or unreadable. */
 function branchOf(gitDir) {
-  try { return /^ref: refs\/heads\/(.+)$/mu.exec(readFileSync(join(gitDir, 'HEAD'), 'utf8'))?.[1] ?? null; }
+  try { return /^ref: refs\/heads\/(.+)$/mu.exec(fs.readFile(join(gitDir, 'HEAD'), 'utf8'))?.[1] ?? null; }
   catch { return null; }
 }
 
@@ -109,8 +106,8 @@ export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat
       ms: Math.max(0, now() - startedAt),
     };
     const dir = join(where.common, 'pullboard', 'trace');
-    mkdirSync(dir, { recursive: true });
-    appendFileSync(join(dir, `${storeName(at.toISOString().slice(0, 10), '.jsonl')}`), `${JSON.stringify(line)}\n`);
+    fs.mkdir(dir, { recursive: true });
+    fs.appendFile(join(dir, `${storeName(at.toISOString().slice(0, 10), '.jsonl')}`), `${JSON.stringify(line)}\n`);
     return line;
   } catch { return null; }
 }
@@ -128,10 +125,10 @@ export function sinceCutoff(value, now = Date.now()) {
 export function readTraceLines(commonDir) {
   const dir = join(commonDir, 'pullboard', 'trace');
   let names;
-  try { names = readdirSync(dir).filter(name => name.endsWith('.jsonl')).sort(); } catch { return []; }
+  try { names = fs.list(dir).filter(name => name.endsWith('.jsonl')).sort(); } catch { return []; }
   const lines = [];
   for (const name of names) {
-    for (const text of readFileSync(join(dir, name), 'utf8').split('\n')) {
+    for (const text of fs.readFile(join(dir, name), 'utf8').split('\n')) {
       if (!text) continue;
       try { lines.push(JSON.parse(text)); } catch { /* A torn line is skipped; the rest of the day still reads. */ }
     }
