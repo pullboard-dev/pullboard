@@ -2,14 +2,6 @@
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  realpathSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   isAbsolute,
   join,
   relative,
@@ -17,6 +9,9 @@ import {
   sep,
 } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/iu;
 
@@ -87,7 +82,7 @@ export function parseWorkingDirectoryCensus(output) {
 export function workingDirectories() {
   const executable = process.platform === 'darwin' ? '/usr/sbin/lsof'
     : process.platform === 'linux' ? '/usr/bin/lsof' : null;
-  if (!executable || !existsSync(executable)) return null;
+  if (!executable || !fs.exists(executable)) return null;
   // Linux lsof omits descriptor fields unless requested; the strict parser requires fcwd.
   const result = spawnSync(executable, ['-nP', '-a', '-d', 'cwd', '-Ffpn0'], {
     encoding: 'utf8', timeout: 10_000, maxBuffer: 4 * 1024 * 1024,
@@ -125,12 +120,12 @@ function localProblem(root, common, target, tip, exclude) {
   if (resolve(trees[0].path) === path || resolve(root) === path) return 'primary or caller repository';
   if (entry.locked) return 'worktree is locked';
   try {
-    if (lstatSync(path).isSymbolicLink() || realpathSync(path) !== path) return 'worktree path changed or is a symlink';
-    if (contains(path, realpathSync(process.cwd()))) return 'caller working directory';
-    for (const protectedPath of exclude) if (contains(path, realpathSync(protectedPath))) return 'excluded proof worktree';
+    if (fs.lstat(path).isSymbolicLink() || fs.realpath(path) !== path) return 'worktree path changed or is a symlink';
+    if (contains(path, fs.realpath(process.cwd()))) return 'caller working directory';
+    for (const protectedPath of exclude) if (contains(path, fs.realpath(protectedPath))) return 'excluded proof worktree';
     const actualCommon = git(path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
     const top = git(path, ['rev-parse', '--show-toplevel']);
-    if (!actualCommon || !top || realpathSync(actualCommon.trim()) !== common || realpathSync(top.trim()) !== path) return 'different repository or worktree identity';
+    if (!actualCommon || !top || fs.realpath(actualCommon.trim()) !== common || fs.realpath(top.trim()) !== path) return 'different repository or worktree identity';
   } catch { return 'worktree or exclusion identity unavailable'; }
   const head = git(path, ['rev-parse', '--verify', 'HEAD']);
   if (!head || !COMMIT.test(head.trim()) || git(root, ['merge-base', '--is-ancestor', head.trim(), tip]) === null) return 'worktree HEAD is not landed';
@@ -154,17 +149,18 @@ function localProblem(root, common, target, tip, exclude) {
 export async function pruneRetiredWorktrees(root, { tip, targets, exclude = [], revalidate, say = () => {} }) {
   const commonValue = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   if (!commonValue) throw new Error('cannot prove the landing repository; no worktree was removed');
-  const common = realpathSync(commonValue.trim());
+  const common = fs.realpath(commonValue.trim());
   const directory = join(common, 'pullboard', 'worktree-prune');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const receipt = join(directory, randomUUID() + '.json');
   const document = { version: 1, tip, startedAt: new Date().toISOString(), attempts: [] };
   const result = { removed: [], skipped: [], receipt };
   /** Save intent and final outcomes atomically, retaining no global process-cwd observations. */
   const persist = () => {
     const temporary = receipt + '.tmp';
-    writeFileSync(temporary, JSON.stringify(document, null, 2) + '\n', { mode: 0o600 });
-    renameSync(temporary, receipt);
+    const handle = fs.open(temporary, 'w', 0o600);
+    try { fs.write(handle, JSON.stringify(document, null, 2) + '\n'); } finally { fs.close(handle); }
+    fs.rename(temporary, receipt);
   };
   /** Keep and name every uncertain target; already committed landing history is unaffected. */
   const skip = (entry, reason, pids = []) => {
@@ -197,7 +193,7 @@ export async function pruneRetiredWorktrees(root, { tip, targets, exclude = [], 
     if (changed !== null) { skip(entry, typeof changed === 'string' && changed ? changed : 'board revalidation did not confirm retirement'); continue; }
     // No further asynchronous operation separates the parent's final check from ordinary Git removal.
     const removed = git(root, ['worktree', 'remove', '--', target.path]);
-    if (removed === null || existsSync(target.path)) { skip(entry, 'non-force worktree removal refused'); continue; }
+    if (removed === null || fs.exists(target.path)) { skip(entry, 'non-force worktree removal refused'); continue; }
     entry.action = 'removed';
     result.removed.push({ ...entry });
     persist();
