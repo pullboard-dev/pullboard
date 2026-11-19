@@ -401,7 +401,6 @@
     "packages/sentinels/src/io/memory.js": 1,
     "packages/sentinels/src/io/runner.js": 3,
     "packages/sentinels/src/io/surfaces.js": 5,
-    "packages/sentinels/src/io/waits.js": 2,
     "packages/spec/src/io/approval.js": 1,
     "packages/spec/src/io/boards.js": 3,
     "packages/spec/src/io/draft.js": 1,
