@@ -32,6 +32,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { PROGRESS_ENV } from './progress.js';
 import { keepGateProfiles } from './pull/profiles.js';
 import { watchProgress } from './progress.js';
@@ -459,7 +460,7 @@ export function requestedJobEnvironment(requested) {
  * @param {unknown} [requested] - The job request's env map: fixture switches the job's own caller set, over the host's [#10848].
  * @returns {{ env: Record<string, string>, folder: string }}
  */
-export function jobEnvironment(cache, name, job, host = process.env, requested = null) {
+export function jobEnvironment(cache, name, job, host = environmentAdapter().all(), requested = null) {
   const asked = requestedJobEnvironment(requested);
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
   try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
@@ -548,7 +549,7 @@ async function postReceiptCalls(call, held, receipt) {
  *   a file the stream's first 8 MiB is copied to.
  * @returns {{ done: Promise<{ status: number | null, signal: string | null, outputSha256: string, outputBytes: number, tail: string, line: string | null }>, stop: () => void }}
  */
-export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null, keep = null } = {}) {
+export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = environmentAdapter().all(), input = null, receiptLine = null, keep = null } = {}) {
   const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const digest = createHash('sha256');
   let bytes = 0, tail = Buffer.alloc(0), partial = Buffer.alloc(0), skip = false, line = null;
@@ -769,7 +770,7 @@ export function heldKinds() {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, jobWorkerFactor = 2, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = environmentAdapter().get('PULLBOARD_RUNNER_JOBS'), cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, jobWorkerFactor = 2, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -996,7 +997,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
-    const job = jobEnvironment(cache, name, claim.job, process.env, requestedEnv), tag = randomBytes(8).toString('hex');
+    const job = jobEnvironment(cache, name, claim.job, environmentAdapter().all(), requestedEnv), tag = randomBytes(8).toString('hex');
     // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
     const kept = keepFolder(cache, claim.job, claim.attempt);
     // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
