@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-cell config */
-/** submit.residentChecks is a machine setting, off by default, described, and on only for an exact true [C7,#10275]. */
+/** submit.residentChecks is a machine setting, on by default, described, and off only for an exact false [C7,#10275]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,13 +26,13 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'submit.residentChecks'));
 }
 
-test('config.io-submit-resident-checks-setting.clause-1-submit-residentchecks-defaults-to: clause 1: submit.residentChecks is a described setting that defaults to false and accepts true and false [C7,#10275]', () => {
+test('config.io-submit-resident-checks-setting.clause-1-submit-residentchecks-defaults-to: clause 1: submit.residentChecks is a described setting that defaults to true and an exact false turns it off [C7,#10275]', () => {
   const unset = row({});
-  assert.equal(unset.default, false);
-  assert.equal(unset.value, false);
+  assert.equal(unset.default, true);
+  assert.equal(unset.value, true);
   assert.ok(unset.label, 'the row carries a plain label');
   assert.match(unset.description ?? JSON.stringify(unset), /resident/u);
-  assert.equal(withSettings({}, residentChecks), false);
+  assert.equal(withSettings({}, residentChecks), true);
   assert.equal(withSettings({ submit: { residentChecks: true } }, residentChecks), true);
   assert.equal(withSettings({ submit: { residentChecks: false } }, residentChecks), false);
 });
