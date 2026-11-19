@@ -9,7 +9,8 @@ import { listItems } from '../../../../../packages/store/index.js';
 import { boardId } from '../../../../../packages/store/index.js';
 import { boardFilePath } from '../../../../../packages/store/index.js';
 import { addSigner } from '../../../../../packages/spec/index.js';
-import { openBoard } from '../../../../lib/index.js';
+import { openBoardForRead } from '../../../../../packages/store/index.js';
+import { fixtureOpenBoard } from '../../fixtures/board.js';
 import { runFixtureChild } from '../../fixtures/child.js';
 import { signedBoard } from '../../fixtures/board/link.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
@@ -22,7 +23,7 @@ const small = ['--specs', 'G1', '--json'];
 
 /** The ids of every item on the box's board, read straight from its file. */
 function filed(box) {
-  const board = openBoard(boardFilePath(join(box.repo, '.git')));
+  const board = openBoardForRead(boardFilePath(join(box.repo, '.git')));
   try { return listItems(board).map(item => item.item_id); } finally { closeBoard(board); }
 }
 
@@ -41,7 +42,7 @@ test('cli.io-commands-add-foreign.add-files-with-a-live-link: clause 2: the same
   const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { encoding: 'utf8' });
   assert.equal(generated.status, 0, generated.stderr);
   addSigner(box.repo, { by: 'host-parent', key: `${key}.pub` });
-  const board = openBoard(boardFilePath(join(box.repo, '.git')));
+  const board = fixtureOpenBoard({ boardFile: boardFilePath(join(box.repo, '.git')), web: box.repo });
   const host = signedBoard(t, 'host');
   try {
     await linkBoards({ board, root: box.repo, reference: { boardId: boardId(board), organization: 'fixture', handle: 'project' }, signer: { by: 'host-parent', key } },
