@@ -40,6 +40,7 @@ const BEFORE = {
   'gate.adapterLintClock': false,
   'gate.adapterLintEnv': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintSsh': false,
   'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
