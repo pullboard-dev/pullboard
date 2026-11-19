@@ -7,13 +7,7 @@ import { resolve } from 'node:path';
  *
  * Usage (spawned by scheduleCheckpoint): node relay-checkpoint-worker.js <root> <relay link file>
  */
-import {
-  appendFileSync,
-  readFileSync,
-  rmSync,
-  utimesSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { locked } from '../../../../../../packages/link/index.js';
 import {
   checkpointInBackground,
@@ -52,10 +46,17 @@ import {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [root, file] = process.argv.slice(2);
   const { due, done, asked, checked, pid, log } = checkpointFiles(file);
+  const fs = fileSystemAdapter();
+
+  /** Write one of the publisher's files owner-only (the adapter's writeFile takes no mode), replacing what it held. */
+  function writePrivate(path, text) {
+    const descriptor = fs.open(path, 'w', 0o600);
+    try { fs.write(descriptor, text); } finally { fs.close(descriptor); }
+  }
 
   /** Read a time one of the publisher's files holds, or 0 when none was noted. */
   function noted(path) {
-    try { return Number(readFileSync(path, 'utf8')) || 0; } catch { return 0; }
+    try { return Number(fs.readFile(path, 'utf8')) || 0; } catch { return 0; }
   }
 
   /** Read the time of the last move, or 0 when none was noted. */
@@ -74,7 +75,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   async function publishFrom(options) {
     const reading = Date.now();
     try { return await publishLatestCheckpoint(root, io, options); }
-    finally { writeFileSync(checked, `${reading}\n`, { mode: 0o600 }); }
+    finally { writePrivate(checked, `${reading}\n`); }
   }
 
   /**
@@ -85,8 +86,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     return locked(file, () => {
       const holder = publisherHolding(pid);
       if (holder && holder !== process.pid) return false;
-      writeFileSync(pid, `${process.pid}\n`, { mode: 0o600 });
-      writeFileSync(log, '', { mode: 0o600 }); // Each publisher keeps only its own short story.
+      writePrivate(pid, `${process.pid}\n`);
+      writePrivate(log, ''); // Each publisher keeps only its own short story.
       io.say(`claimed by ${process.pid}`);
       return true;
     }, io);
@@ -96,13 +97,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   // publisher is never taken for a dead one and a second publisher never uploads beside it.
   const HEARTBEAT_MS = 60_000;
   setInterval(() => {
-    try { if (Number(readFileSync(pid, 'utf8')) === process.pid) utimesSync(pid, new Date(), new Date()); } catch { /* No claim to refresh. */ }
+    try { if (Number(fs.readFile(pid, 'utf8')) === process.pid) fs.utimes(pid, new Date(), new Date()); } catch { /* No claim to refresh. */ }
   }, HEARTBEAT_MS).unref();
 
   /** Give up the claim under the relay lock, and only while it is still this process's own. */
   async function release() {
     await locked(file, () => {
-      try { if (Number(readFileSync(pid, 'utf8')) === process.pid) rmSync(pid, { force: true }); } catch { /* Already gone. */ }
+      try { if (Number(fs.readFile(pid, 'utf8')) === process.pid) fs.rm(pid, { force: true }); } catch { /* Already gone. */ }
     }, io);
   }
 
@@ -112,7 +113,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem,
     // Progress goes to the same short log as failures, so a stalled publisher shows how far it got.
     say(line) { io.err(line); },
-    err(line) { try { appendFileSync(log, `${new Date().toISOString()} ${String(line).trim()}\n`, { mode: 0o600 }); } catch { /* No log is no worse than none. */ } },
+    err(line) { try { fs.appendFile(log, `${new Date().toISOString()} ${String(line).trim()}\n`, { mode: 0o600 }); } catch { /* No log is no worse than none. */ } },
   };
 
   /**
@@ -123,7 +124,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const quiet = checkpointQuietMs();
     for (;;) {
       // Refresh the claim, so a scheduler never takes this live publisher for a dead one.
-      try { utimesSync(pid, new Date(), new Date()); } catch { /* A removed claim is re-made by the next pass. */ }
+      try { fs.utimes(pid, new Date(), new Date()); } catch { /* A removed claim is re-made by the next pass. */ }
       const moved = lastMove();
       const movePending = lastCovered() < moved;
       // An earlier publisher already covered this move and answered every check: nothing to send.
@@ -133,7 +134,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       if (wait > 0) { await new Promise(next => setTimeout(next, wait)); continue; }
       if (movePending) {
         io.say(`publishing for the move at ${new Date(moved).toISOString()}`);
-        if (await publishFrom()) writeFileSync(done, `${moved}\n`, { mode: 0o600 });
+        if (await publishFrom()) writePrivate(done, `${moved}\n`);
         io.say('published');
         if (lastMove() === moved && !checkWanted()) return moved;
       } else {
