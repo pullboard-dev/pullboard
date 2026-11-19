@@ -1,4 +1,3 @@
-/** @pullboard-module-loads packages/items/src/logic/stop-reason.js */
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
 export { criterionSize, defaultItemRoute, shapeRoute } from './src/logic/size.js';
 export { itemCollisionPlan } from './src/io/planning.js';
@@ -81,10 +80,3 @@ export { ITEM_MARKER_FILE, itemFolderIdentity, itemFolderPath, writeItemMarker }
 export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
 export { canonicalVendorFamily, vendorOfModel } from './src/logic/vendors.js';
 export { predictedFiles, requireFileLease, fileMiss } from './src/logic/lease.js';
-
-/** The stop reason module, named by a computed path so status and next never load it; it loads at the first call [C7,#11242]. */
-const STOP_REASON = './src/logic/stop' + '-reason.js';
-/** Stop facts from an item thread, read from moves alone; loads its module on first call [C7,#11242]. */
-export async function stopFacts(thread, options) { return (await import(STOP_REASON)).stopFacts(thread, options); }
-/** The stop reason for those facts; loads its module on first call like stopFacts [C7,#11242]. */
-export async function stopReason(facts) { return (await import(STOP_REASON)).stopReason(facts); }
