@@ -1,0 +1,23 @@
+{
+ "order": 8,
+ "name": "jobs",
+ "kind": "package",
+ "root": "packages/jobs",
+ "frontDoor": "packages/jobs/index.js",
+ "lightFrontDoor": "packages/jobs/light.js",
+ "paths": [],
+ "reexports": [],
+ "imports": [
+  {"cell":"kernel","imports":4,"before":true}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": 0,
+  "shims": 0,
+  "boundaries": 0,
+  "strays": 0,
+  "documents": 0,
+  "cyclesIfUncut": 0,
+  "assetReads": 0
+ }
+}
