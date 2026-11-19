@@ -29,7 +29,7 @@ export const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);
  */
 function stepInMessage(message) {
   const line = String(message).split('\n')[0];
-  const match = /(?:^|; |\. |: )((?:run|install|upgrade|fix|restore|commit|merge|test|check out|set|give|use|reject|ask your coordinator|answer from the main checkout|the coordinator(?= (?:runs?|sets?|restores?|either|must)\b)|to keep looking|never work around)\b.*)/i.exec(line);
+  const match = /(?:^|; |\. |: )((?:run|install|upgrade|fix|restore|commit|merge|test|check out|set|give|use|reject|git push|git fetch|push|claim|start|submit|ask your coordinator|answer from the main checkout|the coordinator(?= (?:runs?|sets?|restores?|either|must)\b)|to keep looking|never work around)\b.*)/i.exec(line);
   const step = match?.[1];
   // UNKNOWN_MOVE contains a documentation placeholder, not a supported reason value.
   return step && !/--reason\s+CODE\b/u.test(step) ? step : undefined;
