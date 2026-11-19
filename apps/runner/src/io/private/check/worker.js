@@ -1,5 +1,6 @@
 /** Collect private command output through pipes; dependency files are never size-limited [V18,V2]. */
 import { spawn } from 'node:child_process';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 import {
   captureTestRuntimes,
   executionEnvironment,
@@ -41,7 +42,7 @@ function capture(chunk) {
   }
 }
 
-const runtimes = captureTestRuntimes(process.env);
+const runtimes = captureTestRuntimes(environmentAdapter().all());
 const child = spawn('sh', ['-c', `(\n${command}\n) 2>&1`], { detached: true, env: runtimes.env, stdio: ['ignore', 'pipe', 'pipe'] });
 if (child.pid) writeFileSync(pidFile, String(child.pid), { mode: 0o600 });
 
