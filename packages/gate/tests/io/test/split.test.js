@@ -81,9 +81,9 @@ test('gate.io-test-split.a-split-moves-every-per-file: a split moves every per-f
     assert.deepEqual(data('pullboard.json').lanes.view.owns, ['apps/view/', OLD, NEW, HELPER], 'the owning lane keeps every piece');
     assert.deepEqual(data('pullboard.json').lanes.core.owns, ['apps/'], 'a lane that never named the file is untouched');
     const baseline = readCellLintBaseline(root);
-    assert.deepEqual(baseline.metrics.fileSize.allowances, { [NEW]: 120, 'apps/big.js': 40 }, 'file size is measured per file; the cell delta for the old file is dropped');
-    assert.deepEqual(baseline.metrics.boundaries.allowances, { [`${OLD}->apps/x.js`]: 1, [`${NEW}->apps/x.js`]: 1 }, 'edges are measured per file and stale ones go');
-    assert.deepEqual(baseline.metrics.strays.allowances, {}, 'a stray the lint no longer finds is removed');
+    assert.deepEqual({ ...baseline.metrics.fileSize.allowances }, { [NEW]: 120, 'apps/big.js': 40 }, 'file size is measured per file; the cell delta for the old file is dropped');
+    assert.deepEqual({ ...baseline.metrics.boundaries.allowances }, { [`${OLD}->apps/x.js`]: 1, [`${NEW}->apps/x.js`]: 1 }, 'edges are measured per file and stale ones go');
+    assert.deepEqual({ ...baseline.metrics.strays.allowances }, {}, 'a stray the lint no longer finds is removed');
     assert.equal(baseline.metrics.fileSize.count, 160, 'the index count is the sum of its allowances');
     assert.ok(written.includes(`${LINTS}/index.json`) && written.includes(`${LINTS}/cells/demo.json`), 'the index and cell deltas are rebound');
     assert.ok(rows.every(row => !row.rose), 'no budget rose');
