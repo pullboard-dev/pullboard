@@ -23,5 +23,3 @@ export { landingPermit, permitPushOptions, readPermitOptions, trunkPushVerdict }
 export { runTrunkGuard, trunkGuardMain } from "./src/io/trunk/guard.js";
 export { installTrunkGuard, landingGuardKey, ensureLandingGuardKey } from "./src/io/trunk/install.js";
 export * from "./src/io/enter.js";
-/** Create or refresh the detached review clone at a commit; the module loads here, at the call, so cold paths that load this door never pay for it [C7]. */
-export async function reviewFolder(...args) { return (await import('./src/io/review-folder.js')).reviewFolder(...args); }
