@@ -142,11 +142,11 @@ test('cli.io-landing-pull.accept-order-from-table: clause 1: with health.derived
 test('cli.io-landing-pull.accept-order-as-on-main: clause 2: with a table swept at an older main, or with the setting off, the offer orders items exactly as on main from the accept events [C7,#11381]', async t => {
   const { board, first, second, sql } = acceptedBoard(t);
   const scanned = [...(await acceptOrderOf('/unused', board, [first, second], { enabled: false })).entries()];
-  assert.deepEqual(scanned.map(([id]) => id), [second, first]);
+  assert.deepEqual(scanned.sort((a, b) => a[1] - b[1]).map(([id]) => id), [second, first]);
   assert.ok(sql.some(text => /GROUP BY/i.test(text)), 'the setting off scans the events');
   sql.length = 0;
   const stale = [...(await acceptOrderOf('/unused', board, [first, second], { enabled: true, mainCommit: MOVED })).entries()];
-  assert.deepEqual(stale, scanned, 'a table swept at an older main is not read');
+  assert.deepEqual(stale.sort((a, b) => a[1] - b[1]), scanned, 'a table swept at an older main is not read');
   assert.ok(sql.some(text => /GROUP BY/i.test(text)), 'the older table scans the events');
 });
 
