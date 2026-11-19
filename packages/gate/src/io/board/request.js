@@ -52,8 +52,6 @@ const EXTRA_REQUEST_BLOCKERS = Object.freeze({
  * inside a request froze the board API for 10 hours on 12 Nov [#6718].
  */
 export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
-  'apps/relay/src/io/retention.js#backupFiles': 'relay retention lists its backup files with a whole-directory synchronous read',
-  'apps/relay/src/io/retention.js#createRelayRetention': 'relay retention lists its backup folder with a whole-directory synchronous read',
   'packages/activity/src/io/inbox.js#gitPaths': 'state read lists claim worktree files with synchronous git',
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
