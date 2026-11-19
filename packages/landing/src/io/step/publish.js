@@ -23,7 +23,7 @@ import { repoInfo } from '../../../../git/index.js';
 import { sameCommonDir } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { untracked } from '../../../../git/index.js';
-import { isStampedGreen } from '../../../../gate/index.js';
+import { isStampedGreen } from '../../../../gate/heavy.js';
 import { Refused } from '../../../../kernel/index.js';
 import { save } from './merge.js';
 import { exactTreeRecord } from './merge.js';
