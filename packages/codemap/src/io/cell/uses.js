@@ -4,9 +4,6 @@ import { serialize } from 'node:v8';
 import { types } from 'node:util';
 /** Compile mutations to distinguish actual identifier reads from property spelling, never executing code [CD62,C7]. */
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
 import { commonJsWithCompiler } from '../../../../kernel/index.js';
@@ -15,11 +12,9 @@ import { storedCompilations } from '../parsed.js';
 import { foreignNodeOptions } from '../../../../kernel/index.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
-import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../../kernel/light.js';
 
-const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs';
-const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
+const COMPILER = `import vm from 'node:vm'; process.stdin.setEncoding('utf8'); let text=''; for await (const chunk of process.stdin) text+=chunk;
+const sources=JSON.parse(text);
 process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextModule(source);return true;}catch{return false;}})));`;
 
 /**
@@ -39,22 +34,18 @@ function compiles(sources) {
 
 /** Compile in a fresh child with no stored result consulted; a loaded machine gets one load-scaled retry. */
 function compileFresh(sources) {
-  const directory = mkdtempSync(join(scratchBase(), 'pullboard-cell-bindings-'));
-  try {
-    const file = join(directory, 'sources.json');
-    writeFileSync(file, JSON.stringify(sources));
-    const args = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', COMPILER, file];
-    const run = timeout => spawnSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 2 ** 24, timeout, killSignal: 'SIGKILL' });
-    let result = run(10_000);
-    if (result.error?.code === 'ETIMEDOUT') {
-      const load = loadavg()[0], cores = availableParallelism();
-      const timeout = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
-      result = run(timeout);
-      if (result.error?.code === 'ETIMEDOUT') throw Object.assign(new Error(`cell binding compiler timeout after retry (${timeout} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
-    }
-    if (result.status !== 0) throw new Error('cell binding compiler setup failed: ' + (result.error?.message ?? result.stderr));
-    return JSON.parse(result.stdout);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  const input = JSON.stringify(sources);
+  const args = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', COMPILER];
+  const run = timeout => spawnSync(process.execPath, args, { encoding: 'utf8', input, maxBuffer: 2 ** 24, timeout, killSignal: 'SIGKILL' });
+  let result = run(10_000);
+  if (result.error?.code === 'ETIMEDOUT') {
+    const load = loadavg()[0], cores = availableParallelism();
+    const timeout = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
+    result = run(timeout);
+    if (result.error?.code === 'ETIMEDOUT') throw Object.assign(new Error(`cell binding compiler timeout after retry (${timeout} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
+  }
+  if (result.status !== 0) throw new Error('cell binding compiler setup failed: ' + (result.error?.message ?? result.stderr));
+  return JSON.parse(result.stdout);
 }
 
 /** Fence every uncertain slash line; a valid regular expression cannot cross any ECMAScript LineTerminator. */
