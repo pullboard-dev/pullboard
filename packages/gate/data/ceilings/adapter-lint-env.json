@@ -160,6 +160,5 @@
     "packages/verify/src/io/evidence.js": 1,
     "packages/verify/src/io/proof/derived.js": 1,
     "packages/verify/src/io/review/packet.js": 1
-  },
-  "total": 522
+  }
 }
