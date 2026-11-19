@@ -6,6 +6,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../../../../../packages/store/index.js';
 import { reviewReleaseReasonsRequired } from '../../../../../packages/config/index.js';
 import { releaseStaleItemRevision } from '../../../../../packages/config/index.js';
+import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
@@ -127,6 +128,11 @@ export async function run(io, args) {
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
   const review = await ordered(ctx, board, 'release', args);
+  // With gate.endStaleJobs on, a released item's offered gate job and open shards end: a free item has no candidate that can land [C7,#12036].
+  if (!review && endStaleJobsEnabled()) {
+    const { endStaleGateJobs, queueFor } = await import('../../../../../packages/api/index.js');
+    endStaleGateJobs(queueFor(board, me.id, { file: ctx.file })?.runs?.db ?? board.db, { item: idArg(first), enabled: true, reason: 'the item was released' });
+  }
   cleanItemFolders(ctx, board, me);
   if (!review && ctx.config.worktreeMaintenance?.enabled === true) {
     const { cleanupMaintenanceLifecycle } = await import('../worktree/maintenance/command.js');
