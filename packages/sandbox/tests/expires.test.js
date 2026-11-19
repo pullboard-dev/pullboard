@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../store/index.js';
 import { heartbeatSeat } from '../../store/index.js';
+import { cellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { fixture } from './fixtures/ports.js';
 import { take } from './fixtures/ports.js';
 
@@ -23,7 +24,7 @@ async function offeredTo(box) {
 }
 
 test('sandbox.expires.routed-elsewhere-live-seat-excluded: clause 1: a ROUTED_ELSEWHERE release stays excluded while its seat is live and is offered again once the session is gone [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const id = giveBack(box, 'Routed to a live seat', 'ROUTED_ELSEWHERE');
   box.advance(31 * 60_000);
   assert.notEqual(await offeredTo(box), id, 'the seat last beat 31 minutes ago: its session still holds the item');
@@ -32,7 +33,7 @@ test('sandbox.expires.routed-elsewhere-live-seat-excluded: clause 1: a ROUTED_EL
 });
 
 test('sandbox.expires.routed-elsewhere-gone-folder-offered: clause 1: a ROUTED_ELSEWHERE release is offered again once the releasing seat folder is gone [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const id = giveBack(box, 'Routed to a seat whose folder goes', 'ROUTED_ELSEWHERE');
   box.advance(31 * 60_000);
   heartbeatSeat(box.board, box.seats.actor.id);
@@ -42,7 +43,7 @@ test('sandbox.expires.routed-elsewhere-gone-folder-offered: clause 1: a ROUTED_E
 });
 
 test('sandbox.expires.blocked-no-list-cooldown: clause 1: a BLOCKED release with no blocker list is offered again after the cooldown [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const id = giveBack(box, 'Blocked with no list', 'BLOCKED');
   box.advance(31 * 60_000);
   assert.notEqual(await offeredTo(box), id, 'inside the cooldown');
@@ -51,7 +52,7 @@ test('sandbox.expires.blocked-no-list-cooldown: clause 1: a BLOCKED release with
 });
 
 test('sandbox.expires.blocked-unlanded-blocker-excluded: clause 1: a BLOCKED release naming an unlanded blocker stays excluded until the blocker lands [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const blocker = box.add('Unlanded blocker');
   const id = giveBack(box, 'Blocked on a named item', 'BLOCKED', { blockedOn: [blocker] });
   box.advance(24 * 60 * 60_000);
