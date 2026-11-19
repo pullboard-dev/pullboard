@@ -10,8 +10,16 @@ import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtur
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
+let landed = null;
+
+/** Land one verified item once for both clauses, since a landing is the slow step of this journey. Why: two landings took the whole file past its time limit. */
+function landOne() {
+  landed ??= landOneItem();
+  return landed;
+}
+
 /** Land one verified item through the landing step with landing.runnerOnlyCompose on, as `land` offers and a runner settles it. */
-async function landOne() {
+async function landOneItem() {
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject();
   // The commit (with test.inProcessHooks on), submit and accept run in this process, and the machine turns the setting on [C7,#8993].
