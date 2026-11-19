@@ -167,3 +167,21 @@ test('fs.adapter.fake-records-changes: clause 2: a fake source records each call
   ]);
   assert.equal(existsSync('/never'), false);
 });
+
+test('fs.io-fs.write-file-passes-options: clause 1: writeFile with a mode option calls writeFileSync with that options object [C7]', () => {
+  const calls = [];
+  const fs = fileSystemAdapter({ writeFileSync: (...args) => { calls.push(args); } });
+  const options = { mode: 0o600 };
+  fs.writeFile('/secret', 'data', options);
+  fs.writeFile('/plain', 'data');
+  assert.equal(calls[0][2], options);
+  assert.deepEqual(calls[0].slice(0, 2), ['/secret', 'data']);
+  assert.deepEqual(calls[1], ['/plain', 'data']);
+});
+
+test('fs.io-fs.chown: clause 2: chown calls chownSync with the path, uid and gid [C7]', () => {
+  const calls = [];
+  const fs = fileSystemAdapter({ chownSync: (...args) => { calls.push(args); return 'done'; } });
+  assert.equal(fs.chown('/file', 501, 20), 'done');
+  assert.deepEqual(calls, [['/file', 501, 20]]);
+});
