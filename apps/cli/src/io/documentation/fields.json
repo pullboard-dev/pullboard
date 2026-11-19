@@ -32,6 +32,10 @@
     "Unrecognized trailing fields; spec check reports them."
   ],
   [
+    "`stakes`",
+    "Optional row stakes: low, team or critical."
+  ],
+  [
     "`section`",
     "Containing ## heading."
   ],
