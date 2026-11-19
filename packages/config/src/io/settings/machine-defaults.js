@@ -21,6 +21,7 @@ export const MACHINE_DEFAULTS = {
   'census.selfTune': false,
   'census.skipUnchanged': false,
   'census.soloFileSeconds': null,
+  'claim.checkCeiling': false,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'docs.regenerateOnCommit': false,
