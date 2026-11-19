@@ -6,11 +6,8 @@ import {
   cellReaddirSync,
   cellSourceSnapshot,
 } from '../snapshot.js';
-import { mkdirSync } from 'node:fs';
-import { rmdirSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { CELL_METRICS } from '../lints.js';
 import { cellLintGrowth } from './ratchet.js';
 import { validateCellLintBaseline } from './ratchet.js';
@@ -22,6 +19,7 @@ import {
 import { Refused } from '../../../../../kernel/index.js';
 import { storeName } from '../../store-names.js';
 
+const fs = fileSystemAdapter();
 const MAP_DIRECTORY = 'packages/codemap/data/plan/path-map';
 const SHARD_DIRECTORY = 'packages/codemap/data/baselines/lints/cells';
 const DESCRIPTOR = 'packages/codemap/data/baselines/lints/index.json';
@@ -146,19 +144,19 @@ export function readCellLintCellBaseline(root, base) {
 /** Publish only per-cell shard files; a refused verification restores the exact prior bytes. */
 export function writeCellLintCellBaseline(root, base, target, verify) {
   const files = cellLintCellFiles(root, base, target), directory = join(root, SHARD_DIRECTORY);
-  mkdirSync(directory, { recursive: true });
+  fs.mkdir(directory, { recursive: true });
   const lock = join(directory, '.write-lock');
-  mkdirSync(lock);
+  fs.mkdir(lock);
   const before = new Map();
   try {
     readCellLintCellBaseline(root, base);
     for (const file of files.keys()) if (cellExistsSync(join(root, file))) before.set(file, cellReadFileSync(join(root, file)));
-    for (const [file, bytes] of files) if (!before.has(file) || !before.get(file).equals(Buffer.from(bytes))) writeFileSync(join(root, file), bytes);
+    for (const [file, bytes] of files) if (!before.has(file) || !before.get(file).equals(Buffer.from(bytes))) fs.writeFile(join(root, file), bytes);
     const combined = readCellLintCellBaseline(root, base);
     if (JSON.stringify(combined) !== JSON.stringify(target) || !verify()) throw new Refused('CELL_BASELINE', 'per-cell baseline differs from the planned literal inventory');
   } catch (error) {
-    for (const [file, bytes] of before) writeFileSync(join(root, file), bytes);
-    for (const file of files.keys()) if (!before.has(file) && cellExistsSync(join(root, file))) unlinkSync(join(root, file));
+    for (const [file, bytes] of before) fs.writeFile(join(root, file), bytes);
+    for (const file of files.keys()) if (!before.has(file) && cellExistsSync(join(root, file))) fs.unlink(join(root, file));
     throw error;
-  } finally { rmdirSync(lock); }
+  } finally { fs.rmdir(lock); }
 }

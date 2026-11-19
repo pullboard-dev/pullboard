@@ -28,6 +28,7 @@ import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingNumber } from '../../../../../packages/drive/index.js';
 import { runnerSettingOn } from '../../../../../packages/drive/index.js';
 import { machineSettingsFile } from '../../../../../packages/resources/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
@@ -42,6 +43,7 @@ import { pulledProfilePathsEnabled } from '../../../../../packages/config/index.
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { issueRunnerKey } from '../../../../../packages/runners/index.js';
 import { revokeRunnerKey } from '../../../../../packages/runners/index.js';
 import {
@@ -77,7 +79,7 @@ function toolchainLine(host, problem) {
 }
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */
-export async function runnerCommand(io, { first, second, rest, values }) {
+export async function runnerCommand(io, { first, second, rest, values }, { serve = serveRunner } = {}) {
   if (first === 'list') {
     if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner list');
     // Registered capacity is what each runner enforces, whatever its own settings say (#1066).
@@ -143,12 +145,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs), { atomic, logEvent });
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
-    const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
+    const served = await serve({ board: second, key: values.key ?? environmentAdapter().get('PULLBOARD_BOARD_KEY'), runner: values.as,
       ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
-      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled() })
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled(),
+      jobWorkerFactor: runnerSettingNumber(machineSettingsFile(), 'runners.jobWorkerFactor', 2) })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
@@ -166,7 +169,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const runner = (loadMachineSettings().runners ?? []).find(entry => entry.host === second);
     if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${second} is not registered`, 'run pullboard runner add <ssh-host>');
     // The key: the flag, the URL's own ?k=, the runner environment's variable, or this machine's board key when it serves the board.
-    const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? process.env.PULLBOARD_BOARD_KEY
+    const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? environmentAdapter().get('PULLBOARD_BOARD_KEY')
       ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
     const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
@@ -274,7 +277,7 @@ export function run(io, args) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
  */
-export function itemFolderRunner(env = process.env) {
+export function itemFolderRunner(env = environmentAdapter().all()) {
   const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
   if (!host) return null;
   const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);
@@ -290,7 +293,7 @@ export function itemFolderRunner(env = process.env) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {Promise<string>} The folder as host:path.
  */
-export async function openHostedItemFolder(runner, { itemId, branch, commonDir, hooksPath }, env = process.env) {
+export async function openHostedItemFolder(runner, { itemId, branch, commonDir, hooksPath }, env = environmentAdapter().all()) {
   const hosted = await createHostedItemFolder(runner, { itemId, origin: env.PULLBOARD_ITEM_FOLDER_ORIGIN?.trim() || commonDir,
     branch, ...(hooksPath ? { hooksPath } : {}) });
   return `${hosted.host}:${hosted.folder}`;
