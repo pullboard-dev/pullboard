@@ -3,16 +3,13 @@ import { busyRefusal } from "./read/light.js";
 /** Name a board this process cannot write, such as one inside a read-only agent sandbox [I1,P4]. */
 import { randomUUID } from 'node:crypto';
 import {
-  closeSync,
-  openSync,
-  unlinkSync,
-} from 'node:fs';
-import {
   dirname,
   join,
 } from 'node:path';
 import { AGENT_SHELL_MARKERS } from "../../../../kernel/light.js";
 import { Refused } from "../../../../kernel/light.js";
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** The markers a Codex session sets; its sandbox needs the board folder named to Codex itself. */
 const CODEX_MARKERS = AGENT_SHELL_MARKERS.filter((name) => name.startsWith('CODEX_'));
@@ -48,11 +45,11 @@ export function boardNotWritable(file, error, environment = process.env) {
  */
 export function requireBoardWriteAccess(file) {
   try {
-    const board = openSync(file, 'r+');
-    closeSync(board);
+    const board = fileSystem.open(file, 'r+');
+    fileSystem.close(board);
     const probe = join(dirname(file), `.write-access-${randomUUID()}`);
-    const handle = openSync(probe, 'wx', 0o600);
-    try { closeSync(handle); } finally { unlinkSync(probe); }
+    const handle = fileSystem.open(probe, 'wx', 0o600);
+    try { fileSystem.close(handle); } finally { fileSystem.unlink(probe); }
   } catch (error) {
     throw boardNotWritable(file, error);
   }

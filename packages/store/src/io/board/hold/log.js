@@ -1,13 +1,8 @@
 /** Machine-local observations of actual SQLite holds, never native board or replay state [C7,P4]. */
-import { constants } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { processMachineHome as machineHome } from '../../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 export const BOARD_HOLD_MS = 1_000;
 /** The machine setting that records every write hold, not only those over a second; off unless set to 1 [C7]. */
@@ -40,9 +35,9 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
   let fd;
   try {
     const directory = machineHome();
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-    fd = openSync(allWrites ? boardWritesLog() : boardHoldLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
-    if (!fstatSync(fd).isFile()) throw new Error('hold log is not a regular file');
+    fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
+    fd = fileSystem.open(allWrites ? boardWritesLog() : boardHoldLog(), fileSystem.constants.O_WRONLY | fileSystem.constants.O_APPEND | fileSystem.constants.O_CREAT | fileSystem.constants.O_NOFOLLOW, 0o600);
+    if (!fileSystem.fstat(fd).isFile()) throw new Error('hold log is not a regular file');
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
       heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs), pid: Number.isSafeInteger(pid) && pid > 0 ? pid : null } : {}), outcome: label(outcome, 'released'),
@@ -52,13 +47,13 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
       // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
       move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,
       stepMs: phase === 'native-move' && Number.isFinite(stepMs) && stepMs >= 0 ? Math.round(stepMs) : null };
-    writeSync(fd, JSON.stringify(row) + '\n');
+    fileSystem.write(fd, JSON.stringify(row) + '\n');
   } catch {
-    try { writeSync(2, 'pullboard: board hold log unavailable; original transaction outcome retained\n'); }
+    try { fileSystem.write(2, 'pullboard: board hold log unavailable; original transaction outcome retained\n'); }
     catch { /* A closed diagnostic stream cannot change the original outcome either. */ }
   } finally {
     if (fd !== undefined) {
-      try { closeSync(fd); }
+      try { fileSystem.close(fd); }
       catch { /* Closing an optional log must preserve the committed move or original refusal. */ }
     }
   }
@@ -68,11 +63,11 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
 function retainedHolds(file = boardHoldLog()) {
   let fd;
   try {
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd);
+    fd = fileSystem.open(file, fileSystem.constants.O_RDONLY | fileSystem.constants.O_NOFOLLOW);
+    const stat = fileSystem.fstat(fd);
     if (!stat.isFile()) throw new Error('hold log is not a regular file');
     const start = Math.max(0, stat.size - MAX_READ_BYTES), buffer = Buffer.alloc(stat.size - start);
-    const count = readSync(fd, buffer, 0, buffer.length, start);
+    const count = fileSystem.read(fd, buffer, 0, buffer.length, start);
     let text = buffer.subarray(0, count).toString('utf8');
     if (start) text = text.slice(text.indexOf('\n') + 1);
     return { text, truncated: start > 0, available: true };
@@ -80,7 +75,7 @@ function retainedHolds(file = boardHoldLog()) {
     return { text: '', truncated: false, available: false, missing: error.code === 'ENOENT' };
   } finally {
     if (fd !== undefined) {
-      try { closeSync(fd); }
+      try { fileSystem.close(fd); }
       catch { /* Reading diagnostic history does not own a board move. */ }
     }
   }
