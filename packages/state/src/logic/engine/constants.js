@@ -2,6 +2,7 @@ import * as self from './constants.js';
 import { engineNumber } from './number.js';
 /** Every engine number and ENGINE_VERSION without the machine declaration or the defaults, so cold doors stay small [C7,H16]. */
 export const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
+export const NEEDS_ENGINE = engineNumber('NEEDS_ENGINE');
 export const ACCEPTED_RELAND_ENGINE = engineNumber('ACCEPTED_RELAND_ENGINE');
 export const ACTIVITY_DELIVERY_ENGINE = engineNumber('ACTIVITY_DELIVERY_ENGINE');
 export const ACTIVITY_NEWS_ENGINE = engineNumber('ACTIVITY_NEWS_ENGINE');

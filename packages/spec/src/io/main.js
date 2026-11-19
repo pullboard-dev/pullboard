@@ -426,7 +426,8 @@ export function frozenCriterion(spec, item, doctrine = null) {
     const row = namespace === 'doctrine'
       ? doctrine.rows.find((entry) => entry.id === rawId)
       : spec.rows.find((entry) => entry.id === rawId);
-    return { id, text: row.text, gate: row.gate };
+    // Stakes ride in the freeze only when they are not team, so a team row (written or by default) freezes to the bytes it always did [C7,#11412].
+    return { id, text: row.text, gate: row.gate, ...(row.stakes && row.stakes !== 'team' ? { stakes: row.stakes } : {}) };
   });
   const check = item.item_check ? { check: item.item_check } : {};
   const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, ...check, ...(item.item_check_timing === true ? { checkTiming: true } : {}), rows });
