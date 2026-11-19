@@ -118,13 +118,13 @@ function shardsBeforeTests(ordered, aged) {
 // Budget: a gate job offered this long before the claim moves ahead of gate shards and test jobs, so gate analysis is not starved behind a shard backlog [C7,#11873].
 const GATE_JOB_AGED_MS = 5 * 60_000;
 
-/** The claim order with gate jobs offered gateAgedMs or more before this claim moved ahead of everything but the landing jobs; each group keeps its age order. */
+/** The claim order with gate jobs offered gateAgedMs or more before this claim moved ahead of everything but the landing jobs and pre-push shards; each group keeps its age order. */
 function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
   const isAged = ({ row }) => row.job_kind === 'gate' && row.job_created <= now - gateAgedMs;
   if (!ordered.some(isAged)) return ordered;
-  const isLand = ({ row }) => row.job_kind === 'land';
-  const rest = ordered.filter(entry => !isAged(entry) && !isLand(entry));
-  return [...ordered.filter(isLand), ...ordered.filter(isAged), ...rest];
+  const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
+  const rest = ordered.filter(entry => !isAged(entry) && !isFirst(entry));
+  return [...ordered.filter(isFirst), ...ordered.filter(isAged), ...rest];
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
