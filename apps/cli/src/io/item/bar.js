@@ -5,6 +5,7 @@ import { trunkBranch } from './folder.js';
 import { laneOf } from '../../../../../packages/seats/index.js';
 import { isConfigFile } from '../../../../../packages/config/browser.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
+import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 
 /** The coordinator's lane and seat id: laneOf names it for every path no lane owns. */
 export const COORDINATOR = 'coordinator';
@@ -157,11 +158,11 @@ export function coordinatorPaths(config, item, options) {
  * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
  *
  * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
+ * @param {{ prose?: boolean, check?: boolean }} [options] - `check: false` leaves the check's paths out but keeps its lane-folder scope.
  * @returns {string[]}
  */
-export function barPaths(item, { prose = true } = {}) {
-  const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
+export function barPaths(item, { prose = true, check = true } = {}) {
+  const named = [...(prose ? pathTokens(item.criterion) : []), ...(check ? pathTokens(item.check) : []), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
   // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
   const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
   const scoped = scope ? named.map(path => (isConfigFile(path) || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
@@ -181,4 +182,24 @@ export function requireNoCoordinatorPath(config, me, item, options) {
   if (!paths.length) return;
   throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,
     splitAdvice(item.lane, item.title, paths));
+}
+
+/**
+ * Refuse a claim of a lane item whose brief Files list names a path no lane owns, on every claim route (claim, next, run),
+ * judged by the lanes in main's committed config [C7,#11857].
+ * Why: the check read the criterion and check too, so a bar naming a file the builder only reads (a vendored cell, a contract)
+ * refused every claim; and explicit claim read the seat folder's own config while next skipped the check, so seats disagreed.
+ * The Files list is what the item changes; a cited spec row's text in the criterion never adds a path.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {number} id
+ * @param {string} agentId The claiming seat.
+ * @param {object} accepted Main's committed config, as mainPolicy reads it.
+ */
+export function refuseClaimCrossOwnership(ctx, board, id, agentId, accepted) {
+  const item = board.nativePorts.getItem(board, id);
+  if (!item || outsideBuildProblem(board, item)) return;
+  requireNoCoordinatorPath(accepted, { id: agentId }, { lane: item.item_lane, title: item.item_title, check: item.item_check, brief: item.item_brief },
+    { prose: false, check: false, present: onTrunk(ctx.info.root) });
 }
