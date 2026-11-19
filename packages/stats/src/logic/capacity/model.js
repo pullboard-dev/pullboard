@@ -486,9 +486,9 @@ export function capacityLines(planner) {
   function show(value) { return typeof value === 'number' && Number.isFinite(value) ? String(Math.round(value * 100) / 100) : 'unknown'; }
   const needs = Array.isArray(planner.needsYou) ? planner.needsYou : null;
   return [`Max useful agents now: ${show(planner.agents.recommended)} (${show(planner.agents.lower)}-${show(planner.agents.upper)}).`,
+    ...(Number.isSafeInteger(planner.readyWidth) ? [`${planner.readyWidth} ${planner.readyWidth === 1 ? 'item can' : 'items can'} be built at once now.`] : []),
     typeof planner.finishHours.lower === 'number' && typeof planner.finishHours.upper === 'number'
       ? `Finish in about ${show(planner.finishHours.lower)}-${show(planner.finishHours.upper)} h.` : 'Finish time: unknown.',
-    ...(Number.isSafeInteger(planner.readyWidth) ? [`${planner.readyWidth} ${planner.readyWidth === 1 ? 'item can' : 'items can'} be built at once now.`] : []),
     `Binding: ${planner.binding.kind}. ${planner.binding.text}`, `Lever: ${planner.lever.text}`,
     needs ? `${needs.length} items lack recorded approval evidence${needs.length ? `: ${needs.slice(0, 5).map(id => `#${id}`).join(', ')}${needs.length > 5 ? ` +${needs.length - 5} more` : ''}` : ''}.` : 'Approval evidence count: unknown.',
     ...(planner.staffing?.measuredLive === false ? [`Forecast assumes ${planner.staffing.seats} available seats from recent activity; live presence is unknown.`] : []),
