@@ -82,6 +82,7 @@ const BEFORE = {
   'gate.refuseTempWorktree': false,
   'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
+  'gate.retryNewRedsOnce': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300000,

@@ -1,10 +1,10 @@
-/** Print an item's code map slice after a claim, only when the board's map.slice setting is on [1203]. */
+/** Print an item's code map slice after a claim when the board's map.slice setting is on, else one line naming the command [1203]. */
 import { join } from 'node:path';
 import { mainCheckout } from '../../../git/index.js';
 
 /**
- * Say the item's one-hop code map slice when `map.slice` is true in pullboard.json. Off by default,
- * so an agent's loop output is unchanged unless the board opts in. The slice is read from the primary
+ * Say the item's one-hop code map slice when `map.slice` is true in pullboard.json. Off by default, it says one
+ * line naming `pullboard map --for <id>` and builds no map, so a builder finds the command without the slice costing every handout. The slice is read from the primary
  * main checkout's cache, so every seat sees the same stamped source, and a missing or dirty main
  * prints one line naming the gap instead of guessing from a stale map.
  *
@@ -15,7 +15,11 @@ import { mainCheckout } from '../../../git/index.js';
  * @returns {Promise<void>}
  */
 export async function sayMapSlice(io, ctx, item, primaryCheckoutRoot) {
-  if (ctx.config.map?.slice !== true || !item) return;
+  if (!item) return;
+  if (ctx.config.map?.slice !== true) {
+    io.say('code map: pullboard map --for ' + item.item_id);
+    return;
+  }
   const root = primaryCheckoutRoot(ctx.info);
   const trunk = root ? mainCheckout(root) : null;
   if (!root || trunk?.branch !== 'refs/heads/main' || !trunk.commit) {
