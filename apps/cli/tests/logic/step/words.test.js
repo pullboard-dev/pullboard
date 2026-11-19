@@ -108,3 +108,24 @@ test('cli.logic-step-words.seat-refusal-table-in-catalog: clause 2: every code i
     assert.ok(Boolean(NEXT_STEPS[code]) || carried, `${code}: ${message.slice(0, 60)} has a catalog row or a step of its own`);
   }
 });
+
+test('cli.logic-step-words.submit-path-steps-named: clause 1: nextStepFor returns the step a submit-path refusal message spells out (push, fetch, claim, start, submit again), never the service-owner fallback [C7,#2331]', () => {
+  const cases = [
+    ['COMMIT_NOT_PUSHED', 'abc123def456 is not pushed to the trunk remote; git push -u origin HEAD, then submit again', 'git push -u origin HEAD, then submit again'],
+    ['NO_MAIN_REF', 'this clone has not fetched the host main; git fetch origin, merge origin/main, push and submit again', 'git fetch origin, merge origin/main, push and submit again'],
+    ['REMOTE_REF_MISMATCH', 'refs/heads/x at the trunk remote is at aaa, which does not contain bbb; push bbb to refs/heads/x and submit again', 'push bbb to refs/heads/x and submit again'],
+    ['COMMITS_REFUSED', 'the board host could not record abc123def456; submit again from the clone', 'submit again from the clone'],
+    ['TEST_NO_CLAIM', 'agent holds 2 claims on the board at board.url; a test receipt records on exactly one; claim one with pullboard claim <id>, or run pullboard next', 'claim one with pullboard claim <id>, or run pullboard next'],
+    ['TEST_JOB_UNCLAIMED', 'no runner took test job j within 30s; start one with pullboard runner serve <board-url>, then run pullboard test again', 'start one with pullboard runner serve <board-url>, then run pullboard test again'],
+  ];
+  for (const [code, message, step] of cases) {
+    const next = nextStepFor({ code }, message);
+    assert.equal(next, step, code);
+    assert.doesNotMatch(next, /service owner/u, code);
+  }
+});
+
+test('cli.logic-step-words.existing-steps-unchanged: clause 2: a clause that began with an existing repair word is still taken, and a message with no step still falls to its NEXT_STEPS row [C7,#2331]', () => {
+  assert.equal(nextStepFor({ code: 'X_CODE' }, 'it broke; run pullboard status'), 'run pullboard status');
+  assert.equal(nextStepFor({ code: 'NOTHING_FREE' }, 'no item is free'), DEFAULT_NEXT_STEPS.NOTHING_FREE);
+});
