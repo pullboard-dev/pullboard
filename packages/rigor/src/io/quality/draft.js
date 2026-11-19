@@ -4,9 +4,9 @@
  * drafts each rule as a Doctrine row through the ordinary draft writer: a draft with a check and
  * a count of 0, never approved here, so nothing is switched on until the person approves it.
  */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDoctrine } from '../../../../doctrine/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import {
   GROWTH_BUDGET,
@@ -16,6 +16,8 @@ import {
   qualityBreaches,
 } from '../quality.js';
 import { draftRow } from '../../../../spec/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The source a drafted quality row carries, so a rerun finds it whatever the person decided. */
 export function qualitySource(key) {
@@ -47,7 +49,7 @@ export function qualityRows(root, config) {
  * @returns {string}
  */
 export function qualityCommand(root, key) {
-  const bin = existsSync(join(root, 'apps/cli/pullboard.js')) && existsSync(join(root, 'packages/rigor/src/io/quality.js')) ? 'node apps/cli/pullboard.js' : 'pullboard';
+  const bin = fs.exists(join(root, 'apps/cli/pullboard.js')) && fs.exists(join(root, 'packages/rigor/src/io/quality.js')) ? 'node apps/cli/pullboard.js' : 'pullboard';
   return `${bin} rigor quality --rule ${key}`;
 }
 

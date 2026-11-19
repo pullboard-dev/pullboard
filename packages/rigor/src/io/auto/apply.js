@@ -1,8 +1,7 @@
 /** Explicitly materialize board proposals before the existing person-only exact-row decision [D1,S1]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDoctrine } from '../../../../doctrine/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   loadSpec,
   insertSectionRows,
@@ -18,14 +17,16 @@ import {
   staleRowDecision,
 } from '../../../../spec/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Where the layout move recorded each old path and the path it became, tab separated. */
 const RENAMES = 'packages/codemap/data/plan/renames.tsv';
 
 /** Rewrite old paths in a draft's prose to their renamed paths; the typed source tail is never touched. */
 function renameDraftText(root, text) {
   const file = join(root, RENAMES);
-  if (!existsSync(file)) return text;
-  const map = new Map(readFileSync(file, 'utf8').split('\n').map(line => line.split('\t'))
+  if (!fs.exists(file)) return text;
+  const map = new Map(fs.readFile(file, 'utf8').split('\n').map(line => line.split('\t'))
     .filter(([from, to]) => from && to && from !== to && text.includes(from)));
   if (!map.size) return text;
   const tail = text.search(/(?:^| )Source: rigor-auto:\S+$/u);
@@ -71,7 +72,7 @@ export function planAutomaticRigorApply(root, config, drafts, decisions = []) {
   }
   const files = [...byTarget].map(([target, entries]) => {
     const file = parsed.get(target);
-    const before = readFileSync(file.file, 'utf8');
+    const before = fs.readFile(file.file, 'utf8');
     const lines = entries.map(draft => `- ${draft.id} [draft, ${draft.tier}] ${draft.text} | gate: ${draft.gate}`);
     const section = file.sections.find(entry => /^RG\s*[·.:-]/u.test(entry.name));
     const after = section ? insertSectionRows(before, file, section, lines)
