@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fitFile } from '../../../blueprints/index.js';
 import { loadConfig } from '../../../config/index.js';
+import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { temporaryRepository } from '../../../store/tests/fixtures/submit.js';
@@ -36,7 +37,7 @@ function commitFile(dir, file, text) {
  * The detail reader over a repository whose accepted item head and main both changed `file`, with a projector standing in
  * for the verify cell that reports stale exactly when the port it is handed names a file.
  */
-function detailOf(t, file, base, ours, theirs) {
+function detailOf(t, file, base, ours, theirs, seen = []) {
   const dir = temporaryRepository(t, 'detail-mechanical-');
   commitFile(dir, file, base);
   git(dir, 'checkout', '-q', '-b', 'item');
@@ -47,6 +48,7 @@ function detailOf(t, file, base, ours, theirs) {
   board.db.prepare("INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'accepted', 'strong', 'open', 'coordinator', ?, ?)").run(STAMP, STAMP);
   const info = repoInfo(dir);
   const projector = (root, _board, { main }, { residualConflicts }) => ({ state: () => {
+    seen.push(residualConflicts);
     const left = residualConflicts(root, main, head);
     return left?.length === 0 ? null : { code: 'STALE_VERDICT', file: left?.[0] ?? null };
   } });
@@ -63,4 +65,11 @@ test('api.detail.mechanical-conflict-keeps-accept-fresh: clause 1: an accepted i
   const real = detailOf(t, 'src/config.js', 'export const a = 1;\n', 'export const a = 2;\n', 'export const a = 3;\n');
   assert.equal(real.verdictState?.code, 'STALE_VERDICT', 'a real source conflict is stale');
   assert.equal(real.verdictState.file, 'src/config.js', 'the stale state names the file');
+});
+
+test('api.detail.mechanical-reader-wired: clause 2: the item detail hands its verdict projector the mechanical conflict reader of the store front door as residualConflicts [C7]', t => {
+  const seen = [];
+  detailOf(t, SHARD, shard([1, 2]), shard([1, 2, 3]), shard([1, 2, 4]), seen);
+  assert.equal(seen.length, 1, 'the projector read one verdict');
+  assert.equal(seen[0], mechanicalConflictFiles, 'the port is the mechanical merge reader');
 });
