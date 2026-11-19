@@ -50,7 +50,7 @@ function modulesLoaded(args, runner = false, extraEnv = {}) {
   return commandLoads(args, runner, extraEnv).loaded;
 }
 
-/** The distinct repo files one cold command loads, with the command's exit code and output, measured as modulesLoaded measures [C7]. */
+/** The distinct repo files one cold command loads, with their file URLs, the command's exit code and output, measured as modulesLoaded measures [C7]. */
 function commandLoads(args, runner = false, extraEnv = {}) {
   const files = privateFixtureFiles('closure-budget-');
   files.write('seen.txt', '');
@@ -99,4 +99,11 @@ test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pu
   const dropped = ['once.js', 'diagnose.js', 'reclaim.js'].map(name => `packages/drive/src/io/${name}`);
   const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
   assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
+});
+
+test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {
+  const run = commandLoads('claim 1');
+  const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;
+  assert.ok(run.urls.size > 0, run.stderr);
+  assert.equal(run.urls.has(spec), false, 'pullboard claim 1 loaded apps/cli/src/io/spec.js: import coordinatorFile from apps/cli/src/io/coordinator-file.js');
 });
