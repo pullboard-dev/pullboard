@@ -1,4 +1,5 @@
 /** The signing boundary: one contract, a real Ed25519 form and a deterministic fake [C7]. */
+import { createPrivateKey } from "node:crypto";
 import { createPublicKey } from "node:crypto";
 import { generateKeyPairSync } from "node:crypto";
 import { sign } from "node:crypto";
@@ -10,24 +11,43 @@ function message(value) {
   return Buffer.from(value, "utf8");
 }
 
-/** The real form: node:crypto Ed25519. A key pair is { publicKey, privateKey } as PEM strings. */
-export function createSigningAdapter() {
+/** Refuse an encoding other than the default PEM form or base64url DER. */
+function encodingOf(options) {
+  const encoding = options?.encoding ?? "pem";
+  if (encoding !== "pem" && encoding !== "der") throw Object.assign(new Error("encoding " + String(encoding) + " is not supported; pass pem or der"), { code: "SIGN_ENCODING" });
+  return encoding;
+}
+
+/** The real form: node:crypto Ed25519. A key pair is { publicKey, privateKey }: PEM strings by default, base64url SPKI and PKCS#8 DER with { encoding: "der" }. */
+export function createSigningAdapter(options) {
+  const der = encodingOf(options) === "der";
+  const format = der ? "der" : "pem";
+  const out = (key, type) => (der ? key.export({ type, format }).toString("base64url") : key.export({ type, format }));
+  const signatureOf = (buffer) => buffer.toString(der ? "base64url" : "base64");
+  const bytesOf = (signature) => Buffer.from(signature, der ? "base64url" : "base64");
+  const privateOf = (key) => (der ? createPrivateKey({ key: Buffer.from(key, "base64url"), format: "der", type: "pkcs8" }) : key);
+  const publicOf = (key) => (der ? createPublicKey({ key: Buffer.from(key, "base64url"), format: "der", type: "spki" }) : createPublicKey(key));
   return Object.freeze({
     generateKeyPair() {
       const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-      return { publicKey: publicKey.export({ type: "spki", format: "pem" }), privateKey: privateKey.export({ type: "pkcs8", format: "pem" }) };
+      return { publicKey: out(publicKey, "spki"), privateKey: out(privateKey, "pkcs8") };
     },
-    sign(privateKey, text) { return sign(null, message(text), privateKey).toString("base64"); },
-    verify(publicKey, text, signature) { return verify(null, message(text), createPublicKey(publicKey), Buffer.from(signature, "base64")); },
+    sign(privateKey, text) { return signatureOf(sign(null, message(text), privateOf(privateKey))); },
+    verify(publicKey, text, signature) { return verify(null, message(text), publicOf(publicKey), bytesOf(signature)); },
   });
 }
 
-/** The fake form: a deterministic table, no crypto; a signature is the public key and the message joined. */
-export function createFakeSigningAdapter() {
+/** The fake form: a deterministic table, no crypto; a signature is the public key and the message joined. With { encoding: "der" } keys and signatures are stable base64url strings. */
+export function createFakeSigningAdapter(options) {
+  const der = encodingOf(options) === "der";
+  const wrap = (text) => (der ? Buffer.from(text).toString("base64url") : text);
+  const unwrap = (text) => (der ? Buffer.from(text, "base64url").toString() : text);
+  const encode = (text) => Buffer.from(text).toString(der ? "base64url" : "base64");
+  const decode = (text) => Buffer.from(text, der ? "base64url" : "base64").toString();
   let count = 0;
   return Object.freeze({
-    generateKeyPair() { count += 1; return { publicKey: "fake-public-" + count, privateKey: "fake-private-" + count }; },
-    sign(privateKey, text) { message(text); return Buffer.from(privateKey.replace("private", "public") + "|" + text).toString("base64"); },
-    verify(publicKey, text, signature) { message(text); return Buffer.from(signature, "base64").toString() === publicKey + "|" + text; },
+    generateKeyPair() { count += 1; return { publicKey: wrap("fake-public-" + count), privateKey: wrap("fake-private-" + count) }; },
+    sign(privateKey, text) { message(text); return encode(unwrap(privateKey).replace("private", "public") + "|" + text); },
+    verify(publicKey, text, signature) { message(text); return decode(signature) === unwrap(publicKey) + "|" + text; },
   });
 }
