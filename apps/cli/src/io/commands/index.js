@@ -9,7 +9,9 @@ import {
   COMMAND_FILE,
   discovered,
 } from '../../../../../packages/kernel/light.js';
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const FOLDER = new URL('./', import.meta.url);
 
@@ -18,7 +20,7 @@ function loader(file) {
   return () => import(new URL(file, FOLDER).href);
 }
 
-export const COMMANDS = Object.fromEntries(discovered(readdirSync(FOLDER), COMMAND_CANDIDATE, COMMAND_FILE, 'command')
+export const COMMANDS = Object.fromEntries(discovered(fs.list(FOLDER), COMMAND_CANDIDATE, COMMAND_FILE, 'command')
   // Sort command names rather than filenames: test.js precedes test-value.js as a command.
   .map((file) => [file.slice(0, -'.js'.length), loader(file)])
   .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));

@@ -6,25 +6,24 @@ import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
 import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
-import {
   resolve,
 } from 'node:path';
 import {
   context,
   withBoard,
 } from '../entry.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Run `pullboard import` and return its exit code. */
 export function run(io, { first, second, rest }) {
   if (!first || second || rest.length) throw new Refused('USAGE', 'pullboard import <file>');
   const file = resolve(io.cwd, first);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no export file ${first}`);
+  if (!fs.exists(file)) throw new Refused('NO_FILE', `no export file ${first}`);
   let document;
   try {
-    document = JSON.parse(readFileSync(file, 'utf8'));
+    document = JSON.parse(fs.readFile(file, 'utf8'));
   } catch {
     throw new Refused('IMPORT_FORMAT', `file ${first} is not a JSON export; use pullboard export to make one`);
   }
