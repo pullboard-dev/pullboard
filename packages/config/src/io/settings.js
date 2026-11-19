@@ -631,6 +631,11 @@ export function strictFullSuiteEnabled() {
   return loadMachineSettings().landing?.strictFullSuite === true;
 }
 
+/** Whether builder advice reaches agents through next instead of shouts (#11703): off by default; only an exact `true` turns it on. */
+export function adviceThroughNextEnabled() {
+  return loadMachineSettings().health?.adviceThroughNext === true;
+}
+
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
 export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
