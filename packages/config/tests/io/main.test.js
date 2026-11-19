@@ -5,6 +5,7 @@ import { configFromSource } from '../../src/io/main.js';
 import { configProblems } from '../../src/io/main.js';
 import { defaults } from '../../src/io/main.js';
 import { loadConfig } from '../../src/io/main.js';
+import { provenBreakRequired } from '../../src/io/main.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -68,4 +69,16 @@ test('config.io-main.commits-quoted-names-is-a-list: clause 1: a config without 
   assert.deepEqual(configFromSource(JSON.stringify({ commits: { quotedNames: ['Sam'] } }), fixtureRepo()).commits.quotedNames, ['Sam']);
   const problems = configProblems({ ...defaults(), commits: { ...defaults().commits, quotedNames: 'Sam' } }, fixtureRepo()).filter(problem => problem.includes('commits.quotedNames'));
   assert.equal(problems.length, 1);
+});
+
+test('config.io-main.proven-break-required: clause 1: provenBreakRequired(config, pace) is true for strict and false for steady and sprint when review.requireProvenBreak is unset, the explicit true or false wins for every pace, and a string value is refused as BAD_CONFIG naming the key [C7]', () => {
+  const unset = defaults();
+  assert.deepEqual(['strict', 'steady', 'sprint'].map(pace => provenBreakRequired(unset, pace)), [true, false, false]);
+  for (const value of [true, false]) {
+    const config = { ...defaults(), review: { ...defaults().review, requireProvenBreak: value } };
+    assert.deepEqual(['strict', 'steady', 'sprint'].map(pace => provenBreakRequired(config, pace)), [value, value, value]);
+  }
+  const bad = { ...defaults(), review: { ...defaults().review, requireProvenBreak: 'yes' } };
+  assert.throws(() => provenBreakRequired(bad, 'strict'), error => error.code === 'BAD_CONFIG' && error.message.includes('review.requireProvenBreak'));
+  assert.ok(configProblems(bad, '.').some(problem => problem.includes('review.requireProvenBreak')));
 });
