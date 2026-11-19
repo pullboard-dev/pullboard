@@ -1,7 +1,7 @@
 /** Runner jobs carry a priority class set at offer; a claim takes the highest class first, keeps each class's reserve, and with no reserve claims as before [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { claimableJobs } from '../../index.js';
 import { createJob } from '../../index.js';
 import { takeJob } from '../../index.js';
