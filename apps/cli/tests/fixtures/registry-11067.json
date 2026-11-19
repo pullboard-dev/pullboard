@@ -1,0 +1,3 @@
+{
+  "cli.flow-tune.json-prints-cycle-and-choice": {"proves": {"specs": ["C7"], "claim": "flow tune --json prints the cycle state and the chooser result from the board windows and changes no setting."}, "why": "Without it the line controller's decision would be unreadable before a person trusts it to move a setting.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/flow.js", "apps/cli/tests/fixtures/e2e.js"]}
+}
