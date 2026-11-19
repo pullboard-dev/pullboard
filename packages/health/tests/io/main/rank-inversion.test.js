@@ -11,7 +11,7 @@ import { reserveItem } from "../../../../store/index.js";
 import { healthReport } from "../../../index.js";
 
 test("health.io-main-rank-inversion.reserved-or-held-claim-is-skipped: clause 1: healthReport raises no RANK_INVERSION for a live claim whose item has item_reservation_holder set or a hold reason, while the same board without either still raises it [C7,#1479]", t => {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile);
   const seat = cellSeat(board, { lane: "web", path: "/fixture/web-1", family: "claude" });
   const file = name => ({ lane: "web", title: name, criterion: "1. The fixture holds [command]", check: "true", brief: `Files: web/${name}.js\nTest: the sentinel scan reads the live queue.` });
