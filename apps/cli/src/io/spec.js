@@ -1,6 +1,5 @@
 import { seatAt } from './item/folder/identity.js';
 /** Helpers for `pullboard spec`: row reservations, citations and current proof. Split from src/cli.js, which re-exports it [C7]. */
-import { existsSync } from 'node:fs';
 import * as store from '../../../../packages/store/index.js';
 import { hookRead } from './support.js';
 import { withBoard } from './context.js';
@@ -13,6 +12,9 @@ import { parseCommitMessage } from '../../../../packages/commits/index.js';
 import { committedIds } from '../../../../packages/store/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export { coordinatorFile } from './coordinator-file.js';
 /**
@@ -22,7 +24,7 @@ export { coordinatorFile } from './coordinator-file.js';
  * no other writer, and the planned id stands.
  */
 export async function reserveRow(ctx, row, written) {
-  if (!existsSync(ctx.file)) return row;
+  if (!fs.exists(ctx.file)) return row;
   return withBoard(ctx, async (board) => ordered(ctx, board, 'draftSpecRow', [{ agentId: seatAt(board, ctx.info.root)?.agent_id ?? whoAmI(ctx, board).id, row, written }]));
 }
 
@@ -38,7 +40,7 @@ export async function reserveRow(ctx, row, written) {
  */
 export function citations(ctx, { ids, since }) {
   const cited = since ? commitCitations(ctx.info.root, since) : new Map();
-  if (!existsSync(ctx.file)) return cited;
+  if (!fs.exists(ctx.file)) return cited;
   const byItems = new Map();
   for (const item of hookRead(ctx, (board) => store.listItems(board, { all: true }))) {
     for (const id of item.item_spec_ids ? item.item_spec_ids.split(',') : []) {
@@ -53,7 +55,7 @@ export function citations(ctx, { ids, since }) {
 
 /** Current board evidence, with each item's accepting receipts included once. */
 export function specProof(ctx) {
-  if (!existsSync(ctx.file)) return { items: [], verdicts: [] };
+  if (!fs.exists(ctx.file)) return { items: [], verdicts: [] };
   return withBoard(ctx, (board) => {
     const items = store.listItems(board, { all: true });
     return { items, verdicts: items.flatMap((item) => store.verdictsFor(board, item.item_id)) };
