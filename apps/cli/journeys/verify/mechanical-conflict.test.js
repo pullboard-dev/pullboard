@@ -49,7 +49,7 @@ async function acceptedThenMainMoves(box, texts) {
     const shown = JSON.parse(await run(box.repo, 'show', '1', '--json'));
     const listed = JSON.parse(await run(box.repo, 'list', '--all', '--json'));
     const row = (Array.isArray(listed) ? listed : listed.items).find(item => item.item_id === 1);
-    return { shown: shown.item_verdict_state ?? null, listed: row.item_verdict_state ?? null, status: shown.item.item_status ?? shown.item_status };
+    return { shown: shown.item_verdict_state ?? null, listed: row.item_verdict_state ?? null, status: shown.item_status };
   };
 }
 
