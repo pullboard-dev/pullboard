@@ -113,16 +113,17 @@ test('moves.lease.corrupt-state-a-queue-that-is: corrupt-state: a queue that is 
 /** A case per row: a free trunk, a live holder, a lapsed holder, the holder's own moves and each way to break a guard. */
 function generate(g) {
   const n = 1 + g.int(3);
-  const name = g.pick(['request', 'request', 'renew', 'bind', 'release', 'assert']);
+  const name = g.pick(['request', 'request', 'renew', 'bind', 'batch', 'release', 'assert']);
   const state = g.pick(['free', 'live', 'lapsed']);
   const holder = { ...entry(1), generation: 1, until: new Date(NOW + (state === 'lapsed' ? -1 : LEASE_MS)).toISOString() };
   const base = state === 'free' ? { generation: 0, holder: null, line: [] } : lease({ holder, line: g.int(2) ? [entry(2)] : [] });
   const mover = name === 'request' ? n : 1;
-  const move = ask(mover, name, { guardianPid: 5 });
+  const move = ask(mover, name, { guardianPid: 5, batch: 'b1' });
   const snapshot = snap({ lease: base });
   const breaks = { intact: (s, m) => ({ snapshot: { ...s, lease: { ...s.lease, generation: -1 } }, move: m }) };
   if (name !== 'request') breaks.holder = (s, m) => ({ snapshot: s, move: { ...m, token: token(3) } });
   if (name === 'bind') breaks.bindable = (s, m) => ({ snapshot: s, move: { ...m, guardianPid: 0 } });
+  if (name === 'batch') breaks.batchRoom = (s, m) => ({ snapshot: s, move: { ...m, batch: '' } });
   if (name === 'request') breaks.entryValid = (s, m) => ({ snapshot: s, move: { ...m, token: 'x' } });
   return { snapshot, move, breaks };
 }
