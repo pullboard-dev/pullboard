@@ -446,8 +446,6 @@
     "packages/store/src/io/home.js": 1,
     "packages/store/src/io/inbox-marks.js": 6,
     "packages/store/src/io/memory.js": 1,
-    "packages/store/src/io/presence.js": 4,
-    "packages/store/src/io/receipts.js": 2,
     "packages/sync/src/io/git/lock.js": 1,
     "packages/sync/src/io/git/repair.js": 6,
     "packages/sync/src/io/main.js": 1,
