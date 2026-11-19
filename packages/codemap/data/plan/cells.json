@@ -2613,6 +2613,7 @@
     "board->store",
     "board->verify",
     "apps/lib->board",
+    "apps/cli->fs",
     "apps/lib->fs"
   ],
   "upwardEdgesGrandfathered": [
