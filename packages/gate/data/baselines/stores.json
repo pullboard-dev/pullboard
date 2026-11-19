@@ -1161,7 +1161,7 @@
     },
     "sources.json": {
       "kind": "json",
-      "owner": "packages/codemap/src/io/cell/uses.js"
+      "owner": "packages/codemap/src/io/module/imports.js"
     },
     "starting.json": {
       "kind": "json",
