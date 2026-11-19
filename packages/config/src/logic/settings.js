@@ -358,6 +358,7 @@ export function loadMachineSettings() {
   if (value.gate?.measuredSlots !== undefined && typeof value.gate.measuredSlots !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.measuredSlots in ${file} must be true or false`);
   }
+  if (value.gate?.adapterLintSigning !== undefined && typeof value.gate.adapterLintSigning !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.adapterLintSigning in ${file} must be true or false`);
   if (value.gate?.loadAwareDispatch !== undefined && typeof value.gate.loadAwareDispatch !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.loadAwareDispatch must be true or false');
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
   // The controller value is gone from the schema: every runner job is a row a runner pulls, so "pull" is the only value [P7].

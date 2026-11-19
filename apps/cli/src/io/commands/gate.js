@@ -33,9 +33,7 @@ import {
 import {
   mainPolicy,
 } from '../../../../../packages/sandbox/index.js';
-import {
-  existsSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   join,
 } from 'node:path';
@@ -58,6 +56,8 @@ import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { withdrawCancelsJob } from '../../../../../packages/config/index.js';
 import { runStaticStageAdmitted } from '../static/stage.js';
 
+const fs = fileSystemAdapter();
+
 /** Run `pullboard gate` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (first === 'set') return setHere(io, second, rest, values);
@@ -76,7 +76,7 @@ export async function run(io, { first, second, rest, values }) {
   catch (error) {
     if (error instanceof Refused && error.code === 'NO_POLICY'
       && error.message.includes('the coordinator checkout has no commit on ')
-      && existsSync(join(ctx.info.root, CONFIG_FILE))) {
+      && fs.exists(join(ctx.info.root, CONFIG_FILE))) {
       throw new Refused('NO_POLICY', `${CONFIG_FILE} is not committed; add and commit the initialized project before running the gate: git add ${CONFIG_FILE}`);
     }
     // Refused prefixes its message with the code, so match the condition itself, not the text:

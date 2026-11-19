@@ -42,8 +42,9 @@ export function leaseLive(item, at) {
 
 /**
  * What each item this one waits on is, by the rule "every item it waits on is verified".
+ * An id the item also lists in `afterGate` is met as soon as that item is submitted with `gateGreen` true; absent fields keep the plain rule.
  *
- * @param {{ after: number[] }} item
+ * @param {{ after: number[], afterGate?: number[] }} item
  * @param {Map<number, object>} items
  * @returns {{ id: number, state: string }[]} The waits that are not yet verified, each with what it is instead.
  */
@@ -52,6 +53,7 @@ export function unmetWaits(item, items) {
   for (const id of item.after) {
     const dep = items.get(id);
     if (dep?.status === 'verified') continue;
+    if (dep?.status === 'submitted' && dep.gateGreen === true && item.afterGate?.includes(id)) continue;
     unmet.push({ id, state: !dep ? 'missing' : dep.status === 'withdrawn' ? (dep.merged ? 'withdrawn-landed' : 'withdrawn') : dep.status });
   }
   return unmet;
