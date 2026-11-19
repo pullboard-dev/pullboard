@@ -54,3 +54,15 @@ export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows, prepareFlow
 export { barStats } from './src/logic/bar.js';
 /** The capacity lines a status read prints [C7,#8646]. */
 export { capacityLines } from './src/logic/capacity/model.js';
+/**
+ * The builder and review seats the board runs, and the one line that names them. Both load at the call: status counts every module it loads,
+ * and the staffing file would add one to its closure budget until the status line that prints it replaces another [C7,#11832].
+ */
+export async function staffingSeats(...call) {
+  return (await import('./src/logic/capacity/staffing.js')).staffingSeats(...call);
+}
+
+/** The one staffing line, loaded at the call as staffingSeats is [C7,#11832]. */
+export async function staffingLines(...call) {
+  return (await import('./src/logic/capacity/staffing.js')).staffingLines(...call);
+}
