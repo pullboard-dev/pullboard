@@ -60,15 +60,23 @@ test('cli.logic-show-gate.a-red-pulled-gate-prints-gate-red: a red pulled gate p
   assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'claimed', gate: null }, { item_id: 1, item_status: 'claimed' }), []);
 });
 
-test('cli.logic-show-gate.generic-case-error-leads-with-output-line: clause 1: a case whose error is only "test failed" is named by the first error line of its phase output [C7]', () => {
-  const gate = { green: false, phases: [{ role: 'proof', status: 1, errors: [{ file: 'test/a.test.js', name: 'a.test.js', error: 'test failed' }],
+/** A red proof phase whose one failing case carries `error`, with a node --test output tail that names the crash. */
+function crashedGate(error) {
+  return { green: false, phases: [{ role: 'proof', status: 1, errors: [{ file: 'test/a.test.js', name: 'a.test.js', error }],
     tail: '# Subtest: a.test.js\n# ReferenceError: describe is not defined\n#     at file:///a.test.js:1:1' }] };
-  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate }, { item_id: 1, item_status: 'claimed' });
+}
+
+test('cli.logic-show-gate.generic-case-error-leads-with-output-line: clause 1: a case whose error is only "test failed" is named by the first error line of its phase output [C7]', () => {
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate: crashedGate('test failed') }, { item_id: 1, item_status: 'claimed' });
   const named = red.find(line => line.includes('::'));
   assert.match(named, /ReferenceError: describe is not defined$/u);
   assert.doesNotMatch(named, /test failed/u);
-  const own = { ...gate, phases: [{ ...gate.phases[0], errors: [{ file: 'test/a.test.js', name: 'a', error: 'expected 1 to equal 2' }] }] };
-  assert.match(pulledRedLines({ id: 'gate:1', step: 'done', gate: own }, { item_id: 1, item_status: 'claimed' }).find(line => line.includes('::')), /expected 1 to equal 2$/u, 'a case with its own error keeps it');
+});
+
+test('cli.logic-show-gate.specific-case-error-unchanged: clause 2: a case with its own error keeps that text and gets no extra output line [C7]', () => {
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate: crashedGate('expected 1 to equal 2') }, { item_id: 1, item_status: 'claimed' });
+  assert.deepEqual(red.filter(line => line.includes('::')), ['  test/a.test.js :: a.test.js: expected 1 to equal 2']);
+  assert.ok(!red.some(line => line.includes('ReferenceError')), 'the output line is not added beside a specific error');
 });
 
 const DEFERRED = { green: false, deferred: true, phases: [{ role: 'proof', status: 1, exit: 'full suite deferred' }] };
