@@ -1,11 +1,6 @@
 /**
  * `pullboard.json`: repo settings, merged over defaults and checked once per command.
  */
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
 import { registryGuardsProblem } from '../../../kernel/light.js';
@@ -25,6 +20,8 @@ export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
@@ -80,7 +77,7 @@ export function defaults() {
     families: {},
     labels: {},
     // The route table is data: data/ceilings/model-tiers.json [P5].
-    modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
+    modelTiers: JSON.parse(fileSystem.readFile(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
@@ -200,7 +197,7 @@ const notPlain = value => !value || typeof value !== 'object' || Array.isArray(v
 
 /** Whether a repo-relative path names a folder in the repo. */
 function isFolder(root, entry) {
-  try { return statSync(join(root, entry)).isDirectory(); } catch { return false; }
+  try { return fileSystem.stat(join(root, entry)).isDirectory(); } catch { return false; }
 }
 
 /**
@@ -578,18 +575,18 @@ export function configProblems(config, root) {
  */
 export function loadConfig(root) {
   const file = join(root, CONFIG_FILE);
-  if (!existsSync(file)) {
+  if (!fileSystem.exists(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  const config = configFromSource(readFileSync(file, 'utf8'), root);
+  const config = configFromSource(fileSystem.readFile(file, 'utf8'), root);
   return { ...config, practice: doctrineFile(root, config.practice) };
 }
 
 /** Resolve the doctrine's current name while preserving legacy and explicitly configured paths. */
 export function doctrineFile(root, name = DOCTRINE_FILE) {
   if (![DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) return name;
-  const current = existsSync(join(root, DOCTRINE_FILE));
-  const legacy = existsSync(join(root, LEGACY_DOCTRINE_FILE));
+  const current = fileSystem.exists(join(root, DOCTRINE_FILE));
+  const legacy = fileSystem.exists(join(root, LEGACY_DOCTRINE_FILE));
   if (current && legacy) {
     throw new Refused('BAD_CONFIG', `${DOCTRINE_FILE} and ${LEGACY_DOCTRINE_FILE} both define the repo doctrine; restore one doctrine file: merge their rules into ${DOCTRINE_FILE} and remove ${LEGACY_DOCTRINE_FILE}`);
   }
