@@ -256,6 +256,9 @@ export function loadMachineSettings() {
   if (value.tests?.requireJourneyPath !== undefined && typeof value.tests.requireJourneyPath !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireJourneyPath in ${file} must be true or false`);
   }
+  if (value.gate?.adapterLintGithub !== undefined && typeof value.gate.adapterLintGithub !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.adapterLintGithub in ${file} must be true or false`);
+  }
   if (value.canary?.directPush !== undefined && typeof value.canary.directPush !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `canary.directPush in ${file} must be true or false`);
   }

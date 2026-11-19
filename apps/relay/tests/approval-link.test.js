@@ -37,7 +37,7 @@ function addItemTo(boardFile, title) {
  * The snapshot upload is held until the phone has rendered its notice, so the phone is observed before its key arrives.
  */
 async function approvedLinkScenario(t) {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   addItemTo(box.boardFile, FIRST_TITLE);
   const { chrome } = await pairChromePhone(box, t);
   box.server.providerState.repositories.push('notes');
