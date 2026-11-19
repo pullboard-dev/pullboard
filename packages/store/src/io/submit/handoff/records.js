@@ -133,22 +133,25 @@ export function pulledGateRecords(db, only = null, nowMs = Date.now()) {
   return pulled;
 }
 
-/** How long an unsettled sharded gate keeps its claim, counted from the gate job's creation: the gate's own deadline. */
+/** How long an unsettled sharded gate keeps its claim, counted from when the gate job offered its shards: the gate's own deadline. */
 export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
 
 /**
  * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard is
  * still open, every shard is done but the combined result has not applied (no `note:shards.settled` step), or it settled
  * unknown (red and review outcomes are settled), and the
- * gate job is younger than GATE_SETTLE_HOLD_MS. Why: the gate is the board's work, and the board applies its result only
+ * gate job offered its shards less than GATE_SETTLE_HOLD_MS ago. Why: the gate is the board's work, and the board applies its result only
  * while the submitting seat holds the item. #8249's claim was released while its 10 shards ran [#8342], and #10883's
  * while its 32 done shards waited for their result to apply, so that gate never applied [C7,#10931].
+ * The hold counts from the gate job's last update, when it passed its checks and offered its shards, not from its
+ * creation: gates queued 40-90 minutes before their checks, so a hold counted from creation ran out with shards still
+ * open and next handed the lapsed claim to a fresh seat as "you hold" (#11876, #11307) [C7,#11921].
  */
 export function gateShardsUnsettled(board, item) {
   try {
-    const gate = board.db.prepare(`SELECT job_id, job_created FROM job WHERE job_kind = 'gate' AND job_item = ?
+    const gate = board.db.prepare(`SELECT job_id, MAX(job_created, COALESCE(job_updated, job_created)) AS offered FROM job WHERE job_kind = 'gate' AND job_item = ?
       ORDER BY job_created DESC, rowid DESC LIMIT 1`).get(item.item_id);
-    if (!gate || !(board.clock.now().getTime() - gate.job_created < GATE_SETTLE_HOLD_MS)) return false;
+    if (!gate || !(board.clock.now().getTime() - gate.offered < GATE_SETTLE_HOLD_MS)) return false;
     const shards = board.db.prepare(`SELECT COUNT(*) AS total, SUM(job_step <> 'done') AS open FROM job
       WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
     if (!shards.total) return false;
