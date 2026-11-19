@@ -4,8 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
@@ -59,6 +58,8 @@ import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
 import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
+
+const fs = fileSystemAdapter();
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -196,8 +197,8 @@ export function recordPhaseReceipts(board, { job, receipt, id, candidate, main, 
     if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
     if (!body && testRuntimes) { delete run.proof.testRuntimes; body = receiptBody(run); }
     if (!body) continue;
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
+    fs.writeFile(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
     store.recordProofRun(board, { agentId: submit.agentId, itemId: id, receiptId: run.id });
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }

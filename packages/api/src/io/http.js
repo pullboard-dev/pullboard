@@ -1,6 +1,6 @@
 /** API v1's shared HTTP boundary; local and relay adapters supply the same board operations (A2). */
 import { createHash } from 'node:crypto';
-import { open } from 'node:fs/promises';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
@@ -8,6 +8,8 @@ import { Refused } from '../../../kernel/index.js';
 import { relayStorage } from '../../../link/index.js';
 import { withGitFacts } from '../../../git/index.js';
 import { PAIR_PACKAGE_BODY_BYTES } from '../../../link/index.js';
+
+const fs = fileSystemAdapter();
 
 const BODY_BYTES = 100_000;
 /** Gzip a reply off the request thread, in the libuv pool, so a big state's compression never stalls other requests. */
@@ -309,7 +311,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
     if (typeof adapter.trunkPack !== 'function') return json(res, 404, refusal(new Refused('TRUNK_PACK_NOT_AVAILABLE', 'this board serves no trunk packs; fetch the commit from the trunk remote')));
     const served = await adapter.trunkPack(board, commit, who);
     if (!served) return json(res, 404, refusal(new Refused('NO_COMMIT', `the trunk has no commit ${commit}; fetch it from the trunk remote`)));
-    const opened = await open(served.file, 'r');
+    const opened = await fs.promises.open(served.file, 'r');
     try {
       const { size } = await opened.stat();
       res.writeHead(200, { 'content-type': 'application/x-git-packed-objects', 'content-length': String(size), 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });

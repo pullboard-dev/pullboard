@@ -3,7 +3,7 @@
  * Why a module of its own: main.js is over its size cap and takes no added lines, and a pool worker cannot be handed this
  * closure, so each thread composes its own reader, with its own caches, from the same code.
  */
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { resolveCommit } from '../../../git/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
@@ -11,13 +11,15 @@ import { stateFileInputs } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { itemDetail } from './items.js';
 
+const fs = fileSystemAdapter();
+
 /** How many item details a server keeps for each board: past a board our size, the least recently read go first. */
 const DETAIL_CACHE_ITEMS = 4096;
 
 /** Cheap file identity for an event-stream poll; content is read only after this marker changes. */
 export function fileMarker(file) {
   try {
-    const stat = statSync(file.path);
+    const stat = fs.stat(file.path);
     return [file.name, stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
   } catch (error) {
     if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return [file.name, null];
@@ -28,7 +30,7 @@ export function fileMarker(file) {
 /** Capture a marker for a single absolute path, including an explicit missing-file value. */
 export function fileMarkerForPath(path) {
   try {
-    const stat = statSync(path);
+    const stat = fs.stat(path);
     return JSON.stringify([stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]);
   } catch (error) {
     if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return 'missing';

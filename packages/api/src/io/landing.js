@@ -1,7 +1,6 @@
 /** The board side of a runner landing job: one queue row naming the accepted items and the trunk sha expected [P7]. */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -16,6 +15,8 @@ import { runsStoreOn } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { holdJob } from '../../../jobs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
@@ -273,9 +274,9 @@ export function keepLandingLog(board, job, receipt) {
   const rows = (receipt.returned ?? []).filter(row => typeof row?.detail === 'string');
   if (!folder || (!rows.length && !receipt.detail)) return null;
   try {
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
     const body = [`land job ${job}: ${receipt.outcome ?? 'red'}`, ...rows.map(row => `#${row.id} ${row.reason}:\n${row.detail}`), ...(rows.length ? [] : [String(receipt.detail)])].join('\n\n');
-    writeFileSync(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
+    fs.writeFile(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
     return join(folder, 'runner.log');
   } catch { return null; }
 }
