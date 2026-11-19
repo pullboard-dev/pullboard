@@ -94,6 +94,13 @@ test('cli.journeys-imports-closure-budget.pullboard-hook-post-commit-exits-0: cl
   assert.equal(run.loaded, 1);
 });
 
+test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pullboard status loads none of the drive step machinery a healthy board never needs [C7,#11941]', () => {
+  const run = commandLoads('status');
+  const dropped = ['once.js', 'diagnose.js', 'reclaim.js'].map(name => `packages/drive/src/io/${name}`);
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
+});
+
 test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {
   const run = commandLoads('claim 1');
   const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;
