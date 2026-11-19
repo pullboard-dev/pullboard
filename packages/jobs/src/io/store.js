@@ -21,27 +21,84 @@ export function setWriteHold(hold) {
   writeHold = hold ?? null;
 }
 
+/** How long atomically() keeps retrying a busy board before it refuses with BOARD_BUSY, in ms [C7]. */
+const BUSY_BOUND_MS = 30000;
+/** The first and the longest busy_timeout a retry of a busy BEGIN waits in SQLite, in ms; it doubles from the first to the longest [C7]. */
+const BUSY_FIRST_PAUSE_MS = 50;
+const BUSY_LONGEST_PAUSE_MS = 500;
+
+/**
+ * Whether a SQLite error says another connection holds the database (SQLITE_BUSY or SQLITE_LOCKED).
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isBusy(error) {
+  const code = Number(error?.errcode);
+  if (Number.isInteger(code) && ((code & 0xff) === 5 || (code & 0xff) === 6)) return true;
+  return error?.code === 'SQLITE_BUSY' || error?.code === 'SQLITE_LOCKED' || /database (table )?is locked/u.test(String(error?.message));
+}
+
+/**
+ * Take the write lock with BEGIN IMMEDIATE. A busy board is retried with a short busy_timeout that doubles each time (SQLite itself waits, so the thread parks nowhere else) until
+ * `boundMs` has passed in all, then refused as BOARD_BUSY; the handle's own busy_timeout is restored after.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} boundMs
+ * @returns {void}
+ */
+function beginImmediate(db, boundMs) {
+  const started = Date.now();
+  try {
+    db.exec('BEGIN IMMEDIATE');
+    return;
+  } catch (error) {
+    if (!isBusy(error)) throw error;
+  }
+  const own = db.prepare('PRAGMA busy_timeout').get().timeout;
+  let delay = BUSY_FIRST_PAUSE_MS;
+  try {
+    for (;;) {
+      const left = boundMs - (Date.now() - started);
+      if (left <= 0) throw new Refused('BOARD_BUSY', `job store is held by another process after ${Date.now() - started}ms; wait for it to finish and retry`);
+      db.exec(`PRAGMA busy_timeout = ${Math.max(1, Math.min(delay, left))}`);
+      delay = Math.min(delay * 2, BUSY_LONGEST_PAUSE_MS);
+      try {
+        db.exec('BEGIN IMMEDIATE');
+        return;
+      } catch (error) {
+        if (!isBusy(error)) throw error;
+      }
+    }
+  } finally {
+    db.exec(`PRAGMA busy_timeout = ${own}`);
+  }
+}
+
 /**
  * Run `work` so its statements land together or not at all: in its own write transaction, or inside a savepoint
  * when the caller already holds a transaction.
  *
  * Why: `work` reads before it writes. A deferred transaction that read first cannot upgrade to a write once another
  * process committed, and SQLite answers "database is locked" at once without waiting; two drivers writing steps for
- * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn.
+ * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn; when the board
+ * stays held past the handle's busy_timeout it retries with a backoff for up to `boundMs`, then throws Refused BOARD_BUSY
+ * instead of a raw SQLite error.
  * With a write hold set, its prepare runs before BEGIN, begin after it, and finish after COMMIT ('released') or ROLLBACK ('rolled-back');
  * a BEGIN that fails other than inside a caller's transaction discards the marker. A nested call touches none of them.
  *
  * @template T
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {() => T} work
+ * @param {{ boundMs?: number }} [options] - boundMs: the total wait on a busy board; 30 s by default.
  * @returns {T}
  */
-export function atomically(db, work) {
+export function atomically(db, work, { boundMs = BUSY_BOUND_MS } = {}) {
   const hold = writeHold;
   if (hold && db.isTransaction) return inSavepoint(db, work);
   const marker = hold ? hold.prepare(db) : undefined;
   try {
-    db.exec('BEGIN IMMEDIATE');
+    beginImmediate(db, boundMs);
   } catch (error) {
     if (hold) hold.discard(marker);
     if (!/within a transaction/u.test(String(error?.message))) throw error;

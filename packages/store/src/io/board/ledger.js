@@ -24,6 +24,7 @@ export const LEDGER_SCHEMA_SQL = `
     UNIQUE (test_result_receipt, test_result_command, test_result_file)
   );
   CREATE INDEX IF NOT EXISTS test_result_key ON test_result (test_result_input_key, test_result_command, test_result_context);
+  CREATE INDEX IF NOT EXISTS test_result_commit_file ON test_result (test_result_commit, test_result_command, test_result_file);
 `;
 
 const HEX = /^[0-9a-f]{64}$/u;
