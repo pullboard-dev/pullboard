@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { toolingTests } from '../../../../src/io/test/tier/selection.js';
-import { writeTestTiers } from '../../../../index.js';
+import { writeTestTiers } from '../../../../heavy.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 import { frozen } from './frozen.js';
 import { change } from './frozen.js';

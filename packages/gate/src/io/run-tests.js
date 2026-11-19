@@ -1318,7 +1318,7 @@ async function main(args) {
       const [{ landingShardOptions, landingFanOutFiles }, { nativeFileArguments }, { freeRunnerSlots }] = await Promise.all([
         import('./test/selection.js'), import('./test/file/dispatch.js'), import('./shards/proof.js'),
       ]);
-      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../index.js')).landingShardCount(process.cwd());
+      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../heavy.js')).landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
       shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {

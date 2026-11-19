@@ -2,10 +2,10 @@
 /** Tier selection keeps every test for a global change, runs a new tooling test at submit, ignores a project without a path map, and runs the canary at every gate [C7,#4015,#10874]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writeTestTiers } from '../../../../index.js';
+import { writeTestTiers } from '../../../../heavy.js';
 import { toolingTests } from '../../../../src/io/test/tier/selection.js';
 import { DEFAULT_CANARY } from '../../../../src/io/test/tier/selection.js';
-import { submitGatePlan } from '../../../../index.js';
+import { submitGatePlan } from '../../../../heavy.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 import { frozen } from './frozen.js';

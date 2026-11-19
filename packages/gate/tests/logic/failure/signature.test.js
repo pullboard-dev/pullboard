@@ -1,7 +1,7 @@
 /** A failure signature keys on error type plus the deepest repository frame and ignores per-run spelling [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { failureSignature } from '../../../index.js';
+import { failureSignature } from '../../../heavy.js';
 
 const JOB_A = '/Users/example/.pullboard-runner/jobs/8f31c0de-1111-4a2b-9c3d-0123456789ab/checkout';
 const JOB_B = '/home/example/pullboard-runner/jobs/00aa77bb-2222-4c4c-8d8d-fedcba987654/checkout';

@@ -13,7 +13,7 @@ import {
   evaluatePerfBudgets,
   perfBudgetTable,
   readPerfReport,
-} from '../../../index.js';
+} from '../../../heavy.js';
 
 /** Parse the saved harness output; artifacts live outside the harness's disposable workspace. */
 function main(args) {

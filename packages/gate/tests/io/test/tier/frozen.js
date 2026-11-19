@@ -1,6 +1,6 @@
 /** A repository after the layout freeze, and changes selected on top of it, shared by the tooling tier tests [C7,#4015]. */
-import { selectTestTiers } from '../../../../index.js';
-import { writeTestTiers } from '../../../../index.js';
+import { selectTestTiers } from '../../../../heavy.js';
+import { writeTestTiers } from '../../../../heavy.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 

@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 import { quote } from '../../fixtures/resource.js';
 import { fixture } from '../../fixtures/resource.js';
 import { probeSuite } from '../../fixtures/resource.js';
-import { withNestedGroup } from '../../../index.js';
+import { withNestedGroup } from '../../../heavy.js';
 import { launchTestRunner } from '../../fixtures/resource.js';
 import { gateRepo } from '../../fixtures/resource.js';
 import { waitFor } from '../../fixtures/resource.js';
@@ -33,7 +33,7 @@ import { trackChild } from '../../fixtures/resource.js';
 const PROBE_WRITE_TARGET_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_TARGET';
 const PROBE_WRITE_READY_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_READY';
 const PROBE_WRITE_RELEASE_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_RELEASE';
-const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../index.js')).href;
+const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../heavy.js')).href;
 
 after(reapFixtures);
 
