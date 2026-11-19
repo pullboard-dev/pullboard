@@ -43,36 +43,6 @@ test('cli.journeys-gate-slot.submit-needs-a-clean-tree-nothing: submit needs a c
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
 
-test('cli.journeys-gate-slot.submit-keeps-its-machine-gate-slot: submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
-  const box = sandbox();
-  const gate = holdingGate(box);
-  const projectBox = project(gate.command, box);
-  assert.equal((await projectBox.runIn(projectBox.repo, 'settings', 'gateSlots', '1')).code, 0);
-  fixtureAdd(projectBox.run, projectBox.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match((await projectBox.runIn(projectBox.web, 'claim', '1')).out, /claimed #1/);
-  assert.equal((await commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]')).status, 0);
-  writeFileSync(gate.mode, 'armed');
-  const children = [];
-  try {
-    const submitted = launch(projectBox, projectBox.web, process.execPath, [BIN, 'submit', '1']);
-    children.push(submitted);
-    await waitFor(() => gateEvents(gate).includes('start'), 'submit gate to start and hold its resource', 40_000); // budget: measured submit prep took 18 s under load; ceiling is a hang bound
-    const competitor = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
-    children.push(competitor);
-    await waitFor(() => competitor.stdoutText.includes('place 1'), 'another gate to wait behind submit', 40_000); // budget: same ceiling as the submit gate start above; a loaded machine took over 8 s to start this second CLI
-    assert.deepEqual(gateEvents(gate), ['start']);
-    writeFileSync(gate.release, 'released');
-    const [submitResult, competitorResult] = await Promise.all([submitted.closed, competitor.closed]);
-    assert.equal(submitResult.code, 0, submitted.stderrText);
-    assert.match(submitted.stdoutText, /submitted #1/);
-    assert.equal(competitorResult.code, 0, competitor.stderrText);
-    assert.deepEqual(gateEvents(gate), ['start', 'end', 'start', 'end']);
-  } finally {
-    writeFileSync(gate.release, 'released');
-    await Promise.all(children.map((child) => child.closed));
-  }
-});
-
 test('cli.journeys-gate-slot.pre-push-keeps-its-machine-gate: pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]', async () => {
   const box = sandbox();
   const gate = holdingGate(box);
