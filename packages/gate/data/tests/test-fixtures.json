@@ -552,7 +552,7 @@
   "packages/gate/tests/fixtures/clone.js": {
     "tempdir": 1
   },
-  "apps/cli/tests/fixtures/chrome.js": {
+  "packages/gate/tests/fixtures/chrome.js": {
     "tempdir": 1
   },
   "packages/gate/tests/io/clone.test.js": {
