@@ -12,6 +12,7 @@ import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
 import { tailLines } from '../../logic/show/tail.js';
+import { fieldLines } from '../../logic/show/fields.js';
 import { reviewLines } from '../../logic/show/review.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
@@ -265,14 +266,7 @@ export async function run(io, { first, values }) {
   }
   if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
-  if (fields.length) {
-    io.say('fields:');
-    for (const field of fields) io.say(`  ${field.name} (${field.type}): ${field.value}`);
-  }
-  if (links.length) {
-    io.say('related links:');
-    for (const link of links) io.say(`  #${link.id} ${link.title}`);
-  }
+  for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
   for (const { item: other, shared } of related) {
