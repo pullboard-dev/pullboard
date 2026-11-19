@@ -117,8 +117,6 @@
     "packages/resources/src/io/heartbeat/blocked.js": 2,
     "packages/resources/src/io/home.js": 1,
     "packages/resources/src/io/main.js": 9,
-    "packages/resources/src/io/spans/landing.js": 6,
-    "packages/resources/src/io/stale-test-sweep.js": 1,
     "packages/runners/src/io/bridge.js": 1,
     "packages/runners/src/io/holders.js": 1,
     "packages/runners/src/io/keyed.js": 1,
