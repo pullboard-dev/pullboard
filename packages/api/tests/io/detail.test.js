@@ -1,7 +1,9 @@
 /** The item detail keeps an accept fresh when main's only conflict with it is one the mechanical merge resolves, and reads it stale, naming the file, when a real source conflict remains [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { repoInfo } from '../../../git/index.js';
@@ -21,6 +23,7 @@ function git(cwd, ...args) {
 
 /** Commit `text` as `file` and return the commit. */
 function commitFile(dir, file, text) {
+  mkdirSync(dirname(join(dir, file)), { recursive: true });
   writeFileSync(join(dir, file), text);
   git(dir, 'add', file);
   git(dir, 'commit', '-q', '-m', `put ${file}`);
