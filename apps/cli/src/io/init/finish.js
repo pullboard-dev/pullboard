@@ -4,14 +4,6 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   isAbsolute,
   join,
@@ -47,6 +39,9 @@ import {
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { HOSTED_ORIGIN } from '../../../../view/index.js';
 import { gitSpawnSync } from '../../../../../packages/git/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export const SETUP_COMMIT_QUESTION = 'Commit Pullboard setup now? [Y/n] ';
 export const SETUP_COMMIT_LATER = "To commit Pullboard's files: pullboard init --yes";
@@ -84,11 +79,11 @@ function setupFile(root, name) {
   const path = resolve(root, name), inside = relative(root, path);
   if (!inside || inside === '..' || inside.startsWith('..' + sep)) return null;
   try {
-    const stat = lstatSync(path);
+    const stat = fs.lstat(path);
     if (!stat.isFile()) return null;
-    const physical = relative(root, realpathSync(path));
+    const physical = relative(root, fs.realpath(path));
     if (physical === '..' || physical.startsWith('..' + sep)) return null;
-    return setupFingerprint(stat.mode & 0o111 ? '100755' : '100644', readFileSync(path));
+    return setupFingerprint(stat.mode & 0o111 ? '100755' : '100644', fs.readFile(path, null));
   } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
 
@@ -143,7 +138,7 @@ export function beginInitCommit(info) {
   const file = join(info.commonDir, 'pullboard', 'setup-written-files.json');
   let previous = {};
   try {
-    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    const saved = JSON.parse(fs.readFile(file, 'utf8'));
     if (saved.version === 1 && saved.root === info.root && saved.files && typeof saved.files === 'object') previous = saved.files;
   } catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
   const files = new Map(), skipped = new Set();
@@ -193,10 +188,11 @@ export async function finishInitCommit(plan, { io, yes, landed, permissions }) {
     if (permissions) refreshInitPermissions(info.root, plan.written);
   }
   const retained = [...files].filter(([name, hash]) => setupFile(info.root, name) === hash);
-  mkdirSync(dirname(plan.file), { recursive: true });
+  fs.mkdir(dirname(plan.file), { recursive: true });
   const temporary = plan.file + '.' + randomUUID();
-  writeFileSync(temporary, JSON.stringify({ version: 1, root: info.root, files: Object.fromEntries(retained) }) + '\n', { mode: 0o600 });
-  renameSync(temporary, plan.file);
+  const descriptor = fs.open(temporary, 'w', 0o600);
+  try { fs.write(descriptor, JSON.stringify({ version: 1, root: info.root, files: Object.fromEntries(retained) }) + '\n'); } finally { fs.close(descriptor); }
+  fs.rename(temporary, plan.file);
   // The index before any confirmation prompt, so an edit staged while it is open is detected below.
   plan.readInitialIndex();
   const head = tryGit(info.root, ['rev-parse', '--verify', 'HEAD']);

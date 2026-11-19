@@ -1,4 +1,6 @@
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Build the hook board reader from the store's read ports, which the hook command passes in.
@@ -10,7 +12,7 @@ import { existsSync } from 'node:fs';
  */
 export function hookReader({ openBoardReadOnly, boardBusyError, readBoardSnapshot }) {
   return function hookRead(ctx, read) {
-    if (!existsSync(ctx.file)) return null;
+    if (!fs.exists(ctx.file)) return null;
     const startedAt = Date.now();
     let db;
     try {
