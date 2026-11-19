@@ -1,7 +1,7 @@
 /** After a landing is recorded the audit is a board job: it writes an audit proof-run naming the item and its landed commit [C7,#4743]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 import * as store from '../../../../../store/index.js';

@@ -8,7 +8,7 @@ import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 import { gateHopMove } from '../../../../store/index.js';
 import * as store from '../../../../store/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { hopFenceObject } from '../../../src/io/land/fence.js';
 import { hopFenceRef } from '../../../src/io/land/fence.js';

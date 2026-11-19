@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { configFromSource } from '../../../config/index.js';
 import * as store from '../../../store/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { landingCadenceStatus } from '../../index.js';
 
 // fixture-subject: addItem (a unit test of the cadence observer over seeded items; the board is opened through the kit)

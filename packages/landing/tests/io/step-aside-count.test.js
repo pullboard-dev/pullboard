@@ -8,7 +8,7 @@ import { LANDING_FINISH_STEPS } from '../../src/io/finish.js';
 import { takeLandingResource } from '../../src/io/resource.js';
 import * as store from '../../../store/index.js';
 import { register as registerSeat } from '../../../store/index.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 const HEAD = 8933;

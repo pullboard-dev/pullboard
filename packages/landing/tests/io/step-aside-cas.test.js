@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { fenceHop } from '../../src/io/step/publish.js';
 import { pushTrunkThroughFence } from '../../src/io/step/publish.js';
 import * as store from '../../../store/index.js';

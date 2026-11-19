@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../store/index.js';
-import { openCellBoard as openBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard as openBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { landingBatchSize } from '../../../index.js';
 import { roundFailures } from '../../../index.js';
 import { landingMaximum } from '../../../index.js';
