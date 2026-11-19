@@ -2517,7 +2517,6 @@
     "gate->env",
     "merge->config",
     "rigor->config",
-    "rigor->fs",
     "spec->config",
     "gate->seats",
     "github->store",
