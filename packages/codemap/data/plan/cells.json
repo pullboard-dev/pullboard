@@ -2493,6 +2493,7 @@
     "apps/cli->drive",
     "api->git",
     "api->store",
+    "jobs->env",
     "apps/lib->store",
     "blueprints->store",
     "doctrine->git",
