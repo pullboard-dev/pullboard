@@ -387,7 +387,6 @@
     "packages/sandbox/src/io/submit/handoff/seal.js": 1,
     "packages/sandbox/src/io/trusted/policy/committed.js": 2,
     "packages/sandbox/src/io/verify.js": 1,
-    "packages/search/src/io/index.js": 5,
     "packages/seats/src/io/agent/binding.js": 1,
     "packages/seats/src/io/agent/events.js": 1,
     "packages/seats/src/io/agent/session.js": 1,
