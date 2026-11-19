@@ -134,5 +134,8 @@ export async function awaitStressBoard(inputs) {
   await pending;
   const built = cachedStressBoard(inputs);
   if (!built) throw new Error('Refused(STRESS_BOARD_COLD, the stress board cache build did not finish; rerun this file)');
+  // The detached build has no terminal: surface its stage timing line in this run's output so a cold build is measurable from the run log.
+  const timingFile = join(stressCacheRoot(), cacheKey(inputs), 'stages.txt');
+  if (existsSync(timingFile)) process.stdout.write(`# ${readFileSync(timingFile, 'utf8').trim()}\n`);
   return built;
 }
