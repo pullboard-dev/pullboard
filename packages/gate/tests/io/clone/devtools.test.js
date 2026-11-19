@@ -9,10 +9,10 @@ import { loadavg } from 'node:os';
 import { join } from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { createSender } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { findChromeExecutable } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { startChrome } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { waitForTargetAbsent } from '../../../../../apps/cli/tests/fixtures/chrome.js';
+import { createSender } from '../../fixtures/chrome.js';
+import { findChromeExecutable } from '../../fixtures/chrome.js';
+import { startChrome } from '../../fixtures/chrome.js';
+import { waitForTargetAbsent } from '../../fixtures/chrome.js';
 
 /** Prove Runtime.evaluate reports page exceptions without changing successful values. */
 test('gate.io-clone-devtools.a-failed-browser-evaluation-names-what: a failed browser evaluation names what the page threw [C7]', async () => {
