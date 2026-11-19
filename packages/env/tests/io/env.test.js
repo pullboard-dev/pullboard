@@ -39,3 +39,31 @@ test('env.adapter.kernel-gains-no-export: clause 2: the kernel exports no enviro
   assert.equal('environmentAdapter' in kernelLight, false);
   assert.equal(typeof environmentAdapter, 'function');
 });
+
+test('env.adapter.set-and-delete: clause 1: set and delete change the given source object [C7]', () => {
+  const source = { A: 'one' };
+  const env = environmentAdapter(source);
+  env.set('B', 'two');
+  assert.equal(env.get('B'), 'two');
+  assert.equal(source.B, 'two');
+  env.delete('A');
+  assert.equal(env.has('A'), false);
+  assert.equal(env.get('A', 'fb'), 'fb');
+  assert.equal('A' in source, false);
+});
+
+test('env.adapter.set-delete-real-default: clause 2: with no source, set and delete change process.env itself [C7]', () => {
+  const key = 'PULLBOARD_ADAPTER_ENV_SET_PROBE';
+  const before = process.env[key];
+  try {
+    const env = environmentAdapter();
+    env.set(key, 'written');
+    assert.equal(process.env[key], 'written');
+    env.delete(key);
+    assert.equal(key in process.env, false);
+    assert.equal(env.has(key), false);
+  } finally {
+    if (before === undefined) delete process.env[key];
+    else process.env[key] = before;
+  }
+});
