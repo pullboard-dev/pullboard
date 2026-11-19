@@ -37,13 +37,13 @@ import { correctedNoVerdictReopen } from '../../items/index.js';
 import { firstRefusalArgs } from '../../items/index.js';
 import { loadConfig } from '../../config/index.js';
 import { criterionFreezer } from '../index.js';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { submitFixture as submitBoardStateFixture } from '../../store/tests/fixtures/submit.js';
 import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
@@ -175,12 +175,14 @@ function legacySnapshot(snapshot) {
 /**
  * Drop the derived fields an archived client never computed.
  *
- * Why: c85ddac55a added item_stage and the readiness engine added item_readiness_command to current item reads; clients before them return the same row without them.
+ * Why: c85ddac55a added item_stage and the readiness engine added item_readiness_command to current item reads, and #9181 added the
+ * three item_reservation columns; clients before them return the same row without them.
  * @param {any} row
  * @returns {any}
  */
 function withoutStage(row) {
-  const { item_stage: _stage, item_readiness_command: _readiness, ...rest } = row;
+  const { item_stage: _stage, item_readiness_command: _readiness, item_reservation_holder: _holder, item_reservation_by: _by,
+    item_reservation_at: _at, ...rest } = row;
   return rest;
 }
 

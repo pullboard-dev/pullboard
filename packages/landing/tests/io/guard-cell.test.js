@@ -37,8 +37,8 @@ test('landing.guard-cell.landing-guard-js-sits-in-the: clause 2: landing guard.j
   const renames = read(PLAN, 'renames.tsv');
   assert.ok(renames.includes(`packages/landing/src/core/land-local-guard.js\t${NEW}\n`));
   assert.ok(!renames.includes(OLD));
-  assert.ok(read(PLAN, '36-landing.json').includes(`"${NEW}"`));
-  assert.ok(!read(PLAN, '36-landing.json').includes(OLD));
+  assert.ok(read(PLAN, '39-landing.json').includes(`"${NEW}"`));
+  assert.ok(!read(PLAN, '39-landing.json').includes(OLD));
   assert.match(read(LANDING, 'index.js'), /from "\.\/src\/io\/land\/guard\.js"/u);
   assert.match(read(LANDING, 'src/io/step/gate.js'), /from '\.\.\/land\/guard\.js'/u);
 });

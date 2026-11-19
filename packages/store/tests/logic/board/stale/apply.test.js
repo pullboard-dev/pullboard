@@ -38,8 +38,8 @@ function submitted(t) {
         deadSeat: { observedAt, quietMs: 120_000, heartbeatAt, worktreeMissing: false } }] } });
   };
   const shardsDone = () => box.board.db.prepare("UPDATE job SET job_step='done' WHERE job_kind='gate-shard' AND job_item=?").run(id);
-  const settle = () => box.board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'note:shards.settled', '{\"outcome\":\"review\"}', ?)")
-    .run(gate, box.clock.now().getTime());
+  const settle = (outcome = 'review') => box.board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'note:shards.settled', ?, ?)")
+    .run(gate, JSON.stringify({ outcome }), box.clock.now().getTime());
   const releases = () => box.board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='release'").all(id).map(row => JSON.parse(row.event_detail));
   return { box, id, builder, pass, shardsDone, settle, releases };
 }
@@ -62,4 +62,15 @@ test('store.stale-apply.silent-seat-keeps-gate-claim: clause 3: a seat silent fo
   assert.equal(getItem(f.box.board, f.id).item_status, 'open');
   assert.equal(f.releases().length, 1);
   assert.equal(f.releases()[0].idleClaim.kind, 'seat-gone');
+});
+
+test('store.stale-apply.silent-seat-keeps-unknown-gate-claim: clause 3: a seat silent for 3 minutes whose gate settled unknown keeps its claim, with no release event [C7,#11711]', t => {
+  const f = submitted(t);
+  f.shardsDone();
+  f.settle('unknown');
+  f.box.advance(3 * MINUTE);
+  assert.throws(f.pass, error => error.code === 'STALE_STATE_CHANGED', 'unknown outcome: main receipt still to settle it, so the seat-gone row is refused');
+  assert.equal(getItem(f.box.board, f.id).item_status, 'claimed');
+  assert.equal(getItem(f.box.board, f.id).item_owner, f.builder);
+  assert.deepEqual(f.releases(), [], 'a refused pass writes no release');
 });

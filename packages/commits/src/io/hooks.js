@@ -45,11 +45,11 @@ import {
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
+import { quotedPersonProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
 import { secretsIn } from "../logic/secrets.js";
-import { planRowChange } from "../logic/change/row/plan.js";
 import { baselineRowChange } from "../logic/change/row/tier.js";
 import { tierRowChange } from "../logic/change/row/tier.js";
 import {
@@ -167,6 +167,7 @@ export function commitMsgProblems(raw, { rules, spec, doctrine = null, claimedIt
   }
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
+  problems.push(...quotedPersonProblems(all, rules.quotedNames));
   return problems;
 }
 
@@ -228,6 +229,9 @@ export function machineNameProblems(root, range, { refuse, say, names = machineN
   }
 }
 
+// The range message scan lives in signoff.js, which the light commits door already loads, so that door can run it without this file's closure.
+export { rangeMessageProblems } from './signoff.js';
+
 /**
  * Colliding bare citations keep their SPEC.md meaning, but tell the author how to name doctrine.
  *
@@ -278,8 +282,6 @@ export function stagedPaths(root, base = null) {
 
 /** The reads one pre-commit run shares, so git is asked once per kind of fact instead of once per path (#2232). */
 let readCache = null;
-/** The cells plan folder, listed with the first read of each revision once the shim check runs. */
-const PLAN_DIRECTORY = 'packages/codemap/data/plan/';
 
 /**
  * Run a check with shared git reads: one batched tree or index listing per revision, one resolve-undo
@@ -301,12 +303,10 @@ function withSharedReads(root, paths, check) {
 const sharedReads = (root) => (readCache?.root === root ? readCache : null);
 
 /** List the records of many literal paths at one revision in a few git calls. */
-function fillRecords(root, revision, map, paths, directory = null) {
+function fillRecords(root, revision, map, paths) {
   for (const path of paths) if (!map.has(path)) map.set(path, []);
   for (let start = 0; start < paths.length || start === 0; start += 400) {
     const specs = paths.slice(start, start + 400).map((path) => `:(literal)${path}`);
-    // The cells plan and its shards are read at every revision by the shim check: list them in the same call [C7].
-    if (directory && start === 0) specs.push(directory);
     if (!specs.length) continue;
     const raw = revision === ':index'
       ? git(root, ['ls-files', '--stage', '-z', '--', ...specs])
@@ -314,8 +314,6 @@ function fillRecords(root, revision, map, paths, directory = null) {
     for (const record of raw.split('\0').filter(Boolean)) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
-      if (directory && !map.has(path)) map.set(path, []);
-      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
       const records = map.get(path);
       if (records && !records.includes(record)) records.push(record);
     }
@@ -334,9 +332,8 @@ function treeRaw(root, revision, path) {
       : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
   }
   let map = shared.maps.get(revision);
-  if (!map) { map = new Map(); map.planListed = Boolean(shared.plan); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
-  // A revision listed with the plan folder already knows every plan file it has; the rest are absent.
-  if (!map.has(path) && !(map.planListed && path.startsWith(PLAN_DIRECTORY))) fillRecords(root, revision, map, [path]);
+  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths); }
+  if (!map.has(path)) fillRecords(root, revision, map, [path]);
   const records = map.get(path) ?? [];
   return records.length ? `${records.join('\0')}\0` : '';
 }
@@ -533,7 +530,6 @@ export function preCommitProblems(context) {
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
-  const touchedPaths = new Set(touched), writtenPaths = new Set(written);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -558,7 +554,6 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (shimImports) {
     const revisions = new Map();
-    if (readCache) readCache.plan = true;
     problems.push(...shimImports({ paths: written,
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
@@ -610,12 +605,6 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     return entry && { ...entry, bytes: importFileBlob(root, entry.oid) };
   };
   prefetchBlobs(root, checkedForeign.flatMap(path => ['HEAD', ':index'].map(revision => importFileEntry(root, revision, path)?.oid).filter(Boolean)));
-  const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
-    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownNewFile: path => !outside(path).length
-      && ((writtenPaths.has(path) && Boolean(importFileEntry(root, ':index', path)))
-        || (!touchedPaths.has(path) && Boolean(treeRaw(root, 'HEAD', path)))),
-  })]));
   const tierChanges = new Map(checkedForeign.map(path => [path, tierRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
     ownsFile: file => !outside(file).length,
@@ -636,13 +625,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   ) }));
   const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves)
     || mergeMoves.some(({ parent, moves: parentMoves }) => stagedImportOnlyChange(root, path, parentMoves, parent))
-    || planChanges.get(path).allowed || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
-  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
+    || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
+  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outside(path).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
-      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
+      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
     }));
   return problems;
 }

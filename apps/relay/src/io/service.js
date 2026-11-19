@@ -2,10 +2,6 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import {
-  lstatSync,
-  mkdirSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -20,6 +16,7 @@ import { refusalDocument } from '../../../cli/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createPushSubscriptions } from './push/subscriptions.js';
 import { createDeviceStore } from './store/device.js';
 import { createDeviceHandler } from '../logic/http/device.js';
 import { createPairingStore } from '../logic/pairing/store.js';
@@ -42,6 +39,8 @@ import { createStorageQuota } from './quota.js';
 import { createPasskeyHandler } from '../logic/http/passkey.js';
 import { createUploadStatusHandler } from '../logic/status.js';
 import { createRelayBoardLinks } from './board/links.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const SNAPSHOT_BODY = SNAPSHOT_BODY_BYTES;
 /** A sealed move is base64 text, so a 136 KB move needs about 180 KB; the hosted relay takes up to 10 MB, while the local API keeps its 100 KB default (GitHub #14, #6707). */
@@ -149,12 +148,12 @@ function sender(who, personOnly = false) {
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
-export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES }) {
+export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES, push = {} }) {
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  const stat = lstatSync(root);
+  fs.mkdir(root, { recursive: true, mode: 0o700 });
+  const stat = fs.lstat(root);
   if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) throw new Refused('RELAY_STORAGE', 'use a private directory with mode 700 for relay storage');
   // Older custom auth adapters remain explicitly API1-only, never an unmetered API2 transport.
   const quota = auth.storageAccount && auth.storageBoards ? createStorageQuota({ directory: root, auth, limitBytes: accountStorageBytes }) : null;
@@ -186,7 +185,9 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return typeof approver === 'boolean' ? { ...who, approver } : who;
   }
 
-  const deviceStore = createDeviceStore({ directory: root, now });
+  // Push is off unless the caller reports relay.push on and names its sender; a revoked device's subscription ends with its pairing [C7].
+  const pushStore = createPushSubscriptions({ directory: root, enabled: () => false, fetch: undefined, vapidKey: '', vapidPublic: '', subject: '', now, ...push });
+  const deviceStore = createDeviceStore({ directory: root, now, onRevoke: (account, id) => pushStore.revoke(account, id) });
   // Auth handlers share this same auth object, so revoked sessions cannot mint a new reader elsewhere.
   const releaseSessionGuard = auth.addSessionGuard?.(principal => deviceStore.authorizeSession(principal));
   const deviceHandler = createDeviceHandler({
@@ -247,7 +248,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     const file = join(root, identity(id) + '.journal.sqlite');
     if (!create) {
       try {
-        const entry = lstatSync(file);
+        const entry = fs.lstat(file);
         if (!entry.isFile() || entry.isSymbolicLink()) throw new Refused('RELAY_STORAGE', 'restore this board as a private regular journal');
       } catch (error) {
         if (error.code === 'ENOENT') throw new Refused('NO_BOARD', 'upload the sealed snapshot for this linked board first');
@@ -263,7 +264,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Collect expired staging and read pins without opening a missing board or decoding its opaque bytes. */
   function collectPages(id) {
-    try { lstatSync(join(root, identity(id) + '.journal.sqlite')); }
+    try { fs.lstat(join(root, identity(id) + '.journal.sqlite')); }
     catch (error) { if (error.code === 'ENOENT') return; throw error; }
     auth.withBoard(id, () => {
       const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES, now: () => new Date(now()) });
@@ -290,7 +291,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
    */
   auth.setRegistrationClaims?.((id, target) => {
     const file = join(root, identity(id) + '.journal.sqlite');
-    try { if (!lstatSync(file).isFile()) return null; } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    try { if (!fs.lstat(file).isFile()) return null; } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
     return auth.withBoard(id, () => {
       const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES, now: () => new Date(now()) });
       try { return journal.registrationFor(target); } finally { journal.close(); }
@@ -400,11 +401,52 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     throw error;
   }
 
+  /** Serve the push routes: the config a paired page reads (the VAPID public key, while relay.push is on) and the device's subscription with its chosen kinds [C7]. */
+  async function pushHandler(req, res) {
+    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+    const wakeRoute = /^\/api\/v1\/boards\/([^/]+)\/push\/wake$/u.exec(pathname);
+    if (wakeRoute) return wakeHandler(req, res, wakeRoute[1]);
+    const route = /^\/api\/v1\/push\/(config|subscribe)$/u.exec(pathname);
+    if (!route) return false;
+    try {
+      const who = deviceStore.authorizeSession(await auth.authenticate(credential(req, origin, req.method !== 'GET')));
+      if (who.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'Sign in as the person on the paired phone to use push notifications.');
+      if (route[1] === 'config' && req.method === 'GET') { apiJson(res, 200, { enabled: pushStore.enabled(), vapidPublicKey: pushStore.publicKey() }); return true; }
+      if (route[1] !== 'subscribe' || req.method !== 'POST') throw new Refused('NO_ENDPOINT', 'Read push/config or send push/subscribe.');
+      if (!pushStore.enabled()) throw new Refused('PUSH_OFF', 'Phone wake-up notifications are off on this relay; turn relay.push on to store a subscription.');
+      const body = await readApiBody(req, { maxBytes: 8192 });
+      if (!/^device-[0-9a-f]{32}$/u.test(body?.device ?? '') || deviceStore.status(who.user.id, body.device).revoked !== false) throw new Refused('DEVICE_NOT_ENROLLED', 'Pair this device from the linked Mac before subscribing it to notifications.');
+      pushStore.subscribe(who.user.id, body.device, body.subscription, body.kinds);
+      apiJson(res, 200, { subscribed: true, kinds: pushStore.kinds(who.user.id, body.device) });
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
+    return true;
+  }
+
+  /**
+   * Serve the board machine's wake: its sealed alert goes to the board owner's paired devices as the kind plus the sealed blob and nothing else [C7,H5].
+   * Why: the board machine seals the alert, so the relay never sees plaintext; a body with any other field is refused before anything is pushed.
+   */
+  async function wakeHandler(req, res, boardId) {
+    try {
+      if (req.method !== 'POST') throw new Refused('NO_ENDPOINT', 'Send the wake as POST with a kind and a sealed alert.');
+      const who = await authorizedRequest(req, boardId, true);
+      const body = await readApiBody(req, { maxBytes: 16_384 });
+      if (!body || Object.keys(body).some(key => key !== 'kind' && key !== 'sealed') || typeof body.kind !== 'string') {
+        throw new Refused('BAD_WAKE', 'Send only kind and sealed; keep the alert text sealed on the board machine.');
+      }
+      const blob = sealed({ sealed: body.sealed });
+      const sent = await pushStore.wake(who.user.id, body.kind, new Uint8Array(blob));
+      apiJson(res, 200, { woke: sent });
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
+    return true;
+  }
+
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
   async function handle(req, res) {
     if (await passkeys(req, res)) return;
     if (await pagesHandler(req, res)) return;
     if (await deviceHandler(req, res)) return;
+    if (await pushHandler(req, res)) return;
     if (await pairing(req, res)) return;
     if (await keyRequests(req, res)) return;
     if (await vault(req, res)) return;
@@ -487,7 +529,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   handle.maintenance = maintain;
   handle.backup = retention.backup;
   handle.maintenanceStatus = () => ({ error: maintenanceError });
-  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); vaultStore.close(); quota?.close(); boardLinks?.close(); };
+  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); pushStore.close(); vaultStore.close(); quota?.close(); boardLinks?.close(); };
   return handle;
 }
 

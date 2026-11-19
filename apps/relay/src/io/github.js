@@ -1,9 +1,9 @@
 /** GitHub App user authorization and read-only repository checks for the relay (H8, H1). */
-import {
-  createPrivateKey,
-  sign,
-} from 'node:crypto';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { loadSigningAdapter } from '../../../../packages/keys/index.js';
+
+/** The App JWT is signed through the keys cell's signing adapter, never node:crypto directly [C7,#1428]. */
+const signing = (await loadSigningAdapter()).createSigningAdapter();
 
 export const GITHUB_API_VERSION = '2026-03-10';
 
@@ -86,20 +86,18 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
   const callback = endpoint(callbackURL);
 
   const installationTokens = new Map();
-  let key;
   if (privateKey) {
-    try { key = createPrivateKey(privateKey); } catch { throw new Refused('GITHUB_CONFIG', 'configure a valid GitHub App RSA private key'); }
-    if (key.asymmetricKeyType !== 'rsa') throw new Refused('GITHUB_CONFIG', 'configure a GitHub App RSA private key');
+    try { signing.signWith({ algorithm: 'RS256', privateKey }, 'probe'); } catch { throw new Refused('GITHUB_CONFIG', 'configure a valid GitHub App RSA private key'); }
   }
 
   /** Sign a short-lived App JWT; the deployment key never enters persistent auth state. */
   function appJWT() {
-    if (!key) throw new Refused('GITHUB_CONFIG', 'configure the GitHub App private key to check repository access');
+    if (!privateKey) throw new Refused('GITHUB_CONFIG', 'configure the GitHub App private key to check repository access');
     const issued = Math.floor(now() / 1000);
     const head = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const claims = Buffer.from(JSON.stringify({ iat: issued - 60, exp: issued + 540, iss: clientId })).toString('base64url');
     const unsigned = head + '.' + claims;
-    return unsigned + '.' + sign('RSA-SHA256', Buffer.from(unsigned), key).toString('base64url');
+    return unsigned + '.' + signing.signWith({ algorithm: 'RS256', privateKey }, unsigned);
   }
 
   /**

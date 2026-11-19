@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/sandbox/index.js packages/items/index.js */
 /** A runner gate fetches a claim base outside its checkout from the trunk remote; one the remote lacks refuses once [P7,C7,#5808]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

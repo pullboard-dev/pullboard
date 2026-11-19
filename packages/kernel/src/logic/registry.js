@@ -104,6 +104,13 @@ export function boardItemReference(inventory, reference, itemId) {
 const MODES = ['states', 'counts', 'nothing'];
 const STATES = ['open', 'claimed', 'submitted', 'verified', 'withdrawn'];
 
+/** The one list of item states a board-link announcement may carry: version 1 is exact, version 2 adds landed [E32]. */
+export function boardLinkStates(version = 1) {
+  if (version === 1) return STATES;
+  if (version === 2) return [...STATES, 'landed'];
+  return boardLinkFormat('Use board-link version 1 or 2');
+}
+
 /** Reject a malformed link rather than normalizing away signed fields. */
 export function boardLinkFormat(message) { throw new Refused('BOARD_LINK_FORMAT', `${message}; use the exact version 1 board-link contract`); }
 
@@ -117,6 +124,7 @@ export function boardLinkName(value) {
 export function boardLinkBody(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).some(key => !['version', 'linkId', 'parent', 'child', 'generation', 'disclosure', 'approvals', 'revocation'].includes(key))) boardLinkFormat('The link has unsupported fields');
+  if (value.version === 2) boardLinkFormat('This is a version 2 board link; upgrade Pullboard to read it');
   if (value.version !== 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !MODES.includes(value.disclosure)) boardLinkFormat('Use a positive generation and a supported disclosure mode');
   const parent = boardReference(value.parent);
   const child = boardReference(value.child);
@@ -159,12 +167,12 @@ export function boardLinkSigningText(body, boardId, action) {
 }
 
 /** Strip forbidden text before persistence or transmission; no caller field survives by default. */
-export function discloseBoardState(mode, rows) {
+export function discloseBoardState(mode, rows, version = 1) {
   if (!MODES.includes(mode)) throw new Refused('BOARD_LINK_DISCLOSURE', 'use the link’s signed states, counts or nothing disclosure mode');
   if (!Array.isArray(rows) || rows.length > 10000) boardLinkFormat('Use a bounded item-state array');
   if (mode === 'nothing') return [];
   const selected = rows.map(row => {
-    if (!row || !Number.isSafeInteger(row.id) || row.id < 1 || !STATES.includes(row.state)) boardLinkFormat('Use exact numeric item IDs and native item states');
+    if (!row || !Number.isSafeInteger(row.id) || row.id < 1 || !boardLinkStates(version).includes(row.state)) boardLinkFormat('Use exact numeric item IDs and native item states');
     return { board: boardReferenceId(row.board), id: row.id, state: row.state };
   });
   const seen = new Set();
