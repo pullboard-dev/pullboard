@@ -410,3 +410,16 @@ test('gate.io-stores.person-enrollment-owned-by-relay-io: #10810 clause 1: table
   const oldHome = ['apps/relay/src/logic/person/enrollment', 'store.js'].join('/');
   assert.throws(() => readFileSync(new URL(`../../../../${oldHome}`, import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
 });
+
+test('gate.io-stores.logic-owner-refused: clause 1: a stores.json row whose owner is under a logic layer is refused naming the row unless its kind is repo-data, and a repo-data row with a logic owner passes [CD2,#10817]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.deepEqual(storeOwnerProblems(registry), [], 'no row on main has a logic owner unless it is repo-data');
+  assert.equal(registry.stores['load-bearing.json'].kind, 'repo-data');
+  for (const owner of ['packages/gate/src/logic/x.js', 'apps/cli/src/logic/y.js']) {
+    const refused = storeOwnerProblems({ stores: { 'x.json': { kind: 'json', owner } } });
+    assert.equal(refused.length, 1);
+    assert.match(refused[0].text, /CD2_STORE_OWNER: x\.json is owned by .*logic file/u);
+    assert.deepEqual(storeOwnerProblems({ stores: { 'x.json': { kind: 'repo-data', owner } } }), []);
+  }
+  assert.deepEqual(storeOwnerProblems({ stores: { 'x.json': { kind: 'json', owner: 'packages/gate/src/io/x.js' } } }), []);
+});
