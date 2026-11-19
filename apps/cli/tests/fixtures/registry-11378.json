@@ -1,0 +1,41 @@
+{
+  "cli.io-landing-pull.table-staleness-reopens": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with health.derivedState on and a table current for main, an item the table marks stale goes back to its lane and a fresh one is offered"
+    },
+    "why": "Without it landing could keep recomputing freshness per item from git, or ignore a stale verdict the table already holds.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js"
+    ]
+  },
+  "cli.io-landing-pull.table-not-current-computes": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with a table swept at an older main, or with the setting off, freshness is computed as on main"
+    },
+    "why": "Without it a table swept at another commit could mark an item stale or fresh for a main it does not describe.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js"
+    ]
+  },
+  "cli.io-landing-pull.table-wired-into-offer": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "offerPulledLanding hands the table verdicts to withoutStaleVerdicts, so a current table offers the same items with fewer git starts"
+    },
+    "why": "Without it the table would exist and show would read it while the lander still ran a git history per item.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js"
+    ]
+  }
+}

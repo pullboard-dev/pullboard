@@ -13,6 +13,7 @@ import { queueFor } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
+import { derivedStateEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { adaptiveBatchEnabled } from '../../../../../packages/config/index.js';
@@ -75,6 +76,17 @@ async function landingTrunk(root, remote, main) {
   const held = () => tryGit(root, ['cat-file', '-e', `${tip}^{commit}`]).status === 0;
   if (tip !== main && !held()) await pullGit.fetchTrunk(root, remote, [`+${trunk}:refs/pullboard/landing/trunk`]);
   return held() ? tip : main;
+}
+
+/**
+ * The verdict reader of the derived-state table when it is current for the trunk commit the offer lands onto, else undefined.
+ * Why: with health.derivedState on, a sweep at this commit already holds each accepted item's verdict freshness, so the offer reads rows instead of one git history per item; the health cell loads only with the setting on, and a table swept at another commit answers nothing [C7,#3010].
+ */
+async function derivedVerdicts(board, trunkTip) {
+  if (!derivedStateEnabled()) return undefined;
+  const { readDerivedState } = await import('../../../../../packages/health/index.js');
+  const table = readDerivedState(board, { mainCommit: trunkTip, enabled: true });
+  return table ? item => table.verdicts.get(String(item.item_id)) : undefined;
 }
 
 /**
@@ -193,10 +205,10 @@ export function landingOfferBatches(free, { size, parallel = false }) {
  * @param {{ pairPrefix?: Function, quarantineWaivers?: Function, gateRuns?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
  *   policy and board reads the lander already holds.
  * @param {{ local?: typeof ensureLocalRunner, ids?: number[] | null, forced?: string | null, board?: object | null, lock?: typeof underBoardWriteLock }} [options] - board: the
- *   board a command already holds open, so a hand landing writes its offer there; lock: the write lock the offer's writes sit under (a test seam, the recorded board write lock by default).
+ *   board a command already holds open, so a hand landing writes its offer there; lock: the write lock the offer's writes sit under (a test seam, the recorded board write lock by default); write: the board write a stale reopen goes through (a test seam, the command's ordered write by default).
  * @returns {Promise<{ offered: string | null, items: number[], waiting: boolean, forced?: string } | null>}
  */
-export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers, gateRuns = () => [] }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null, lock = underBoardWriteLock } = {}) {
+export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers, gateRuns = () => [] }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null, lock = underBoardWriteLock, write = null } = {}) {
   const policy = mainPolicy(root);
   const configured = configTrunkRemote(policy.config);
   // No trunk remote: the board host's repository is trunk, landed by the local runner, which this starts again if it died.
@@ -212,8 +224,10 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const trunkTip = await landingTrunk(root, remote, policy.commit);
     // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
     if (!ids) await relandAcceptedItems({ root, board, base: trunkTip, write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), landingPorts: { quarantineWaivers: quarantineWaivers ?? (() => []) } });
+    // With health.derivedState on and the table swept at this trunk commit, each item's freshness is its table row, not a git read [C7,#3010].
+    const derived = await derivedVerdicts(board, trunkTip);
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
-      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject() });
+      write: (operation, args) => write ? write(operation, args) : ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject(), derived });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at && !taken.has(item.item_id));
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].

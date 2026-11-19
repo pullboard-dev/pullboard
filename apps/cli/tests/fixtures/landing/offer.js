@@ -9,6 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
+import { sweepDerivedState } from '../../../../../packages/health/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { openBoard } from '../../../../lib/index.js';
@@ -21,9 +22,11 @@ import { temporaryDirectory } from '../board.js';
 
 /**
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
- * a git shim on PATH that logs each git start, and the offer's logged lock seam. Returns what the offer did.
+ * a git shim on PATH that logs each git start, and the offer's logged  lock seam. Returns what the offer did. With `derived`, the machine turns health.derivedState on (`setting`, default true) and a table is swept
+ * before the offer at trunk (`swept: 'current'`, the default) or at another commit (`'older'`), holding `verdicts` by item id (a state, or null for fresh; an item left out gets null).
+ * Stale reopens go straight to the store, and `beforeLock` is the number of git starts before the lock was taken.
  */
-export async function offerWithLog(t, { concurrentOffer = false } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, derived = null } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -61,7 +64,8 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
   }
   // The offer reads machine settings from this private home: parallel gates on, so each entry's changed files are read.
   process.env.PULLBOARD_MACHINE_HOME = home;
-  fixtureMachineSettings(home, { landing: { parallelGates: true } });
+  fixtureMachineSettings(home, { landing: { parallelGates: true }, ...(derived && derived.setting !== false ? { health: { derivedState: true } } : {}) });
+  if (derived) sweepDerivedState(board, { mainCommit: derived.swept === 'older' ? '0'.repeat(40) : main, enabled: true, listItems: target => store.listItems(target, { all: true }), verdictState: item => derived.verdicts?.[item.item_id] ?? null, gateAtHead: () => null });
   // A git shim logs each git start; the lock seam logs where the lock is held, so the log orders git against the lock.
   const log = join(home, 'git-and-lock.log');
   const shim = join(home, 'shim');
@@ -81,12 +85,13 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
   const policy = { config: { flakes: { rerun: true } }, commit: main };
   const result = await offerPulledLanding({ io: { say() {} }, file: boardFile }, directory,
     { mainPolicy: () => policy, listItems: store.listItems, checkedLandingCommit: (_board, item) => item.item_commit, pairPrefix: () => 'prefix' },
-    { local: async () => ({ running: true }), board, lock });
+    { local: async () => ({ running: true }), board, lock, write: async (operation, args) => store[operation](board, args[0], args[1]) });
   const lines = readFileSync(log, 'utf8').trim().split('\n');
   const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
     const offered = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job.job_id);
     return JSON.parse(offered.payload).payload;
   });
-  return { result, lines, jobs };
+  const beforeLock = lines.slice(0, Math.max(lines.indexOf('LOCK_ENTER'), 0)).filter(line => line.startsWith('git ')).length;
+  return { result, lines, jobs, board, main, beforeLock };
 }
 
