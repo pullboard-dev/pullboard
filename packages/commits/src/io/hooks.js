@@ -227,6 +227,9 @@ export function machineNameProblems(root, range, { refuse, say, names = machineN
   }
 }
 
+// The range message scan lives in signoff.js, which the light commits door already loads, so that door can run it without this file's closure.
+export { rangeMessageProblems } from './signoff.js';
+
 /**
  * Colliding bare citations keep their SPEC.md meaning, but tell the author how to name doctrine.
  *
