@@ -207,6 +207,7 @@ export const MACHINE_DEFAULTS = {
   'tests.requireRegistered': false,
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
+  'verify.soloLowStakes': false,
   'view.background': true,
   'watch.quietReads': false,
 };

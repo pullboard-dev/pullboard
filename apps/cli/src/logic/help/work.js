@@ -201,6 +201,7 @@ ${RELEASE_REASON_LINES.map(line => `                                        ${li
                                         done needs matching native move event IDs in request order; it never executes a move
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
+  pullboard rulings <cause>                       every ruling recorded under that cause, newest first, with its shout id and text
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
                 [--work <lane>] [--review-wait <minutes>]
                                         follow the board's live events, one line each as it happens, with or without the view

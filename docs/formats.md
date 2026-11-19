@@ -267,6 +267,9 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_hold_reason` | `TEXT` | `nullable` |
 | `item` | `item_hold_by` | `TEXT` | `nullable` |
 | `item` | `item_hold_at` | `TEXT` | `nullable` |
+| `item` | `item_reservation_holder` | `TEXT` | `nullable` |
+| `item` | `item_reservation_by` | `TEXT` | `nullable` |
+| `item` | `item_reservation_at` | `TEXT` | `nullable` |
 | `item` | `item_created_by` | `TEXT` | `NOT NULL` |
 | `item` | `item_created_at` | `TEXT` | `NOT NULL` |
 | `item` | `item_updated_at` | `TEXT` | `NOT NULL` |
