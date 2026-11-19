@@ -294,7 +294,14 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const dependencies = localDependencyIds(item);
     const waitsOn = dependencies.filter((id) => !dependencySatisfied(all.find((other) => other.item_id === id))); // only merged or withdrawn count as met, even a verified dependency already in this batch [C7]
     // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
-    if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
+    // A foreign wait is met only when its own board announced the item landed; a version 1 announcement cannot say landed, so verified is the best it can give [XB1,E32].
+    const foreignWaits = store.foreignDependencyStates(board, item)
+      .filter((ref) => !(ref.status === 'landed' || (ref.status === 'verified' && ref.announced === 1))).map((ref) => `${ref.repo}#${ref.id}`);
+    if (waitsOn.length || foreignWaits.length) {
+      const names = [...waitsOn.map((id) => `#${id}`), ...foreignWaits];
+      blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) ${names.join(', ')}`, items: waitsOn, ...(foreignWaits.length ? { foreign: foreignWaits } : {}) });
+      continue;
+    }
     const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
     const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {
