@@ -164,7 +164,7 @@ test('landing.exact.record-refuses-a-malformed-tree: clause 2: validateLandingBa
  * 'descends' (one item whose commit sits on the trunk, so the merge adds nothing), 'diverged' (one item branched before the trunk moved)
  * or 'two' (two items). Returns the group's answer.
  */
-async function composedGroup(t, settings, shape) {
+async function composedGroup(t, settings, shape, message = null) {
   const repo = cellRepo(t, { real: true });
   const { root: dir } = privateFixtureFiles('pullboard-composed-equality-');
   const board = openCellBoard(`${dir}/board.sqlite`);
@@ -195,6 +195,7 @@ async function composedGroup(t, settings, shape) {
     tips = [repo.commitAll()];
   } else {
     tips = shape === 'two' ? [branchOff('one', 'web/one.txt'), branchOff('two', 'web/two.txt')] : [branchOff('page', 'web/page.txt')];
+    if (message) { g('commit', '--amend', '-q', '-m', message); tips = [g('rev-parse', 'HEAD')]; }
     g('checkout', '-q', '--detach', base);
     repo.put('packages/landing/src/io/scan.js', '// scan\n');
     repo.put('packages/landing/src/io/derive.js', '// derive\n');
@@ -292,4 +293,12 @@ test('landing.merge.stale-check-asks-the-mechanical-port: clause 3: the merge st
   const result = await group.run();
   assert.deepEqual(result.conflicts, []);
   assert.doesNotMatch(group.said.join('\n'), /STALE_VERDICT|conflict #/u);
+});
+
+test('landing.merge.refuses-own-commit-trailer-or-path: clause 2: a batch whose item commit carries a Co-Authored-By trailer or a home-folder path is refused LAND_HEADER with nothing merged, and a clean item merges [C7,#11265]', async t => {
+  for (const message of ['chore: scratch\n\nCo-Authored-By: Fixture Name <fixture@example.test>', 'chore: scratch of /Users/fixture/work/repo']) {
+    await assert.rejects(composedGroup(t, {}, 'diverged', message), error => error.code === 'LAND_HEADER' && /nothing merged/u.test(error.message));
+  }
+  const clean = await composedGroup(t, {}, 'diverged', 'chore: scratch clean');
+  assert.equal(clean.result.items.length, 1);
 });
