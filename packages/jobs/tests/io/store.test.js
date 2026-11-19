@@ -1,7 +1,7 @@
 /** The job store keeps one row per gate job or landing batch with an append-only, idempotent step log [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { holdBoard } from '../fixtures/hold-board.js';
 import { atomically } from '../../index.js';

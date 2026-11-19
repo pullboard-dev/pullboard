@@ -36,6 +36,7 @@ import { carryLandingHops } from '../../../../../packages/landing/index.js';
 import { landingMainReds } from '../../../../../packages/landing/index.js';
 import { startGroup } from '../../../../../packages/landing/index.js';
 import { parallelGatesEnabled } from '../../../../../packages/config/index.js';
+import { derivedStateEnabled } from '../../../../../packages/config/index.js';
 import { landingPriorityCompare } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
@@ -57,6 +58,33 @@ const TRUNK = 'refs/heads/main';
 function trunkRef(root) {
   const branch = mainCheckout(root)?.branch;
   return typeof branch === 'string' && branch ? (branch.startsWith('refs/') ? branch : `refs/heads/${branch}`) : TRUNK;
+}
+
+/**
+ * Each item id's newest accept event id, the landing offer's accept order [C7,#11381].
+ * Why: with health.derivedState on and the table current for main, the sweep already holds this order, so the offer reads it and runs no GROUP BY scan of accept events;
+ * a table swept at another commit, the setting off, or a wanted item the table has no row for (accepted after the sweep) all scan exactly as before.
+ * The health cell loads only with the setting on, so the offer's cold path is unchanged with it off.
+ *
+ * @param {string} root
+ * @param {any} board
+ * @param {number[]} wantedIds The accepted items the offer will order.
+ * @param {{ enabled?: boolean, mainCommit?: string | null }} [options] The health.derivedState setting, read from machine settings by default, and the main commit to read the table at (a test seam; main's tip by default).
+ * @returns {Promise<Map<number, number>>}
+ */
+export async function acceptOrderOf(root, board, wantedIds, { enabled = derivedStateEnabled(), mainCommit = null } = {}) {
+  if (enabled) {
+    const { readDerivedState } = await import('../../../../../packages/health/index.js');
+    // The key the sweep writes under: the main checkout's branch, else the trunk ref, resolved to a commit as a verdict review resolves it.
+    let main = mainCommit;
+    if (!main) {
+      const resolved = tryGit(root, ['rev-parse', '--verify', `${mainCheckout(root)?.branch ?? trunkRef(root)}^{commit}`]);
+      main = resolved.status === 0 ? resolved.stdout.trim() : null;
+    }
+    const table = main ? readDerivedState(board, { mainCommit: main, enabled: true }) : null;
+    if (table && wantedIds.every(id => table.acceptOrder.has(String(id)))) return new Map([...table.acceptOrder].map(([key, event]) => [Number(key), event]));
+  }
+  return new Map(board.db.prepare("SELECT item_id, MAX(event_id) AS event_id FROM event WHERE event_kind = 'accept' GROUP BY item_id").all().map(row => [row.item_id, row.event_id]));
 }
 
 /** The ref an accepted item's commit is published under on the trunk remote, so a runner can fetch it by name. */
@@ -220,7 +248,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
     const candidates = all.filter(wanted);
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
-    const accepted = new Map(board.db.prepare("SELECT item_id, MAX(event_id) AS event_id FROM event WHERE event_kind = 'accept' GROUP BY item_id").all().map(row => [row.item_id, row.event_id]));
+    const accepted = await acceptOrderOf(root, board, all.filter(wanted).map(item => item.item_id));
     // landing.first in accepted trunk policy goes ahead of the accept order, in the order listed; named ids keep the order named [C7,#7387].
     const pinned = new Map((Array.isArray(policy.config?.landing?.first) ? policy.config.landing.first : []).map((id, index) => [id, index]));
     // An item that met 2 or more infrastructure failures (lapsed leases, lost CAS) goes behind every other accepted item, as candidates() does; named ids keep the order named [C7,#3118].

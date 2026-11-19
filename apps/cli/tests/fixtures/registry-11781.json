@@ -1,0 +1,20 @@
+{
+  "cli.io-submit-wrong-branch.withdrawn-item-carried": {
+    "proves": { "specs": ["C7"], "claim": "A head whose new commits name only a withdrawn item is not refused WRONG_BRANCH, so a replacement item submits." },
+    "why": "Without it, carried commits that name a withdrawn item block every submit of its replacement.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/submit.js", "apps/cli/tests/io/submit/wrong-branch.test.js"]
+  },
+  "cli.io-submit-wrong-branch.live-item-refused": {
+    "proves": { "specs": ["C7"], "claim": "A head whose new commits name an open other item and none of this item is still refused WRONG_BRANCH." },
+    "why": "Without it, ignoring withdrawn items could let a branch be gated as the wrong live item.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/submit.js", "apps/cli/tests/io/submit/wrong-branch.test.js"]
+  },
+  "cli.io-submit-wrong-branch.stack-path": {
+    "proves": { "specs": ["C7"], "claim": "refuseUnsubmittableStack passes its board to the wrong-branch check on a fixture board and repo." },
+    "why": "Without it, the board read could exist in the check but never be reached from the submit path.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/submit.js", "apps/cli/tests/io/submit/wrong-branch.test.js"]
+  }
+}
