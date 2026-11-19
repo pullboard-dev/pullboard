@@ -2516,6 +2516,7 @@
     "api->jobs",
     "api->kernel",
     "keys->store",
+    "keys->env",
     "landing->gate",
     "landing->git",
     "landing->jobs",
