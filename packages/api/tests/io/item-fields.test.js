@@ -14,8 +14,8 @@ import { relateItems } from '../../../store/index.js';
 import { setItemField } from '../../../store/index.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { serveApi } from '../../index.js';
 
 const OPENERS = Object.freeze({ openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] });

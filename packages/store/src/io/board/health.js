@@ -20,6 +20,8 @@ import { agentModel } from "./query.js";
 import { CPU_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { hasPendingCpuNotices } from "../../logic/board/receipts.js";
 import { REJECTED_WORK_RETURN_ENGINE } from "../../../../state/light.js";
+import { HEALTH_EPISODE_ENGINE } from "../../../../state/light.js";
+import { FLAP_WINDOW_MS } from "../../logic/board/receipts.js";
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
 export function applyHealthFindings(board, { agentId, observedRevision, findings, dispatch, returnRejected = false }, { atomic, insertShout, normalizedDispatch, rejectedWorkReturns }) {
   return atomic(board, () => {
@@ -66,7 +68,9 @@ export function applyHealthFindings(board, { agentId, observedRevision, findings
         owner: finding.owner, commit: item?.item_commit ?? null, engine: HEALTH_SENTINEL_ENGINE, model,
       });
     };
-    const deferred = deliverHealthNotices({ resolved, added, pending, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes, detail: { model } }),
+    const now = board.clock.now();
+    const recentlyResolved = engine >= HEALTH_EPISODE_ENGINE && added.length ? recentlyResolvedKeys(board, now) : new Map();
+    const deferred = deliverHealthNotices({ resolved, added, pending, recentlyResolved, now, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes, detail: { model } }),
       targets: finding => healthTargets(finding, { engine, coordinator: COORDINATOR, person: PERSON, lanes, agents }) });
     for (const returned of returns) {
       const { item, ...detail } = returned;
@@ -76,4 +80,18 @@ export function applyHealthFindings(board, { agentId, observedRevision, findings
       ...(deferred?.some(finding => finding.cause === 'UNPAIRED_WORK') || last && JSON.parse(last.event_detail).pendingDispatch ? { pendingDispatch: deferred?.filter(finding => finding.cause === 'UNPAIRED_WORK') ?? [] } : {}), engine: HEALTH_SENTINEL_ENGINE });
     return { added: added.map(finding => finding.key), resolved: resolved.map(finding => finding.key) };
   });
+}
+
+/**
+ * Each finding key that a health-resolved event closed in the FLAP_WINDOW_MS before `now`, with the instant it resolved, by the board clock [C7,#1479].
+ * Why: a finding that clears and returns inside the window is the same episode, so the sentinel does not shout it a second time.
+ *
+ * @param {any} board
+ * @param {Date} now
+ * @returns {Map<string, string>}
+ */
+export function recentlyResolvedKeys(board, now) {
+  const since = new Date(now.getTime() - FLAP_WINDOW_MS).toISOString();
+  const rows = board.db.prepare("SELECT event_at, event_detail FROM event WHERE event_kind = 'health-resolved' AND event_at >= ? ORDER BY event_id").all(since);
+  return new Map(rows.map(row => [JSON.parse(row.event_detail).key, row.event_at]));
 }
