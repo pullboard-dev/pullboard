@@ -331,6 +331,9 @@ export function loadMachineSettings() {
   if (value.gate?.sampleDiskIo !== undefined && typeof value.gate.sampleDiskIo !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleDiskIo in ${file} must be true or false`);
   }
+  if (value.gate?.sampleSwap !== undefined && typeof value.gate.sampleSwap !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleSwap in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
@@ -384,6 +387,9 @@ export function loadMachineSettings() {
   }
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
+  }
+  if (value.verify?.soloLowStakes !== undefined && typeof value.verify.soloLowStakes !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `verify.soloLowStakes in ${file} must be true or false`);
   }
   if (value.verify?.rejectKeepsCheck !== undefined && typeof value.verify.rejectKeepsCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.rejectKeepsCheck in ${file} must be true or false`);
@@ -710,6 +716,11 @@ export function submitComposeAsObject() {
 /** Whether landing may skip the retest for a staged tree equal to the proven composition (U159): off by default; only an exact `true` turns it on. */
 export function landingComposedEquality() {
   return loadMachineSettings().landing?.composedEquality === true;
+}
+
+/** Whether runner load samples also carry swap readings (#10583): off by default; only an exact `true` turns it on. */
+export function gateSampleSwap() {
+  return loadMachineSettings().gate?.sampleSwap === true;
 }
 
 /** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755): off by default; only an exact `true` turns it on. */
