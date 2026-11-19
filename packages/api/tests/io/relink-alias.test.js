@@ -10,8 +10,8 @@ import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js'
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { offerJob } from '../../index.js';
 import { serveApi } from '../../index.js';
 
