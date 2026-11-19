@@ -203,6 +203,11 @@ export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
 }
 
+/** Whether the static check refuses new direct signing outside the signing adapter: off by default; only an exact `true` turns it on [C7,#1428]. */
+export function adapterLintSigningEnabled() {
+  return loadMachineSettings().gate?.adapterLintSigning === true;
+}
+
 /** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
 export function jsdocCheckEnabled() {
   return loadMachineSettings().gate?.jsdocCheck === true;
@@ -637,6 +642,11 @@ export function lapsedSweepEnabled() {
 /** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
 export function docsRegenerateOnCommit() {
   return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
+/** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
+export function itemsBarRulesAtAdd() {
+  return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */

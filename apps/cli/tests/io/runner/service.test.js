@@ -5,7 +5,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runService } from '../../../src/io/runner/service.js';
+import { runnerCommand } from '../../../src/io/commands/runner.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
 /** Run the entry with a fake serveRunner that records its options and answers as given; the board key sits in a private folder. */
 async function entry(t, { port, answer, lock, onServe, env = { PULLBOARD_RUNNER_JOBS: '10' } }) {
@@ -65,4 +67,30 @@ test('cli.io-runner-service.with-runner-jobs-set-serves-and-exits-0: clause 2: w
   const { code, served } = await entry(t, { port: async () => null, answer: { jobs: [] }, env: { PULLBOARD_RUNNER_JOBS: '10' } });
   assert.equal(code, 0);
   assert.equal(served, 1);
+});
+
+/** Run work with PULLBOARD_MACHINE_HOME on a folder whose settings.json holds the given document (or none), then restore the variable. */
+async function withSettings(t, document, work) {
+  const { root: home } = privateFixtureFiles('pullboard-service-settings-');
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  if (document !== undefined) fixtureMachineSettings(home, document);
+  const before = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  try { return await work(); } finally { if (before === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = before; }
+}
+
+test('cli.io-runner-service.passes-the-job-worker-factor: clause 1: runService passes serveRunner jobWorkerFactor from runners.jobWorkerFactor in the machine settings file, 2 when it is unset [C7,#11838]', async t => {
+  for (const [document, want] of [[{ 'runners.jobWorkerFactor': 3 }, 3], [{}, 2], [undefined, 2]]) {
+    const { options } = await withSettings(t, document, () => entry(t, { port: async () => null, answer: { jobs: [] } }));
+    assert.equal(options.jobWorkerFactor, want, JSON.stringify(document));
+  }
+});
+
+test('cli.io-runner-service.command-passes-the-job-worker-factor: clause 2: pullboard runner serve passes serveRunner the same jobWorkerFactor from the machine settings file [C7,#11838]', async t => {
+  for (const [document, want] of [[{ 'runners.jobWorkerFactor': 4 }, 4], [{}, 2]]) {
+    const seen = [];
+    await withSettings(t, document, () => runnerCommand({ say: () => {}, result: () => {} }, { first: 'serve', second: 'http://board.test', rest: [], values: { once: true } }, { serve: async options => { seen.push(options); return { jobs: [] }; } }));
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].jobWorkerFactor, want, JSON.stringify(document));
+  }
 });

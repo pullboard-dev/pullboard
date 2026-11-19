@@ -5,10 +5,7 @@
  * A rule or question text two of them share is drafted once, by the first, and the later blueprint
  * cites that row. Every starter item keeps the name of the blueprint that filed it.
  */
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import {
   bundledBlueprints,
@@ -20,6 +17,8 @@ import {
 } from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The kinds a board takes one of, by the slot each fills. Why infrastructure is here: #719 renamed
@@ -50,16 +49,16 @@ export function blueprintSlot(blueprint) {
  */
 export function installedBlueprints(root) {
   let specFile = 'SPEC.md';
-  try { specFile = configFromSource(readFileSync(join(root, CONFIG_FILE), 'utf8')).spec; }
+  try { specFile = configFromSource(fs.readFile(join(root, CONFIG_FILE), 'utf8')).spec; }
   catch (error) {
     // No pullboard.json yet, or one init will refuse on its own: the default spec file is read.
     if (!(error instanceof SyntaxError) && error?.code !== 'ENOENT') throw error;
   }
   const file = join(root, String(specFile));
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   const found = new Map();
   const legacy = [];
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/u)) {
+  for (const line of fs.readFile(file, 'utf8').split(/\r?\n/u)) {
     const kind = /^<!-- pullboard-blueprint-kind (\S+) (\S+) -->$/u.exec(line.trim());
     const marker = /^<!-- pullboard-blueprint (\S+) \d+(?: adding .*)? -->$/u.exec(line.trim());
     if (kind) found.set(kind[1], blueprintSlot({ kind: kind[2] }));
@@ -80,7 +79,7 @@ export function installedBlueprints(root) {
 function legacySlot(name, root) {
   if (bundledBlueprints().includes(name)) return blueprintSlot(readBlueprint(name, root));
   for (const candidate of [`${storeName(name)}`, `${name}.blueprint.json`]) {
-    if (!existsSync(join(root, candidate))) continue;
+    if (!fs.exists(join(root, candidate))) continue;
     try {
       const blueprint = readBlueprint(join(root, candidate), root);
       if (blueprint.name === name) return blueprintSlot(blueprint);
