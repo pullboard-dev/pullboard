@@ -30,6 +30,7 @@ export const MACHINE_DEFAULTS = {
   'gate.adapterLintClock': false,
   'gate.adapterLintEnv': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintGithub': false,
   'gate.adapterLintSsh': false,
   'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
