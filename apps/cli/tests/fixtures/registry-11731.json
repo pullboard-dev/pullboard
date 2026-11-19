@@ -1,0 +1,3 @@
+{
+  "cli.io-disk-use-walk.retention-walks-a-folder-of-200000-entries": {"proves":{"specs":["C7"],"claim":"Retention walks a folder of 200000 entries without a stack overflow and finds its newest file."},"why":"Without it, a regression where retention walks a folder of 200000 entries without a stack overflow and finds its newest file would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/disk/use/walk.test.js"]}
+}
