@@ -1,0 +1,4 @@
+{
+  "gate.io-test-cells.heavy-door-admitted": {"proves":{"specs":["C7"],"claim":"cellTestProblems reports no problem for a cell test importing packages/gate/heavy.js when gate sits below it in plan order, and still reports a gate source file import and another cell heavy.js."},"why":"Every importer moving to the gate heavy door would trip the cell-test ratchet without it.","kind":"cell unit","inputs":["packages/gate/src/io/test/cells.js","packages/gate/tests/io/test/cells.test.js"]},
+  "gate.io-test-cells.heavy-door-plan-order": {"proves":{"specs":["C7"],"claim":"a cell test below gate in plan order importing packages/gate/heavy.js is still reported."},"why":"Admitting the door must not lift the plan-order rule.","kind":"cell unit","inputs":["packages/gate/src/io/test/cells.js","packages/gate/tests/io/test/cells.test.js"]}
+}
