@@ -46,10 +46,11 @@ const TEST_FLOOR_CORES = 2;
  * runners idled and the heaviest shard passed the 20-minute ceiling (#7765); a cap by cores leaves the rest to them.
  *
  * @param {number} cores - The cores the runner reported with its claim.
+ * @param {number} [coresPerShard] - The cores one shard weighs; the machine's runners.coresPerShard, handed in by the caller so this stays pure.
  * @returns {number}
  */
-export function shardClaimCap(cores) {
-  return Math.max(1, Math.floor(cores / CORES_PER_SHARD));
+export function shardClaimCap(cores, coresPerShard = CORES_PER_SHARD) {
+  return Math.max(1, Math.floor(cores / coresPerShard));
 }
 
 /** How many gate-shard jobs this runner holds a live lease on now. runs: the board's runs holder while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. */
@@ -95,11 +96,12 @@ function holdsTestJob(db, runner, now) {
 // Budget: a test job offered this long before the claim keeps its place ahead of gate shards, so a reviewer's comparison run is not starved by a shard backlog [C7,#11190].
 const TEST_JOB_AGED_MS = 120_000;
 
-/** The ids among these test jobs that were offered TEST_JOB_AGED_MS or more before this claim, read in one query keyed by job_id. */
+/** The ids among these test jobs that were offered TEST_JOB_AGED_MS or more before this claim, read in one query keyed by job_id; a census job (its offer carries censusPerRunner) never ages ahead of shards, so census stays lowest priority [C7]. */
 function agedTestJobs(db, ordered, now) {
   const ids = ordered.filter(({ row }) => row.job_kind === 'test').map(({ row }) => row.job_id);
   if (!ids.length) return new Set();
-  return new Set(db.prepare("SELECT job_id FROM job WHERE job_kind = 'test' AND job_created <= ? AND job_id IN (SELECT value FROM json_each(?))")
+  return new Set(db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_kind = 'test' AND job.job_created <= ? AND job.job_id IN (SELECT value FROM json_each(?)) AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NULL`)
     .all(now - TEST_JOB_AGED_MS, JSON.stringify(ids)).map(({ job_id: id }) => id));
 }
 
@@ -353,7 +355,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -365,7 +367,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
   const repeated = [];
   const claimed = atomically(db, () => {
     // A runner that reported its cores and holds its cap of gate shards is offered no more, so idle runners get the rest (#7765).
-    const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores);
+    const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores, coresPerShard);
     // A census job offered with census.jobsPerRunner set waits while this runner holds that many census jobs; other jobs are offered as before [C7,#9136].
     let census = null;
     // With census.jobsPerRunnerQuiet also set, a runner holding no job but census ones is offered up to that many instead [C7,#9500].
@@ -375,10 +377,10 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
     // One cores budget shared by the heavy kinds: a shard or test job waits when the runner's held weight plus its own would pass the cores it reported; a runner holding no test job is still offered one (the builder floor). Landing and other kinds are not weighed, and no cores reported weighs nothing [C7,#11148].
     let heavy = null;
     const overBudget = (kind) => {
-      const weight = kind === SHARD_JOB_KIND ? CORES_PER_SHARD : kind === 'test' ? CORES_PER_TEST : 0;
+      const weight = kind === SHARD_JOB_KIND ? coresPerShard : kind === 'test' ? CORES_PER_TEST : 0;
       if (weight === 0 || !Number.isSafeInteger(cores) || cores < 1) return false;
       const { shards, tests } = (heavy ??= heldHeavy(db, runner, now));
-      if (shards * CORES_PER_SHARD + tests * CORES_PER_TEST + weight <= cores) return false;
+      if (shards * coresPerShard + tests * CORES_PER_TEST + weight <= cores) return false;
       // A runner always holds at least one shard (shardClaimCap), and a test job under the floor.
       return !(kind === SHARD_JOB_KIND ? shards === 0 : tests === 0 && weight <= TEST_FLOOR_CORES);
     };
@@ -982,11 +984,11 @@ function reportedCommit(read) {
  * @param {{ mode: string, now?: number, trunk?: () => string | null, runnerCommit?: (() => string | null) | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
     const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }
