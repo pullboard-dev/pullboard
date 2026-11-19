@@ -93,14 +93,18 @@ export function handoffRecords(db, { live = false } = {}) {
     return records;
   }
   if (!hasJobTables(db)) return records;
-  const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
+  // Keys only: the payloads of a big board total megabytes, and an ORDER BY over them spills a temp file (#11920).
+  const keys = db.prepare(`SELECT j.job_item AS item, s.job_step_id AS step FROM job j
     JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
-    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
-    ORDER BY s.job_step_id DESC`).iterate();
-  for (const row of rows) {
-    if (records.has(row.item)) continue;
+    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}`).all();
+  keys.sort((a, b) => b.step - a.step);
+  const payload = db.prepare('SELECT job_step_payload AS payload FROM job_step WHERE job_step_id = ?');
+  for (const key of keys) {
+    if (records.has(key.item)) continue;
+    const row = payload.get(key.step);
+    if (!row) continue;
     const record = recordOf(row.payload);
-    if (record !== undefined) records.set(row.item, record);
+    if (record !== undefined) records.set(key.item, record);
   }
   return records;
 }
@@ -133,29 +137,36 @@ export function pulledGateRecords(db, only = null, nowMs = Date.now()) {
   return pulled;
 }
 
-/** How long an unsettled sharded gate keeps its claim, counted from the gate job's creation: the gate's own deadline. */
+/** The fallback bound on an unsettled sharded gate's claim, counted from when the gate job offered its shards, for a gate with no live shard job. */
 export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
 
 /**
- * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard is
- * still open, every shard is done but the combined result has not applied (no `note:shards.settled` step), or it settled
- * unknown (red and review outcomes are settled), and the
- * gate job is younger than GATE_SETTLE_HOLD_MS. Why: the gate is the board's work, and the board applies its result only
- * while the submitting seat holds the item. #8249's claim was released while its 10 shards ran [#8342], and #10883's
- * while its 32 done shards waited for their result to apply, so that gate never applied [C7,#10931].
+ * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard job is
+ * still offered or claimed (held for as long as it is), every shard is done but the combined result has not applied (no
+ * `note:shards.settled` step), or it settled unknown, which holds until its settled note changes (red and review outcomes are settled). Why: the gate is the board's
+ * work, and the board applies its result only while the submitting seat holds the item. #8249's claim was released while
+ * its 10 shards ran [#8342], and #10883's while its 32 done shards waited for their result to apply, so that gate never
+ * applied [C7,#10931].
+ * A live shard job holds with no time bound: with the shard backlog at 950-2800 a gate waited more than 2 h after its
+ * offer and its lapsed claim went to a fresh seat again (#11305) [C7,#11923]. Only a gate with no live shard job (shards
+ * done but unsettled, or open in no live step) falls back to GATE_SETTLE_HOLD_MS, counted from the gate job's last
+ * update, when it passed its checks and offered its shards, not from its creation (#11921).
  */
 export function gateShardsUnsettled(board, item) {
   try {
-    const gate = board.db.prepare(`SELECT job_id, job_created FROM job WHERE job_kind = 'gate' AND job_item = ?
+    const gate = board.db.prepare(`SELECT job_id, MAX(job_created, COALESCE(job_updated, job_created)) AS offered FROM job WHERE job_kind = 'gate' AND job_item = ?
       ORDER BY job_created DESC, rowid DESC LIMIT 1`).get(item.item_id);
-    if (!gate || !(board.clock.now().getTime() - gate.job_created < GATE_SETTLE_HOLD_MS)) return false;
-    const shards = board.db.prepare(`SELECT COUNT(*) AS total, SUM(job_step <> 'done') AS open FROM job
+    if (!gate) return false;
+    const shards = board.db.prepare(`SELECT COUNT(*) AS total, SUM(job_step IN ('offered', 'claimed')) AS live, SUM(job_step <> 'done') AS open FROM job
       WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
     if (!shards.total) return false;
-    if (shards.open > 0) return true;
+    if (shards.live > 0) return true;
     const settled = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' ORDER BY job_step_id DESC LIMIT 1").get(gate.job_id);
-    // An unknown outcome (main's receipt missing) is not settled: the board applies it only while the seat still holds the claim [#11711].
-    return settled === undefined || /"outcome"\s*:\s*"unknown"/u.test(settled.payload);
+    // An unknown outcome (main's receipt missing) holds with no time bound: gate.settleOnMainReceipt settles it when the receipt records, and a later settled note, red or review, ends the hold [#11924].
+    if (settled !== undefined && /"outcome"\s*:\s*"unknown"/u.test(settled.payload)) return true;
+    if (!(board.clock.now().getTime() - gate.offered < GATE_SETTLE_HOLD_MS)) return false;
+    if (shards.open > 0) return true;
+    return settled === undefined;
   } catch { return false; } // an older board has no job tables, so it holds no shards
 }
 
