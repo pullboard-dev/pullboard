@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TRANSIENT_CODES } from '../../../packages/kernel/index.js';
-import { LANDING_FAULT_CODES } from '../../../packages/landing/src/logic/retry.js';
-import { retryableLandingRefusal } from '../../../packages/landing/src/logic/retry.js';
+import { LANDING_FAULT_CODES } from '../../../packages/landing/index.js';
+import { retryableLandingRefusal } from '../../../packages/landing/index.js';
 import { INFRASTRUCTURE_CODES } from '../../../packages/store/index.js';
 
 test('clause 1: every retry site reads the one transient set, so a code in it is retried by all of them [C7,#3779]', () => {
