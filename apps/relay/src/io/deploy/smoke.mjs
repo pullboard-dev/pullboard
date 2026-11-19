@@ -1,31 +1,31 @@
 /** Exercise a real CLI-to-relay round trip without printing device or board secrets [H5,H17,H18]. */
 import { spawn } from 'node:child_process';
 import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
-import {
   dirname,
   join,
   resolve,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { request } from '../../../../../packages/link/index.js';
 import { relayFetch } from '../../../../../packages/person/index.js';
 import { unseal } from '../../../../../packages/kernel/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
+const fileSystem = fileSystemAdapter();
+
+const ENVIRONMENT = environmentAdapter();
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const CLI = join(REPOSITORY, 'apps/cli/pullboard.js');
 
 /** Run one production CLI command in the current repository and parse only its JSON document. */
 function cli(root, args) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env: ENVIRONMENT.all(), stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     const timer = setTimeout(() => child.kill('SIGKILL'), 60_000);
     child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
@@ -56,7 +56,7 @@ async function commonDirectory(root) {
 /** Run Git without a shell and return its bounded textual result. */
 function cliGit(root, args) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn('git', args, { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'ignore'] });
+    const child = spawn('git', args, { cwd: root, env: ENVIRONMENT.all(), stdio: ['ignore', 'pipe', 'ignore'] });
     let stdout = '';
     child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
     child.once('error', reject);
@@ -134,27 +134,27 @@ async function readMirroredCheckpoint({ address, board, token, key, after, item,
 /** Run relay on, add and unseal one move, then always issue relay off against the supplied origin. */
 async function smoke(address) {
   const root = process.cwd();
-  const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
+  const config = JSON.parse(fileSystem.readFile(join(root, 'pullboard.json'), 'utf8'));
   const lane = Object.keys(config.lanes || {})[0];
   if (!lane) throw new Error('the smoke repository must have at least one configured lane');
   const common = await commonDirectory(root);
   const metadata = join(common, 'pullboard', 'relay.json');
-  if (existsSync(metadata)) throw new Error('this repository already has a relay link; use an unlinked throwaway repository');
+  if (fileSystem.exists(metadata)) throw new Error('this repository already has a relay link; use an unlinked throwaway repository');
   let on;
   let linked = false;
   let failure;
   let result;
   try {
     on = await cli(root, ['relay', 'on', '--url', address]);
-    linked = existsSync(metadata);
+    linked = fileSystem.exists(metadata);
     if (!on.linked || on.url !== new URL(address).origin) throw new Error('relay on did not link to the supplied address');
     const title = `Pullboard relay smoke ${Date.now()}`;
     const added = await cli(root, ['add', lane, title]);
     const item = added.item;
     if (!item || typeof item.item_id !== 'number') throw new Error('the local add did not return its item');
-    const link = JSON.parse(readFileSync(metadata, 'utf8'));
+    const link = JSON.parse(fileSystem.readFile(metadata, 'utf8'));
     if (link.board !== on.board || link.url !== on.url) throw new Error('the saved relay link changed during the smoke');
-    const mode = statSync(metadata).mode & 0o777;
+    const mode = fileSystem.stat(metadata).mode & 0o777;
     if (mode !== 0o600) throw new Error('the saved relay link is not private');
     const eventId = await readMirroredMove({
       address: on.url,
@@ -167,7 +167,7 @@ async function smoke(address) {
     });
     result = { ok: true, board: on.board, item: item.item_id, sequence: eventId };
   } catch (error) {
-    linked ||= existsSync(metadata);
+    linked ||= fileSystem.exists(metadata);
     failure = error;
   }
   if (linked) {
