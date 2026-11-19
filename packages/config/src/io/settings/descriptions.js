@@ -230,6 +230,7 @@ const ROWS = [
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
   ['project', 'Project name', 'The name shown for this project.', 'Project', 'text'],
   ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Folders', 'list'],
+  ['slices.composeLanding', 'Land slices together', 'Off (default) lands each slice on its own. On, an item\'s slices compose into one parent review and one atomic landing.', 'Checks', 'on/off'],
   ['slices.enforcePaths', 'Keep slices in their paths', 'Submit refuses a slice that changes a path outside the files it declared.', 'Checks', 'on/off'],
   ['spec', 'Spec file', 'The file holding the approved specification.', 'Project', 'file'],
   ['toolBuild.autoGate', 'Automatic tool build gate', 'Run a full runner gate on main at the tool build refresh interval.', 'Project', 'on/off'],

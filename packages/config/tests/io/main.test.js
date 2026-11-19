@@ -52,3 +52,13 @@ test('config.io-main.confined-import-selection-default-off: clause 2: a config r
   assert.equal(config.confinedImportSelection, undefined);
   assert.equal(configFromSource(JSON.stringify({ confinedImportSelection: 'tests' }), fixtureRepo()).confinedImportSelection, 'tests');
 });
+
+test('config.main.slices-compose-landing-default-off: clause 1: configFromSource reads slices.composeLanding as false when unset and true when set true [C7]', () => {
+  assert.equal(configFromSource('{}', fixtureRepo()).slices.composeLanding, false);
+  assert.equal(configFromSource(JSON.stringify({ slices: { composeLanding: true } }), fixtureRepo()).slices.composeLanding, true);
+});
+
+test('config.main.slices-compose-landing-not-boolean: clause 1: a non-boolean slices.composeLanding is a config problem naming the key [C7]', () => {
+  const problems = configProblems({ ...defaults(), slices: { composeLanding: 'yes' } }, fixtureRepo()).filter(problem => problem.includes('slices.composeLanding'));
+  assert.deepEqual(problems, ['"slices.composeLanding" is true or false']);
+});
