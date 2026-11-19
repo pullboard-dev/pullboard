@@ -238,6 +238,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `field` | `version:number`, `field:object` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
+| `link` | `version:number`, `link:string`, `parent:object`, `child:object`, `disclosure:string` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `mutate` | `version:number`, `cell:string`, `all:boolean`, `redBefore:array`, `tests:array`, `faults:array`, `caught:number`, `missed:number` |
 | `red` | `version:number`, `file:string` |
