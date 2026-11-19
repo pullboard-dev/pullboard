@@ -20,6 +20,7 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchRoot } from '../../../../config/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /**
  * The environment of a short controller: this user's private V8 compile cache, when it is a folder only this user can
@@ -27,13 +28,14 @@ import { scratchRoot } from '../../../../config/index.js';
  * controller graph again, 2-8 s apiece beside four other jobs (#8145); V8 keys each entry by its source's hash.
  */
 function controllerEnvironment() {
+  const env = environmentAdapter().all();
   const folder = join(scratchRoot(), 'pullboard-controller-compile-cache');
   try {
     mkdirSync(folder, { recursive: true, mode: 0o700 });
     const state = statSync(folder);
-    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return { ...process.env, PATH: jobPath(process.env.PATH) };
-  } catch { return { ...process.env, PATH: jobPath(process.env.PATH) }; }
-  return { ...process.env, PATH: jobPath(process.env.PATH), NODE_COMPILE_CACHE: folder };
+    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return { ...env, PATH: jobPath(env.PATH) };
+  } catch { return { ...env, PATH: jobPath(env.PATH) }; }
+  return { ...env, PATH: jobPath(env.PATH), NODE_COMPILE_CACHE: folder };
 }
 
 /**
