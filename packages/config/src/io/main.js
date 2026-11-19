@@ -320,6 +320,9 @@ export function configProblems(config, root) {
   if (config.submitDeferAbove !== undefined && (!Number.isSafeInteger(config.submitDeferAbove) || config.submitDeferAbove < 1 || config.submitGate !== 'landing')) {
     problems.push('"submitDeferAbove" is a whole number, 1 or more, with "submitGate": "landing": a submit whose affected selection names more test files runs only its check, static checks and submitInvariants, and the landing gate runs the selection; leave it out to run every selected file at submit');
   }
+  if (config.confinedImportSelection !== undefined && !['off', 'tests', 'all'].includes(config.confinedImportSelection)) {
+    problems.push('"confinedImportSelection" is "off", "tests" or "all": how far the gate narrows its proof for a change confined to one import closure; off by default');
+  }
   if (config.landingShards !== undefined && (!Number.isSafeInteger(config.landingShards) || config.landingShards < 1 || config.landingShards > 64)) {
     problems.push('"landingShards" is a whole number from 1 to 64: how many shards the landing gate splits its test files into');
   }
