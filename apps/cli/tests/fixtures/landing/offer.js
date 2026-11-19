@@ -23,7 +23,7 @@ import { temporaryDirectory } from '../board.js';
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
  * a git shim on PATH that logs each git start, and the offer's logged lock seam. Returns what the offer did.
  */
-export async function offerWithLog(t, { concurrentOffer = false } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, lapses = {} } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -59,6 +59,8 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
     submitFixture(board, id, { agentId: `web-${number}`, commit: commits[number], tree: git('rev-parse', `${commits[number]}^{tree}`) });
     store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'accepted for the offer test', head: commits[number], digest: `digest:offer outside lock ${number}`, policy: 'any' });
   }
+  // Infrastructure failures a head item already met: item id -> lapsed landing leases counted on the board.
+  for (const [id, count] of Object.entries(lapses)) for (let lapse = 0; lapse < count; lapse += 1) store.countLeaseLapse(board, Number(id));
   // The offer reads machine settings from this private home: parallel gates on, so each entry's changed files are read.
   process.env.PULLBOARD_MACHINE_HOME = home;
   fixtureMachineSettings(home, { landing: { parallelGates: true } });
