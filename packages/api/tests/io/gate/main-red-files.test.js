@@ -85,7 +85,7 @@ test('api.gate-main-red-files.excused-settles-review: clause 1: a sharded gate r
   assert.equal(f.facts(/red only in files red on main at the same inputs \(web\/a\.test\.js\)/u).length, 1, 'the submitted note names the file');
 });
 
-test('api.gate-main-red-files.excused-settles-review: clause 1: a file on the coordinator main-red list is excused by a green main receipt at its key [C7,P7,#12130]', t => {
+test('api.gate-main-red-files.listed-file-excused: clause 1: a file on the coordinator main-red list is excused by a green main receipt at its key [C7,P7,#12130]', t => {
   const f = shardedGate(t, { options: ON, before: ({ board, head }) => {
     mainReceipt(board, { id: 'main-test:green-a', main: head, verdict: 'green' });
     writeMainRedFiles(board.db, [RED.file]);
@@ -123,7 +123,7 @@ test('api.gate-main-red-files.reapply-excuses: clause 3: a gate left unknown set
   assert.equal(f.facts(/only in files main also fails at the same inputs/u).length, 1);
 });
 
-test('api.gate-main-red-files.reapply-excuses: clause 3: without the port the same re-apply stays red [C7,P7,#12130]', t => {
+test('api.gate-main-red-files.reapply-port-off-stays-red: clause 3: without the port the same re-apply stays red [C7,P7,#12130]', t => {
   const f = shardedGate(t, { options: { compareWithMain: MAIN_UNKNOWN } });
   assert.equal(f.last.outcome, 'unknown', JSON.stringify(f.last));
   mainReceipt(f.board, { id: 'main-test:late', main: f.head, at: 50 });
