@@ -1,5 +1,6 @@
 /** Start a short check in its own process group so the command that asked for it never waits on it [C7]. */
 import { spawn } from 'node:child_process';
+import { environmentAdapter } from '../../../env/index.js';
 
 /**
  * Start `node <entry> ...args` detached with no stdio and let the caller exit at once; returns the child's pid, or
@@ -10,7 +11,7 @@ import { spawn } from 'node:child_process';
  * @param {{ args?: string[], cwd?: string, env?: NodeJS.ProcessEnv }} [options]
  * @returns {number | null}
  */
-export function startDetachedCheck(entry, { args = [], cwd = process.cwd(), env = process.env } = {}) {
+export function startDetachedCheck(entry, { args = [], cwd = process.cwd(), env = environmentAdapter().all() } = {}) {
   let child;
   try { child = spawn(process.execPath, [entry, ...args], { cwd, env, detached: true, stdio: 'ignore' }); }
   catch { return null; /* the next command's cheap check asks again once the wake spacing passes */ }
@@ -30,7 +31,7 @@ export function startDetachedCheck(entry, { args = [], cwd = process.cwd(), env 
  * @param {{ args?: string[], cwd?: string, env?: NodeJS.ProcessEnv, home?: string, launchd?: boolean, launcher?: (args: string[]) => Promise<{ status: number, stdout: string }> }} [options] - home, launchd and launcher pass straight to spawnReachable.
  * @returns {Promise<number | null>}
  */
-export async function startReachableCheck(entry, { args = [], cwd = process.cwd(), env = process.env, home, launchd, launcher } = {}) {
+export async function startReachableCheck(entry, { args = [], cwd = process.cwd(), env = environmentAdapter().all(), home, launchd, launcher } = {}) {
   try {
     const { spawnReachable } = await import('../../../jobs/index.js');
     const started = await spawnReachable(process.execPath, [entry, ...args], { cwd, env, ...(home === undefined ? {} : { home }), ...(launchd === undefined ? {} : { launchd }), ...(launcher === undefined ? {} : { launcher }) });

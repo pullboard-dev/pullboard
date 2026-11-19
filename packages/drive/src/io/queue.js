@@ -24,6 +24,7 @@ import { takeJob } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** The job kind of a queued test run; the drive cell's gate reclaim never touches it. */
 export const TEST_RUN_KIND = 'test-run';
@@ -67,7 +68,7 @@ const RENEW_MS = 30_000;
  *   at least one live build claim.
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
+export function queuesTestRun(ctx, agent, values, environment = environmentAdapter().all(), { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
   if (values['test-run'] !== undefined || ctx.info.isMain || agent === undefined) return false;
   if (machineContext(environment, { alive, pid }) !== null) return false;
   if (claimed) return true;
@@ -156,7 +157,7 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
-      env: { ...process.env, PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
+      env: { ...environmentAdapter().all(), PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
     child.unref();
   } finally { closeSync(out); }
   return { id, status: 'queued', log, files: run.files };
