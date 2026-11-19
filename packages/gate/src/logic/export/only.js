@@ -24,21 +24,20 @@ export function exportOnly(file, source) {
   return lines.join(' ').split(/;\s*/u).filter(Boolean).every(statement => /^export\b/u.test(statement));
 }
 
+/** The two door files a cell folder may hold: its light front door and its browser door. */
+const DOOR_FILES = Object.freeze(['light.js', 'browser.js']);
+
 /**
- * Every file the cells plan declares as a cell door: pureFrontDoor, lightFrontDoor and pureDoor, read from the plan index and its shards.
- * Why: a declared door is the cell's real public entry, not a shim, so the export-only rule leaves it alone [C7].
+ * Every cell door that exists: each cell folder's light.js and browser.js, found from the folders themselves.
+ * Why: a door is the cell's real public entry, not a shim, so the export-only rule leaves it alone; the folder shape says so without a plan read [C7].
  *
- * @param {(file: string) => string} read - Returns a repo-relative file's text; it may throw for a missing file.
- * @returns {Set<string>} Empty when the plan is unreadable or malformed: nothing is exempt on a doubtful plan.
+ * @param {string[]} folders - Repo-relative cell folders, such as packages/gate.
+ * @param {(file: string) => boolean} exists - Whether a repo-relative file exists.
+ * @returns {Set<string>} Empty when there are no folders: nothing is exempt.
  */
-export function declaredDoorFiles(read) {
+export function declaredDoorFiles(folders, exists) {
   const doors = new Set();
-  try {
-    for (const row of JSON.parse(read('packages/codemap/data/plan/cells.json')).cells ?? []) {
-      const cell = JSON.parse(read(row.file));
-      for (const key of ['pureFrontDoor', 'lightFrontDoor', 'pureDoor']) if (typeof cell[key] === 'string') doors.add(cell[key]);
-    }
-  } catch { return new Set(); }
+  for (const folder of folders) for (const name of DOOR_FILES) if (exists(`${folder}/${name}`)) doors.add(`${folder}/${name}`);
   return doors;
 }
 
@@ -47,7 +46,7 @@ export function declaredDoorFiles(read) {
  *
  * @param {{ file: string, source: string }[]} sources - The changed files that still exist.
  * @param {string[]} allowed - The ceilings file's paths.
- * @param {Set<string>} [doors] - Files the cells plan declares as doors (declaredDoorFiles).
+ * @param {Set<string>} [doors] - Cell door files found from the folders (declaredDoorFiles).
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function exportOnlyProblems(sources, allowed, doors = new Set()) {
