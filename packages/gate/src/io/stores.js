@@ -235,7 +235,7 @@ const LOGIC_OWNER = /^(?:packages|apps)\/[^/]+\/src\/logic\//u;
 export function storeOwnerProblems(registry) {
   const pinned = Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
     : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
-  const inLogic = Object.entries(registry.stores).filter(([, row]) => row.kind !== 'repo-data' && LOGIC_OWNER.test(row.owner ?? ''))
+  const inLogic = Object.entries(registry.stores ?? {}).filter(([, row]) => row.kind !== 'repo-data' && LOGIC_OWNER.test(row.owner ?? ''))
     .map(([store, row]) => ({ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is owned by ${row.owner}, a logic file; a writable store is owned by the io module that writes it, and only a read-only repo-data file may name a logic owner` }));
   return [...pinned, ...inLogic];
 }
