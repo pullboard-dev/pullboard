@@ -201,6 +201,9 @@ export function loadMachineSettings() {
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
+  if (value.gate?.retryNewRedsOnce !== undefined && typeof value.gate.retryNewRedsOnce !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.retryNewRedsOnce in ${file} must be true or false`);
+  }
   if (value.gate?.reofferInfraEnd !== undefined && typeof value.gate.reofferInfraEnd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.reofferInfraEnd in ${file} must be true or false`);
   }
@@ -255,6 +258,9 @@ export function loadMachineSettings() {
   }
   if (value.tests?.requireJourneyPath !== undefined && typeof value.tests.requireJourneyPath !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireJourneyPath in ${file} must be true or false`);
+  }
+  if (value.gate?.adapterLintGithub !== undefined && typeof value.gate.adapterLintGithub !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.adapterLintGithub in ${file} must be true or false`);
   }
   if (value.canary?.directPush !== undefined && typeof value.canary.directPush !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `canary.directPush in ${file} must be true or false`);
