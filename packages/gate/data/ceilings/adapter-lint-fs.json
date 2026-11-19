@@ -462,7 +462,6 @@
     "packages/verify/src/io/comparison.js": 7,
     "packages/verify/src/io/review/packet.js": 4,
     "packages/verify/src/io/review/tier.js": 1,
-    "packages/verify/src/io/rule/proof/append.js": 1,
-    "packages/verify/src/io/rule/proof/coverage.js": 1
+    "packages/verify/src/io/rule/proof/append.js": 1
   }
 }

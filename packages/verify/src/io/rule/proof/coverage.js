@@ -1,8 +1,10 @@
 /** Committed rule coverage is derived on the event writer, never by status or API readers [S1,C7]. */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { tryGit } from '../../../../../git/index.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 const FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:[cm]?js|cts)$/u;
 
 let runnerFile = null;
@@ -17,15 +19,15 @@ export function bindProofRunner(file) {
 
 /** The installed runner's bytes, or null while no runner is bound or it cannot be read. */
 function runnerBytes() {
-  try { return runnerFile === null ? null : readFileSync(runnerFile); } catch { return null; }
+  try { return runnerFile === null ? null : fs.readFile(runnerFile, null); } catch { return null; }
 }
 
 /** Bind cached interpretation to installed parser and canonical runner bytes, independent of reader runtime. */
 export function proofCoverageFingerprint() {
   const hash = createHash('sha256').update('rule-coverage-source-v2');
   // The hashed names keep their historical spelling; each literal URL names the file where it now lives.
-  hash.update('./coverage.js').update(readFileSync(new URL('./coverage.js', import.meta.url)));
-  hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../../../kernel/src/logic/words.js', import.meta.url)));
+  hash.update('./coverage.js').update(fs.readFile(new URL('./coverage.js', import.meta.url), null));
+  hash.update('./literal-shell-words.js').update(fs.readFile(new URL('../../../../../kernel/src/logic/words.js', import.meta.url), null));
   hash.update('../bin/run-tests.js').update(runnerBytes() ?? 'runner-unbound');
   return hash.digest('hex');
 }
