@@ -50,7 +50,7 @@ function modulesLoaded(args, runner = false, extraEnv = {}) {
   return commandLoads(args, runner, extraEnv).loaded;
 }
 
-/** The distinct repo files one cold command loads, with the command's exit code and output, measured as modulesLoaded measures [C7]. */
+/** The distinct repo files one cold command loads, with their file URLs, the command's exit code and output, measured as modulesLoaded measures [C7]. */
 function commandLoads(args, runner = false, extraEnv = {}) {
   const files = privateFixtureFiles('closure-budget-');
   files.write('seen.txt', '');
@@ -66,7 +66,8 @@ function commandLoads(args, runner = false, extraEnv = {}) {
   env.PULLBOARD_RESIDENT = '0';
   env.PULLBOARD_COUNT_FILE = `${files.root}/seen.txt`;
   const result = spawnSync(process.execPath, ['--import', PRELOAD, `${ROOT}apps/cli/pullboard.js`, ...args.split(' ')], { cwd: seat.web, encoding: 'utf8', env });
-  return { loaded: new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean)).size, status: result.status, stdout: result.stdout, stderr: result.stderr };
+  const urls = new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean));
+  return { loaded: urls.size, urls, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 for (const [command, budget] of Object.entries(budgets)) {
@@ -91,4 +92,11 @@ test('cli.journeys-imports-closure-budget.pullboard-hook-post-commit-exits-0: cl
   assert.equal(run.stdout, '');
   assert.equal(run.stderr, '');
   assert.equal(run.loaded, 1);
+});
+
+test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {
+  const run = commandLoads('claim 1');
+  const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;
+  assert.ok(run.urls.size > 0, run.stderr);
+  assert.equal(run.urls.has(spec), false, 'pullboard claim 1 loaded apps/cli/src/io/spec.js: import coordinatorFile from apps/cli/src/io/coordinator-file.js');
 });
