@@ -1,13 +1,10 @@
 /** @pullboard-test-loads packages/gate/src/io/browser/admission.js */
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
-import { executionServicesSource } from '../../fixtures/execution.js';
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
 import { runFixtureChild } from '../../fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -23,234 +20,19 @@ import { gateRepo } from '../../fixtures/resource.js';
 import { waitFor } from '../../fixtures/resource.js';
 import { events } from '../../fixtures/resource.js';
 import { RUNNER } from '../../fixtures/resource.js';
-import { GATE_MODULE } from '../../fixtures/resource.js';
 import { PROBE_PATTERN } from '../../fixtures/resource.js';
 import { PROBE_PATH_ENV } from '../../fixtures/resource.js';
-import { CHILDREN } from '../../fixtures/resource.js';
 import { reapFixtures } from '../../fixtures/resource.js';
-import { trackChild } from '../../fixtures/resource.js';
+import { PROBE_WRITE_TARGET_ENV } from '../../fixtures/resource.js';
+import { PROBE_WRITE_READY_ENV } from '../../fixtures/resource.js';
+import { PROBE_WRITE_RELEASE_ENV } from '../../fixtures/resource.js';
+import { launch } from '../../fixtures/resource.js';
+import { setOneGateSlot } from '../../fixtures/resource.js';
+import { launchDiagnostic } from '../../fixtures/resource.js';
 
-const PROBE_WRITE_TARGET_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_TARGET';
-const PROBE_WRITE_READY_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_READY';
-const PROBE_WRITE_RELEASE_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_RELEASE';
 const BROWSER_ADMISSION_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../index.js')).href;
 
 after(reapFixtures);
-
-const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../config/index.js')).href;
-
-/** The gate command's own engine in a fresh process: the repo's configured gate under the machine queue, printing the wait lines and report the command prints. */
-function gateRunScript(box) {
-  const script = join(box.dir, 'gate-run.mjs');
-  writeFileSync(script, `import { readFileSync } from 'node:fs';
-import { runGate, gateReport, gateWaitReporter } from ${JSON.stringify(GATE_MODULE)};
-${executionServicesSource(GATE_MODULE)}
-const config = JSON.parse(readFileSync('pullboard.json', 'utf8'));
-const say = line => console.log(line);
-const gate = await runGate(process.cwd(), config, { executionServices, trustStamp: true, agent: 'coordinator', onWait: gateWaitReporter({ say }) });
-say(gateReport(gate));
-process.exitCode = gate.isGreen ? 0 : 1;
-`);
-  return script;
-}
-
-/** Launch the gate directly in its own process group and collect its output. */
-function launch(box, root) {
-  return trackChild(spawn(process.execPath, [gateRunScript(box)], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] }));
-}
-
-/** Run the gate directly to completion and return its status and output. */
-function runGateSync(box, root) {
-  return spawnSync(process.execPath, [gateRunScript(box)], { cwd: root, env: box.env, encoding: 'utf8' });
-}
-
-/** Set the machine gate capacity through the config cell's writer, as the settings command does; returns the written settings. */
-function setGateSlots(box, root, slots) {
-  const script = join(box.dir, 'set-gate-slots.mjs');
-  writeFileSync(script, `import { setGateSlots } from ${JSON.stringify(CONFIG_MODULE)};\nprocess.stdout.write(JSON.stringify(setGateSlots(Number(process.argv[2]))));\n`);
-  const result = spawnSync(process.execPath, [script, String(slots)], { cwd: root, env: box.env, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.failure ?? result.stderr);
-  return JSON.parse(result.stdout);
-}
-
-/** Set the fixture machine pool to one gate slot before starting holders. */
-function setOneGateSlot(box, root) {
-  assert.equal(setGateSlots(box, root, 1).gateSlots, 1);
-}
-
-/** Launch a real process that holds the production diagnostic resource class until released. */
-function launchDiagnostic(box, root, name, started, release, waiting) {
-  const script = join(box.dir, `${name}.mjs`);
-  writeFileSync(script, `import { existsSync, renameSync, writeFileSync } from 'node:fs';
-import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
-${executionServicesSource(GATE_MODULE)}
-/** Publish a complete handshake so its visible file always contains its value. */
-function publish(file, value) { writeFileSync(file + '.tmp', value); renameSync(file + '.tmp', file); }
-await withGateSlot(process.cwd(), async () => {
-  publish(${JSON.stringify(started)}, 'started');
-  while (!existsSync(${JSON.stringify(release)})) await new Promise(done => setTimeout(done, 10));
-}, { executionServices, diagnostic: true, kind: 'main-red', agent: ${JSON.stringify(name)}, onWait: state => publish(${JSON.stringify(waiting)}, String(state.position)) });
-`);
-  const child = spawn(process.execPath, [script], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdoutText = '';
-  child.stderrText = '';
-  child.stdout.setEncoding('utf8');
-  child.stderr.setEncoding('utf8');
-  child.stdout.on('data', chunk => { child.stdoutText += chunk; });
-  child.stderr.on('data', chunk => { child.stderrText += chunk; });
-  CHILDREN.add(child);
-  child.closed = new Promise(resolveClose => child.once('close', (code, signal) => {
-    CHILDREN.delete(child);
-    resolveClose({ code, signal });
-  }));
-  return child;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-test('gate.io-main-resource.q4-o5-o6-gate-processes-run: [Q4,O5,O6] gate processes run one at a time in FIFO order when machine slots are one', async () => {
-  const box = fixture();
-  const releaseFirst = join(box.dir, 'release-first');
-  const roots = ['first', 'second', 'third'].map((name) => gateRepo(box, name, name === 'first' ? 0.1 : 0.2, name === 'first' ? releaseFirst : null));
-  assert.equal(setGateSlots(box, roots[0], 1).gateSlots, 1);
-  const first = launch(box, roots[0]);
-  await waitFor(() => events(box).includes('first start') && !events(box).includes('first end'), 'first gate to remain active', 30_000); // budget: hang ceiling for the private first-gate marker handshake; no throughput claim.
-  const second = launch(box, roots[1]);
-  await waitFor(() => second.stdoutText.includes('place 1'), 'second gate to enter the FIFO line');
-  assert.match(second.stdoutText, /1 running/);
-  assert.ok(second.stdoutText.includes(roots[0]), 'wait report names the repo holding the slot');
-  const third = launch(box, roots[2]);
-  await waitFor(() => third.stdoutText.includes('place 2'), 'third gate to enter behind the second');
-  assert.ok(events(box).includes('first start') && !events(box).includes('first end'), 'both successors queued while the first gate still held its slot');
-  writeFileSync(releaseFirst, 'release\n');
-  const results = await Promise.all([first.closed, second.closed, third.closed]);
-  assert.deepEqual(results.map(({ code }) => code), [0, 0, 0], `${first.stderrText}${second.stderrText}${third.stderrText}`);
-  const starts = events(box).filter((line) => line.endsWith(' start')).map((line) => line.split(' ')[0]);
-  assert.deepEqual(starts, ['first', 'second', 'third']);
-  let running = 0;
-  let maximum = 0;
-  for (const line of events(box)) {
-    if (line.endsWith(' start')) running += 1;
-    else running -= 1;
-    maximum = Math.max(maximum, running);
-  }
-  assert.equal(maximum, 1);
-});
-
-test('gate.io-main-resource.q4-gates-with-different-pullboard-home: [Q4] gates with different PULLBOARD_HOME values share the machine pool unless explicitly separated', async () => {
-  const shared = fixture();
-  const releaseShared = join(shared.dir, 'release-shared');
-  const firstRoot = gateRepo(shared, 'shared-first', 0, releaseShared);
-  const otherBoardHome = { ...shared, env: { ...shared.env, PULLBOARD_HOME: join(shared.dir, 'other-board-home') } };
-  const secondRoot = gateRepo(otherBoardHome, 'shared-second', 0, releaseShared);
-  setGateSlots(shared, firstRoot, 1);
-  const first = launch(shared, firstRoot);
-  let second;
-  try {
-    await waitFor(() => events(shared).includes('shared-first start'), 'first shared-pool gate to start');
-    second = launch(otherBoardHome, secondRoot);
-    await waitFor(
-      () => second.stdoutText.includes('place 1') || events(shared).includes('shared-second start'),
-      'gate with another board home to queue or start on the shared machine pool',
-    );
-    assert.ok(second.stdoutText.includes('place 1'), 'the other board home is queued behind the first gate');
-    assert.deepEqual(events(shared), ['shared-first start']);
-    writeFileSync(releaseShared, 'release');
-    const results = await Promise.all([first.closed, second.closed]);
-    assert.deepEqual(results.map(({ code }) => code), [0, 0], `${first.stderrText}${second.stderrText}`);
-    assert.deepEqual(events(shared), ['shared-first start', 'shared-first end', 'shared-second start', 'shared-second end']);
-  } finally {
-    writeFileSync(releaseShared, 'release');
-    await Promise.all([first, second].filter(Boolean).map((child) => child.closed));
-  }
-
-  const separated = fixture();
-  const releaseSeparated = join(separated.dir, 'release-separated');
-  const firstPool = { ...separated, env: { ...separated.env, PULLBOARD_MACHINE_HOME: join(separated.dir, 'machine-first') } };
-  const secondPool = {
-    ...separated,
-    env: {
-      ...separated.env,
-      PULLBOARD_MACHINE_HOME: join(separated.dir, 'machine-second'),
-    },
-  };
-  const isolatedFirstRoot = gateRepo(firstPool, 'isolated-first', 0, releaseSeparated);
-  const isolatedSecondRoot = gateRepo(secondPool, 'isolated-second', 0, releaseSeparated);
-  for (const [box, root] of [[firstPool, isolatedFirstRoot], [secondPool, isolatedSecondRoot]]) {
-    setGateSlots(box, root, 1);
-  }
-  const isolatedFirst = launch(firstPool, isolatedFirstRoot);
-  let isolatedSecond;
-  try {
-    await waitFor(() => events(separated).includes('isolated-first start'), 'first isolated-pool gate to start');
-    isolatedSecond = launch(secondPool, isolatedSecondRoot);
-    await waitFor(() => events(separated).includes('isolated-second start'), 'explicit private pool to acquire while the first pool is occupied');
-    assert.deepEqual(events(separated), ['isolated-first start', 'isolated-second start']);
-    writeFileSync(releaseSeparated, 'release');
-    const results = await Promise.all([isolatedFirst.closed, isolatedSecond.closed]);
-    assert.deepEqual(results.map(({ code }) => code), [0, 0], `${isolatedFirst.stderrText}${isolatedSecond.stderrText}`);
-    assert.deepEqual(events(separated).slice(0, 2), ['isolated-first start', 'isolated-second start']);
-    assert.deepEqual(events(separated).slice(2).sort(), ['isolated-first end', 'isolated-second end']);
-  } finally {
-    writeFileSync(releaseSeparated, 'release');
-    await Promise.all([isolatedFirst, isolatedSecond].filter(Boolean).map((child) => child.closed));
-  }
-});
-
-test('gate.io-main-resource.q4-an-exact-tree-cached-gate: [Q4] an exact-tree cached gate starts while another machine gate holds the only slot', async () => {
-  const box = fixture();
-  const cachedRoot = gateRepo(box, 'cached', 0.1);
-  const releaseHolder = join(box.dir, 'release-holder');
-  const holderRoot = gateRepo(box, 'holder', 0.1, releaseHolder);
-  setGateSlots(box, holderRoot, 1);
-  const warm = runGateSync(box, cachedRoot);
-  assert.equal(warm.status, 0, warm.stderr);
-  const priorCount = events(box).filter((line) => line.startsWith('cached ')).length;
-  const holder = launch(box, holderRoot);
-  await waitFor(() => events(box).includes('holder start') && !events(box).includes('holder end'), 'uncached holder gate to remain active', 30_000); // budget: hang ceiling for the private holder-gate marker handshake; no throughput claim.
-  // A busy equal-capacity write is a no-op; raising capacity is now allowed by #778.
-  setGateSlots(box, cachedRoot, 1);
-  assert.equal(JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).gateSlots, 1);
-  const cached = runGateSync(box, cachedRoot);
-  assert.equal(cached.status, 0, cached.stderr);
-  assert.match(cached.stdout, /already passed/);
-  assert.ok(events(box).includes('holder start') && !events(box).includes('holder end'), 'cached gate returned while the other machine gate still held its slot');
-  assert.equal(events(box).filter((line) => line.startsWith('cached ')).length, priorCount, 'cached gate command did not run again');
-  writeFileSync(releaseHolder, 'release\n');
-  assert.equal((await holder.closed).code, 0, holder.stderrText);
-  assert.ok(events(box).includes('holder end'), 'the holder exits only after the test releases it');
-});
-
-test('gate.io-main-resource.q4-sigkill-during-a-gate-releases: [Q4] SIGKILL during a gate releases its machine slot for the next process', async () => {
-  const box = fixture();
-  const deadRoot = gateRepo(box, 'dead', 20);
-  const nextRoot = gateRepo(box, 'next', 0.1);
-  setGateSlots(box, deadRoot, 1);
-  const dead = launch(box, deadRoot);
-  await waitFor(() => events(box).includes('dead start'), 'gate to hold a slot before it is killed');
-  const next = launch(box, nextRoot);
-  await waitFor(() => next.stdoutText.includes('place 1'), 'successor gate to queue');
-  process.kill(-dead.pid, 'SIGKILL');
-  assert.equal((await dead.closed).signal, 'SIGKILL');
-  const result = await Promise.race([
-    next.closed,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('successor did not acquire the freed slot')), 5_000)), // budget: hang ceiling for a freed slot acquisition; no throughput claim.
-  ]);
-  assert.equal(result.code, 0, next.stderrText);
-  assert.ok(events(box).includes('next start'));
-});
-
 
 test('gate.io-main-resource.q1-q2-an-older-diagnostic-stays: [Q1,Q2] an older diagnostic stays ahead of a later ordinary gate', async () => {
   const box = fixture();
@@ -432,7 +214,6 @@ test('gate.io-main-resource.short-slots-behave-the-same-with: short slots behave
   assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['packages/gate/tests/io/main/resource.test.js'], 'with gate.browserByLaunch on');
   assert.equal(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: '--import=file:///elsewhere/unclassified.js' } }), null, 'a foreign NODE_OPTIONS is not short');
 });
-
 
 test('gate.io-main-resource.a-focused-run-queues-behind-a: a focused run queues behind a held gate slot [Q4,C7]', async () => {
   const box = fixture();
