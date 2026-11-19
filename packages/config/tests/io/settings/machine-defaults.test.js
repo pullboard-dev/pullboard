@@ -138,6 +138,7 @@ const BEFORE = {
   'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
   'launch.reachableDispatcher': false,
+  'line.tune': false,
   'list.thinRead': false,
   'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
@@ -524,6 +525,30 @@ test('config.io-settings-machine-defaults.solo-low-stakes-listed: clause 1: veri
     assert.equal(read({ verify: { soloLowStakes: false } }), false);
     assert.equal(read({ verify: { soloLowStakes: true } }), true);
     assert.throws(() => read({ verify: { soloLowStakes: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /verify\.soloLowStakes/u.test(error.message));
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+});
+
+test('config.io-settings-machine-defaults.line-tune-listed: clause 1: line.tune is a machine setting, false by default, accepted as a boolean, with a description row in the Line group [C7,#11441]', async () => {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { lineTuneEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  assert.equal(MACHINE_DEFAULTS['line.tune'], false);
+  assert.ok(SETTING_DESCRIPTIONS['line.tune']);
+  const { root } = privateFixtureFiles('pullboard-line-tune-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  const read = (settings) => {
+    process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return lineTuneEnabled();
+  };
+  try {
+    assert.equal(read({}), false);
+    assert.equal(read({ line: { tune: false } }), false);
+    assert.equal(read({ line: { tune: true } }), true);
+    assert.throws(() => read({ line: { tune: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /line\.tune/u.test(error.message));
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 });
 
