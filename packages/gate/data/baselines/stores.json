@@ -824,7 +824,7 @@
       "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
     },
     "load-bearing.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/gate/src/logic/load/bearing.js"
     },
     "lock.sqlite": {
