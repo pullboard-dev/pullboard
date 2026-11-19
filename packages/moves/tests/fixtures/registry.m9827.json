@@ -1,0 +1,16 @@
+{
+  "moves.lease.a-batch-by-the-holder-lists-its-batch-within-the-allowance": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A batch move with allowance 2 by the live holder lists its batch id while fewer than two are listed, and a third is refused LAND_LEASE_REQUEST naming the allowance."
+    },
+    "why": "Without it a pipeline allowance of two could not record a second in-flight landing batch, or would record a third.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/logic/table/lease.table.js",
+      "packages/moves/tests/logic/table/lease.test.js"
+    ]
+  }
+}
