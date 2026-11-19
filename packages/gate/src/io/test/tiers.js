@@ -37,8 +37,13 @@ const FOLDER_ROOT = /^(?:packages|apps)\/[^/]+(?=\/)/u;
 
 /** Each file under a package or app folder is owned by that folder root; no cells plan is read, so folders alone place a file [C7,#2467]. */
 export function cellOwners(files) {
-  const rootOf = file => FOLDER_ROOT.exec(file)?.[0];
-  return { has: file => rootOf(file) !== undefined, get: rootOf };
+  // A real Map, because the tier snapshot cache serializes it; a file map that cannot list its paths places nothing here and ownerOf falls back to the folder root.
+  const owners = new Map();
+  for (const file of files.keys?.() ?? []) {
+    const root = FOLDER_ROOT.exec(file)?.[0];
+    if (root) owners.set(file, root);
+  }
+  return owners;
 }
 
 /** Prefer explicit cells, then ordinary package folders, then the closest package.json. */
