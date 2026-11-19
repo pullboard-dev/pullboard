@@ -1,7 +1,7 @@
 /** A failed landing run and a finish sequence stopped by LAND_PROOF_NOT_GREEN each end with a failed step and done [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';

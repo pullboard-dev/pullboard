@@ -1,7 +1,7 @@
 /** Withdrawing a gate cancels its job and frees the runner lease, so the slot it held is claimable at once [C7,#3860,#10223]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cancelGateJob } from '../../../store/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
