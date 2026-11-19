@@ -22,5 +22,6 @@ export {
   reofferInfraEndEnabled,
   retireIdleSeatHours,
   submitProofOnly,
+  typedFieldsEnabled,
   validateRunner,
 } from './src/logic/settings.js';

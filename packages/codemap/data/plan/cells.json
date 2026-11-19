@@ -2507,6 +2507,7 @@
     "doctrine->git",
     "doctrine->store",
     "doctrine->codemap",
+    "doctrine->env",
     "gate->store",
     "gate->kernel",
     "gate->git",

@@ -897,6 +897,11 @@ export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
+/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function typedFieldsEnabled() {
+  return loadMachineSettings().items?.typedFields === true;
+}
+
 /** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
 export function reofferInfraEndEnabled() {
   return loadMachineSettings().gate?.reofferInfraEnd === true;
