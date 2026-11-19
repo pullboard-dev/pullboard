@@ -88,6 +88,13 @@ test('codemap.layout.data-may-also-hold-plan: data may also hold plan, history a
   assert.deepEqual(found(['packages/kern/data/plan/01.json', 'packages/kern/data/plan/path-map/a.json', 'packages/kern/data/history/152.json', 'packages/kern/data/blueprints/library.json']), []);
 });
 
+test('codemap.layout.data-edges-folder-is-allowed-for-codemap: the codemap data/edges folder of one-edge files is allowed and a stray elsewhere is still refused [C7]', () => {
+  assert.deepEqual(found(['packages/codemap/data/edges/activity__fs.json']), []);
+  assert.deepEqual(found(['packages/kern/data/edges/activity__fs.json', 'packages/codemap/data/edges.json', 'packages/codemap/data/stray.json']), [
+    'data-group packages/codemap/data/edges.json', 'data-group packages/codemap/data/stray.json', 'data-group packages/kern/data/edges',
+  ]);
+});
+
 test('codemap.layout.a-file-never-repeats-its: a file never repeats its cell name or its folder name [V33]', () => {
   assert.deepEqual(found(['packages/kern/src/logic/kern-parse.js', 'packages/kern/src/logic/walk/walk-up.js', 'packages/kern/src/logic/walk/x-up.js', 'packages/kern/src/logic/parse.js']), [
     'name-repeat packages/kern/src/logic/kern-parse.js', 'name-repeat packages/kern/src/logic/walk/walk-up.js',

@@ -1,7 +1,10 @@
 /** Native process-size and swap readings for the scratch-memory warning; nothing is signalled [C7]. */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The one file-system adapter this file reads through [C7]. */
+const fs = fileSystemAdapter();
 
 /** Read bounded native utility output. */
 function native(command, args) {
@@ -26,7 +29,7 @@ export function parseSwap(text) {
 }
 
 /** The machine's process sizes and swap use, or null where they cannot be read. */
-export function readScratchMemory({ run = native, readFile = path => readFileSync(path, 'utf8') } = {}) {
+export function readScratchMemory({ run = native, readFile = path => fs.readFile(path) } = {}) {
   try {
     const processes = parseProcesses(run('/bin/ps', ['-axo', 'pid=,rss=,comm=']));
     let swap;

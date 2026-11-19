@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checklistEvidenceProblem } from '../../src/logic/clauses.js';
+import { clauseInspectionSummary } from '../../src/logic/clauses.js';
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
@@ -24,4 +25,10 @@ test('state.logic-clauses.no-same-work-still-refuses: clause 2: with no sameWork
   }
   const edited = [...ticks('seat-b', B), { type: 'move', detail: { criterion: `${bar}\n3. something new in packages/config/index.js [command]` } }];
   assert.equal(checklistEvidenceProblem({ ...item, item_criterion: `${bar}\n3. something new in packages/config/index.js [command]` }, edited, { head: B })?.code, 'CLAUSE_UNTICKED');
+});
+
+test('state.logic-clauses.summary-names-an-unticked-clause: clause 1: clauseInspectionSummary names a clause with no tick and no gate-run file as no evidence, keeps the ticked clause as before, and does not throw [C7,#11966]', () => {
+  const both = { ...item, item_criterion: '1. the reader is exported [command]\n2. the setting is described [command]' };
+  const thread = [{ type: 'fact', kind: 'note', by: 'seat-b', text: `clause 1 [command]: git grep -n reader packages/config/index.js run on ${A.slice(0, 12)}` }];
+  assert.equal(clauseInspectionSummary(both, thread, { head: A }), `inspection, clause by clause: 1. the reader is exported [command] -> command: git grep -n reader packages/config/index.js run on ${A.slice(0, 12)} | 2. the setting is described [command] -> no evidence`);
 });
