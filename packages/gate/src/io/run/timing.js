@@ -16,6 +16,7 @@ import { formatCollectionReport } from '../../logic/collection/report.js';
 import { parseCollectionReports } from '../../logic/collection/report.js';
 import { readTestOutcomes } from '../test/outcomes.js';
 import { keepSeatAlive } from '../keepalive.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 export const TIMING_RUN_ID_ENV = 'PULLBOARD_TIMING_RUN_ID';
 export const SUITE_TIMING_PREFIX = '# pullboard suite timing ';
@@ -121,11 +122,11 @@ export function observedRunTiming(run, suite = null) {
 }
 
 /** Observe one runner invocation without changing its selection, cache, admission or exit semantics. */
-export function beginSuiteTiming(root, args) {
+export function beginSuiteTiming(root, args, environment = environmentAdapter()) {
   const started = performance.now(), source = timingSource(root);
   // The run's seat stays alive for as long as the run: the seat-gone rule otherwise reclaims its claim mid-test [B3].
   keepSeatAlive(root);
-  const id = ID.test(process.env[TIMING_RUN_ID_ENV] ?? '') ? process.env[TIMING_RUN_ID_ENV] : randomUUID();
+  const id = ID.test(environment.get(TIMING_RUN_ID_ENV, '')) ? environment.get(TIMING_RUN_ID_ENV) : randomUUID();
   const value = { version: 1, id, ...source, node: process.versions.node, full: false,
     selectionMs: null, setupMs: null, shards: [], compareMs: null };
   let forwarded = false, universe = null, allowed = true;
@@ -133,7 +134,7 @@ export function beginSuiteTiming(root, args) {
   const keys = files => [...new Set(files.map(file => relative(root, resolve(root, file)).split(sep).join('/')))].sort();
   /** Emit only the owning controller's one source-bound frame, including actual red and partial runs. */
   function finish() {
-    if (forwarded || process.env.PULLBOARD_LANDING_SHARD || !sameTimingSource(source, timingSource(root))) return;
+    if (forwarded || environment.get('PULLBOARD_LANDING_SHARD') || !sameTimingSource(source, timingSource(root))) return;
     process.stdout.write(formatSuiteTiming({ ...value, wallMs: performance.now() - started }));
   }
   process.once('exit', finish);
