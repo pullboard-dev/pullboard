@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   planMainAudit,
   measuredAuditCoverage,
@@ -22,21 +23,6 @@ import { gitExecFileSync } from '../../../../../git/index.js';
 import {
   createHash,
 } from 'node:crypto';
-import {
-  existsSync,
-} from 'node:fs';
-import {
-  mkdirSync,
-} from 'node:fs';
-import {
-  readFileSync,
-} from 'node:fs';
-import {
-  rmSync,
-} from 'node:fs';
-import {
-  writeFileSync,
-} from 'node:fs';
 import {
   join,
 } from 'node:path';
@@ -87,6 +73,8 @@ import {
   mainRedFrozenCheck,
 } from '../../test/economics.js';
 import { storeName } from '../../store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
@@ -282,7 +270,7 @@ async function audit(root, directory, job, write, options, testValueServices, ex
     }
     try {
       const registered = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0').includes(`worktree ${source}`);
-      if (registered || existsSync(source)) git(root, ['worktree', 'remove', source]);
+      if (registered || fs.exists(source)) git(root, ['worktree', 'remove', source]);
       const { cleanupNeeded, cleanupReason, noticeRecorded, incomplete, error, ...retained } = saved;
       saved = retained;
       saveMainAudit(file, saved);
@@ -329,12 +317,12 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       cleanupAllowed = run.cleanupVerified === true && !run.cleanupUnverified
         && !(run.profile?.landingShards?.unverified?.length > 0);
       receipt = run.receiptId && readGateReceipt(receiptStore(root), run.receiptId);
-      const artifact = join(directory, key); mkdirSync(artifact, { recursive: true, mode: 0o700 });
-      writeFileSync(join(artifact, 'gate.log'), run.output ?? '', { mode: 0o600 });
-      writeFileSync(join(artifact, 'profile.json'), JSON.stringify(run.profile ?? null), { mode: 0o600 });
+      const artifact = join(directory, key); fs.mkdir(artifact, { recursive: true, mode: 0o700 });
+      fs.writeFile(join(artifact, 'gate.log'), run.output ?? '', { mode: 0o600 });
+      fs.writeFile(join(artifact, 'profile.json'), JSON.stringify(run.profile ?? null), { mode: 0o600 });
       if (!receipt || receipt.head !== job.tip || receipt.tree !== job.tree || receipt.kind !== 'land') throw new Error('native audit receipt is missing or source-unbound');
       saved = { ...job, plan, coverage: measuredAuditCoverage(source, run.output ?? ''), runSeconds: run.seconds, state: 'measured', receiptId: receipt.id, cleanupVerified: cleanupAllowed };
-      writeFileSync(join(artifact, 'coverage.json'), JSON.stringify(saved.coverage) + '\n', { mode: 0o600 });
+      fs.writeFile(join(artifact, 'coverage.json'), JSON.stringify(saved.coverage) + '\n', { mode: 0o600 });
       saveMainAudit(file, saved);
     }
     if (receipt.head !== job.tip || receipt.tree !== job.tree || receipt.collection?.batchId !== job.batchId) throw new Error('retained audit receipt changed source identity');
@@ -392,11 +380,11 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
   if (typeof openBoardForRead !== 'function') throw new TypeError('main audit requires its actual native read opener');
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   const directory = mainAuditDirectory(info);
-  if (!existsSync(join(directory, 'activation.json'))) return;
+  if (!fs.exists(join(directory, 'activation.json'))) return;
   const activation = readMainAudit(join(directory, 'activation.json'));
   if (!activation) return; // No implicit historical barrier or retroactive full-suite queue.
   if (activation.version !== 1 || !Number.isSafeInteger(activation.afterEventId) || activation.afterEventId < 0) throw new Error('invalid main audit activation');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const schedule = readMainAudit(join(directory, 'schedule.json'));
   if (scheduled && (!schedule || schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
     if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt, services.workerUrl);
@@ -446,7 +434,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
           || !Number.isSafeInteger(wake.generation) || wake.generation < generation) throw new Error('invalid main audit wake');
         if (wake.generation !== generation) return wake.generation;
         // Wake observation and owner release are atomic: a later nudge becomes the next owner.
-        rmSync(ownerFile);
+        fs.rm(ownerFile);
         return null;
       });
       if (next === null) {
@@ -458,6 +446,6 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
     }
   } finally {
     await withFileLock(lock, () => { const owner = readMainAudit(ownerFile);
-      if (owner?.pid === process.pid && owner.token === token) rmSync(ownerFile); });
+      if (owner?.pid === process.pid && owner.token === token) fs.rm(ownerFile); });
   }
 }
