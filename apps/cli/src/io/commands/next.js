@@ -167,15 +167,18 @@ function sayCoordinatorCallouts(io) {
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
 async function nextWithProgress(io, values, progress) {
-  progress.enter('context');
+  // Each context step is its own profile row, so the profile names the slow one rather than one lump [N2].
+  progress.enter('fallback reclaim');
   let ctx = context(io);
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   await fallbackReclaim(ctx, 'next');
   // A gate job waiting with no live runner brings this machine's local runner back, and says so in one line [#6556].
+  progress.enter('dead runner restart');
   const restarted = await restartDeadRunner(ctx);
   if (restarted) io.say(restarted);
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  progress.enter('queued reds');
   const hasQueuedReds = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
     return store.queuedReds(board, me.id).some(red =>
@@ -195,6 +198,7 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
+  progress.enter('lag');
   sayLag(io, ctx);
   // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
   if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
