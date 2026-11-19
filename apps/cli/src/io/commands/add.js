@@ -103,6 +103,20 @@ function addedRoute(board, route) {
   return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
 }
 
+/**
+ * Refuse an --after list that names a withdrawn item: a withdrawn item is never verified, so the item would wait forever [C7,#12125].
+ * The refusal names the move that does go through: name the item that replaced it, or drop the entry.
+ */
+export function refuseWithdrawnAfter(board, after) {
+  for (const entry of after ?? []) {
+    if (!Number.isSafeInteger(entry)) continue;
+    let target;
+    try { target = store.itemById(board, entry); } catch (error) { if (error instanceof Refused) continue; throw error; }
+    if (target?.item_status === 'withdrawn') throw new Refused('AFTER_WITHDRAWN', `--after names #${entry}, which is withdrawn and never verifies, so this item would wait forever`,
+      `name the item that replaced #${entry} in --after, or drop #${entry} from the list`);
+  }
+}
+
 /** Run `pullboard add` and return its exit code. */
 export async function run(io, args) {
   const command = 'add';
@@ -127,6 +141,7 @@ export async function run(io, args) {
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
+  refuseWithdrawnAfter(board, after);
   const title = [second, ...rest].filter(Boolean).join(' ');
   const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
   // With --split-coordinator the coordinator-owned part of the bar leaves for its own item, filed after this one [C7,#3246].

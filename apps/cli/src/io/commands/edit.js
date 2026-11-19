@@ -44,6 +44,7 @@ import {
   ordered,
   CHECKOUT_LEASES,
 } from '../entry.js';
+import { refuseWithdrawnAfter } from './add.js';
 
 const fs = fileSystemAdapter();
 
@@ -109,6 +110,7 @@ export async function run(io, args) {
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
   }
+  refuseWithdrawnAfter(board, change.after);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;

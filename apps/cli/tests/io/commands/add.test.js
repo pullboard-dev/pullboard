@@ -90,3 +90,28 @@ test('cli.io-commands-add.edit-and-worktree-json-carry-level: clause 2: edit --j
   assert.ok(tree.route, 'route is kept');
   assert.equal(tree.level, tree.route);
 });
+
+test('cli.io-commands-add.after-withdrawn-refused: clause 1: add and edit each refuse an --after list naming a withdrawn item, the message naming the replacement move; an after-list of open items is accepted [C7,#12125]', async () => {
+  const box = helpers.project();
+  const file = async (title, ...after) => box.inProcess(box.repo, 'add', 'web', title, '--specs', 'G1', '--json', ...(after.length ? ['--after', after.join(',')] : []));
+  const first = await file('Replaced work');
+  assert.equal(first.code, 0, first.err + first.out);
+  const gone = String(JSON.parse(first.out).item.item_id);
+  const kept = await file('Open work');
+  assert.equal(kept.code, 0, kept.err + kept.out);
+  const open = String(JSON.parse(kept.out).item.item_id);
+  const withdrawn = await box.inProcess(box.repo, 'withdraw', gone, 'replaced by another item', '--json');
+  assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
+  const refusedAdd = await file('Waits on the withdrawn item', gone);
+  assert.notEqual(refusedAdd.code, 0, refusedAdd.out);
+  assert.match(refusedAdd.err + refusedAdd.out, /AFTER_WITHDRAWN/u);
+  assert.match(refusedAdd.err + refusedAdd.out, new RegExp(`replaced #${gone}|replaced ${'#' + gone}`, 'u'));
+  const accepted = await file('Waits on the open item', open);
+  assert.equal(accepted.code, 0, accepted.err + accepted.out);
+  const id = String(JSON.parse(accepted.out).item.item_id);
+  const refusedEdit = await box.inProcess(box.repo, 'edit', id, '--after', gone, '--reason', 'retarget the dependency', '--json');
+  assert.notEqual(refusedEdit.code, 0, refusedEdit.out);
+  assert.match(refusedEdit.err + refusedEdit.out, /AFTER_WITHDRAWN/u);
+  const edited = await box.inProcess(box.repo, 'edit', id, '--after', open, '--reason', 'keep the open dependency', '--json');
+  assert.equal(edited.code, 0, edited.err + edited.out);
+});
