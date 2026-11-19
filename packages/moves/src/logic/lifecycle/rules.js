@@ -57,6 +57,26 @@ export function unmetWaits(item, items) {
   return unmet;
 }
 
+/** The moves a builder may make on its own submitted item when every row is low-stakes and every check is machine-run: reserve and accept, never reject or a post-landing review. */
+const SELF_VERIFY_KINDS = Object.freeze(['reserve', 'accept', 'merge-only-accept']);
+
+/**
+ * May the builder make this move on its own work? Only when the snapshot carries `soloLowStakes: true` (the verify.soloLowStakes
+ * setting, default off), `rows` where every row is `{ stakes: 'low', personApproved: true }` and `checks` where every check is
+ * `{ machineRun: true, redBefore: true, greenAfter: true }`. Why: #966, a low-stakes row whose checks a machine ran red then green needs no second agent;
+ * absent fields, empty lists and any other value keep the independence rule, so a board with no stakes field is unchanged. The verify command fills the fields (#11141).
+ *
+ * @param {{ soloLowStakes?: boolean, rows?: { stakes?: string, personApproved?: boolean }[], checks?: { machineRun?: boolean, redBefore?: boolean, greenAfter?: boolean }[] }} snapshot
+ * @param {string | undefined} kind - The move kind or name.
+ * @returns {boolean}
+ */
+export function soloLowStakesHolds(snapshot, kind) {
+  if (snapshot?.soloLowStakes !== true || !SELF_VERIFY_KINDS.includes(kind)) return false;
+  const { rows, checks } = snapshot;
+  return Array.isArray(rows) && rows.length > 0 && rows.every(row => row?.stakes === 'low' && row.personApproved === true)
+    && Array.isArray(checks) && checks.length > 0 && checks.every(check => check?.machineRun === true && check.redBefore === true && check.greenAfter === true);
+}
+
 /**
  * The named rules, as data on the move tables' derived-facts layer (#8063): each has `says`, the facts it
  * `reads`, and a pure `holds(snapshot, move, fact)` that returns a boolean. The snapshot is `{ item, items }` and the move is the recorded fact.
@@ -74,7 +94,7 @@ export const RULES = defineRules({
   notHeldByAnother: { says: 'no other agent holds it under a live lease', holds: ({ item }, move) => !(item.status === 'claimed' && item.owner !== move.by && leaseLive(item, move.at)) },
   isHolder: { says: 'the caller holds the claim', holds: ({ item }, move) => item.owner === move.by },
   holderOrCoordinator: { says: 'the holder, the coordinator or a maintenance sweep makes the move', holds: ({ item }, move) => move.by === 'coordinator' || item.owner === move.by || Boolean(move[MAINTENANCE]) },
-  notBuilder: { says: 'the caller did not build the item', holds: ({ item }, move) => !(item.builder && item.builder === move.by) },
+  notBuilder: { says: 'the caller did not build the item', holds: (snapshot, move) => !(snapshot.item.builder && snapshot.item.builder === move.by) || soloLowStakesHolds(snapshot, move.kind) },
   coordinatorOnly: { says: 'the caller is the coordinator', holds: (snapshot, move) => move.by === 'coordinator' },
   notMerged: { says: 'the item has no recorded merge receipt', holds: ({ item }) => !item.merged },
   verifiedToLand: { says: 'only a verified item lands', holds: ({ item }) => item.status === 'verified' },
