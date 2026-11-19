@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { joinCoordinatorSeat } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
+import { adapterLintSigningEnabled } from '../../index.js';
+import { describeSetting } from '../../index.js';
+import { MACHINE_DEFAULTS } from '../../index.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -36,4 +39,16 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.adapter-lint-signing-reads-boolean: clause 1: gate.adapterLintSigning reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and adapterLintSigningEnabled() follows it [C7,#1428]', () => {
+  assert.equal(withSettings({}, adapterLintSigningEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSigning: false } }, adapterLintSigningEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSigning: true } }, adapterLintSigningEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintSigning: 'true' } }, adapterLintSigningEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.adapterLintSigning/u.test(error.message));
+});
+
+test('config.io-settings.adapter-lint-signing-described-off: clause 2: describeSetting names the signing adapter and MACHINE_DEFAULTS holds gate.adapterLintSigning false [C7,#1428]', () => {
+  assert.match(describeSetting('gate.adapterLintSigning').description, /signing adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintSigning'], false);
 });

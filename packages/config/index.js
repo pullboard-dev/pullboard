@@ -94,6 +94,7 @@ export {
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   adapterLintEnvEnabled,
+  adapterLintSigningEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
