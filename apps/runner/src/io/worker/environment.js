@@ -1,4 +1,5 @@
 /** Build the runner-owned child environment and bind the trusted resource API and its pools [C7]. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { childEnvironment } from '../../../../../packages/kernel/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import * as resourceApi from '../../../../../packages/resources/light.js';
@@ -52,12 +53,13 @@ export function loadResourceApi(runtime) {
 
 /** Select only the explicit pool while acquiring its lease; restore the worker environment afterward. */
 export async function acquireResourceApi(api, options, machineHomePath) {
-  const previous = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = machineHomePath;
+  const env = environmentAdapter();
+  const previous = env.get('PULLBOARD_MACHINE_HOME');
+  env.set('PULLBOARD_MACHINE_HOME', machineHomePath);
   try { return await api.takeResource(options); }
   finally {
-    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
-    else process.env.PULLBOARD_MACHINE_HOME = previous;
+    if (previous === undefined) env.delete('PULLBOARD_MACHINE_HOME');
+    else env.set('PULLBOARD_MACHINE_HOME', previous);
   }
 }
 
@@ -66,8 +68,9 @@ export async function acquireResourceApi(api, options, machineHomePath) {
  * the job (#1066). A lower registration waits for an idle pool, and is refused by name until then.
  */
 export function registeredCapacity(api, spec, root, machineHomePath) {
-  const previous = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = machineHomePath;
+  const env = environmentAdapter();
+  const previous = env.get('PULLBOARD_MACHINE_HOME');
+  env.set('PULLBOARD_MACHINE_HOME', machineHomePath);
   try {
     /** Set one pool row to the board's registered capacity, refusing only an unsafe active-holder overflow. */
     const size = (name, capacity) => {
@@ -80,7 +83,7 @@ export function registeredCapacity(api, spec, root, machineHomePath) {
     // A runner registered with no browsers never receives a browser run, so its browser row is left alone.
     return { gateCapacity: size('gate', spec.slots), browserCapacity: spec.browser > 0 ? size('browser', spec.browser) : 1 };
   } finally {
-    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
-    else process.env.PULLBOARD_MACHINE_HOME = previous;
+    if (previous === undefined) env.delete('PULLBOARD_MACHINE_HOME');
+    else env.set('PULLBOARD_MACHINE_HOME', previous);
   }
 }
