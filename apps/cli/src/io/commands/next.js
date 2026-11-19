@@ -210,7 +210,7 @@ async function nextWithProgress(io, values, progress) {
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, shoutReviewCoverStuck };
-  // --take --build is one step that claims the next build item and never offers or reserves a review [C7,#11942].
+  // --take --build is one step that claims the next build item and never offers or reserves a review: it selects and claims through the build path, not the review-offering take path [C7,#11942].
   if (values.take && (values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --verify or --as; --build is allowed');
   }
@@ -266,7 +266,7 @@ async function nextWithProgress(io, values, progress) {
     // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
     await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
-    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? (selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? ((selectionValues.take && !selectionValues.build) || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
     if (found.ownershipWaiting?.length) {
       io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
       for (const waiting of found.ownershipWaiting) {
