@@ -2606,6 +2606,7 @@
     "apps/relay->seats",
     "apps/relay->fs",
     "search->store",
+    "board->fs",
     "board->git",
     "board->items",
     "board->kernel",

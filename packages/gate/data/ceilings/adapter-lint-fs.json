@@ -122,7 +122,6 @@
     "packages/blueprints/src/io/main.js": 1,
     "packages/blueprints/src/io/report.js": 1,
     "packages/blueprints/src/io/set.js": 1,
-    "packages/board/src/io/seal.js": 1,
     "packages/codemap/src/io/accepted.js": 1,
     "packages/codemap/src/io/cell/lint/inputs.js": 1,
     "packages/codemap/src/io/cell/lint/shards.js": 4,
