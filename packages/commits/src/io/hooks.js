@@ -37,6 +37,7 @@ import {
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
+import { quotedPersonProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
@@ -160,6 +161,7 @@ export function commitMsgProblems(raw, { rules, spec, doctrine = null, claimedIt
   }
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
+  problems.push(...quotedPersonProblems(all, rules.quotedNames));
   return problems;
 }
 
