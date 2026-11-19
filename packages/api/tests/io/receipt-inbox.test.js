@@ -1,7 +1,7 @@
 /** With runs_store on, a receipt in the runs inbox applies once per attempt and waiting gates settle from board run summaries; off, both read the board's job rows [B2,P7,#9006]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
