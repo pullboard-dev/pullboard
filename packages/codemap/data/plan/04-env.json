@@ -1,0 +1,11 @@
+{
+ "order": 4,
+ "name": "env",
+ "kind": "package",
+ "root": "packages/env",
+ "frontDoor": "packages/env/index.js",
+ "paths": [],
+ "reexports": [],
+ "imports": [],
+ "cuts": []
+}
