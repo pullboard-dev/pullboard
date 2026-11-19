@@ -19,7 +19,6 @@ const CASES = [
   ["'", "a lane commits only inside its folders; an unjoined worktree cannot commit [L3, L4]"],
   ["\"", "a lane merges main's foreign changes but still refuses its own and non-main foreign changes [L3]"],
   ["'", "submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]"],
-  ["'", "submit keeps its machine gate slot until the submitted check finishes [V4,Q4]"],
   ["'", "pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]"],
   ["'", "explicit and trunk pre-push landings jump the machine gate line and show in resources [Q1,Q2]"],
 ];
@@ -55,6 +54,6 @@ test('cli.cases.the-three-e2e-files-hold-every-case: clause 1: the three e2e fil
     const found = FILES.map(name => declarations(name, quote, caseTitle));
     assert.equal(found.reduce((sum, count) => sum + count, 0), 1, `${caseTitle}: declared once across ${FILES.join(', ')}`);
   }
-  assert.equal(CASES.length, 13, 'the original e2e.test.js held thirteen cases');
+  assert.equal(CASES.length, 12, 'the original e2e.test.js held thirteen cases; #11202 deleted one, so twelve remain');
   assert.ok(FILES.every(name => CASES.some(([quote, caseTitle]) => declarations(name, quote, caseTitle) > 0)), 'every split file keeps at least one case');
 });
