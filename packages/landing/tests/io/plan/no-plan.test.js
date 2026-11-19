@@ -40,7 +40,7 @@ function candidate(t) {
 test('landing.no-plan.with-no-cells-plan-in-the: clause 1: with no cells plan in the tree, a new file lands through derive, the recorded check and the scan with no plan refusal [C7]', async t => {
   const { root, base, tip } = candidate(t);
   assert.equal(existsSync(join(root, 'packages/codemap/data/plan/cells.json')), false);
-  assert.deepEqual(amendLandingEngines(root).assigned, []);
+  assert.deepEqual((await amendLandingEngines(root)).assigned, []);
   assert.equal(git(root, 'rev-parse', 'HEAD'), tip, 'a new source file needs no amend');
   assert.doesNotThrow(() => requireLandingPlanCheck(root, tip));
   assert.deepEqual(await scanLanding(root, base, tip), []);
