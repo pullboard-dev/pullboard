@@ -418,6 +418,8 @@ export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), h
   return `inspection, clause by clause: ${clauses.map(clause => {
     const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item, { folderTicks, titleTicks, cases });
     const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
+    // An unticked clause the gate did not cover reads as such; reading its kind threw and aborted the pulled settle (#11966).
+    if (!tick) return `${clause.number}. ${clause.text.slice(0, 80)} -> no evidence`;
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
 }

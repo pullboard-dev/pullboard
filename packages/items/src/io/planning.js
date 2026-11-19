@@ -1,5 +1,6 @@
 /** Derive scheduler conflicts from one exact-main map; unknown source retains file-level custody [N2,N20,C7]. */
-import { compareItemFunctions } from '../../../codemap/light.js';
+import { compareItemPredictions } from '../../../codemap/light.js';
+import { predictItemFunctions } from '../../../codemap/light.js';
 import { readCodeMap } from '../../../codemap/light.js';
 import { git } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
@@ -9,6 +10,16 @@ import { liveClaimCollisions } from '../logic/overlap.js';
 import { join } from 'node:path';
 
 const snapshots = new WeakMap();
+const flights = new WeakMap();
+
+/** Predict an in-flight row once per exact-main map; a changed item arrives as a new row object. */
+function predictRow(map, row) {
+  let rows = flights.get(map);
+  if (!rows) { rows = new WeakMap(); flights.set(map, rows); }
+  let prediction = rows.get(row);
+  if (!prediction) { prediction = predictItemFunctions(map, row); rows.set(row, prediction); }
+  return prediction;
+}
 
 /** Capture once per board read; a dirty, absent or stale primary checkout cannot relax an existing blocker. */
 function schedulingMap(board) {
@@ -32,15 +43,20 @@ function schedulingMap(board) {
 }
 
 /** Keep declared and observed file blocks unless both exact-map function predictions prove disjoint. */
-export function itemCollisionPlan(board, item, items, observations = new Map()) {
-  const map = schedulingMap(board), blockers = [], warnings = [], tests = new Set();
-  for (const other of items) {
-    if (other.item_id === item.item_id || !['claimed', 'submitted', 'verified'].includes(other.item_status)
-      || other.item_status === 'verified' && other.item_merged_commit) continue;
-    const observed = liveClaimCollisions(item, [other], observations);
+export function itemCollisionPlan(board, item, items, observations = new Map(), map = schedulingMap(board)) {
+  const blockers = [], warnings = [], tests = new Set();
+  const flying = items.filter(other => !(other.item_id === item.item_id || !['claimed', 'submitted', 'verified'].includes(other.item_status)
+    || other.item_status === 'verified' && other.item_merged_commit));
+  // File and live-claim collisions run once against the whole list; the per-pair lookups run only when that answer is not empty.
+  const anyObserved = liveClaimCollisions(item, flying, observations).length > 0;
+  const anyFiles = itemFileCollisions(item, flying).length > 0;
+  let mine = null;
+  for (const other of flying) {
+    const observed = anyObserved ? liveClaimCollisions(item, [other], observations) : [];
     if (observed.length) { blockers.push(...observed); continue; }
-    const files = itemFileCollisions(item, [other]);
-    const predicted = map ? compareItemFunctions(map, item, other) : null;
+    const files = anyFiles ? itemFileCollisions(item, [other]) : [];
+    if (map) mine ??= predictItemFunctions(map, item);
+    const predicted = map ? compareItemPredictions(map, mine, predictRow(map, other)) : null;
     if (!predicted?.known) { blockers.push(...files); continue; }
     if (predicted.shared.length) {
       blockers.push(`#${item.item_id} waits for #${other.item_id} (${other.item_status}) on functions ${predicted.shared.join(', ')}`);
