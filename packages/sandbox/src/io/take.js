@@ -158,10 +158,16 @@ export async function nextTake(ctx, values = {}, services) {
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true, retryDetail: { phase: 'review reservation', item: looked.item.item_id, code: 'NO_REVIEW_RESERVED' } };
     }
     try {
+      ctx.io.nextPhase?.('claim freezer', looked.item.item_id);
+      const freeze = claimFreezer(ctx, board);
+      ctx.io.nextPhase?.('claim head', looked.item.item_id);
+      const head = headCommit(ctx.info.root);
+      ctx.io.nextPhase?.('claim write', looked.item.item_id);
       await claimOrdered(ctx, board, [looked.item.item_id, {
         agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, laneOff, leaseMs: ctx.config.leaseMs,
-        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
+        freeze, head, autoNext: true,
       }]);
+      ctx.io.nextPhase?.('claim cover-stuck', looked.item.item_id);
       if (!looked.held) await services.shoutReviewCoverStuck?.(ctx, board, (c, b, op, args) => ordered(c, b, op, args), me);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: looked.item.item_id, rows: error.rows } };
@@ -217,6 +223,8 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   function stop() { if (timer) clearTimeout(timer); timer = null; monitor?.stop(); }
   /** Name the next real phase and its item before entering potentially slow work. */
   function enter(name, id = null) {
+    // A claim sub-step is a profile cut only: a written claim keeps custody, so it never refuses, restarts the timer or changes the phase [N2,#10690].
+    if (name.startsWith('claim ')) { cut(name); return; }
     check();
     cut(name); stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
     if (COMMITTING.has(name)) committing = true;

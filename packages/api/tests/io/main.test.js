@@ -8,6 +8,10 @@ import { createApiHandler } from '../../index.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
@@ -378,4 +382,88 @@ test('api.main.stats-through-light: clause 1 [C7]: no import in packages/api/src
   assert.ok(specifiers.length > 0, 'the board door still imports stats');
   assert.deepEqual(specifiers.filter((specifier) => !specifier.endsWith('/stats/light.js')), [], 'every stats import names the light entry');
   assert.equal(specifiers.includes('../../../stats/index.js'), false, 'the stats barrel is not imported');
+});
+
+/** Turn spec.commitOnApply on or off for the fixture machine this process reads, restoring the environment when the test ends. */
+function commitOnApply(t, project, on) {
+  const home = project.env.PULLBOARD_MACHINE_HOME;
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, { spec: { commitOnApply: on } });
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+}
+
+/**
+ * A move runner for the view's approve: an approve answers as the CLI does, and an apply of one row commits it in the real checkout,
+ * or refuses APPLY_NOT_COMMITTED naming the one command left when the checkout is dirty; failApprove makes the approve itself refuse.
+ */
+function specRunner(project, { failApprove = false } = {}) {
+  const calls = [];
+  const run = async (argv, options) => {
+    calls.push({ argv, personChannel: options.personChannel });
+    if (argv[0] === 'spec-approve') {
+      if (failApprove) { options.stdout.write(JSON.stringify({ error: { code: 'PERSON_UNSIGNED', message: 'not signed' } })); return 1; }
+      options.stdout.write('{}');
+      options.onEvent({ event_id: calls.length, event_kind: 'spec-approve' });
+      return 0;
+    }
+    const row = argv[3];
+    if (project.git(options.cwd, 'status', '--porcelain') !== '') {
+      options.stdout.write(JSON.stringify({ error: { code: 'APPLY_NOT_COMMITTED', message: `the checkout has uncommitted changes, so ${row} was not committed`, next: `commit or stash the changes, then run pullboard spec apply --row ${row} --commit` } }));
+      return 1;
+    }
+    appendFileSync(join(options.cwd, 'SPEC.md'), `\n- ${row} approved\n`);
+    project.git(options.cwd, 'add', 'SPEC.md');
+    project.git(options.cwd, 'commit', '-q', '-m', `docs(spec): approve ${row}`);
+    options.stdout.write(JSON.stringify({ applied: { committed: true, commit: project.git(options.cwd, 'rev-parse', 'HEAD') } }));
+    return 0;
+  };
+  return { calls, run };
+}
+
+/** The approve move the view posts for one row. */
+const APPROVE = Object.freeze({ verb: 'spec-approve', args: { ids: 'G1' } });
+
+test('api.main.spec-approve-applies-and-commits: clause 1: with spec.commitOnApply on and a clean checkout, a spec-approve on the view channel is followed by spec apply --row --commit --json through the same runner and the result carries applied.commit, the new head with the row approved in SPEC.md [C7,#11192]', async (t) => {
+  const project = cellProject(t, { real: true });
+  commitOnApply(t, project, true);
+  const runner = specRunner(project);
+  const served = await servedMoves(t, project, { allowedHosts: [], personChannel: 'view', runCommand: runner.run });
+  const before = project.git(project.repo, 'rev-parse', 'HEAD');
+  const moved = await served.move(APPROVE);
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+  assert.deepEqual(runner.calls.map((call) => call.argv), [['spec-approve'], ['spec', 'apply', '--row', 'G1', '--commit', '--json']], 'the apply ran once, after the approve, through the same runner');
+  assert.deepEqual(runner.calls.map((call) => call.personChannel), ['view', 'view'], 'both ran on the person channel the approve came from');
+  const head = project.git(project.repo, 'rev-parse', 'HEAD');
+  assert.notEqual(head, before, 'a commit landed on the checkout');
+  assert.equal(moved.body.result.applied.commit, head, 'the result names the new head');
+  assert.match(project.git(project.repo, 'show', 'HEAD:SPEC.md'), /G1 approved/u, 'the new head holds the approved row');
+});
+
+test('api.main.spec-approve-dirty-names-command: clause 2: on a dirty checkout the head is unchanged and the result names the refusal\'s one command left; with the setting off, or an approve that did not succeed, no apply runs [C7,#11192]', async (t) => {
+  const project = cellProject(t, { real: true });
+  commitOnApply(t, project, true);
+  const runner = specRunner(project);
+  const served = await servedMoves(t, project, { allowedHosts: [], personChannel: 'view', runCommand: runner.run });
+  writeFileSync(join(project.repo, 'notes.txt'), 'unrelated work\n');
+  const before = project.git(project.repo, 'rev-parse', 'HEAD');
+  const dirty = await served.move(APPROVE);
+  assert.equal(dirty.status, 200, JSON.stringify(dirty.body));
+  assert.equal(project.git(project.repo, 'rev-parse', 'HEAD'), before, 'nothing was committed');
+  assert.equal(dirty.body.result.applied.committed, false);
+  assert.equal(dirty.body.result.applied.left, 'commit or stash the changes, then run pullboard spec apply --row G1 --commit', 'the result names the one command left');
+  commitOnApply(t, project, false);
+  const off = specRunner(project);
+  const servedOff = await servedMoves(t, project, { allowedHosts: [], personChannel: 'view', runCommand: off.run });
+  const skipped = await servedOff.move(APPROVE);
+  assert.equal(skipped.status, 200, JSON.stringify(skipped.body));
+  assert.deepEqual(off.calls.map((call) => call.argv), [['spec-approve']], 'with the setting off only the approve ran');
+  assert.equal(skipped.body.result.applied, undefined);
+  commitOnApply(t, project, true);
+  const failing = specRunner(project, { failApprove: true });
+  const servedFailing = await servedMoves(t, project, { allowedHosts: [], personChannel: 'view', runCommand: failing.run });
+  const refused = await servedFailing.move(APPROVE);
+  assert.equal(refused.status, 409, JSON.stringify(refused.body));
+  assert.deepEqual(failing.calls.map((call) => call.argv), [['spec-approve']], 'an approve that did not succeed runs no apply');
 });
