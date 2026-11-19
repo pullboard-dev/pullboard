@@ -17,7 +17,7 @@ export const LAYOUT_RULES = Object.freeze({
   'src-entry': 'a cell\'s src/ holds only logic/ and io/; move it into one of them',
   'test-placement': 'tests/ holds test files under logic/ and io/ and helpers under fixtures/; move it',
   'test-mirror': 'a test file sits at tests/<logic|io>/<path> and mirrors the src/<logic|io>/<path> file it proves (a test in tests/<tier>/<name>/ mirrors src/<tier>/<name>); a test with no source file sits at tests/<topic> or tests/<group>/<topic>; move it',
-  'data-group': 'data/ holds only the groups baselines/, ceilings/, tests/, plan/, history/ and blueprints/; move it into one',
+  'data-group': 'data/ holds only the groups baselines/, ceilings/, tests/, plan/, history/ and blueprints/ (and edges/ in packages/codemap); move it into one',
   'journey-folder': 'journeys/ holds one folder per exact command; put the file in journeys/<command>/',
   'name-repeat': 'a file name never repeats its cell\'s or folder\'s name; drop that word',
   'name-length': 'a file name is one word, or two only when one word would be ambiguous in its folder; shorten it',
@@ -35,6 +35,8 @@ const TIERS = new Set(['logic', 'io']);
 const DATA_GROUPS = new Set(['baselines', 'ceilings', 'tests', 'plan', 'history', 'blueprints']);
 /** Folders whose file names a registry reads, so the name rules leave them alone. */
 const REGISTRY_FOLDERS = new Set(['moves', 'commands']);
+/** The one cell whose data/ also holds edges/, the one-edge files the cell import check reads [C7]. */
+const EDGES_CELL = 'packages/codemap';
 const CELL = /^(apps|packages)\/([^/]+)\/(.+)$/u;
 
 /** The words of a file name: whatever precedes its first dot, split on hyphens. */
@@ -126,7 +128,7 @@ function cellViolations(cell, { name, apps, rels }, add) {
       else add('src-entry', `${cell}/src/${tier}`, `${cell}/src/${tier}`);
     } else if (first === 'tests') effective.add(rel);
     else if (first === 'data') {
-      if (parts.length < 3 || !DATA_GROUPS.has(parts[1])) add('data-group', `${cell}/data/${parts[1]}`, `${cell}/data/${parts[1]}`);
+      if (parts.length < 3 || !(DATA_GROUPS.has(parts[1]) || (parts[1] === 'edges' && cell === EDGES_CELL))) add('data-group', `${cell}/data/${parts[1]}`, `${cell}/data/${parts[1]}`);
     } else if (first === 'journeys' && apps) {
       if (parts.length < 3) add('journey-folder', `${cell}/${rel}`, `${cell}/${rel}`);
     } else add('cell-entry', `${cell}/${first}`, `${cell}/${first}/`);
