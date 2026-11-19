@@ -31,9 +31,12 @@ function heldClasses(db, runner, now) {
  * @returns {{ row: Record<string, any>, offer: Record<string, any> }[]}
  */
 export function claimableJobs(db, { runner, now, limit, reserve = null, slots = null, runnable = () => true }) {
-  const open = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt, step.job_step_payload FROM job JOIN job_step AS step
+  // Order and limit on job ids alone, so the sorter never carries a payload (up to 57 KB each); read each payload only for the rows kept.
+  const ids = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY ${PUSH_FIRST}, ${reserve ? BY_CLASS : PLAIN}, job.job_created, job.job_id LIMIT ?`).all(now, limit);
+  const payload = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0");
+  const open = ids.map(row => ({ ...row, job_step_payload: payload.get(row.job_id).job_step_payload }));
   const jobs = open.map(row => ({ row, offer: JSON.parse(row.job_step_payload) })).filter(({ row, offer }) => runnable(row, offer));
   if (!reserve) return jobs;
   const ordered = claimOrder(jobs.map(job => ({ ...job, priority: job.offer.priority ?? DEFAULT_JOB_CLASS })), { reserve, slots, held: heldClasses(db, runner, now) });

@@ -2461,6 +2461,7 @@
     "sandbox->kernel",
     "apps/cli->state",
     "apps/lib->transport",
+    "apps/lib->env",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
@@ -2612,6 +2613,7 @@
     "board->store",
     "board->verify",
     "apps/lib->board",
+    "apps/lib->fs",
     "flakes->env"
   ],
   "upwardEdgesGrandfathered": [
