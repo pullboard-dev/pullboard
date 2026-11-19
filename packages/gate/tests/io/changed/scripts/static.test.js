@@ -10,6 +10,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 import { spawnSync } from 'node:child_process';
+import { deadlineRun } from '../../../fixtures/static-deadline.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
@@ -19,8 +20,6 @@ const owner = { after: cleanup => cleanups.push(cleanup) };
 const ROOT = join(import.meta.dirname, '../../../../../..');
 /** The repository's own staged checker and its test-waits baseline: what bin/checks held before the layout move. */
 const CHECKER = join(ROOT, 'packages/gate/src/io/changed/scripts/static.js');
-const CHECKER_SOURCE = join(ROOT, 'packages/gate/src/io/changed/static.js');
-const REGISTRY_SOURCE = join(ROOT, 'packages/gate/src/io/static/check/registry.js');
 const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.json');
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
@@ -160,23 +159,6 @@ test('gate.io-changed-scripts-static.same-count-accepted-empty-catches-and: same
     }
   }
 });
-
-/** Run changedStaticFailures on no files in a child that has the flag the static checks need, and read its JSON answer. */
-function deadlineRun(options) {
-  const code = [
-    `import { changedStaticFailures } from ${JSON.stringify(pathToFileURL(CHECKER_SOURCE).href)};`,
-    `import { STATIC_CHECKS } from ${JSON.stringify(pathToFileURL(REGISTRY_SOURCE).href)};`,
-    'const ran = [];',
-    "const probe = { name: 'deadline-probe', run: () => { ran.push('probe'); return []; } };",
-    `const options = ${JSON.stringify(options)};`,
-    'if (options.deadline === -1) options.deadline = Date.now() - 1;',
-    'if (options.deadline === 1) options.deadline = Date.now() + 600000;',
-    `const result = changedStaticFailures(${JSON.stringify(ROOT)}, [], { ...options, also: [probe] });`,
-    'process.stdout.write(JSON.stringify({ result, ran, names: STATIC_CHECKS.map(check => check.name) }));'].join('\n');
-  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', code], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
-  return JSON.parse(run.stdout);
-}
 
 test('gate.io-changed-static.deadline-defers: clause 1: a passed deadline runs no further check and names the checks it skipped, and no deadline runs every check [C7]', () => {
   const late = deadlineRun({ deadline: -1 });
