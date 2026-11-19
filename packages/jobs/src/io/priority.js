@@ -32,7 +32,7 @@ function heldClasses(db, runner, now) {
  */
 export function claimableJobs(db, { runner, now, limit, reserve = null, slots = null, runnable = () => true }) {
   // Order and limit on job ids alone, so the sorter never carries a payload (up to 57 KB each); read each payload only for the rows kept.
-  const ids = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt FROM job JOIN job_step AS step
+  const ids = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt, job.job_created FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_step IN ('offered', 'claimed') AND job.job_lease_until < ? ORDER BY ${PUSH_FIRST}, ${reserve ? BY_CLASS : PLAIN}, job.job_created, job.job_id LIMIT ?`).all(now, limit);
   const payload = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0");
