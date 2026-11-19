@@ -84,7 +84,8 @@ export function defaults() {
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
-    slices: { enforcePaths: false },
+    // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
+    slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
     next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
@@ -202,11 +203,25 @@ function isFolder(root, entry) {
 }
 
 /**
+ * Give every owns entry that names a folder without a trailing slash its slash, so it matches the files in it.
+ *
+ * @param {any} lanes the merged lanes
+ * @param {string} [root] the repo folder, when known
+ */
+function slashFolderOwns(lanes, root) {
+  if (!root || notPlain(lanes)) return;
+  for (const lane of Object.values(lanes)) {
+    if (!isStringList(lane?.owns)) continue;
+    lane.owns = lane.owns.map(entry => (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry) ? entry + '/' : entry));
+  }
+}
+
+/**
  * Problems in one lane's declaration.
  *
  * @param {string} name
  * @param {any} lane
- * @param {string} [root] the repo folder, when known: owns entries are checked against it
+ * @param {string} [root] the repo folder, when known
  * @returns {string[]}
  */
 function laneProblems(name, lane, root) {
@@ -215,13 +230,6 @@ function laneProblems(name, lane, root) {
   }
   const problems = [];
   if (!isStringList(lane?.owns)) problems.push(`lane "${name}": "owns" is a list of path prefixes`);
-  if (root && isStringList(lane?.owns)) {
-    for (const entry of lane.owns) {
-      if (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry)) {
-        problems.push(`lane "${name}": owns entry "${entry}" names a folder and matches no file in it; write "${entry}/"`);
-      }
-    }
-  }
   if (lane?.specs !== undefined && !isStringList(lane.specs)) {
     problems.push(`lane "${name}": "specs" is a list of spec ids or prefixes`);
   }
@@ -506,6 +514,9 @@ export function configProblems(config, root) {
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
   }
+  if (config.slices?.composeLanding !== undefined && typeof config.slices.composeLanding !== 'boolean') {
+    problems.push('"slices.composeLanding" is true or false');
+  }
   if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
@@ -594,6 +605,7 @@ export function configFromSource(source, root) {
   if (notPlain(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
   const base = defaults();
   const config = merge(base, knownConfigKeys(raw, base));
+  slashFolderOwns(config.lanes, root);
   const problems = configProblems(config, root);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
   const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);

@@ -29,7 +29,9 @@ import { clockLintRows } from '../adapter-lints/clock.js';
 import { adapterLintEnvEnabled } from '../../../../config/index.js';
 import { envLintRows } from '../adapter-lints/env.js';
 import { adapterLintFsEnabled } from '../../../../config/index.js';
+import { adapterLintSshEnabled } from '../../../../config/index.js';
 import { fsLintRows } from '../adapter-lints/fs.js';
+import { sshLintRows } from '../adapter-lints/ssh.js';
 import { idiomSpreadEnabled } from '../../../../config/index.js';
 import { IDIOM_CEILING_FILE } from '../adapter-lints/idiom-spread.js';
 import { idiomSpreadRows } from '../adapter-lints/idiom-spread.js';
@@ -270,6 +272,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   } },
   // Direct node:fs imports outside the kernel; each file's count may only fall, and off (gate.adapterLintFs) it reports nothing (#9449).
   { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
+  // Direct ssh spawns outside the SSH runner adapter; each file's count may only fall, and off (gate.adapterLintSsh) it reports nothing (#11374).
+  { name: 'adapter-lint-ssh', reads: SOURCE, run: (root, sources, context = MEMORY) => sshLintRows(root, { enabled: context.adapterLintSsh ?? adapterLintSshEnabled() }) },
   // A statement shape copied into 3 or more files, and named idioms past their ceiling; off (gate.idiomSpread) it reports nothing (#9521).
   { name: 'idiom-spread', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const enabled = context.idiomSpread ?? idiomSpreadEnabled();

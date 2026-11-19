@@ -5,17 +5,11 @@
  * up orphaned under launchd while ~40 processes queued on the repo's resource database behind them. A refresh is a read
  * plus a cache write: a second one while the first runs only repeats its work, and the next landing starts a fresh one.
  */
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { machineHome } from '../../../../../../resources/index.js';
+import { fileSystemAdapter } from '../../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The least time between two refresh starts on one machine; PULLBOARD_MAIN_RED_REFRESH_SPACING_MS overrides it. */
 export const REFRESH_SPACING_MS = 5 * 60_000;
@@ -41,7 +35,7 @@ const LOCK_LIFETIME_MS = 30 * 60_000;
  */
 export function runningRefresh(files = refreshFlightFiles(), now = Date.now()) {
   let holder;
-  try { holder = JSON.parse(readFileSync(files.lock, 'utf8')); } catch { return null; }
+  try { holder = JSON.parse(fs.readFile(files.lock, 'utf8')); } catch { return null; }
   if (!Number.isSafeInteger(holder?.pid) || holder.pid < 1 || !Number.isFinite(holder.at) || now - holder.at > LOCK_LIFETIME_MS) return null;
   try { process.kill(holder.pid, 0); } catch (error) { if (error.code === 'ESRCH') return null; }
   return holder;
@@ -53,10 +47,11 @@ export function runningRefresh(files = refreshFlightFiles(), now = Date.now()) {
  */
 export function claimRefreshStart(files = refreshFlightFiles(), now = Date.now()) {
   if (runningRefresh(files)) return false;
-  try { if (now - statSync(files.stamp).mtimeMs < spacingMs()) return false; } catch { /* Never started: free to start. */ }
-  mkdirSync(join(files.stamp, '..'), { recursive: true, mode: 0o700 });
-  writeFileSync(files.stamp, String(now), { mode: 0o600 });
-  try { utimesSync(files.stamp, now / 1000, now / 1000); } catch { /* The write already set a current mtime. */ }
+  try { if (now - fs.stat(files.stamp).mtimeMs < spacingMs()) return false; } catch { /* Never started: free to start. */ }
+  fs.mkdir(join(files.stamp, '..'), { recursive: true, mode: 0o700 });
+  const stamp = fs.open(files.stamp, 'w', 0o600);
+  try { fs.write(stamp, String(now)); } finally { fs.close(stamp); }
+  try { fs.utimes(files.stamp, now / 1000, now / 1000); } catch { /* The write already set a current mtime. */ }
   return true;
 }
 
@@ -65,19 +60,19 @@ export function claimRefreshStart(files = refreshFlightFiles(), now = Date.now()
  * an exited process, or past its lifetime, is taken over. The returned function lets it go.
  */
 export function holdRefreshFlight(files = refreshFlightFiles()) {
-  mkdirSync(join(files.lock, '..'), { recursive: true, mode: 0o700 });
+  fs.mkdir(join(files.lock, '..'), { recursive: true, mode: 0o700 });
   const record = JSON.stringify({ pid: process.pid, at: Date.now() }) + '\n';
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const fd = openSync(files.lock, 'wx', 0o600);
-      try { writeSync(fd, record); } finally { closeSync(fd); }
+      const fd = fs.open(files.lock, 'wx', 0o600);
+      try { fs.write(fd, record); } finally { fs.close(fd); }
       return () => {
-        try { if (JSON.parse(readFileSync(files.lock, 'utf8')).pid === process.pid) unlinkSync(files.lock); }
+        try { if (JSON.parse(fs.readFile(files.lock, 'utf8')).pid === process.pid) fs.unlink(files.lock); }
         catch { /* Already gone: nothing to let go. */ }
       };
     } catch (error) { if (error.code !== 'EEXIST') throw error; }
     if (runningRefresh(files)) return null;
-    try { unlinkSync(files.lock); } catch { /* Another starter removed the stale lock first. */ }
+    try { fs.unlink(files.lock); } catch { /* Another starter removed the stale lock first. */ }
   }
   return null;
 }
