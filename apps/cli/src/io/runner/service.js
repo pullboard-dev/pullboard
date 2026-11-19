@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingNumber } from '../../../../../packages/drive/index.js';
 import { runnerSettingOn } from '../../../../../packages/drive/index.js';
 import { machineSettingsFile } from '../../../../../packages/resources/light.js';
 import { pullGit } from './git.js';
@@ -51,7 +52,7 @@ export async function runService(argv, { serve = serveRunner, port = codePort, o
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
-      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'),
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), jobWorkerFactor: runnerSettingNumber(machineSettingsFile(), 'runners.jobWorkerFactor', 2),
       pulledProfilePaths: (await import('../../../../../packages/config/index.js')).pulledProfilePathsEnabled(),
       ...(runnerCode ? { runnerCode } : {}) });
     if (served?.restart) say(`runner code changed to ${served.restart}; exiting so the service manager starts it`);
