@@ -1,7 +1,7 @@
 /** A fixed Main red names the open items whose red gate failed on it [C7,#1269]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { itemsFailedOn } from '../../../src/logic/audit/main-red-notify.js';
+import { itemsFailedOn } from '../../../src/logic/audit/main-red.js';
 
 const RED = { file: 'packages/a/tests/x.test.js', name: 'clause 1: x holds' };
 
