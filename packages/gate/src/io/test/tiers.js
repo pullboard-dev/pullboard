@@ -33,25 +33,18 @@ function tierImports(sources) {
   }
 }
 
-/** Read optional cell placements so legacy front doors have their actual package ownership. */
+const FOLDER_ROOT = /^(?:packages|apps)\/[^/]+(?=\/)/u;
+
+/** Each file under a package or app folder is owned by that folder root; no cells plan is read, so folders alone place a file [C7,#2467]. */
 export function cellOwners(files) {
-  const owners = new Map();
-  const raw = files.get('packages/codemap/data/plan/cells.json');
-  if (!raw) return owners;
-  const plan = JSON.parse(raw.toString('utf8'));
-  for (const entry of plan.cells ?? []) {
-    const shard = entry.file ? JSON.parse(files.get(entry.file)?.toString('utf8') ?? 'null') : entry;
-    if (!shard) throw new Error(`missing cell plan shard: ${entry.file}`);
-    for (const row of shard.paths ?? []) for (const file of row.slice(0, 2)) owners.set(file, shard.root);
-    if (shard.frontDoor) owners.set(shard.frontDoor, shard.root);
-  }
-  return owners;
+  const rootOf = file => FOLDER_ROOT.exec(file)?.[0];
+  return { has: file => rootOf(file) !== undefined, get: rootOf };
 }
 
 /** Prefer explicit cells, then ordinary package folders, then the closest package.json. */
 export function ownerOf(file, files, owners) {
   if (owners.has(file)) return owners.get(file);
-  const cell = /^(?:packages|apps)\/[^/]+(?=\/)/u.exec(file)?.[0];
+  const cell = FOLDER_ROOT.exec(file)?.[0];
   if (cell) return cell;
   let directory = posix.dirname(file);
   while (directory !== '.') {
