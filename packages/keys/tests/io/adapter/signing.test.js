@@ -47,18 +47,19 @@ test('keys.io-adapter-signing.der-contract-table: clause 1: createSigningAdapter
   }
 });
 
-test('keys.io-adapter-signing.der-front-door-same-table: clause 2: both factories imported from the keys front door run the same table, and the default PEM form passes its existing cases unchanged [C7,#1428]', () => {
-  assert.equal(typeof door.createSigningAdapter, "function");
-  assert.equal(typeof door.createFakeSigningAdapter, "function");
-  for (const make of [door.createSigningAdapter, door.createFakeSigningAdapter]) {
-    for (const adapter of [make(), make({ encoding: "pem" })]) {
+test('keys.io-adapter-signing.der-front-door-same-table: clause 2: the factories reached through loadSigningAdapter on the keys front door run the same table and stay synchronous, and the default PEM form passes its existing cases unchanged [C7,#1428]', async () => {
+  const { createSigningAdapter: real, createFakeSigningAdapter: fake } = await door.loadSigningAdapter();
+  assert.equal(typeof real, "function");
+  assert.equal(typeof fake, "function");
+  for (const make of [real, fake]) {
+    for (const adapter of [make(), make({ encoding: "pem" }), make({ encoding: "der" })]) {
       const { publicKey, privateKey } = adapter.generateKeyPair();
       const signature = adapter.sign(privateKey, "ship it");
       assert.equal(adapter.verify(publicKey, "ship it", signature), true);
       assert.equal(adapter.verify(publicKey, "ship it!", signature), false);
     }
   }
-  const { publicKey } = door.createSigningAdapter().generateKeyPair();
+  const { publicKey } = real().generateKeyPair();
   assert.match(publicKey, /^-----BEGIN PUBLIC KEY-----/u);
-  assert.throws(() => door.createSigningAdapter({ encoding: "jwk" }), { code: "SIGN_ENCODING" });
+  assert.throws(() => real({ encoding: "jwk" }), { code: "SIGN_ENCODING" });
 });
