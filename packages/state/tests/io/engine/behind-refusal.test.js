@@ -8,8 +8,8 @@ import { ENGINE_VERSION } from '../../../src/io/machine.js';
 const needed = ENGINE_VERSION + 50;
 const releases = [{ engine: 1, release: '0.9.2' }, { engine: ENGINE_VERSION, release: '0.9.4' }, { engine: needed, release: '0.9.5' }];
 
-/** A board whose only operation needs a newer engine than this one; the move table is never reached. `probe` is no registry operation, so the grant check passes it. */
-const board = { enginePorts: { store: {}, registry: {}, operations: ['probe'], minimumOperationEngine: () => needed } };
+/** A board whose only operation needs a newer engine than this one; the move table is never reached. `probe` is no registry operation, so the grant check passes it; its store writer exists, so NO_STORE_WRITER does not stop it first. */
+const board = { enginePorts: { store: { probe() {} }, registry: {}, operations: ['probe'], minimumOperationEngine: () => needed } };
 const refusal = options => {
   try { prepareEngineMove(board, 'probe', [], options); } catch (error) { return error; }
   return assert.fail('the move was not refused');

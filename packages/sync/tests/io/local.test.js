@@ -19,7 +19,7 @@ function socketChild(mode, home) {
     import { channel } from 'node:diagnostics_channel';
     import { Socket } from 'node:net';
     import { fetchLocal } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../index.js')).href)};
-    import { fetchFresh } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../apps/cli/tests/fixtures/http.js')).href)};
+    import { fetchFresh } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../fixtures/http.js')).href)};
     import { rememberView, runningView } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../../apps/view/index.js')).href)};
     const mode = ${JSON.stringify(mode)};
     const server = createServer((_request, response) => response.end('ok'));
