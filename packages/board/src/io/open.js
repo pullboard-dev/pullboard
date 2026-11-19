@@ -1,14 +1,14 @@
 /** @pullboard-module-loads packages/store/index.js */
 /** The board's native open path: openBoard, openBoardForRead and the ports they compose, apart from the barrel so a light door can name them without loading it [C7]. */
-import { createRequire } from "node:module";
-import { providers } from "./providers.js";
-import { openBoardForRead as readBoard } from "../../../store/light.js";
-import { systemClock } from "../../../store/light.js";
+import { createRequire } from 'node:module';
+import { providers } from './providers.js';
+import { openBoardForRead as readBoard } from '../../../store/light.js';
+import { systemClock } from '../../../store/light.js';
 
 const requireModule = createRequire(import.meta.url);
 let store = null;
 /** The store barrel, loaded on the first write open: a read-only caller never pays for the write path behind it [C7]. */
-const writeStore = () => (store ??= requireModule("../../../store/index.js"));
+const writeStore = () => (store ??= requireModule('../../../store/index.js'));
 const openBoardStore = (...args) => writeStore().openBoardStore(...args);
 const requireRuntimePorts = (...args) => writeStore().requireRuntimePorts(...args);
 
