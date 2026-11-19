@@ -1,0 +1,10 @@
+{
+  "name": "link",
+  "help": "  pullboard link <child> [--by <principal>] [--key <file>]  sign one states link between this board and a child board on this machine; both boards' signers approve\n",
+  "required": {
+    "link": "string",
+    "parent": "object",
+    "child": "object",
+    "disclosure": "string"
+  }
+}
