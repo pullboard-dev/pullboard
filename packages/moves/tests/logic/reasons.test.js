@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { REVIEW_COVER_PAUSE_TAIL } from '../../../health/index.js';
 import { recordSubmitHandoff } from '../../../jobs/index.js';
 import * as store from '../../../store/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import {
   answerFirstReasons,
