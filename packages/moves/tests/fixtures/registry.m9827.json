@@ -12,5 +12,19 @@
       "packages/moves/src/logic/table/lease.table.js",
       "packages/moves/tests/logic/table/lease.test.js"
     ]
+  },
+  "moves.lease.the-holders-release-clears-its-batches": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The holder's release clears the listed batches, and a release by anyone else leaves them."
+    },
+    "why": "Without it a finished lander would leave its batches listed and hold the allowance full for the next holder.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/logic/table/lease.table.js",
+      "packages/moves/tests/logic/table/lease.test.js"
+    ]
   }
 }

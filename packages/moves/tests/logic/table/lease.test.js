@@ -188,3 +188,9 @@ test('moves.lease.a-batch-by-the-holder-lists-its-batch-within-the-allowance: cl
   assert.equal(run(snap({ lease: lease({ batches: ['b1'] }) }), ask(1, 'batch', { batch: 'b2' })).refused.code, 'LAND_LEASE_REQUEST', 'no allowance means one in flight');
   assert.equal(run(snap(), batch('b1', { token: token(2) })).refused.code, 'LAND_LEASE_LOST', 'only the live holder starts a batch');
 });
+
+test('moves.lease.the-holders-release-clears-its-batches: clause 2: the holder release clears the listed batches and a non-holder release leaves them [C7,#9827]', () => {
+  const listed = snap({ lease: lease({ batches: ['b1', 'b2'] }) });
+  assert.deepEqual(run(listed, ask(1, 'release')).patch.lease.batches, []);
+  assert.deepEqual(run(listed, ask(2, 'release')).patch.lease.batches, ['b1', 'b2']);
+});
