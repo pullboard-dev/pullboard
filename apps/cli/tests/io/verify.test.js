@@ -95,5 +95,5 @@ test('cli.io-verify.accept-reads-a-tick-across-a-merge-of-main: clause 3: verify
   assert.doesNotMatch(`${accepted.out}${accepted.err}`, /CLAUSE_UNTICKED/u, 'a merge of main that left the item files alone keeps the tick');
   const changed = await mergedHeadItem(t, 'web/shared.js');
   const refused = await changed.box.runIn(changed.review, 'verify', '1', 'accept', '--note', 'read web/item-1.js: it exports complete');
-  assert.match(`${refused.out}${refused.err}`, /CLAUSE_UNTICKED/u, 'a merge that changed an item file leaves the tick at the earlier head');
+  assert.match(`${refused.out}${refused.err}`, /CLAUSE_UNTICKED/u);
 });
