@@ -1,7 +1,7 @@
 /** A loop over every seat reads families from one snapshot, not one event query per seat [C7,#3251]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { seatFamily } from '../../../index.js';
 import { withFamilyReads } from '../../../index.js';
 
