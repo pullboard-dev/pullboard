@@ -23,8 +23,8 @@ async function relay(machines) {
   return { state, close: () => new Promise(done => server.close(done)) };
 }
 
-/** A board whose only operation needs a newer engine than this one; the move table is never reached. `probe` is no registry operation, so the grant check passes it. */
-const board = { enginePorts: { store: {}, registry: {}, operations: ['probe'], minimumOperationEngine: () => NEEDED } };
+/** A board whose only operation needs a newer engine than this one; the move table is never reached. `probe` is no registry operation, so the grant check passes it; its store writer is a stub, so the writer check passes it too. */
+const board = { enginePorts: { store: { probe() {} }, registry: {}, operations: ['probe'], minimumOperationEngine: () => NEEDED } };
 
 /** The refusal prepareEngineMove raises for the roster the relay serves, built as the outbox builds it. */
 async function refusalFor(machines) {
