@@ -162,6 +162,7 @@ export {
   refuseEmptyBar,
   rejectKeepsCheck,
   soloLowStakesEnabled,
+  lineTuneEnabled,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
