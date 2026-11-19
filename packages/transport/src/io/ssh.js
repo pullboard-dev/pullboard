@@ -7,6 +7,7 @@ import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { openChannel } from './channel.js';
 import { sshFetchResult } from './ssh/shards.js';
 import { sshResetShard } from './ssh/shards.js';
@@ -19,10 +20,10 @@ const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_TOKEN = 'PULLBOARD_PROBE_OK';
 
 /** The credential-free environment an ssh client needs, and nothing else from this process. */
-function sshEnvironment() {
+function sshEnvironment(adapter = environmentAdapter()) {
   const env = {};
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR', 'SystemRoot', 'WINDIR']) {
-    if (process.env[key] !== undefined) env[key] = process.env[key];
+    if (adapter.has(key)) env[key] = adapter.get(key);
   }
   return { ...env, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
 }
@@ -76,7 +77,7 @@ const MULTIPLEX_SCRIPT = [
  * @param {{ home?: string }} [options] - The machine home; defaults to PULLBOARD_MACHINE_HOME or ~/.pullboard.
  * @returns {string|null}
  */
-export function sshControlPath(host, { home = process.env.PULLBOARD_MACHINE_HOME ?? join(homedir(), '.pullboard') } = {}) {
+export function sshControlPath(host, { home = environmentAdapter().get('PULLBOARD_MACHINE_HOME') ?? join(homedir(), '.pullboard') } = {}) {
   if (typeof host !== 'string' || !host || process.platform === 'win32' || !isAbsolute(home ?? '')) return null;
   const folder = join(home, 'ssh');
   const path = join(folder, createHash('sha256').update(host).digest('hex').slice(0, 12));
