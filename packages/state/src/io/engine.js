@@ -104,6 +104,8 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   const ports = enginePorts(board);
   const store = ports.store;
   if (!ports.operations.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
+  // A move whose store writer is missing would throw a fatal TypeError in relay order; refuse it before sealing or transport.
+  if (typeof store[operation] !== 'function') throw new Refused('NO_STORE_WRITER', `${operation} has no store writer on this pullboard yet; it cannot be sealed or sent`);
   // Each operation's own sealing steps live in its engine-move module [C7].
   const steps = Object.hasOwn(ENGINE_MOVE_STEPS, operation) ? ENGINE_MOVE_STEPS[operation] : {};
   if (steps.prepareArgs) args = steps.prepareArgs(board, args, { ports, store, id });
