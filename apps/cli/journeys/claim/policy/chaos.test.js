@@ -1,4 +1,4 @@
-/** Fifty commits to pullboard.json while four items each cycle claim, submit and verify give zero NO_POLICY refusals [B4,R2]. */
+/** Fifty commits to pullboard.json while five items each cycle claim, submit and verify give zero NO_POLICY refusals [B4,R2]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 
-const ITEMS = 4;
+const ITEMS = 5;
 const POLICY_COMMITS = 50;
 
 /** What the one scenario recorded: every refusal seen, the policy commits made, and each item's final status. */
@@ -32,21 +32,21 @@ function changePolicy(box) {
   box.git(box.repo, 'commit', '-q', '-m', `chore: change the lane check ${outcome.policyCommits} [G1]`);
 }
 
-/** Commit the share of the 50 policy changes that falls before call number `call` (0 claim, 1 submit, 2 verify) of item n, so the twelve calls together see exactly 50. */
+/** Commit the share of the 50 policy changes that falls before call number `call` (0 claim, 1 submit, 2 verify) of item n, so the fifteen calls together see exactly 50. */
 function policyBefore(box, n, call) {
   const slot = (n - 1) * 3 + call;
   const share = Math.floor(POLICY_COMMITS * (slot + 1) / (ITEMS * 3)) - Math.floor(POLICY_COMMITS * slot / (ITEMS * 3));
   for (let c = 0; c < share; c += 1) changePolicy(box);
 }
 
-test('cli.journeys-claim-policy-chaos.fifty-policy-commits-zero-no-policy: clause 1: while 50 commits to pullboard.json change a lane check, 4 items each cycle claim, submit and verify accept in process and no call returns NO_POLICY [B4,R2]', { timeout: 900_000 }, async t => {
+test('cli.journeys-claim-policy-chaos.fifty-policy-commits-zero-no-policy: clause 1: while 50 commits to pullboard.json change a lane check, 5 items each cycle claim, submit and verify accept in process and no call returns NO_POLICY [B4,R2]', { timeout: 900_000 }, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   for (let n = 1; n <= ITEMS; n += 1) await step(box, box.repo, 'add', 'web', `Policy chaos item ${n}`, '--specs', 'G1', '--criterion', 'The page renders.');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   for (let n = 1; n <= ITEMS; n += 1) {
-    // The 50 policy commits are spread evenly over the twelve calls (claim, submit, verify for each of the four items): 4 or 5 before each.
+    // The 50 policy commits are spread evenly over the fifteen calls (claim, submit, verify for each of the five items): 3 or 4 before each.
     // Land is not driven here: the main-refusals journeys cover it.
     policyBefore(box, n, 0);
     await step(box, box.web, 'claim', String(n));
@@ -68,7 +68,7 @@ test('cli.journeys-claim-policy-chaos.fifty-policy-commits-zero-no-policy: claus
   assert.deepEqual(outcome.refusals, [], 'no call returned NO_POLICY or any other refusal');
 });
 
-test('cli.journeys-claim-policy-chaos.all-four-items-verified-none-stranded: clause 2: the same case ends with all 4 items verified and none stranded [B4,R2]', () => {
+test('cli.journeys-claim-policy-chaos.all-five-items-verified-none-stranded: clause 2: the same case ends with all 5 items verified and none stranded [B4,R2]', () => {
   assert.equal(outcome.statuses.length, ITEMS, 'the first case read every item');
   assert.deepEqual(outcome.statuses.filter(status => status !== 'verified'), [], 'every item ends verified');
 });
