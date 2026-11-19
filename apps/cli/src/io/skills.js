@@ -6,12 +6,7 @@
  * agent, and a repo's own override in `.pullboard/prompts/<role>.md`.
  */
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,7 +59,7 @@ const CURRENT_SKILL_TEXT = Object.freeze({
 });
 
 const SKILLS_DIR = fileURLToPath(new URL('../../../../skills/', import.meta.url));
-const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8')).version;
+const PACKAGE_VERSION = JSON.parse(fileSystemAdapter().readFile(new URL('../../../../package.json', import.meta.url))).version;
 
 /**
  * Each role and the skill that carries it.
@@ -93,7 +88,7 @@ function shippedSkill(role) {
   }
   // The worker loop has no file to drift: it is generated from the one shared seat-loop source (#8550).
   if (role === 'worker') return renderWorkerSkill();
-  return readFileSync(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
+  return fileSystemAdapter().readFile(join(SKILLS_DIR, name, 'SKILL.md'));
 }
 
 /** Hash skill bytes so an update can distinguish a released file from a local edit. */
@@ -123,8 +118,8 @@ export function skillProblems(root) {
   for (const [role, name] of Object.entries(ROLES)) {
     const relativePath = `.claude/skills/${name}/SKILL.md`;
     const file = join(root, relativePath);
-    if (!existsSync(file)) continue;
-    const text = readFileSync(file, 'utf8');
+    if (!fileSystemAdapter().exists(file)) continue;
+    const text = fileSystemAdapter().readFile(file);
     const digest = skillDigest(text);
     const currentDigest = skillDigest(shippedSkill(role));
     if (digest === currentDigest) continue;
@@ -155,8 +150,8 @@ export function updateSkills(root) {
   for (const [role, name] of Object.entries(ROLES)) {
     const relativePath = `.claude/skills/${name}/SKILL.md`;
     const file = join(root, relativePath);
-    if (!existsSync(file)) continue;
-    const text = readFileSync(file, 'utf8');
+    if (!fileSystemAdapter().exists(file)) continue;
+    const text = fileSystemAdapter().readFile(file);
     const digest = skillDigest(text);
     const currentText = shippedSkill(role);
     if (digest === skillDigest(currentText)) {
@@ -164,7 +159,7 @@ export function updateSkills(root) {
       continue;
     }
     if (shippedVersion(role, digest)) {
-      writeFileSync(file, currentText);
+      fileSystemAdapter().writeFile(file, currentText);
       updated.push(relativePath);
       continue;
     }
@@ -192,7 +187,7 @@ export function withoutFrontMatter(text) {
  */
 export function promptFor(root, role) {
   const override = join(root, '.pullboard', 'prompts', `${role}.md`);
-  if (ROLES[role] && existsSync(override)) return readFileSync(override, 'utf8');
+  if (ROLES[role] && fileSystemAdapter().exists(override)) return fileSystemAdapter().readFile(override);
   return withoutFrontMatter(shippedSkill(role));
 }
 
@@ -211,8 +206,8 @@ const SKILL_HOMES = Object.freeze({
  * @returns {Array<'claude'|'codex'>}
  */
 export function declaredAgentTools(root) {
-  const claude = ['.claude', 'CLAUDE.md', '.mcp.json'].some(name => existsSync(join(root, name)));
-  const codex = ['.codex', '.agents'].some(name => existsSync(join(root, name)));
+  const claude = ['.claude', 'CLAUDE.md', '.mcp.json'].some(name => fileSystemAdapter().exists(join(root, name)));
+  const codex = ['.codex', '.agents'].some(name => fileSystemAdapter().exists(join(root, name)));
   if (claude && !codex) return ['claude'];
   if (codex && !claude) return ['codex'];
   return ['claude', 'codex'];
@@ -234,9 +229,9 @@ export function installSkills(root, onWrite = () => {}, tools = ['claude']) {
     const written = [];
     for (const [role, name] of Object.entries(ROLES)) {
       const file = join(root, ...dir, name, 'SKILL.md');
-      if (existsSync(file)) continue;
-      mkdirSync(join(root, ...dir, name), { recursive: true });
-      writeFileSync(file, shippedSkill(role));
+      if (fileSystemAdapter().exists(file)) continue;
+      fileSystemAdapter().mkdir(join(root, ...dir, name), { recursive: true });
+      fileSystemAdapter().writeFile(file, shippedSkill(role));
       onWrite(`${dir.join('/')}/${name}/SKILL.md`);
       written.push(name);
     }
@@ -256,9 +251,9 @@ export function installSkills(root, onWrite = () => {}, tools = ['claude']) {
 export function installCodexAutomation(root, onWrite = () => {}, tools = ['claude']) {
   if (!tools.includes('codex')) return [];
   const file = join(root, CODEX_AUTOMATION_FILE);
-  if (existsSync(file)) return ['kept the Codex automation template'];
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, renderCodexAutomation());
+  if (fileSystemAdapter().exists(file)) return ['kept the Codex automation template'];
+  fileSystemAdapter().mkdir(dirname(file), { recursive: true });
+  fileSystemAdapter().writeFile(file, renderCodexAutomation());
   onWrite(CODEX_AUTOMATION_FILE);
   return [`wrote the paused Codex automation template ${CODEX_AUTOMATION_FILE}`];
 }
