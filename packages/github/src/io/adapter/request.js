@@ -20,24 +20,46 @@ function apiBase(base) {
   return base.replace(/[/]+$/u, '');
 }
 
-/** The real form: GET one path of the base (api.github.com by default) through the injected fetch, with no token logic; a caller's signal reaches the fetch. Returns { status, body }. */
+/** The response headers as one plain object with lowercase names, so a caller reads link or x-ratelimit-remaining without a Headers class. */
+function plainHeaders(headers) {
+  return Object.fromEntries([...headers.entries()].map(([name, value]) => [name.toLowerCase(), value]));
+}
+
+/** The response body: JSON only when the content type says so, else the text; a response that names no headers keeps today's JSON read. */
+async function responseBody(response) {
+  if (!response.headers) return response.json();
+  return String(response.headers.get('content-type') ?? '').includes('json') ? response.json() : response.text();
+}
+
+/**
+ * The real form: one request to a path of the base (api.github.com by default) through the injected fetch, with no token logic.
+ * `request(path, { method, headers, body, signal })` sends the method (GET by default), the caller's headers over the default accept header,
+ * a text or JSON body as given, and never follows a redirect (redirect 'manual'); a caller's signal reaches the fetch. Returns { status, headers, body }.
+ */
 export function createGithubAdapter(fetchImpl, { base = BASE } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('github adapter needs a fetch function');
   const root = apiBase(base);
   return Object.freeze({
-    async request(path, { signal } = {}) {
-      const response = await fetchImpl(`${root}${apiPath(path)}`, { method: 'GET', headers: { accept: 'application/vnd.github+json' }, ...(signal ? { signal } : {}) });
-      return { status: response.status, body: await response.json() };
+    async request(path, { method = 'GET', headers, body, signal } = {}) {
+      const response = await fetchImpl(`${root}${apiPath(path)}`, {
+        method, headers: { accept: 'application/vnd.github+json', ...headers }, redirect: 'manual',
+        ...(body !== undefined ? { body } : {}), ...(signal ? { signal } : {}),
+      });
+      return { status: response.status, ...(response.headers ? { headers: plainHeaders(response.headers) } : {}), body: await responseBody(response) };
     },
   });
 }
 
-/** The fake form: answers each path from a table of { status, body } and answers 404 for any other path. Returns { status, body }. */
+/**
+ * The fake form: answers each request from a table keyed by path (a GET) or by "METHOD path", and answers 404 for any other.
+ * An answer is { status, body } with optional headers. Returns { status, body } plus the answer's headers when it names some.
+ */
 export function createFakeGithubAdapter(table = {}) {
   return Object.freeze({
-    async request(path) {
-      const answer = table[apiPath(path)];
-      return answer ? { status: answer.status, body: answer.body } : { status: 404, body: { message: 'Not Found' } };
+    async request(path, { method = 'GET' } = {}) {
+      const key = apiPath(path);
+      const answer = table[`${method} ${key}`] ?? (method === 'GET' ? table[key] : undefined);
+      return answer ? { status: answer.status, ...(answer.headers ? { headers: answer.headers } : {}), body: answer.body } : { status: 404, body: { message: 'Not Found' } };
     },
   });
 }
