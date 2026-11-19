@@ -1,12 +1,10 @@
 /** The scratch root: one place for all throwaway folders, os.tmpdir() when unset [C7]. */
-import {
-  existsSync,
-  realpathSync,
-  statSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Refused } from '../../../kernel/light.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The folder throwaway work goes under: the `scratch` machine setting, else PULLBOARD_SCRATCH, else os.tmpdir().
@@ -23,8 +21,8 @@ export function scratchRoot(settings, env = process.env) {
   if (typeof named !== 'string' || !isAbsolute(named)) {
     throw new Refused('BAD_SCRATCH_ROOT', `scratch must be an absolute folder path, got ${JSON.stringify(named)}; run pullboard settings scratch <absolute folder>, or remove it to use ${tmpdir()}`);
   }
-  if (!existsSync(named) || !statSync(named).isDirectory()) {
+  if (!fs.exists(named) || !fs.stat(named).isDirectory()) {
     throw new Refused('BAD_SCRATCH_ROOT', `scratch ${named} is not an existing folder; create it, or run pullboard settings scratch <absolute folder> to name another, or remove it to use ${tmpdir()}`);
   }
-  return realpathSync(named);
+  return fs.realpath(named);
 }
