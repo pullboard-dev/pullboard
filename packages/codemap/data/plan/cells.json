@@ -2507,6 +2507,7 @@
     "gate->resources",
     "gate->drive",
     "gate->config",
+    "gate->env",
     "merge->config",
     "rigor->config",
     "spec->config",
