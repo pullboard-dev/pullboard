@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { git } from '../../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../../packages/git/index.js';
 import { gitPath } from '../../../../../../packages/git/index.js';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 
 /**
  * Tracked files a repository needs before a spare is kept.
@@ -117,7 +118,7 @@ export function takeSpareFolder(root, seat, desired, checkout) {
  * @returns {Promise<boolean>} true when a spare was started
  */
 export async function prepareSpareFolder(root, seat, trunk, workers = []) {
-  if (process.env.PULLBOARD_RUNNER_JOB) return false;
+  if (environmentAdapter().get('PULLBOARD_RUNNER_JOB')) return false;
   const spare = spareFolderPath(seat);
   if (existsSync(spare) || indexEntries(root) < SPARE_FROM_FILES) return false;
   // Loaded only when a spare is due, so a claim's import graph stays as it was.
