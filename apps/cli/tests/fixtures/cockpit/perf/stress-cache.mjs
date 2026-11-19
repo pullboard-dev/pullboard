@@ -119,6 +119,10 @@ export function buildStressCache(inputs, cache) {
   mkdirSync(staging, { recursive: true });
   const made = generateStressBoard({ ...inputs, parent: staging });
   writeFileSync(join(made.workspace, 'env.json'), JSON.stringify(made.env));
+  // One timing line naming each stage; the detached build has no terminal, so the line also lands beside the cache marker.
+  const timing = `stress-board build stages (seed ${made.seed}, size ${made.size}): ${made.stages.map(({ name, ms }) => `${name} ${ms} ms`).join(', ')}, total ${made.stages.reduce((sum, { ms }) => sum + ms, 0)} ms`;
+  process.stdout.write(`${timing}\n`);
+  writeFileSync(join(staging, 'stages.txt'), `${timing}\n`);
   writeFileSync(join(staging, 'complete'), `${made.workspace}\n`);
   try { renameSync(staging, cache); } catch { rmSync(staging, { recursive: true, force: true }); }
 }
