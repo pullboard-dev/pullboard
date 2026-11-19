@@ -654,6 +654,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
     },
+    "closure-budget.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/logic/budgets.js"
+    },
     "code-map.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/map.js"
