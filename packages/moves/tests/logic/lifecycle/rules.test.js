@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { RULES } from '../../../index.js';
 import { judge } from '../../../index.js';
 import { newItem } from '../../../index.js';
+import { unmetWaits } from '../../../src/logic/lifecycle/rules.js';
 
 const frozenAs = (...stakes) => JSON.stringify({ rows: stakes.map((value, index) => ({ id: `R${index + 1}`, ...(value ? { stakes: value } : {}) })) });
 const item = { ...newItem(1), status: 'submitted', builder: 'core-1', frozen: frozenAs('low') };
@@ -62,4 +63,25 @@ test('moves.lifecycle-rules.low-stakes-frozen-record-admits: clause 2: the solo 
   assert.equal(GUARD_RULES.notBuilder.holds(bad, local), false);
   assert.equal(GUARD_RULES.notBuilder.holds(ok, relayed), true);
   assert.equal(GUARD_RULES.notBuilder.holds(ok, local), true);
+});
+
+const waiter = (extra = {}) => ({ ...newItem(2), after: [7], ...extra });
+const parent = (extra = {}) => new Map([[7, { status: 'submitted', gateGreen: true, ...extra }]]);
+
+test('moves.lifecycle-rules.after-gate-parent-satisfies-wait: clause 1: unmetWaits returns no unmet wait for an id in item.afterGate whose item is submitted with gateGreen true, so dependenciesVerified holds; the same parent submitted without gateGreen, or open, is still returned as unmet [C7,#11803]', () => {
+  const gated = waiter({ afterGate: [7] });
+  assert.deepEqual(unmetWaits(gated, parent()), []);
+  assert.equal(RULES.dependenciesVerified.holds({ item: gated, items: parent() }, {}), true);
+  assert.deepEqual(unmetWaits(gated, parent({ gateGreen: false })), [{ id: 7, state: 'submitted' }]);
+  assert.deepEqual(unmetWaits(gated, parent({ gateGreen: undefined })), [{ id: 7, state: 'submitted' }]);
+  assert.deepEqual(unmetWaits(gated, parent({ status: 'open' })), [{ id: 7, state: 'open' }]);
+});
+
+test('moves.lifecycle-rules.after-gate-only-for-listed-ids: clause 2: an id in item.after that is not in item.afterGate still needs status verified, even when that item is submitted with gateGreen true; with afterGate and gateGreen absent the result equals today\'s [C7,#11803]', () => {
+  assert.deepEqual(unmetWaits(waiter({ afterGate: [8] }), parent()), [{ id: 7, state: 'submitted' }]);
+  assert.deepEqual(unmetWaits(waiter(), parent()), [{ id: 7, state: 'submitted' }]);
+  assert.deepEqual(unmetWaits(waiter({ afterGate: [7] }), new Map([[7, { status: 'submitted' }]])), [{ id: 7, state: 'submitted' }]);
+  assert.deepEqual(unmetWaits(waiter(), new Map([[7, { status: 'verified' }]])), []);
+  assert.deepEqual(unmetWaits(waiter(), new Map([[7, { status: 'withdrawn', merged: true }]])), [{ id: 7, state: 'withdrawn-landed' }]);
+  assert.deepEqual(unmetWaits(waiter(), new Map()), [{ id: 7, state: 'missing' }]);
 });
