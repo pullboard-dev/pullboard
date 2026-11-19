@@ -498,6 +498,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
+    "adapter-lint-ssh.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/ssh.js"
+    },
     "adapter-lint-timers.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/timers.js"
@@ -706,6 +710,10 @@
       "kind": "json",
       "owner": "packages/resources/src/io/handoff/worker/cap.js"
     },
+    "event-moves.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/generated/declarations.js"
+    },
     "events.json": {
       "kind": "json",
       "owner": "apps/view/src/io/serve.js"
@@ -838,6 +846,10 @@
     "model-names.json": {
       "kind": "repo-data",
       "owner": "apps/view/src/io/cost/tab.js"
+    },
+    "renderer-moves.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/static/view.js"
     },
     "runtime-profiles.json": {
       "kind": "repo-data",

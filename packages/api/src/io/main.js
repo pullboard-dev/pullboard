@@ -115,7 +115,7 @@ import { endStaleJobsEnabled } from '../../../config/index.js';
 import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
-import { recordLapseEnabled } from '../../../config/index.js';
+import { recordLapseEnabled } from '../../../config/index.js'; import { runnersCoresPerShard } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
 import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
@@ -132,7 +132,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
+import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js'; import { withApplied } from './spec-apply.js'; import { commitOnApplyEnabled } from '../../../config/index.js';
 
 /** Native file events arrive in real time, so their coalescing timer keeps the real clock captured at load even when a caller mocks the global one [A2,N26]. */
 const FILE_CLOCK = { schedule: setTimeout, cancel: clearTimeout, now: Date.now };
@@ -928,7 +928,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   const event = events.find((row) => row.event_kind === kind) ?? events.at(-1);
   if (!event && body.verb === 'next') return { status: 200, body: { version: VERSION, event: null, result } };
   if (!event) throw new Error(`move ${body.verb} produced no event${diagnostics ? `: ${diagnostics}` : ''}`);
-  return { status: 200, body: { version: VERSION, event, result } };
+  return { status: 200, body: { version: VERSION, event, result: await withApplied(body, personChannel, result, seat, runCommand, commitOnApplyEnabled) } };
 }
 
 /** The relay ports a board API move sends with: the higher composition root's, saying nothing on this process's stderr; extra adds or replaces ports. */
@@ -1367,7 +1367,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: false, reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: false, reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }

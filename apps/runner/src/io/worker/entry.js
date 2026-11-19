@@ -46,23 +46,18 @@ import { importTestResults } from '../../../../../packages/gate/light.js';
 import { packTestResults } from '../../../../../packages/gate/light.js';
 import { selectedTestResults } from '../../../../../packages/gate/light.js';
 import { startRunnerPhases } from '../../../../../packages/gate/light.js';
-import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { basename } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Whether this runner machine's own gate.sampleDiskIo is on; an unreadable settings file reads off [C7,#9029]. */
 function diskIoSetting() {
-  try { return JSON.parse(readFileSync(machineSettingsFile(), 'utf8')).gate?.sampleDiskIo === true; } catch { return false; }
+  try { return JSON.parse(fs.readFile(machineSettingsFile(), 'utf8')).gate?.sampleDiskIo === true; } catch { return false; }
 }
 
 /** Execute one remote job end to end; stdout is reserved for raw command bytes and stderr for one receipt. */
@@ -83,6 +78,7 @@ export async function main(S) {
   let recoveryRoot;
   let setupStep = 'runner directories';
   let gui = null;
+  let dependencies = 'none';
   let final = { code: 1, signal: null, root: '' };
   /** Send the one result receipt before any slow cleanup; a lost transport has no one to tell. */
   async function reportResult() {
@@ -96,7 +92,7 @@ export async function main(S) {
       final.executionPhases = phases.finish();
       final.sourcePreparation = sourceMetrics;
       S.cleanupStage = 'result receipt';
-      await receipt(spec, { ...final, gui }, sink);
+      await receipt(spec, { ...final, gui, dependencies }, sink);
       S.resultSent = true;
       // The delivered result is the job's terminal record: the disk sweep may remove this folder even if the worker dies.
       try { if (runDirectory) writeTerminalResult(runDirectory); } catch { /* The quiet window still protects the folder. */ }
@@ -110,9 +106,9 @@ export async function main(S) {
     const runnerRoot = spec.root ?? join(runnerHome, '.pullboard-runner');
     recoveryRoot = runnerRoot;
     S.setupPrivatePaths.add(runnerRoot);
-    mkdirSync(runnerRoot, { recursive: true, mode: 0o700 });
-    S.setupPrivatePaths.add(realpathSync(runnerRoot));
-    chmodSync(runnerRoot, 0o700);
+    fs.mkdir(runnerRoot, { recursive: true, mode: 0o700 });
+    S.setupPrivatePaths.add(fs.realpath(runnerRoot));
+    fs.chmod(runnerRoot, 0o700);
     const configuredMachineHome = process.env.PULLBOARD_MACHINE_HOME;
     if (configuredMachineHome !== undefined && !isAbsolute(configuredMachineHome)) throw new Error('machine home is invalid');
     const machineHomePath = configuredMachineHome ?? join(runnerHome, '.pullboard');
@@ -123,12 +119,12 @@ export async function main(S) {
     const { gateCapacity, browserCapacity } = registeredCapacity(api, spec, runnerRoot, machineHomePath);
     setupStep = 'job directories';
     const base = join(runnerRoot, 'jobs');
-    mkdirSync(base, { recursive: true, mode: 0o700 });
-    chmodSync(base, 0o700);
+    fs.mkdir(base, { recursive: true, mode: 0o700 });
+    fs.chmod(base, 0o700);
     setupStep = 'disk sweep';
     assertDiskFree(await sweepRunnerDiskForWorker(runnerRoot, spec.id, Date.now() + 60_000, api, machineHomePath), diskFloorBytes(machineHomePath));
     setupStep = 'job directories';
-    runDirectory = mkdtempSync(join(base, `${spec.id}-`));
+    runDirectory = fs.mkdtemp(join(base, `${spec.id}-`));
     S.cleanupDirectory = runDirectory;
     recordRunnerOwner(runDirectory, processCensus);
     setupStep = 'analysis artifact';
@@ -136,9 +132,9 @@ export async function main(S) {
     const root = join(runDirectory, 'checkout');
     const privateHome = join(runDirectory, 'home');
     const temporary = join(runDirectory, 'tmp');
-    mkdirSync(root, { mode: 0o700 }); mkdirSync(privateHome, { mode: 0o700 }); mkdirSync(temporary, { mode: 0o700 });
-    writeFileSync(join(privateHome, 'npm-userconfig'), '', { mode: 0o600 });
-    writeFileSync(join(privateHome, 'npm-globalconfig'), '', { mode: 0o600 });
+    fs.mkdir(root, { mode: 0o700 }); fs.mkdir(privateHome, { mode: 0o700 }); fs.mkdir(temporary, { mode: 0o700 });
+    fs.close(fs.open(join(privateHome, 'npm-userconfig'), 'w', 0o600));
+    fs.close(fs.open(join(privateHome, 'npm-globalconfig'), 'w', 0o600));
     const pinLease = await retrySlotLocked(S, () => acquireResourceApi(api, {
       name: `repo-${spec.repoId}`, capacity: 1, scope: 'machine', root: runnerRoot,
       repo: runnerRoot, agent: `pullboard-ssh-pin-${spec.id}`, kind: 'source-cache',
@@ -177,7 +173,7 @@ export async function main(S) {
     phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
-      await installDependencies(S, root, runnerRoot, env, tracker, api);
+      dependencies = await installDependencies(S, root, runnerRoot, env, tracker, api);
     }
     setupStep = 'command start';
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
@@ -198,7 +194,7 @@ export async function main(S) {
     // A ticket runs its hand-off stages here, on the runner; any other job runs its one command.
     final = { ...(spec.handoff ? await runHandoffJob(spec, root, runnerRoot) : spec.trustedMode ? await runPrivateCheck(S, spec, root, commandEnv, sink, tracker) : await runCommand(S, spec, root, commandEnv, sink, tracker)), root };
     if (spec.testResults) final.testResults = packTestResults(selectedTestResults(resultStore, spec.testResults.inputKeys));
-    if (final.code !== 0 && existsSync(browserRefusal)) final.browserRefused = true;
+    if (final.code !== 0 && fs.exists(browserRefusal)) final.browserRefused = true;
   } catch (error) {
     const refused = setupRefusalCode(error);
     const message = refused ? `${safeSetupMessage(S, error, setupStep)} [${refused}]` : safeSetupMessage(S, error, setupStep);
@@ -245,7 +241,7 @@ export async function main(S) {
     }
     S.cleanupStage = 'job files';
     // No filesystem writes follow final removal; health separately requires this exact directory to be absent.
-    if (runDirectory && (!S.cleanupTimedOut || drained)) { try { rmSync(runDirectory, { recursive: true, force: true }); } catch { /* Best effort: health separately requires this exact directory to be absent. */ } }
+    if (runDirectory && (!S.cleanupTimedOut || drained)) { try { fs.rm(runDirectory, { recursive: true, force: true }); } catch { /* Best effort: health separately requires this exact directory to be absent. */ } }
   }
   // Past the receipt a slow or failed cleanup is only a leftover for the sweep (#2525); it never turns the result red.
   clearTimeout(S.cleanupTimer);

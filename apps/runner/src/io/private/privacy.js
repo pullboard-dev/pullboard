@@ -522,3 +522,6 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     executionRoot: commandRoot, environment, testRuntimes, executed, exitCode, proofCounts, ...(executionSourceUnchanged === undefined ? {} : { executionSourceUnchanged }),
     profile: timingProfile ? { ...timingProfile, profilePath } : null };
 }
+
+/** The runner's one door to Git for the hand-off stages: they launch through the adapter, never a literal launch of their own [C7]. */
+export function runnerGit(args, options) { return gitSpawnSync(args, options); }

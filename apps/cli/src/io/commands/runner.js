@@ -49,6 +49,9 @@ import {
   effectiveRunner,
 } from '../../../../../packages/runners/index.js';
 
+/** How long runner add waits for the one-time registration probe (SSH, a shell and node on the runner); health probes keep their 3 s default so a loaded runner or slow link still registers [C7]. */
+const REGISTRATION_PROBE_MS = 15_000;
+
 /** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
 export function liveRunnerCount(ctx) {
   try {
@@ -237,7 +240,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const toolchains = auto ? undefined : values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
-  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, ...(toolchains ? { toolchains } : {}), ...(auto ? { discover: true } : {}) });
+  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, timeoutMs: REGISTRATION_PROBE_MS, ...(toolchains ? { toolchains } : {}), ...(auto ? { discover: true } : {}) });
   if (!observation.healthy) throw new Refused('RUNNER_SETUP', `runner ${second} did not complete its registration probe; fix the SSH connection or configured Node, then run pullboard runner add again`);
   if (typeof observation.publicKey !== 'string') throw new Refused('RUNNER_SETUP', `runner ${second} did not enroll its result signing key; check its Pullboard home permissions, then run pullboard runner add again`);
   if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
