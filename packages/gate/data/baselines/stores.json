@@ -498,6 +498,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
+    "adapter-lint-signing.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/signing.js"
+    },
     "adapter-lint-ssh.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/ssh.js"
