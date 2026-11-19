@@ -2518,6 +2518,7 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->env",
     "landing->jobs",
     "landing->kernel",
     "landing->pin",

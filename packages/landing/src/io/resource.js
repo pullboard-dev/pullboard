@@ -1,4 +1,5 @@
 /** Wait for board admission without occupying a machine test slot [Q1,Q2,Q3]. */
+import { environmentAdapter } from '../../../env/index.js';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import {
@@ -15,6 +16,9 @@ import { localLandingEntry } from '../../../store/index.js';
 import { rememberLocalLanding } from '../../../store/index.js';
 import { forgetLocalLanding } from '../../../store/index.js';
 import { countLeaseLapse } from '../../../store/index.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /** Asks why this process's landing-lease waits stop (a reason or null); set by a lander whose loaded code may be older than main's. */
 let waitsStopped = null;
@@ -94,7 +98,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
   const token = randomUUID();
   const parameters = { agentId: 'coordinator', token, branch, pid: process.pid, localHeartbeat: true };
   // A scheduled wake that follows a back-off names it, so the lease request's event records why this landing started late [C7].
-  const backoffMs = Number(process.env.PULLBOARD_LANDING_BACKOFF_MS);
+  const backoffMs = Number(environment.get('PULLBOARD_LANDING_BACKOFF_MS'));
   const backoff = Number.isSafeInteger(backoffMs) && backoffMs > 0 && backoffMs <= LANDING_BACKOFF_MAX_MS ? { backoffMs } : {};
   let generation = null;
   let timer;

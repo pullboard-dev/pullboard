@@ -1,4 +1,5 @@
 /** The land job's proof: run the items' ledger-proved test files on the merged tree, reusing every ledger hit [P7]. */
+import { environmentAdapter } from '../../../../env/index.js';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -9,6 +10,9 @@ import { relative } from 'node:path';
 import { gitSpawn } from '../../../../git/index.js';
 import { timeoutDetail } from './deadline.js';
 import { watchDeadline } from './deadline.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 // The run-tests ledger variable (packages/gate LEDGER_HITS_ENV), named here so the runner bundle stays free of the gate package.
 const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
@@ -149,7 +153,7 @@ function shellWord(word) {
  * failed: a red's failing files and case lines, and the path of the file holding its whole output [#8499].
  * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], failures?: { file: string, name: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
-export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now, deadline = null, reuseGate = false } = {}) {
+export function ledgerProofCheck(proof, { env = environment.all(), waivers = [], now = Date.now, deadline = null, reuseGate = false } = {}) {
   return ({ root }) => new Promise(resolve => {
     // The per-file account: the hit list's size, the files it covered, and whether a dirty tree made run-tests ignore it [C7,#9244].
     const reusedFiles = [];
