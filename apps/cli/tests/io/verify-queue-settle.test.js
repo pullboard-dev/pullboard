@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { addItem } from '../../../../packages/store/index.js';
 import { register } from '../../../../packages/store/index.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { submitFixture } from '../../../../packages/store/tests/fixtures/submit.js';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { claimJob } from '../../../../packages/api/index.js';
