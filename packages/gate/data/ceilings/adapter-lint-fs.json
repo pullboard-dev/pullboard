@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1423,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -78,8 +78,6 @@
     "apps/cli/src/io/submit/wait.js": 1,
     "apps/cli/src/io/support.js": 1,
     "apps/cli/src/io/sync.js": 1,
-    "apps/cli/src/io/tool/build.js": 12,
-    "apps/cli/src/io/toolsnapshot.js": 8,
     "apps/cli/src/io/tour.js": 1,
     "apps/cli/src/io/trace.js": 6,
     "apps/cli/src/io/unfinished.js": 1,
