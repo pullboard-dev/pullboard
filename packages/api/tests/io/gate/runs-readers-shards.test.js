@@ -1,7 +1,7 @@
 /** shardJobs and shardedResult take a runs option: with runs_store on they read one sharded gate from the runs file, with it off as on main [P7,#9151]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { SHARD_JOB_KIND } from '../../../index.js';
 import { claimJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';

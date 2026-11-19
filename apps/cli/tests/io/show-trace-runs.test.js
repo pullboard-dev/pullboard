@@ -1,7 +1,7 @@
 /** show and trace read run outcomes from the board's run rows and live steps from a read-only runs handle while runs_store is on, as on main when off [B2,#9013]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../../packages/store/tests/fixtures/cell.js';
 import { applyReceipts } from '../../../../packages/store/index.js';
 import { boardRunsHolder } from '../../../../packages/store/index.js';
