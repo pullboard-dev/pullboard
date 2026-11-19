@@ -186,6 +186,7 @@ const BEFORE = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
+  'runners.jobWorkerFactor': 2,
   'runners.localWake': false,
   'runners.postedLineNamesCase': false,
   'runners.reportCommit': false,
