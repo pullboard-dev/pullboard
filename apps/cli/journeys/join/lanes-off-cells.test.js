@@ -82,3 +82,28 @@ test('cli.journeys-join-lanes-off-cells.held-cell-not-offered: clause 3: with la
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(JSON.parse(taken.out).item.item_id, 3, 'the item in the free cell, not the one beside the held claim');
 });
+
+/** A laneMode off project whose item is filed in the api lane and claimed by the web seat; the api lane owns the packages folders only while the item is filed. */
+function crossLaneProject(brief) {
+  const box = project('true');
+  const lanes = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes;
+  fixturePolicy(box, { lanes: { ...lanes, api: { ...lanes.api, owns: [...lanes.api.owns, 'packages/'] } } });
+  fileFixtureItem(box, box.repo, { lane: 'api', title: 'Cross-lane cell item', brief, diagnose: false, args: ['--specs', 'G1'] });
+  fixturePolicy(box, { laneMode: 'off', lanes });
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  return box;
+}
+
+test('cli.journeys-join-lanes-off-cells.cross-lane-claim-commits: clause 1: with laneMode off a seat registered in web claims an open api item with pullboard claim, commits a change touching only that item\'s cells and the commit passes pre-commit; clause 2: a commit touching a path outside those cells is refused naming the path; clause 3: the real claim command and a real git commit through the installed hook decide, with no stubbed lane guard [C7,#8915]', async () => {
+  const box = crossLaneProject(ALPHA);
+  const claimed = await box.inProcess(box.web, 'claim', '1');
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const folder = `${box.web}-item-1`;
+  write(folder, 'packages/alpha/src/a.js', 'packages/alpha/src/extra.js');
+  const committed = commit(box, folder, 'feat(alpha): alpha change [G1]');
+  assert.equal(committed.status, 0, committed.stdout + committed.stderr);
+  write(folder, 'packages/alpha/src/a.js', 'packages/beta/src/b.js');
+  const refused = commit(box, folder, 'feat(alpha): alpha and beta change [G1]');
+  assert.notEqual(refused.status, 0, 'pre-commit refuses the foreign cell');
+  assert.match(refused.stdout + refused.stderr, /packages\/beta\/src\/b\.js/u);
+});
