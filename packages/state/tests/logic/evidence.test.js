@@ -150,3 +150,10 @@ test('state.logic-evidence.next-carries-the-fix: clause 2: that refusal next lin
   assert.throws(() => requireCriterionEvidence(bar), error => /clause 1: end it with one of \[test\|command/u.test(error.next)
     && /clause 2: put the number it must meet in the clause/u.test(error.next) && !/service owner/u.test(`${error.message} ${error.next}`));
 });
+
+test('state.logic-evidence.guard-bar-lists-all-faults: clause 1: guardBar on a bar with one untagged clause and one measurement clause with no number refuses once, naming both clauses and both fixes [C7,#12015]', () => {
+  const bar = '1. The page loads quickly\n2. The load stays fast [measurement]';
+  assert.throws(() => guardBar(bar), error => /clause 1 has no evidence kind/u.test(error.message) && /clause 2 is a \[measurement\] with no number/u.test(error.message)
+    && /clause 1: end it with one of/u.test(error.next) && /clause 2: put the number it must meet/u.test(error.next) && !/service owner/u.test(`${error.message} ${error.next}`));
+  assert.throws(() => guardBar('1. It loads [test]\n2. The load stays fast [measurement]'), error => error.code === 'BAR_AMBIGUOUS' && /put the number in clause 2/u.test(error.next));
+});

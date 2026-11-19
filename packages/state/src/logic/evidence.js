@@ -42,6 +42,15 @@ export function requireCriterionEvidence(criterion) {
   return clauseEvidenceWarnings(criterion);
 }
 
+/** The refusal requireCriterionEvidence would raise for a criterion, or null when it raises none. */
+function evidenceRefusal(criterion) {
+  try { requireCriterionEvidence(criterion); } catch (error) {
+    if (error instanceof Refused) return error;
+    throw error;
+  }
+  return null;
+}
+
 /**
  * Refuse a criterion with a plain fault, naming the fix, and return the warnings for the rest.
  *
@@ -57,6 +66,14 @@ export function guardBar(criterion, options) {
   }
   if (criterion === undefined) return [];
   const { problems, fix, warnings } = lintBar(criterion, options);
-  if (problems.length) throw new Refused('BAR_AMBIGUOUS', `this bar is not checkable yet: ${problems.join('; ')}`, `${fix.join('; ')}, then run the command again`);
+  if (problems.length) {
+    // A bar with a plain fault and an undeclared-evidence fault is refused once, with every fault and fix together [#12015].
+    const evidence = evidenceRefusal(criterion);
+    if (evidence) {
+      const rest = problems.map((problem, index) => ({ problem, fix: fix[index] })).filter(({ problem }) => !/is a \[measurement\] with no number$/u.test(problem));
+      throw new Refused(evidence.code, [evidence.message.replace(/^\[[A-Z_]+\] /u, ''), ...rest.map(entry => entry.problem)].join('; '), [evidence.next.replace(/, then run the command again$/u, ''), ...rest.map(entry => entry.fix)].join('; ') + ', then run the command again');
+    }
+    throw new Refused('BAR_AMBIGUOUS', `this bar is not checkable yet: ${problems.join('; ')}`, `${fix.join('; ')}, then run the command again`);
+  }
   return warnings;
 }
