@@ -102,7 +102,7 @@ test('api.gate.shard-plan-absent-without-needs: clause 2: a proof plan with no n
 test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a gate\'s own shard rows in order, not a sibling gate whose job id extends the same text, and its query plan searches job_id with no scan of job [C7]', t => {
   const board = cellBoard(t, ':memory:');
   for (const [id, kind, created] of [['gate:1:a:shard:2', 'gate-shard', 2], ['gate:1:a:shard:1', 'gate-shard', 1], ['gate:1:ab:shard:1', 'gate-shard', 1], ['gate:1:a', 'gate', 0], ['gate:1:a:shard:3', 'gate', 3]]) {
-    board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_created) VALUES (?, ?, ?, ?)').run(id, kind, 'offered', created);
+    board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?)').run(id, kind, 'offered', created, created);
   }
   assert.deepEqual(shardJobs(board.db, 'gate:1:a').map(shard => shard.job_id), ['gate:1:a:shard:1', 'gate:1:a:shard:2']);
   assert.deepEqual(shardJobs(board.db, 'gate:1:ab').map(shard => shard.job_id), ['gate:1:ab:shard:1']);
