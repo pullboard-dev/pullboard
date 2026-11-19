@@ -21,7 +21,7 @@ function setup(t) {
     const id = make(title);
     // The status guard admits a write only while the move token is set, as moveItem sets it, so the fixture states a submitted child this way.
     board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
-    try { board.db.prepare("UPDATE item SET item_parent_id = ?, item_status = 'submitted' WHERE item_id = ?").run(parent, id); } finally { board.db.exec('DELETE FROM temp.moving'); }
+    try { board.db.prepare("UPDATE item SET item_parent_id = ?, item_status = 'submitted', item_built_by = 'fixture-seat', item_commit = ?, item_frozen_digest = 'fixture' WHERE item_id = ?").run(parent, 'c'.repeat(40), id); } finally { board.db.exec('DELETE FROM temp.moving'); }
     if (slice) board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`item-slice:${id}`, '{}');
     return id;
   };
