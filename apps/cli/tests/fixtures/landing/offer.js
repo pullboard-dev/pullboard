@@ -85,7 +85,7 @@ export async function offerWithLog(t, { concurrentOffer = false, lapses = {} } =
     { mainPolicy: () => policy, listItems: store.listItems, checkedLandingCommit: (_board, item) => item.item_commit, pairPrefix: () => 'prefix' },
     { local: async () => ({ running: true }), board, lock });
   const lines = readFileSync(log, 'utf8').trim().split('\n');
-  const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
+  const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, rowid").all().map(job => {
     const offered = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job.job_id);
     return JSON.parse(offered.payload).payload;
   });
