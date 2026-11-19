@@ -1,7 +1,9 @@
 /** The submit gate's move-table replay: a submit that changes a move table must still agree with what the board recorded [C7,#8073]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { basename } from 'node:path';
 import { Refused } from '../../../../kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A move table's file name ends in `.table.js`. */
 const TABLE_FILE = /\.table\.js$/u;
@@ -31,7 +33,7 @@ export function changedTables(changed) {
 export async function replayChangedTables(root, { changed, boardFile, days = 7, replay }) {
   const names = changedTables(changed);
   if (!names.length) return [];
-  if (!boardFile || !existsSync(boardFile)) return [];
+  if (!boardFile || !fs.exists(boardFile)) return [];
   const rows = [];
   const bad = [];
   for (const name of names) {
