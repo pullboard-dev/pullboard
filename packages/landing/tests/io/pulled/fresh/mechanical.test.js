@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { withoutStaleVerdicts } from '../../../../index.js';
 import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 import { verifiedThenMainMoves } from '../../../fixtures/stale-verdict.js';
 
 /** Offer the verified item after main changes the very file it reviewed (a conflict), under the given ports. */
 async function offer(t, ports) {
-  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js');
+  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js', cellBoard);
   const written = [];
   const said = [];
   const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board, { all: true }), { candidate: () => true, say: line => said.push(line), ...ports,

@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { withoutStaleVerdicts } from '../../../../index.js';
 import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 import { verifiedThenMainMoves } from '../../../fixtures/stale-verdict.js';
 
 /** The note the offer writes when it reopens the stale item, under the given composeAsObject port. */
 async function reopenNote(t, ports) {
-  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js');
+  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js', cellBoard);
   const notes = [];
   await withoutStaleVerdicts(board, repo.root, main, store.listItems(board, { all: true }), { candidate: () => true, say: () => {}, ...ports,
     write: async (operation, args) => { notes.push(args[1].note); return store[operation](board, args[0], args[1]); } });
