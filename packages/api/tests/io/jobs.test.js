@@ -300,6 +300,18 @@ test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the 
   assert.equal(claim(5002), 'test:two');
 });
 
+test('api.jobs.claims-aged-gate-job-over-claim-action: clause 3: over the claim action a runner holding a test job is handed a gate job offered 6 minutes earlier before the queued shards [C7,#11873]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-gate-aged-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  offerJob(db, { id: 'gate:9', kind: 'gate', now: 1002 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(5000), 'test:one');
+  assert.equal(claim(400_000), 'gate:9', 'the aged gate job is handed before the queued shard');
+  assert.equal(claim(400_001), 'gate:9:shard:1');
+});
+
 /** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */
 function budgetBoard(t, { cores, shards, tests, offered }) {
   const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-');
