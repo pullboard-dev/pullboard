@@ -7,6 +7,7 @@ import { recordSubmitHandoff } from '../../../jobs/index.js';
 import * as store from '../../../store/index.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { nextSelection } from '../../index.js';
+import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
 import { next } from '../fixtures/next.js';
 import { Refused } from '../../../kernel/index.js';
@@ -161,4 +162,27 @@ test('moves.selection.wait-never-offers-refused: clause 2: with wait above 0, an
   assert.equal(found.item?.item_id, claimable);
   assert.equal(found.waitingOffer, undefined);
   assert.equal(store.getItem(box.board, claimable).item_status, 'claimed');
+});
+
+test('moves.selection.wait-claims-ready-item: clause 1: nextOnce with values.wait above 0 and a ready open item claims it for the calling seat and returns no waitingOffer [C7,#11846]', async t => {
+  const box = fixture(t);
+  const ready = box.add('Ready work');
+  const found = await next(box, { wait: 1 });
+  assert.equal(found.item?.item_id, ready);
+  assert.equal(found.waitingOffer, undefined, 'no offer to claim later');
+  assert.equal(store.getItem(box.board, ready).item_status, 'claimed');
+  assert.deepEqual(actorClaims(box), [ready], 'the claim is the calling seat\'s');
+});
+
+test('moves.selection.wait-held-unchanged: clause 2: nextOnce with values.wait above 0 and an item the seat already holds returns the held item and makes no second claim [C7,#11846]', async t => {
+  const box = fixture(t);
+  const mine = box.add('Work this seat holds');
+  box.add('Other ready work');
+  await next(box, { wait: 1 });
+  assert.deepEqual(actorClaims(box), [mine]);
+  const again = await next(box, { wait: 1 });
+  assert.equal(again.item?.item_id, mine);
+  assert.equal(again.held, true);
+  assert.equal(again.waitingOffer, undefined);
+  assert.deepEqual(actorClaims(box), [mine], 'no second claim');
 });
