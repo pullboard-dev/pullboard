@@ -96,9 +96,14 @@ export function ensureAdditiveColumns(db) {
   }
 }
 
+/** True when the ledger table has no commit index, which the landing proof lookups read through [C7,#11191]. */
+function missingLedgerCommitIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='test_result_commit_file'").get();
+}
+
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingEventArchive(db);
+  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -121,7 +126,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return missingAdditiveColumns(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'gate_hop', 'event_archive'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
 }
 
 /**
