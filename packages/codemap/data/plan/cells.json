@@ -2599,6 +2599,7 @@
     "apps/relay->outbox",
     "apps/relay->keys",
     "apps/relay->seats",
+    "apps/relay->env",
     "search->store",
     "board->git",
     "board->items",
