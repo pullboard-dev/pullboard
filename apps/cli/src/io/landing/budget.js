@@ -32,6 +32,9 @@ import {
   fileURLToPath,
   pathToFileURL,
 } from 'node:url';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
+
+const environment = environmentAdapter();
 
 /** This checkout: the code measured when the script runs on its own. */
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
@@ -62,9 +65,9 @@ function run(command, args, options) {
 }
 
 /** A preload that logs every file module the process loads, for Node 22.13 (off-thread) and 22.15+ (in-thread) alike. */
-function moduleHook(dir) {
-  const record = "if (url.startsWith('file:')) appendFileSync(process.env.PULLBOARD_BUDGET_MODULES, url + '\\n');";
-  const loader = join(dir, 'budget-loader.mjs'), hook = join(dir, 'budget-hook.mjs');
+function moduleHook(dir, name, log) {
+  const record = `if (url.startsWith('file:')) appendFileSync(${JSON.stringify(log)}, url + '\\n');`;
+  const loader = join(dir, `budget-loader-${name}.mjs`), hook = join(dir, `budget-hook-${name}.mjs`);
   writeFileSync(loader, `import { appendFileSync } from 'node:fs';\nexport async function load(url, context, next) { ${record} return next(url, context); }\n`);
   writeFileSync(hook, ["import module from 'node:module';", "import { appendFileSync } from 'node:fs';",
     `if (module.registerHooks) module.registerHooks({ load(url, context, next) { ${record} return next(url, context); } });`,
@@ -74,7 +77,7 @@ function moduleHook(dir) {
 
 /** Find the real Git before the fixture's PATH shims. */
 function realGit() {
-  const found = (process.env.PATH ?? '').split(delimiter).map(entry => join(entry || '.', 'git')).find(existsSync);
+  const found = environment.get('PATH', '').split(delimiter).map(entry => join(entry || '.', 'git')).find(existsSync);
   if (!found) throw new Error('board-command budget needs Git on PATH');
   return found;
 }
@@ -89,8 +92,8 @@ function fixture(code, dir) {
   mkdirSync(repo); mkdirSync(shims);
   // The fixture's Git hooks run pullboard from PATH; they must run the code under measurement.
   writeFileSync(join(shims, COMMAND_NAME), `#!${process.execPath}\nprocess.argv[1] = ${JSON.stringify(bin)};\nimport(${JSON.stringify(pathToFileURL(bin).href)});\n`, { mode: 0o755 });
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
-    PATH: `${shims}${delimiter}${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_OWN_CLI: '1',
+  const env = { ...environment.all(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
+    PATH: `${shims}${delimiter}${environment.get('PATH')}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_OWN_CLI: '1',
     GIT_AUTHOR_NAME: 'Budget Agent', GIT_AUTHOR_EMAIL: 'budget@example.invalid', GIT_COMMITTER_NAME: 'Budget Agent', GIT_COMMITTER_EMAIL: 'budget@example.invalid' };
   for (const name of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_RELAY_KEY', 'NODE_TEST_CONTEXT', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_TRANSIENT', 'PULLBOARD_RESIDENT', 'NODE_OPTIONS']) delete env[name];
   const git = (cwd, ...args) => run(realGit(), args, { cwd, env });
@@ -116,14 +119,15 @@ function resetClaims(box, resident) {
 }
 
 /** Run one seat command once: its wall time, and with a hook the repository modules it loaded. */
-function sample(box, name, { hook = null, resident = false, code }) {
+function sample(box, name, { hookDir = null, resident = false, code }) {
   const spec = SEAT_COMMANDS[name];
   if (name === 'claim' || name === 'next') resetClaims(box, resident);
-  const log = hook ? join(dirname(hook), `modules-${name}.log`) : null;
+  const log = hookDir ? join(hookDir, `modules-${name}.log`) : null;
   if (log) writeFileSync(log, '');
+  const hook = log ? moduleHook(hookDir, name, log) : null;
   const started = performance.now();
   run(process.execPath, [...(hook ? ['--import', hook] : []), box.bin, ...spec.args],
-    { cwd: spec.seat ? box.seat : box.repo, env: { ...box.env, PULLBOARD_RESIDENT: resident ? '1' : '0', ...(log ? { PULLBOARD_BUDGET_MODULES: log } : {}) } });
+    { cwd: spec.seat ? box.seat : box.repo, env: { ...box.env, PULLBOARD_RESIDENT: resident ? '1' : '0' } });
   const ms = performance.now() - started;
   const modules = log ? [...new Set(readFileSync(log, 'utf8').split('\n').filter(Boolean))].map(url => fileURLToPath(url))
     .filter(path => path.startsWith(code + sep)).map(path => path.slice(code.length + 1).split(sep).join('/')).sort() : null;
@@ -134,11 +138,11 @@ function sample(box, name, { hook = null, resident = false, code }) {
 async function stopResidents(box, code) {
   // The measured code is read in a child: a source file of this package never imports a computed path (P3).
   const script = [`import { residentPoolSize, residentSocket } from ${JSON.stringify(pathToFileURL(join(code, 'apps/cli/src/io/resident/client.js')).href)};`,
-    "const size = typeof residentPoolSize === 'function' ? residentPoolSize(process.env) : 1;",
+    "const size = typeof residentPoolSize === 'function' ? residentPoolSize(JSON.parse(process.argv[3])) : 1;",
     'const files = [];',
     'for (let slot = 0; slot < size; slot += 1) { const place = residentSocket(process.argv[1], process.argv[2], slot); if (place) files.push(place.pid); }',
     'process.stdout.write(JSON.stringify(files));'].join('\n');
-  const files = JSON.parse(run(process.execPath, ['--input-type=module', '-e', script, box.repo, box.bin], { env: box.env }).stdout);
+  const files = JSON.parse(run(process.execPath, ['--input-type=module', '-e', script, box.repo, box.bin, JSON.stringify(box.env)], { env: box.env }).stdout);
   for (const file of files) {
     try { process.kill(Number(readFileSync(file, 'utf8').trim()), 'SIGKILL'); } catch { /* Never started, or already gone. */ }
   }
@@ -155,16 +159,15 @@ export async function measureBoardCommands(code, scratch) {
   let box;
   try {
     box = fixture(code, dir);
-    const hook = moduleHook(dir);
     const result = {};
     for (const name of Object.keys(SEAT_COMMANDS)) {
-      const { modules } = sample(box, name, { hook, code });
+      const { modules } = sample(box, name, { hookDir: dir, code });
       result[name] = { modules: modules.length, loaded: modules };
     }
     // Warm the resident process: a client it serves loads only the thin client's few modules.
     const deadline = performance.now() + 30_000;
     for (;;) {
-      const warm = sample(box, 'whoami', { hook, resident: true, code });
+      const warm = sample(box, 'whoami', { hookDir: dir, resident: true, code });
       if (warm.modules.length < 40) break;
       if (performance.now() > deadline) throw new Error(`no resident process served the fixture within 30 s (a client loaded ${warm.modules.length} modules)`);
     }
