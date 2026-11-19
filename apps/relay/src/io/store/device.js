@@ -13,8 +13,8 @@ import {
   createExcludedTables,
 } from './excluded.js';
 
-/** Keep device revocations durable so an in-flight native wrap cannot recreate deleted grants. */
-export function createDeviceStore({ directory, now = Date.now }) {
+/** Keep device revocations durable so an in-flight native wrap cannot recreate deleted grants; onRevoke(account, id) runs once the revocation commits, so a push subscription ends with its pairing. */
+export function createDeviceStore({ directory, now = Date.now, onRevoke = () => {} }) {
   const file = join(directory, 'devices.sqlite');
   let db;
   /** Open device storage only when used, preserving legacy pairing and unauthorized no-write paths. */
@@ -202,6 +202,7 @@ export function createDeviceStore({ directory, now = Date.now }) {
         database().prepare('DELETE FROM wrapped_key WHERE account=? AND device=?').run(account, id);
         database().exec('COMMIT');
       } catch (error) { database().exec('ROLLBACK'); throw error; }
+      onRevoke(account, id);
     },
     /** Delete the unlinked board's grants without changing unrelated devices or boards. */
     unlink(board) { if (db || existsSync(file)) database().prepare('DELETE FROM wrapped_key WHERE board=?').run(board); },
