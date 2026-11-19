@@ -30,6 +30,7 @@ import { safeSetupMessage } from './receipt.js';
 import { setupRefusalCode } from './receipt.js';
 import { stopReading } from './receipt.js';
 import { readSpec } from './spec.js';
+import { BROWSER_REFUSAL_FILE } from '../../../../../packages/resources/light.js';
 import { receiveAnalysisArtifact } from '../../../../../packages/resources/light.js';
 import { machineSettingsFile } from '../../../../../packages/resources/light.js';
 import { captureTestRuntimes } from '../../../../../packages/sandbox/light.js';
@@ -177,7 +178,7 @@ export async function main(S) {
       dependencies = await installDependencies(S, root, runnerRoot, env, tracker, api);
     }
     setupStep = 'command start';
-    const browserRefusal = join(runDirectory, 'browser-refusal.json');
+    const browserRefusal = join(runDirectory, BROWSER_REFUSAL_FILE);
     const resultStore = join(runnerRoot, 'test-results', spec.repoId);
     if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
     // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
