@@ -32,10 +32,10 @@ async function view(t, machineName) {
 }
 
 test('view.projects-machine-name.list-carries-machine: clause 1: the project list the view serves carries the machine name on every board [C7,#9452]', async (t) => {
-  const answer = await view(t, () => 'studio-mac');
+  const answer = await view(t, () => 'desk-mac');
   assert.equal(answer.status, 200);
   assert.ok(answer.body.boards.length > 0, 'the list holds the project');
-  for (const entry of answer.body.boards) assert.equal(entry.machine, 'studio-mac');
+  for (const entry of answer.body.boards) assert.equal(entry.machine, 'desk-mac');
 });
 
 test('view.projects-machine-name.other-machine-reports-its-name: clause 1: a view started on another machine reports that machine name, and the default is this host name without its domain [C7,#9452]', async (t) => {
