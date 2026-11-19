@@ -21,10 +21,26 @@ export function affectedDefault(entries) {
  *
  * @param {object} config - The new pullboard.json content.
  * @param {readonly { language: string }[]} entries - What detectLanguages returned.
+ * @param {{ scripts?: { test?: string } } | null} [pkg] - The repo root package.json, when it has one.
  * @returns {object} The same config, or a copy with affectedTests added.
  */
-export function withAffectedDefault(config, entries) {
+export function withAffectedDefault(config, entries, pkg = null) {
   if (config.affectedTests !== undefined) return config;
+  if (namesOtherRunner(pkg)) return config;
   const found = affectedDefault(entries);
   return found ? { ...config, affectedTests: found.affectedTests } : config;
+}
+
+const OTHER_RUNNERS = /\b(jest|vitest|mocha|ava|tap|jasmine|karma|playwright|cypress)\b/;
+
+/**
+ * Whether the package's test script names a runner other than node:test.
+ * Why: node --test over files written for another runner fails with "describe is not defined", so init leaves the key unset there.
+ *
+ * @param {{ scripts?: { test?: string } } | null | undefined} pkg - The parsed package.json.
+ * @returns {boolean} True when the test script names jest, vitest, mocha or another known runner.
+ */
+function namesOtherRunner(pkg) {
+  const script = pkg?.scripts?.test;
+  return typeof script === 'string' && OTHER_RUNNERS.test(script);
 }

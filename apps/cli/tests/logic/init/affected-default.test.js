@@ -23,3 +23,16 @@ test('cli.logic-init-affected-default.keeps-a-set-value: clause 2: the default f
   assert.equal(withAffectedDefault(set, [{ language: 'node' }]), set);
   assert.deepEqual(withAffectedDefault({ gate: 'make' }, [{ language: 'make' }]), { gate: 'make' });
 });
+
+test('cli.logic-init-affected-default.other-runner-leaves-unset: clause 1: a test script naming jest, vitest or mocha leaves affectedTests unset and node --test keeps the default [C7,#11747]', () => {
+  for (const test of ['jest', 'vitest run', 'mocha']) {
+    const config = { gate: 'npm test' };
+    assert.equal(withAffectedDefault(config, [{ language: 'node' }], { scripts: { test } }), config, test);
+  }
+  assert.deepEqual(withAffectedDefault({ gate: 'npm test' }, [{ language: 'node' }], { scripts: { test: 'node --test' } }), { gate: 'npm test', affectedTests: 'node --test' });
+});
+
+test('cli.logic-init-affected-default.other-runner-keeps-set-value: clause 2: a set affectedTests is never overwritten when the package names jest [C7,#11747]', () => {
+  const set = { gate: 'npm test', affectedTests: 'vitest run' };
+  assert.equal(withAffectedDefault(set, [{ language: 'node' }], { scripts: { test: 'jest' } }), set);
+});
