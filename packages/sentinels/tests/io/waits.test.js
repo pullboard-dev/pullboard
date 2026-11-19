@@ -467,3 +467,41 @@ test('sentinels.waits.board-write-recorded-holds: clause 2: waitsSnapshot attach
   const bare = (await missing.snapshot()).rows.find(entry => entry.surface === 'board-write' && entry.pid === other.pid);
   assert.deepEqual(bare.recordedHolds, [], 'no log means no recorded holds, never a failed audit');
 });
+
+/** A checkout-writer record file under the repository's common dir, named as the runtime names them. */
+function writerRecord(commonDir, pid, id) {
+  const directory = join(commonDir, 'pullboard-checkout-writers');
+  mkdirSync(directory, { recursive: true });
+  const file = join(directory, `00000000-0000-0000-0000-00000000000${id}.json`);
+  writeFileSync(file, JSON.stringify({ pid, at: Date.now() - 60_000 }));
+  return file;
+}
+
+test('sentinels.waits.snapshot-clears-dead-checkout-writer: waitsSnapshot removes a gone pid\'s checkout-writer record and lists no row for it, while a live pid\'s record stays and is listed [C7]', async t => {
+  const m = machine(t);
+  const live = m.sleeper();
+  await waitForCondition(() => !gone(live.pid), 'the writer runs');
+  const dead = m.sleeper();
+  await waitForCondition(() => !gone(dead.pid), 'the second process runs');
+  process.kill(dead.pid, 'SIGKILL');
+  await waitForCondition(() => gone(dead.pid), 'the second process is gone');
+  const liveFile = writerRecord(m.paths.commonDir, live.pid, 1);
+  const deadFile = writerRecord(m.paths.commonDir, dead.pid, 2);
+  const snapshot = await m.snapshot();
+  const writers = snapshot.rows.filter(row => row.surface === 'checkout-writer');
+  assert.deepEqual(writers.map(row => row.pid), [live.pid], 'only the live writer is listed');
+  assert.equal(existsSync(deadFile), false, 'the gone pid\'s record file is removed');
+  assert.equal(existsSync(liveFile), true, 'the live pid\'s record stays');
+});
+
+test('sentinels.waits.snapshot-read-has-no-dead-writer: waitsSnapshot called as the plain waits command calls it, with budgets, runnerTimeoutMs and hosts, yields no DEAD line for a gone pid\'s checkout-writer record [C7]', async t => {
+  const m = machine(t);
+  const dead = m.sleeper();
+  await waitForCondition(() => !gone(dead.pid), 'the process runs');
+  process.kill(dead.pid, 'SIGKILL');
+  await waitForCondition(() => gone(dead.pid), 'the process is gone');
+  writerRecord(m.paths.commonDir, dead.pid, 3);
+  const snapshot = await waitsSnapshot({ budgets: waitBudgets(), runnerTimeoutMs: 500, hosts: [], paths: m.paths, census: m.census() });
+  assert.equal(snapshot.rows.some(row => row.surface === 'checkout-writer'), false, 'no checkout-writer row');
+  assert.doesNotMatch(waitLines(snapshot).join('\n'), /DEAD\s+checkout-writer/u);
+});
