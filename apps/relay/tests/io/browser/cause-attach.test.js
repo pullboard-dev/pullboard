@@ -21,10 +21,10 @@ test('relay.io-browser-cause-attach.with-a-status-of-relay-off: clause 1: with a
 });
 
 test('relay.io-browser-cause-attach.with-a-status-that-excludes-the: clause 2: with a status that excludes the board set, the refusal carries relayCause excluded [C7]', () => {
-  setRelayStatus({ relayOn: true, machine: 'studio', excluded: { name: 'quant', by: 'corey', reason: 'private' } });
+  setRelayStatus({ relayOn: true, machine: 'studio', excluded: { name: 'project', by: 'alice', reason: 'private' } });
   const error = attachRelayCause(refusal());
   assert.equal(error.relayCause.cause, 'excluded');
-  assert.equal(error.relayCause.by, 'corey');
+  assert.equal(error.relayCause.by, 'alice');
 });
 
 test('relay.io-browser-cause-attach.with-no-status-set-the-refusal: clause 3: with no status set, the refusal carries no relayCause [C7]', () => {
