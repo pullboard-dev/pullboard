@@ -395,3 +395,28 @@ test('cli.journeys-spec-main.rejecting-a-row-sends-every-row: clause 1: rejectin
   const text = `${checked.out ?? checked.stdout}${checked.err ?? checked.stderr}`;
   assert.equal(text.match(new RegExp(`NEEDS_REVIEW: serves rejected ${fact}`, 'gu'))?.length, 2, `spec check names both rows: ${text}`);
 });
+
+test('cli.journeys-spec-main.an-accepted-fact-must-cite-the: an accepted fact must cite the quote that supports it [B2,#9551]', async (t) => {
+  const row = quote => `# Spec
+
+## G · Goals
+
+- G1 [approved, must] It ran 31 years. | gate: review | source: Report p.4${quote}
+`;
+  const box = specBox(t, { specSource: row(' | quote: The programme ran for 31 years in all.') });
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let saved = {};
+  try { saved = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* A fixture with no settings file starts empty. */ }
+  writeFileSync(settings, JSON.stringify({ ...saved, spec: { ...saved.spec, requireFactQuote: true } }));
+  const text = result => `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  const held = await box.spec('check');
+  assert.equal(held.status, 0, text(held));
+  writeFileSync(join(box.root, box.specName), row(' | quote: The programme ran for a long time.'));
+  const lacking = await box.spec('check');
+  assert.equal(lacking.status, 1, text(lacking));
+  assert.match(text(lacking), /does not contain 31/u);
+  writeFileSync(join(box.root, box.specName), row(''));
+  const missing = await box.spec('check');
+  assert.equal(missing.status, 1, text(missing));
+  assert.match(text(missing), /needs the words it rests on/u);
+});
