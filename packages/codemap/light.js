@@ -2,7 +2,7 @@
 export { isDefaultTestFile } from './src/logic/discovery.js';
 export { rootAllowed, strayNextStep } from './src/logic/allowlist.js';
 export { shimCountProblems } from './src/logic/ratchet.js';
-export { compareItemFunctions } from './src/logic/functions.js';
+export { compareItemFunctions, compareItemPredictions, predictItemFunctions } from './src/logic/functions.js';
 export { importsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
 export { readPathMap, historyPathMap, mappedCause, historicalPaths, mappedPath } from './src/logic/path/map.js';
 export { cachedMainFact, mainFactToolIdentity } from './src/io/main-facts-cache.js';
