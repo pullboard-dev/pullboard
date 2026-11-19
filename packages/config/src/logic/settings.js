@@ -213,6 +213,9 @@ export function loadMachineSettings() {
   if (value['runners.coresPerShard'] !== undefined && !(Number.isSafeInteger(value['runners.coresPerShard']) && value['runners.coresPerShard'] >= 1 && value['runners.coresPerShard'] <= 5)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.coresPerShard in ${file} must be a whole number from 1 through 5`);
   }
+  if (value['runners.jobWorkerFactor'] !== undefined && !(typeof value['runners.jobWorkerFactor'] === 'number' && value['runners.jobWorkerFactor'] >= 1 && value['runners.jobWorkerFactor'] <= 4)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.jobWorkerFactor in ${file} must be a number from 1 to 4`);
+  }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.settleOnMainReceipt in ${file} must be true or false`);
   }
@@ -892,6 +895,11 @@ export function browserFreeChecksEnabled() {
 /** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
 export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function typedFieldsEnabled() {
+  return loadMachineSettings().items?.typedFields === true;
 }
 
 /** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
