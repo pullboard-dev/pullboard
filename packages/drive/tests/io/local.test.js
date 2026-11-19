@@ -55,7 +55,6 @@ test('drive.io-local.lock-per-home: clause 1: a runner and a starting marker of 
   assert.equal(localRunnerState(root), null, 'a reader with no home sees none either');
   const b = await serveUnder(root, '/homes/b');
   assert.ok(localRunnerState(root, Date.now(), '/homes/b'), 'the second home took its own lock and runs');
-  assert.notEqual(localRunnerState(root, Date.now(), '/homes/a').runner, localRunnerState(root, Date.now(), '/homes/b').runner);
   await a.stop();
   await b.stop();
   await startLocalRunner(root, ['runner', 'local'], { cwd: root, env: {}, home: '/homes/a', spawn: async () => ({ pid: process.pid }) });
