@@ -228,6 +228,7 @@ const ROWS = [
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],
   ['name', 'Repository name', 'The name shown for this repository.', 'Project', 'text'],
+  ['next.idleMinutes', 'Minutes next waits', 'How long a seat\'s next waits with nothing for it before it answers empty. A positive whole number; default 10.', 'Claims', 'minutes'],
   ['next.wholeItemsFirst', 'Whole items before slices', 'Off (default) keeps the offer order. On, next offers a whole item of the focused release before an open slice.', 'Claims', 'on/off'],
   ['practice', 'Doctrine file', 'The file holding the project\'s doctrine.', 'Project', 'file'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
