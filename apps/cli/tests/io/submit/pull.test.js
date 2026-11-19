@@ -28,3 +28,33 @@ test('cli.io-submit-pull.no-static-known-main-key-without-rows: clause 2: receip
   assert.equal('staticKnownMain' in receiptAnalysis({ steps: {} }), false);
   assert.equal('staticKnownMain' in receiptAnalysis({ steps: {}, staticKnownMain: [] }), false);
 });
+
+const STORE_START = 'const sharedResultStore = (';
+const STORE_END = '} : {};\n};';
+
+/** The entry's own sharedResultStore statement, run with no child process: the environment a phase adds for its result store. */
+function resultStoreEnv(role, selected, checkout, env = {}) {
+  const { input } = gateJobRequest({ main: 'a'.repeat(40), source: 'b'.repeat(40), trunk: 'a'.repeat(40), base: null, check: 'true', criterion: '', title: 't',
+    composition: null, config: {}, crossRunTests: [], cutRows: [], produceInventory: [], doctrine: null, authorization: null, browserFreeChecks: false });
+  const from = input.entry.indexOf(STORE_START), to = input.entry.indexOf(STORE_END, from);
+  assert.ok(from > 0 && to > from, 'the entry defines sharedResultStore in one statement');
+  return new Function(`${input.entry.slice(from, to + STORE_END.length)} return sharedResultStore;`)()(role, selected, checkout, env);
+}
+
+test('cli.io-submit-pull.proof-phase-shares-runner-result-store: clause 1: a submit proof on any slot sets PULLBOARD_TEST_RESULT_STORE to the runner-wide pull-gate folder [C7,#11114]', () => {
+  const runner = '/home/r/.pullboard-runner';
+  const three = resultStoreEnv('proof', ['a.test.js'], `${runner}/pull/slot/3/land`);
+  const seven = resultStoreEnv('proof', ['a.test.js'], `${runner}/pull/slot/7/land`);
+  assert.deepEqual(three, { PULLBOARD_TEST_RESULT_STORE: `${runner}/test-results/pull-gate` });
+  assert.deepEqual(seven, three);
+});
+
+test('cli.io-submit-pull.shared-store-only-for-submit-proof: clause 2: no shared store for the check role, a root with no pull folder, a landing shard, or an environment that already names one [C7,#11114]', () => {
+  const root = '/home/r/.pullboard-runner/pull/slot/3/land';
+  assert.deepEqual(resultStoreEnv('check', null, root), {});
+  assert.deepEqual(resultStoreEnv('check', ['a.test.js'], root), {});
+  assert.deepEqual(resultStoreEnv('proof', ['a.test.js'], '/home/r/work/land'), {});
+  assert.deepEqual(resultStoreEnv('proof', null, root), {}, 'a landing shard owes no account and keeps its own store');
+  assert.deepEqual(resultStoreEnv('proof', ['a.test.js'], root, { PULLBOARD_TEST_RESULT_STORE: '/mine' }), {});
+  assert.deepEqual(resultStoreEnv('proof', ['a.test.js'], root, { PULLBOARD_TEST_REUSE: '0' }), { PULLBOARD_TEST_RESULT_STORE: '/home/r/.pullboard-runner/test-results/pull-gate' }, 'reuse stays the environment\'s own setting');
+});
