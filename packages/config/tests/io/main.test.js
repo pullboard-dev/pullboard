@@ -62,3 +62,10 @@ test('config.main.slices-compose-landing-not-boolean: clause 1: a non-boolean sl
   const problems = configProblems({ ...defaults(), slices: { composeLanding: 'yes' } }, fixtureRepo()).filter(problem => problem.includes('slices.composeLanding'));
   assert.deepEqual(problems, ['"slices.composeLanding" is true or false']);
 });
+
+test('config.io-main.commits-quoted-names-is-a-list: clause 1: a config without commits.quotedNames loads it as [], ["Sam"] loads as given, and a non-list is refused with a problem naming "commits.quotedNames" [C7]', () => {
+  assert.deepEqual(configFromSource('{}', fixtureRepo()).commits.quotedNames, []);
+  assert.deepEqual(configFromSource(JSON.stringify({ commits: { quotedNames: ['Sam'] } }), fixtureRepo()).commits.quotedNames, ['Sam']);
+  const problems = configProblems({ ...defaults(), commits: { ...defaults().commits, quotedNames: 'Sam' } }, fixtureRepo()).filter(problem => problem.includes('commits.quotedNames'));
+  assert.equal(problems.length, 1);
+});
