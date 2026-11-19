@@ -5,6 +5,7 @@ import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
 import { itemFiles } from '../../../../../packages/items/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
 /** The similarity at or above which an open item counts as a likely duplicate of the one being filed. */
 export const DUPLICATE_SCORE = 0.8;
@@ -48,7 +49,7 @@ export function guardDuplicate(ctx, board, item, given) {
     if (!parsed) throw new Refused('NOT_DUPLICATE_REASON', '--not-duplicate-of needs an item id and the reason it differs', 'use --not-duplicate-of "<id> why this item differs"');
     answer = { id: Number(parsed[1]), reason: parsed[2].trim() };
   }
-  if (answer === null && process.env[FIXTURE_DISTINCT_ENV] === '1') return null;
+  if (answer === null && environmentAdapter().get(FIXTURE_DISTINCT_ENV) === '1') return null;
   let near;
   try {
     near = nearestOpenItems(board, itemText(item), { sidecar: searchSidecarPath(ctx.info.root, ctx.info.commonDir), limit: 3 }).filter(row => row.score >= DUPLICATE_SCORE);

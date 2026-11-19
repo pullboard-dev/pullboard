@@ -1,7 +1,8 @@
+/** @pullboard-module-loads packages/jobs/index.js */
+import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
-import { landedOnMain } from '../../../../../packages/roadmap/index.js';
-import { itemProgress } from '../../../../../packages/roadmap/index.js';
-import { progressLine } from '../../../../../packages/roadmap/index.js';
+import { itemProgress } from '../../../../../packages/roadmap/light.js';
+import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
@@ -25,10 +26,6 @@ import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
-import { gatePanel } from '../../../../../packages/jobs/index.js';
-import { jobsOf } from '../../../../../packages/jobs/index.js';
-import { jobView } from '../../../../../packages/jobs/index.js';
-import { settledGate } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
   testRuntimeEnvironment,
@@ -61,6 +58,7 @@ import {
   firstLineOf,
   identifyCaller,
   idArg,
+  foreignStates,
   itemLine,
   sayBrief,
 } from '../read.js';
@@ -70,6 +68,10 @@ import { itemCost } from '../../../../../packages/stats/light.js';
 import { publicUsage } from '../../../../../packages/stats/light.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { itemFolderPath } from '../item/folder/identity.js';
+
+const requireModule = createRequire(import.meta.url);
+/** The jobs cell loads at the first gate job or gate panel a show renders: a show of an item with no gate job never pays its 17 modules [C7,#11912]. */
+const jobsCell = () => requireModule('../../../../../packages/jobs/index.js');
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -81,11 +83,20 @@ export const nativeBoardRequired = false;
 export function newestGateJob(db, id, receipts = [], { runs = null } = {}) {
   if (runs) return newestRunGateJob(db, id, receipts, runs);
   let job;
-  try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
+  try {
+    if (!db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item = ? LIMIT 1").get(id)) return null;
+    job = jobsCell().jobsOf(db, { kind: 'gate', item: id }).at(-1);
+  } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!job) return null;
   // The receipt's plan, counts and log read back in the inline gate's shape; a receipt without them reads as it was [P7].
   const posted = job.steps.find(step => step.name === 'receipt')?.payload ?? null;
-  return { id: job.id, step: job.step, gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+  return { id: job.id, step: job.step, ...settleOf(job.steps), gate: jobsCell().settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+}
+
+/** The outcome of a gate job's newest note:shards.settled step, as { settle }; none while no such step exists [C7,#11935]. */
+function settleOf(steps) {
+  const outcome = steps.filter(step => step.name === 'note:shards.settled').at(-1)?.payload?.outcome;
+  return typeof outcome === 'string' ? { settle: outcome } : {};
 }
 
 /**
@@ -101,13 +112,13 @@ function newestRunGateJob(db, id, receipts, runs) {
   let run;
   try { run = db.prepare("SELECT * FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_created, rowid").all(id).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!run) return null;
-  const live = runs.db ? jobView(runs.db, run.run_job) : null;
+  const live = runs.db ? jobsCell().jobView(runs.db, run.run_job) : null;
   const posted = live?.steps.find(step => step.name === 'receipt')?.payload ?? null;
   let summary = null;
   try { summary = run.run_state === 'done' ? JSON.parse(run.run_summary ?? 'null') : null; } catch { summary = null; }
   const step = run.run_state === 'done' ? 'done' : live?.step ?? run.run_state;
-  return { id: run.run_job, step, ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
-    gate: settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
+  return { id: run.run_job, step, ...settleOf(live?.steps ?? []), ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
+    gate: jobsCell().settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /**
@@ -132,7 +143,7 @@ export async function run(io, { first, values }) {
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
-  const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  const { fields, links, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
     const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), ...(table ? { derived: table.derived } : {}) }).project(store.getItem(board, id));
@@ -153,8 +164,10 @@ export async function run(io, { first, values }) {
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
     const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
-    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
-    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain: landedOnMain(ctx.info.root, ctx.config) }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
+    const panel = job ? jobsCell().gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
+    // The landed-from-main reader lives in the roadmap barrel, which loads only with landing.landedFromMain on, so a cold show reaches the barrel only when it calls it [C7,#11918].
+    const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
+    const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
       proofReceipts: store.proofReceipts(board, id),
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
@@ -164,6 +177,7 @@ export async function run(io, { first, values }) {
     const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
     const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
     if (values.json) return { ...result, gateJob, fields, links };
+    result.foreign = await foreignStates(board, item, async () => (await import('../../../../../packages/store/index.js')).foreignDependencyStates);
     const history = store.events(board, { itemId: id });
     return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
@@ -198,7 +212,7 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign), checkText });
   io.say(core.item);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {

@@ -1,5 +1,6 @@
 /** One on/off runner setting read from the machine settings file, for a serve that holds no CLI [C7,#9024,#9025]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 
 /**
  * Whether a machine setting under the `runners.` group is on: exactly true in the settings file, false for a missing
@@ -12,5 +13,21 @@ import { readFileSync } from 'node:fs';
  * @returns {boolean}
  */
 export function runnerSettingOn(file, key) {
-  try { return JSON.parse(readFileSync(file, 'utf8'))?.[key] === true; } catch { return false; }
+  try { return JSON.parse(disk.readFile(file, 'utf8'))?.[key] === true; } catch { return false; }
+}
+
+/**
+ * A number machine setting under the `runners.` group: a finite number from 1 to 4 in the settings file, else the fallback.
+ * Why bounded: a worker factor under 1 starves a job and one over 4 oversubscribes the runner.
+ *
+ * @param {string} file - The machine settings file.
+ * @param {string} key - The setting, such as runners.jobWorkerFactor.
+ * @param {number} fallback - Returned for a missing or unreadable file, a missing key or any value out of range.
+ * @returns {number}
+ */
+export function runnerSettingNumber(file, key, fallback) {
+  try {
+    const value = JSON.parse(disk.readFile(file, 'utf8'))?.[key];
+    return typeof value === 'number' && Number.isFinite(value) && value >= 1 && value <= 4 ? value : fallback;
+  } catch { return fallback; }
 }

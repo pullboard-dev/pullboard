@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { ENGINE_VERSION } from '../../../packages/state/index.js';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 import {
   findChromeExecutable,
   relayWorkBudgetMs,
@@ -49,7 +51,7 @@ test('relay.relay-browser-fixture.real-chrome-names-a-stalled-command: clause 2:
 test('relay.relay-browser-fixture.paired-chrome-excludes-idle-event-streams: paired Chrome excludes idle event streams and reports only held state requests [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   box.legacySnapshotApi();
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
@@ -98,7 +100,7 @@ test('relay.relay-browser-fixture.paired-chrome-excludes-idle-event-streams: pai
 test('relay.relay-browser-fixture.relay-idle-readiness-waits-for-a: relay idle readiness waits for a real held request and then observes its completion [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   box.legacySnapshotApi();
   await box.link();
   const chrome = await stableChrome(await startChrome());
