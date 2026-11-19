@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 562,
+  "total": 560,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -123,7 +123,6 @@
     "packages/gate/src/io/slot.js": 1,
     "packages/gate/src/io/static/scope.js": 1,
     "packages/gate/src/io/timed.js": 1,
-    "packages/gate/src/io/watchdog.js": 2,
     "packages/git/src/io/adapter.js": 2,
     "packages/git/src/io/check/definition.js": 2,
     "packages/git/src/io/enter.js": 1,
