@@ -108,3 +108,46 @@ test('drive.workers.c-6307-a-job-whose-environment: #6307: a job whose environme
     assert.deepEqual(served.jobs.map(entry => entry.outcome), ['posted', 'posted']);
     assert.ok(said.some(line => /left .*environment folder to the prune: ENOTEMPTY/u.test(line)), said.join('\n'));
   });
+
+test('drive.workers.factor-argument: clause 1: jobWorkers takes a factor argument, default 2, and returns ceil(factor*cores/slots), at least 2 and at most its file count [C7]', () => {
+  assert.equal(jobWorkers(3, 10), jobWorkers(3, 10, null, 2), 'the default factor is 2');
+  assert.equal(jobWorkers(3, 10, null, 1), 4, 'ceil(1*10/3)');
+  assert.equal(jobWorkers(3, 10, null, 4), 14, 'ceil(4*10/3)');
+  assert.equal(jobWorkers(30, 10, null, 1), 2, 'never under 2');
+  assert.equal(jobWorkers(1, 10, 3, 4), 3, 'never over its file count');
+});
+
+test('drive.workers.factor-option: clause 2: serveRunner passes its jobWorkerFactor option to jobWorkers for each job, and 2 when absent [C7]', { timeout: 60_000 }, // budget: two local git checkouts and two node children.
+  async t => {
+    const seen = [];
+    for (const options of [{}, { jobWorkerFactor: 1 }]) {
+      const { root: trunk } = privateFixtureFiles('pullboard-factor-trunk-');
+      const { root: cache } = privateFixtureFiles('pullboard-factor-cache-');
+      t.after(() => { rmSync(trunk, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
+      const sh = (...args) => runFixtureGit(['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', ...args], { cwd: trunk });
+      sh('init', '-q', '-b', 'main');
+      writeFileSync(join(trunk, 'tracked.txt'), 'one\n');
+      sh('add', '.');
+      sh('commit', '-q', '-m', 'one');
+      const commit = sh('rev-parse', 'HEAD');
+      const receipts = [];
+      let handed = false;
+      const reply = document => ({ status: 200, json: async () => document });
+      const fetchImpl = async (_url, { body }) => {
+        const call = JSON.parse(body);
+        if (call.action === 'claim') {
+          const claim = handed ? null : { job: 'j1', attempt: 1, token: 't-j1', candidate: commit, base: commit, run: ['node', '-e', `console.log('WORKERS ' + process.env.${JOB_WORKERS_ENV})`] };
+          handed = true;
+          return reply({ trunk, claim });
+        }
+        if (call.action === 'receipt') receipts.push(call.receipt);
+        return reply({ ok: true, renewed: true });
+      };
+      const stop = new AbortController();
+      const sleep = ms => new Promise(done => setTimeout(() => { if (receipts.length) stop.abort(); done(); }, Math.max(ms, 5)));
+      await serveRunner({ git: pullGit, board: BOARD, runner: 'r-factor', capabilities: [], cache, jobs: 3, cores: 10, signal: stop.signal, fetchImpl, sleep, timing: { idleMs: 1 }, ...options });
+      assert.equal(receipts.length, 1, JSON.stringify(receipts));
+      seen.push(/^WORKERS (\d+)$/mu.exec(receipts[0].tail)?.[1]);
+    }
+    assert.deepEqual(seen, ['7', '4'], 'absent gives 2x share (7), factor 1 gives ceil(10/3) = 4');
+  });
