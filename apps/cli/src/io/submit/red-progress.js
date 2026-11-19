@@ -52,6 +52,24 @@ function redSubmitTestRuns(board, id, digest, root) {
   return red;
 }
 
+/**
+ * Every live item's latest red gate failures, for the Main red ledger to tell the items a fixed red blocked [C7,#1269].
+ * Why: this file already projects a gate's red handoffs with their failing file and case rows; the ledger reads the same rows rather than a second reading.
+ *
+ * @param {object} board
+ * @param {string} root
+ * @returns {{ id: number, failures: { file: string, name: string }[] }[]} One row per open, claimed or submitted item that has a red gate.
+ */
+export function openItemReds(board, root) {
+  const rows = board.db.prepare("SELECT item_id AS id, item_frozen_digest AS digest FROM item WHERE item_status IN ('open','claimed','submitted') AND item_merged_commit IS NULL").all();
+  const reds = [];
+  for (const { id, digest } of rows) {
+    const latest = redSubmitTestRuns(board, id, digest, root).at(-1);
+    if (latest) reds.push({ id, failures: latest.failures });
+  }
+  return reds;
+}
+
 /** Whether the local cache records main failing every case of a red gate, by file and case name. */
 function knownMainReds(root, failures, main) {
   if (!failures?.length) return false;
