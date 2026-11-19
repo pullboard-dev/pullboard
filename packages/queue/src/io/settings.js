@@ -1,4 +1,5 @@
 /** The gate queue's machine settings, read from the file the caller names [O5]. */
+import { environmentAdapter } from '../../../env/index.js';
 import {
   existsSync,
   readFileSync,
@@ -17,7 +18,7 @@ import { parseMachineSettings } from '../logic/settings.js';
  * @returns {boolean|null}
  */
 export function carriedBrowserByLaunch() {
-  const carried = process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
+  const carried = environmentAdapter().get('PULLBOARD_TEST_BROWSER_BY_LAUNCH');
   return carried === '1' ? true : carried === '0' ? false : null;
 }
 

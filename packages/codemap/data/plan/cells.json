@@ -2611,7 +2611,8 @@
     "board->stats",
     "board->store",
     "board->verify",
-    "apps/lib->board"
+    "apps/lib->board",
+    "queue->env"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",
