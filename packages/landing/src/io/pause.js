@@ -1,6 +1,4 @@
 /** A publish pause reads the original full-run receipt and the existing same-tree flake ledger [C7,V4]. */
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { boardFolderFile } from '../../../git/index.js';
 import {
   readGateReceipt,
@@ -8,6 +6,9 @@ import {
   receiptStore,
 } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Shared publish state belongs to the repository, including its private landing worktrees. */
 export function publishStateFile(root) {
@@ -16,12 +17,12 @@ export function publishStateFile(root) {
 
 /** Record publish's verdict beside the other private Git state; this module owns the store, so every writer comes here. */
 export function writePublishState(root, state) {
-  writeFileSync(publishStateFile(root), JSON.stringify(state) + '\n');
+  fs.writeFile(publishStateFile(root), JSON.stringify(state) + '\n');
 }
 
 /** Absence is the normal pre-publish state; malformed recorded evidence must remain visible. */
 export function readPublishState(root) {
-  try { return JSON.parse(readFileSync(publishStateFile(root), 'utf8')); }
+  try { return JSON.parse(fs.readFile(publishStateFile(root), 'utf8')); }
   catch (error) {
     if (error.code === 'ENOENT') return null;
     throw new Refused('PUBLISH_RED', 'publish state cannot be read; preserve publish.json and recover its original full-suite receipt before landing');
