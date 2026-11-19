@@ -1,7 +1,7 @@
 /** A census job offered under census.jobsPerRunner waits while its runner holds that many census jobs; other jobs and the default are as before [C7,#9136]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { claimJob } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { postReceipt } from '../../index.js';
