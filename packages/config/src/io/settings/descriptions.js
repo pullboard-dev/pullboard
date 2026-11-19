@@ -407,6 +407,7 @@ const ROWS = [
   ['line.reviewsFirst', 'Reviews first', 'Reviews are offered before new builds.', 'Line', 'on/off'],
   ['line.reworkSameFamily', 'Same-family rework', 'After the original builder is gone, returned work first goes to live seats in the builder’s model family.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
+  ['line.tune', 'Self-tuning line', 'The line controller adjusts its own knobs from replayed board flow; off keeps every knob as set.', 'Line', 'on/off'],
   ['line.wipPerReviewer', 'Work per reviewer', 'How many items may be in progress for each active reviewer.', 'Line', 'ratio'],
 ];
 
