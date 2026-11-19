@@ -1,8 +1,7 @@
 /** Physical SQLite opening accepts explicit runtime ports before migration or proof warming [C7]. */
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
@@ -28,6 +27,8 @@ import {
   EVENT_LOG_VERSION,
   BOARD_BUSY_TIMEOUT_MS,
 } from "./schema/source.js";
+
+const fs = fileSystemAdapter();
 
 /** Require connection-local dependencies before creating or touching any SQLite file; never infer a global root. */
 export function requireRuntimePorts(ports) {
@@ -194,7 +195,7 @@ export function boardRunsReader(board, boardFile) {
   if (!runsStoreOn(board.db)) return null;
   const file = runsFilePath(boardFile);
   let runs;
-  const open = () => (runs === undefined ? (runs = existsSync(file) ? new DatabaseSync(file, { readOnly: true }) : null) : runs);
+  const open = () => (runs === undefined ? (runs = fs.exists(file) ? new DatabaseSync(file, { readOnly: true }) : null) : runs);
   return { get db() { return open(); } };
 }
 
@@ -206,7 +207,7 @@ export function boardRunsReader(board, boardFile) {
  * @param {{ query: { openBoardReadOnly: Function } }} runtimePorts
  */
 function refuseBoardBeyondOneRelease(file, runtimePorts) {
-  if (file === ':memory:' || !existsSync(file)) return;
+  if (file === ':memory:' || !fs.exists(file)) return;
   let version = 0;
   let current;
   try {
@@ -248,7 +249,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
   if (file !== ':memory:' && isMain === false) {
     let boardVersion = 0;
     let logVersion = 0;
-    if (existsSync(file)) {
+    if (fs.exists(file)) {
       const startedAt = Date.now();
       let current;
       try {
@@ -271,7 +272,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
       }
     }
   }
-  if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
+  if (file !== ':memory:') fs.mkdir(dirname(file), { recursive: true });
   const startedAt = Date.now();
   let db;
   try {
