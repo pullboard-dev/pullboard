@@ -96,6 +96,7 @@ export const MACHINE_DEFAULTS = {
   'gate.viewTimerLayout': false,
   'gate.withdrawCancelsJob': false,
   gateSlots: 2,
+  'health.adviceThroughNext': false,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
   'health.lapsedSweep': false,
