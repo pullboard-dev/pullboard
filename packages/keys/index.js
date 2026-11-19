@@ -3,3 +3,4 @@ export { authenticateDeviceEnrollment, createDeviceKeys, devicePublicKey, signDe
 export { forgetBoardKey, readBoardKey, scrubLegacyPersonSessions, storeBoardKey } from './src/io/relay.js';
 export { relayJoin, relayPair } from './src/io/relay/client.js';
 export { deliverPersonEnrollments } from './src/io/relay/enrollment.js';
+export { createFakeSigningAdapter, createSigningAdapter } from './src/io/adapter/signing.js';
