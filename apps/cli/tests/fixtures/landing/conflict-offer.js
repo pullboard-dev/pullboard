@@ -8,6 +8,7 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { offerPulledLanding } from '../../../src/io/landing/pull.js';
+import { context } from '../../../src/io/read.js';
 import { submitFixture } from '../board/submit.js';
 
 /**
@@ -35,7 +36,7 @@ export async function offerOverConflict(t, repo) {
     review: { commit: repo.head, head: repo.head, trunk: repo.base, paths: [repo.file] } });
   const said = [];
   const policy = { config: {}, commit: repo.main };
-  const result = await offerPulledLanding({ io: { say: line => said.push(line) }, file: boardFile }, repo.root,
+  const result = await offerPulledLanding(context({ cwd: repo.root, say: line => said.push(line) }), repo.root,
     { mainPolicy: () => policy, listItems: store.listItems, checkedLandingCommit: (_board, item) => item.item_commit, pairPrefix: () => 'prefix' },
     { local: async () => ({ running: true }), board });
   return { result, said, item: store.getItem(board, id) };
