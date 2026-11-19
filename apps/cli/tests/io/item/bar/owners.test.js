@@ -38,7 +38,7 @@ test('cli.io-item-bar-owners.coordinator-filer-refused: clause 1: with items.bar
   assert.equal(store.getItem(box.board, split.document.coordinatorPiece.item_id).item_lane, 'coordinator', 'the coordinator piece is filed too');
   const own = await add(box, { criterion: 'the clock answers', files: [READ_ONLY], lane: 'coordinator', title: 'Vendored clock cell answers the time', extra: ['--not-duplicate-of', `${split.document.coordinatorPiece.item_id} a coordinator-lane item in a fixture`] });
   assert.equal(refusal(own), null, 'a coordinator-lane item may name any path: ' + own.out + own.err);
-  const plain = await add(box, { criterion: 'the clock page renders', files: ['web/x.js'], title: 'Plain web renderer for login screens' });
+  const plain = await add(box, { criterion: 'the clock page renders', files: ['web/x.js'], title: 'Plain web renderer for login screens', extra: ['--not-duplicate-of', `${split.document.item.item_id} a fixture item with another bar`] });
   assert.equal(refusal(plain), null, plain.out + plain.err);
   const edited = await cli(box, box.root, ['edit', String(plain.document.item.item_id), '--brief', `Files:\n- ${READ_ONLY}\nTest: the clock answers\n`]);
   assert.equal(refusal(edited), 'CROSS_OWNERSHIP', edited.out + edited.err);
