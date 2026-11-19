@@ -3,17 +3,6 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   serialize,
@@ -27,6 +16,7 @@ import {
   git,
   gitChildEnv,
 } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   cellInventory,
   updateCellInventory,
@@ -38,6 +28,8 @@ import {
 } from './cell/lints.js';
 import { withCellLintParser } from './cell/parser.js';
 import { withBindingReadCache } from './cell/uses.js';
+
+const fs = fileSystemAdapter();
 
 const MAX_COMPRESSED = 64 * 1024 * 1024;
 const MAX_UNCOMPRESSED = 256 * 1024 * 1024;
@@ -109,21 +101,21 @@ export function validateAcceptedInventory(bytes, descriptor) {
 export function readAcceptedInventory({ directory, ...options }) {
   const expected = identity(options), file = artifactFile(directory, acceptedInventoryKey(expected));
   try {
-    const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const fd = fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
-      const stat = fstatSync(fd);
+      const stat = fs.fstat(fd);
       if (!stat.isFile() || stat.size > MAX_COMPRESSED || stat.size < 1) return { available: false, cause: 'invalid-artifact' };
       const bytes = Buffer.alloc(stat.size);
       let offset = 0;
       while (offset < bytes.length) {
-        const count = readSync(fd, bytes, offset, bytes.length - offset, null);
+        const count = fs.read(fd, bytes, offset, bytes.length - offset, null);
         if (!count) return { available: false, cause: 'invalid-artifact' };
         offset += count;
       }
-      if (readSync(fd, Buffer.alloc(1), 0, 1, null)) return { available: false, cause: 'invalid-artifact' };
+      if (fs.read(fd, Buffer.alloc(1), 0, 1, null)) return { available: false, cause: 'invalid-artifact' };
       const result = validateAcceptedInventory(bytes, { ...expected, digest: digest(bytes) });
       return result.available ? { ...result, file } : result;
-    } finally { closeSync(fd); }
+    } finally { fs.close(fd); }
   } catch (error) {
     return { available: false, cause: error.code === 'ENOENT' ? 'missing-artifact' : 'unreadable-artifact' };
   }
@@ -180,12 +172,12 @@ export async function warmAcceptedInventory({ directory, root, commit, checker, 
     const descriptor = { ...expected, digest: digest(bytes) };
     const checked = validateAcceptedInventory(bytes, descriptor);
     if (!checked.available) throw new Error('accepted inventory failed validation');
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    fs.mkdir(directory, { recursive: true, mode: 0o700 });
     const temporary = join(directory, `.${randomUUID()}.tmp`);
     try {
-      writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600 });
-      renameSync(temporary, artifactFile(directory, key));
-    } finally { rmSync(temporary, { force: true }); }
+      fs.writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
+      fs.rename(temporary, artifactFile(directory, key));
+    } finally { fs.rm(temporary, { force: true }); }
     return { ...checked, file: artifactFile(directory, key), reused: false };
   });
 }
