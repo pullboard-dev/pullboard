@@ -1,6 +1,9 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireSpecGateRows } from '../item/bar.js';
+import { COORDINATOR } from '../item/bar.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
@@ -16,6 +19,8 @@ import {
 } from '../../../../../packages/person/index.js';
 import { barReadySetting } from '../../../../../packages/verify/index.js';
 import {
+  gateFiles,
+  parseSpec,
   referenceAuthors,
   referenceAuthority,
 } from '../../../../../packages/spec/index.js';
@@ -108,6 +113,7 @@ export async function run(io, args) {
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
+    await requireSpecGateRows(ctx, { criterion: change.criterion ?? before.item_criterion }, itemsBarRulesAtAdd(), asPerson || me.id === COORDINATOR, { parseSpec, gateFiles });
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {

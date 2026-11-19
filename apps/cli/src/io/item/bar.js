@@ -99,6 +99,43 @@ export function requireRegistryRecord(tracked, named, isTest) {
   }
 }
 
+const FILE_REMOVAL = /\b(?:delet(?:e|es|ed|ing)|remov(?:e|es|ed|ing)|mov(?:e|es|ed|ing)|renam(?:e|es|ed|ing)|git mv)\b/iu;
+
+/**
+ * Refuse a lane bar that asks to delete, remove, move or rename a file on main that an approved must row of the spec names in
+ * its gate list, naming the row ids and the split (#11742).
+ * Why: pre-commit demands each such row point at a new home and the spec is coordinator-owned, so a lane builder can never
+ * satisfy the bar; 43 rows named the two files of #11199 and #11201. The callers pass the spec cell's parseSpec and gateFiles, so
+ * this module takes no new cell import.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any bar.
+ * @param {boolean} exempt A coordinator or person filer, who may name any path and repoint rows themselves.
+ * @param {{ parseSpec: Function, gateFiles: Function }} spec The spec cell's readers, passed in by add and edit.
+ */
+export async function requireSpecGateRows(ctx, bar, on, exempt, { parseSpec, gateFiles }) {
+  if (!on || exempt) return;
+  const clauses = String(bar.criterion ?? '').split(/\n|(?<=[.;])\s+(?=\d+\.\s)/u).filter(clause => FILE_REMOVAL.test(clause));
+  if (!clauses.length) return;
+  const trunk = trunkBranch(ctx.info.root);
+  const spec = tryGit(ctx.info.root, ['show', `${trunk}:${ctx.config.spec}`]);
+  if (spec.status !== 0) return;
+  const rows = parseSpec(spec.stdout).rows.filter(row => row.status === 'approved' && row.tier === 'must');
+  const named = [...new Set(clauses.flatMap(clause => pathTokens(clause)))].filter(path => !path.endsWith('/'));
+  if (!named.length) return;
+  const present = onTrunk(ctx.info.root)(named);
+  const hits = [];
+  for (const path of named) {
+    if (!present.has(path)) continue;
+    const ids = rows.filter(row => gateFiles(row.gate).includes(path)).map(row => row.id);
+    if (ids.length) hits.push({ path, ids });
+  }
+  if (!hits.length) return;
+  throw new Refused('SPEC_GATE_ROW', `the bar deletes, removes, moves or renames ${hits.map(hit => `${hit.path} (named by ${hit.ids.join(', ')})`).join('; ')}; those approved must rows name it in their gate list, pre-commit refuses the change until each row points at a new home, and the spec is coordinator-owned`,
+    'split the bar: the lane piece, then the coordinator piece filed --after it to repoint those rows (pullboard add --split-coordinator)');
+}
+
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
 export async function requireBarPathsOnMain(ctx, bar) {
   const refusal = await missingPathRefusal(ctx, bar);
