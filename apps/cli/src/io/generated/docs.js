@@ -1,7 +1,6 @@
 /** One generation boundary for source-owned format, API, and help declarations [C7,A1,A5,M1]. */
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { fileURLToPath } from 'node:url';
 import { closeBoard } from '../../../../../packages/store/index.js';
@@ -13,22 +12,24 @@ import { shapeTable } from '../../logic/generated/doc/blocks.js';
 import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
 
+const files = fileSystemAdapter();
+
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
 export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
   let blocks;
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
   finally { closeBoard(board); }
-  let formats = readFileSync(join(root, 'docs', 'formats.md'), 'utf8');
-  let spec = readFileSync(join(root, 'docs', 'formats', 'spec.md'), 'utf8');
-  let staticView = readFileSync(join(root, 'docs', 'formats', 'static-view.md'), 'utf8');
+  let formats = files.readFile(join(root, 'docs', 'formats.md'), 'utf8');
+  let spec = files.readFile(join(root, 'docs', 'formats', 'spec.md'), 'utf8');
+  let staticView = files.readFile(join(root, 'docs', 'formats', 'static-view.md'), 'utf8');
   // A table moved to a user page is refreshed there; every other table stays in the guide.
   for (const [name, table] of Object.entries(blocks)) {
     if (!formats.includes(`<!-- ${name}:start -->`) && spec.includes(`<!-- ${name}:start -->`)) spec = replaceDocTable(spec, name, table);
     else if (!formats.includes(`<!-- ${name}:start -->`) && staticView.includes(`<!-- ${name}:start -->`)) staticView = replaceDocTable(staticView, name, table);
     else formats = replaceDocTable(formats, name, table);
   }
-  let api = readFileSync(join(root, 'docs', 'api.md'), 'utf8');
+  let api = files.readFile(join(root, 'docs', 'api.md'), 'utf8');
   const tables = {
     'api-command-shapes': shapeTable(['Command', 'Required top-level fields'], Object.fromEntries(
       Object.entries(JSON_SHAPES.commands).map(([name, shape]) => [name, shape.required]))),
@@ -47,7 +48,7 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
 export function generatedDocDrift(root, outputs, ports) {
   if (outputs === undefined) outputs = generatedDocs(root, ports);
   return [...outputs].filter(([file, content]) => {
-    try { return readFileSync(join(root, file), 'utf8') !== content; }
+    try { return files.readFile(join(root, file), 'utf8') !== content; }
     catch (error) { if (error.code === 'ENOENT') return true; throw error; }
   }).map(([file]) => file);
 }
@@ -56,7 +57,7 @@ export function generatedDocDrift(root, outputs, ports) {
 export function writeGeneratedDocs(root, outputs, ports) {
   if (outputs === undefined) outputs = generatedDocs(root, ports);
   const changed = generatedDocDrift(root, outputs);
-  for (const file of changed) writeFileSync(join(root, file), outputs.get(file));
+  for (const file of changed) files.writeFile(join(root, file), outputs.get(file));
   return changed;
 }
 
@@ -81,7 +82,7 @@ export function regenerateStagedDocs(root, ports) {
   const partly = changed.filter(file => unstaged.has(file));
   const outputs = generatedDocs(root, ports);
   const fixable = changed.filter(file => !unstaged.has(file));
-  for (const file of fixable) writeFileSync(join(root, file), outputs.get(file));
+  for (const file of fixable) files.writeFile(join(root, file), outputs.get(file));
   if (fixable.length) git(root, ['add', '--', ...fixable]);
   return [
     ...(fixable.length ? [`regenerated ${fixable.join(', ')} and staged them`] : []),

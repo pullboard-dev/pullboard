@@ -1,14 +1,5 @@
 /** Private native claim anchors feed authenticated numeric records, never transcript bytes [N2,C7]. */
 import { createHash } from 'node:crypto';
-import {
-  constants,
-  closeSync,
-  fstatSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import {
@@ -20,13 +11,16 @@ import { tryGit } from '../../../../../packages/git/light.js';
 
 // Every command imports this module for its policy check, so these cells load only once exit rules are on [C7,#6483].
 let cells = null;
+let files = null;
 /** Load the stats, items and store cells the exit rules use, then return the synchronous rules that need them. */
 export async function loadExitRules() {
   cells ??= await Promise.all([
     import('../../../../../packages/stats/light.js'),
     import('../../../../../packages/items/index.js'),
     import('../../../../../packages/store/index.js'),
+    import('../../../../../packages/fs/index.js'),
   ]);
+  files ??= cells[3].fileSystemAdapter();
   return { captureExitAnchor, contextCeilingRefusal };
 }
 /** The stats cell's light door, loaded by loadExitRules. */
@@ -41,13 +35,13 @@ function sourceBytes(source, previous) {
   if (!source) return null;
   let fd;
   try {
-    fd = openSync(source.file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd), bytes = readFileSync(fd);
+    fd = files.open(source.file, files.constants.O_RDONLY | files.constants.O_NOFOLLOW);
+    const stat = files.fstat(fd), bytes = files.readFile(fd, null);
     if (!stat.isFile() || previous && (stat.dev !== previous.dev || stat.ino !== previous.ino
       || bytes.length < previous.bytes || digest(bytes.subarray(0, previous.bytes)) !== previous.sha256)) return null;
     return { bytes, dev: stat.dev, ino: stat.ino, length: bytes.length, sha256: digest(bytes) };
   } catch { return null; }
-  finally { if (fd !== undefined) closeSync(fd); }
+  finally { if (fd !== undefined) files.close(fd); }
 }
 
 /** A private prefix digest proves append-only custody without publishing native identifiers. */
@@ -66,8 +60,10 @@ export function captureExitAnchor(ctx, board, id, actor) {
     const calls = observed ? nativeToolCallIds(source.provider, observed.bytes) : null;
     const baseline = source ? sessionSnapshot(source) : null;
     const prefix = observed ? { dev: observed.dev, ino: observed.ino, bytes: observed.length, sha256: observed.sha256 } : null;
-    mkdirSync(join(ctx.info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
-    writeFileSync(anchorFile(ctx, claim.key), JSON.stringify({ actor, item: id, claim: claim.key, source, prefix, baseline, calls }), { flag: 'wx', mode: 0o600 });
+    files.mkdir(join(ctx.info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
+    const anchor = files.open(anchorFile(ctx, claim.key), 'wx', 0o600);
+    try { files.write(anchor, JSON.stringify({ actor, item: id, claim: claim.key, source, prefix, baseline, calls })); }
+    finally { files.close(anchor); }
   } catch { ctx.io.err?.('Exit-rule native anchor unavailable; usage remains unknown, never a fresh zero.'); }
 }
 
@@ -75,10 +71,10 @@ export function captureExitAnchor(ctx, board, id, actor) {
 function counters(ctx, claim, actor, item) {
   let fd;
   try {
-    fd = openSync(anchorFile(ctx, claim.key), constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd);
+    fd = files.open(anchorFile(ctx, claim.key), files.constants.O_RDONLY | files.constants.O_NOFOLLOW);
+    const stat = files.fstat(fd);
     if (!stat.isFile() || stat.mode & 0o077 || stat.size > 16 * 1024 * 1024) return { tokens: null, calls: null };
-    const anchor = JSON.parse(readFileSync(fd, 'utf8'));
+    const anchor = JSON.parse(files.readFile(fd, 'utf8'));
     if (anchor.actor !== actor || anchor.item !== item || anchor.claim !== claim.key || !anchor.prefix) return { tokens: null, calls: null };
     const observed = sourceBytes(anchor.source, anchor.prefix);
     if (!observed) return { tokens: null, calls: null };
@@ -91,7 +87,7 @@ function counters(ctx, claim, actor, item) {
       || !Number.isSafeInteger(sum + row.inputTokens + row.outputTokens) ? null : sum + row.inputTokens + row.outputTokens, 0);
     return { tokens, calls };
   } catch { return { tokens: null, calls: null }; }
-  finally { if (fd !== undefined) closeSync(fd); }
+  finally { if (fd !== undefined) files.close(fd); }
 }
 
 /** Check every external command before dispatch; this function never signals another process. */
