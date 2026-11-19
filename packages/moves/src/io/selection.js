@@ -53,6 +53,9 @@ import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
 
+/** The refusals next passes over, as it does a bar that cannot be built: the unbuildable codes, and a bar naming paths no lane owns, which claim by id still refuses [C7,#11862]. */
+const PASSED_OVER = new Set([...UNBUILDABLE, 'CROSS_OWNERSHIP']);
+
 /** The health cell loads only when a fresh claim shouts a stuck review cover [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
 
@@ -198,7 +201,7 @@ export async function nextOnce(ctx, values, ports) {
       }
       // A bar naming a path missing from main, or a held check already green there, has nothing a builder can do: next
       // passes over it and the coordinator hears once per bar; claim by id still refuses (#5709).
-      if (error instanceof Refused && UNBUILDABLE.has(error.code)) {
+      if (error instanceof Refused && PASSED_OVER.has(error.code)) {
         await reportUnbuildableOnce(target, board, item, holder, error, ordered);
         target.io.say?.(`skipped #${item.item_id}: ${error.message}`);
         return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };

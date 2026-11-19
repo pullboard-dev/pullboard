@@ -14,11 +14,7 @@ import { exitedSession } from '../../../../packages/store/index.js';
  * seat holding no claim and no review reservation stops.
  */
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
@@ -35,7 +31,7 @@ const HOUR = 3_600_000;
  * Price per seat-hour by declared model, in budget units (one unit is one seat-hour of an unpriced seat).
  * Why: the budget is a daily spend, so an expensive model draws it down faster than a cheap one [C7].
  */
-export const MODEL_SEAT_HOUR_PRICE = Object.freeze(JSON.parse(readFileSync(new URL('../../data/ceilings/seat-hour-prices.json', import.meta.url), 'utf8')));
+export const MODEL_SEAT_HOUR_PRICE = Object.freeze(JSON.parse(fileSystemAdapter().readFile(new URL('../../data/ceilings/seat-hour-prices.json', import.meta.url))));
 
 /**
  * What one seat-hour of a model costs against the budget; an unpriced or unknown model is charged one seat-hour,
@@ -157,7 +153,7 @@ export function seatHoldsWork(board, seatId, items = store.listItems(board)) {
 /** Every live seat this machine runs on the board: its worktree is here and its local heartbeat is live. */
 export function liveLocalSeats(board) {
   return withLocalSeatPresence(board, store.listAgents(board))
-    .filter(seat => seat.agent_id !== COORDINATOR && seat.presence === 'live' && existsSync(seat.agent_path))
+    .filter(seat => seat.agent_id !== COORDINATOR && seat.presence === 'live' && fileSystemAdapter().exists(seat.agent_path))
     .map(seat => seat.agent_id);
 }
 
@@ -214,9 +210,9 @@ export function observeWorkers(board, { lane, managed, inactive = [], route = 's
 export function workerLedger(file = join(machineHome(), 'workers-usage.json')) {
   /** The stored record exactly as written, validated, or null when none exists. */
   function stored() {
-    if (!existsSync(file)) return null;
+    if (!fileSystemAdapter().exists(file)) return null;
     let value;
-    try { value = JSON.parse(readFileSync(file, 'utf8')); }
+    try { value = JSON.parse(fileSystemAdapter().readFile(file)); }
     catch (error) { throw new Refused('BAD_MACHINE_SETTINGS', `the worker ledger ${file} is unreadable (${error.message}); restore it, or remove it knowingly: a missing ledger charges every live seat from the window's start`); }
     if (value && typeof value === 'object' && value.spend === undefined && typeof value.usedHours === 'number') { value.spend = value.usedHours; delete value.usedHours; }
     if (!value || !['day', 'week'].includes(value.window) || !Number.isSafeInteger(value.start) || !Number.isSafeInteger(value.sampledAt)
@@ -255,9 +251,9 @@ export function workerLedger(file = join(machineHome(), 'workers-usage.json')) {
       if (value && value.window === window) spent = `the ledger's last sample ${new Date(value.sampledAt).toISOString()} is after this clock's ${new Date(now).toISOString()}; the clock moved backwards, so the budget is treated as spent`;
     }
     const next = { window, start, spend, sampledAt: Math.max(now, value?.window === window && value.start === start ? value.sampledAt : now), seats: [...new Set(seats)], spent };
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(`${file}.tmp`, JSON.stringify(next));
-    renameSync(`${file}.tmp`, file);
+    fileSystemAdapter().mkdir(dirname(file), { recursive: true });
+    fileSystemAdapter().writeFile(`${file}.tmp`, JSON.stringify(next));
+    fileSystemAdapter().rename(`${file}.tmp`, file);
     return { ...next, spend: spent ? Infinity : spend };
   }
   return { read, record };
