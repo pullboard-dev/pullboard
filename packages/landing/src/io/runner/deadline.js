@@ -1,4 +1,8 @@
+import { environmentAdapter } from '../../../../env/index.js';
 import { execFile } from 'node:child_process';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /** A land job's check deadline: how long its proof may run, and how its process tree is stopped when it runs past [C7,#7820]. */
 
@@ -19,7 +23,7 @@ const KILL_GRACE_MS = 3_000;
  * @param {Record<string, string|undefined>} [env]
  * @returns {number | null} Milliseconds.
  */
-export function proofLimitMs(payload, env = process.env) {
+export function proofLimitMs(payload, env = environment.all()) {
   const raw = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
   if (raw === '0') return null;
   const minutes = Number.isFinite(payload?.proofMinutes) && payload.proofMinutes > 0 ? payload.proofMinutes : DEFAULT_PROOF_MINUTES;

@@ -1,6 +1,7 @@
 /** Run a bounded shell under identity-checked process custody before returning its result [E27]. */
 import { spawn } from 'node:child_process';
 import { scratchFolder } from '../../../config/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import {
   appendFileSync,
   readFileSync,
@@ -35,7 +36,8 @@ export async function runTimedShell(services) {
   }
   tracker = createDescendantTracker(directory, { tick: () => reportState(), warn: () => reportState(true) });
   const recorder = testRuntimeOption();
-  const env = { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, tracker.nodeOptions, recorder].filter(Boolean).join(' '), PULLBOARD_RUNNER_PRELOAD: tracker.nodeOptions };
+  const environment = environmentAdapter();
+  const env = { ...environment.all(), NODE_OPTIONS: [environment.get('NODE_OPTIONS'), tracker.nodeOptions, recorder].filter(Boolean).join(' '), PULLBOARD_RUNNER_PRELOAD: tracker.nodeOptions };
   const child = spawn('/bin/sh', ['-c', request.command], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   tracker.registerRoot(child.pid);
   tracker.observe();
