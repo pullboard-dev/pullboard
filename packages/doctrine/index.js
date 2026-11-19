@@ -10,4 +10,8 @@ export * from './src/io/bundle/import.js';
 export { encodeBundle } from './src/logic/bundle/encode.js';
 export { signBundle, verifyBundle } from './src/io/bundle/verify.js';
 export { signWaiver, waiverPermits } from './src/io/bundle/waiver.js';
-export { standardDecisionLine } from './src/logic/standard-decision.js';
+
+/** The standard decision line module loads at the call, so status and next never load it; an app passes this function on as a port [C7,#2007]. */
+export function loadStandardDecision() {
+  return import('./src/logic/standard-decision.js');
+}

@@ -3,7 +3,7 @@ import { answerQuestion } from '../../../../../packages/spec/index.js';
 import { rowDrafts } from '../../../../../packages/store/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { loadDoctrine } from '../../../../../packages/doctrine/index.js';
-import { standardDecisionLine } from '../../../../../packages/doctrine/index.js';
+import { loadStandardDecision } from '../../../../../packages/doctrine/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import {
   planRowVerificationApply,
@@ -198,6 +198,8 @@ export async function specCommand(io, { first, second, rest, values }) {
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = ctx.doctrine;
+  // The decision line module loads here, at the call, so the cold commands never load it [C7,#2007].
+  const { standardDecisionLine } = await loadStandardDecision();
   const signoffs = readSignoffs(ctx.info.root);
   if (first === 'verify') {
     if (!second || rest.length !== 1 || !['accepted', 'rejected'].includes(rest[0])) throw new Refused('USAGE', 'use pullboard spec verify <id> accepted|rejected --reason "why"');
