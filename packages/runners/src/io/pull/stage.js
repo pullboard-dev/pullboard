@@ -1,6 +1,4 @@
 /** Queue a pull job from a locally staged folder: row.json is written by a JS call here, then the folder ships whole as one tar stream [C7,#8820]. */
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pullJobId } from './scripts.js';
@@ -8,7 +6,8 @@ import { stageRunnerJob } from './scripts.js';
 import { rootWord } from './scripts.js';
 import { createSshAdapter } from '../adapter/ssh.js';
 import { runnerStatusDir } from './ssh.js';
-import { mkdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Every ssh call in this file goes through the ssh runner adapter. */
 const sshAdapter = createSshAdapter();
@@ -50,7 +49,7 @@ ${agent ? `( ${agent}\n) </dev/null >/dev/null 2>&1 &\n` : ''}echo "queued ${id}
 /** A private folder under the runner status folder, where staged jobs wait to ship. */
 function stagingParent(dir = runnerStatusDir()) {
   const parent = join(dir, 'staged');
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
+  fileSystem.mkdir(parent, { recursive: true, mode: 0o700 });
   return parent;
 }
 
@@ -69,11 +68,11 @@ export async function enqueueStagedJob(runner, { id, row, frame, command, agent,
     const made = spawnSync('tar', ['-cf', tar, '-C', staged.dir, ...staged.files], { encoding: 'utf8' });
     if (made.status !== 0) throw Object.assign(new Error(`could not stage job ${id}: ${(made.stderr ?? '').trim() || `tar status ${made.status}`}`), { code: 'RUNNER_PULL_SCRIPT', status: made.status, transport: false });
     try {
-      const run = await sshAdapter.run(runner, stagedEnqueueScript(runner, { id, frameBytes: frame.length, tarBytes: statSync(tar).size, agent }), { ...options, stdin: { file: tar } });
+      const run = await sshAdapter.run(runner, stagedEnqueueScript(runner, { id, frameBytes: frame.length, tarBytes: fileSystem.stat(tar).size, agent }), { ...options, stdin: { file: tar } });
       if (run.status !== 0 || run.error) {
         const detail = run.error ?? (run.stderr.trim().split('\n').at(-1) || `status ${run.status}`);
         throw Object.assign(new Error(`could not queue job ${id} on ${runner.host}: ${detail}`), { code: 'RUNNER_PULL_SCRIPT', status: run.status, transport: run.error !== null || run.status === 255 });
       }
-    } finally { rmSync(tar, { force: true }); }
-  } finally { rmSync(staged.dir, { recursive: true, force: true }); }
+    } finally { fileSystem.rm(tar, { force: true }); }
+  } finally { fileSystem.rm(staged.dir, { recursive: true, force: true }); }
 }

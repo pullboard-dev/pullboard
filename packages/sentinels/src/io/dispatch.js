@@ -1,7 +1,6 @@
 import { lineSettings } from "../../../state/light.js";
 import { withLocalSeatPresence } from "../../../store/index.js";
 /** Observe eligible work beside live free seats without claiming from a read [N2,A6]. */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from "../../../store/index.js";
 import { repoInfo } from "../../../git/index.js";
@@ -9,6 +8,10 @@ import { localSeatSessionDigest } from "../../../seats/index.js";
 import { ownSessionReviews } from "../../../verify/index.js";
 import { dispatchWork } from "../../../store/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The one file-system adapter this file reads through [C7]. */
+const fs = fileSystemAdapter();
 
 /** Validate the optional ordered prospective observations without changing historical receipts. */
 export function normalizedDispatch(value) {
@@ -37,7 +40,7 @@ export function dispatchHealth(board, config = {}) {
   const current = roadmap.find(milestone => !milestone.shipped && milestone.items.some(item => item.status !== 'verified'));
   const seats = lineSettings(board)['route.liveOnly'] ? withLocalSeatPresence(board, agents) : agents;
   for (const seat of seats) {
-    if (seat.agent_id === 'coordinator' || seat.presence !== 'live' || !existsSync(join(seat.agent_path, '.git'))) continue;
+    if (seat.agent_id === 'coordinator' || seat.presence !== 'live' || !fs.exists(join(seat.agent_path, '.git'))) continue;
     let info, skipIds;
     try {
       info = repoInfo(seat.agent_path);
