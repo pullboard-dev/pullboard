@@ -1,10 +1,16 @@
 /** Recorded claim worktrees: background maintenance observes them, board commands only read the record [N2,B3]. */
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { claimWorktrees } from './worktrees.js';
+
+/** Create a file only this user can read, failing when it exists, as writeFileSync with mode 0600 and flag wx did. */
+function writePrivateNew(file, data) {
+  const bytes = Buffer.from(data);
+  const fd = fileSystemAdapter().open(file, 'wx', 0o600);
+  try {
+    for (let at = 0; at < bytes.length;) at += fileSystemAdapter().write(fd, bytes, at);
+  } finally { fileSystemAdapter().close(fd); }
+}
 
 const memory = new WeakMap();
 
@@ -22,7 +28,7 @@ function readRecord(board) {
   const file = recordFile(board);
   if (!file) return memory.get(board.db) ?? null;
   try {
-    const record = JSON.parse(readFileSync(file, 'utf8'));
+    const record = JSON.parse(fileSystemAdapter().readFile(file));
     return record?.version === 1 && record.claims && typeof record.claims === 'object' ? record : null;
   } catch { return null; }
 }
@@ -45,10 +51,10 @@ export function recordClaimWorktrees(board, items, agents, { now = new Date() } 
   if (!file) { memory.set(board.db, record); return observed; }
   const temporary = `${file}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, JSON.stringify(record) + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, file);
+    writePrivateNew(temporary, JSON.stringify(record) + '\n');
+    fileSystemAdapter().rename(temporary, file);
   } catch {
-    try { rmSync(temporary, { force: true }); } catch { /* Only this call's own temporary file is removed. */ }
+    try { fileSystemAdapter().rm(temporary, { force: true }); } catch { /* Only this call's own temporary file is removed. */ }
   }
   return observed;
 }

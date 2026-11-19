@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1435,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -134,9 +134,6 @@
     "apps/view/src/io/session.js": 1,
     "apps/view/src/io/star.js": 1,
     "apps/view/src/io/styles.js": 1,
-    "packages/activity/src/io/inbox.js": 1,
-    "packages/activity/src/io/observations.js": 4,
-    "packages/activity/src/io/wait.js": 3,
     "packages/api/src/io/detail.js": 1,
     "packages/api/src/io/event-signals.js": 2,
     "packages/api/src/io/flakes.js": 2,

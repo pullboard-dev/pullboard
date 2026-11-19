@@ -2482,6 +2482,7 @@
     "runners->kernel",
     "runners->resources",
     "runners->transport",
+    "activity->fs",
     "activity->store",
     "apps/cli->doctrine",
     "apps/cli->gate",
