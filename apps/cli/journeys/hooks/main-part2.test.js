@@ -31,6 +31,7 @@ import { parseSpec } from '../../../../packages/spec/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -68,6 +69,7 @@ test('cli.journeys-hooks-main-part2.a-refused-merge-message-points-to: a refused
 
 test('cli.journeys-hooks-main-part2.a-spec-less-feature-commit-is: a spec-less feature commit is told a path that works [S1,B26]', async () => {
   const box = e2e.sandbox();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const root = join(box.dir, 'newcomer');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
@@ -167,6 +169,7 @@ test('cli.journeys-hooks-main-part2.a-hook-names-a-pullboard-version: a hook nam
 
 test('cli.journeys-hooks-main-part2.pre-push-keeps-its-ref-records: pre-push keeps its ref records when the version query reads stdin [C3,L3,I2]', () => {
   const box = e2e.project('test ! -f RED');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   writeFileSync(join(box.repo, 'RED'), 'this older commit is red\n');
   box.git(box.repo, 'add', 'RED');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create the red commit');

@@ -1,6 +1,5 @@
 /** Run the drive cell's fallback reclaim pass for a board command before it answers (RFC 0008 DJ15) [C7]. */
 import { lapsedGateJobs } from '../../../../packages/drive/light.js';
-import { reclaimPass } from '../../../../packages/drive/light.js';
 import { GATE_DRIVE_KIND } from '../../../../packages/drive/light.js';
 import { gateDriveJobId } from '../../../../packages/drive/light.js';
 import { withBoardRead } from './board/read.js';
@@ -18,7 +17,7 @@ import { reofferInfraEndEnabled } from '../../../../packages/config/light.js';
  *
  * @param {any} ctx - The command's context.
  * @param {string} command - The command running the pass, named in the driver id.
- * @returns {Promise<Awaited<ReturnType<typeof reclaimPass>> | null>}
+ * @returns {Promise<Awaited<ReturnType<typeof import('../../../../packages/drive/index.js').reclaimPass>> | null>}
  */
 export async function fallbackReclaim(ctx, command) {
   const now = () => ctx.clock.now().getTime();
@@ -30,6 +29,8 @@ export async function fallbackReclaim(ctx, command) {
     if (!lapsed.length) return null;
     // The list read above is handed on, so the whole fallback is one reclaimLapsed pass; driveOnce rechecks the lease.
     // A job whose item is no longer submitted at its commit is ended, never renewed (zombie gate jobs, 9 Nov).
+    // The drive cell loads only now, when a lapsed job exists: a healthy board never pays for the step machinery (#11941).
+    const { reclaimPass } = await import('../../../../packages/drive/index.js');
     return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed, runs,
       active: view => servingNow(board, view), reofferInfraEnd: reofferInfraEndEnabled() }));
   } catch {

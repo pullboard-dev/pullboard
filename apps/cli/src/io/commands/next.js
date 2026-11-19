@@ -116,12 +116,16 @@ export async function nextHere(io, values) {
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
   try {
+    delete io.lagSilent;
     const code = await nextWithProgress(io, values, progress);
+    // An item folder is cut from current main, so the seat checkout's lag says nothing about that build [U159].
+    if (!io.lagSilent) sayLag(io, context(io));
     sayCoordinatorCallouts(io);
     return code;
   }
   catch (error) {
     // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    try { sayLag(io, context(io)); } catch { /* the lag line is best effort on a refusal */ }
     sayCoordinatorCallouts(io);
     throw error;
   }
@@ -129,6 +133,7 @@ export async function nextHere(io, values) {
     progress.stop(); await monitor?.close();
     if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
+    delete io.lagSilent;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
 }
@@ -195,7 +200,7 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
-  sayLag(io, ctx);
+  // The lag line prints after the answer (nextHere), so a next that hands out an item folder stays silent about the seat [U159].
   // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
   if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
@@ -319,6 +324,7 @@ async function nextWithProgress(io, values, progress) {
       // next.itemNotices (off by default): the shouts and rulings that name this item ride on the build instruction [C7,#8787].
       const notices = !review && !found.waitingOffer && nextItemNotices() ? withBoardRead(ctx, board => reasons().itemNoticeLines(board, item.item_id)) : [];
       io.result?.({ item, review, ...(notices.length ? { notices } : {}), ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
+      if (!review && found.itemFolder) io.lagSilent = true;
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (found.landed) {
