@@ -17,6 +17,7 @@ import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -84,7 +85,7 @@ export function scannerTree() {
 export function cachedScan(kind, parts, scan) {
   const tree = scannerTree();
   if (!tree) return scan();
-  const folder = join(process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard'), 'source-scan');
+  const folder = join(environmentAdapter().get('PULLBOARD_MACHINE_HOME') || join(environmentAdapter().get('HOME') || homedir(), '.pullboard'), 'source-scan');
   const key = JSON.stringify([kind, tree, ...parts]);
   let saved = keptScan(folder, key);
   if (saved) return saved.value;
@@ -278,7 +279,7 @@ function cleanHistoryFile(root, policies) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
   const partial = existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'));
-  const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
+  const home = environmentAdapter().get('PULLBOARD_MACHINE_HOME') || join(environmentAdapter().get('HOME') || homedir(), '.pullboard');
   return join(partial ? join(common, 'pullboard') : home, 'history-scan', storeName(digest));
 }
 

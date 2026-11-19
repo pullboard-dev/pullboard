@@ -21,6 +21,7 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { briefFiles } from '../../../items/index.js';
 import {
   CONFIG_FILE,
@@ -89,7 +90,7 @@ function boundedInt(text, low, high, flag) {
  * @param {{ cwd: string, env?: NodeJS.ProcessEnv, timeoutMs: number, log?: string }} options
  * @returns {Promise<{ status: number | null, output: string, timedOut: boolean, seconds: number }>}
  */
-function runCommand(command, { cwd, env = process.env, timeoutMs, log }) {
+function runCommand(command, { cwd, env = environmentAdapter().all(), timeoutMs, log }) {
   const started = Date.now();
   return new Promise((done) => {
     const child = spawn(command, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -261,7 +262,7 @@ export function commitWork(root, item, config, paths) {
  */
 function pinAttempt(root, id) {
   const index = join(git(root, ['rev-parse', '--path-format=absolute', '--git-dir']), 'pullboard-attempt-index');
-  const env = { ...process.env, GIT_INDEX_FILE: index };
+  const env = { ...environmentAdapter().all(), GIT_INDEX_FILE: index };
   const step = (args) => {
     const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
     if (result.status !== 0) throw new Refused('PIN_FAILED', `could not pin the attempt: git ${args[0]} said ${result.stderr.trim()}`);
@@ -337,7 +338,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
     const pack = join(packs, `${id}-${tag}-${attempt}.md`);
     writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier, related, thread }));
     ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
-    const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
+    const env = { ...environmentAdapter().all(), PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
     const built = await runCommand(command, { cwd: root, env, timeoutMs: minutes * 60_000, log: join(packs, `${id}-${tag}-${attempt}.log`) });
     const outside = changedSince(root, start).filter((path) => !inScope(path));
     restore(root, start, outside);
