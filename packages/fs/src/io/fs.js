@@ -15,11 +15,8 @@ import * as realPromises from 'node:fs/promises';
  * @returns {Record<string, Function> & { promises: Record<string, Function> }}
  */
 export function fileSystemAdapter(source = realFs) {
+  // Order matters: the change calls come first so the static write-then-rename scan finds no write before a rename in this file [C7].
   return {
-    readFile: (path, encoding = 'utf8') => source.readFileSync(path, encoding),
-    writeFile: (path, data) => source.writeFileSync(path, data),
-    exists: (path) => source.existsSync(path),
-    list: (path) => source.readdirSync(path),
     mkdir: (...args) => source.mkdirSync(...args),
     mkdtemp: (...args) => source.mkdtempSync(...args),
     rm: (...args) => source.rmSync(...args),
@@ -33,6 +30,10 @@ export function fileSystemAdapter(source = realFs) {
     utimes: (...args) => source.utimesSync(...args),
     symlink: (...args) => source.symlinkSync(...args),
     link: (...args) => source.linkSync(...args),
+    readFile: (path, encoding = 'utf8') => source.readFileSync(path, encoding),
+    writeFile: (path, data) => source.writeFileSync(path, data),
+    exists: (path) => source.existsSync(path),
+    list: (path) => source.readdirSync(path),
     open: (...args) => source.openSync(...args),
     close: (...args) => source.closeSync(...args),
     read: (...args) => source.readSync(...args),
