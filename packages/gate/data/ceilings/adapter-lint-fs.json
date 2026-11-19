@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1427,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -26,12 +26,6 @@
     "apps/cli/src/io/commands/stats.js": 1,
     "apps/cli/src/io/commands/status.js": 1,
     "apps/cli/src/io/commands/submit.js": 3,
-    "apps/cli/src/io/commands/test.js": 1,
-    "apps/cli/src/io/commands/verify.js": 2,
-    "apps/cli/src/io/commands/view.js": 1,
-    "apps/cli/src/io/commands/worktree.js": 1,
-    "apps/cli/src/io/current.js": 1,
-    "apps/cli/src/io/disk/use.js": 10,
     "apps/cli/src/io/disk/use/worker.js": 1,
     "apps/cli/src/io/exit/rules.js": 1,
     "apps/cli/src/io/fixture-memo-warm.js": 1,

@@ -1,18 +1,11 @@
 /** @pullboard-module-loads apps/cli/src/io/disk/use/worker.js */
 /** What Pullboard keeps under .git/pullboard: its size per store, a warning threshold, and a retention policy for bulky raw material [C7]. */
 import { startDetachedCheck } from '../../../../../packages/drive/light.js';
-import { appendFileSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const fs = fileSystemAdapter();
 
 const GIB = 1024 ** 3;
 const DAY = 24 * 60 * 60 * 1000;
@@ -45,11 +38,11 @@ export const DEFAULT_DISK_POLICY = {
 /** The bytes a path takes on disk, not following links; zero when it cannot be read. */
 function bytesUnder(path) {
   let stat;
-  try { stat = lstatSync(path); } catch { return 0; }
+  try { stat = fs.lstat(path); } catch { return 0; }
   let total = stat.blocks * 512;
   if (!stat.isDirectory()) return total;
   let names = [];
-  try { names = readdirSync(path); } catch { return total; }
+  try { names = fs.list(path); } catch { return total; }
   for (const name of names) total += bytesUnder(join(path, name));
   return total;
 }
@@ -57,10 +50,10 @@ function bytesUnder(path) {
 /** The newest modification time of any file under a path (a folder's own time only when it holds none), so an entry is as old as the last file written in it. */
 function newestMtime(path) {
   let stat;
-  try { stat = lstatSync(path); } catch { return 0; }
+  try { stat = fs.lstat(path); } catch { return 0; }
   if (!stat.isDirectory()) return stat.mtimeMs;
   let names = [];
-  try { names = readdirSync(path); } catch { return stat.mtimeMs; }
+  try { names = fs.list(path); } catch { return stat.mtimeMs; }
   if (!names.length) return stat.mtimeMs;
   let newest = 0;
   for (const name of names) newest = Math.max(newest, newestMtime(join(path, name)));
@@ -80,7 +73,7 @@ function storeOf(name) {
 export function diskPolicy(dir) {
   const policy = { warnBytes: DEFAULT_DISK_POLICY.warnBytes, retention: structuredClone(DEFAULT_DISK_POLICY.retention) };
   let text;
-  try { text = readFileSync(join(dir, POLICY_FILE), 'utf8'); } catch { return policy; }
+  try { text = fs.readFile(join(dir, POLICY_FILE), 'utf8'); } catch { return policy; }
   const bad = (why) => Object.assign(new Error(`${POLICY_FILE} ${why}; fix or delete ${join(dir, POLICY_FILE)} to use the defaults`), { code: 'DISK_POLICY_INVALID' });
   let given;
   try { given = JSON.parse(text); } catch { throw bad('is not valid JSON'); }
@@ -107,17 +100,17 @@ export function diskUse(dir, { now = Date.now(), maxAgeMs = 0 } = {}) {
   let measured = null;
   if (maxAgeMs > 0) {
     try {
-      const cached = JSON.parse(readFileSync(join(dir, CACHE_FILE), 'utf8'));
+      const cached = JSON.parse(fs.readFile(join(dir, CACHE_FILE), 'utf8'));
       if (now - cached.at >= 0 && now - cached.at < maxAgeMs && Array.isArray(cached.stores)) measured = cached.stores;
     } catch { /* no usable cache: measure */ }
   }
   if (!measured) {
     const sums = new Map();
     let names = [];
-    try { names = readdirSync(dir); } catch { /* no store yet */ }
+    try { names = fs.list(dir); } catch { /* no store yet */ }
     for (const name of names) sums.set(storeOf(name), (sums.get(storeOf(name)) ?? 0) + bytesUnder(join(dir, name)));
     measured = [...sums].map(([name, bytes]) => ({ name, bytes }));
-    try { writeFileSync(join(dir, CACHE_FILE), JSON.stringify({ at: now, stores: measured })); } catch { /* read-only: skip the cache */ }
+    try { fs.writeFile(join(dir, CACHE_FILE), JSON.stringify({ at: now, stores: measured })); } catch { /* read-only: skip the cache */ }
   }
   return summarized(dir, measured, policy);
 }
@@ -141,12 +134,12 @@ const MEASURE_LOCK_MS = 60 * 60_000;
 export function startDiskMeasure(dir, { now = Date.now(), launch = startDetachedCheck } = {}) {
   const lock = join(dir, MEASURE_LOCK);
   try {
-    if (now - statSync(lock).mtimeMs < MEASURE_LOCK_MS) return false;
-    rmSync(lock, { force: true });
+    if (now - fs.stat(lock).mtimeMs < MEASURE_LOCK_MS) return false;
+    fs.rm(lock, { force: true });
   } catch { /* No measurement is running. */ }
-  try { closeSync(openSync(lock, 'wx')); } catch { return false; }
+  try { fs.close(fs.open(lock, 'wx')); } catch { return false; }
   if (launch(fileURLToPath(new URL('./use/worker.js', import.meta.url)), { args: [dir] }) === null) {
-    rmSync(lock, { force: true });
+    fs.rm(lock, { force: true });
     return false;
   }
   return true;
@@ -162,7 +155,7 @@ export function cachedDiskUse(dir, { now = Date.now(), maxAgeMs = 10 * 60_000, s
   const policy = diskPolicy(dir);
   let cached = null;
   try {
-    const read = JSON.parse(readFileSync(join(dir, CACHE_FILE), 'utf8'));
+    const read = JSON.parse(fs.readFile(join(dir, CACHE_FILE), 'utf8'));
     if (Number.isFinite(read.at) && Array.isArray(read.stores)) cached = read;
   } catch { /* Never measured, or unreadable: measure. */ }
   if (!cached || now - cached.at < 0 || now - cached.at >= maxAgeMs) start(dir, { now });
@@ -192,11 +185,11 @@ function referencedWords(dir) {
   const words = new Set();
   const take = (path) => {
     let stat;
-    try { stat = lstatSync(path); } catch { return; }
-    if (stat.isDirectory()) { let names = []; try { names = readdirSync(path); } catch { return; } for (const name of names) take(join(path, name)); return; }
+    try { stat = fs.lstat(path); } catch { return; }
+    if (stat.isDirectory()) { let names = []; try { names = fs.list(path); } catch { return; } for (const name of names) take(join(path, name)); return; }
     if (stat.size > 64 * 1024 * 1024) return;
     let text;
-    try { text = readFileSync(path, 'utf8'); } catch { return; }
+    try { text = fs.readFile(path, 'utf8'); } catch { return; }
     for (const word of text.match(/[A-Za-z0-9._-]{6,}/gu) ?? []) words.add(word);
   };
   for (const name of DISK_STORES.receipts) take(join(dir, name));
@@ -216,7 +209,7 @@ export function pruneDisk(dir, { now = Date.now(), dryRun = false } = {}) {
   for (const store of AGING_STORES) {
     const folder = join(dir, DISK_STORES[store][0]);
     let names = [];
-    try { names = readdirSync(folder); } catch { continue; }
+    try { names = fs.list(folder); } catch { continue; }
     const entries = names.map(name => {
       const path = join(folder, name);
       return { name, path, mtimeMs: newestMtime(path), bytes: bytesUnder(path), held: referenced.has(name) || referenced.has(name.replace(/\.[^.]+$/u, '')) };
@@ -231,20 +224,20 @@ export function pruneDisk(dir, { now = Date.now(), dryRun = false } = {}) {
       if (entry.held) { kept.push({ store, entry: entry.name, bytes: entry.bytes, reason: 'a receipt or record still references it' }); continue; }
       const reason = old ? `older than ${rule.maxAgeDays} days (${ageDays} days old)` : `store over its ${sizeText(rule.maxBytes)} limit`;
       if (!dryRun) {
-        try { rmSync(entry.path, { recursive: true, force: true }); } catch (error) {
+        try { fs.rm(entry.path, { recursive: true, force: true }); } catch (error) {
           // A runner wrote into the folder as it was removed (9 Nov: test-actions/lists): keep it, free nothing, go on.
           if (!REMOVAL_RACES.has(error?.code)) throw error;
           kept.push({ store, entry: entry.name, bytes: entry.bytes, reason: 'written to during removal; try again later' });
           continue;
         }
-        mkdirSync(dir, { recursive: true });
-        appendFileSync(join(dir, LOG_FILE), JSON.stringify({ at: new Date(now).toISOString(), store, entry: entry.name, bytes: entry.bytes, reason }) + '\n');
+        fs.mkdir(dir, { recursive: true });
+        fs.appendFile(join(dir, LOG_FILE), JSON.stringify({ at: new Date(now).toISOString(), store, entry: entry.name, bytes: entry.bytes, reason }) + '\n');
       }
       removed.push({ store, entry: entry.name, bytes: entry.bytes, reason });
       size -= entry.bytes;
     }
   }
-  if (!dryRun && removed.length) rmSync(join(dir, CACHE_FILE), { force: true });
+  if (!dryRun && removed.length) fs.rm(join(dir, CACHE_FILE), { force: true });
   return { removed, kept, freedBytes: removed.reduce((sum, row) => sum + row.bytes, 0), dryRun };
 }
 

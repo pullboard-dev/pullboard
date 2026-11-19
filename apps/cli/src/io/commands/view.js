@@ -40,9 +40,7 @@ import {
 import {
   spawn,
 } from 'node:child_process';
-import {
-  existsSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   join,
   resolve,
@@ -57,6 +55,8 @@ import {
   recordViewReuse,
   withBoard,
 } from '../entry.js';
+
+const fs = fileSystemAdapter();
 
 /** Serve the local page with the CLI authority supplied by its higher-level caller [N26]. */
 export function serveView(options = {}) {
@@ -114,7 +114,7 @@ export async function viewHere(io, values) {
       if (matches.length !== 1) throw new Refused('PROJECT_NOT_REGISTERED', 'run pullboard view --project inside a registered project repository or linked worktree, or use plain pullboard view for every project');
       projectRoot = matches[0].root;
       scopeCommonDir = info.commonDir;
-    } else if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) {
+    } else if (info.isMain && fs.exists(join(info.root, CONFIG_FILE))) {
       await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, undefined, projectLinkPorts(io));
     }
   } catch (error) {
@@ -129,7 +129,7 @@ export async function viewHere(io, values) {
   if (!internalForeground) {
     const existing = !lan && port ? await runningView(port, scopeCommonDir) : null;
     if (existing) {
-      if (info && existsSync(join(info.root, CONFIG_FILE))) {
+      if (info && fs.exists(join(info.root, CONFIG_FILE))) {
         const ctx = context(io);
         withBoard(ctx, board => recordViewReuse(ctx, board, existing));
       }
@@ -162,7 +162,7 @@ export async function viewHere(io, values) {
     let info;
     try { info = repoInfo(io.cwd); }
     catch (error) { if (!(error instanceof Refused)) throw error; }
-    if (info && existsSync(join(info.root, CONFIG_FILE))) {
+    if (info && fs.exists(join(info.root, CONFIG_FILE))) {
       const ctx = context(io);
       withBoard(ctx, board => recordViewBind(ctx, board, boundAt));
     }
