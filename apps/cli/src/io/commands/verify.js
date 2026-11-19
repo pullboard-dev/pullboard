@@ -9,6 +9,7 @@ import { queueAccept } from '../test/accept.js';
 import { queuesAccept } from '../test/accept.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { committedTestOutcomes } from '../../../../../packages/gate/index.js';
@@ -274,6 +275,20 @@ function sameVerdictNote(recorded, given) {
   return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
 }
 
+/** The git cell's review-folder reader, loaded at the first verify that runs a check [C7,#1112]. */
+const requireModule = createRequire(import.meta.url);
+/**
+ * Refuse a folder whose dependencies link outside it, before a check runs there [C7,#1112].
+ * Why: a symlinked dependency makes the check read code that is not the commit under review.
+ *
+ * @param {string} folder - The folder the frozen check runs in.
+ * @returns {void}
+ */
+export function refuseLinkedDependencies(folder) {
+  const linked = requireModule('../../../../../packages/git/src/io/review-folder-deps.js').linkedDependencies(folder);
+  if (linked.length) throw new Refused('DEPS_OUTSIDE_TREE', `node_modules links outside the review folder: ${linked.join(', ')}; reinstall them inside it (npm ci) and verify again`);
+}
+
 /**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
@@ -450,6 +465,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
+          refuseLinkedDependencies(root);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
             commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
             onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
@@ -473,6 +489,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           }
         } else {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
+          refuseLinkedDependencies(root);
           check = checkAtCommit(root, checkedItem);
         }
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
