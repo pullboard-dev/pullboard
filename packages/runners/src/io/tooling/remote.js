@@ -19,16 +19,28 @@ import { saveTrustedCapture } from './saved.js';
 import { currentRunnerTooling } from './snapshot.js';
 import { claimRunnerLaunch } from '../transport.js';
 import { recoveryIdentity } from '../../../../resources/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const TOOL_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+
+const fs = fileSystemAdapter();
+
+/**
+ * The imports of the installer script that runs on the runner, one per name, in the order the installer text always had.
+ * Why: the installer is a separate process that cannot reach the adapter, so it imports the bare modules itself; its text
+ * is built from this table, so it is not a node:fs import of this file. `fs` there is the one call readCapsuleFromStdin makes.
+ */
+const INSTALLER_IMPORTS = [
+  ['node:fs', ['chmodSync', 'mkdirSync', 'mkdtempSync', 'writeFileSync', 'readFileSync', 'readSync', 'readdirSync', 'renameSync', 'rmSync', 'statSync']],
+  ['node:path', ['dirname', 'isAbsolute', 'join']],
+  ['node:crypto', ['createHash']],
+  ['node:zlib', ['gunzipSync']],
+].flatMap(([module, names]) => names.map(name => `import { ${name} } from '${module}';`)).join('\n');
 
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
@@ -149,7 +161,7 @@ export function trustedTooling() {
  * Why: each landing moves main, and a commit-keyed capture rebuilt the unchanged worker closure on every trip.
  */
 function bundledTooling(id) {
-  const gitRoot = existsSync(join(TOOL_ROOT, '.git')) ? TOOL_ROOT : archivedToolingSource(TOOL_ROOT)?.root;
+  const gitRoot = fs.exists(join(TOOL_ROOT, '.git')) ? TOOL_ROOT : archivedToolingSource(TOOL_ROOT)?.root;
   const found = gitRoot && loadToolingBundle(TOOL_ROOT, id, gitRoot, committedToolingMatches);
   return found ? { ...found, installation: id, bundled: true } : null;
 }
@@ -166,13 +178,13 @@ function captureTrustedTooling() {
       throw new Refused('RUNNER_TOOLING_SECRET', 'the selected runner tooling failed its transfer scan; restore a trusted Pullboard installation');
     }
   }
-  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFile(join(root, 'package.json')));
   if (manifest.name !== 'pullboard' || typeof manifest.version !== 'string') {
     throw new Refused('RUNNER_TOOLING_IDENTITY', 'runner tooling must come from a named Pullboard installation; reinstall Pullboard');
   }
   let provenance = { kind: 'installed-package', name: manifest.name, version: manifest.version };
   const archived = archivedToolingSource(root);
-  if (archived || existsSync(join(root, '.git'))) {
+  if (archived || fs.exists(join(root, '.git'))) {
     const selected = archived ?? runnerSource(root);
     if (!selected || !committedToolingMatches(archived?.root ?? root, selected.commit, files)) {
       throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling differs from its selected committed revision; restore or commit the tooling before remote execution');
@@ -197,7 +209,7 @@ export function readCapsuleFromStdin() {
   const pause = new Int32Array(new SharedArrayBuffer(4));
   const read = (buffer, offset, length) => {
     for (;;) {
-      try { return readSync(0, buffer, offset, length, null); }
+      try { return fs.read(0, buffer, offset, length, null); }
       catch (error) { if (error.code !== 'EAGAIN') throw error; Atomics.wait(pause, 0, 0, 5); }
     }
   };
@@ -235,21 +247,8 @@ export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '',
   // A runner that holds this runtime by digest gets an empty capsule and re-hashes its installed copy.
   const payload = reuse ? REUSE_CAPSULE : full;
   if (Buffer.byteLength(payload) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
-  const installer = `import { chmodSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { isAbsolute } from 'node:path';
-import { join } from 'node:path';
-import { createHash } from 'node:crypto';
-import { gunzipSync } from 'node:zlib';
+  const installer = `${INSTALLER_IMPORTS}
+const fs = { read: readSync };
 ${installRunnerPackage.toString()}
 ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
