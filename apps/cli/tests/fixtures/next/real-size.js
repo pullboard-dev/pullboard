@@ -34,6 +34,8 @@ export function seedRealSize(box) {
       // The board files an item open and only moveItem changes its status, so review work is open items in the review lane.
       ids.push(Number(item.run('review', `Real review ${n}`, routes[n % routes.length], at, at).lastInsertRowid));
     }
+    // The fixture's own setup left a few events; clearing them makes the board hold exactly REAL_SIZE.events, numbered from 0.
+    db.exec('DELETE FROM event');
     // The items were inserted back to back, so their ids run from ids[0] without a gap.
     events.run(REAL_SIZE.events, at, REAL_SIZE.agents, ids[0], ids.length);
     // A real board's writers fold each event into its derived counters as they record it; raw inserts skip that, so the
