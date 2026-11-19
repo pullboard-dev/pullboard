@@ -203,6 +203,11 @@ export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
 }
 
+/** Whether the static check refuses new direct signing outside the signing adapter: off by default; only an exact `true` turns it on [C7,#1428]. */
+export function adapterLintSigningEnabled() {
+  return loadMachineSettings().gate?.adapterLintSigning === true;
+}
+
 /** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
 export function jsdocCheckEnabled() {
   return loadMachineSettings().gate?.jsdocCheck === true;

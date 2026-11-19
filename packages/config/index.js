@@ -97,6 +97,7 @@ export {
   adapterLintClockEnabled,
   jsdocCheckEnabled,
   adapterLintEnvEnabled,
+  adapterLintSigningEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
