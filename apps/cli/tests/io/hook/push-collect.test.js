@@ -7,7 +7,7 @@ import { combinedReceipt } from '../../../../../packages/api/index.js';
 import { failingParts } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { postReceipt } from '../../../../../packages/api/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitPushShards } from '../../../src/io/hook/push.js';
 import { shardProblem } from '../../../src/io/hook/push.js';
 
