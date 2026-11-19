@@ -2,7 +2,8 @@
 import { spawnSsh } from '../../../../transport/index.js';
 import { shellWord } from '../tooling/remote.js';
 import { sshEnvironment } from '../tooling/remote.js';
-import { createReadStream } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Budget: a burst that has not ended in this long is a hung transport, never a slow job. */
 const BURST_MS = 120_000;
@@ -59,7 +60,7 @@ export function sshBurst(job, script, { input, inputFile, onStdout, signal } = {
       finished = true; clearTimeout(timer); signal?.removeEventListener('abort', abort);
       resolve({ status, signal: killed, stdout: Buffer.concat(out), stderr: Buffer.concat(err).toString('utf8').slice(-8192), ...(error ? { error } : {}) });
     });
-    if (inputFile) createReadStream(inputFile).on('error', failure => stop(failure)).pipe(child.stdin);
+    if (inputFile) fileSystem.createReadStream(inputFile).on('error', failure => stop(failure)).pipe(child.stdin);
     else child.stdin.end(input);
   });
 }
