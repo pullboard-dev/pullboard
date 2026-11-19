@@ -1,6 +1,7 @@
 /** A worker whose pull-mode job folder was removed ends itself, so its holds free for the line behind it [C7,#5593]. */
-import { existsSync } from 'node:fs';
-import { watch } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Watch the job folder the runner agent gave this worker (PULLBOARD_QUEUE_JOB). When it disappears nobody can read the
@@ -18,7 +19,7 @@ export function watchJobFolder(S, { folder = process.env.PULLBOARD_QUEUE_JOB, gr
   const stop = () => { watcher?.close(); watcher = null; };
   const finish = () => { stop(); clearTimeout(deadline); };
   const gone = () => {
-    if (existsSync(folder) || deadline) return;
+    if (fs.exists(folder) || deadline) return;
     stop();
     process.stderr.write(`PULLBOARD_RUNNER_ORPHAN ${S.workerId} job folder removed\n`);
     S.transportDrop();
@@ -27,7 +28,7 @@ export function watchJobFolder(S, { folder = process.env.PULLBOARD_QUEUE_JOB, gr
   };
   try {
     if (folder) {
-      watcher = watch(folder, { persistent: false }, gone);
+      watcher = fs.watch(folder, { persistent: false }, gone);
       watcher.on('error', gone);
     }
   } catch { gone(); }

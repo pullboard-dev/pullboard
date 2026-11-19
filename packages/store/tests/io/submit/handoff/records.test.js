@@ -1,4 +1,4 @@
-/** A claimed item's sharded gate that settled unknown (main receipt missing) stays unsettled until the hold ends; red and review are settled [#11711,C7]. The hold counts from the shard offer, not the gate's creation [#11921]. */
+/** A claimed item's sharded gate that settled unknown (main receipt missing) stays unsettled until a later settle replaces it; red and review are settled [#11711,C7]. The hold counts from the shard offer, not the gate's creation [#11921]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../../fixtures/dispatch.js';
@@ -36,11 +36,21 @@ test('store.submit-handoff-records.unknown-gate-holds-claim: clause 1: an unknow
   }
 });
 
-test('store.submit-handoff-records.unknown-gate-hold-ends: clause 2: the same unknown gate older than the hold is settled [C7,#11711]', t => {
+test('store.submit-handoff-records.unknown-on-main-receipt-awaits: clause 1: a claimed item whose gate is unknown on a missing main receipt is awaiting, however long ago it offered [C7,#11924]', t => {
   const f = settledGate(t);
   f.settle('unknown');
   f.box.advance(GATE_SETTLE_HOLD_MS + 1);
+  assert.equal(gateShardsUnsettled(f.box.board, f.item), true, 'past the fallback bound, an unknown gate still holds');
+  assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.item.item_id)), true, 'so next does not hand its lapsed claim to a fresh seat');
+});
+
+test('store.submit-handoff-records.unknown-settles-red: clause 2: once the receipt records and the gate settles red, the item is no longer awaiting [C7,#11924]', t => {
+  const f = settledGate(t);
+  f.settle('unknown');
+  f.box.advance(GATE_SETTLE_HOLD_MS + 1);
+  f.box.board.db.prepare("UPDATE job_step SET job_step_payload = ? WHERE job_step_name = 'note:shards.settled'").run(JSON.stringify({ outcome: 'red' }));
   assert.equal(gateShardsUnsettled(f.box.board, f.item), false);
+  assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.item.item_id)), false, 'a settled red returns the claim as rework');
 });
 
 /** A claimed item whose gate job was created 3 h ago, queued, and passed its checks 1 h ago, offering two shards that are still open. */
@@ -66,14 +76,31 @@ function lateGate(t) {
   return { box, item: { item_id: id }, id, settle };
 }
 
-test('store.submit-handoff-records.hold-counts-from-shard-offer: clause 1: a gate created 3 h ago that offered its open shards 1 h ago is unsettled, and 2 h after the offer it is settled [C7,#11921]', t => {
+test('store.submit-handoff-records.hold-counts-from-shard-offer: clause 1: a gate created 3 h ago that offered its open shards 1 h ago is unsettled and awaiting its gate [C7,#11921]', t => {
   const f = lateGate(t);
   assert.equal(gateShardsUnsettled(f.box.board, f.item), true, 'the hold counts from the shard offer, not the gate creation 3 h ago');
   assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.id)), true, 'so the claim is the gate\'s wait, not buildable work');
-  f.box.advance(GATE_SETTLE_HOLD_MS - 3_600_000 - 1);
-  assert.equal(gateShardsUnsettled(f.box.board, f.item), true, 'just inside 2 h after the offer it still holds');
-  f.box.advance(1);
-  assert.equal(gateShardsUnsettled(f.box.board, f.item), false, '2 h after the offer the hold ends');
+});
+
+test('store.submit-handoff-records.open-shard-holds: clause 1: a gate offered 3 h ago with one shard still offered is unsettled [C7,#11923]', t => {
+  const f = lateGate(t);
+  f.box.advance(2 * 3_600_000);
+  const db = f.box.board.db;
+  db.prepare("UPDATE job SET job_step = 'done' WHERE job_kind = 'gate-shard' AND job_item = ? AND job_step = 'claimed'").run(f.id);
+  assert.equal(db.prepare("SELECT job_step FROM job WHERE job_kind = 'gate-shard' AND job_item = ? AND job_step = 'offered'").all(f.id).length, 1, 'one shard is still offered');
+  assert.equal(gateShardsUnsettled(f.box.board, f.item), true, 'offered 3 h ago, past the 2 h fallback, an offered shard still holds');
+  assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.id)), true);
+});
+
+test('store.submit-handoff-records.no-open-shard-settles: clause 2: a gate offered 3 h ago with no open shard job is settled [C7,#11923]', t => {
+  const f = lateGate(t);
+  f.box.advance(2 * 3_600_000);
+  f.box.board.db.prepare("UPDATE job SET job_step = 'done' WHERE job_kind = 'gate-shard' AND job_item = ?").run(f.id);
+  assert.equal(gateShardsUnsettled(f.box.board, f.item), false, 'all shards done and 3 h past the offer: the fallback bound ends the hold');
+  const bare = settledGate(t);
+  bare.box.advance(3 * 3_600_000);
+  bare.box.board.db.prepare("DELETE FROM job WHERE job_kind = 'gate-shard'").run();
+  assert.equal(gateShardsUnsettled(bare.box.board, bare.item), false, 'a gate whose shards are gone is settled');
 });
 
 test('store.submit-handoff-records.late-gate-red-settles: clause 2: that late gate, once it notes shards.settled red, is settled and no longer holds the claim [C7,#11921]', t => {
