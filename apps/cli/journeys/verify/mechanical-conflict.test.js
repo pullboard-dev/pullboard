@@ -1,3 +1,5 @@
+/** @pullboard-test-input apps/cli/src/io/commands/show.js apps/cli/src/io/commands/list.js */
+/** @pullboard-world-pin: the wiring clause reads the show and list sources, whose call into the merge index is the subject of that clause. */
 /** pullboard show and list read an accepted item fresh when its only conflict with main is one the mechanical merge resolves [C7,#3064,#11417]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,5 +69,13 @@ test('cli.journeys-verify-mechanical-conflict.stale: clause 2: a real source con
   for (const state of [shown, listed]) {
     assert.equal(state?.code, 'STALE_VERDICT');
     assert.equal(state.file, texts.file);
+  }
+});
+
+test('cli.journeys-verify-mechanical-conflict.wiring: clause 3: show and list pass mechanicalConflictFiles from the merge index as residualConflicts to verdictProjector [C7,#3064,#11417]', () => {
+  for (const command of ['show', 'list']) {
+    const source = readFileSync(join(import.meta.dirname, `../../src/io/commands/${command}.js`), 'utf8');
+    assert.match(source, /import\('\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/merge\/index\.js'\)\)\.mechanicalConflictFiles/u, `${command} reads the port from the merge index`);
+    assert.match(source, /verdictProjector\([^\n]*residualConflicts/u, `${command} hands it to verdictProjector`);
   }
 });
