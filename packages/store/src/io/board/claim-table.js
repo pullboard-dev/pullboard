@@ -42,10 +42,10 @@ function itemView(board, row) {
  *
  * @param {object} board
  * @param {number} id
- * @param {object} call - The claim options and the writer's plan, `{ options, plan }`.
+ * @param {object} call - The claim options and the writer's plan, `{ options, plan, takeoverReady }`; takeoverReady is the seats cell's line takeover reader, passed in by the writer.
  * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[] }}
  */
-export function claimDecision(board, id, { options, plan }) {
+export function claimDecision(board, id, { options, plan, takeoverReady }) {
   const { db } = board;
   const { agentId, head = null, reviewSkipped = null, buildBudgetMinutes = 30, gateWaits = null } = options;
   const row = itemById(board, id);
@@ -73,6 +73,7 @@ export function claimDecision(board, id, { options, plan }) {
   const snapshot = { now, actor: { id: agentId, lane, route: seat?.agent_route ?? null, joined: Boolean(seat) }, item: itemView(board, row), items: deps,
     claimWaiting: waits, laneHold: hold ? { by: hold.hold_by, reason: hold.hold_reason } : null, actorClaims, history, usedExitKeys: [],
     io: { checkoutOwner: null, coordinatorPaths: [], provesNothing: null, reworkWindows: null, exitCeiling: null, ledgerWritable: true, sessionCap: null, foreignBlocker: null,
+      takeoverReady: takeoverReady(board, id) === true,
       builderGone: Boolean(window && !window.otherSeatFirst && window.builder !== agentId && seatGone(board, window.builder)), buildBudgetMinutes,
       policyRefresh: plan.refreshes ? (refresh ? { before: refresh.before, after: refresh.after, changed: refresh.changed } : { unnamed: true }) : null,
       seatCap: seatN === null ? null : { n: seatN, how: 'sealed into the claim' },
