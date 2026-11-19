@@ -1,0 +1,28 @@
+{
+  "cli.logic-step-words.submit-path-steps-named": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextStepFor returns the step a submit-path refusal message spells out (push, fetch, claim, start, submit again) instead of the service-owner fallback."
+    },
+    "why": "Without it those refusals tell the person to ask the service owner while the message already names the step.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/step/words.js"
+    ]
+  },
+  "cli.logic-step-words.existing-steps-unchanged": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a clause starting with an existing repair word is still taken as the step, and a message with no step still falls to its NEXT_STEPS row."
+    },
+    "why": "Without it widening the step verbs could silently change refusals that already worked.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/step/words.js"
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 /** With runs_store on, the serve applies each posted receipt right after it arrives and leaves none unapplied; off, nothing changes [B2,P7,#9546]. @pullboard-test-input source-cell packages/api packages/store packages/jobs */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
