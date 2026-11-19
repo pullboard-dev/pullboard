@@ -28,6 +28,7 @@ import { rmSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { scratchFolder } from '../../../config/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /**
  * Name the runtime by digest and file names; its bytes already travel gzipped in the stdin capsule.
@@ -124,7 +125,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
     // A pinned main comparison never reuses or exports results, as it did from its throwaway clone's empty store.
     // A pinned record-only comparison (census, compare-main) is the exception: it exports its greens, never imports any.
-    const reuse = process.env.PULLBOARD_TEST_REUSE !== '0' && (source?.pinned !== true || command.startsWith('PULLBOARD_TEST_REUSE=record '));
+    const reuse = environmentAdapter().get('PULLBOARD_TEST_REUSE') !== '0' && (source?.pinned !== true || command.startsWith('PULLBOARD_TEST_REUSE=record '));
     // Loaded on demand: read commands that import this module never pay for the key analyzer.
     const exchange = reuse ? await (await import('../../../gate/index.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();
