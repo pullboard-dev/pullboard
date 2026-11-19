@@ -204,6 +204,9 @@ export function loadMachineSettings() {
   for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.localWake', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase', 'runners.reportCommit', 'runners.selfUpdate', 'join.coordinatorSeat']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
   }
+  if (value['runners.coresPerShard'] !== undefined && !(Number.isSafeInteger(value['runners.coresPerShard']) && value['runners.coresPerShard'] >= 1 && value['runners.coresPerShard'] <= 5)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.coresPerShard in ${file} must be a whole number from 1 through 5`);
+  }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.settleOnMainReceipt in ${file} must be true or false`);
   }
@@ -333,6 +336,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.sampleDiskIo !== undefined && typeof value.gate.sampleDiskIo !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleDiskIo in ${file} must be true or false`);
+  }
+  if (value.gate?.jsdocCheck !== undefined && typeof value.gate.jsdocCheck !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.jsdocCheck in ${file} must be true or false`);
   }
   if (value.gate?.sampleSwap !== undefined && typeof value.gate.sampleSwap !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleSwap in ${file} must be true or false`);
