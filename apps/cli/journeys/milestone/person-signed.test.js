@@ -6,7 +6,7 @@ import { editMilestone } from '../../../../packages/store/index.js';
 import { editMilestoneItems } from '../../../../packages/store/index.js';
 import { MILESTONE_PERSON_LIMIT_ENGINE } from '../../../../packages/state/index.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
 
 const SETUP = 'fixture release setup';
