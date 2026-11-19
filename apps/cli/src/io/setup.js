@@ -1,11 +1,6 @@
 /** Helpers for `pullboard init` setup: receipts and the board setup state. Split from src/cli.js, which re-exports it [C7]. */
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
@@ -20,6 +15,15 @@ import { requirementStep } from '../../../../packages/spec/index.js';
 import { setupDecisionRows } from '../../../../packages/spec/index.js';
 import { loadSpec } from '../../../../packages/spec/index.js';
 
+/** Write a file this user alone can read: it is created with mode 0600, as writeFileSync with that mode did. */
+function writePrivate(file, data) {
+  const bytes = Buffer.from(data);
+  const fd = fileSystemAdapter().open(file, 'w', 0o600);
+  try {
+    for (let at = 0; at < bytes.length;) at += fileSystemAdapter().write(fd, bytes, at);
+  } finally { fileSystemAdapter().close(fd); }
+}
+
 /** Identify setup from this board's coordinator enrollment, independently of agent flags. */
 export function setupIdentity(board) {
   return { boardId: store.boardId(board),
@@ -29,7 +33,7 @@ export function setupIdentity(board) {
 /** Read only the view's typed successful-bind receipt for this board and setup. */
 function viewBindComplete(ctx, board) {
   let receipt;
-  try { receipt = JSON.parse(readFileSync(join(ctx.info.commonDir, 'pullboard', 'view-bind.json'), 'utf8')); }
+  try { receipt = JSON.parse(fileSystemAdapter().readFile(join(ctx.info.commonDir, 'pullboard', 'view-bind.json'))); }
   catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
   const identity = setupIdentity(board);
   return receipt?.type === 'pullboard.view.bound' && receipt.version === 1
@@ -42,7 +46,7 @@ function viewBindComplete(ctx, board) {
 export function viewSetupComplete(ctx, board) {
   if (viewBindComplete(ctx, board)) return true;
   let receipt;
-  try { receipt = JSON.parse(readFileSync(join(ctx.info.commonDir, 'pullboard', 'view-reuse.json'), 'utf8')); }
+  try { receipt = JSON.parse(fileSystemAdapter().readFile(join(ctx.info.commonDir, 'pullboard', 'view-reuse.json'))); }
   catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
   const identity = setupIdentity(board);
   return receipt?.type === 'pullboard.view.reused' && receipt.version === 1
@@ -56,9 +60,9 @@ export function recordViewBind(ctx, board, boundAt) {
   const file = join(ctx.info.commonDir, 'pullboard', 'view-bind.json');
   const temporary = file + '.' + randomUUID() + '.tmp';
   const receipt = { type: 'pullboard.view.bound', version: 1, ...setupIdentity(board), boundAt };
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(temporary, JSON.stringify(receipt) + '\n', { mode: 0o600 });
-  renameSync(temporary, file);
+  fileSystemAdapter().mkdir(dirname(file), { recursive: true });
+  writePrivate(temporary, JSON.stringify(receipt) + '\n');
+  fileSystemAdapter().rename(temporary, file);
 }
 
 /** Record this board's authenticated reuse without claiming that its existing listener bound again. */
@@ -67,15 +71,15 @@ export function recordViewReuse(ctx, board, view) {
   const temporary = file + '.' + randomUUID() + '.tmp';
   const receipt = { type: 'pullboard.view.reused', version: 1, ...setupIdentity(board),
     openedAt: new Date().toISOString(), boundAt: view.boundAt, port: view.port, pid: view.pid };
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(temporary, JSON.stringify(receipt) + '\n', { mode: 0o600 });
-  renameSync(temporary, file);
+  fileSystemAdapter().mkdir(dirname(file), { recursive: true });
+  writePrivate(temporary, JSON.stringify(receipt) + '\n');
+  fileSystemAdapter().rename(temporary, file);
 }
 
 /** Read a typed setup receipt only for this board's current coordinator enrollment. */
 function setupReceiptMatches(ctx, identity, state) {
   let receipt;
-  try { receipt = JSON.parse(readFileSync(join(ctx.info.commonDir, 'pullboard', `setup-${state}.json`), 'utf8')); }
+  try { receipt = JSON.parse(fileSystemAdapter().readFile(join(ctx.info.commonDir, 'pullboard', `setup-${state}.json`))); }
   catch (error) { if (error.code === 'ENOENT' || error instanceof SyntaxError) return false; throw error; }
   return receipt?.type === `pullboard.setup.${state === 'complete' ? 'completed' : state}` && receipt.version === 1
     && receipt.boardId === identity.boardId && receipt.setupStartedAt === identity.setupStartedAt;
@@ -85,9 +89,9 @@ function setupReceiptMatches(ctx, identity, state) {
 export function recordSetupState(ctx, identity, state) {
   const file = join(ctx.info.commonDir, 'pullboard', `setup-${state}.json`);
   const temporary = file + '.' + randomUUID() + '.tmp';
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(temporary, JSON.stringify({ type: `pullboard.setup.${state === 'complete' ? 'completed' : state}`, version: 1, ...identity }) + '\n', { mode: 0o600 });
-  renameSync(temporary, file);
+  fileSystemAdapter().mkdir(dirname(file), { recursive: true });
+  writePrivate(temporary, JSON.stringify({ type: `pullboard.setup.${state === 'complete' ? 'completed' : state}`, version: 1, ...identity }) + '\n');
+  fileSystemAdapter().rename(temporary, file);
 }
 
 /** Derive setup from real inputs; a caller may share its already-read current decision snapshot. */
@@ -101,13 +105,13 @@ export function boardSetup(ctx, card, identity, { decisions: capturedDecisions }
   const recordedComplete = setupReceiptMatches(ctx, identity, 'complete');
   const started = setupReceiptMatches(ctx, identity, 'started');
   const lanes = laneNames(ctx.config).filter(lane => !['review', COORDINATOR].includes(lane));
-  const folders = readdirSync(ctx.info.root, { withFileTypes: true })
+  const folders = fileSystemAdapter().list(ctx.info.root, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules')
     .map(entry => entry.name).sort();
   const lane = lanes[0] ?? folders[0] ?? 'app';
   // Older installations had no setup marker. Preserve their completed five-step state on upgrade.
-  const legacyUnmarked = !existsSync(join(ctx.info.commonDir, 'pullboard', 'setup-started.json'))
-    && !existsSync(join(ctx.info.commonDir, 'pullboard', 'setup-complete.json'));
+  const legacyUnmarked = !fileSystemAdapter().exists(join(ctx.info.commonDir, 'pullboard', 'setup-started.json'))
+    && !fileSystemAdapter().exists(join(ctx.info.commonDir, 'pullboard', 'setup-complete.json'));
   const legacyComplete = legacyUnmarked && approved.length > 0 && lanes.length > 0
     && Boolean(ctx.config.gate?.trim()) && card.all.length > 0 && card.viewOpened;
   const completed = recordedComplete || legacyComplete;
