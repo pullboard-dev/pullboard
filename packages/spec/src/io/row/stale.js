@@ -1,10 +1,11 @@
 /** Live exact-row identity shared by approval listings and health [S1,B26]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { doctrineFile } from '../../../../config/light.js';
 import { loadConfig } from '../../../../config/light.js';
 import { parseSpec } from '../main.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Read each current file once per projection; raw source stays private to this lookup. */
 export function rowDecisionContext(root, config = loadConfig(root)) {
@@ -13,7 +14,7 @@ export function rowDecisionContext(root, config = loadConfig(root)) {
     const file = kind === 'spec' ? config.spec : doctrineFile(root, config.practice);
     if (!files.has(file)) {
       const path = join(root, file);
-      const source = existsSync(path) ? readFileSync(path, 'utf8') : '';
+      const source = fs.exists(path) ? fs.readFile(path, 'utf8') : '';
       files.set(file, { rows: parseSpec(source).rows, lines: source.split(/\r?\n/u) });
     }
     const { rows, lines } = files.get(file);
