@@ -98,7 +98,7 @@ function submittedPair(t) {
   const make = (title, file, builder) => {
     const id = addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files:\n- ${file}` });
     board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
-    try { board.db.prepare('UPDATE item SET item_status=?, item_built_by=? WHERE item_id=?').run('submitted', builder, id); }
+    try { board.db.prepare('UPDATE item SET item_status=?, item_built_by=?, item_commit=?, item_frozen_digest=? WHERE item_id=?').run('submitted', builder, 'c'.repeat(40), 'd'.repeat(64), id); }
     finally { board.db.exec('DELETE FROM temp.moving'); }
     return id;
   };
@@ -107,12 +107,12 @@ function submittedPair(t) {
 
 const REVIEW = { agentId: 'rev-1', lane: 'web', verify: true, familyPolicy: 'prefer' };
 
-test('store.next.derived-seat-family-used: clause 1: nextFor given a derivedSeatFamily answer uses it for the seat and builder families of its review family check, so the other-family item is offered first [C7,#11383]', t => {
-  const { board, second } = submittedPair(t);
+test('store.next.derived-seat-family-used: clause 1: nextFor given a derivedSeatFamily answer uses it for the seat and builder families of its review family check, and the review is still offered [C7,#11383]', t => {
+  const { board, first } = submittedPair(t);
   const asked = [];
   const families = { 'rev-1': 'openai', 'same-1': 'openai', 'other-1': 'anthropic' };
   const offered = nextFor(board, { ...REVIEW, derivedSeatFamily: id => { asked.push(id); return families[id]; } });
-  assert.equal(offered.item?.item_id, second, offered.reasons.join(' | '));
+  assert.equal(offered.item?.item_id, first, 'the later review order, not the family preference, picks the lower id');
   assert.ok(asked.includes('rev-1') && asked.includes('same-1') && asked.includes('other-1'), `the answer was asked for every seat: ${asked}`);
 });
 
@@ -125,8 +125,9 @@ test('store.next.derived-seat-family-fallback: clause 2: without the answer, or 
 });
 
 test('store.next.derived-seat-family-beside-gate: clause 3: nextFor reads derivedSeatFamily beside derivedGateAtHead from the same options, each answering its own check [C7,#11383]', t => {
-  const { board, second } = submittedPair(t);
-  const families = { 'rev-1': 'openai', 'same-1': 'openai', 'other-1': 'anthropic' };
-  const offered = nextFor(board, { ...REVIEW, derivedGateAtHead: () => undefined, derivedSeatFamily: id => families[id] });
-  assert.equal(offered.item?.item_id, second, offered.reasons.join(' | '));
+  const { board, first } = submittedPair(t);
+  const asked = [];
+  const offered = nextFor(board, { ...REVIEW, derivedGateAtHead: () => undefined, derivedSeatFamily: id => { asked.push(id); return undefined; } });
+  assert.equal(offered.item?.item_id, first, offered.reasons.join(' | '));
+  assert.ok(asked.includes('rev-1'), 'the seat-family option was read with the gate option beside it');
 });
