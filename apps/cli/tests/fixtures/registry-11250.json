@@ -1,0 +1,3 @@
+{
+  "cli.journeys-spec-main.verify-accept-cites-the-fact-quote": {"proves":{"specs":["B2"],"claim":"With spec.requireFactQuote on, pullboard spec verify accepted on a source-backed row with a quote refuses FACT_QUOTE_UNCITED unless the reason contains the quote; with the setting off, or for a rejected verdict, the verification records as before."},"why":"Without it, a verifier could accept a fact without reading the words it rests on, and nothing would notice.","kind":"journey","inputs":["apps/cli/journeys/spec/main.test.js"]}
+}
