@@ -75,7 +75,8 @@ async function mergedHeadItem(t, laterEdit) {
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): complete fixture 1 [G1]');
   const ticked = box.git(box.web, 'rev-parse', 'HEAD');
   await ok(box.web, 'fact', '1', 'note', `clause 1 [reasoning]: read web/item-1.js at ${ticked}: it exports complete`);
-  writeFileSync(join(box.repo, 'main-moves.txt'), 'main moves\n');
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/main-moves.txt'), 'main moves\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: main moves');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
