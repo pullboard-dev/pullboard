@@ -54,6 +54,6 @@ test('cli.cases.the-three-e2e-files-hold-every-case: clause 1: the three e2e fil
     const found = FILES.map(name => declarations(name, quote, caseTitle));
     assert.equal(found.reduce((sum, count) => sum + count, 0), 1, `${caseTitle}: declared once across ${FILES.join(', ')}`);
   }
-  assert.equal(CASES.length, 12, 'the original e2e.test.js held thirteen cases; the skipped gate slot case was deleted on purpose');
+  assert.equal(CASES.length, 12, 'the original e2e.test.js held thirteen cases; #11202 deleted one, so twelve remain');
   assert.ok(FILES.every(name => CASES.some(([quote, caseTitle]) => declarations(name, quote, caseTitle) > 0)), 'every split file keeps at least one case');
 });
