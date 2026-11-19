@@ -1,0 +1,28 @@
+{
+  "cli.io-submit-handoff-compose-on-runner.on-and-off-record-the-same-gate": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On one fixture the gate record of a submit with submit.composeOnRunner on equals the record with it off."
+    },
+    "why": "Without it the runner-composed gate could record a different tree than a direct run and nobody would notice.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/handoff/compose-on-runner.test.js"
+    ]
+  },
+  "cli.io-submit-handoff-compose-on-runner.main-moved-after-the-claim-same-tree": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With main moved after the claim, both composeOnRunner modes compose the same tree."
+    },
+    "why": "Without it a moved main could make the two modes prove different trees.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/handoff/compose-on-runner.test.js"
+    ]
+  }
+}

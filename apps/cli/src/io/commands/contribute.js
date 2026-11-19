@@ -1,5 +1,5 @@
 /** The pullboard contribute command: check a contribution record file and print every parser failure with its rule, fix and skill command [C7]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { CONTRIBUTION_SHAPES } from '../../../../../packages/commits/index.js';
@@ -11,6 +11,8 @@ import { parseContributionRecord } from '../../../../../packages/commits/index.j
 import { githubPullClient as defaultClient } from './add.js';
 import { githubRepository as defaultRepository } from './add.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The most failures one check reports, so a hopeless file cannot loop forever. */
 const MAX_FAILURES = 50;
@@ -100,7 +102,7 @@ export function run(io, { first, second, rest, values }, { githubPullClient = de
     }
   } else {
     const path = isAbsolute(second) ? second : join(io.cwd, second);
-    try { text = readFileSync(path, 'utf8'); } catch { throw new Refused('NO_FILE', `cannot read ${second}`, 'pass the path of the record file'); }
+    try { text = fs.readFile(path, 'utf8'); } catch { throw new Refused('NO_FILE', `cannot read ${second}`, 'pass the path of the record file'); }
   }
   return check(io, text, label, given);
 }

@@ -12,12 +12,13 @@ import { CELLS_EDGES_CEILINGS } from '../../../src/io/edges.js';
 import { CELLS_EDGES_CEILINGS as SELECTION_CEILINGS } from '../../../src/io/test/tier/selection.js';
 import { CLOCK_CEILING_FILE } from '../../../src/io/adapter-lints/clock.js';
 import { FS_CEILING_FILE } from '../../../src/io/adapter-lints/fs.js';
+import { SSH_CEILING_FILE } from '../../../src/io/adapter-lints/ssh.js';
 import { LOAD_BEARING_CEILINGS } from '../../../src/logic/load/bearing.js';
 import { STORE_BASELINE } from '../../../src/io/stores.js';
 import { storeBaselineGrowth } from '../../../src/io/stores.js';
 
-test('gate.ceiling-rows.owned-tables: the moveable ceiling tables are the five per-file source tables, each named by its owning module [L3,C7]', () => {
-  assert.deepEqual(Object.keys(CEILING_ROW_TABLES).sort(), [LOAD_BEARING_CEILINGS, STORE_BASELINE, CLOCK_CEILING_FILE, FS_CEILING_FILE, CELLS_EDGES_CEILINGS].sort());
+test('gate.ceiling-rows.owned-tables: the moveable ceiling tables are the six per-file source tables, each named by its owning module [L3,C7]', () => {
+  assert.deepEqual(Object.keys(CEILING_ROW_TABLES).sort(), [LOAD_BEARING_CEILINGS, STORE_BASELINE, CLOCK_CEILING_FILE, FS_CEILING_FILE, SSH_CEILING_FILE, CELLS_EDGES_CEILINGS].sort());
   assert.deepEqual(CEILING_ROW_TABLES[CLOCK_CEILING_FILE], { files: true, bare: true });
   assert.deepEqual(CEILING_ROW_TABLES[CELLS_EDGES_CEILINGS], { files: true });
   assert.deepEqual(CEILING_ROW_TABLES[STORE_BASELINE], {});
