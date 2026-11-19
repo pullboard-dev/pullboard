@@ -5,19 +5,20 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pullWord } from './scripts.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Output kept from one script; a runner file larger than this is an error, never a silent cut. */
 export const PULL_OUTPUT_LIMIT = 64 * 1024 ** 2;
 
 /** Machine-wide status folder: the same home rule the rest of Pullboard uses, without loading its cells. */
-export function runnerStatusDir(env = process.env) {
+export function runnerStatusDir(env = environmentAdapter().all()) {
   if (env.PULLBOARD_MACHINE_HOME) return join(env.PULLBOARD_MACHINE_HOME, 'runner-status');
   if (env.PULLBOARD_ACCOUNT_HOME) return join(env.PULLBOARD_ACCOUNT_HOME, '.pullboard', 'runner-status');
   return join(homedir(), '.pullboard', 'runner-status');
 }
 
 /** Give ssh only what it needs to connect; no caller secret or repository selector is forwarded. */
-function sshEnv(env = process.env) {
+function sshEnv(env = environmentAdapter().all()) {
   const kept = {};
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR']) if (env[key] !== undefined) kept[key] = env[key];
   return { ...kept, LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
@@ -53,7 +54,7 @@ export function runnerSshArgs(runner, script, { dir = runnerStatusDir(), connect
  *   `stdin` is text, bytes, or `{ file }` streamed from disk; `timeoutMs` kills a stuck ssh; `spawnFn` stands in for node's spawn in a test.
  * @returns {Promise<{ status: number|null, signal: string|null, stdout: Buffer, stderr: string, error: string|null }>} The run; never rejects.
  */
-export function runRunnerScript(runner, script, { stdin = '', ssh = 'ssh', env = process.env, dir = runnerStatusDir(env), timeoutMs = 30_000, spawnFn = spawn } = {}) {
+export function runRunnerScript(runner, script, { stdin = '', ssh = 'ssh', env = environmentAdapter().all(), dir = runnerStatusDir(env), timeoutMs = 30_000, spawnFn = spawn } = {}) {
   return new Promise(resolve => {
     let child;
     try { child = spawnFn(ssh, runnerSshArgs(runner, script, { dir }), { env: sshEnv(env), stdio: ['pipe', 'pipe', 'pipe'] }); }
