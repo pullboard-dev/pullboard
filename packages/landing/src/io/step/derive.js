@@ -1,5 +1,5 @@
 /** A named landing's derived files built on a runner: the coordinator applies the returned patch and commits [C7,#5568]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
@@ -15,6 +15,8 @@ import { DERIVE_ENGINES } from '../derive.js';
 import { DERIVE_PATCH } from '../derive.js';
 import { DERIVE_TREE } from '../derive.js';
 import { DERIVE_RULES } from '../derive.js';
+
+const fs = fileSystemAdapter();
 
 /** The value after `prefix` on the first output line carrying it, or null. */
 function lineValue(output, prefix) {
@@ -87,5 +89,5 @@ export async function commitDerived(state, merged, hooks) {
 
 /** Whether this batch derives on a runner: a named batch whose tree carries the derive script and rides runner jobs for its scan. */
 export function deriveRidesRunner(state) {
-  return scanRidesRunner(state) && existsSync(join(state.batch.root, 'packages/landing/src/io/derive.js'));
+  return scanRidesRunner(state) && fs.exists(join(state.batch.root, 'packages/landing/src/io/derive.js'));
 }

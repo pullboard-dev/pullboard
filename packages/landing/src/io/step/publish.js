@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { requireLandingCompanions } from '../guards.js';
 import { timedPhase } from '../timing.js';
 import { requireLandingModuleResolution } from '../guards.js';
@@ -11,8 +12,6 @@ import { prepareNativeTrainLanding } from '../trainrecord.js';
 import { finishLanding } from '../finish.js';
 import { mergeOnlyLandingProblem } from '../../../../merge/index.js';
 import { requireOutsideOwner } from '../../../../items/index.js';
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import * as store from '../../../../store/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
@@ -44,6 +43,8 @@ import { hopFenceRefusal } from '../land/fence.js';
 import { hopFenceLeaseFrom } from '../land/fence.js';
 import { carryLandingHops } from '../land/fence.js';
 import { requireCarriedHops } from '../land/fence.js';
+
+const fs = fileSystemAdapter();
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -158,7 +159,7 @@ function parallelPublicationRoot(state, batch) {
   if (root === batch.root) return root;
   const owner = (batch.parallelCandidates ?? []).some(candidate => candidate.snapshot.root === root
     && (candidate.gate?.tree === batch.proof?.tree || candidate.snapshot.gateResults?.some(gate => gate.tree === batch.proof?.tree && gate.logPath === batch.proof?.logPath)));
-  if (!owner || !existsSync(root) || !sameCommonDir(realpathSync(repoInfo(root).commonDir), realpathSync(repoInfo(batch.root).commonDir))) {
+  if (!owner || !fs.exists(root) || !sameCommonDir(fs.realpath(repoInfo(root).commonDir), fs.realpath(repoInfo(batch.root).commonDir))) {
     throw new Refused('LAND_MOVED', 'the recorded gate-owning worktree is missing or belongs to another repository; restore it before adopting');
   }
   const tree = git(state.root, ['rev-parse', `${batch.tip}^{tree}`]);

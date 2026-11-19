@@ -1,10 +1,6 @@
 /** Smoke the candidate's own CLI on a scratch board before main moves: help, init, add, list, show, claim, next and status [C7]. */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
@@ -13,6 +9,8 @@ import { runCheckOnRunner } from './main/red.js';
 import { runTail } from './main/red.js';
 import { withMainCheckout } from './main/red.js';
 import { scratchFolder } from '../../../config/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Each command gets this long; the whole smoke is about 15 s, so a hung command is a failure, not a wait. */
 const COMMAND_MS = 30_000;
@@ -114,12 +112,12 @@ function runChains(entry, env, chains) {
  */
 export function runLandingCliSmoke(candidate, { record = false, git: launch = gitSpawnSync } = {}) {
   const entry = join(candidate, 'apps/cli/pullboard.js');
-  if (!existsSync(entry)) return { ran: [] };
-  const home = realpathSync(scratchFolder('pullboard-landing-smoke-'));
+  if (!fs.exists(entry)) return { ran: [] };
+  const home = fs.realpath(scratchFolder('pullboard-landing-smoke-'));
   try {
-    mkdirSync(join(home, 'machine-home'));
+    fs.mkdir(join(home, 'machine-home'));
     // A background view would outlive the smoke; the scratch machine keeps it off.
-    writeFileSync(join(home, 'machine-home', 'settings.json'), JSON.stringify({ view: { background: false } }));
+    fs.writeFile(join(home, 'machine-home', 'settings.json'), JSON.stringify({ view: { background: false } }));
     const env = scratchEnvironment(home), repo = join(home, 'repo'), seat = join(home, 'seat');
     const git = (cwd, ...args) => {
       // init installs this repository's hooks, which call a pullboard that is not installed here; the scratch repository runs none.
@@ -144,11 +142,11 @@ export function runLandingCliSmoke(candidate, { record = false, git: launch = gi
       }
     };
     // help needs no board, so it runs beside init; list, show and status only read, so they run beside claim then next.
-    mkdirSync(repo);
+    fs.mkdir(repo);
     git(repo, 'init', '-q', '-b', 'main');
     pullboard([{ cwd: repo, label: 'help', args: ['help'] }], [{ cwd: repo, label: 'init', args: ['init'] }]);
-    writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
-    writeFileSync(join(repo, 'SPEC.md'), SPEC);
+    fs.writeFile(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
+    fs.writeFile(join(repo, 'SPEC.md'), SPEC);
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
     git(repo, 'worktree', 'add', '-q', seat, '-b', 'core/smoke');
@@ -160,7 +158,7 @@ export function runLandingCliSmoke(candidate, { record = false, git: launch = gi
       [{ cwd: seat, label: 'status', args: ['status'] }]);
     if (record) recordSmokeReceipt(candidate, launch);
     return { ran };
-  } finally { rmSync(home, { recursive: true, force: true }); }
+  } finally { fs.rm(home, { recursive: true, force: true }); }
 }
 
 /**
@@ -177,7 +175,7 @@ export function runCommitCliSmoke(root, commit, { git = gitSpawnSync } = {}) {
   if (smokeReceiptExists(root, commit, git)) return { ran: [], reused: true };
   const exists = git(['cat-file', '-e', `${commit}:apps/cli/pullboard.js`], { cwd: root });
   if (exists.status !== 0) return { ran: [] };
-  const directory = realpathSync(scratchFolder('pullboard-landing-tree-'));
+  const directory = fs.realpath(scratchFolder('pullboard-landing-tree-'));
   try {
     const archive = git(['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
     const unpacked = archive.status === 0 ? spawnSync('tar', ['-x', '-C', directory], { input: archive.stdout }) : archive;
@@ -188,7 +186,7 @@ export function runCommitCliSmoke(root, commit, { git = gitSpawnSync } = {}) {
       throw new Refused('LAND_CLI_SMOKE', `the landing smoke could not read commit ${commit.slice(0, 12)}: ${tool} failed: ${reason}`);
     }
     return runLandingCliSmoke(directory, { git });
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }
 
 /** The candidate's own smoke, run by the runner in its checkout of the candidate tree. */
@@ -205,7 +203,7 @@ const RUNNER_SMOKE = `node --input-type=module -e "const { runLandingCliSmoke } 
  */
 export async function smokeCandidate(candidate, { admission = gateRunnerAdmission(), record = false } = {}) {
   if (admission.runnerOnly !== true) return runLandingCliSmoke(candidate, { record });
-  if (!existsSync(join(candidate, 'apps/cli/pullboard.js'))) return { ran: [] };
+  if (!fs.exists(join(candidate, 'apps/cli/pullboard.js'))) return { ran: [] };
   const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', item: 'landing batch', admission });
   if (!run.isGreen) throw new Refused('LAND_CLI_SMOKE', `the candidate's CLI smoke failed on runner ${run.executionRunner ?? 'unknown'}: ${runTail(run)}; fix it before landing`);
   if (record) recordSmokeReceipt(candidate);

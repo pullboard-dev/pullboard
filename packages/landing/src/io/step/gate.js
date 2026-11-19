@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { affectedCommand as affectedTestsCommand } from '../../../../gate/index.js';
 import { requireTestTierAccount } from '../../../../gate/index.js';
 import { hasTestTiers } from '../../../../gate/index.js';
@@ -17,10 +18,6 @@ import { runLocalLandingGuard } from '../land/guard.js';
 import { requireNoRunnerRefusalOnlyRed } from '../land/guard.js';
 import { pipelineBase } from './base.js';
 import { createHash } from 'node:crypto';
-import { copyFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -71,6 +68,8 @@ import { landingCargoFailures } from '../../../../config/index.js';
 import { readJunitReport } from './junit-report.js';
 import { carriedMainOutcome } from '../main/red.js';
 
+const fs = fileSystemAdapter();
+
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
 const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
 
@@ -87,7 +86,7 @@ export function sprintPorts(state) {
   const runFiles = async (files, label, { required = false } = {}) => {
     const command = plan?.tiers ? testTierCommand(plan.tiers, files) : state.config.affectedTests?.trim() && files.length ? affectedTestsCommand(state.config, files) : '';
     if (!command) return required && files.length ? { isGreen: false, output: 'no test command is configured (affectedTests), so these test files cannot run' } : { isGreen: true };
-    mkdirSync(directory, { recursive: true });
+    fs.mkdir(directory, { recursive: true });
     const run = await runLocalLandingGuard(root, { ...state.config, gate: command, [VALUE_GATE]: true }, { files, directory, label,
       onWait: state.onWait, waivers: [], onFailure: async () => {}, quarantines: [], proofContext: undefined }, GUARD_PORTS);
     return { isGreen: run.isGreen === true, output: run.output };
@@ -138,7 +137,7 @@ export function barTestPort(state, runFiles) {
       try { detail = JSON.parse(readEvents(entry.id).findLast(row => row.event_kind === 'submit')?.event_detail ?? '{}') ?? {}; } catch { detail = {}; }
       const files = criterionTestFiles(root, entry, readItem(entry.id), state.config.affectedTests, detail);
       if (files === null) return { isGreen: false, refused: true, item: entry.id, items, output: `the frozen bar of item #${entry.id} names no readable list of test files` };
-      const absent = files.find(file => !existsSync(join(root, file)));
+      const absent = files.find(file => !fs.exists(join(root, file)));
       if (absent) return { isGreen: false, refused: true, item: entry.id, file: absent, items, output: `the frozen bar test ${absent} of item #${entry.id} is missing from the staged tree` };
       items.push({ item: entry.id, files });
     }
@@ -447,7 +446,7 @@ async function runGateGroup(state, label, options) {
   // finished [C7]. Only a complete run, or an incomplete one with its own named reds, is reused.
   if (cached && (completeGate(cached) || (cached.failures?.length > 0 && !coveredFailures(state, cached)))) return cached;
   const directory = join(dirname(state.batch.root), 'logs');
-  mkdirSync(directory, { recursive: true });
+  fs.mkdir(directory, { recursive: true });
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   state.say(`gate ${label}: saving the gating record`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
@@ -471,8 +470,8 @@ async function runGateGroup(state, label, options) {
   if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
-  copyFileSync(gate.log, logPath);
-  if (gate.profilePath) copyFileSync(gate.profilePath, `${logPath}.profile.json`);
+  fs.copyFile(gate.log, logPath);
+  if (gate.profilePath) fs.copyFile(gate.profilePath, `${logPath}.profile.json`);
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
     throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed while the gate ran; inspect ${logPath} and restore the recorded batch before adopting`);
   }
@@ -549,8 +548,8 @@ export function landingGateShard(state, files) {
 export async function runLandingCandidate({ root, board, config, batch, entries, write, say, onWait, checkLease, checkLeaseNow, claimGate, finishGate, checkAtCommit, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
   await checkLease();
-  if (!existsSync(batch.root)) {
-    mkdirSync(dirname(batch.root), { recursive: true });
+  if (!fs.exists(batch.root)) {
+    fs.mkdir(dirname(batch.root), { recursive: true });
     checkLeaseNow();
     git(root, ['worktree', 'add', '--detach', batch.root, pipelineBase({ config, board }, batch)]);
   }
@@ -592,6 +591,6 @@ export function deferredSelections(state, readEvents = id => store.events(state.
  */
 function runLedger(log) {
   let output = '';
-  try { output = readFileSync(log, 'utf8'); } catch { /* An unreadable log reports no account below. */ }
+  try { output = fs.readFile(log, 'utf8'); } catch { /* An unreadable log reports no account below. */ }
   return ledgerFromOutput(output) ?? 'ledger: the run log holds no per-file reuse account';
 }
