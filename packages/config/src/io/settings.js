@@ -475,6 +475,11 @@ export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
 }
 
+/** Whether verify.soloLowStakes is on (#966): off by default; only an exact `true` lets a low-stakes row be self-accepted when every check is machine-run, red before and green after. */
+export function soloLowStakesEnabled() {
+  return loadMachineSettings().verify?.soloLowStakes === true;
+}
+
 /** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
 export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
