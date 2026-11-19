@@ -9,6 +9,7 @@
  * when the build that catches up lands (#6850).
  */
 import { Worker } from 'node:worker_threads';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** How long after a build lands, at least, before another build of a board still being read starts. */
 const BUILD_GAP_MS = 250;
@@ -94,7 +95,7 @@ function restamped(record, now) {
 export function startStateMaterializer({ portsModule, projects, scope, isMain, codeStampCache = false, openRevision, onStateBuild, onRecord, onFailure, Refused }) {
   // The worker takes none of this process's preloads: a test runner's per-file preload, run again in a thread,
   // claimed the file's test slot a second time and killed the worker, so every state read failed [C7].
-  const { NODE_TEST_CONTEXT: _testContext, ...workerEnv } = process.env;
+  const { NODE_TEST_CONTEXT: _testContext, ...workerEnv } = environmentAdapter().all();
   const worker = new Worker(new URL('./materializer/worker.js', import.meta.url), { workerData: { portsModule, scope, isMain, projects: projects(), codeStampCache }, execArgv: [], env: workerEnv });
   const boards = new Map();
   let failure = null;
