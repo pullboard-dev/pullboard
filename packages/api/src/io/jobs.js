@@ -72,6 +72,20 @@ function heldOther(db, runner, now) {
     WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NULL`).get(runner, now).held;
 }
 
+/** Whether this runner holds a live lease on a test job now (an agent's `pullboard test` run). */
+function holdsTestJob(db, runner, now) {
+  return Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'test' AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed') LIMIT 1").get(runner, now));
+}
+
+/** The claim order with item gate shards moved ahead of the first test job; every other job keeps its place and each group its age order. */
+function shardsBeforeTests(ordered) {
+  const firstTest = ordered.findIndex(({ row }) => row.job_kind === 'test');
+  if (firstTest < 0) return ordered;
+  const isShard = ({ row }) => row.job_kind === SHARD_JOB_KIND;
+  const tail = ordered.slice(firstTest);
+  return [...ordered.slice(0, firstTest), ...tail.filter(isShard), ...tail.filter(entry => !isShard(entry))];
+}
+
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
 // Budget: a receipt is a small record (status, digests, receipt ids); output belongs in a report file, not the row.
@@ -333,7 +347,9 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
     const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= censusCap(offer);
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
-    for (const { row, offer } of ordered) {
+    // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates; one holding none still takes a test job first [C7,#11146].
+    const offered = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered) : ordered;
+    for (const { row, offer } of offered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
