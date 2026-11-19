@@ -1,7 +1,7 @@
 /** An interactive pullboard test job's rows go only to the runs file while runs_store is on, and to the board job rows when it is off [P7,B2,#9011]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { offerTestRow } from '../../../src/io/test/pull.js';
 import { readTestRow } from '../../../src/io/test/pull.js';

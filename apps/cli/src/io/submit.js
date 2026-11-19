@@ -211,21 +211,33 @@ export function refuseUnverifiedStack(root, board, item, commit, trunk) {
  * @param {any} item - The item being submitted.
  * @param {string} commit - The head being submitted.
  * @param {{ commit: string } | null} trunk - Current accepted main.
+ * @param {any} [board] - The board; a trailer naming a withdrawn item is ignored, as that item can no longer be submitted (#11781).
  * @returns {void}
  */
-export function refuseWrongBranch(root, item, commit, trunk) {
+export function refuseWrongBranch(root, item, commit, trunk, board = null) {
   if (!trunk?.commit) return;
   const log = tryGit(root, ['log', '--no-merges', '--format=%(trailers:key=Pullboard-Item,valueonly,separator=%x2C)%x01', `${trunk.commit}..${commit}`]);
   if (log.status !== 0) return;
   const named = new Set(log.stdout.split('\x01').flatMap((entry) => entry.split(',')).map((value) => Number(value.trim().replace(/^#/u, ''))).filter((value) => Number.isSafeInteger(value) && value > 0));
-  if (!named.size || named.has(item.item_id)) return;
+  if (named.has(item.item_id)) return;
+  if (board) for (const id of [...named]) if (isWithdrawnItem(board, id)) named.delete(id);
+  if (!named.size) return;
   const other = [...named].sort((a, b) => a - b)[0];
   throw new Refused('WRONG_BRANCH', `this head's new commits belong to item #${other}, not #${item.item_id}; submit #${other} from here, or switch to the branch built for #${item.item_id}`);
 }
 
+/** Whether the board holds this item as withdrawn; an unknown item or a moved one is not (#11781). */
+function isWithdrawnItem(board, id) {
+  try {
+    return store.getItem(board, id)?.item_status === 'withdrawn';
+  } catch {
+    return false;
+  }
+}
+
 /** Run every stack refusal a submit owes: another item's unverified commits, then a head built for another item [V1]. */
 export function refuseUnsubmittableStack(root, board, item, commit, trunk) {
-  refuseWrongBranch(root, item, commit, trunk);
+  refuseWrongBranch(root, item, commit, trunk, board);
   refuseUnverifiedStack(root, board, item, commit, trunk);
 }
 
