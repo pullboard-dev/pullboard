@@ -94,3 +94,20 @@ test('cli.io-commands-status-closure.status-reaches-no-heavy-module-beyond: clau
   const extra = inClosure.filter((file) => !BOARD_READ.includes(file));
   assert.deepEqual(extra, [], `status still reaches heavy modules beyond the board-read five: ${extra.join(', ')}`);
 });
+
+/** The four board-read modules the full store door pulls in; status loads that door lazily, so none may sit in its static closure [#6480]. */
+const STORE_DOOR = [
+  'packages/store/index.js',
+  'packages/store/src/io/board.js',
+  'packages/store/src/io/board/event/log.js',
+  'packages/store/src/logic/board/landing/lease.js',
+];
+
+test('cli.io-commands-status-closure.status-closure-holds-no-store-index: clause 2: the static closure of status reaches none of the four board-read modules behind the full store door, which status loads with await import [C7,#6480]', () => {
+  const reached = heavyInClosure().filter((file) => STORE_DOOR.includes(file));
+  assert.deepEqual(reached, [], `status still statically reaches the full store door: ${reached.join(', ')}`);
+  const source = readFileSync(entry, 'utf8');
+  assert.equal(/^import .*store\/index\.js/mu.test(source), false, 'status.js holds no static import of the full store door');
+  assert.match(source, /await import\('[^']*packages\/store\/index\.js'\)/u, 'the full store door loads lazily inside run');
+});
+
