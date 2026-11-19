@@ -1,14 +1,16 @@
 /** Recognize finite executable and data inputs without evaluating repository modules [C7,CD62]. */
 import { posix } from 'node:path';
-import { readFileSync } from 'node:fs';
 import { lex } from '../../../../../kernel/index.js';
 import { COMMAND_CANDIDATE } from '../../../../../kernel/index.js';
 import { COMMAND_FILE } from '../../../../../kernel/index.js';
 import { bindingReadsForModules } from '../uses.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 
-const DISCOVERY = readFileSync(new URL('../../../../../kernel/src/logic/discovery.js', import.meta.url), 'utf8');
-const KERNEL_FRONT_DOOR = readFileSync(new URL('../../../../../kernel/index.js', import.meta.url), 'utf8');
-const KERNEL_LIGHT_DOOR = readFileSync(new URL('../../../../../kernel/light.js', import.meta.url), 'utf8');
+const fs = fileSystemAdapter();
+
+const DISCOVERY = fs.readFile(new URL('../../../../../kernel/src/logic/discovery.js', import.meta.url), 'utf8');
+const KERNEL_FRONT_DOOR = fs.readFile(new URL('../../../../../kernel/index.js', import.meta.url), 'utf8');
+const KERNEL_LIGHT_DOOR = fs.readFile(new URL('../../../../../kernel/light.js', import.meta.url), 'utf8');
 
 /** Resolve one literal module-relative input, excluding external URLs and parent escapes. */
 function relativeInput(file, literal) {
