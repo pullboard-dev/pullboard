@@ -154,8 +154,6 @@
     "packages/codemap/src/io/no-runtime-assumptions.js": 2,
     "packages/codemap/src/io/parsed.js": 1,
     "packages/codemap/src/io/shims.js": 3,
-    "packages/codemap/src/io/source/inventory.js": 3,
-    "packages/codemap/src/io/sync-spawn-in-leases.js": 2,
     "packages/commits/src/io/contribution-clauses.js": 9,
     "packages/commits/src/io/hooks.js": 1,
     "packages/commits/src/io/import/fix.js": 1,
