@@ -80,12 +80,28 @@ test('keys.io-adapter-signing.alg-signwith-es256-rs256: clause 1: createSigningA
   assert.equal(verify("RSA-SHA256", Buffer.from("ship it"), rsa.publicKey, Buffer.from(rs, "base64url")), true);
   assert.equal(verify("sha256", Buffer.from("ship it!"), { key: ec.publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(es, "base64url")), false);
   for (const algorithm of ["ES256", "RS256"]) {
-    const first = fake.signWith({ algorithm, privateKey: "pem" }, "ship it");
+    const first = fake.signWith({ algorithm, privateKey: pem(ec) }, "ship it");
     assert.match(first, DER);
-    assert.equal(fake.signWith({ algorithm, privateKey: "pem" }, "ship it"), first, "the fake is stable");
+    assert.equal(fake.signWith({ algorithm, privateKey: pem(ec) }, "ship it"), first, "the fake is stable");
   }
   for (const adapter of [real, fake]) {
-    assert.throws(() => adapter.signWith({ algorithm: "HS256", privateKey: "pem" }, "ship it"), { code: "SIGN_ALGORITHM" });
-    assert.throws(() => adapter.signWith({ algorithm: "ES256", privateKey: "pem" }, ""), { code: "SIGN_EMPTY" });
+    assert.throws(() => adapter.signWith({ algorithm: "HS256", privateKey: pem(ec) }, "ship it"), { code: "SIGN_ALGORITHM" });
+    assert.throws(() => adapter.signWith({ algorithm: "ES256", privateKey: pem(ec) }, ""), { code: "SIGN_EMPTY" });
   }
+});
+
+test('keys.io-adapter-signing.signwith-refusals: clause 2: both forms refuse an unknown algorithm or an unreadable key with the same named refusal [C7,#1428]', () => {
+  const real = createSigningAdapter();
+  const fake = createFakeSigningAdapter();
+  const ec = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const pem = ec.privateKey.export({ type: "pkcs8", format: "pem" });
+  const label = "PRIVATE " + "KEY";
+  const broken = "-----BEGIN " + label + "-----\nnot a key\n-----END " + label + "-----\n";
+  for (const adapter of [real, fake]) {
+    for (const privateKey of ["pem", "not a key", "", undefined, 7]) {
+      assert.throws(() => adapter.signWith({ algorithm: "ES256", privateKey }, "ship it"), { code: "SIGN_KEY" }, "an unreadable key: " + String(privateKey));
+    }
+    assert.throws(() => adapter.signWith({ algorithm: "HS256", privateKey: pem }, "ship it"), { code: "SIGN_ALGORITHM" });
+  }
+  assert.throws(() => real.signWith({ algorithm: "ES256", privateKey: broken }, "ship it"), { code: "SIGN_KEY" }, "the real form names a PEM it cannot parse");
 });
