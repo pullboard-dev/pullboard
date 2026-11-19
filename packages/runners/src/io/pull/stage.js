@@ -6,9 +6,12 @@ import { join } from 'node:path';
 import { pullJobId } from './scripts.js';
 import { stageRunnerJob } from './scripts.js';
 import { rootWord } from './scripts.js';
-import { runRunnerScript } from './ssh.js';
+import { createSshAdapter } from '../adapter/ssh.js';
 import { runnerStatusDir } from './ssh.js';
 import { mkdirSync } from 'node:fs';
+
+/** Every ssh call in this file goes through the ssh runner adapter. */
+const sshAdapter = createSshAdapter();
 
 /**
  * The script that receives a staged folder: stdin is its tar. The tar lands outside queue/, unpacks into queue/.tmp-<id>,
@@ -66,7 +69,7 @@ export async function enqueueStagedJob(runner, { id, row, frame, command, agent,
     const made = spawnSync('tar', ['-cf', tar, '-C', staged.dir, ...staged.files], { encoding: 'utf8' });
     if (made.status !== 0) throw Object.assign(new Error(`could not stage job ${id}: ${(made.stderr ?? '').trim() || `tar status ${made.status}`}`), { code: 'RUNNER_PULL_SCRIPT', status: made.status, transport: false });
     try {
-      const run = await runRunnerScript(runner, stagedEnqueueScript(runner, { id, frameBytes: frame.length, tarBytes: statSync(tar).size, agent }), { ...options, stdin: { file: tar } });
+      const run = await sshAdapter.run(runner, stagedEnqueueScript(runner, { id, frameBytes: frame.length, tarBytes: statSync(tar).size, agent }), { ...options, stdin: { file: tar } });
       if (run.status !== 0 || run.error) {
         const detail = run.error ?? (run.stderr.trim().split('\n').at(-1) || `status ${run.status}`);
         throw Object.assign(new Error(`could not queue job ${id} on ${runner.host}: ${detail}`), { code: 'RUNNER_PULL_SCRIPT', status: run.status, transport: run.error !== null || run.status === 255 });

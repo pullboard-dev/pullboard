@@ -35,7 +35,7 @@ test('runners.io-adapter-ssh.both-forms-answer-a-script: clause 1: one contract 
     const calls = [];
     for (const [form, adapter] of Object.entries(forms(dir, calls))) {
       const result = await adapter.run({ host: 'runner-1' }, 'echo hello');
-      assert.deepEqual(Object.keys(result).sort(), ['status', 'stderr', 'stdout'], form);
+      assert.deepEqual(Object.keys(result).sort(), ['error', 'signal', 'status', 'stderr', 'stdout'], form);
       assert.equal(result.status, 3, form);
       assert.equal(result.stdout.toString('utf8'), 'hello', form);
       assert.equal(result.stderr, 'warn', form);

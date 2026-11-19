@@ -3,7 +3,10 @@ import { statSync } from 'node:fs';
 import { enqueueScript } from './scripts.js';
 import { fetchScript } from './scripts.js';
 import { packScript } from './scripts.js';
-import { runRunnerScript } from './ssh.js';
+import { createSshAdapter } from '../adapter/ssh.js';
+
+/** Every ssh call in this file goes through the ssh runner adapter. */
+const ssh = createSshAdapter();
 
 /** A refusal-shaped error carrying the script's own words, so callers can name the next step. */
 function scriptFailure(what, run) {
@@ -21,7 +24,7 @@ function scriptFailure(what, run) {
  */
 export async function enqueueRunnerJob(runner, { id, row, frame, command, agent }, options = {}) {
   const line = JSON.stringify({ version: 1, id, enqueuedAt: Date.now(), ...row });
-  const run = await runRunnerScript(runner, enqueueScript(runner, { id, frameBytes: frame.length, command, agent }),
+  const run = await ssh.run(runner, enqueueScript(runner, { id, frameBytes: frame.length, command, agent }),
     { ...options, stdin: Buffer.concat([Buffer.from(`${line}\n`), frame]) });
   if (run.status !== 0 || run.error) throw scriptFailure(`could not queue job ${id} on ${runner.host}`, run);
 }
@@ -34,7 +37,7 @@ export async function enqueueRunnerJob(runner, { id, row, frame, command, agent 
  * @returns {Promise<void>} Settles when the pack is in place and marked ready.
  */
 export async function uploadRunnerPack(runner, { id, file }, options = {}) {
-  const run = await runRunnerScript(runner, packScript(runner, { id, bytes: statSync(file).size }),
+  const run = await ssh.run(runner, packScript(runner, { id, bytes: statSync(file).size }),
     { timeoutMs: 600_000, ...options, stdin: { file } });
   if (run.status !== 0 || run.error) throw scriptFailure(`could not send the source pack for ${id} to ${runner.host}`, run);
 }
@@ -47,7 +50,7 @@ export async function uploadRunnerPack(runner, { id, file }, options = {}) {
  * @returns {Promise<Buffer>} The bytes; rejects with `RUNNER_PULL_SCRIPT` (status 4 when the file does not exist).
  */
 export async function fetchRunnerFile(runner, file, options = {}) {
-  const run = await runRunnerScript(runner, fetchScript(runner, file), { timeoutMs: 300_000, ...options });
+  const run = await ssh.run(runner, fetchScript(runner, file), { timeoutMs: 300_000, ...options });
   if (run.status !== 0 || run.error) throw scriptFailure(`could not read ${file.name} of ${file.id} on ${runner.host}`, run);
   return run.stdout;
 }
