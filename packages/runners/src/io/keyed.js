@@ -4,15 +4,10 @@
  * the runner controller keeps its tooling exports and scan verdicts without reaching another cell. Every path is the
  * caller's; this module names no state root.
  */
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+const fs = fileSystemAdapter();
 /** The one saveKeyedResult and loadKeyedResult are the pin cell's, reached through the transport cell this cell already imports, so no pin edge is added. */
 export { loadKeyedResult, saveKeyedResult } from '../../../transport/index.js';
 
@@ -25,7 +20,7 @@ export { loadKeyedResult, saveKeyedResult } from '../../../transport/index.js';
  * @returns {boolean} Whether this staging folder became the keyed folder.
  */
 export function placeKeyedFolder(staging, target) {
-  try { renameSync(staging, target); return true; }
+  try { fs.rename(staging, target); return true; }
   catch { return false; /* The keyed folder exists already; the caller decides whether it is usable. */ }
 }
 
@@ -35,7 +30,7 @@ export function placeKeyedFolder(staging, target) {
  * @param {string} staging
  */
 export function dropStagingFolder(staging) {
-  rmSync(staging, { recursive: true, force: true });
+  fs.rm(staging, { recursive: true, force: true });
 }
 
 /**
@@ -45,8 +40,8 @@ export function dropStagingFolder(staging) {
  * @param {string} name
  */
 export function writeKeyedLease(folder, name) {
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
-  writeFileSync(join(folder, name), '', { mode: 0o600 });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
+  fs.writeFile(join(folder, name), '', { mode: 0o600 });
 }
 
 /**
@@ -56,7 +51,7 @@ export function writeKeyedLease(folder, name) {
  */
 export function touchKeyedFolder(path) {
   const now = new Date();
-  utimesSync(path, now, now);
+  fs.utimes(path, now, now);
 }
 
 /**
@@ -69,14 +64,14 @@ export function touchKeyedFolder(path) {
  */
 export function sweepKeyedFolders(parent, { matches, keep = null, maxAgeMs, now = Date.now() }) {
   let names = [];
-  try { names = readdirSync(parent); } catch { return []; }
+  try { names = fs.list(parent); } catch { return []; }
   const removed = [];
   for (const name of names) {
     const path = join(parent, name);
     if (!matches(name) || path === keep) continue;
     try {
-      if (now - statSync(path).mtimeMs < maxAgeMs) continue;
-      rmSync(path, { recursive: true, force: true });
+      if (now - fs.stat(path).mtimeMs < maxAgeMs) continue;
+      fs.rm(path, { recursive: true, force: true });
       removed.push(name);
     } catch { /* Another sweep removed it. */ }
   }
@@ -105,8 +100,8 @@ export function sharedCacheFolder(name, env = process.env) {
   if (!root || !isAbsolute(root)) return null;
   const folder = join(root, name);
   try {
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    const state = statSync(folder);
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
+    const state = fs.stat(folder);
     if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return null;
   } catch { return null; }
   if (!bounded.has(folder)) { bounded.add(folder); boundKeyedFolder(folder, SHARED_CACHE_MAX_BYTES); }
@@ -123,12 +118,12 @@ export function sharedCacheFolder(name, env = process.env) {
  */
 export function boundKeyedFolder(folder, maxBytes) {
   let names = [];
-  try { names = readdirSync(folder, { recursive: true }); } catch { return 0; }
+  try { names = fs.list(folder, { recursive: true }); } catch { return 0; }
   const files = [];
   let total = 0;
   for (const name of names) {
     try {
-      const state = statSync(join(folder, name));
+      const state = fs.stat(join(folder, name));
       if (!state.isFile()) continue;
       files.push({ path: join(folder, name), size: state.size, at: state.mtimeMs });
       total += state.size;
@@ -137,7 +132,7 @@ export function boundKeyedFolder(folder, maxBytes) {
   let removed = 0;
   for (const file of files.sort((a, b) => a.at - b.at)) {
     if (total <= maxBytes) break;
-    try { rmSync(file.path, { force: true }); total -= file.size; removed++; } catch { /* Another sweep took it. */ }
+    try { fs.rm(file.path, { force: true }); total -= file.size; removed++; } catch { /* Another sweep took it. */ }
   }
   return removed;
 }
