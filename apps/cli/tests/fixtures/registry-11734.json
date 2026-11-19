@@ -24,5 +24,18 @@
     "inputs": [
       "apps/cli/tests/io/next/below.test.js"
     ]
+  },
+  "cli.io-next-resumes.above-ceiling-holder-resumes": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "above machine.loadCeiling a seat that holds a claim still resumes it."
+    },
+    "why": "Without it, a regression where a seat holding a claim stops resuming it above the load ceiling would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/next/resumes.test.js"
+    ]
   }
 }
