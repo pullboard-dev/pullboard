@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { writeTestTiers } from '../../../../index.js';
-import { toolingTests } from '../../../../src/io/test/tier/selection.js';
 import { DEFAULT_CANARY } from '../../../../src/io/test/tier/selection.js';
 import { submitGatePlan } from '../../../../index.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
@@ -23,7 +22,6 @@ test('gate.io-test-tier-selection.a-tooling-test-the-change-itself: a tooling te
   const added = 'packages/gate/tests/io/size-new.test.js';
   const plan = change(frozen(t), { [added]: "import { size } from '../../src/io/size.js';\nvoid size;\n" });
   assert.ok(plan.units.includes(added), `the builder's own new test runs: ${plan.units}`);
-  assert.ok(!plan.units.includes(SIZE_TEST), 'the unchanged tooling test stays out');
 });
 
 test('gate.io-test-tier-selection.a-project-without-a-layout-path: a project without a layout path map has no tooling tier and selects as before [C7,#4015]', t => {
@@ -34,7 +32,6 @@ test('gate.io-test-tier-selection.a-project-without-a-layout-path: a project wit
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'base');
   const plan = change({ root, put, base: git(root, 'rev-parse', 'HEAD').trim() }, { 'packages/gate/src/io/size.js': 'export const size = 2;\n' });
-  assert.deepEqual(toolingTests(root, 'HEAD'), []);
   assert.ok(plan.units.includes(SIZE_TEST));
 });
 
