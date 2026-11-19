@@ -1,0 +1,4 @@
+{
+  "cli.logic-show-gate.stale-settle-says-resubmit": {"proves":{"specs":["C7"],"claim":"A gate job whose newest settle step is stale prints a resubmit line, not GATE_WAITING."},"why":"Without it, show tells builders do not resubmit for a gate that died when the claim moved, and the item stays stuck.","kind":"cell unit","inputs":["apps/cli/tests/logic/show/gate.test.js"]},
+  "cli.logic-show-gate.unsettled-gate-still-says-waiting": {"proves":{"specs":["C7"],"claim":"A gate job with no settle step or an unknown one still prints GATE_WAITING."},"why":"Without it, the stale line could replace a live gate's waiting line and send builders to resubmit into the queue.","kind":"cell unit","inputs":["apps/cli/tests/logic/show/gate.test.js"]}
+}
