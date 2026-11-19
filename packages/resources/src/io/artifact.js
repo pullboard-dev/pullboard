@@ -1,18 +1,12 @@
 /** Bounded private-check analysis input carried ahead of the runner history pack [C7]. */
 import { createHash } from 'node:crypto';
 import {
-  closeSync,
-  constants,
-  fstatSync,
-  openSync,
-  readSync,
-  rmSync,
-  writeSync,
-} from 'node:fs';
-import {
   isAbsolute,
   join,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const LIMIT = 64 * 1024 * 1024;
 const HASH = /^[a-f0-9]{64}$/u;
@@ -35,26 +29,26 @@ export function readAnalysisArtifact(value, context) {
     throw new Error('invalid runner analysis artifact source');
   }
   const descriptor = analysisArtifactDescriptor({ bytes: value.bytes, sha256: value.sha256, context: value.context }, context);
-  const fd = openSync(value.file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const fd = fs.open(value.file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
-    const stat = fstatSync(fd);
+    const stat = fs.fstat(fd);
     if (!stat.isFile() || stat.size !== descriptor.bytes) throw new Error('invalid runner analysis artifact file');
     const bytes = Buffer.alloc(descriptor.bytes);
     let offset = 0;
     while (offset < bytes.length) {
-      const read = readSync(fd, bytes, offset, bytes.length - offset, null);
+      const read = fs.read(fd, bytes, offset, bytes.length - offset, null);
       if (!read) throw new Error('runner analysis artifact changed');
       offset += read;
     }
-    if (readSync(fd, Buffer.alloc(1), 0, 1, null) || createHash('sha256').update(bytes).digest('hex') !== descriptor.sha256) throw new Error('runner analysis artifact changed');
+    if (fs.read(fd, Buffer.alloc(1), 0, 1, null) || createHash('sha256').update(bytes).digest('hex') !== descriptor.sha256) throw new Error('runner analysis artifact changed');
     return { descriptor, bytes };
-  } finally { closeSync(fd); }
+  } finally { fs.close(fd); }
 }
 
 /** Receive exactly one artifact into the owned job directory and return unread history bytes to stdin. */
 export async function receiveAnalysisArtifact(S, directory, descriptor) {
   const file = join(directory, 'analysis-artifact.bin');
-  const fd = openSync(file, 'wx', 0o400);
+  const fd = fs.open(file, 'wx', 0o400);
   const hash = createHash('sha256');
   let count = 0, complete = false;
   try {
@@ -78,7 +72,7 @@ export async function receiveAnalysisArtifact(S, directory, descriptor) {
         try {
           const part = chunk.subarray(0, Math.min(chunk.length, descriptor.bytes - count));
           for (let offset = 0; offset < part.length;) {
-            const written = writeSync(fd, part, offset, part.length - offset);
+            const written = fs.write(fd, part, offset, part.length - offset);
             if (written <= 0) throw new Error('runner analysis artifact write failed');
             offset += written;
           }
@@ -103,7 +97,7 @@ export async function receiveAnalysisArtifact(S, directory, descriptor) {
     complete = true;
     return file;
   } finally {
-    closeSync(fd);
-    if (!complete) rmSync(file, { force: true });
+    fs.close(fd);
+    if (!complete) fs.rm(file, { force: true });
   }
 }
