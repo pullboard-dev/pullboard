@@ -7,8 +7,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../fixtures/e2e.js';
 import { openKitBoard } from '../fixtures/board.js';
+import { fixtureOpenBoard } from '../fixtures/board.js';
 import { withFixtureBoard } from '../fixtures/board.js';
 import { atomic } from '../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../packages/store/index.js';
+import { closeBoard } from '../../../../packages/store/index.js';
 import {
   itemLine,
   withOpenedBoard,
@@ -90,7 +93,10 @@ test('cli.io-read.show-prints-foreign-state: pullboard show on an item filed wit
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waits on host', args: ['--after', 'host#41'], run: box.runLocal });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waits on host', run: box.runLocal });
+  // add refuses a wait on an unlinked repository now [XB1,#11040], so this wait is one filed before the guard, set straight on the row.
+  const board = fixtureOpenBoard({ boardFile: boardFilePath(join(box.repo, '.git')), web: box.repo });
+  try { board.db.prepare('UPDATE item SET item_after=? WHERE item_id=?').run('host#41', item.item_id); } finally { closeBoard(board); }
   const shown = await box.runLocal(box.repo, 'show', String(item.item_id));
   assert.equal(shown.code, 0, `${shown.err}\n${shown.out}`);
   assert.match(shown.out.split('\n')[0], /after host#41 \(unavailable: no link\)/u);
