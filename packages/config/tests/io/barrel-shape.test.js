@@ -28,6 +28,7 @@ const BEFORE = [
   'reofferInfraEndEnabled',
   'retireIdleSeatHours',
   'submitProofOnly',
+  'typedFieldsEnabled',
   'validateRunner',
 ];
 

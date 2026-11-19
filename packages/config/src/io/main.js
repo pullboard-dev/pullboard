@@ -107,6 +107,7 @@ export function defaults() {
       maxHeader: 72,
       requireIds: ['feat', 'fix'],
       banned: [],
+      quotedNames: [],
       noEmoji: false,
       noCoAuthor: false,
       // Refuse a submit whose new commits name this machine; false only warns (C1).
@@ -560,6 +561,7 @@ export function configProblems(config, root) {
   if (!isStringList(config.commits.types)) problems.push('"commits.types" is a list of words');
   if (!isStringList(config.commits.requireIds)) problems.push('"commits.requireIds" is a list of types');
   if (!isStringList(config.commits.banned)) problems.push('"commits.banned" is a list of words');
+  if (!isStringList(config.commits.quotedNames)) problems.push('"commits.quotedNames" is a list of names');
   if (typeof config.commits.noHostName !== 'boolean') problems.push('"commits.noHostName" is true or false: whether a submit naming this machine is refused');
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
