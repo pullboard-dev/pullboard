@@ -5,6 +5,7 @@ import * as store from '../../../../packages/store/index.js';
 import { recordSubmitHandoff } from '../../../../packages/jobs/index.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
+import { heartbeatSeat } from '../../../../packages/store/index.js';
 
 /** Put one gate or shard job row on the board as the jobs cell writes it. */
 function job(board, { id, kind, item, step, at }) {
@@ -64,4 +65,29 @@ test('cli.journeys-next-gated-claim.settled-red-comes-first: clause 3: once that
   assert.equal(taken.document?.item?.item_id, gated, `next answered with #${taken.document?.item?.item_id}; the returned red comes first`);
   assert.equal(taken.document.returned?.gate?.code, 'GATE_RED', 'next names the returned red');
   assert.notEqual(store.getItem(box.board, fresh).item_owner, seat.id, 'no new claim is taken over the red');
+});
+
+test('cli.journeys-next-gated-claim.lapsed-gated-claim-not-handed: clause 3: production wiring: another seat holds an item with a lapsed lease whose gate job was created 2 h 10 min ago and offered its open shards 1 h 20 min ago; at claims.perSeat 1 a fresh seat runs the real pullboard next and claims the open item, and the gated item stays with its holder [C7,#11921]', async t => {
+  const box = await fixture(t, { perSeat: 1 });
+  const holder = box.seats.builder;
+  const seat = box.seats.actor;
+  const gated = box.add('Submitted work whose gate queued before its checks', { brief: 'Files: web/gated.js\nTest: the real board selects the item.' });
+  const fresh = box.add('Fresh work for a fresh seat', { brief: 'Files: web/fresh.js\nTest: the real board selects the item.' });
+  box.claim(gated, holder);
+  const created = box.clock.now().getTime();
+  const offered = created + 50 * 60_000;
+  const gate = `gate:${gated}:late`;
+  box.board.db.prepare(`INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated)
+    VALUES (?, 'gate', ?, 'done', NULL, 0, ?, ?)`).run(gate, gated, created, offered);
+  ['offered', 'claimed'].forEach((step, index) => job(box.board, { id: `${gate}:shard:${index + 1}`, kind: 'gate-shard', item: gated, step, at: offered + index }));
+  box.advance(130 * 60_000);
+  heartbeatSeat(box.board, seat.id);
+  assert.ok(Date.parse(store.getItem(box.board, gated).item_lease_until) < box.clock.now().getTime(), 'the holder\'s lease has lapsed');
+  const taken = await cli(box, seat.path, ['next']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document?.item?.item_id, fresh, `next answered with #${taken.document?.item?.item_id}; the lapsed claim #${gated} is waiting on its shards`);
+  assert.equal(taken.document.held, false, 'the new item is claimed, not held');
+  const after = store.getItem(box.board, gated);
+  assert.equal(after.item_status, 'claimed', 'the gated claim is not released');
+  assert.equal(after.item_owner, holder.id, 'its holder keeps it, so the gate result applies');
 });

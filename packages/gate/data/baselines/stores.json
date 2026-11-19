@@ -498,6 +498,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
+    "adapter-lint-ssh.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/ssh.js"
+    },
     "adapter-lint-timers.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/timers.js"
@@ -584,7 +588,7 @@
     },
     "browser-refusal.json": {
       "kind": "json",
-      "owner": "apps/runner/src/io/worker/entry.js"
+      "owner": "packages/resources/src/io/main.js"
     },
     "budgets.json": {
       "kind": "json",
