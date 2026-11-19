@@ -5986,12 +5986,6 @@
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],
-    "packages/runners/tests/fixtures/advance.js": [
-      "apps/cli"
-    ],
-    "packages/runners/tests/fixtures/fleet.js": [
-      "apps/cli"
-    ],
     "packages/store/tests/fixtures/cell.js": [
       "apps/cli"
     ],

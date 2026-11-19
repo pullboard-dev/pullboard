@@ -132,7 +132,7 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
+import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js'; import { withApplied } from './spec-apply.js'; import { commitOnApplyEnabled } from '../../../config/index.js';
 
 /** Native file events arrive in real time, so their coalescing timer keeps the real clock captured at load even when a caller mocks the global one [A2,N26]. */
 const FILE_CLOCK = { schedule: setTimeout, cancel: clearTimeout, now: Date.now };
@@ -928,7 +928,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   const event = events.find((row) => row.event_kind === kind) ?? events.at(-1);
   if (!event && body.verb === 'next') return { status: 200, body: { version: VERSION, event: null, result } };
   if (!event) throw new Error(`move ${body.verb} produced no event${diagnostics ? `: ${diagnostics}` : ''}`);
-  return { status: 200, body: { version: VERSION, event, result } };
+  return { status: 200, body: { version: VERSION, event, result: await withApplied(body, personChannel, result, seat, runCommand, commitOnApplyEnabled) } };
 }
 
 /** The relay ports a board API move sends with: the higher composition root's, saying nothing on this process's stderr; extra adds or replaces ports. */
