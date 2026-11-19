@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { NATIVE_FLAKE_ENGINE } from '../../../state/light.js';
 import * as store from '../../../store/index.js';
-import { openCellBoard as openBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard as openBoard } from '../../../board/tests/fixtures/cell-board.js';
 import {
   applyEngineMove,
   appliedSequence,
