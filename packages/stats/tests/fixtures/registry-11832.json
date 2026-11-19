@@ -1,0 +1,5 @@
+{
+  "stats.logic-capacity-staffing.counts": {"proves":{"specs":["C7"],"claim":"staffingSeats caps builders at the max useful when known and gives one reviewer per 8 builders, at least 1 when any builder runs."},"why":"Coordinators did not know how many builder and review seats to run.","kind":"cell unit","inputs":["packages/stats/src/logic/capacity/staffing.js"]},
+  "stats.logic-capacity-staffing.line": {"proves":{"specs":["C7"],"claim":"staffingLines prints one line naming the builder seats, the review seats and the ratio."},"why":"The staffing answer had no line to print.","kind":"cell unit","inputs":["packages/stats/src/logic/capacity/staffing.js"]},
+  "stats.logic-capacity-staffing.exported": {"proves":{"specs":["C7"],"claim":"staffingSeats and staffingLines are exported through the light door."},"why":"The status line child needs both through the front door.","kind":"cell unit","inputs":["packages/stats/light.js"]}
+}

@@ -44,6 +44,7 @@ import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 import { storeName } from './store-names.js';
 import { firstFailingCase } from './posted-case.js';
+import { JOB_WORKERS_ENV } from '../logic/policy.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -602,9 +603,6 @@ export function serveSlots(setting, cores = availableParallelism()) {
   if (!Number.isInteger(slots) || slots < 1) throw new Refused('USAGE', `runner serve --jobs takes a whole number of at least 1, not ${setting}`);
   return slots;
 }
-
-/** How many test workers a pulled job may use: its share of the runner's cores, set by the serve that runs it [P7,#5919]. */
-export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';
 
 /**
  * How many test workers a job of a serve may use: twice its even share of the runner's cores, at least 2, never more than its file count.
