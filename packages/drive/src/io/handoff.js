@@ -3,6 +3,7 @@ import { tracingChannel } from 'node:diagnostics_channel';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { Server } from 'node:net';
+import { environmentAdapter } from '../../../env/index.js';
 import { spawnDetachedChild } from '../../../jobs/index.js';
 
 /** The variable that tells a replacement its predecessor's listening socket is its descriptor 3. */
@@ -59,9 +60,10 @@ function descriptor(server) {
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {{ fd: number } | null}
  */
-export function inheritedListener(env = process.env) {
-  const handed = env[SERVE_FD_ENV] === String(HANDED_FD);
-  delete env[SERVE_FD_ENV];
+export function inheritedListener(env) {
+  const environment = environmentAdapter(env);
+  const handed = environment.get(SERVE_FD_ENV) === String(HANDED_FD);
+  environment.delete(SERVE_FD_ENV);
   return handed ? { fd: HANDED_FD } : null;
 }
 
@@ -82,7 +84,7 @@ export function announceListening() {
  * @param {{ fd: number, cwd?: string, env?: NodeJS.ProcessEnv, log?: string, wait?: number }} options log is a file for both output streams.
  * @returns {Promise<{ pid: number | null, listening: boolean }>}
  */
-export function spawnOnSocket(command, args, { fd, cwd = process.cwd(), env = process.env, log, wait = LISTEN_WAIT_MS }) {
+export function spawnOnSocket(command, args, { fd, cwd = process.cwd(), env = environmentAdapter().all(), log, wait = LISTEN_WAIT_MS }) {
   let out = 'ignore';
   try {
     if (log) out = openSync(log, 'a', 0o600);
