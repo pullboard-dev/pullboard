@@ -1,0 +1,3 @@
+{
+  "cli.io-next-real-size.seed-rows-deterministic": {"proves":{"specs":["N2"],"claim":"seedRealSize fills the event rows deterministically: event n has agent real-(n mod 1800), kind edit, detail {} and the (n mod 600)th seeded item."},"why":"Without it a change to the set-based seed insert could shift which agent or item each event names and the real-size board would silently change shape.","kind":"cell unit","inputs":["apps/cli/tests/io/next/real-size.test.js","apps/cli/tests/fixtures/next/real-size.js"]}
+}
