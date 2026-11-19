@@ -22,13 +22,13 @@ const NAMES = new Set(['generateKeyPairSync', 'createPrivateKey', 'sign', 'verif
 export const coveredBySigningLint = path => SOURCE_FILE.test(path) && path !== ADAPTER
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
-/** The local names a file imports from node:crypto for the four calls: `{ sign as s }` makes `s` count as sign. */
+/** The local names a file imports from node:crypto for the four calls, each mapped to its crypto name: `{ sign as s }` makes `s` count as sign. */
 function importedNames(source) {
-  const local = new Set();
+  const local = new Map();
   for (const match of source.matchAll(CRYPTO_IMPORT)) {
     for (const part of match[1].split(',')) {
       const [name, alias] = part.trim().split(/\s+as\s+/u);
-      if (NAMES.has(name)) local.add(alias ?? name);
+      if (NAMES.has(name)) local.set(alias ?? name, name);
     }
   }
   return local;
@@ -49,8 +49,8 @@ export function signingCalls(source) {
   source.split('\n').forEach((text, index) => {
     const trimmed = text.trim();
     if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*') || trimmed.startsWith('import')) return;
-    for (const name of names) {
-      for (const match of text.matchAll(new RegExp(`(?<![\\w$.'"\`])${name}\\s*\\(`, 'gu'))) rows.push({ line: index + 1, call: `${name}(`, at: match.index });
+    for (const [local, name] of names) {
+      for (const match of text.matchAll(new RegExp(`(?<![\\w$.'"\`])${local}\\s*\\(`, 'gu'))) rows.push({ line: index + 1, call: `${name}(`, at: match.index });
     }
   });
   return rows.sort((a, b) => a.line - b.line || a.at - b.at).map(({ line, call }) => ({ line, call }));
