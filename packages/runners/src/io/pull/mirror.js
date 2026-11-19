@@ -15,6 +15,7 @@ import { pullJobId } from './scripts.js';
 import { createSshAdapter } from '../adapter/ssh.js';
 import { runnerStatusDir } from './ssh.js';
 import { storeName } from '../store-names.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Every ssh call in this file goes through the ssh runner adapter. */
 const sshAdapter = createSshAdapter();
@@ -145,7 +146,7 @@ function lockRefresh(file, now) {
  * @param {{ dir?: string, now?: () => number, intervalMs?: number, ssh?: string, env?: object, timeoutMs?: number, force?: boolean }} [options]
  * @returns {Promise<{ mirror: object|null, refreshed: boolean }>} The mirror now on disk and whether this call refreshed it.
  */
-export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now = Date.now, intervalMs = MIRROR_INTERVAL_MS, ssh = 'ssh', env = process.env, timeoutMs = 10_000, force = false } = {}) {
+export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now = Date.now, intervalMs = MIRROR_INTERVAL_MS, ssh = 'ssh', env = environmentAdapter().all(), timeoutMs = 10_000, force = false } = {}) {
   const file = mirrorFile(runner.host, dir), fresh = () => { const m = readRunnerMirror(runner.host, { dir }); return m && now() - m.at < intervalMs ? m : null; };
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!force && fresh()) return { mirror: fresh(), refreshed: false };

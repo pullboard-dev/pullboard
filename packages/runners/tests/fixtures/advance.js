@@ -1,9 +1,8 @@
 /** Real native source advancement supplies documentation contract rows, never fabricated receipts [C7,A5,H16]. */
 import assert from 'node:assert/strict';
-import { mainMovedFixture } from '../../../../apps/cli/tests/fixtures/main/moved.js';
 
-/** Execute the actual checked native worker and retain its closed persisted event fields. */
-export async function sourceAdvanceEventContract(t) {
+/** Execute the actual checked native worker and retain its closed persisted event fields. The caller injects mainMovedFixture, so this package file names no app path. */
+export async function sourceAdvanceEventContract(t, mainMovedFixture) {
   const box = await mainMovedFixture(t);
   box.trigger();
   const terminal = await box.settled();
