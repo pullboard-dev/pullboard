@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { adapterLintSshEnabled } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
 import { jsdocCheckEnabled } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
 import { loadMachineSettings } from '../../index.js';
+import { runnersCoresPerShard } from '../../index.js';
 import { describeSetting } from '../../index.js';
 import { MACHINE_DEFAULTS } from '../../src/io/settings/machine-defaults.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
@@ -42,6 +44,18 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
 });
 
+test('config.io-settings.adapter-lint-ssh-reads-off-unless-true: clause 1: gate.adapterLintSsh reads false when unset and true only when set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#11369]', () => {
+  assert.equal(withSettings({}, adapterLintSshEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSsh: false } }, adapterLintSshEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSsh: true } }, adapterLintSshEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintSsh: 'yes' } }, adapterLintSshEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.adapterLintSsh/u.test(error.message));
+});
+
+test('config.io-settings.adapter-lint-ssh-described-and-off: clause 2: describeSetting names the SSH runner adapter and MACHINE_DEFAULTS holds gate.adapterLintSsh false [C7,#11369]', () => {
+  assert.match(describeSetting('gate.adapterLintSsh').description, /SSH runner adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintSsh'], false);
+});
+
 test('config.io-settings.jsdoc-check-reads-false-unset: clause 1: gate.jsdocCheck reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and jsdocCheckEnabled() follows it [C7,#1807]', () => {
   assert.equal(withSettings({}, jsdocCheckEnabled), false);
   assert.equal(withSettings({ gate: { jsdocCheck: false } }, jsdocCheckEnabled), false);
@@ -53,4 +67,17 @@ test('config.io-settings.jsdoc-check-reads-false-unset: clause 1: gate.jsdocChec
 test('config.io-settings.jsdoc-check-described-default-off: clause 2: describeSetting names JSDoc in the description of gate.jsdocCheck and MACHINE_DEFAULTS holds it false [C7,#1807]', () => {
   assert.match(JSON.stringify(describeSetting('gate.jsdocCheck')), /JSDoc/u);
   assert.equal(MACHINE_DEFAULTS['gate.jsdocCheck'], false);
+});
+
+test('config.io-settings.cores-per-shard-reads-three-unset: clause 1: runnersCoresPerShard() reads 3 when runners.coresPerShard is unset, 2 when set 2, and a value outside 1-5 or not whole is refused BAD_MACHINE_SETTINGS [C7,#11866]', () => {
+  assert.equal(withSettings({}, runnersCoresPerShard), 3);
+  assert.equal(withSettings({ 'runners.coresPerShard': 2 }, runnersCoresPerShard), 2);
+  for (const bad of [0, 6, 2.5, '2']) {
+    assert.throws(() => withSettings({ 'runners.coresPerShard': bad }, runnersCoresPerShard), error => error.code === 'BAD_MACHINE_SETTINGS' && /runners\.coresPerShard/u.test(error.message));
+  }
+});
+
+test('config.io-settings.cores-per-shard-described-default-three: clause 2: MACHINE_DEFAULTS holds runners.coresPerShard 3 and describeSetting names cores in its description [C7,#11866]', () => {
+  assert.equal(MACHINE_DEFAULTS['runners.coresPerShard'], 3);
+  assert.match(JSON.stringify(describeSetting('runners.coresPerShard')), /cores/u);
 });
