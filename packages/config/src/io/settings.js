@@ -182,6 +182,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
@@ -579,10 +580,6 @@ export function nameBehindDeviceEnabled() {
   return loadMachineSettings().engine?.nameBehindDevice === true;
 }
 
-/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
-export function typedFieldsEnabled() {
-  return loadMachineSettings().items?.typedFields === true;
-}
 
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
@@ -634,6 +631,11 @@ export function strictFullSuiteEnabled() {
   return loadMachineSettings().landing?.strictFullSuite === true;
 }
 
+/** Whether builder advice reaches agents through next instead of shouts (#11703): off by default; only an exact `true` turns it on. */
+export function adviceThroughNextEnabled() {
+  return loadMachineSettings().health?.adviceThroughNext === true;
+}
+
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
 export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
@@ -642,6 +644,11 @@ export function lapsedSweepEnabled() {
 /** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
 export function docsRegenerateOnCommit() {
   return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
+/** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
+export function itemsBarRulesAtAdd() {
+  return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
