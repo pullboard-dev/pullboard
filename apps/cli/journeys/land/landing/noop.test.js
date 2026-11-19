@@ -6,7 +6,7 @@ import {
   test,
 } from 'node:test';
 import * as store from "../../../../../packages/store/src/io/board.js";
-import { openCellBoard as openBoard } from "../../../../../packages/store/tests/fixtures/cell.js";
+import { openCellBoard as openBoard } from "../../../../../packages/board/tests/fixtures/cell-board.js";
 import { createE2eHelpers } from "../../../tests/fixtures/e2e.js";
 import { landJobs } from "../../../tests/fixtures/land/board.js";
 import { settleLand } from "../../../tests/fixtures/land/settle.js";
