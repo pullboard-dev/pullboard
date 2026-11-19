@@ -240,3 +240,31 @@ test('moves.selection.returned-first-off: clause 2: with next.returnedFirst off 
   assert.equal(await pickedWith(box, undefined), today, 'unset');
   assert.equal(await pickedWith(box, false), today, 'false');
 });
+
+/** Run pick under `config`, recording the who that reaches the review offer (plain loop) and the default offer (default loop). */
+function whoReaching(t, box, config) {
+  const seen = [];
+  const original = { ...nextSelection };
+  nextSelection.reviewOffer = (board, who) => { seen.push(who); return original.reviewOffer(board, who); };
+  nextSelection.defaultOffer = (board, who) => { seen.push(who); return original.defaultOffer(board, who); };
+  t.after(() => Object.assign(nextSelection, original));
+  const ctx = { ...box.ctx, config: { ...box.ctx.config, ...config } };
+  box.add('Open work');
+  nextSelection.pick(ctx, box.board, { defaultLoop: false, observeIdle: true, omitIds: [] }, box.ports);
+  nextSelection.pick(ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports);
+  return seen;
+}
+
+test('moves.selection.compose-landing-on: clause 1: with slices.composeLanding true in ctx.config, the who handed to the review offer and the default offer carries composeLanding true [C7,#11345]', t => {
+  const seen = whoReaching(t, fixture(t), { slices: { composeLanding: true } });
+  assert.equal(seen.length, 2, 'both offers were reached');
+  for (const who of seen) assert.equal(who.composeLanding, true);
+});
+
+test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding unset, the who carries no composeLanding and the offer is unchanged [C7,#11345]', t => {
+  for (const config of [{}, { slices: { composeLanding: false } }]) {
+    const seen = whoReaching(t, fixture(t), config);
+    assert.equal(seen.length, 2, 'both offers were reached');
+    for (const who of seen) assert.ok(!who.composeLanding, 'composeLanding is false or absent');
+  }
+});
