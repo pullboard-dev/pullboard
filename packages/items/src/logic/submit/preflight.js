@@ -6,6 +6,7 @@
  */
 import { tryGit } from "../../../../git/index.js";
 import { Refused } from "../../../../kernel/index.js";
+import { environmentAdapter } from "../../../../env/index.js";
 
 /** Git variables that could narrow which objects a read sees; trunk reads run without them. */
 const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|WORK_TREE|INDEX_FILE)$/u;
@@ -23,7 +24,7 @@ const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|CO
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function readTrunkEntry(root, base, file) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !OBJECT_ENV.test(key)));
+  const env = Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !OBJECT_ENV.test(key)));
   const args = ['ls-tree', '-z', base, '--', file];
   let result = tryGit(root, args, { env });
   if (result.status === 0) return result;
@@ -57,7 +58,7 @@ export function readTrunkEntry(root, base, file) {
  * @returns {string[]} The commits still absent after fetching.
  */
 export function fetchMissingCommits(root, commits, remote) {
-  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_TERMINAL_PROMPT: '0' };
+  const env = { ...Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !key.startsWith('GIT_'))), GIT_TERMINAL_PROMPT: '0' };
   const quiet = ['-q', '--no-tags', '--no-write-fetch-head', '--', remote];
   const absent = list => list.filter(commit => tryGit(root, ['cat-file', '-e', `${commit}^{commit}`], { env }).status !== 0);
   let missing = absent(commits);

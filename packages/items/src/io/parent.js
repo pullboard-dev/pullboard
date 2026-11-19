@@ -8,6 +8,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
+import { environmentAdapter } from "../../../env/index.js";
 import { createHash } from 'node:crypto';
 import { AGENT_SESSION_IDS } from "../../../kernel/index.js";
 import { PARENT_SESSION_ENGINE } from "../../../state/light.js";
@@ -101,7 +102,7 @@ function ownSessionMetadata(file, session) {
 }
 
 /** Keep the runtime's own identity; discover a parent only in its matching Codex metadata record. */
-export function runtimeSessionIdentity(environment = process.env, home = homedir()) {
+export function runtimeSessionIdentity(environment = environmentAdapter().all(), home = homedir()) {
   const key = AGENT_SESSION_IDS.find(name => Boolean(environment[name]));
   if (!key) return null;
   let session;
@@ -125,11 +126,11 @@ export function runtimeSessionIdentity(environment = process.env, home = homedir
 }
 
 /** Read this runtime's parent, keeping a primary session's missing parent visible as unknown. */
-export function runtimeParentSession(environment = process.env, home = homedir()) {
+export function runtimeParentSession(environment = environmentAdapter().all(), home = homedir()) {
   return runtimeSessionIdentity(environment, home)?.parent ?? null;
 }
 
 /** An explicit declaration and the runtime record use exactly the same canonical identity. */
-export function joinParentSession(declared, environment = process.env) {
+export function joinParentSession(declared, environment = environmentAdapter().all()) {
   return declared === undefined ? runtimeParentSession(environment) : parentIdentity(declared);
 }

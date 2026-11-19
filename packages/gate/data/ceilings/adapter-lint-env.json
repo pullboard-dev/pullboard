@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 558,
+  "total": 552,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -127,9 +127,6 @@
     "packages/git/src/io/enter.js": 1,
     "packages/git/src/io/main.js": 12,
     "packages/git/src/io/trunk/guard.js": 1,
-    "packages/items/src/io/parent.js": 3,
-    "packages/items/src/io/submit/recovery.js": 1,
-    "packages/items/src/logic/submit/preflight.js": 2,
     "packages/jobs/src/io/inbox-marks.js": 1,
     "packages/jobs/src/io/launch.js": 2,
     "packages/keys/src/io/relay.js": 7,

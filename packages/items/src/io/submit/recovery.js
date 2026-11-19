@@ -22,6 +22,7 @@ import {
 } from 'node:path';
 import { sameCommonDir } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { processMachineHome } from '../../../../kernel/light.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
@@ -178,7 +179,7 @@ export function sweepToolTrees({ temp = scratchRoot(), now = Date.now(), maxAgeM
  *
  * @param {{ temp?: string, commonDirs?: string[], minFree?: number }} [options] - The repositories whose queued requests own tools.
  */
-export function assertToolTreeRoom({ temp = scratchRoot(), commonDirs = [], minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
+export function assertToolTreeRoom({ temp = scratchRoot(), commonDirs = [], minFree = Number(environmentAdapter().get('PULLBOARD_TOOLS_MIN_FREE_BYTES') ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
   sweepToolTrees({ temp, commonDirs });
   let free;
   try { const stat = statfsSync(temp); free = stat.bavail * stat.bsize; } catch { return; }
