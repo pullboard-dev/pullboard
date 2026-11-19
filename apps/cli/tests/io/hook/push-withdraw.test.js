@@ -8,7 +8,7 @@ import { claimJob } from '../../../../../packages/api/index.js';
 import { jobViews } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { liveSince } from '../../../../../packages/jobs/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitAndWithdraw } from '../../../src/io/hook/push.js';
 
 const NAMES = [1, 2, 3].map(at => `push:abc:tag:shard:${at}`);
