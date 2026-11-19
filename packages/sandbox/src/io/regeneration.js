@@ -1,10 +1,5 @@
 /** Replay exact recorded board-tool intent on pinned main; every resulting head needs fresh proof [C7,V4,V6]. */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanGitEnvironment } from '../../../git/index.js';
@@ -13,8 +8,10 @@ import { invalidateGitFacts } from '../../../git/index.js';
 import { recordedToolCommits } from '../../../git/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
-import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Execute a bounded fixed executable, keeping complete diagnostics in the caller's private log. */
 function execute(root, executable, args, log, { input, env = {} } = {}) {
@@ -38,7 +35,7 @@ function replay(root, command, custody, log) {
 export function regenerateToolChange(root, source, main, { item }) {
   const recipes = recordedToolCommits(root, main, source);
   if (!recipes) return null;
-  const directory = realpathSync(mkdtempSync(join(scratchBase(), 'pullboard-tool-regeneration-')));
+  const directory = fs.realpath(fs.mkdtemp(join(scratchBase(), 'pullboard-tool-regeneration-')));
   const checkout = join(directory, 'checkout');
   const log = [];
   const git = (cwd, args, options) => execute(cwd, 'git', ['--no-replace-objects', ...args], log, options);
@@ -50,7 +47,7 @@ export function regenerateToolChange(root, source, main, { item }) {
     for (const [index, recipe] of recipes.entries()) {
       for (const [at, command] of recipe.commands.entries()) {
         const custody = join(directory, `custody-${index}-${at}`);
-        mkdirSync(custody);
+        fs.mkdir(custody);
         replay(checkout, command, custody, log);
       }
       git(checkout, ['add', '-A', '--', '.']);
@@ -63,7 +60,7 @@ export function regenerateToolChange(root, source, main, { item }) {
       });
       git(checkout, ['reset', '--quiet', '--mixed', commit]);
     }
-    for (const script of ['cells/scripts/plan.js', ...(existsSync(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? ['cell/scripts/lints.js'] : [])]) {
+    for (const script of ['cells/scripts/plan.js', ...(fs.exists(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? ['cell/scripts/lints.js'] : [])]) {
       execute(checkout, process.execPath, [fileURLToPath(new URL(`../../../codemap/src/io/${script}`, import.meta.url)), '--check'], log);
     }
     if (git(checkout, ['status', '--porcelain=v1']).length) throw new Error('cell checks changed their source');
@@ -81,8 +78,8 @@ export function regenerateToolChange(root, source, main, { item }) {
     return { commit, from: source, main, commands: recipes.flatMap(recipe => recipe.commands) };
   } catch {
     const output = gitPath(root, `pullboard-tool-regeneration-${source}.log`);
-    writeFileSync(output, log.join('\n'), { mode: 0o600 });
+    fs.writeFile(output, log.join('\n'), { mode: 0o600 });
     throw new Refused('MERGE_CONFLICT', `the recorded board tool could not regenerate cleanly on main ${main.slice(0, 12)}; inspect ${output}; the original source is pinned or unchanged`,
       'repair the recorded tool or its inputs, run it again, commit and resubmit');
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }

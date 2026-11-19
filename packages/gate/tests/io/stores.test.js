@@ -254,6 +254,21 @@ test('gate.io-stores.every-store-owner-in-the: #6742 clause 1: every store owner
   assert.ok(registry.writeOwnerDebt.length <= 4, 'the debt list only shrinks');
 });
 
+test('gate.io-stores.adapter-write-counts-as-owner-write: #11968 clause 1: an owner whose only write is fs.rename or fs.write through the fs adapter passes the owner check, and an owner with only reads still fails it [CD2]', () => {
+  const reads = {
+    [OWNER]: 'export const move = (fs, a, b) => fs.rename(a, b);',
+    [OTHER]: 'export const save = (fs, file, text) => fs.write(file, text);',
+    'packages/gate/src/io/copier.js': 'export const dup = (fs, a, b) => fs.copyFile(a, b);',
+    'packages/gate/src/io/reader.js': 'export const load = (fs, file) => fs.read(file) + fs.readFile(file);',
+  };
+  const read = file => reads[file];
+  for (const owner of [OWNER, OTHER, 'packages/gate/src/io/copier.js']) {
+    assert.deepEqual(storeWriteProblems({ stores: { 'fresh.json': { kind: 'json', owner } } }, read), [], owner);
+  }
+  const problems = storeWriteProblems({ stores: { 'fresh.json': { kind: 'json', owner: 'packages/gate/src/io/reader.js' } } }, read);
+  assert.match(problems[0].text, /CD2_OWNER_NO_WRITE: fresh\.json is owned by packages\/gate\/src\/io\/reader\.js, which holds no write call/u);
+});
+
 test('gate.io-stores.a-new-store-whose-owner: #6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
   const reads = { [OWNER]: 'export const x = readFileSync(file);', [OTHER]: 'writeFileSync(file, text);' };
   const read = file => reads[file];
@@ -394,4 +409,17 @@ test('gate.io-stores.person-enrollment-owned-by-relay-io: #10810 clause 1: table
   assert.match(source, /INSERT INTO person_enrollment/u, 'the owner holds the write call');
   const oldHome = ['apps/relay/src/logic/person/enrollment', 'store.js'].join('/');
   assert.throws(() => readFileSync(new URL(`../../../../${oldHome}`, import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
+});
+
+test('gate.io-stores.logic-owner-refused: clause 1: a stores.json row whose owner is under a logic layer is refused naming the row unless its kind is repo-data, and a repo-data row with a logic owner passes [CD2,#10817]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  assert.deepEqual(storeOwnerProblems(registry), [], 'no row on main has a logic owner unless it is repo-data');
+  assert.equal(registry.stores['load-bearing.json'].kind, 'repo-data');
+  for (const owner of ['packages/gate/src/logic/x.js', 'apps/cli/src/logic/y.js']) {
+    const refused = storeOwnerProblems({ stores: { 'x.json': { kind: 'json', owner } } });
+    assert.equal(refused.length, 1);
+    assert.match(refused[0].text, /CD2_STORE_OWNER: x\.json is owned by .*logic file/u);
+    assert.deepEqual(storeOwnerProblems({ stores: { 'x.json': { kind: 'repo-data', owner } } }), []);
+  }
+  assert.deepEqual(storeOwnerProblems({ stores: { 'x.json': { kind: 'json', owner: 'packages/gate/src/io/x.js' } } }), []);
 });
