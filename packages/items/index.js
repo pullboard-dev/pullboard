@@ -16,7 +16,7 @@ export { itemAuthors, retainedVerifierIdentityProblem, itemAuthorProblem } from 
 export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/logic/decision/queue.js';
 export { dependencyValues, foreignDependencies, dependencyLabel, hasForeignDependencies, dependencyReferences, localDependencyIds, parseDependency, validateNativeDependencies } from './src/logic/dependencies.js';
 export { setItem } from './src/logic/fields.js';
-export { contentionScores, orderByContention, conflictRates } from './src/logic/contention.js';
+export { contentionScores, orderByContention, conflictRates, quietFiles } from './src/logic/contention.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
 export { applyItemHold, applyItemHoldRelease } from './src/logic/holds.js';
 export { splitRecent } from './src/logic/hot-split.js';
