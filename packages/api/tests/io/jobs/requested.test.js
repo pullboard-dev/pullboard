@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { serveRunner } from '../../../../drive/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { jobQueueCall } from '../../../index.js';
 import { offerLandingJob } from '../../../index.js';
