@@ -146,6 +146,11 @@ export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
 }
 
+/** Cores one gate shard weighs on a runner, from the flat key "runners.coresPerShard": 3 when unset, a whole number from 1 through 5 otherwise [C7,#11866]. */
+export function runnersCoresPerShard() {
+  return loadMachineSettings()['runners.coresPerShard'] ?? 3;
+}
+
 /** Name the trunk main commit in every runner claim answer, only when this machine opted in (stored flat as "runners.reportCommit") [C7,#10819]. */
 export function runnerCommitReportEnabled() {
   return loadMachineSettings()['runners.reportCommit'] === true;
