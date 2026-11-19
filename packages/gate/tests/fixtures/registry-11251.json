@@ -1,0 +1,30 @@
+{
+  "gate.io-static-check-registry.jsdoc-fails-a-new-finding": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: with gate.jsdocCheck on, a changed source file whose exported function has no JSDoc summary or a stale @param name fails, naming file and function."
+    },
+    "why": "Without it, the JSDoc class could fail old debt or run with its setting off.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/gate/src/io/static/check/registry.js",
+      "packages/gate/tests/io/static/check/registry.test.js"
+    ]
+  },
+  "gate.io-static-check-registry.jsdoc-grows-only": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: the jsdoc class is a growth check, so a summary already missing on accepted main does not fail when the file is touched, and with the setting off it reports nothing."
+    },
+    "why": "Without it, the JSDoc class could fail old debt or run with its setting off.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/gate/src/io/static/check/registry.js",
+      "packages/gate/tests/io/static/check/registry.test.js"
+    ]
+  }
+}
