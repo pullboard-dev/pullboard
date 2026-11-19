@@ -3,6 +3,7 @@
     "apps/runner",
     "packages/config",
     "packages/gate",
+    "packages/fs",
     "packages/git",
     "packages/jobs",
     "packages/kernel",
