@@ -1,5 +1,7 @@
+/** @pullboard-test-input packages/landing/src/io/runner/job.js */
 /** With landing.parallelGates on, two gated land groups reach trunk one after the other through the compare-and-swap push, a group that loses the swap retries on the new tip, and each landing records the main it was gated against [C7,#9707]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,6 +22,7 @@ function twoGroups(t) {
   const { root: dir } = privateFixtureFiles('pullboard-parallel-push-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'machine');
+  mkdirSync(process.env.PULLBOARD_MACHINE_HOME);
   fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, { landing: { parallelGates: true } });
   t.after(() => {
     if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
