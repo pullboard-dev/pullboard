@@ -59,7 +59,7 @@ test('cli.io-commands-runner-discover.toolchain-auto-with-nothing-answering-reco
 function delaySsh(bin, ms) {
   const real = join(bin, 'ssh-answers');
   renameSync(join(bin, 'ssh'), real);
-  writeFileSync(join(bin, 'ssh'), `#!/usr/bin/env node\nimport { spawnSync } from 'node:child_process';\nsetTimeout(() => { const ran = spawnSync(${JSON.stringify(real)}, process.argv.slice(2), { stdio: 'inherit' }); process.exitCode = ran.status ?? 255; }, ${ms});\n`);
+  writeFileSync(join(bin, 'ssh'), `#!/usr/bin/env node\nconst { spawnSync } = require('node:child_process');\nsetTimeout(() => { const ran = spawnSync(${JSON.stringify(real)}, process.argv.slice(2), { stdio: 'inherit' }); process.exitCode = ran.status ?? 255; }, ${ms});\n`);
   chmodSync(join(bin, 'ssh'), 0o755);
 }
 
