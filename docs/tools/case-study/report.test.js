@@ -31,7 +31,8 @@ function put(boardPath, kind, item, at, detail) {
   } finally { db.close(); }
 }
 
-test('docs.tools-case-study-report.real-sources: the case study generator reads the real event and lint sources [C7]', (t) => {
+/** Seed a private git repo with the real cells plan and a board holding one landing. */
+function seed(t) {
   const { root } = fixture(t), boardPath = join(root, 'board.sqlite');
   cpSync(join(REPO, 'packages/codemap/data/plan'), join(root, 'packages/codemap/data/plan'), { recursive: true });
   git(root, 'add', 'packages');
@@ -39,10 +40,13 @@ test('docs.tools-case-study-report.real-sources: the case study generator reads 
   const db = new DatabaseSync(boardPath);
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY AUTOINCREMENT, event_at TEXT NOT NULL, event_by TEXT NOT NULL, event_kind TEXT NOT NULL, item_id INTEGER, event_detail TEXT NOT NULL DEFAULT \'{}\')');
   db.close();
-  const one = 'a'.repeat(40), two = 'b'.repeat(40);
   put(boardPath, 'claim', 1, '2026-11-01T00:10:00.000Z', {});
-  put(boardPath, 'merged', 1, '2026-11-01T00:40:00.000Z', { commit: one });
+  put(boardPath, 'merged', 1, '2026-11-01T00:40:00.000Z', { commit: 'a'.repeat(40) });
+  return { root, boardPath };
+}
 
+test('docs.tools-case-study-report.real-sources: clause 1: the case study generator reads the real event and lint sources [C7]', (t) => {
+  const { root, boardPath } = seed(t);
   const before = caseStudy({ root, boardPath, from: FROM, to: TO });
   const legacy = before.observation.structure.lints.legacySource;
   assert.ok(legacy >= 1);
@@ -52,14 +56,18 @@ test('docs.tools-case-study-report.real-sources: the case study generator reads 
   // Change one source in each reader: a new legacy module and a new landing must move exactly their metrics.
   addLegacy(root, 'legacy-new.js');
   put(boardPath, 'claim', 2, '2026-11-01T01:00:00.000Z', {});
-  put(boardPath, 'merged', 2, '2026-11-01T01:10:00.000Z', { commit: two });
+  put(boardPath, 'merged', 2, '2026-11-01T01:10:00.000Z', { commit: 'b'.repeat(40) });
   const after = caseStudy({ root, boardPath, from: FROM, to: TO });
   assert.equal(after.observation.structure.lints.legacySource, legacy + 1);
   assert.equal(after.observation.events.landings.n, 2);
   assert.equal(after.observation.events.claimToLand.medianMs, 20 * 60_000);
+});
 
-  // The real caller prints the same JSON from the same sources.
+test('docs.tools-case-study-report.cli-prints-json: clause 2: docs/tools/case-study.js prints the JSON caseStudy returns [C7]', (t) => {
+  const { root, boardPath } = seed(t);
+  addLegacy(root, 'legacy-cli.js');
+  const expected = caseStudy({ root, boardPath, from: FROM, to: TO });
   const run = spawnSync(process.execPath, [CLI, '--root', root, '--board', boardPath, '--from', FROM, '--to', TO], { cwd: dirname(CLI), encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(JSON.parse(run.stdout), JSON.parse(JSON.stringify(after)));
+  assert.deepEqual(JSON.parse(run.stdout), JSON.parse(JSON.stringify(expected)));
 });
