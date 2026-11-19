@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell store */
+/** @pullboard-test-input source-cell packages/board */
 // fixture-subject: writeBoardCommand for claim over a real board, a real Git checkout and a real machine-home queue folder
 /** With board.crossProcessWrites on, a claim goes through the machine's file write queue and answers from its result file [C7,#9816,#8163]. */
 import assert from 'node:assert/strict';
@@ -10,13 +10,13 @@ import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { getItem } from '../../../index.js';
-import { writeBoardCommand } from '../../../index.js';
-import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import { getItem } from '../../../../../store/index.js';
+import { writeBoardCommand } from '../../../../../store/index.js';
+import { fixtureMachineSettings } from '../../../../../gate/tests/fixtures/testkit.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 const FROZEN = { text: '{"criterion":"the fixture works"}', digest: createHash('sha256').update('{"criterion":"the fixture works"}').digest('hex') };
 
@@ -37,7 +37,7 @@ function setup(t, settings) {
   return { board, seat, target, options, home, claims };
 }
 
-test('store.io-board-claim-file-queue.with-board-crossprocesswrites-on-a-claim: clause 1: with board.crossProcessWrites on, a claim goes through the file queue under the machine home and returns the result file\'s answer [C7,#9816]', async t => {
+test('board.claim-file-queue.with-board-crossprocesswrites-on-a-claim: clause 1: with board.crossProcessWrites on, a claim goes through the file queue under the machine home and returns the result file\'s answer [C7,#9816]', async t => {
   const { board, seat, target, options, home, claims } = setup(t, { board: { crossProcessWrites: true } });
   const answer = await writeBoardCommand(board, 'claim', [target, options], seat.id);
   const queue = join(home, 'board-write-queue');
@@ -50,7 +50,7 @@ test('store.io-board-claim-file-queue.with-board-crossprocesswrites-on-a-claim: 
   assert.notEqual(answer, null);
 });
 
-test('store.io-board-claim-file-queue.a-claim-retried-with-the-same: clause 2: a claim retried with the same write id is answered from its result file with no second claim event [C7,#9816]', async t => {
+test('board.claim-file-queue.a-claim-retried-with-the-same: clause 2: a claim retried with the same write id is answered from its result file with no second claim event [C7,#9816]', async t => {
   const { board, seat, target, options, claims } = setup(t, { board: { crossProcessWrites: true } });
   const first = await writeBoardCommand(board, 'claim', [target, options], seat.id);
   assert.equal(claims(), 1);
@@ -60,7 +60,7 @@ test('store.io-board-claim-file-queue.a-claim-retried-with-the-same: clause 2: a
   assert.equal(claims(), 1, 'the retry wrote no second claim event');
 });
 
-test('store.io-board-claim-file-queue.with-board-crossprocesswrites-off-a-claim: clause 3: with board.crossProcessWrites off a claim writes directly and returns at once, with no queue folder [C7,#9816]', t => {
+test('board.claim-file-queue.with-board-crossprocesswrites-off-a-claim: clause 3: with board.crossProcessWrites off a claim writes directly and returns at once, with no queue folder [C7,#9816]', t => {
   const { board, seat, target, options, home, claims } = setup(t, {});
   const answer = writeBoardCommand(board, 'claim', [target, options], seat.id);
   assert.equal(typeof answer?.then, 'undefined', 'the direct write is synchronous');
@@ -69,7 +69,7 @@ test('store.io-board-claim-file-queue.with-board-crossprocesswrites-off-a-claim:
   assert.equal(existsSync(join(home, 'board-write-queue')), false);
 });
 
-test('store.io-board-claim-file-queue.claim-release-then-the-same-claim: clause 4: claim, release, then the same claim again with the file queue on gets a fresh result and a second claim event [C7,#10089]', async t => {
+test('board.claim-file-queue.claim-release-then-the-same-claim: clause 4: claim, release, then the same claim again with the file queue on gets a fresh result and a second claim event [C7,#10089]', async t => {
   const { board, seat, target, options, claims } = setup(t, { board: { crossProcessWrites: true } });
   await writeBoardCommand(board, 'claim', [target, options], seat.id);
   await writeBoardCommand(board, 'release', [target, seat.id, 'giving it back', undefined, 'OTHER'], seat.id);
@@ -81,7 +81,7 @@ test('store.io-board-claim-file-queue.claim-release-then-the-same-claim: clause 
   assert.notEqual(again, null);
 });
 
-test('store.io-board-claim-file-queue.queue-results-and-marks-older-than: clause 5: queue results and marks older than the keep time are pruned when a queued write comes in, newer ones stay [C7,#10089]', async t => {
+test('board.claim-file-queue.queue-results-and-marks-older-than: clause 5: queue results and marks older than the keep time are pruned when a queued write comes in, newer ones stay [C7,#10089]', async t => {
   const { board, seat, target, options, home } = setup(t, { board: { crossProcessWrites: true } });
   await writeBoardCommand(board, 'claim', [target, options], seat.id);
   const queue = join(home, 'board-write-queue');

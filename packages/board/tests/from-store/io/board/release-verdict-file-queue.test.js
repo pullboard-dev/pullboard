@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell store */
+/** @pullboard-test-input source-cell packages/board */
 // fixture-subject: writeBoardCommand for release and verify over a real board, a real Git checkout and a real machine-home queue folder
 /** With board.crossProcessWrites on, a release and a verdict go through the machine's file write queue and answer from its result file [C7,#9817,#8163]. */
 import assert from 'node:assert/strict';
@@ -7,17 +7,17 @@ import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { board_ensureCoordinator } from '../../../index.js';
-import { events } from '../../../index.js';
-import { getItem } from '../../../index.js';
-import { merged } from '../../../index.js';
-import { writeBoardCommand } from '../../../index.js';
-import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellClaim } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import { board_ensureCoordinator } from '../../../../../store/index.js';
+import { events } from '../../../../../store/index.js';
+import { getItem } from '../../../../../store/index.js';
+import { merged } from '../../../../../store/index.js';
+import { writeBoardCommand } from '../../../../../store/index.js';
+import { fixtureMachineSettings } from '../../../../../gate/tests/fixtures/testkit.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 const COMMIT = 'a'.repeat(40);
 const BRIEF = 'Fix the thing.\n\nFiles:\n- web/result.txt\n\nTest: web/result.test.js asserts the result.';
@@ -49,7 +49,7 @@ function setup(t, settings) {
 /** The result files the queue folder holds. */
 const results = home => readdirSync(join(home, 'board-write-queue')).filter(name => name.endsWith('.result'));
 
-test('store.io-board-release-verdict-file-queue.with-boardcrossprocesswrites-on-release-and-verify: clause 1: with board.crossProcessWrites on, release and verify each go through the file queue and return their stored result [C7,#9817]', async t => {
+test('board.release-verdict-file-queue.with-boardcrossprocesswrites-on-release-and-verify: clause 1: with board.crossProcessWrites on, release and verify each go through the file queue and return their stored result [C7,#9817]', async t => {
   const f = setup(t, { board: { crossProcessWrites: true } });
   const released = await f.release();
   assert.equal(results(f.home).length, 1, 'the release left one result file');
@@ -64,7 +64,7 @@ test('store.io-board-release-verdict-file-queue.with-boardcrossprocesswrites-on-
   assert.notEqual(answer, null);
 });
 
-test('store.io-board-release-verdict-file-queue.a-release-or-verdict-retried-with: clause 2: a release or verdict retried with the same write id is answered from its result file with no second event [C7,#9817]', async t => {
+test('board.release-verdict-file-queue.a-release-or-verdict-retried-with: clause 2: a release or verdict retried with the same write id is answered from its result file with no second event [C7,#9817]', async t => {
   const f = setup(t, { board: { crossProcessWrites: true } });
   const released = await f.release();
   assert.deepEqual(await f.release(), released);
@@ -74,7 +74,7 @@ test('store.io-board-release-verdict-file-queue.a-release-or-verdict-retried-wit
   assert.equal(f.count(f.landed, 'verify'), 1, 'the retried verdict wrote no second event');
 });
 
-test('store.io-board-release-verdict-file-queue.with-boardcrossprocesswrites-off-release-and-verify: clause 3: with board.crossProcessWrites off release and verify write directly and return at once, with no queue folder [C7,#9817]', t => {
+test('board.release-verdict-file-queue.with-boardcrossprocesswrites-off-release-and-verify: clause 3: with board.crossProcessWrites off release and verify write directly and return at once, with no queue folder [C7,#9817]', t => {
   const f = setup(t, {});
   const released = f.release();
   assert.equal(typeof released?.then, 'undefined', 'the direct release is synchronous');

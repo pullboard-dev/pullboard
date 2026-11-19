@@ -1,11 +1,11 @@
-/** @pullboard-test-input source-cell packages/store */
+/** @pullboard-test-input source-cell packages/board */
 /** With landing.exactTreeCheck on, finishLandingBatch refuses a batch with no green exact-tree record inside its own write: RFC 0011 ET5, narrowed and approved 17 Nov 2026 [V16,V36]. */
 // fixture-subject: addItem (a store unit test of finishLandingBatch over a seeded board)
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { finishLandingBatch } from '../../../src/io/board/batch.js';
-import * as store from '../../../index.js';
-import { openCellBoard as openBoard } from '../../fixtures/cell.js';
+import { finishLandingBatch } from '../../../../../store/index.js';
+import * as store from '../../../../../store/index.js';
+import { openCellBoard as openBoard } from '../../../fixtures/cell-board.js';
 
 const BASE = 'a'.repeat(40);
 const TIP = 'b'.repeat(40);
@@ -26,7 +26,7 @@ function pushed(t, exactTree) {
 const mainMoves = board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'main-moved'").get().n;
 const stateOf = board => store.landingBatches(board).find(batch => batch.id === 'batch-1').state;
 
-test('store.io-board-batch.exact-tree-check-refuses-unproved: clause 1: with exactTreeCheck true, finishLandingBatch refuses a batch with no exact-tree record or a red one, records no main-moved receipt and leaves the batch pushed [V16,V36]', t => {
+test('board.batch.exact-tree-check-refuses-unproved: clause 1: with exactTreeCheck true, finishLandingBatch refuses a batch with no exact-tree record or a red one, records no main-moved receipt and leaves the batch pushed [V16,V36]', t => {
   for (const exactTree of [undefined, { tree: TREE }, { tree: TREE, pin: 'tooling', cells: ['packages/store'], result: 'red', failed: 'packages/store' }]) {
     const board = pushed(t, exactTree);
     assert.throws(() => finishLandingBatch(board, { agentId: 'coordinator', id: 'batch-1', tip: TIP, exactTreeCheck: true }),
@@ -39,7 +39,7 @@ test('store.io-board-batch.exact-tree-check-refuses-unproved: clause 1: with exa
   assert.equal(mainMoves(green), 1);
 });
 
-test('store.io-board-batch.exact-tree-check-off-as-today: clause 2: with exactTreeCheck false or not given, finishLandingBatch records a batch with no exactTree as it does today [V16,V36]', t => {
+test('board.batch.exact-tree-check-off-as-today: clause 2: with exactTreeCheck false or not given, finishLandingBatch records a batch with no exactTree as it does today [V16,V36]', t => {
   for (const args of [{}, { exactTreeCheck: false }]) {
     const board = pushed(t, undefined);
     assert.equal(finishLandingBatch(board, { agentId: 'coordinator', id: 'batch-1', tip: TIP, ...args }).state, 'landed');
