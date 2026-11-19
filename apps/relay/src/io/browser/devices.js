@@ -134,7 +134,12 @@ export async function deviceBoardKeyState(documentAt) {
   let device;
   try { device = await deviceStorage(); }
   catch (error) { if (error.code === 'DEVICE_STORAGE') return { keys: {}, paired: false, failure: error.message }; throw error; }
-  if (!device) return { keys: {}, paired: false };
+  if (!device) {
+    // Storage is empty: the relay may still know this browser session as a device that was paired before.
+    let known = false;
+    try { known = (await documentAt('/api/v1/devices/session')).knownDevice === true; } catch { /* Without the session fact the plain never-paired wording stays. */ }
+    return { keys: {}, paired: false, knownDevice: known };
+  }
   const identity = await documentAt('/api/v1/devices/session');
   if (identity.account !== device.account) return { keys: {}, paired: false };
   let response;

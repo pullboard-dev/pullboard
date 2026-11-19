@@ -18,9 +18,11 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireTestMirror } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
+import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
@@ -111,7 +113,8 @@ export async function run(io, args) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
     const id = recovered.result;
-    io.result?.({ item: store.getItem(board, id) });
+    const filed = store.getItem(board, id);
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`#${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
@@ -182,6 +185,7 @@ export async function run(io, args) {
   requireNoCoordinatorPath(ctx.config, me, item);
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
+  await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
@@ -209,7 +213,8 @@ export async function run(io, args) {
     }
   }
   const warnings = [...evidenceWarnings, ...barWarnings];
-  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
+  const filed = store.getItem(board, id);
+  io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard', ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);

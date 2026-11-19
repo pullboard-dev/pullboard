@@ -41,7 +41,7 @@ async function offeredTo(cli) {
   try { return JSON.parse(result.out).item?.item_id ?? null; } catch { return null; }
 }
 
-test('clause 2: a seat of the builder\'s own model family is not offered that landing [C7,#9863]', async t => {
+test('cli.journeys-verify-post-land-own-family.a-seat-of-the-builder-s: clause 2: a seat of the builder\'s own model family is not offered that landing [C7,#9863]', async t => {
   const { box } = await landedUnderFamilyRule(t);
   const own = await seatOf(box, BUILDER);
   assert.equal(await offeredTo(own), null);

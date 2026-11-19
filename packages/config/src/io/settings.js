@@ -475,6 +475,11 @@ export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
 }
 
+/** Whether verify.soloLowStakes is on (#966): off by default; only an exact `true` lets a low-stakes row be self-accepted when every check is machine-run, red before and green after. */
+export function soloLowStakesEnabled() {
+  return loadMachineSettings().verify?.soloLowStakes === true;
+}
+
 /** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
 export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
@@ -617,6 +622,11 @@ export function itemsTestMirrorAtAdd() {
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
 export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
+}
+
+/** Whether an item released twice is held for the coordinator: off by default; only an exact `true` turns it on. */
+export function reviewHoldAfterTwoReleases() {
+  return loadMachineSettings().review?.holdAfterTwoReleases === true;
 }
 
 /** Whether an untouched release counts toward the route-up rule (#9759): off by default; only an exact `true` turns it on. */
@@ -1210,4 +1220,9 @@ export function renewAfterSyncEnabled() {
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
+}
+
+/** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
+export function relaxRequiredFamilyEnabled() {
+  return loadMachineSettings().review?.relaxRequiredFamily === true;
 }

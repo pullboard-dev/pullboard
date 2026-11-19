@@ -55,6 +55,7 @@ import { foreignBlockers } from "../board.js";
 import { reviewReleaseCooldown } from "../board.js";
 import { parkedClaims } from "../cooldown.js";
 import { reviewerChecks } from "../board.js";
+import { reviewReleasedTwiceBy } from "./reserve/review.js";
 import { reviewFamilyRelaxation } from './review/family.js';
 import { refusesFamilyRelaxation } from './next-refused-pairings.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
@@ -121,7 +122,7 @@ export function diagnoseWanted(board, item, seatRoute) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -129,7 +130,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set() } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -204,7 +205,9 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    const baseChecks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    // A family that released a review twice is never offered it again, so next --verify does not loop on the refusal (REVIEW_RELEASE_TWICE_ENGINE).
+    const checks = { ...baseChecks, reviewNotReleasedTwiceByFamily: entry => reviewReleasedTwiceBy(board, entry.item_id, agentId) };
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -371,7 +374,9 @@ export function nextFor(board, options) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
     if (diagnosisProblem) { skip(entry, diagnosisProblem.code); reasons.push(diagnosisProblem.message); continue; }
-    const gated = gateAtHead(board, entry);
+    // A derived answer is trusted only when it names a reason; no answer computes the gate as before, so a newer gate is never missed [C7].
+    const derived = derivedGateAtHead?.(entry);
+    const gated = typeof derived === 'string' ? derived : gateAtHead(board, entry);
     if (gated) { skip(entry, 'GATE_AT_HEAD'); reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
     if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }

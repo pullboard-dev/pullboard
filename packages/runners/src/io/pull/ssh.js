@@ -49,14 +49,14 @@ export function runnerSshArgs(runner, script, { dir = runnerStatusDir(), connect
  * Run one script on a runner over ssh and collect its answer.
  * @param {{ host: string }} runner The runner record.
  * @param {string} script The POSIX script.
- * @param {{ stdin?: string|Buffer|{ file: string }, ssh?: string, env?: object, dir?: string, timeoutMs?: number }} [options]
- *   `stdin` is text, bytes, or `{ file }` streamed from disk; `timeoutMs` kills a stuck ssh.
+ * @param {{ stdin?: string|Buffer|{ file: string }, ssh?: string, env?: object, dir?: string, timeoutMs?: number, spawnFn?: Function }} [options]
+ *   `stdin` is text, bytes, or `{ file }` streamed from disk; `timeoutMs` kills a stuck ssh; `spawnFn` stands in for node's spawn in a test.
  * @returns {Promise<{ status: number|null, signal: string|null, stdout: Buffer, stderr: string, error: string|null }>} The run; never rejects.
  */
-export function runRunnerScript(runner, script, { stdin = '', ssh = 'ssh', env = process.env, dir = runnerStatusDir(env), timeoutMs = 30_000 } = {}) {
+export function runRunnerScript(runner, script, { stdin = '', ssh = 'ssh', env = process.env, dir = runnerStatusDir(env), timeoutMs = 30_000, spawnFn = spawn } = {}) {
   return new Promise(resolve => {
     let child;
-    try { child = spawn(ssh, runnerSshArgs(runner, script, { dir }), { env: sshEnv(env), stdio: ['pipe', 'pipe', 'pipe'] }); }
+    try { child = spawnFn(ssh, runnerSshArgs(runner, script, { dir }), { env: sshEnv(env), stdio: ['pipe', 'pipe', 'pipe'] }); }
     catch (failure) { resolve({ status: null, signal: null, stdout: Buffer.alloc(0), stderr: '', error: failure.code ?? failure.name }); return; }
     const out = [];
     let bytes = 0, stderr = '', error = null;

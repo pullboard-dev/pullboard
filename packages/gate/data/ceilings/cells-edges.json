@@ -1200,7 +1200,7 @@
       "cells": 3,
       "deep": 0
     },
-    "apps/relay/src/logic/person/enrollment/store.js": {
+    "apps/relay/src/io/store/enrollment.js": {
       "cells": 2,
       "deep": 0
     },
@@ -1969,6 +1969,14 @@
       "deep": 0
     },
     "packages/gate/tests/fixtures/diagnostics.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-runners.js": {
       "cells": 1,
       "deep": 0
     },
@@ -5975,9 +5983,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/resources/runner.js": [
-      "apps/cli"
-    ],
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],

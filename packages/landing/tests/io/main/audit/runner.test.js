@@ -22,7 +22,7 @@ import { matchingMainFailures } from '../../../../index.js';
 import { takeResource } from '../../../../../resources/index.js';
 import { withEnvironment } from '../../../../../resources/index.js';
 import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
-import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServices } from '../../../../../gate/tests/fixtures/execution.js';
 import { HOST } from '../../../../../gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../gate/tests/fixtures/runner/ssh.js';
 

@@ -72,6 +72,32 @@ function heldOther(db, runner, now) {
     WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NULL`).get(runner, now).held;
 }
 
+/** Whether this runner holds a live lease on a test job now (an agent's `pullboard test` run). */
+function holdsTestJob(db, runner, now) {
+  return Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'test' AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed') LIMIT 1").get(runner, now));
+}
+
+// Budget: a test job offered this long before the claim keeps its place ahead of gate shards, so a reviewer's comparison run is not starved by a shard backlog [C7,#11190].
+const TEST_JOB_AGED_MS = 120_000;
+
+/** The ids among these test jobs that were offered TEST_JOB_AGED_MS or more before this claim, read in one query keyed by job_id. */
+function agedTestJobs(db, ordered, now) {
+  const ids = ordered.filter(({ row }) => row.job_kind === 'test').map(({ row }) => row.job_id);
+  if (!ids.length) return new Set();
+  return new Set(db.prepare("SELECT job_id FROM job WHERE job_kind = 'test' AND job_created <= ? AND job_id IN (SELECT value FROM json_each(?))")
+    .all(now - TEST_JOB_AGED_MS, JSON.stringify(ids)).map(({ job_id: id }) => id));
+}
+
+/** The claim order with item gate shards moved ahead of the first fresh test job; an aged test job, and every other job, keeps its place and each group its age order. */
+function shardsBeforeTests(ordered, aged) {
+  const firstTest = ordered.findIndex(({ row }) => row.job_kind === 'test');
+  if (firstTest < 0) return ordered;
+  const isShard = ({ row }) => row.job_kind === SHARD_JOB_KIND;
+  const isAged = ({ row }) => aged.has(row.job_id);
+  const tail = ordered.slice(firstTest);
+  return [...ordered.slice(0, firstTest), ...tail.filter(isAged), ...tail.filter(entry => isShard(entry) && !isAged(entry)), ...tail.filter(entry => !isShard(entry) && !isAged(entry))];
+}
+
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
 // Budget: a receipt is a small record (status, digests, receipt ids); output belongs in a report file, not the row.
@@ -308,16 +334,18 @@ export function boardQueueMode(db, wanted) {
  * share of the runner's `jobs` slots; with none, pre-push gate shards first (#7790), then landing jobs, test runs and the rest, each by age (claimableJobs) [C7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
+ * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
   const only = kinds === null ? null : new Set(names(kinds, 'kinds'));
+  // Kinds this claim skips: a machine holding a check baseline claims no second one, and still takes any other kind [C7,#10794].
+  const skip = except === null ? null : new Set(names(except, 'except'));
   const ended = [];
   const repeated = [];
   const claimed = atomically(db, () => {
@@ -330,8 +358,10 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     const censusCap = offer => (offer.censusPerRunnerQuiet && (other ??= heldOther(db, runner, now)) === 0 ? Math.max(offer.censusPerRunnerQuiet, offer.censusPerRunner) : offer.censusPerRunner);
     const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= censusCap(offer);
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
-      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
-    for (const { row, offer } of ordered) {
+      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
+    // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
+    const offered = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
+    for (const { row, offer } of offered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
@@ -525,6 +555,24 @@ function shadowOf(db) {
     seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare), compare.wrote?.refused ?? null) };
 }
 
+/** The longest one job write may hold the board's write lock before it rolls back and refuses [C7,#11029]. */
+export const JOB_WRITE_BOUND_MS = 5000;
+
+/**
+ * Run a job write in one transaction that gives the lock up when it ran past the bound: the write rolls back and refuses JOB_WRITE_TIMEOUT,
+ * so one slow write can never hold every seat off the board for minutes. A db may carry its own `jobWriteBoundMs` (a test) [C7,#11029].
+ */
+function boundedAtomically(db, work) {
+  const bound = db.jobWriteBoundMs ?? JOB_WRITE_BOUND_MS;
+  const started = Date.now();
+  return atomically(db, () => {
+    const result = work();
+    const took = Date.now() - started;
+    if (took > bound) throw new Refused('JOB_WRITE_TIMEOUT', `a job write held the board lock for ${took} ms, over the ${bound} ms bound; it was rolled back`, 'retry the call');
+    return result;
+  });
+}
+
 /**
  * With moves.live.job on, the job table decides the move: it refuses before anything is written, and the job row it names is the one left behind.
  * The writer still records the steps the table does not model; then the row's step, owner and lease are set to the table's answer.
@@ -536,7 +584,7 @@ function followTable(db, move, now, write) {
   if (answer?.refused) throw new Refused(answer.refused.code, answer.refused.message ?? `the job table refused ${move.name} on job ${move.job}`, answer.refused.next);
   const decided = answer?.patch?.job;
   if (!decided) return write();
-  return atomically(db, () => {
+  return boundedAtomically(db, () => {
     const result = write();
     setJobRow(db, move.job, decided, { now });
     return result;
@@ -563,7 +611,7 @@ function shadowed(db, move, now, write) {
   // from another process between the table's read and the write would otherwise leave the table on `claimed` and the row on `done` [C7,#9360].
   let seen;
   try {
-    return atomically(db, () => {
+    return boundedAtomically(db, () => {
       const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
       const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
       let result;
@@ -911,9 +959,9 @@ function reportedCommit(read) {
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
+  const { action, runner, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
     const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }

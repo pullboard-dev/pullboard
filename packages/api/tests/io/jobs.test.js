@@ -15,6 +15,9 @@ import { settledGate } from '../../../jobs/index.js';
 import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
+import { claimJob } from '../../index.js';
+import { renewJob } from '../../index.js';
+import { postReceipt } from '../../index.js';
 import { runnerCommitPort } from '../../index.js';
 import { MACHINE_DEFAULTS } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
@@ -113,6 +116,18 @@ test('api.jobs.a-pulled-gate-receipt-holds-queuewaitseconds-claim: clause 1: a p
   assert.equal(waits[other.job], undefined, 'a receipt with no gate is stored as it was posted');
   const posted = jobView(db, claim.job).steps.find(step => step.name === 'receipt').payload;
   assert.equal(settledGate(claim.job, posted).queueWaitSeconds, 7.5);
+});
+
+test('api.jobs.claim-except-skips-kinds: #10794: a claim naming except skips open jobs of those kinds and takes any other kind; a claim without it takes them as before [C7]', (t) => {
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'baseline:1:a', kind: 'check-baseline', needs: [] });
+  offerJob(db, { id: 'gate:except', kind: 'gate', needs: [] });
+  db.prepare('UPDATE job SET job_created = 1000000 WHERE job_id = ?').run('baseline:1:a');
+  const claim = body => jobQueueCall(db, { action: 'claim', capabilities: [], ...body }, { mode: 'pull' }).claim;
+  assert.equal(claim({ runner: 'local-a', except: ['check-baseline'] })?.job, 'gate:except', 'the baseline is skipped and the gate taken');
+  assert.equal(claim({ runner: 'local-a', except: ['check-baseline'] }), null, 'only the excepted kind is left, so nothing is claimed');
+  assert.equal(claim({ runner: 'local-b' })?.job, 'baseline:1:a', 'a claim without except takes it');
+  assert.throws(() => claim({ runner: 'local-c', except: 'check-baseline' }), { code: 'JOB_CAPABILITY' }, 'except is a list of names');
 });
 
 /** A held claim of one offered gate job, and a call that posts as its runner. */
@@ -240,4 +255,58 @@ test('api.jobs.claim-runner-commit-off: clause 3: with runners.reportCommit off 
   assert.equal(won.text, JSON.stringify({ version: 1, claim, trunk: repo.root }), 'a claim with a job carries only claim and trunk');
   assert.equal((await jobs({ action: 'claim', runner: 'r-b', capabilities: [] })).text, '{"version":1,"claim":null}', 'an empty claim answer is exactly today\'s');
   assert.equal(JSON.stringify(jobQueueCall(db, { action: 'claim', runner: 'r-c', capabilities: [] }, { mode: 'pull', runnerCommit: null })), '{"claim":null}', 'no port is the call as it was');
+});
+
+/** A board with one claimed gate job and a shadow whose decide takes `spinMs` inside the write transaction. */
+function claimedWithShadow(t, spinMs, boundMs) {
+  const { root } = privateFixtureFiles('pullboard-jobs-bound-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'gate:bound', kind: 'gate', now: 1000 });
+  const claim = claimJob(db, { runner: 'mill', now: 10_000, leaseMs: 120_000 });
+  db.jobWriteBoundMs = boundMs;
+  db.jobQueueShadow = {
+    decide: () => { const end = Date.now() + spinMs; while (Date.now() < end); return { patch: {} }; },
+    seen: () => {},
+  };
+  return { db, claim };
+}
+
+test('api.io-jobs.write-time-bound: clause 1: a renewJob whose write runs past the bound rolls back and refuses, and a peer BEGIN IMMEDIATE succeeds right after [C7,#11029]', (t) => {
+  const { db, claim } = claimedWithShadow(t, 40, 10);
+  assert.throws(() => renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 }), { code: 'JOB_WRITE_TIMEOUT' });
+  assert.equal(db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'gate:bound'").get().until, 130_000, 'the lease is the claim\'s, the renewal rolled back');
+  db.exec('BEGIN IMMEDIATE');
+  db.exec('ROLLBACK');
+});
+
+test('api.io-jobs.fast-write-unchanged: clause 2: a renewJob and a postReceipt inside the bound commit as before [C7,#11029]', (t) => {
+  const { db, claim } = claimedWithShadow(t, 0, 60_000);
+  const renewed = renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 });
+  assert.deepEqual(renewed, { renewed: true, leaseUntil: 140_000 });
+  postReceipt(db, { job: 'gate:bound', runner: 'mill', token: claim.token, receipt: { ok: true }, now: 30_000 });
+  assert.equal(db.prepare("SELECT job_step AS step FROM job WHERE job_id = 'gate:bound'").get().step, 'done');
+});
+
+test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the claim action a runner holding one test job and offered shards plus tests is handed a shard [C7,#11146]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-shard-first-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  offerJob(db, { id: 'test:two', kind: 'test', now: 1002 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(5000), 'test:one', 'a runner holding no test job takes the oldest test job');
+  assert.equal(claim(5001), 'gate:9:shard:1', 'a runner holding a test job is handed the queued shard before the newer test job');
+  assert.equal(claim(5002), 'test:two');
+});
+
+test('api.jobs.claims-aged-test-before-shards-over-claim-action: clause 3: over the claim action a runner holding one test job and offered a 3-minute-old test job and queued shards is handed the test job [C7,#11190]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-aged-test-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'test:old', kind: 'test', now: 2000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 3000 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(181_000), 'test:one', 'a runner holding no test job takes the oldest test job');
+  assert.equal(claim(182_000), 'test:old', 'a runner holding a test job is handed the 3-minute-old test job before the queued shard');
+  assert.equal(claim(182_001), 'gate:9:shard:1');
 });

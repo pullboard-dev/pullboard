@@ -4,10 +4,9 @@ import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { readCostAnalytics } from './cost.js';
-import { costAnalyticsSliced } from '../../../stats/index.js';
-import { coordinatorUsage } from '../../../stats/index.js';
-import { publicUsage } from '../../../stats/index.js';
-import { costWindowStart } from '../../../stats/index.js';
+import { loadCostAnalytics } from '../../../stats/light.js';
+import { coordinatorUsage } from '../../../stats/light.js'; import { machineBudgetState } from '../../../stats/light.js';
+import { publicUsage } from '../../../stats/light.js';
 import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
@@ -18,8 +17,8 @@ import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { codeAt } from './code.js';
 import { startHandlerPool } from './pool.js'; import { readPoolHandlers } from './pool/reads.js';
 import { counterProofStats } from '../../../verify/index.js';
-import { proofStats } from '../../../stats/index.js';
-import { isProofAgent } from '../../../stats/index.js';
+import { proofStats } from '../../../stats/light.js';
+import { isProofAgent } from '../../../stats/light.js';
 import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
@@ -27,7 +26,7 @@ import { boardFilePath } from '../../../store/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../logic/fields.js';
 import { milestonePace } from '../logic/milestone-pace.js';
 import { milestoneWithoutPace } from '../logic/milestone-pace.js';
-import { capacityAtRead } from '../../../stats/index.js';
+import { capacityAtRead } from '../../../stats/light.js';
 import { nativeStateClockMatches } from '../../../store/index.js';
 import {
   dependencyValues,
@@ -88,12 +87,12 @@ import {
 import { finishedCounts } from './items.js';
 import { finishedText } from './items.js';
 import { openOnly } from './items.js';
-import { searchText } from './items.js';
+import { searchText } from './items.js'; import { seatClaims } from './items.js';
 import {
   compareFlowWindows,
   prepareFlowHistory,
   projectFlowStats,
-} from '../../../stats/index.js';
+} from '../../../stats/light.js';
 import { projectItemSpecApprovals } from '../../../spec/index.js';
 import { specApprovalState } from '../../../spec/index.js';
 import { verdictProjector } from '../../../verify/index.js';
@@ -1331,6 +1330,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       return proof;
     }, codeIsMain, boardOpeners)),
     item: (board, id) => pool ? pool.call('item', { root: board.root, id: board.id, itemId: id }, { route: `GET /api/v1/boards/${board.id}/items/${id}` }) : projectRead(board, () => localItem(board, id)),
+    agent: (board, name) => projectRead(board, () => withReadBoard(board.root, (current) => seatClaims(current, name, { store, Refused }), codeIsMain, boardOpeners)),
     search: (board, text) => materialized(() => materializer.search(board, text), () => projectRead(board, () => localSearch(board, text))),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
@@ -1338,9 +1338,10 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)), trunkPack: boardOpeners?.trunkPack && ((board, commit) => boardOpeners.trunkPack(board.root, commit)),
     health: () => (pool ? { pool: pool.health() } : {}),
     jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs`, runner: true }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
-    costAnalytics: (board, window, who) => {
+    costAnalytics: async (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
-      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)) });
+      const { costWindowStart, costAnalyticsSliced } = await loadCostAnalytics();
+      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)), budgetState: current => machineBudgetState(current, now()) });
     },
     events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
