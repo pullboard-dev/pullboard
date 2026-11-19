@@ -5,7 +5,8 @@ import { tryGit } from "../../../../git/index.js";
 export const ITEM_SIZE_BUDGET = 100;
 
 /**
- * Count the changed lines (added plus deleted) between two commits. A binary file reports `-`, so it counts none.
+ * Count the changed lines (added plus deleted) the head made since it split from the trunk commit, so changes main
+ * gained after the head merged it are not the item's. A binary file reports `-`, so it counts none.
  *
  * @param {string} root the checkout git runs in
  * @param {string} base the trunk commit the submit is compared with
@@ -13,7 +14,7 @@ export const ITEM_SIZE_BUDGET = 100;
  * @returns {number | null} null when git cannot compare the two commits
  */
 export function changedLines(root, base, head) {
-  const result = tryGit(root, ['diff', '--numstat', '--no-renames', base, head]);
+  const result = tryGit(root, ['diff', '--numstat', '--no-renames', `${base}...${head}`]);
   if (result.status !== 0) return null;
   return result.stdout.split('\n').filter(Boolean).reduce((total, line) => {
     const [added, deleted] = line.split('\t');

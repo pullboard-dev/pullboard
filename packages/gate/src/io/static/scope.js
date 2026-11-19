@@ -12,6 +12,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tryGit } from '../../../../git/index.js';
 import { machineHome } from '../../../../resources/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { storeName } from '../store-names.js';
 
 /** The environment variable that hands a static command the changed paths, as a JSON list; a command that ignores it runs whole. */
@@ -124,7 +125,7 @@ export function writeAnalysisMemo(key, result, { home } = {}) {
 }
 
 /** The changed paths a static command was handed in its environment, or null for a whole-tree run. */
-export function staticScopeFromEnv(env = process.env) {
+export function staticScopeFromEnv(env = environmentAdapter().all()) {
   try {
     const files = JSON.parse(env[STATIC_SCOPE_ENV] ?? 'null');
     return Array.isArray(files) && files.every(file => typeof file === 'string') ? files : null;
