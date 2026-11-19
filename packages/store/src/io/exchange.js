@@ -97,6 +97,45 @@ function nativeRows(db, table) {
 const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result', 'run', 'gate_hop', 'event_archive']);
 
 /**
+ * Nullable columns a row may leave out, by table; a missing one imports as null [C7,#11664].
+ *
+ * Why: #9181 added the item reservation columns after releases whose importers refuse any key they do not know,
+ * and whose exports never carry them. A row with no reservation exports without them, so it still imports there,
+ * and their rows import here. Every other column still has to match exactly.
+ */
+const ADDITIVE_COLUMNS = new Map([
+  ['item', ['item_reservation_holder', 'item_reservation_by', 'item_reservation_at']],
+]);
+
+/**
+ * A row without its additive columns when every one of them is null; a row holding any value keeps them all.
+ * @param {string} table
+ * @param {Record<string, any>} row
+ * @returns {Record<string, any>}
+ */
+function withoutEmptyAdditiveColumns(table, row) {
+  const additive = ADDITIVE_COLUMNS.get(table);
+  if (!additive || additive.some((column) => row[column] != null)) return row;
+  const copy = { ...row };
+  for (const column of additive) delete copy[column];
+  return copy;
+}
+
+/**
+ * True when a supplied row has exactly the table's columns, or those columns less some additive ones.
+ * @param {string} table
+ * @param {string[]} columns
+ * @param {Record<string, any>} row
+ * @returns {boolean}
+ */
+function hasBoardColumns(table, columns, row) {
+  const additive = ADDITIVE_COLUMNS.get(table) ?? [];
+  const keys = new Set(Object.keys(row));
+  if ([...keys].some((key) => !columns.includes(key))) return false;
+  return columns.every((column) => keys.has(column) || additive.includes(column));
+}
+
+/**
  * Read every exported table's rows, leaving out an additive table that holds no rows, and its counter [C7].
  *
  * Why: an older release's importer refuses tables it does not know, so an ordinary board with no jobs exports
@@ -110,6 +149,9 @@ function exportedTables(db, names) {
   const tables = Object.fromEntries(names.map((table) => [table, nativeRows(db, table)]));
   const omitted = new Set([...ADDITIVE_TABLES].filter((table) => Array.isArray(tables[table]) && tables[table].length === 0));
   for (const table of omitted) delete tables[table];
+  for (const table of ADDITIVE_COLUMNS.keys()) {
+    if (Array.isArray(tables[table])) tables[table] = tables[table].map((row) => withoutEmptyAdditiveColumns(table, row));
+  }
   if (omitted.size && Array.isArray(tables.sqlite_sequence)) {
     tables.sqlite_sequence = tables.sqlite_sequence.filter(({ name }) => !omitted.has(name));
   }
@@ -205,7 +247,7 @@ function validateDocument(db, document, names) {
     const rows = suppliedRows(document, table);
     if (!Array.isArray(rows)) throw new Refused('IMPORT_FORMAT', `table ${table} must contain an array of rows; export it again`);
     for (const row of rows) {
-      if (!row || typeof row !== 'object' || Array.isArray(row) || JSON.stringify(Object.keys(row).sort()) !== JSON.stringify([...columns].sort())) {
+      if (!row || typeof row !== 'object' || Array.isArray(row) || !hasBoardColumns(table, columns, row)) {
         throw new Refused('IMPORT_SCHEMA', `a ${table} row does not have exactly its board columns; export it again`);
       }
     }
@@ -374,7 +416,8 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
           const cursors = [localCursor, row.agent_last_shout_id].filter(validReadCursor);
           if (cursors.length) restored = { ...row, agent_last_shout_id: Math.max(...cursors) };
         }
-        insert.run(...columns.map((column) => restored[column]));
+        // An additive column the row left out imports as null (ADDITIVE_COLUMNS); validateDocument refused any other gap.
+        insert.run(...columns.map((column) => Object.hasOwn(restored, column) ? restored[column] : null));
       }
     }
     db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?) ON CONFLICT(meta_key) DO UPDATE SET meta_value = excluded.meta_value')
