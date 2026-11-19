@@ -230,3 +230,23 @@ test('stats.model.malformed-landing-provenance-is-right-censored: malformed land
     assert.ok(!result.unknown.some(text => /landing outcome coverage/u.test(text)), result.unknown.join('; '));
   }
 });
+
+test('stats.capacity-model.ready-width-without-history: with no usable fit the ready width is still returned and printed after the unknown agent line [R1,R2]', () => {
+  const result = plan([item(1), item(2), item(3, { files: ['src/1.js'] }), item(4, { held: true }), item(5, { after: [1] })], fit([]));
+  assert.equal(result.available, false);
+  assert.equal(result.agents.recommended, null);
+  assert.equal(result.readyWidth, 2, 'three ready items, two share a file; held and dependent items are not ready');
+  const lines = capacityLines(result);
+  assert.equal(lines[0].startsWith('Max useful agents now: unknown'), true);
+  assert.equal(lines[1], '2 items can be built at once now.');
+  assert.equal(plan([item(1, { files: ['a'] }), item(2, { files: ['b'] }), item(3, { files: ['c'] })], fit([])).readyWidth, 3);
+});
+
+test('stats.capacity-model.ready-width-with-history: with a usable fit the useful-agent line is unchanged and the ready width is still printed [R1,R2]', () => {
+  const result = plan([item(1), item(2), item(3)]);
+  assert.equal(result.available, true);
+  assert.equal(result.readyWidth, 3);
+  const lines = capacityLines(result);
+  assert.match(lines[0], /^Max useful agents now: 3 \(/u);
+  assert.ok(lines.includes('3 items can be built at once now.'));
+});

@@ -2461,6 +2461,7 @@
     "sandbox->kernel",
     "apps/cli->state",
     "apps/lib->transport",
+    "apps/lib->env",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
@@ -2611,7 +2612,8 @@
     "board->stats",
     "board->store",
     "board->verify",
-    "apps/lib->board"
+    "apps/lib->board",
+    "apps/lib->fs"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",
