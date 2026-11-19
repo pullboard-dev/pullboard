@@ -12,10 +12,10 @@ const RENAMED = 'apps/cli/journeys/relay/credential.test.js';
 const CONFIG = { name: 'Rename fixture', gate: 'true', spec: 'SPEC.md', lanes: { app: { owns: ['src/'] } } };
 
 /** A repo whose spec holds one draft row, and whose rename map names the old and the renamed path. */
-function repo(rowText) {
+function repo(rowText, more = []) {
   const { root, write } = privateFixtureFiles('pullboard-rigor-apply-');
   const spec = '# Spec\n\n## G · Goals\n- G1 [approved, must] Keep the product coherent. | gate: review\n\n'
-    + `## RG · Rigor proposals\n- RG1 [draft, aim] ${rowText} | gate: review\n`;
+    + `## RG · Rigor proposals\n- RG1 [draft, aim] ${rowText} | gate: review\n${more.map(row => `${row}\n`).join('')}`;
   fixtureProjectPolicy(root, { config: CONFIG, spec });
   write('DOCTRINE.md', '# Doctrine\n\n## DR · Rulings\n');
   write('packages/codemap/data/plan/renames.tsv', `${OLD}\t${RENAMED}\n`);
@@ -42,7 +42,43 @@ test('rigor.auto.apply-renamed-path-same-row: clause 1: a draft naming an old pa
   assert.deepEqual(plan.records, []);
 });
 
-test('rigor.auto.apply-real-text-diff-refuses: clause 2: a real text difference besides the path still throws ROW_DRAFT [D1,S1]', () => {
-  const before = draft(OLD), root = repo(movedRow(draft(RENAMED, 'avoid'), before));
-  assert.throws(() => planAutomaticRigorApply(root, loadConfig(root), [before]), error => error.code === 'ROW_DRAFT');
+/** A spec with a colliding draft row RG1 and no row yet for the fresh draft RG2. */
+function collidingRepo() {
+  const before = draft(OLD);
+  return { before, root: repo(movedRow(draft(RENAMED, 'avoid'), before)) };
+}
+
+/** A second draft whose id the spec does not hold yet, so it plans a fresh row. */
+function freshDraft() {
+  return { ...draft(RENAMED), id: 'RG2' };
+}
+
+test('rigor.auto.apply-collision-does-not-block: clause 1: a colliding draft is listed in collisions while the fresh draft still plans its row [D1,S1]', () => {
+  const { before, root } = collidingRepo();
+  const plan = planAutomaticRigorApply(root, loadConfig(root), [before, freshDraft()]);
+  assert.equal(plan.files.length, 1, 'the fresh draft plans one file write');
+  assert.match(plan.files[0].after, /^- RG2 \[draft, aim\] /mu);
+  assert.deepEqual(plan.collisions.map(({ id, target }) => ({ id, target })), [{ id: 'RG1', target: 'spec' }]);
+  assert.match(plan.collisions[0].why, /RG1 already names different spec text, gate or tier/u);
+});
+
+test('rigor.auto.apply-collision-never-overwrites: clause 2: a colliding draft is never written over; its file row stays byte for byte [D1,S1]', () => {
+  const { before, root } = collidingRepo();
+  const plan = planAutomaticRigorApply(root, loadConfig(root), [before, freshDraft()]);
+  assert.ok(plan.collisions.some(({ id }) => id === 'RG1'));
+  const [{ before: original, after }] = plan.files;
+  const row = /^- RG1 .*$/mu.exec(original)[0];
+  assert.deepEqual(after.split('\n').filter(line => line.startsWith('- RG1 ')), [row], 'the planned text keeps the colliding row exactly, with no second RG1 row');
+});
+
+test('rigor.auto.apply-collisions-apply-the-rest: clause 3: several colliding drafts are all listed while every non-colliding draft still plans its row [D1,S1]', () => {
+  const before = draft(OLD), second = { ...draft(OLD), id: 'RG2' };
+  const secondRow = `- RG2 [draft, aim] ${movedRow(draft(RENAMED, 'avoid'), second)} | gate: review`;
+  const root = repo(movedRow(draft(RENAMED, 'avoid'), before), [secondRow]);
+  const fresh = ['RG3', 'RG4'].map(id => ({ ...draft(RENAMED), id }));
+  const plan = planAutomaticRigorApply(root, loadConfig(root), [before, second, ...fresh]);
+  assert.deepEqual(plan.collisions.map(({ id }) => id), ['RG1', 'RG2'], 'every colliding draft is listed');
+  assert.equal(plan.files.length, 1);
+  const rows = plan.files[0].after.split('\n').filter(line => /^- RG\d /u.test(line)).map(line => line.slice(0, 6));
+  assert.deepEqual(rows, ['- RG1 ', '- RG2 ', '- RG3 ', '- RG4 '], 'both fresh rows are planned beside the untouched colliding rows');
 });
