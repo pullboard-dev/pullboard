@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runScheduledClaimWatchdog } from '../../../index.js';
 import { sweepClaims } from '../../../index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 
 const T0 = Date.parse('2026-11-04T12:00:00.000Z');
 const minutes = count => new Date(T0 + count * 60_000).toISOString();
