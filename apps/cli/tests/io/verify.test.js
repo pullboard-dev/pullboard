@@ -85,7 +85,7 @@ async function mergedHeadItem(t, mainFile) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, submitted);
   assert.equal(joinFixtureSeat(box, review, 'api').code, 0);
   assert.equal(box.run(review, 'next', '--verify', '1', '--json').code, 0);
-  await ok(review, 'fact', '1', 'note', `clause 1 [reasoning]: read web/item-1.js at ${ticked}: it exports complete`);
+  await ok(box.web, 'fact', '1', 'note', `clause 1 [reasoning]: read web/item-1.js at ${ticked}: it exports complete`);
   return { box, review };
 }
 
