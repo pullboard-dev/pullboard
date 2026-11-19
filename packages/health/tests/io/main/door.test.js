@@ -13,7 +13,7 @@ const SRC = join(import.meta.dirname, "..", "..", "..", "src");
 const BARREL = resolve(import.meta.dirname, "..", "..", "..", "..", "stats", "index.js");
 const SPECIFIER = /^\s*(?:import|export)\s[^"\x27]*?from\s*["\x27]([^"\x27]+)["\x27]|import\(\s*["\x27]([^"\x27]+)["\x27]\s*\)/gmu;
 
-test("health.io-main-door.no-barrel-import: clause 1: no import specifier in packages/health/src/io/main.js resolves to the stats barrel file [C7,#10182]", () => {
+test('health.io-main-door.no-barrel-import: clause 1: no import specifier in packages/health/src/io/main.js resolves to the stats barrel file [C7,#10182]', () => {
   const main = join(SRC, "io", "main.js");
   const resolved = [];
   const source = readFileSync(main, "utf8");
@@ -25,7 +25,7 @@ test("health.io-main-door.no-barrel-import: clause 1: no import specifier in pac
   assert.deepEqual(resolved.filter((path) => path === BARREL), []);
 });
 
-test("health.io-main-door.same-function: clause 1: readWorkFreeReleases from the stats light door is strictly equal to the barrel\x27s [C7,#10182]", () => {
+test('health.io-main-door.same-function: clause 1: readWorkFreeReleases from the stats light door is strictly equal to the barrel\x27s [C7,#10182]', () => {
   assert.equal(typeof fromDoor, "function");
   assert.equal(fromDoor, fromBarrel);
 });
