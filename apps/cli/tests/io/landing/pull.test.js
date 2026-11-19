@@ -7,6 +7,9 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { landingOfferBatches } from '../../../src/io/landing/pull.js';
+import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js';
+import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
+import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
 import { offerWithLog } from '../../fixtures/landing/offer.js';
 import { fixtureBoard } from '../../fixtures/board.js';
@@ -34,6 +37,17 @@ test('cli.io-landing-pull.parallel-off-as-today: clause 2: with parallel off, fr
   assert.deepEqual(landingOfferBatches(free, { size: 1, parallel: false }).map(batch => batch.map(entry => entry.id)), [[1], [2], [3], [4]]);
   assert.deepEqual(landingOfferBatches(free, { size: 4, parallel: false }).map(batch => batch.length), [4]);
   assert.deepEqual(landingOfferBatches([], { size: 2 }), []);
+});
+
+test('cli.io-landing-pull.conflict-repos-mechanical-only: clause 1: the conflict-repos helper builds a mechanical-only conflict [C7,#3064]', () => {
+  const { root, main, head } = mechanicalOnlyConflictRepo();
+  assert.deepEqual(mechanicalConflictFiles(root, main, head), []);
+  assert.deepEqual(mechanicalConflictFiles(root, head, main), []);
+});
+
+test('cli.io-landing-pull.conflict-repos-real: clause 2: the conflict-repos helper builds a real conflict [C7,#3064]', () => {
+  const { root, main, head, file } = realConflictRepo();
+  assert.deepEqual(mechanicalConflictFiles(root, main, head), [file]);
 });
 
 /** A real file board whose machine logs go to a private home; returns the board, its holder folder and a reader of board-writes.jsonl. */
