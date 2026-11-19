@@ -1,7 +1,7 @@
 import { receiptRecorder } from "./receipts.js";
 import { recordRun } from "../../../../gate/index.js";
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from "../../../../fs/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { mappedCheck } from "../../../../codemap/index.js";
 import { laneOf } from "../../../../seats/index.js";
@@ -24,6 +24,8 @@ import {
   flakeSource,
   observeNativeFailure,
 } from "../native.js";
+
+const fs = fileSystemAdapter();
 export { flakesCommand as command } from "../command.js";
 
 /** Record the canonical direct-suite receipt through the existing authenticated board move. */
@@ -111,7 +113,7 @@ export function verify(ctx, item, command, options, services) {
     const result = await runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, { ...services, appendFact });
     await recordNativeProof(ctx, item, result, { ...services, proofRunReceipt }, options.board);
     await recordRun(observe, result);
-    if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? readFileSync(result.outputPath, 'utf8') : result.output,
+    if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? fs.readFile(result.outputPath, 'utf8') : result.output,
       log: result.outputPath, profilePath: result.profilePath, executionRoot: result.executionRoot, executionSourceUnchanged: result.executionSourceUnchanged, executionRunner: result.executionRunner,
       executionLoad: result.executionLoad, executionMain: result.executionMain, executionSource: result.executionSource,
       environment: result.environment, profile: result.profile, rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawOutputSha256 }, { root: ctx.info.root, command, lease });

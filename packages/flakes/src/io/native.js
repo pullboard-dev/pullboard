@@ -9,22 +9,11 @@ import {
   loadavg,
 } from 'node:os';
 import {
-  closeSync,
-  constants,
-  copyFileSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readSync,
-  readdirSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
 } from 'node:path';
 import { pairReds } from './pair.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   addWorktree,
   headCommit,
@@ -48,18 +37,20 @@ import {
   tapTests,
 } from "../../../gate/index.js";
 
+const fs = fileSystemAdapter();
+
 /** Hash immutable bytes without retaining a potentially credential-bearing command in board data. */
 function digest(value) { return createHash('sha256').update(value).digest('hex'); }
 
 /** Hash large raw evidence in bounded chunks rather than loading another complete log into memory. */
 function fileDigest(file) {
   const hash = createHash('sha256');
-  const descriptor = openSync(file, 'r');
+  const descriptor = fs.open(file, 'r');
   const buffer = Buffer.alloc(65536);
   try {
     let length;
-    while ((length = readSync(descriptor, buffer, 0, buffer.length, null))) hash.update(buffer.subarray(0, length));
-  } finally { closeSync(descriptor); }
+    while ((length = fs.read(descriptor, buffer, 0, buffer.length, null))) hash.update(buffer.subarray(0, length));
+  } finally { fs.close(descriptor); }
   return hash.digest('hex');
 }
 
@@ -133,14 +124,14 @@ function knownRunner(root, pin, runner) {
 function saveReceipt(directory, id, label, run) {
   const file = join(directory, label + '.log');
   const source = run.log || run.logPath;
-  if (source) copyFileSync(source, file, constants.COPYFILE_EXCL);
-  else writeFileSync(file, run.output ?? '', { flag: 'wx', mode: 0o600 });
+  if (source) fs.copyFile(source, file, fs.constants.COPYFILE_EXCL);
+  else fs.writeFile(file, run.output ?? '', { flag: 'wx', mode: 0o600 });
   let profileSha256 = null;
   if (run.profilePath) {
-    copyFileSync(run.profilePath, join(directory, label + '.profile.json'), constants.COPYFILE_EXCL);
+    fs.copyFile(run.profilePath, join(directory, label + '.profile.json'), fs.constants.COPYFILE_EXCL);
     profileSha256 = fileDigest(run.profilePath);
   }
-  return { green: run.isGreen, sha256: fileDigest(file), bytes: statSync(file).size, artifact: 'flake-evidence/' + id + '/' + label + '.log', profileSha256 };
+  return { green: run.isGreen, sha256: fileDigest(file), bytes: fs.stat(file).size, artifact: 'flake-evidence/' + id + '/' + label + '.log', profileSha256 };
 }
 
 /**
@@ -164,7 +155,7 @@ function targetResults(run, root, names) {
 async function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit, submitDiagnostic = false) {
   const item = { item_id: submitDiagnostic ? lease.proof.item : 0, item_commit: commit, item_claim_head: policyCommit, item_frozen: JSON.stringify({ check: command }) };
   const check = submitDiagnostic ? await runFrozenProof(root, item, { gateLease: lease, diagnostic: true }, { checkAtCommit }) : await checkAtCommit(root, item, { gateLease: lease });
-  const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : '';
+  const output = check.outputPath ? fs.readFile(check.outputPath, 'utf8') : '';
   return { ...(check.proofReceiptId ? { proofReceiptId: check.proofReceiptId } : {}), isGreen: check.state === 'pass', unverified: check.state === 'unverified', output, log: check.outputPath,
     executionRoot: check.executionRoot, executionSourceUnchanged: check.executionSourceUnchanged, profilePath: check.profilePath, profile: check.profile,
     executionRunner: check.executionRunner, executionLoad: check.executionLoad, executionMain: check.executionMain,
@@ -222,11 +213,11 @@ async function observeFailure({ root, outputRoot = root, config, pin, run, comma
   const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
   if (common.status !== 0) throw new Error('Cannot retain flake evidence without the board Git directory.');
   const evidence = join(common.stdout.trim(), 'pullboard', 'flake-evidence');
-  mkdirSync(evidence, { recursive: true, mode: 0o700 });
+  fs.mkdir(evidence, { recursive: true, mode: 0o700 });
   // Every case's original receipt is durable before any diagnostic executes.
   const cases = failures.map(failure => {
     const id = randomUUID();
-    const directory = join(evidence, id); mkdirSync(directory, { mode: 0o700 });
+    const directory = join(evidence, id); fs.mkdir(directory, { mode: 0o700 });
     return { failure, id, directory, started: Date.now(), original: saveReceipt(directory, id, 'original', run),
       named: Boolean(failure.file && failure.name && committedTest(root, pin.head, failure.file)), paired: null, mainReceipt: null,
       classification: 'unclassified',
@@ -262,9 +253,9 @@ async function observeFailure({ root, outputRoot = root, config, pin, run, comma
       kind, classification, reason, commandSha256: digest(command), at: observedAt, diagnosticMs: Date.now() - entry.started,
       // A remote run records its own host's load; without one, the observer's sample stands and the reason says so.
       load: lease?.runner && run.executionLoad ? run.executionLoad : load, original, paired, mainReceipt };
-    writeFileSync(join(directory, 'observation.json'), JSON.stringify(observation, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-    const manifest = Object.fromEntries(readdirSync(directory).map(name => [name, fileDigest(join(directory, name))]));
-    writeFileSync(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.writeFile(join(directory, 'observation.json'), JSON.stringify(observation, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    const manifest = Object.fromEntries(fs.list(directory).map(name => [name, fileDigest(join(directory, name))]));
+    fs.writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     observations.push({ id, classification, file: observation.file, name: observation.name, paired: paired !== null, recorded: false });
     pending.push({ observation, directory });
   }
@@ -353,7 +344,7 @@ async function recordObservations(pending, observations, { record, recordBatch }
     // The completed evidence manifests remain immutable; each unrecorded case gets its own addendum.
     for (const [index, row] of pending.entries()) {
       if (observations[index].recorded) continue;
-      try { writeFileSync(join(row.directory, 'recording-error.addendum.json'), JSON.stringify({ code: diagnosticCode(error), originalRetained: true }) + '\n', { flag: 'wx', mode: 0o600 }); }
+      try { fs.writeFile(join(row.directory, 'recording-error.addendum.json'), JSON.stringify({ code: diagnosticCode(error), originalRetained: true }) + '\n', { flag: 'wx', mode: 0o600 }); }
       catch { /* A failing disk cannot justify replacing the original verdict. */ }
     }
     throw error;
