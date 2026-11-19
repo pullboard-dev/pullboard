@@ -18,6 +18,13 @@ function encodingOf(options) {
   return encoding;
 }
 
+/** Refuse an algorithm other than ES256 or RS256, and a key that is not a non-empty string, the same way in both forms. */
+function tokenOptions(options) {
+  if (options?.algorithm !== "ES256" && options?.algorithm !== "RS256") throw Object.assign(new Error("algorithm " + String(options?.algorithm) + " is not supported; pass ES256 or RS256"), { code: "SIGN_ALGORITHM" });
+  if (typeof options.privateKey !== "string" || options.privateKey.length === 0) throw Object.assign(new Error("sign with the caller's PEM private key; pass privateKey as a string"), { code: "SIGN_KEY" });
+  return options;
+}
+
 /** The real form: node:crypto Ed25519. A key pair is { publicKey, privateKey }: PEM strings by default, base64url SPKI and PKCS#8 DER with { encoding: "der" }. */
 export function createSigningAdapter(options) {
   const der = encodingOf(options) === "der";
@@ -34,6 +41,12 @@ export function createSigningAdapter(options) {
     },
     sign(privateKey, text) { return signatureOf(sign(null, message(text), privateOf(privateKey))); },
     verify(publicKey, text, signature) { return verify(null, message(text), publicOf(publicKey), bytesOf(signature)); },
+    /** Sign text for a token with the caller's PEM key: ES256 in ieee-p1363 form or RS256; the signature is base64url. */
+    signWith(options, text) {
+      const { algorithm, privateKey } = tokenOptions(options);
+      const bytes = algorithm === "ES256" ? sign("sha256", message(text), { key: privateKey, dsaEncoding: "ieee-p1363" }) : sign("RSA-SHA256", message(text), privateKey);
+      return bytes.toString("base64url");
+    },
   });
 }
 
@@ -49,5 +62,9 @@ export function createFakeSigningAdapter(options) {
     generateKeyPair() { count += 1; return { publicKey: wrap("fake-public-" + count), privateKey: wrap("fake-private-" + count) }; },
     sign(privateKey, text) { message(text); return encode(unwrap(privateKey).replace("private", "public") + "|" + text); },
     verify(publicKey, text, signature) { message(text); return decode(signature) === unwrap(publicKey) + "|" + text; },
+    signWith(options, text) {
+      const { algorithm } = tokenOptions(options);
+      return Buffer.from("fake-" + algorithm + "|" + message(text).toString()).toString("base64url");
+    },
   });
 }
