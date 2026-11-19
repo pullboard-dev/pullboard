@@ -3,13 +3,11 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { reusableResult } from '../../../src/io/test/action/cache.js';
-import {
-  completedTestResult,
-  importTestResults,
-  packTestResults,
-  storeTestResult,
-  testResultDigest,
-} from '../../../src/io/test/store.js';
+import { completedTestResult } from '../../../src/io/test/store.js';
+import { importTestResults } from '../../../src/io/test/store.js';
+import { packTestResults } from '../../../src/io/test/store.js';
+import { storeTestResult } from '../../../src/io/test/store.js';
+import { testResultDigest } from '../../../src/io/test/store.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 
 const REQUEST = '11111111-1111-4111-8111-111111111111';
