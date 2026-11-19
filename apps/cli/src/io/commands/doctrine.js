@@ -10,7 +10,7 @@ import {
 } from '../../../../../packages/gate/index.js';
 import {
   withGateSlot,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   Refused,
 } from '../../../../../packages/kernel/index.js';

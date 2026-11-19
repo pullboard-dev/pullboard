@@ -104,7 +104,7 @@ export async function run(io, { values = {} } = {}) {
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
   problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
-  const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/index.js');
+  const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/heavy.js');
   problems.push(...toolchainProblems(languageToolchains(detectLanguages(ctx.info.root)).toolchains, loadMachineSettings().runners ?? []));
   const jest = jestProblem(ctx.info.root);
   if (jest) problems.push(jest);

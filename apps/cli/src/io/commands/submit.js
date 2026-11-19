@@ -30,7 +30,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
-import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/heavy.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -144,7 +144,7 @@ import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { topUpClaims } from '../next.js';
 import { mainRedBaselinesToRetake } from '../../../../../packages/store/index.js';
 import { mainRedItemCases } from '../../../../../packages/store/index.js';
-import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
+import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/heavy.js';
 import { waitForSubmitGate } from '../submit/wait.js';
 import { runStaticPreflight } from '../submit/preflight.js';
 import { requireStaticPreflight } from '../submit/preflight.js';

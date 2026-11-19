@@ -51,7 +51,7 @@ import {
   refuseCheckSyntax,
   refuseCheckPullboardTest,
   sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   isLane,
   listProjects,

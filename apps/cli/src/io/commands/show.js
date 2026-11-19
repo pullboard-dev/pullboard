@@ -234,7 +234,7 @@ export async function run(io, { first, values }) {
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
-    const { retainedGateAssertions } = await import('../../../../../packages/gate/index.js');
+    const { retainedGateAssertions } = await import('../../../../../packages/gate/heavy.js');
     for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
   }
   if (item.item_rehome_import) {
@@ -269,7 +269,7 @@ export async function run(io, { first, values }) {
       io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
     }
   }
-  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
+  if (item.item_check_baseline) (await import('../../../../../packages/gate/heavy.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);
