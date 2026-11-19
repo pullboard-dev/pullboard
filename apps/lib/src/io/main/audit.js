@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { cellsInventoryJob } from '../../../../../packages/drive/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { readAcceptedCells } from '../../../../../packages/gate/index.js';
 import { recordAcceptedCellsFailure } from '../../../../../packages/gate/index.js';
 import { toolingIsPinned } from '../../../../../packages/gate/index.js';
@@ -23,7 +24,7 @@ import { withFileLock } from '../../../../../packages/outbox/index.js';
 function runPinnedProducer(checkout, root, token, commit) {
   return new Promise(done => {
     const child = spawn(process.execPath, [join(checkout, 'apps/cli/src/io/landing/audit.js'), root, token, '--cells-only', commit],
-      { cwd: checkout, env: { ...process.env, PULLBOARD_CELLS_PINNED: commit }, stdio: ['ignore', 'ignore', 'pipe'] });
+      { cwd: checkout, env: { ...environmentAdapter().all(), PULLBOARD_CELLS_PINNED: commit }, stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8192); });
@@ -44,7 +45,7 @@ function runPinnedProducer(checkout, root, token, commit) {
  */
 export async function produceAcceptedCells(root, token, commit) {
   if (toolingIsPinned(root, commit)) return warmAcceptedCells(root, commit, { withCheckout: withMainCheckout, withLock: withFileLock });
-  if (process.env.PULLBOARD_CELLS_PINNED === commit) throw new Error('the pinned checkout did not carry the pinned tooling');
+  if (environmentAdapter().get('PULLBOARD_CELLS_PINNED') === commit) throw new Error('the pinned checkout did not carry the pinned tooling');
   const ran = await withMainCheckout(root, commit, checkout => runPinnedProducer(checkout, root, token, commit));
   if (ran?.unavailable || ran?.status !== 0) throw new Error(ran?.unavailable ?? `accepted cells producer failed in the pinned checkout: ${String(ran?.stderr ?? '').split('\n').filter(line => /Error/u.test(line)).slice(0, 2).join(' ').slice(0, 600)}`);
   return ran;
