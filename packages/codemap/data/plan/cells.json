@@ -2517,7 +2517,6 @@
     "gate->config",
     "gate->env",
     "merge->config",
-    "merge->env",
     "rigor->config",
     "spec->config",
     "gate->seats",
