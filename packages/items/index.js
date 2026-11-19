@@ -1,4 +1,6 @@
+/** @pullboard-module-loads packages/items/src/logic/stop-reason.js */
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
+import { createRequire } from 'node:module';
 export { criterionSize, defaultItemRoute, shapeRoute } from './src/logic/size.js';
 export { itemCollisionPlan } from './src/io/planning.js';
 export { criterionCells } from './src/io/criterion.js';
@@ -38,7 +40,6 @@ export { outsideSource, saveOutsideSource, requireOutsideOwner, outsideSandboxPr
 export { outsideVerdict } from './src/io/outside/verify.js';
 export { parentIdentity, parentSessionDigest, canonicalSessionDigest, saveJoinedSession, runtimeSessionIdentity, runtimeParentSession, joinParentSession } from './src/io/parent.js';
 export { workQueue, sayQueue, queueCommand } from './src/logic/queue.js';
-export { stopFacts, stopReason } from './src/logic/stop-reason.js';
 export { reopenAuthority } from './src/logic/reopen/authority.js';
 export { conflictNoteFiles, legacyConflictNote, reopenConflictEvidence, conflictCause, reopenCauseCorrection } from './src/logic/reopen/cause.js';
 export { correctedNoVerdictReopen } from './src/logic/reopen/history.js';
@@ -81,3 +82,9 @@ export { ITEM_MARKER_FILE, itemFolderIdentity, itemFolderPath, writeItemMarker }
 export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
 export { canonicalVendorFamily, vendorOfModel } from './src/logic/vendors.js';
 export { predictedFiles, requireFileLease, fileMiss } from './src/logic/lease.js';
+
+const requireModule = createRequire(import.meta.url);
+/** Stop facts from an item thread; the module loads on first call, so status and next do not pay for it [C7,#11242]. */
+export function stopFacts(thread, options) { return requireModule('./src/logic/stop-reason.js').stopFacts(thread, options); }
+/** The stop reason for those facts; loaded on first call like stopFacts [C7,#11242]. */
+export function stopReason(facts) { return requireModule('./src/logic/stop-reason.js').stopReason(facts); }
