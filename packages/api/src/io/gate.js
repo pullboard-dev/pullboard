@@ -61,6 +61,7 @@ import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
 import { mainRedFileExcuse } from './gate/main-red-files.js';
 import { mainRedFileLines } from './gate/main-red-files.js';
+import { caseRows } from './gate/main-red-files.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -372,7 +373,8 @@ export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   // Each failing file's input key from its own shard's ledger row, so the main-red file excuse can match main's receipt at the same inputs [C7,#12130].
-  const keys = failures ? Object.fromEntries(reds.flatMap(part => { const own = ledgerInputKeys([part.phase]); return part.phase.failures.filter(row => own[row?.file]).map(row => [row.file, own[row.file]]); })) : {};
+  // A shard that names its case only in errors[] (failures[] empty) keeps its keys too [C7,#12130].
+  const keys = Object.fromEntries(reds.flatMap(part => { const own = ledgerInputKeys([part.phase]); return caseRows(part.phase).filter(row => own[row?.file]).map(row => [row.file, own[row.file]]); }));
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
     ...(reds.length ? { failures, ...(signed ? { failureSignatures: signed } : {}), ...(Object.keys(keys).length ? { failedInputKeys: keys } : {}), shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),

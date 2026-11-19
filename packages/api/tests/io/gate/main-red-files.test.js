@@ -31,6 +31,10 @@ const green = head => ({ version: 1, status: 0, gate: { source: head, green: tru
 const red = (head, { key = KEY, role = 'proof' } = {}) => ({ version: 1, status: 1, gate: { source: head, green: false,
   phases: [{ role, status: 1, failures: [RED], tail: 'not ok', ledger: { contexts: ['node'], files: [[RED.file, key, 0, 'fail']] } }] } });
 
+/** A red shard that names its failing case only in errors[], with failures[] empty, as most real shard receipts do. */
+const errorsOnlyRed = head => ({ version: 1, status: 1, gate: { source: head, green: false,
+  phases: [{ role: 'proof', status: 1, failures: [], errors: [RED], errorCount: 1, tail: 'not ok', ledger: { contexts: ['node'], files: [[RED.file, KEY, 0, 'fail']] } }] } });
+
 /** A finished main-test job holding main's keyed receipt for `file` at `inputKey`. */
 function mainReceipt(board, { id, main, file = RED.file, inputKey = KEY, verdict = 'red', at = 5 }) {
   createJob(board.db, { id, kind: 'main-test', candidate: main, base: main, now: at });
@@ -92,6 +96,17 @@ test('api.gate-main-red-files.listed-file-excused: clause 1: a file on the coord
   } });
   assert.equal(f.last.outcome, 'review', JSON.stringify(f.last));
   assert.match(f.facts(/only in files main also fails at the same inputs/u)[0].event_detail, /green on main .*coordinator's main-red file list/u);
+});
+
+test('api.gate-main-red-files.errors-only-excused: clause 1: a shard red that names its case only in errors[] is excused like one named in failures[] [C7,P7,#12130]', t => {
+  const f = shardedGate(t, { options: ON, first: errorsOnlyRed, before: ({ board, head }) => mainReceipt(board, { id: 'main-test:red-a', main: head }) });
+  assert.equal(f.last.outcome, 'review', JSON.stringify(f.last));
+  assert.deepEqual(f.last.mainRedExcused, [RED.file]);
+  assert.equal(store.getItem(f.board, f.item.item_id).item_status, 'submitted');
+  assert.match(f.facts(/only in files main also fails at the same inputs/u)[0].event_detail, /main-red file web\/a\.test\.js at input key aaaaaaaaaaaa: main-test receipt main-test:red-a red/u);
+  const unkeyed = shardedGate(t, { options: ON, first: head => ({ ...errorsOnlyRed(head), gate: { ...errorsOnlyRed(head).gate, phases: [{ ...errorsOnlyRed(head).gate.phases[0], errors: [{ file: RED.file }] }] } }),
+    before: ({ board, head }) => mainReceipt(board, { id: 'main-test:red-a', main: head }) });
+  assert.notEqual(unkeyed.last.outcome, 'review', 'an errors[] row naming no case is never excused');
 });
 
 test('api.gate-main-red-files.otherwise-unchanged: clause 2: no receipt at the key, a receipt only at another key, a green unlisted receipt, a check red or the port off settles red as today [C7,P7,#12130]', t => {
