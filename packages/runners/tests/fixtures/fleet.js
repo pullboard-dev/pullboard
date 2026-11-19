@@ -12,7 +12,6 @@ import {
 import { tmpdir } from 'node:os';
 import {
   delimiter,
-  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -28,8 +27,8 @@ import {
 
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';
-// The test runner launcher sits beside the CLI entry the root manifest names, so no app path is written here.
-const RUNNER = `${dirname(JSON.parse(readFileSync(join(SOURCE, 'package.json'), 'utf8')).bin.pullboard)}/src/io/run/tests.js`;
+// The gate's own test runner, by its package path: every item check runs it, and the copied package holds it.
+const RUNNER = 'packages/gate/src/io/run/tests.js';
 
 /**
  * Prove the production request/worker/result path, without contacting a host or changing real runner settings.
