@@ -19,7 +19,7 @@ export function affectedRunnerProblems(pkg, config) {
   if (!runner || !PLAIN_NODE_TEST.test(affected)) return [];
   return [{
     code: 'AFFECTED_RUNNER_MISMATCH',
-    message: `the test script runs ${runner} but affectedTests is ${affected}, so a named test file runs under a different runner than the gate's check`,
+    message: `AFFECTED_RUNNER_MISMATCH: the test script runs ${runner} but affectedTests is ${affected}, so a named test file runs under a different runner than the gate's check`,
     next: `set the per-file command with pullboard settings affectedTests <command that runs ${runner} on one file>`,
   }];
 }
