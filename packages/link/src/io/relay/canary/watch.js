@@ -6,6 +6,7 @@ import { readRelayHealth } from './health.js';
 import { pendingRelayCanaryNotices } from './health.js';
 import { markCanaryNoticeRecorded } from './health.js';
 import { pushCanaryAlert } from '../canary-push-wire.js';
+import { wakeRelayOfCanaryAlert } from '../canary-push-wire.js';
 import { Refused } from '../../../../../kernel/light.js';
 import { relayCanaryConfig } from '../../../../../config/index.js';
 import { loadMachineSettings } from '../../../../../config/index.js';
@@ -13,7 +14,7 @@ import { loadMachineSettings } from '../../../../../config/index.js';
 export const RELAY_CANARY_INTERVAL_MS = 60000;
 
 /** Observe exactly one complete probe; optional notices use the ordinary command's board authority. */
-export async function runRelayCanary(value, { io = {}, now = Date.now, notify, directPush, probe = probeRelayCanary } = {}) {
+export async function runRelayCanary(value, { io = {}, now = Date.now, notify, directPush, relayWake, probe = probeRelayCanary } = {}) {
   const config = relayCanaryConfig(value);
   if (!config) throw new Refused('RELAY_CANARY_CONFIG', 'configure this machine with pullboard relay canary on before running its watch');
   const observation = await probe(config.root, { agentId: config.agentId,
@@ -22,6 +23,7 @@ export async function runRelayCanary(value, { io = {}, now = Date.now, notify, d
   if (notify) for (const notice of pendingRelayCanaryNotices(config.root)) {
     // A failing relay or push endpoint must never keep the other path from reporting the alert.
     if (directPush) await pushCanaryAlert(directPush, notice).catch(() => null);
+    if (relayWake) await wakeRelayOfCanaryAlert(relayWake, notice).catch(() => null);
     await notify(notice, observation);
     markCanaryNoticeRecorded(config.root, notice.id);
   }
@@ -30,7 +32,7 @@ export async function runRelayCanary(value, { io = {}, now = Date.now, notify, d
 
 /** Start one due local tick; shutdown aborts and awaits the active probe instead of abandoning a write. */
 export function startRelayCanaryWatch({ config = () => loadMachineSettings().relay?.canary,
-  run = runRelayCanary, now = Date.now, every = setInterval, cancel = clearInterval, onError = () => {}, notify, directPush, keepAlive = false } = {}) {
+  run = runRelayCanary, now = Date.now, every = setInterval, cancel = clearInterval, onError = () => {}, notify, directPush, relayWake, keepAlive = false } = {}) {
   const lifetime = new AbortController();
   let pending = null;
   /** Read current machine opt-in on every tick and admit at most one local run for its minute. */
@@ -39,7 +41,7 @@ export function startRelayCanaryWatch({ config = () => loadMachineSettings().rel
     pending = Promise.resolve().then(async () => {
       const selected = relayCanaryConfig(config());
       if (!selected?.enabled || !claimRelayCanaryTick(selected.root, now())) return;
-      await run(selected, { io: { relaySignal: lifetime.signal }, now, notify, directPush });
+      await run(selected, { io: { relaySignal: lifetime.signal }, now, notify, directPush, relayWake });
     }).catch(error => { if (!lifetime.signal.aborted) onError(error); }).finally(() => { pending = null; });
     return pending;
   };
