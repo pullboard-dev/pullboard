@@ -72,7 +72,7 @@ export function sweepCaches(cacheRoot, { keep = [], maxAgeMs = 0, now = Date.now
   for (const name of fs.list(cacheRoot)) {
     if (!isObjectId(name) || kept.has(name)) continue;
     const path = join(cacheRoot, name);
-    if (now - fs.stat(path).mtimeMs < maxAgeMs) continue;
+    if (maxAgeMs > 0 && now - fs.stat(path).mtimeMs < maxAgeMs) continue;
     fs.rm(path, { recursive: true, force: true });
     removed.push(name);
   }
