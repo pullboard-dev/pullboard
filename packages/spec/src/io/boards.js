@@ -5,9 +5,8 @@
  * namespace and are never aliased into it. Commits that already cite another board's id bare carry a
  * recorded correction in `.pullboard/citations.jsonl`, which spec check reads in place of the header.
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { CONFIG_FILE } from '../../../kernel/browser.js';
@@ -49,15 +48,15 @@ export function loadSpecBoards(root, declared) {
 
 /** Parse the spec at a repo folder or a spec file; null when it is not readable here. */
 function readBoardSpec(path) {
-  if (!existsSync(path)) return null;
+  if (!disk.exists(path)) return null;
   let file = path;
-  if (statSync(path).isDirectory()) {
+  if (disk.stat(path).isDirectory()) {
     let name = 'SPEC.md';
-    try { name = JSON.parse(readFileSync(join(path, CONFIG_FILE), 'utf8')).spec ?? name; } catch { /* no config: SPEC.md */ }
+    try { name = JSON.parse(disk.readFile(join(path, CONFIG_FILE), 'utf8')).spec ?? name; } catch { /* no config: SPEC.md */ }
     file = join(path, name);
   }
-  if (!existsSync(file)) return null;
-  return parseSpec(readFileSync(file, 'utf8'), { strictGrammarVersion: false });
+  if (!disk.exists(file)) return null;
+  return parseSpec(disk.readFile(file, 'utf8'), { strictGrammarVersion: false });
 }
 
 /**
@@ -90,10 +89,10 @@ export function qualifiedIdProblems(spec, id) {
  */
 export function readCitationCorrections(root) {
   const file = join(root, CITATIONS_FILE);
-  if (!existsSync(file)) return { corrections: [], problems: [] };
+  if (!disk.exists(file)) return { corrections: [], problems: [] };
   const corrections = [];
   const problems = [];
-  readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
+  disk.readFile(file, 'utf8').split('\n').forEach((line, index) => {
     if (!line.trim()) return;
     let record;
     try { record = JSON.parse(line); } catch { record = null; }
