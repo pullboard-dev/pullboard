@@ -156,7 +156,7 @@ test('gate.registry.io-stores: clause 2: [C7,U148] the io stores test file carri
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in that file is titled with a registered ID');
-  assert.equal(ids.length, 40, "all 40 tests of the io stores file are registered");
+  assert.equal(ids.length, 41, 'all 41 tests of the io stores file are registered');
 });
 
 test('gate.registry.io-moves-to-watchdog: clause 3: [C7,U148] the io folders moves through watchdog, style.test.js excepted, each carry an ID in every test title and one record per ID', () => {
