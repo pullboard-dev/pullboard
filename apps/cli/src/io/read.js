@@ -188,17 +188,43 @@ export function firstLineOf(note) {
 }
 
 /**
+ * The states of an item's foreign waits, keyed repo#id, for itemLine to print; empty when it waits on none, and then
+ * the full store never loads (the light store has no foreign reader). The caller names the reader, store.foreignDependencyStates.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @param {() => Promise<(board: any, item: any) => any[]>} loadReader loads store.foreignDependencyStates from the full store
+ * @returns {Promise<Map<string, { status: string, cause?: string }>>}
+ */
+export async function foreignStates(board, item, loadReader) {
+  if (!item.item_after || !dependencyReferences(item).some(ref => ref.kind !== 'local')) return new Map();
+  const foreignDependencyStates = await loadReader();
+  return new Map(foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, { status: ref.status, cause: ref.cause }]));
+}
+
+/** A wait's label with the state a foreign one is in: host#41 (verified on host) or host#41 (unavailable: no link). */
+function foreignLabel(ref, foreign) {
+  const label = dependencyLabel(ref);
+  const state = ref.kind === 'local' ? undefined : foreign.get(label);
+  if (!state) return label;
+  return state.status === 'unavailable' ? `${label} (unavailable: ${state.cause})` : `${label} (${state.status} on ${ref.repo})`;
+}
+
+/**
  * One item on one line: id, status and holder, lane, title, spec ids.
  *
  * @param {any} item
+ * @param {(id: string) => string} [name]
+ * @param {boolean} [mainMerge]
+ * @param {Map<string, { status: string, cause?: string }>} [foreign] - Foreign waits by repo#id: a ref with an entry prints its state, the rest print as before.
  * @returns {string}
  */
-export function itemLine(item, name = (id) => id, mainMerge = false) {
+export function itemLine(item, name = (id) => id, mainMerge = false, foreign = new Map()) {
   const holder = item.item_status === 'claimed' ? ` ${name(item.item_owner)}` : '';
   const verifier = item.item_status === 'verified' && !item.item_rehome_import ? ` by ${name(item.item_verified_by)}` : '';
   const specs = item.item_spec_ids ? `  [${item.item_spec_ids}]` : '';
   const parent = item.item_parent_id ? `  under #${item.item_parent_id}` : '';
-  const after = item.item_after ? `  after ${dependencyReferences(item).map(dependencyLabel).join(',')}` : '';
+  const after = item.item_after ? `  after ${dependencyReferences(item).map(ref => foreignLabel(ref, foreign)).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : mainMerge ? ` (${MAIN_MERGE_LABEL})` : '';
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   const staleVerdict = item.item_verdict_state ? `  ${item.item_verdict_state.code}` : '';
