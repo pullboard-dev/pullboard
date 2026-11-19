@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli */
 /** Submit runs the coordinator's frozen check itself, so a builder who never ran pullboard check still submits [C7,#11844]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
