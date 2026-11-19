@@ -310,8 +310,6 @@
     "packages/merge/src/io/mechanical.js": 1,
     "packages/merge/src/io/trunk.js": 1,
     "packages/merge/src/io/warning.js": 1,
-    "packages/moves/src/io/registry.js": 1,
-    "packages/moves/src/io/table/read.js": 2,
     "packages/outbox/src/io/relay.js": 1,
     "packages/outbox/src/io/relay/checkpoint.js": 1,
     "packages/outbox/src/io/relay/conflicts.js": 1,
