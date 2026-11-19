@@ -2465,7 +2465,6 @@
     "apps/runner->env",
     "transport->env",
     "apps/cli->kernel",
-    "apps/cli->env",
     "gate->jobs",
     "gate->env",
     "drive->jobs",
