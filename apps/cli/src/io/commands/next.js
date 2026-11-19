@@ -74,6 +74,7 @@ import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
 import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
@@ -131,7 +132,7 @@ export async function nextHere(io, values) {
   }
   finally {
     progress.stop(); await monitor?.close();
-    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
+    if (environmentAdapter().get('PULLBOARD_NEXT_PROFILE')) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     delete io.lagSilent;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
