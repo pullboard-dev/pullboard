@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-release.release-and-refreeze-end-gate-jobs": {"proves":{"specs":["C7"],"claim":"With gate.endStaleJobs on, release and refreeze of an item with an offered gate job and 12 open shard jobs leave none open and name the reason; with it off they stay open as today."},"why":"Without it, a released or refrozen item's gate job and shards keep running to a stale settle and spend runner time on a candidate that can no longer land.","kind":"journey","inputs":["apps/cli/src/io/commands/release.js","apps/cli/src/io/commands/refreeze.js","apps/cli/tests/io/commands/release.test.js"]}
+}

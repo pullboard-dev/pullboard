@@ -43,6 +43,7 @@ export const MACHINE_DEFAULTS = {
   'gate.diskFloorMB': 10_240,
   'gate.endStaleJobs': false,
   'gate.excuseMainTimingReds': false,
+  'gate.failFastShards': false,
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
