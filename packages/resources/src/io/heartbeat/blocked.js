@@ -1,5 +1,6 @@
 /** A holder blocked in synchronous work keeps its slot heartbeat from a helper outside its event loop [C7]. */
 import { spawn } from 'node:child_process';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** How often the helper refreshes the holder row; well inside the 120 s hung-holder window. */
 export const BLOCKED_HEARTBEAT_MS = 3_000;
@@ -19,13 +20,13 @@ export const BLOCKED_UNTIMED_LIMIT_ENV = 'PULLBOARD_BLOCKED_UNTIMED_LIMIT_MS';
  */
 function refreshWindowMs(timeoutMs) {
   if (Number.isSafeInteger(timeoutMs) && timeoutMs > 0) return timeoutMs + BLOCKED_HEARTBEAT_MARGIN_MS;
-  const value = Number(process.env[BLOCKED_UNTIMED_LIMIT_ENV]);
+  const value = Number(environmentAdapter().get(BLOCKED_UNTIMED_LIMIT_ENV));
   return Number.isSafeInteger(value) && value > 0 ? value : BLOCKED_UNTIMED_LIMIT_MS;
 }
 
 /** The configured refresh interval, or the default when unset or invalid. */
 function blockedHeartbeatMs() {
-  const value = Number(process.env[BLOCKED_HEARTBEAT_ENV]);
+  const value = Number(environmentAdapter().get(BLOCKED_HEARTBEAT_ENV));
   return Number.isSafeInteger(value) && value > 0 ? value : BLOCKED_HEARTBEAT_MS;
 }
 
