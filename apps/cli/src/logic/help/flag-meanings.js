@@ -107,6 +107,8 @@ export const FLAG_MEANINGS = Object.freeze({
   'show --history': 'prints every note in full',
   'flow replay --history': ['--history <json>', 'a recorded history file to replay in place of this board\'s'],
   '--review': 'prints the review packet',
+  'add --review': ['--review standard|strict', 'coordinator only: strict marks the item as additional Strict work; never downgrades'],
+  'edit --review': ['--review standard|strict', 'coordinator only: strict marks the item as additional Strict work; never downgrades'],
   '--answers': ['--answers <bar-check-fact-id>', 'the bar-check fact this answer reviewed'],
   'answer --supersedes': ['--supersedes <answer-id>', 'the earlier answer this one replaces'],
   'fact --supersedes': ['--supersedes <fact-id>', 'the earlier fact this one replaces'],

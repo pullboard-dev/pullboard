@@ -54,6 +54,6 @@ test('cli.io-cli-main-options.review-key-and-help: clause 2: --json carries a re
   assert.equal(result.review, 'standard');
   assert.equal(result.review_tier, result.review);
   const help = selectedHelp("help", "edit", undefined, [], {}).text;
-  assert.match(help, /--review strict/);
+  assert.match(help, /--review standard\|strict/);
   assert.doesNotMatch(help, /--review-tier/);
 });
