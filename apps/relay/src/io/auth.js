@@ -5,10 +5,6 @@ import {
   randomUUID,
   timingSafeEqual,
 } from 'node:crypto';
-import {
-  chmodSync,
-  mkdirSync,
-} from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';
@@ -25,6 +21,9 @@ import {
   verifyRegistration,
 } from './passkeys.js';
 import { presenceAttestation } from '../../../../packages/person/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
 /** The credential database's file name under the relay data folder; this module opens and writes it, so it owns the store. */
@@ -57,9 +56,9 @@ function sameHash(left, right) {
 export function createRelayAuth({ database, github, now = Date.now, sessionTTL = 7 * 24 * 3600_000, tokenTTL = 24 * 3600_000 }) {
   if (typeof database !== 'string' || !database || !github) throw new Refused('RELAY_CONFIG', 'configure an auth database and GitHub App provider');
   for (const ttl of [sessionTTL, tokenTTL]) if (!Number.isSafeInteger(ttl) || ttl <= 0 || ttl > MAX_TTL) throw new Refused('RELAY_CONFIG', 'set credential expiry between one millisecond and thirty days');
-  if (database !== ':memory:') mkdirSync(dirname(database), { recursive: true, mode: 0o700 });
+  if (database !== ':memory:') fileSystem.mkdir(dirname(database), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(database);
-  if (database !== ':memory:') chmodSync(database, 0o600);
+  if (database !== ':memory:') fileSystem.chmod(database, 0o600);
   db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=30000; BEGIN IMMEDIATE');
   try {
     db.exec(`
