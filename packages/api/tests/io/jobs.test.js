@@ -298,3 +298,15 @@ test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the 
   assert.equal(claim(5001), 'gate:9:shard:1', 'a runner holding a test job is handed the queued shard before the newer test job');
   assert.equal(claim(5002), 'test:two');
 });
+
+test('api.jobs.claims-aged-test-before-shards-over-claim-action: clause 3: over the claim action a runner holding one test job and offered a 3-minute-old test job and queued shards is handed the test job [C7,#11190]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-aged-test-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'test:old', kind: 'test', now: 2000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 3000 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(181_000), 'test:one', 'a runner holding no test job takes the oldest test job');
+  assert.equal(claim(182_000), 'test:old', 'a runner holding a test job is handed the 3-minute-old test job before the queued shard');
+  assert.equal(claim(182_001), 'gate:9:shard:1');
+});

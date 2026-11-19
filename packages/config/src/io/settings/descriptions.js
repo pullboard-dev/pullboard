@@ -387,12 +387,12 @@ const ROWS = [
   ['line.focusMilestone', 'Focus milestone', 'The milestone whose work is offered first.', 'Line', 'text'],
   ['line.landingBatchSize', 'Landing batch size', 'The most items one landing batch holds, in real landing and when replaying board flow; unset, automatic landing sizes batches from recorded redness.', 'Line', 'count'],
   ['line.landingCadenceMinutes', 'Landing interval', 'The time between landing batches when replaying board flow.', 'Line', 'minutes'],
+  ['line.level.liveOnly', 'Live seats only', 'Work is offered only to seats that are live.', 'Line', 'on/off'],
   ['line.order', 'Board-controlled order', 'The board sets queue order itself.', 'Line', 'on/off'],
   ['line.requireReviewFamilies', 'Require reviewer families', 'A review needs a reviewer with a declared model family.', 'Line', 'on/off'],
   ['line.returnRejectedWork', 'Return rejected work', 'Rejected work goes to its builder first; after 30 minutes another lane seat may claim it.', 'Line', 'on/off'],
   ['line.reviewsFirst', 'Reviews first', 'Reviews are offered before new builds.', 'Line', 'on/off'],
   ['line.reworkSameFamily', 'Same-family rework', 'After the original builder is gone, returned work first goes to live seats in the builder’s model family.', 'Line', 'on/off'],
-  ['line.route.liveOnly', 'Live seats only', 'Work is offered only to seats that are live.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
   ['line.wipPerReviewer', 'Work per reviewer', 'How many items may be in progress for each active reviewer.', 'Line', 'ratio'],
 ];
