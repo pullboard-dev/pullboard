@@ -169,3 +169,18 @@ test('store.handoff-records.no-payload-sort: clause 2: no statement handoffRecor
     assert.doesNotMatch(plan, /USE TEMP B-TREE/u, text);
   }
 });
+
+test('store.submit-handoff-records.pruned-step-skipped: clause 1: a listed step whose row is gone before the payload read is skipped and the other records return [C7,#11929]', t => {
+  const { box, ids } = twoJobBoard(t);
+  const db = box.board.db;
+  const newest = db.prepare("SELECT MAX(s.job_step_id) AS id FROM job_step s JOIN job j ON j.job_id = s.job_step_job WHERE j.job_item = ? AND j.job_id LIKE '%bbbbbbbbbbbb%' AND s.job_step_name NOT LIKE 'note:%'").get(ids[0]).id;
+  const wrapper = new Proxy(db, { get: (real, key) => key === 'prepare' ? text => {
+    const statement = real.prepare(text);
+    if (!text.includes('WHERE job_step_id = ?')) return statement;
+    return { get: id => (real.prepare('DELETE FROM job_step WHERE job_step_id = ?').run(newest), statement.get(id)) };
+  } : typeof real[key] === 'function' ? real[key].bind(real) : real[key] });
+  const got = handoffRecords(wrapper);
+  assert.equal(got.get(ids[0]).job, 0, 'the pruned step is skipped and the item\'s next-older step is used');
+  assert.equal(got.get(ids[2]).job, 1, 'the other items keep their records');
+  assert.equal(got.size, ids.length);
+});
