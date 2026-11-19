@@ -4,17 +4,17 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { closeBoard } from '../../../../../packages/store/index.js';
-import { listItems } from '../../../../../packages/store/index.js';
-import { boardId } from '../../../../../packages/store/index.js';
-import { boardFilePath } from '../../../../../packages/store/index.js';
-import { addSigner } from '../../../../../packages/spec/index.js';
-import { openBoardForRead } from '../../../../../packages/store/index.js';
-import { fixtureOpenBoard } from '../../fixtures/board.js';
-import { runFixtureChild } from '../../fixtures/child.js';
-import { signedBoard } from '../../fixtures/board/link.js';
-import { createE2eHelpers } from '../../fixtures/e2e.js';
-import { linkBoards } from '../../../src/io/commands/link.js';
+import { closeBoard } from '../../../packages/store/index.js';
+import { listItems } from '../../../packages/store/index.js';
+import { boardId } from '../../../packages/store/index.js';
+import { boardFilePath } from '../../../packages/store/index.js';
+import { addSigner } from '../../../packages/spec/index.js';
+import { openBoardForRead } from '../../../packages/store/index.js';
+import { fixtureOpenBoard } from './fixtures/board.js';
+import { runFixtureChild } from './fixtures/child.js';
+import { signedBoard } from './fixtures/board/link.js';
+import { createE2eHelpers } from './fixtures/e2e.js';
+import { linkBoards } from '../src/io/commands/link.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -27,7 +27,7 @@ function filed(box) {
   try { return listItems(board).map(item => item.item_id); } finally { closeBoard(board); }
 }
 
-test('cli.io-commands-add-foreign.add-refuses-an-unlinked-repo: clause 1: pullboard add --after host#12 with no live link to host refuses FOREIGN_UNLINKED naming pullboard link, and files nothing [XB1,#11040]', async () => {
+test('cli.add-foreign.add-refuses-an-unlinked-repo: clause 1: pullboard add --after host#12 with no live link to host refuses FOREIGN_UNLINKED naming pullboard link, and files nothing [XB1,#11040]', async () => {
   const box = helpers.project('true', helpers.sandbox());
   const refused = await box.inProcess(box.repo, 'add', 'web', 'Waits on host', ...small, '--after', 'host#12');
   assert.notEqual(refused.code, 0);
@@ -36,7 +36,7 @@ test('cli.io-commands-add-foreign.add-refuses-an-unlinked-repo: clause 1: pullbo
   assert.deepEqual(filed(box), []);
 });
 
-test('cli.io-commands-add-foreign.add-files-with-a-live-link: clause 2: the same add with a live link to host files as before [XB1,#11040]', async (t) => {
+test('cli.add-foreign.add-files-with-a-live-link: clause 2: the same add with a live link to host files as before [XB1,#11040]', async (t) => {
   const box = helpers.project('true', helpers.sandbox());
   const key = join(box.dir, 'host-parent-signer');
   const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key], { encoding: 'utf8' });
@@ -54,7 +54,7 @@ test('cli.io-commands-add-foreign.add-files-with-a-live-link: clause 2: the same
   assert.equal((filed(box)).length, 1);
 });
 
-test('cli.io-commands-add-foreign.edit-refuses-an-unlinked-repo: clause 3: pullboard edit --after with no live link to host refuses FOREIGN_UNLINKED and leaves the item as filed [XB1,#11040]', async () => {
+test('cli.add-foreign.edit-refuses-an-unlinked-repo: clause 3: pullboard edit --after with no live link to host refuses FOREIGN_UNLINKED and leaves the item as filed [XB1,#11040]', async () => {
   const box = helpers.project('true', helpers.sandbox());
   const added = await box.inProcess(box.repo, 'add', 'web', 'Plain item', ...small);
   assert.equal(added.code, 0, added.err + added.out);

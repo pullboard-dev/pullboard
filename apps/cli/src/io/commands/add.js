@@ -24,7 +24,7 @@ import { guardBar } from '../../../../../packages/state/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
-import { requireLinkedAfter } from './add-foreign.js';
+import { requireLinkedForeign } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
@@ -34,6 +34,7 @@ import { checkTestFiles } from '../../../../../packages/items/index.js';
 import { shapeRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
+import { githubRepository } from '../../../../../packages/github/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -160,7 +161,7 @@ export async function run(io, args) {
   const sealed = executingBarEffect(ctx, board, 'add');
   if (sealed) item = { ...sealed };
   // A prerequisite on another repository needs a live link to it, so the refusal comes before anything is filed [XB1].
-  requireLinkedAfter(board, item.after);
+  if (item.after?.length) requireLinkedForeign(board, item.after);
   if (sealed) {
     const sealedProblems = idProblems(loadSpec(ctx.info.root, ctx.config), item.specIds, ctx.doctrine);
     if (sealedProblems.length) throw new Refused('UNKNOWN_SPEC', sealedProblems.join('; '));
@@ -308,3 +309,6 @@ export function splitBar(config, bar) {
     lane: { criterion: joinClauses(parts, parts.clauses.filter(clause => !owned(clause))), check: checkOwned ? undefined : bar.check, brief: laneLines.join('\n') },
     coordinator: { criterion: joinClauses(parts, parts.clauses.filter(owned)), check: checkOwned ? bar.check : undefined, brief: pieceLines.join('\n') } };
 }
+
+/** The one GitHub read client and repository resolver the commands share, so contribute check --issue reaches GitHub through this front-door import and adds no client of its own. */
+export { githubPullClient, githubRepository };

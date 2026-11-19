@@ -58,10 +58,12 @@ export async function run(io, { first }) {
   // With claim.refuseOffMainHead on, a new claim in a folder whose HEAD is not on main refuses before the move [C7,#9104].
   const offMain = filed && !(filed.item_owner === me.id && isHeld(board, filed)) ? offMainHeadRefusal(ctx.info.root, { trunk: trunkBranch(ctx.info.root) }) : null;
   if (offMain) throw offMain;
+  // laneMode off: any lane's item is on this seat's route, and the claim is made in that item's lane, as next does [C7,#8906].
+  const laneOff = ctx.config.laneMode === 'off' && !ctx.info.isMain && filed !== undefined && filed !== null;
   let result;
   for (;;) {
     try {
-      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, itemFolder: true, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
+      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: laneOff ? filed.item_lane : me.lane, laneOff, leaseMs: ctx.config.leaseMs, itemFolder: true, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
       break;
     } catch (error) {
       if (!(error instanceof MainSpecMerged)) throw await wrongLaneGuidance(ctx, board, me, id, error);

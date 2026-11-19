@@ -1,0 +1,41 @@
+{
+  "cli.io-commands-claim.lanes-off-claims-other-lane": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with laneMode off pullboard claim claims another lane's open item for a seat registered in a different lane."
+    },
+    "why": "Without it, a direct claim is refused WRONG_LANE on a laneMode off board while next claims the same item.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/claim.js"
+    ]
+  },
+  "cli.io-commands-claim.lanes-on-refuses-wrong-lane": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with laneMode on pullboard claim still refuses WRONG_LANE naming both lanes."
+    },
+    "why": "Without it, the laneMode off rule could leak to boards that keep lanes strict.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/claim.js"
+    ]
+  },
+  "cli.io-commands-claim.claim-runs-through-claim-ordered": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "the claim command records the claim through claimOrdered, the real writer and live claim table."
+    },
+    "why": "Without it, a test could pass against a stub while the shipped command differs.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/claim.js"
+    ]
+  }
+}

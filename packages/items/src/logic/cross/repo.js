@@ -1,6 +1,7 @@
 /** Foreign prerequisites use only the authenticated receiving board's canonical E32 state [B24,E32,H16]. */
 import { boardLinkRecord } from "../../../../kernel/index.js";
 import { Refused } from "../../../../kernel/index.js";
+import { boardLinkStates } from "../../../../kernel/index.js";
 import { foreignDependencies } from "../dependencies.js";
 
 /** The one live signed states link from this board to the child named `repo`, or the cause there is none: 'no link' or 'revoked'. */
@@ -43,7 +44,7 @@ function stateFor(board, ref, readReceivedBoardState) {
     || state.linkId !== record.linkId || state.generation !== record.generation || state.disclosure !== 'states'
     || !Number.isSafeInteger(state.position) || state.position < 0 || !Array.isArray(state.rows)) return { cause: 'no state yet' };
   const items = state.rows.filter(row => row.board === record.child.boardId && row.id === ref.id);
-  if (items.length !== 1 || !['open', 'claimed', 'submitted', 'verified', 'withdrawn'].includes(items[0].state)) return { cause: 'no state yet' };
+  if (items.length !== 1 || !boardLinkStates(2).includes(items[0].state)) return { cause: 'no state yet' };
   return { board: record.child.boardId, status: items[0].state };
 }
 
