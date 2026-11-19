@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/cli packages/store */
 /** The daily board compaction also archives the events of long-verified items, only with board.archiveEvents on [C7,#9339]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
