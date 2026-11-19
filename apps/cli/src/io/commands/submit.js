@@ -19,6 +19,7 @@ import { requireNonEmptySubmit } from '../empty.js';
 import { proofOnlyTicked } from '../empty.js';
 import { submitProofOnly } from '../../../../../packages/config/index.js';
 import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composesOnRunner } from '../submit/handoff/compose-on-runner.js';
 import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
@@ -328,8 +329,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const added = (held.item_claim_head ? tryGit(root, ['diff', '--name-only', '--diff-filter=A', held.item_claim_head, commit]).stdout : '').split('\n').filter(Boolean);
     throw new Refused('CHECK_FILE_MISSING', `the frozen check names ${absent.join(', ')}, which commit ${commit.slice(0, 12)} does not contain; this commit added ${added.length ? added.join(', ') : 'no files'}; name the test as the check does, or ask the coordinator to correct the check`);
   }
+  // With submit.composeOnRunner on, the queued gate job composes main and the head, so this command merges nothing and sends the head as it is [C7,#10756].
+  const composeOnRunner = composesOnRunner(ctx);
   let mainMerge = null;
-  if (!isSubmitHandoffWorker(ctx)) {
+  if (!isSubmitHandoffWorker(ctx) && !composeOnRunner) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
     // With submit.composeAsObject on, the composition is a throwaway object (parents main then head) under refs/pullboard/compose:
     // the builder branch never gets a sync merge, and a runner can recompute the same tree from main and head [C7,U159].
@@ -363,7 +366,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   let trunk;
   let regenerated = null;
-  try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
+  try { trunk = composeOnRunner ? { commit: acceptedMain.commit } : authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
   catch (error) {
     if (error?.code !== 'MERGE_CONFLICT') throw error;
     if (!isSubmitHandoffWorker(ctx)) {
@@ -530,13 +533,19 @@ async function preflightHere(ctx) {
 /** Run `pullboard submit` and return its exit code. */
 /**
  * Tick the claimed item's test clauses after a green `pullboard test` run of files inside its check, as ordinary note facts.
- * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED. For an item whose check names no test file
+ * the run's own cases tick, read from the run's log with the queued run id, so no builder retypes a note [C7].
+ * @param {any} io The command io.
+ * @param {number} itemId The claimed item.
+ * @param {string[]} files The files the run covered.
+ * @param {{ run?: string, logPath?: string|null }} [ran] The queued run id (values test-run) and the green run's log path.
  */
-export async function recordClauseTicks(io, itemId, files) {
+export async function recordClauseTicks(io, itemId, files, { run, logPath = null } = {}) {
+  const outcomes = logPath ? (await import('../test/status-outcomes.js')).statusOutcomes(logPath) ?? [] : [];
   await actOn(io, async (ctx, board, me) => {
     const found = store.getItem(board, itemId);
     if (found.item_owner !== me.id) return 0;
-    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root), { outcomes, run: run ?? null })) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
     return 0;
   });
 }

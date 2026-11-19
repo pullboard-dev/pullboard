@@ -11,10 +11,10 @@ const turn = () => new Promise(resolve => setImmediate(resolve));
  *
  * @param {{ root: string }} board
  * @param {string} window today, 7d or 30d
- * @param {{ read: (work: (current: any) => any) => any, now: Date, modelPresentation: Function, answers: Map<string, Promise<any>>, costWindowStart: Function, costAnalyticsSliced: Function, coordinatorUsage?: Function }} io
+ * @param {{ read: (work: (current: any) => any) => any, now: Date, modelPresentation: Function, answers: Map<string, Promise<any>>, costWindowStart: Function, costAnalyticsSliced: Function, coordinatorUsage?: Function, budgetState?: Function }} io
  * @returns {Promise<any>}
  */
-export function readCostAnalytics(board, window, { read, now, modelPresentation, answers, costWindowStart, costAnalyticsSliced, coordinatorUsage }) {
+export function readCostAnalytics(board, window, { read, now, modelPresentation, answers, costWindowStart, costAnalyticsSliced, coordinatorUsage, budgetState }) {
   const from = costWindowStart(window, now);
   const revision = read(current => store.costRevision(current)), key = `${board.root}|${window}|${from.toISOString()}|${revision}`;
   const kept = answers.get(key), last = answers.get(`${board.root}|${window}|last`);
@@ -45,8 +45,10 @@ export function readCostAnalytics(board, window, { read, now, modelPresentation,
     }
     // The coordinator claims no item, so its usage rides beside the item totals as one entry the Cost overview draws; absent port, absent entry (#9834) [C7].
     const coordinator = coordinatorUsage ? read(current => coordinatorUsage(current)) : undefined;
+    // The machine budget rides beside the totals as one entry the Cost tab draws; no budget set, no entry (#11057) [C7].
+    const budget = budgetState ? read(current => budgetState(current)) : null;
     const analytics = await costAnalyticsSliced({ items, agents, events, window, now, modelPresentation }, turn);
-    return coordinator ? { ...analytics, coordinator } : analytics;
+    return { ...analytics, ...(coordinator ? { coordinator } : {}), ...(budget ? { budget } : {}) };
   })();
   for (const old of answers.keys()) if (old.startsWith(`${board.root}|${window}|`) && !old.endsWith('|last')) answers.delete(old);
   answers.set(key, answer);

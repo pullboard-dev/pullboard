@@ -74,13 +74,54 @@ async function cells(root, input, log, services) {
  *
  * @param {string} root - The runner's checkout.
  * @param {{ main: string, head: string, tree: string }} triple - The submit's main, builder head and composed tree.
+ * @returns {string} The composed tree id.
  * @throws {Error} COMPOSITION_MISMATCH, naming both tree ids.
  */
 export function requireComposedTree(root, { main, head, tree }) {
   const id = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
-  const composed = id.test(main) && id.test(head) ? gitOut(root, ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', main, head]).split('\n')[0] : '';
-  if (composed && composed === tree) return;
-  throw refusal('COMPOSITION_MISMATCH', `the submit composed main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} as tree ${tree}, but the runner composes tree ${composed || 'none (Git could not compose them here)'}; run pullboard submit again, and if it repeats report both tree ids to the coordinator (a merge driver or Git version difference)`);
+  const run = id.test(main) && id.test(head) ? spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', main, head], { cwd: root, encoding: 'utf8' }) : null;
+  // A conflicted merge-tree still prints a tree id but exits non-zero: only a clean exit is a composition.
+  const composed = run?.status === 0 ? (run.stdout ?? '').split('\n')[0].trim() : '';
+  // A triple with no tree is a submit that left composing to the runner (submit.composeOnRunner): any clean composition is the tree to prove.
+  if (composed && (!tree || composed === tree)) return composed;
+  throw refusal('COMPOSITION_MISMATCH', tree
+    ? `the submit composed main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} as tree ${tree}, but the runner composes tree ${composed || 'none (Git could not compose them here)'}; run pullboard submit again, and if it repeats report both tree ids to the coordinator (a merge driver or Git version difference)`
+    : `the runner could not compose main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} (they conflict); merge main into the item branch, fix the conflict, and submit again`);
+}
+
+/**
+ * Regenerate the declared generated files the composed tree makes stale, then leave the regenerated tree checked out so every later stage proves it
+ * (submit.composeOnRunner with submit.regenerateDeclared). Why here: the command no longer regenerates when the runner composes, so this is the one place a stale generated file is caught.
+ * A failed generator is a GENERATED_STALE red with its message, never a silent pass.
+ *
+ * @param {string} root - The runner's checkout.
+ * @param {{ main: string, compositionTriple: { main: string, head: string }, generated?: object[], item?: number }} input - The ticket.
+ * @param {string} composed - The composed tree id requireComposedTree accepted.
+ * @param {{ regenerate: { regenerateDeclaredFiles: Function } }} services
+ * @param {(line: string) => void} log
+ */
+function regenerateComposed(root, input, composed, services, log) {
+  const { main, head } = input.compositionTriple;
+  // The runner has no author of its own, so the two commits made here (the composition and the regeneration) carry a fixed one when the machine sets none.
+  const identity = { GIT_AUTHOR_NAME: 'Pullboard runner', GIT_AUTHOR_EMAIL: 'runner@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard runner', GIT_COMMITTER_EMAIL: 'runner@pullboard.invalid' };
+  const saved = Object.fromEntries(Object.keys(identity).map(key => [key, process.env[key]]));
+  for (const [key, value] of Object.entries(identity)) process.env[key] ??= value;
+  try {
+    const made = spawnSync('git', ['commit-tree', composed, '-p', main, '-p', head, '-m', 'composition'], { cwd: root, encoding: 'utf8' });
+    const commit = made.status === 0 ? made.stdout.trim() : '';
+    if (!commit || spawnSync('git', ['checkout', '-q', '--detach', commit], { cwd: root }).status !== 0) {
+      throw refusal('GENERATED_STALE', `the runner could not check out the composed tree to regenerate its declared generated files: ${String(made.stderr).trim() || 'checkout failed'}; submit again`);
+    }
+    try {
+      services.regenerate.regenerateDeclaredFiles(root, { submit: { regenerateDeclared: true }, generated: input.generated ?? [] }, { base: main, item: input.item ?? null });
+    } catch (error) {
+      throw refusal('GENERATED_STALE', String(error.message));
+    }
+  } finally {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  }
+  input.regeneratedTree = gitOut(root, ['rev-parse', 'HEAD^{tree}']);
+  log(`  composed tree ${composed} regenerated as ${input.regeneratedTree}`);
 }
 
 /**
@@ -89,7 +130,11 @@ export function requireComposedTree(root, { main, head, tree }) {
  */
 async function composition(root, input, log, services) {
   // A submit that composed main as an object (submit.composeAsObject) sends {main, head, tree}: the runner recomputes the tree itself [U159].
-  if (input.compositionTriple) { requireComposedTree(root, input.compositionTriple); return; }
+  if (input.compositionTriple) {
+    const composed = requireComposedTree(root, input.compositionTriple);
+    if (input.regenerateDeclared === true && services.regenerate) regenerateComposed(root, input, composed, services, log);
+    return;
+  }
   if (!input.composition) return;
   services.composition.requireSubmitComposition(root, input.composition, { commit: input.trunk ?? input.main }, input.main, input.base ?? null);
 }
@@ -208,5 +253,5 @@ export async function runHandoffStages(root, input, { logFile, services, stages 
     log(`stage ${name} ok ${ms}ms`);
     done.push({ name, ms, state: 'ok' });
   }
-  return { job: input.job, commit: input.commit, green: true, stages: done };
+  return { job: input.job, commit: input.commit, green: true, stages: done, ...(input.regeneratedTree ? { tree: input.regeneratedTree } : {}) };
 }

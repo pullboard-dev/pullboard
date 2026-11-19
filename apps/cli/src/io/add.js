@@ -12,6 +12,7 @@ import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { localRunnerEnabled } from '../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../packages/config/index.js';
 import { getItem } from '../../../../packages/store/index.js';
+import { boardRunsReader } from '../../../../packages/store/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { primaryCheckoutRoot } from './worktree.js';
@@ -60,8 +61,27 @@ async function settled(board, id) {
 }
 
 /**
+ * Whether a runner serve pulls this board's queue: one claimed a job here within SERVE_RECENT_MS, as the board's one
+ * serve reading counts it. Why: a runner registered with `pullboard runner add` and no `runner install-serve` takes work
+ * only over ssh and never pulls the queue, so a baseline queued for it stayed pending forever and a waited add sat silent
+ * for BASELINE_WAIT_MS (#10844). An unreadable queue reads as pulled, so a read failure never starts a worker per add (#10787).
+ * Why lazy: the runners package loads only when an add or edit records a baseline with runners registered.
+ */
+async function servePullsQueue(ctx, board) {
+  let runs = null;
+  try {
+    const { readPulledCapacity } = await import('../../../../packages/runners/index.js');
+    const reader = boardRunsReader(board, ctx.file);
+    runs = reader ? { db: reader.db } : null;
+    return readPulledCapacity(board.db, { runs }).totals.serves > 0;
+  } catch { return true; } finally { try { runs?.db?.close(); } catch { /* a read-only handle */ } }
+}
+
+/**
  * Start an already-recorded request where the lib launcher routes it, recording an unavailable result if it cannot start:
  * with gate.runnersOnly on or any registered runner it is a runner job and nothing starts on this machine [#10787].
+ * Registered runners with no serve pulling the queue get the detached worker, which measures on a registered runner
+ * over ssh; queued, the job would wait for a serve that never comes [#10844].
  * With runners off it is a job for this machine's one local runner; no detached worker starts, as it has no runner to use.
  * A pulled job has no process here, so `wait` waits for its result; a worker's `wait` settles when that worker exits.
  * Why lazy: the launcher loads only when an add or edit records a baseline, so neither command's cold path grows.
@@ -69,10 +89,12 @@ async function settled(board, id) {
 export async function launchBaseline(ctx, board, id, baseline, options = {}) {
   const { launchCheckBaseline, BASELINE_WORKER } = await (await import('../../../lib/light.js')).checkBaselineLauncher();
   const root = ctx.info.root;
+  const settings = loadMachineSettings();
+  const pulled = (settings.runners ?? []).length ? await servePullsQueue(ctx, board) : true;
   try {
     const launched = await launchCheckBaseline({ id, baseline }, {
-      settings: loadMachineSettings(),
-      offer: () => { try { return offerBaseline(ctx, board, id, baseline); } catch { return false; } },
+      settings,
+      offer: () => { if (!pulled) return false; try { return offerBaseline(ctx, board, id, baseline); } catch { return false; } },
       local: () => offerLocalBaseline(ctx, board, id, baseline).catch(() => false),
       spawn: () => startCheckBaseline(root, id, baseline, { ...options, worker: BASELINE_WORKER }),
     });

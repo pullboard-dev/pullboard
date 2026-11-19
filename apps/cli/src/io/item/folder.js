@@ -9,6 +9,7 @@ import { basename } from 'node:path';
 import { resolve } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { agentAt } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -32,14 +33,105 @@ import { seatRoot } from './folder/identity.js';
 import { prepareSpareFolder } from './folder/spare.js';
 import { takeSpareFolder } from './folder/spare.js';
 
+/** Git selectors an inherited environment may set; any of them means the config files alone do not say what Git reads. */
+const CONFIG_SELECTORS = ['GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_SYSTEM', 'GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE'];
+/** The system config files Git builds on this machine read, since none can be asked without a launch. */
+const SYSTEM_CONFIGS = ['/etc/gitconfig', '/opt/homebrew/etc/gitconfig', '/usr/local/etc/gitconfig',
+  '/Library/Developer/CommandLineTools/usr/etc/gitconfig', '/Applications/Xcode.app/Contents/Developer/usr/etc/gitconfig'];
+
+/**
+ * Read one Git config file for checkout.workers: whether it sets it, and whether it turns on per-worktree config.
+ * An include directive or an unreadable file returns null, since only Git can say what those mean.
+ * @param {string} file
+ * @returns {{ workers: boolean, worktreeConfig: boolean } | null}
+ */
+function configFacts(file) {
+  let text;
+  try { text = readFileSync(file, 'utf8'); } catch (error) { return ['ENOENT', 'ENOTDIR'].includes(error.code) ? { workers: false, worktreeConfig: false } : null; }
+  const facts = { workers: false, worktreeConfig: false };
+  let section = '';
+  for (const raw of text.split(/\r?\n/u)) {
+    let line = raw.trim();
+    const header = /^\[\s*([A-Za-z0-9.-]+)(\s+"(?:[^"\\]|\\.)*")?\s*\](.*)$/u.exec(line);
+    if (header) {
+      const name = header[1].toLowerCase();
+      if (name === 'include' || name === 'includeif') return null;
+      // A quoted subsection is never the plain checkout or extensions section.
+      section = header[2] ? '' : name;
+      line = header[3].trim();
+    }
+    if (section === 'checkout' && /^workers\s*(=|$|[#;])/iu.test(line)) facts.workers = true;
+    if (section === 'extensions' && /^worktreeconfig\s*(=\s*(true|yes|on|1)\b|$)/iu.test(line)) facts.worktreeConfig = true;
+  }
+  return facts;
+}
+
+/**
+ * Whether the GIT_CONFIG_COUNT pairs in the environment set checkout.workers: Git reads GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n as its highest-priority config,
+ * and test and agent environments carry them (gc.auto, user.useConfigOnly), so they are read here instead of asking Git [C7,#5329].
+ * A count that is not a non-negative integer, a missing key, or a key that turns on per-worktree config returns null, since only Git can say what those mean.
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {boolean | null}
+ */
+function workersSetInEnvironment(env) {
+  if (env.GIT_CONFIG_COUNT === undefined) return false;
+  if (!/^\d+$/u.test(env.GIT_CONFIG_COUNT)) return null;
+  let found = false;
+  for (let index = 0; index < Number(env.GIT_CONFIG_COUNT); index += 1) {
+    const key = env[`GIT_CONFIG_KEY_${index}`]?.toLowerCase();
+    if (key === undefined || key === 'extensions.worktreeconfig') return null;
+    found ||= key === 'checkout.workers';
+  }
+  return found;
+}
+
+/**
+ * Whether the repository's own config files set checkout.workers, read with no Git launch; null when only Git can say.
+ * @param {string} root any checkout of the repository
+ * @returns {boolean | null}
+ */
+function workersSetInFiles(root) {
+  const env = process.env;
+  if (CONFIG_SELECTORS.some(key => env[key] !== undefined)) return null;
+  const fromEnvironment = workersSetInEnvironment(env);
+  if (fromEnvironment === null) return null;
+  let gitDir = join(root, '.git');
+  try {
+    if (!statSync(gitDir).isDirectory()) {
+      const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(gitDir, 'utf8').trim());
+      if (!match) return null;
+      gitDir = resolve(root, match[1].trim());
+    }
+    const commonFile = join(gitDir, 'commondir');
+    const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+    const home = env.HOME ?? '';
+    const global = env.GIT_CONFIG_GLOBAL !== undefined ? [env.GIT_CONFIG_GLOBAL]
+      : [join(env.XDG_CONFIG_HOME || join(home, '.config'), 'git', 'config'), join(home, '.gitconfig')];
+    const files = [...(env.GIT_CONFIG_NOSYSTEM ? [] : SYSTEM_CONFIGS), ...global, join(commonDir, 'config')];
+    const local = configFacts(join(commonDir, 'config'));
+    if (!local) return null;
+    // Git reads a worktree's own config only when the repository turns it on.
+    if (local.worktreeConfig) files.push(join(gitDir, 'config.worktree'));
+    let found = false;
+    for (const file of files) {
+      const facts = file === join(commonDir, 'config') ? local : configFacts(file);
+      if (!facts) return null;
+      found ||= facts.workers;
+    }
+    return found || fromEnvironment;
+  } catch { return null; }
+}
+
 /**
  * Git config arguments that write a checkout's files with parallel workers, one per core, unless the repository sets its own count.
  * Why: a sequential worktree add wrote this repository's 4,595 files in 2.4-4.3 s, most of a claiming next; parallel workers took 0.9 s [C7,#5776].
+ * The setting is read from the config files, since asking Git cost a median 21.5 ms per claim; an include directive or an unreadable file asks Git [C7,#5329].
  * @param {string} root any checkout of the repository
  * @returns {string[]}
  */
 export function parallelCheckout(root) {
-  return tryGit(root, ['config', '--get', 'checkout.workers']).status === 0 ? [] : ['-c', 'checkout.workers=0'];
+  const set = workersSetInFiles(root) ?? tryGit(root, ['config', '--get', 'checkout.workers']).status === 0;
+  return set ? [] : ['-c', 'checkout.workers=0'];
 }
 
 /** The item's branch in the seat's lane. */
@@ -156,9 +248,49 @@ export function cleanItemFolders(ctx, board, me, { spare = false } = {}) {
     const idle = idleFolder(ctx, board, me, root, id, registry);
     if (!idle) continue;
     if (!spared) { spared = true; continue; }
-    git(ctx.info.root, ['worktree', 'remove', idle.path]);
-    if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
+    const dropBranch = idle.item.item_status === 'withdrawn' || Boolean(idle.item.item_merged_commit);
+    removeIdleFolder(ctx.info.root, idle.path, { seat: root, ref: dropBranch ? idle.ref : null, running: [ctx.info.root, runningCheckout()] });
   }
+}
+
+/** Where main() keeps the folder removals it runs after its last step; absent outside a running command. */
+export const DEFERRED_FOLDER_REMOVALS = Symbol.for('pullboard.deferred-folder-removals');
+
+/** The checkout this CLI's own modules load from, resolved once (apps/cli/src/io/item/ sits five levels below it). */
+let ownCheckout;
+function runningCheckout() {
+  return (ownCheckout ??= canonical(fileURLToPath(new URL('../../../../../', import.meta.url))));
+}
+
+/**
+ * Remove one idle item folder, or, while a command runs from inside it, leave it until main() finishes.
+ * Why: release removed the folder the agent stood in, and when that folder held the CLI it ran, every later lazy
+ * import resolved into a deleted tree: the release recorded, then Node crashed ERR_MODULE_NOT_FOUND (#10891).
+ *
+ * @param {string} gitRoot the checkout the command runs git in
+ * @param {string} path the clean item folder to remove
+ * @param {{ seat: string, ref?: string|null, running?: (string|null)[] }} options the seat checkout that survives,
+ *   the item branch to delete after removal, and the folders the running command stands in or loads from
+ * @returns {boolean} true when the folder was removed now, false when its removal waits for main() to finish
+ */
+export function removeIdleFolder(gitRoot, path, { seat, ref = null, running = [] }) {
+  const pending = globalThis[DEFERRED_FOLDER_REMOVALS];
+  const here = canonical(path);
+  const inside = here !== null && running.some(folder => {
+    const real = folder ? canonical(folder) : null;
+    return real !== null && (real === here || real.startsWith(here + '/'));
+  });
+  if (Array.isArray(pending) && inside) {
+    // Run from the seat, which survives, never from the folder being removed.
+    pending.push(() => {
+      tryGit(seat, ['worktree', 'remove', path]);
+      if (ref) tryGit(seat, ['branch', '-d', ref]);
+    });
+    return false;
+  }
+  git(gitRoot, ['worktree', 'remove', path]);
+  if (ref) tryGit(gitRoot, ['branch', '-d', ref]);
+  return true;
 }
 
 /**
@@ -206,6 +338,25 @@ function branchCheckout(root, ref) {
     if (!fields.includes(`branch refs/heads/${ref}`)) continue;
     return { path: fields.find(field => field.startsWith('worktree '))?.slice(9),
       locked: fields.some(field => field === 'locked' || field.startsWith('locked ')) };
+  }
+  return null;
+}
+
+/**
+ * The same checkout branchCheckout finds, read from the registry Git keeps under the common directory, with no Git launch:
+ * the primary checkout's HEAD, then worktrees/<name>/HEAD, gitdir and locked. Why: every fresh claim asked Git for the list, 23 ms median (#10862).
+ */
+function branchCheckoutFromFiles(commonDir, ref) {
+  const read = file => { try { return readFileSync(file, 'utf8').trim(); } catch { return null; } };
+  const wanted = `ref: refs/heads/${ref}`;
+  if (basename(commonDir) === '.git' && read(join(commonDir, 'HEAD')) === wanted) return { path: dirname(commonDir), locked: false };
+  let names;
+  try { names = readdirSync(join(commonDir, 'worktrees')); } catch { return null; }
+  for (const name of names) {
+    const entry = join(commonDir, 'worktrees', name);
+    if (read(join(entry, 'HEAD')) !== wanted) continue;
+    const gitdir = read(join(entry, 'gitdir'));
+    if (gitdir) return { path: dirname(gitdir), locked: existsSync(join(entry, 'locked')) };
   }
   return null;
 }
@@ -303,7 +454,7 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
 export async function liveFolderRefusal(ctx, board, me, id) {
   if (me.id === 'coordinator') return null;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
-  const prior = existsSync(path) ? null : branchCheckout(ctx.info.root, branch(me.lane, id));
+  const prior = existsSync(path) ? null : branchCheckoutFromFiles(ctx.info.commonDir, branch(me.lane, id));
   const folder = prior ? prior.path : path;
   if (!folder || !existsSync(folder)) return null;
   // A locked or foreign folder is never adopted (recoverPriorFolder); next passes over its item instead of refusing the call.

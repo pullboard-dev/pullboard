@@ -34,6 +34,7 @@ import { testTierReport } from '../../../../../packages/gate/index.js';
 import { reviewCitations } from '../../../../../packages/gate/index.js';
 import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
+import { reviewWait } from '../verify/wait.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
@@ -459,7 +460,8 @@ export async function verifyHere(ctx, id, { second, values }) {
             commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
             onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
           try {
-            check = await withGateSlot(root, async (lease) => {
+            const waitedOn = `the review check${supplement ? ' and its affected tests' : ''} at ${checkedCommit.slice(0, 12)} on a runner`;
+            check = await reviewWait(ctx.io, { item: id, what: waitedOn }, signal => withGateSlot(root, async (lease) => {
               if (admitted) {
                 const selected = checkedCommit;
                 ({ trunk, review } = composeNow());
@@ -470,7 +472,7 @@ export async function verifyHere(ctx, id, { second, values }) {
               }
               const ran = await flakeVerify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
               return ran.state === 'pass' ? { ...ran, guardNote: await guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
-            }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+            }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review'), signal }));
           } catch (error) {
             if (error === reselection) continue;
             throw error;
@@ -493,13 +495,13 @@ export async function verifyHere(ctx, id, { second, values }) {
         const evidence = privateCheckEvidence(check, { hasStructuredCounts }) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
-          knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
+          knownMain = await reviewWait(ctx.io, { item: id, what: `main ${trunk.commit.slice(0, 12)} comparison of the failing cases on a runner` }, () => knownMainCheck(root, check, { main: trunk.commit, item: id,
             items: () => store.listItems(board, { all: true }), runnerAdmission,
             mainRedItems: () => store.listItems(board, { all: true })
               .map(row => { const baseline = itemCheckBaseline(board, row); return baseline ? { ...row, item_check_baseline: baseline } : row; }),
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
             onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
-          });
+          }));
           if (!knownMain && check.proofReceiptId) {
             await recordNativeProof(ctx, checkedItem, check, { ordered, withBoard, resourceAgent, proofRunReceipt: store.proofRunReceipt,
               exitFailures: true }, board);
@@ -701,7 +703,7 @@ export async function run(io, args) {
     return compared.status === 'unavailable' ? 1 : 0;
   }
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, reviewOnly: true });
   return code;
 }
 

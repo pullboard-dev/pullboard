@@ -37,14 +37,14 @@ async function fixture(t, on) {
   return { ids, run, listed };
 }
 
-test('clause 1: list --field priority=high lists only the items whose priority field is high [C7,#9353]', async t => {
+test('cli.journeys-list-field-filter.list-field-priority-high-lists-only: clause 1: list --field priority=high lists only the items whose priority field is high [C7,#9353]', async t => {
   const { ids, listed } = await fixture(t, true);
   assert.deepEqual((await listed('--field', 'priority=high')).ids, [ids[0], ids[2]]);
   assert.deepEqual((await listed('--field', 'priority!=high')).ids, [ids[1]]);
   assert.deepEqual((await listed()).ids, ids);
 });
 
-test('clause 2: a number field filters with a comparison, and an unknown field name refuses with its next step [C7,#9353]', async t => {
+test('cli.journeys-list-field-filter.a-number-field-filters-with-a: clause 2: a number field filters with a comparison, and an unknown field name refuses with its next step [C7,#9353]', async t => {
   const { ids, listed } = await fixture(t, true);
   assert.deepEqual((await listed('--field', 'points>=3')).ids, [ids[0]]);
   assert.deepEqual((await listed('--field', 'points<5')).ids, [ids[1]]);
@@ -55,7 +55,7 @@ test('clause 2: a number field filters with a comparison, and an unknown field n
   assert.match(`${error.message} ${error.next ?? ''}`, /pullboard field declare/u);
 });
 
-test('clause 2: with items.typedFields off --field names the setting and a plain list is unchanged [C7,#9353]', async t => {
+test('cli.journeys-list-field-filter.with-items-typedfields-off-field-names: clause 2: with items.typedFields off --field names the setting and a plain list is unchanged [C7,#9353]', async t => {
   const { ids, listed } = await fixture(t, false);
   const refused = await listed('--field', 'priority=high');
   assert.equal(refused.out.status, 1);

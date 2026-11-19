@@ -85,6 +85,7 @@ const BEFORE = {
   'gate.runnersFirst': false,
   'gate.runnersOnly': false,
   'gate.sampleDiskIo': false,
+  'gate.sampleSwap': false,
   'gate.selectionUnit': 'file',
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
@@ -115,6 +116,7 @@ const BEFORE = {
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.cargoFailures': false,
+  'landing.composedEquality': false,
   'landing.junitFailures': false,
   'landing.junitSignatures': false,
   'landing.parallelGates': false,
@@ -135,14 +137,14 @@ const BEFORE = {
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
   'moves.judgeByRelease': false,
-  'moves.live.claim': false,
+  'moves.live.claim': true,
   'moves.live.handoff': false,
-  'moves.live.job': false,
+  'moves.live.job': true,
   'moves.live.outbox': false,
-  'moves.live.outcome': false,
-  'moves.live.reclaim': false,
-  'moves.live.reopen': false,
-  'moves.live.submit': false,
+  'moves.live.outcome': true,
+  'moves.live.reclaim': true,
+  'moves.live.reopen': true,
+  'moves.live.submit': true,
   'moves.shadow': false,
   'next.adoptPreserved': false,
   'next.capBuilders': 0,
@@ -167,6 +169,7 @@ const BEFORE = {
   'release.rerouteUntouched': false,
   'release.staleItemRevision': false,
   'review.canonicalFamilies': false,
+  'review.holdAfterTwoReleases': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
@@ -180,6 +183,7 @@ const BEFORE = {
   'runners.postedLineNamesCase': false,
   'runners.reportCommit': false,
   'runners.requiredToolchains': null,
+  'runners.selfUpdate': false,
   'runners.yieldWhilePruning': false,
   'scratch': null,
   'sentinels.landingSelfCheck': false,
@@ -195,8 +199,9 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.composeAsObject': false,
+  'submit.composeOnRunner': false,
   'submit.pendingFromJobRow': false,
-  'submit.proofOnly': false,
+  'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
   'submit.residentChecks': false,
   'test.inProcessHooks': false,
@@ -209,6 +214,7 @@ const BEFORE = {
   'tests.requireRegistered': false,
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
+  'verify.soloLowStakes': false,
   'view.background': true,
   'watch.quietReads': false,
 };
@@ -367,4 +373,116 @@ test('config.io-settings-machine-defaults.items-test-mirror-at-add-exact-true: c
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: false } }), false);
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: true } }), true);
   await assert.rejects(testMirrorWith({ items: { testMirrorAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.testMirrorAtAdd/u.test(error.message));
+});
+
+async function reviewHoldWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { reviewHoldAfterTwoReleases } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-review-hold-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return reviewHoldAfterTwoReleases();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.review-hold-after-two-releases: clause 1: review.holdAfterTwoReleases is false in MACHINE_DEFAULTS and has a description row [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['review.holdAfterTwoReleases'], false);
+  assert.equal(BEFORE['review.holdAfterTwoReleases'], false);
+  assert.ok(SETTING_DESCRIPTIONS['review.holdAfterTwoReleases']);
+});
+
+test('config.io-settings-machine-defaults.review-hold-exact-true: clause 2: reviewHoldAfterTwoReleases() is true only for an exact true in machine settings [C7]', async () => {
+  assert.equal(await reviewHoldWith({}), false);
+  assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: false } }), false);
+  assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: 'true' } }), false);
+  assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: true } }), true);
+});
+
+async function composedEqualityWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { landingComposedEquality } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-composed-equality-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return landingComposedEquality();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.composed-equality-listed: clause 1: landing.composedEquality is false in MACHINE_DEFAULTS, listed with default false in BEFORE, and has a description row [C7,#10973]', () => {
+  assert.equal(MACHINE_DEFAULTS['landing.composedEquality'], false);
+  assert.equal(BEFORE['landing.composedEquality'], false);
+  assert.ok(SETTING_DESCRIPTIONS['landing.composedEquality']);
+});
+
+test('config.io-settings-machine-defaults.composed-equality-exact-true: clause 2: landingComposedEquality() is false by default, true only for an exact true, and a non-boolean value refuses BAD_MACHINE_SETTINGS [C7,#10973]', async () => {
+  assert.equal(await composedEqualityWith({}), false);
+  assert.equal(await composedEqualityWith({ landing: { composedEquality: false } }), false);
+  assert.equal(await composedEqualityWith({ landing: { composedEquality: true } }), true);
+  await assert.rejects(composedEqualityWith({ landing: { composedEquality: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /landing\.composedEquality/u.test(error.message));
+});
+
+async function proofOnlyWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { submitProofOnly } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-proof-only-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return submitProofOnly();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.submit-proofonly-on-by-default: clause 1: submit.proofOnly is true in BEFORE and MACHINE_DEFAULTS, submitProofOnly() is true for an empty machine file and false when the file sets submit: { proofOnly: false } [C7,#11048]', async () => {
+  assert.equal(BEFORE['submit.proofOnly'], true);
+  assert.equal(MACHINE_DEFAULTS['submit.proofOnly'], true);
+  assert.equal(await proofOnlyWith({}), true);
+  assert.equal(await proofOnlyWith({ submit: { proofOnly: false } }), false);
+});
+
+test('config.io-settings-machine-defaults.submit-proofonly-description-says-on: clause 2: describeSetting(submit.proofOnly) says the setting is on by default and still names an empty submit [C7,#11048]', async () => {
+  const { describeSetting } = await import('../../../index.js');
+  const row = describeSetting('submit.proofOnly');
+  assert.match(row.description, /\(default\)/u);
+  assert.match(row.description, /empty/u);
+});
+
+test('config.io-settings-machine-defaults.solo-low-stakes-listed: clause 1: verify.soloLowStakes is a machine setting, false by default, accepted as a boolean, with a description row [C7,#11138]', async () => {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { soloLowStakesEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  assert.equal(MACHINE_DEFAULTS['verify.soloLowStakes'], false);
+  assert.ok(SETTING_DESCRIPTIONS['verify.soloLowStakes']);
+  const { root } = privateFixtureFiles('pullboard-solo-low-stakes-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  const read = (settings) => {
+    process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return soloLowStakesEnabled();
+  };
+  try {
+    assert.equal(read({}), false);
+    assert.equal(read({ verify: { soloLowStakes: false } }), false);
+    assert.equal(read({ verify: { soloLowStakes: true } }), true);
+    assert.throws(() => read({ verify: { soloLowStakes: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /verify\.soloLowStakes/u.test(error.message));
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 });

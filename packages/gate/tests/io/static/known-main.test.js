@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServices } from '../../fixtures/execution.js';
 import { runStaticChecks } from '../../../src/io/static/check.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';
@@ -29,13 +29,13 @@ function redRepo(t, rows, settings) {
 
 const mainFindings = async () => [{ rule: 'runs a git fetch outside the one entry point', file: 'packages/a/x.js' }];
 
-test('clause 1: with gate.knownMainStatic on and every finding also red on main, runStaticChecks returns them as knownMain and throws no GATE_RED [C7,#10450]', async t => {
+test('gate.io-static-known-main.every-finding-also-red-on-main: clause 1: with gate.knownMainStatic on and every finding also red on main, runStaticChecks returns them as knownMain and throws no GATE_RED [C7,#10450]', async t => {
   const root = redRepo(t, [MAIN_ROW], { gate: { knownMainStatic: true } });
   const result = await runStaticChecks(root, { staticChecks: 'sh check.sh' }, { executionServices, mainFindings });
   assert.deepEqual(result.knownMain, [{ rule: 'runs a git fetch outside the one entry point', file: 'packages/a/x.js' }]);
 });
 
-test('clause 2: a finding red only on the item still throws GATE_RED naming just that finding, and with the setting off the throw is unchanged [C7,#10450]', async t => {
+test('gate.io-static-known-main.finding-red-only-on-the-item: clause 2: a finding red only on the item still throws GATE_RED naming just that finding, and with the setting off the throw is unchanged [C7,#10450]', async t => {
   const root = redRepo(t, [MAIN_ROW, ITEM_ROW], { gate: { knownMainStatic: true } });
   await assert.rejects(runStaticChecks(root, { staticChecks: 'sh check.sh' }, { executionServices, mainFindings }), error => {
     assert.equal(error.code, 'GATE_RED');

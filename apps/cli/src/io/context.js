@@ -6,7 +6,6 @@ import { holdsLiftSettled } from '../../../../packages/config/index.js';
 import { releaseRerouteUntouched } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
-import { receiveMoveCommits as receiveCommits } from './submit/pushed.js';
 import {
   agentDisplayName,
   context,
@@ -42,6 +41,8 @@ const requireModule = createRequire(import.meta.url);
 const refusalDocument = (...args) => requireModule('../logic/step/words.js').refusalDocument(...args);
 /** The relay package, loaded at the first person-signing call that reaches it: a claim, test or next never pays for its ~80 modules [C7,#7081]. */
 const link = () => requireModule('../../../../packages/link/index.js');
+/** The commit receiver, loaded at the first move that carries commits: only a board host takes them, so a claim, next or add never pays for the pushed-ref and runner git modules [C7,#8395]. */
+const receiveCommits = async (...args) => (await import('./submit/pushed.js')).receiveMoveCommits(...args);
 
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
@@ -122,7 +123,7 @@ function openAndRun(ctx, work, opened) {
   // release.rerouteUntouched (off by default): an untouched release counts toward the route-up rule [C7,#2970].
   board.rerouteUntouched = releaseRerouteUntouched();
   // claims.fileLease (off by default): live claims lease their predicted files, hub files excepted [C7,#8521].
-  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [] } : null;
+  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [], quietThreshold: ctx.config.queue?.contentionThreshold ?? 1 } : null;
   // inbox.keepUntilActed (off by default): shouts record their kind and stay listed until an allowed action is recorded [C7,#8519].
   board.inboxKeep = ctx.config.inbox?.keepUntilActed === true;
   return withOpenedBoard(ctx, work, board);

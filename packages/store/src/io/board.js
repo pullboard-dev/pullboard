@@ -96,6 +96,7 @@ import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
 import { verdictEvidence } from "./board/verify.js";
+import { prepareVerdictFacts } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -112,6 +113,7 @@ import { gateAtHead } from "./board/next.js";
 import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
+import { reserveItem } from "./board/hold/item.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -488,6 +490,7 @@ export {
   reserveNextReview,
   verify,
   verdictEvidence,
+  prepareVerdictFacts,
   reopen,
   merged,
   withdraw,
@@ -504,6 +507,7 @@ export {
   holdLane,
   releaseLane,
   holdItem,
+  reserveItem,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,
@@ -548,6 +552,6 @@ export function admitSubmit(board, id, options) {
   return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, prepareRecaptureSubmitHandoff, recaptureSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
 
 export { createItemSlice } from "./board/item/slice.js";

@@ -2,6 +2,9 @@
   "_comment": "Cells from lowest to highest. A component test may import the front door of a cell listed before its own.",
   "order": [
     "kernel",
+    "fs",
+    "clock",
+    "env",
     "git",
     "codemap",
     "queue",

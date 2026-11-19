@@ -18,6 +18,11 @@ export async function checkpointAfterMove(...call) {
   return (await import('./src/io/cost/checkpoint.js')).checkpointAfterMove(...call);
 }
 
+/** The cost analytics page loads at its call, so a board command that never serves it never loads the analytics module [C7]. */
+export function loadCostAnalytics() {
+  return import("./src/io/cost/analytics.js");
+}
+
 export {
   hasInputSplit,
 } from './src/logic/split.js';
@@ -31,11 +36,11 @@ export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMil
 export { coordinatorActionRise } from './src/logic/actions.js';
 export { readWorkFreeReleases } from './src/logic/work/free.js';
 export { pipelineStats } from './src/logic/pipeline.js';
-export { proofStats, proofAgentIds } from './src/io/main.js';
-export { readCapacity } from './src/io/capacity.js';
+export { proofStats, proofAgentIds, isProofAgent } from './src/io/main.js';
+export { readCapacity, capacityAtRead } from './src/io/capacity.js';
 export { readMaxUsefulBuilders } from './src/io/useful.js';
 export { usefulBuilderLines } from './src/logic/capacity/useful.js';
-export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage } from './src/io/cost.js';
+export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage, coordinatorUsage } from './src/io/cost.js';
 export { recordUsageBatch } from './src/io/cost/batch.js';
 export { recordSharedUsage } from './src/io/cost/shared.js';
 export { exitRulesDecision, exitContextDecision } from './src/logic/exit/rules/policy.js';
@@ -45,7 +50,7 @@ export { CAPACITY_VERSION, emptyCapacityCounter, appendCapacityCounter } from '.
 export { refreshCapacity } from './src/logic/capacity/refresh.js';
 export { emptyReportCounter, appendReportCounter } from './src/logic/flow/report/counter.js';
 export { FLOW_REPORT_VERSION, reportEvent, newReportPolicy } from './src/logic/flow/report.js';
-export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows } from './src/logic/flow.js';
+export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows, prepareFlowHistory } from './src/logic/flow.js';
 export { barStats } from './src/logic/bar.js';
 /** The capacity lines a status read prints [C7,#8646]. */
 export { capacityLines } from './src/logic/capacity/model.js';

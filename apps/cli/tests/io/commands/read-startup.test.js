@@ -11,6 +11,10 @@ import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { assertStartupBudgets } from '../../fixtures/budget.js';
+import { QUIET_BARE_CPU_MS } from '../../fixtures/budget.js';
+import { QUIET_BARE_MS } from '../../fixtures/budget.js';
+import { judgeStartupRow } from '../../fixtures/budget.js';
+import { scaledMedian } from '../../fixtures/budget.js';
 
 const REPO = resolve(import.meta.dirname, '../../../../..');
 /** Modules a read must never load beyond its audited row: the gate runner, the relay client and the landing machinery. */
@@ -80,4 +84,24 @@ test('cli.io-commands-read-startup.the-version-row-reports-its-median-the: claus
 
 test('cli.io-commands-read-startup.list-thin-is-an-audited-exception-at: clause 3: list thin is an audited exception at 200 ms over its measured median of 182 ms, run 91c72d73-2ba5-49e3-bff6-359ea1541783 [C7,#9090]', () => {
   assert.ok(182 < ceilings['list thin'] && ceilings['list thin'] === 200);
+});
+
+test('cli.io-commands-read-startup.the-scaled-check-judges-overhead-not-load: clause 2: the scaled check fails a row whose overhead grows while the bare floor stays quiet, and passes a row that only slows with the floor [C7]', () => {
+  const row = ceilings['list thin'];
+  assert.ok(scaledMedian(row + 20, QUIET_BARE_MS) >= row, 'overhead grew on a quiet floor, so the row fails');
+  assert.ok(scaledMedian(row * 2.5, QUIET_BARE_MS * 3) < row, 'a row that only slows with a floor three times slower passes');
+  assert.equal(scaledMedian(143.22, 30.66), 143.22, 'a quiet run is judged exactly as measured');
+  assert.equal(scaledMedian(143.22, 10), 143.22, 'a floor faster than the quiet one never lowers the median');
+});
+
+test('cli.io-commands-read-startup.the-cpu-judge-fails-grown-cpu-not-load: clause 2: a row whose CPU time grows fails on a loaded floor, a row whose wall time alone grows with the floor passes, and a quiet run still fails a wall overrun [C7]', () => {
+  const row = ceilings['list thin'];
+  const loaded = { bareWall: QUIET_BARE_MS * 2, bareCpu: QUIET_BARE_CPU_MS };
+  assert.equal(judgeStartupRow({ ...loaded, wall: row * 5, cpu: row - 20 }, row).ok, true, 'a run whose wall time alone is five times the row passes while its CPU time holds');
+  assert.equal(judgeStartupRow({ ...loaded, wall: row * 5, cpu: row + 20 }, row).ok, false, 'CPU time grown past the row fails however loaded the floor is');
+  assert.equal(judgeStartupRow({ ...loaded, wall: row * 5, cpu: (row + 20) * 2, bareCpu: QUIET_BARE_CPU_MS * 2 }, row).ok, false, 'CPU time that grew past what the bare CPU floor explains fails');
+  assert.equal(judgeStartupRow({ ...loaded, wall: row * 5, cpu: (row - 20) * 2, bareCpu: QUIET_BARE_CPU_MS * 2 }, row).ok, true, 'CPU time that only follows a bare CPU floor twice as slow passes');
+  const quiet = { bareWall: QUIET_BARE_MS, bareCpu: QUIET_BARE_CPU_MS };
+  assert.equal(judgeStartupRow({ ...quiet, wall: row + 20, cpu: row - 60 }, row).ok, false, 'on a quiet floor the wall time is still held to the row');
+  assert.equal(judgeStartupRow({ ...quiet, wall: row - 20, cpu: row - 60 }, row).ok, true);
 });

@@ -23,6 +23,7 @@ import { validateRunner } from '../logic/settings.js';
 import { PERSON_SET } from '../logic/settings.js';
 import { parsePersonSet } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { MACHINE_DEFAULTS } from './settings/machine-defaults.js';
 import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
@@ -232,9 +233,9 @@ export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
 }
 
-/** Let a move writer follow its move table only when this machine opted in for that table [C7,#8383]. */
+/** Let a move writer follow its move table: a table the machine settings leave unset reads its moves.live.<table> default, and an exact value there wins [C7,#8383,#8395]. */
 export function movesLiveEnabled(table) {
-  return loadMachineSettings().moves?.live?.[table] === true;
+  return (loadMachineSettings().moves?.live?.[table] ?? MACHINE_DEFAULTS['moves.live.' + table]) === true;
 }
 
 /** Write each pulled census's per-file times back for the next census plan only when this machine opted in; off, the census writes none [C7]. */
@@ -474,6 +475,11 @@ export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
 }
 
+/** Whether verify.soloLowStakes is on (#966): off by default; only an exact `true` lets a low-stakes row be self-accepted when every check is machine-run, red before and green after. */
+export function soloLowStakesEnabled() {
+  return loadMachineSettings().verify?.soloLowStakes === true;
+}
+
 /** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
 export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
@@ -616,6 +622,11 @@ export function itemsTestMirrorAtAdd() {
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
 export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
+}
+
+/** Whether an item released twice is held for the coordinator: off by default; only an exact `true` turns it on. */
+export function reviewHoldAfterTwoReleases() {
+  return loadMachineSettings().review?.holdAfterTwoReleases === true;
 }
 
 /** Whether an untouched release counts toward the route-up rule (#9759): off by default; only an exact `true` turns it on. */
@@ -1209,4 +1220,9 @@ export function renewAfterSyncEnabled() {
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
+}
+
+/** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
+export function relaxRequiredFamilyEnabled() {
+  return loadMachineSettings().review?.relaxRequiredFamily === true;
 }

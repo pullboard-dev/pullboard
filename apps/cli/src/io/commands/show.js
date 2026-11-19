@@ -10,6 +10,9 @@ import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
+import { coreLines } from '../../logic/show/core.js';
+import { fieldLines } from '../../logic/show/fields.js';
+import { reviewLines } from '../../logic/show/review.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
@@ -203,7 +206,8 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText });
+  io.say(core.item);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
@@ -213,12 +217,13 @@ export async function run(io, { first, values }) {
       : `you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
   }
   io.say(progressLine(progress));
-  if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
+  if (core.expectedBuild) io.say(core.expectedBuild);
   if (comparison) io.say(renderVerificationComparison(comparison));
-  io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
+  const review = reviewLines(machine, independence);
+  io.say(review.machine);
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   for (const line of pulledRedLines(gateJob, item)) io.say(line);
-  for (const line of pulledWaitingLines(gateJob, item)) io.say(line);
+  for (const line of pulledWaitingLines(gateJob, item, thread)) io.say(line);
   for (const line of queueWaitLines(gateJob)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
@@ -235,20 +240,13 @@ export async function run(io, { first, values }) {
   }
   if (item.item_status === 'verified' && approvalQualification) io.say(approvalQualification);
   if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
-  io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
-  io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
-  // One line per builder parent session: the reason a seat under it is not offered the review, with no coordinator fact [V1,B3,C7].
-  for (const { parent, seats } of independence.authorParents ?? []) {
-    io.say(parent === 'unknown' ? `builder parent session: unknown (${seats.join(', ')}); no seat is excluded by parent`
-      : `builder parent session ${parent} (${seats.join(', ')}): seats under this parent are not offered the review`);
-  }
+  io.say(review.tier);
+  io.say(review.eligible);
+  for (const line of review.parents) io.say(line);
   if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
   else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}${dollarText(cost)}; --detail`);
-  if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
-  if (checkText) {
-    io.say(`check: ${checkText}`);
-    if (item.item_frozen_digest) io.say(`check digest: ${item.item_frozen_digest}`);
-  }
+  if (core.criterion) io.say(core.criterion);
+  for (const line of core.check) io.say(line);
   for (const receipt of proofReceipts) {
     const hasTestRuntimes = Object.hasOwn(receipt, 'testRuntimes');
     const testRuntimes = hasTestRuntimes ? testRuntimeRows(receipt.testRuntimes) : null;
@@ -267,14 +265,7 @@ export async function run(io, { first, values }) {
   }
   if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
-  if (fields.length) {
-    io.say('fields:');
-    for (const field of fields) io.say(`  ${field.name} (${field.type}): ${field.value}`);
-  }
-  if (links.length) {
-    io.say('related links:');
-    for (const link of links) io.say(`  #${link.id} ${link.title}`);
-  }
+  for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
   for (const { item: other, shared } of related) {

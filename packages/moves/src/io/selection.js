@@ -65,6 +65,11 @@ const requireModule = createRequire(import.meta.url);
  *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function, firstUnderLabelMax: Function }} NextPorts
  */
 
+/** This seat's three most recently updated built items, newest first, as listItems orders ties (item id, newest first) [C7,#10692]. */
+const WARM_ITEMS_SQL = `SELECT item_id, item_files, item_brief FROM item WHERE item_built_by = ?
+  AND NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key = 'item_redirect:' || item.item_id)
+  ORDER BY item_updated_at DESC, item_id DESC LIMIT 3`;
+
 /**
  * The files an agent has been working in (N20): what its latest three items touched, and what is
  * uncommitted in its worktree now.
@@ -75,13 +80,10 @@ const requireModule = createRequire(import.meta.url);
  * @param {NextPorts} ports
  * @returns {string[]}
  */
-function warmFiles(ctx, board, me, { dirtyFiles }) {
-  const recent = store
-    .listItems(board, { all: true })
-    .filter((item) => item.item_built_by === me.id)
-    .sort((first, second) => second.item_updated_at.localeCompare(first.item_updated_at))
-    .slice(0, 3)
-    .flatMap((item) => store.itemFiles(item));
+export function warmFiles(ctx, board, me, { dirtyFiles }) {
+  // One bounded read of this seat's three latest built items: listing every item, closed ones included, cost next
+  // about a second per pick on a 10,689-item board under load, and a claim drops the remembered list each time [C7,#10692].
+  const recent = board.db.prepare(WARM_ITEMS_SQL).all(me.id).flatMap((item) => store.itemFiles(item));
   // One next reads this seat's edits once, however many of its steps warm from them.
   // The command's shared status names the same edited and untracked paths as status --porcelain, without its quoting.
   let dirty;
@@ -444,11 +446,13 @@ function nextPick(ctx, board, values, ports) {
     rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
   // next.routeByTier (off by default): items routed to another tier are left out of this seat's pick [C7,#8800].
   const tierLeftOut = nextRouteByTier() ? tierOmissions(ctx.config, board, items, me) : [];
+  // A port may hand next a derived gate-at-head reader; with none, or null, the options are exactly as before [C7,#8945].
+  const derivedGate = ports.derivedGateAtHead?.(ctx.info.root, board) ?? null;
   const selection = { ...(laneOff ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}), buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(derivedGate ? { derivedGateAtHead: derivedGate } : {}), ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).

@@ -1,0 +1,16 @@
+{
+  "cli.io-cells-submit-checks.missing-census-cache-services-refuse-cells-submit": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "cellsSnapshotProblems called without the census cache services refuses CELLS_SUBMIT with the message canonical census cache services are required."
+    },
+    "why": "Without it, a regression where the submit cells check runs uncached, or fails with another message, when the cache services are missing would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/cells-submit-checks.js",
+      "apps/cli/tests/io/cells-submit-checks.test.js"
+    ]
+  }
+}

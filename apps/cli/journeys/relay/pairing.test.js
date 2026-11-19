@@ -39,7 +39,7 @@ async function sealedOtherBoardPackage(code) {
   return Buffer.concat([iv, Buffer.from(ciphertext)]).toString('base64url');
 }
 
-test('[H15,H17] client seals board key and native snapshot under a one-time code the relay cannot read', async () => {
+test('cli.journeys-relay-pairing.client-seals-board-key-and-native: [H15,H17] client seals board key and native snapshot under a one-time code the relay cannot read', async () => {
   const issued = createPairingCode(BOARD);
   assert.match(issued.locator, /^[A-Za-z0-9_-]{22}$/);
   assert.match(issued.secret, /^[A-Za-z0-9_-]{43}$/);
@@ -85,7 +85,7 @@ test('[H15,H17] client seals board key and native snapshot under a one-time code
     'the joining client rejects a valid encrypted package for a different board');
 });
 
-test('[H15,H17] package validation excludes sender credentials and validates relay and board identity', async () => {
+test('cli.journeys-relay-pairing.package-validation-excludes-sender-credentials-and: [H15,H17] package validation excludes sender credentials and validates relay and board identity', async () => {
   const { code } = createPairingCode(BOARD);
   for (const invalid of [
     { ...bundle(), token: 'ps_' + 'x'.repeat(43) },
@@ -105,7 +105,7 @@ test('[H15,H17] package validation excludes sender credentials and validates rel
     await assert.rejects(sealPairingBundle(code, invalid), { code: 'PAIR_PACKAGE' });
   }
   const oversized = bundle({ snapshot: { version: 1, tables: {
-    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: 'x'.repeat(PAIR_PACKAGE_BYTES + 1) }],
+    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: randomBytes(PAIR_PACKAGE_BYTES + 1_000_000).toString('base64') }],
   } } });
   await assert.rejects(sealPairingBundle(code, oversized), { code: 'PAIR_PACKAGE_SIZE' });
   for (const invalid of ['', 'abc', 'x'.repeat(98), BOARD + '.A'.repeat(22) + '.B'.repeat(43), null]) {
@@ -113,7 +113,7 @@ test('[H15,H17] package validation excludes sender credentials and validates rel
   }
 });
 
-test('[H15,H17] relay pairing envelopes expire after ten minutes and are consumed exactly once', () => {
+test('cli.journeys-relay-pairing.relay-pairing-envelopes-expire-after-ten: [H15,H17] relay pairing envelopes expire after ten minutes and are consumed exactly once', () => {
   let now = 1_800_000_000_000;
   const store = createPairingStore({ now: () => now, maxCodes: 2 });
   const first = createPairingCode(BOARD);
@@ -132,7 +132,7 @@ test('[H15,H17] relay pairing envelopes expire after ten minutes and are consume
   assert.equal(store.size(), 0, 'expired and used tombstones are eventually pruned');
 });
 
-test('[H15,H17] a pairing code cannot be consumed as another board', () => {
+test('cli.journeys-relay-pairing.a-pairing-code-cannot-be-consumed: [H15,H17] a pairing code cannot be consumed as another board', () => {
   const store = createPairingStore();
   const issued = createPairingCode(BOARD);
   const opaque = 'A'.repeat(60);
@@ -144,7 +144,7 @@ test('[H15,H17] a pairing code cannot be consumed as another board', () => {
     'a mismatched-board attempt does not spend the original code');
 });
 
-test('[H15,H17] relay refuses malformed, duplicate and over-capacity pairing envelopes', () => {
+test('cli.journeys-relay-pairing.relay-refuses-malformed-duplicate-and-over: [H15,H17] relay refuses malformed, duplicate and over-capacity pairing envelopes', () => {
   const store = createPairingStore({ maxCodes: 1 });
   const first = createPairingCode(BOARD);
   assert.throws(() => store.publish(BOARD, first.locator, 'not base64!'), { code: 'PAIR_PACKAGE' });

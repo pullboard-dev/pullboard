@@ -3,6 +3,7 @@
 /** The file write queue applies writes across processes in order and keeps each caller's result [C7,#8163]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -102,4 +103,82 @@ test('store.io-write-queue-file.prune-removes-results-and-marks-older: clause 4:
   writeFileSync(join(root, 'again.result'), '{}');
   queue.forget('again');
   assert.equal(existsSync(join(root, 'again.result')), false, 'forget drops one stored outcome');
+});
+
+/** Transaction and savepoint ports over one sqlite connection, counting how many transactions committed. */
+function sqlitePorts(db, counts) {
+  let depth = 0;
+  return {
+    transaction: work => {
+      db.exec('BEGIN');
+      counts.transactions += 1;
+      try { const value = work(); db.exec('COMMIT'); return value; } catch (error) { db.exec('ROLLBACK'); throw error; }
+    },
+    savepoint: work => {
+      const name = `sp${depth++}`;
+      db.exec(`SAVEPOINT ${name}`);
+      try { const value = work(); db.exec(`RELEASE ${name}`); return value; } catch (error) { db.exec(`ROLLBACK TO ${name}`); db.exec(`RELEASE ${name}`); throw error; } finally { depth -= 1; }
+    },
+  };
+}
+
+test('store.io-write-queue-file.with-transaction-ports-every-queued-write: clause 5: with transaction ports every queued write applies in queue order inside one transaction, and a refused write rolls back only itself [C7,#10798]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-group-').root;
+  const db = new DatabaseSync(join(dir, 'board.sqlite'));
+  db.exec('CREATE TABLE events (name TEXT)');
+  const counts = { transactions: 0 };
+  const queue = createFileWriteQueue(join(dir, 'queue'), sqlitePorts(db, counts));
+  const write = (name, fail) => () => {
+    db.prepare('INSERT INTO events (name) VALUES (?)').run(name);
+    if (fail) throw Object.assign(new Error('refused'), { code: 'REFUSED' });
+    return name;
+  };
+  const results = await Promise.all([
+    queue.submit({ id: 'g1', run: write('g1') }),
+    queue.submit({ id: 'g2', run: write('g2') }),
+    queue.submit({ id: 'g3', run: write('g3', true) }),
+    queue.submit({ id: 'g4', run: write('g4') }),
+    queue.submit({ id: 'g5', run: write('g5') }),
+  ]);
+  assert.deepEqual(results.map(result => result.ok), [true, true, false, true, true]);
+  assert.deepEqual(results[2].error, { code: 'REFUSED', message: 'refused' });
+  assert.equal(counts.transactions, 1, 'five writes queued in one turn share one transaction');
+  assert.deepEqual(db.prepare('SELECT name FROM events ORDER BY rowid').all().map(row => row.name), ['g1', 'g2', 'g4', 'g5']);
+  assert.deepEqual(queue.result('g3'), { ok: false, error: { code: 'REFUSED', message: 'refused' } });
+  db.close();
+});
+
+const CLAIMER = `
+import { DatabaseSync } from 'node:sqlite';
+const [dir, file, name, module] = process.argv.slice(1);
+const { createFileWriteQueue } = await import(module);
+const db = new DatabaseSync(file);
+db.exec('PRAGMA busy_timeout = 5000');
+const ports = {
+  transaction: work => { db.exec('BEGIN'); try { const value = work(); db.exec('COMMIT'); return value; } catch (error) { db.exec('ROLLBACK'); throw error; } },
+  savepoint: work => { db.exec('SAVEPOINT w'); try { const value = work(); db.exec('RELEASE w'); return value; } catch (error) { db.exec('ROLLBACK TO w'); db.exec('RELEASE w'); throw error; } },
+};
+const queue = createFileWriteQueue(dir, ports);
+const claims = [];
+for (let n = 0; n < 10; n++) {
+  claims.push(queue.submit({ id: name + n, run: seq => { db.prepare('INSERT INTO events (seq, claim) VALUES (?, ?)').run(seq, name + n); return seq; } }));
+}
+await Promise.all(claims);
+db.close();
+`;
+
+test('store.io-write-queue-file.fifty-claims-from-separate-processes-reach: clause 6: 50 claims queued from five separate processes reach the board in queue order, one event each [C7,#10798]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-claims-').root;
+  const file = join(dir, 'board.sqlite');
+  const db = new DatabaseSync(file);
+  db.exec('CREATE TABLE events (seq INTEGER, claim TEXT)');
+  db.close();
+  const codes = await Promise.all(['a', 'b', 'c', 'd', 'e'].map(name => child(CLAIMER, join(dir, 'queue'), file, name, MODULE)));
+  assert.deepEqual(codes, [0, 0, 0, 0, 0]);
+  const reader = new DatabaseSync(file);
+  const rows = reader.prepare('SELECT seq, claim FROM events ORDER BY rowid').all();
+  reader.close();
+  assert.equal(rows.length, 50);
+  assert.equal(new Set(rows.map(row => row.claim)).size, 50, 'every claim landed once');
+  assert.deepEqual(rows.map(row => row.seq), rows.map(row => row.seq).slice().sort((a, b) => a - b), 'board event order equals queue order');
 });
