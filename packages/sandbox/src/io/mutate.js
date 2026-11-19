@@ -1,17 +1,12 @@
 /** Seed single-line faults into a throwaway copy of a cell and run the cell's own tests against each, report only; the adapter that runs tests for the mutation check [C7]. */
-import { cpSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { scratchBase } from '../../../kernel/light.js';
 import { spawnCaptured } from './captured.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Hang ceiling for one test file run against one fault; a fault that makes a test loop forever is a caught fault. */
 const RUN_TIMEOUT_MS = 60_000;
@@ -19,7 +14,7 @@ const RUN_TIMEOUT_MS = 60_000;
 /** Every file under a folder, as paths relative to it, skipping node_modules and .git. */
 function walk(dir, base = dir) {
   const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+  for (const entry of fs.list(dir, { withFileTypes: true })) {
     if (entry.name === 'node_modules' || entry.name === '.git') continue;
     const full = join(dir, entry.name);
     if (entry.isDirectory()) out.push(...walk(full, base));
@@ -80,12 +75,12 @@ async function passes(dir, file, signal = null) {
  * Why git archive and not a worktree: it writes nothing under the checkout's .git. A checkout without commits gets an empty folder and the cell-only copy.
  */
 async function exportHead(root, into) {
-  mkdirSync(into, { recursive: true });
+  fs.mkdir(into, { recursive: true });
   const tar = join(into, '..', 'head.tar');
   const made = await finish('git', ['archive', '--format=tar', '-o', tar, 'HEAD'], { cwd: root });
   if (made.status !== 0) return;
   await finish('tar', ['-xf', tar, '-C', into], {});
-  rmSync(tar, { force: true });
+  fs.rm(tar, { force: true });
 }
 
 /**
@@ -130,21 +125,21 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
-  try { stat = statSync(source); } catch { /* reported below */ }
+  try { stat = fs.stat(source); } catch { /* reported below */ }
   if (!name || name.startsWith('..') || !stat?.isDirectory()) throw new Refused('NO_CELL', `${cell} is not a folder inside this checkout`, 'pullboard mutate <cell folder, e.g. packages/search> [--all]');
   const files = walk(source);
   const sources = files.filter(isSource);
   const tests = files.filter(isTest);
   if (!tests.length) throw new Refused('NO_TESTS', `${name} has no *.test.js files to run against a fault`, 'pass a cell folder that holds its own tests');
   const lines = all ? null : await changedSourceLines(root, name, base, changedLines);
-  const temp = mkdtempSync(join(scratchBase(), 'pullboard-mutate-'));
+  const temp = fs.mkdtemp(join(scratchBase(), 'pullboard-mutate-'));
   try {
     const copy = join(temp, 'tree', name);
     await exportHead(root, join(temp, 'tree'));
-    rmSync(copy, { recursive: true, force: true });
-    cpSync(source, copy, { recursive: true, filter: (from) => !/(?:^|[\\/])(?:node_modules|\.git)$/u.test(from) });
+    fs.rm(copy, { recursive: true, force: true });
+    fs.cp(source, copy, { recursive: true, filter: (from) => !/(?:^|[\\/])(?:node_modules|\.git)$/u.test(from) });
     const plan = sources.map((file) => {
-      const text = readFileSync(join(source, file), 'utf8');
+      const text = fs.readFile(join(source, file), 'utf8');
       const set = all ? Array.from({ length: text.split('\n').length }, (_, at) => at + 1) : (lines[file] ?? []);
       return { file, text, faults: spread(faults(text, set), sample) };
     });
@@ -182,7 +177,7 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     /** Run tests against one seeded fault, one at a time, and return those that failed on it and pass unmutated. */
     const attempt = async (file, text, fault, list) => {
       const failed = [];
-      writeFileSync(join(copy, file), fault.mutated);
+      fs.writeFile(join(copy, file), fault.mutated);
       try {
         for (const test of list) {
           if (deadline && Date.now() > deadline) return null;
@@ -192,7 +187,7 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
           note(`  ${name} ${ok ? 'passed' : 'failed'} ${test} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
           if (!ok) failed.push(test);
         }
-      } finally { writeFileSync(join(copy, file), text); }
+      } finally { fs.writeFile(join(copy, file), text); }
       const caughtBy = [];
       for (const test of failed) if (await healthy(test)) { caughtBy.push(test); tally[test].caught += 1; }
       return caughtBy;
@@ -235,6 +230,6 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     const caught = results.filter((row) => row.caught).length;
     return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally).filter((row) => row.total > 0 && !redBefore.includes(row.file)), faults: results, caught, missed: results.length - caught, skipped, capped };
   } finally {
-    rmSync(temp, { recursive: true, force: true });
+    fs.rm(temp, { recursive: true, force: true });
   }
 }
