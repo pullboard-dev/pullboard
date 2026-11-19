@@ -2467,6 +2467,7 @@
     "gate->jobs",
     "drive->jobs",
     "drive->kernel",
+    "drive->env",
     "resources->jobs",
     "resources->git",
     "codemap->git",
