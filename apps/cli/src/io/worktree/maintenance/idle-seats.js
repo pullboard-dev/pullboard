@@ -1,12 +1,13 @@
 /** Retire clean, idle seat worktrees whose HEAD is already on main, behind maintenance.retireIdleSeats [C7,#9109]. */
-import { existsSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { maintenanceGit } from './archive.js';
 import { itemObligation } from './classify.js';
 import { maintenanceAllocatedBytes } from './observation.js';
 import { takeMaintenanceCheckout } from './observation.js';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Why a classified tree is still a candidate: only checkouts no live claim speaks for, never a protected one. */
 const CANDIDATE_REASONS = new Set(['outside-maintenance-scratch', 'seat-joined', 'seat-idle']);
@@ -14,7 +15,7 @@ const CANDIDATE_REASONS = new Set(['outside-maintenance-scratch', 'seat-joined',
 /** The newest time anything touched the tree: its folder, its Git admin folder and its index. */
 function lastTouched(path) {
   const gitDir = String(maintenanceGit(path, ['rev-parse', '--absolute-git-dir'])).trim();
-  const stamps = [path, gitDir, join(gitDir, 'index'), join(gitDir, 'HEAD')].filter(file => existsSync(file)).map(file => statSync(file).mtimeMs);
+  const stamps = [path, gitDir, join(gitDir, 'index'), join(gitDir, 'HEAD')].filter(file => fs.exists(file)).map(file => fs.stat(file).mtimeMs);
   return stamps.length ? Math.max(...stamps) : Infinity;
 }
 
@@ -51,7 +52,7 @@ export async function retireIdleSeats(root, entries, { mainRoot, hours, now, obs
       lease = await takeMaintenanceCheckout(path, ports.agentId);
       const allocated = maintenanceAllocatedBytes(path);
       maintenanceGit(root, ['worktree', 'remove', path]);
-      if (existsSync(path)) continue;
+      if (fs.exists(path)) continue;
       entry.action = 'retired-idle';
       entry.reason = `clean seat idle over ${hours} h with HEAD on main`;
       report.pruned++;

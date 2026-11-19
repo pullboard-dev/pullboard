@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1427,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -86,9 +86,6 @@
     "apps/cli/src/io/worktree.js": 2,
     "apps/cli/src/io/worktree/maintenance.js": 2,
     "apps/cli/src/io/worktree/maintenance/archive.js": 19,
-    "apps/cli/src/io/worktree/maintenance/compaction.js": 4,
-    "apps/cli/src/io/worktree/maintenance/diagnostics.js": 10,
-    "apps/cli/src/io/worktree/maintenance/idle-seats.js": 2,
     "apps/cli/src/io/worktree/maintenance/observation.js": 10,
     "apps/cli/src/io/worktree/maintenance/scheduler.js": 6,
     "apps/cli/src/io/worktree/temp.js": 1,
