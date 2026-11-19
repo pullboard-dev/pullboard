@@ -1,0 +1,2 @@
+## Rules
+- PB2 [approved, strict] Every change names its proof.
