@@ -20,8 +20,15 @@ export function criterionSize(criterion = '', catalog = []) {
       if (catalog.some(cell => cell.name === name)) cells.add(name);
     }
   }
-  const labels = [...String(criterion).matchAll(/\((\d+)\)|^\s*(\d+)\.\s+/gmu)];
-  const clauses = labels.length || (String(criterion).trim() ? 1 : 0);
+  // A parenthesised number is a clause label only with no word character before it and only when the labels run 1, 2, 3 in order,
+  // so a quoted count "(312)" or a call "get(1)" is prose; numbered line labels count as they always did.
+  let nextLabel = 1;
+  let labels = 0;
+  for (const match of String(criterion).matchAll(/(?<![\w])\((\d+)\)|^\s*(\d+)\.\s+/gmu)) {
+    if (match[2] !== undefined) labels += 1;
+    else if (Number(match[1]) === nextLabel) { labels += 1; nextLabel += 1; }
+  }
+  const clauses = labels || (String(criterion).trim() ? 1 : 0);
   return { version: 1, score: files.length + cells.size + clauses, files, cells: [...cells].sort(), clauses,
     oversized: cells.size > 1 || clauses > 3 };
 }

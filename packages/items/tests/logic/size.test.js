@@ -18,7 +18,7 @@ test('items.size.criterion-scope: criterion scope deduplicates files and maps le
   assert.equal(criterionSize('One cell or at most three clauses.').cells.length, 0);
   assert.equal(criterionSize('1. Read; 2. Change; 3. Prove; 4. Publish.').clauses, 1);
   assert.equal(criterionSize('1. Read\n2. Change\n3. Prove\n4. Publish.').clauses, 4);
-  assert.equal(criterionSize('(1) Read; (1) Change; (1) Prove; (1) Publish.').oversized, true);
+  assert.equal(criterionSize('(1) Read; (2) Change; (3) Prove; (4) Publish.').oversized, true);
 });
 
 test('items.size.one-cell-prose: real one-cell criteria do not turn surrounding prose into extra cells [B35,C7]', () => {
@@ -36,4 +36,18 @@ test('items.size.one-cell-prose: real one-cell criteria do not turn surrounding 
   }
   assert.deepEqual(criterionSize('The internal cells tools read once; check the cell lints.', catalog).cells, []);
   assert.equal(criterionSize('Use version 1.2.3 and section 4. Keep one cell.', catalog).clauses, 1);
+});
+
+test('items.size.number-in-text-not-label: clause 1: a bar with three numbered lines whose text holds a parenthesised count and a call argument counts three clauses [B35,C7,#11847]', () => {
+  const bar = '1. Show the count (312) in the status line.\n2. Call get(1) on the store.\n3. Prove both.';
+  const size = criterionSize(bar);
+  assert.equal(size.clauses, 3);
+  assert.equal(size.oversized, false);
+});
+
+test('items.size.ordered-paren-labels: clause 2: a bar labelled with parenthesised 1 to 4 in order counts four clauses and is oversized [B35,C7,#11847]', () => {
+  const size = criterionSize('(1) Read; (2) Change; (3) Prove; (4) Publish.');
+  assert.equal(size.clauses, 4);
+  assert.equal(size.oversized, true);
+  assert.equal(criterionSize('(2) Change; (1) Read.').clauses, 1);
 });
