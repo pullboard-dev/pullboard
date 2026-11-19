@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1375,
+  "total": 1367,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -76,12 +76,6 @@
     "apps/cli/src/io/worktree/maintenance/observation.js": 10,
     "apps/cli/src/io/worktree/maintenance/scheduler.js": 6,
     "apps/cli/src/io/worktree/temp.js": 1,
-    "apps/relay/src/io/auth.js": 1,
-    "apps/relay/src/io/board/links.js": 2,
-    "apps/relay/src/io/browser/page.js": 2,
-    "apps/relay/src/io/deploy/health.js": 1,
-    "apps/relay/src/io/deploy/server.mjs": 1,
-    "apps/relay/src/io/deploy/smoke.mjs": 1,
     "apps/relay/src/io/journal.js": 1,
     "apps/relay/src/io/quota.js": 1,
     "apps/relay/src/io/retention.js": 1,
