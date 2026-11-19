@@ -5,21 +5,21 @@
  * it happened on, and only its evidence travels.
  */
 import {
-  realpathSync,
-} from 'node:fs';
-import {
   dirname,
   isAbsolute,
   relative,
   resolve,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Resolve existing path prefixes so a symlink cannot hide an outside-worktree operation. */
 function diagnosticPath(path) {
   let current = resolve(path);
   const missing = [];
   for (;;) {
-    try { return resolve(realpathSync(current), ...missing); }
+    try { return resolve(fs.realpath(current), ...missing); }
     catch (error) {
       if (!['ENOENT', 'ENOTDIR'].includes(error.code)) return null;
       const parent = dirname(current);
