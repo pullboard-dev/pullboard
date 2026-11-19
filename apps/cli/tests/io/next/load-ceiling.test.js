@@ -22,3 +22,16 @@ test('cli.io-next-load-ceiling.cli-next-load-ceiling-above-machine-loadceiling: 
   assert.equal(store.getItem(box.board, open).item_status, 'open', 'the open build stays unclaimed');
   assert.equal(store.getItem(box.board, review).item_review_by ?? null, null, 'the waiting review stays unreserved');
 });
+
+test('cli.io-next-load-ceiling.cli-next-load-ceiling-above-the-ceiling: cli.next.load-ceiling.above-the-ceiling-a-seat-that: clause 2: above the ceiling a seat that holds a claim still resumes it [C7,#9703]', async t => {
+  const box = await fixture(t);
+  const mine = box.add('Held by the actor');
+  box.claim(mine, box.seats.actor);
+  box.add('Open build');
+  machineSettings({ holdAboveLoad: true });
+  injectLoad(t, 30);
+  const resumed = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(resumed.code, 0, resumed.out + resumed.err);
+  assert.equal(resumed.document.item.item_id, mine, 'the held claim comes back');
+  assert.equal(resumed.document.held, true);
+});

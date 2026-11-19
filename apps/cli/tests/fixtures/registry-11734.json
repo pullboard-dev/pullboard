@@ -1,5 +1,5 @@
 {
-  "cli.io-next-below.cli-next-load-ceiling-below-the-ceiling": {
+  "cli.io-next-load-ceiling-below.cli-next-load-ceiling-below-the-ceiling": {
     "proves": {
       "specs": [
         "C7"
@@ -9,10 +9,10 @@
     "why": "Without it, a regression where cli.next.load-ceiling.below-the-ceiling-next-hands-claims: clause 3: below the ceiling next hands claims as before, and the hold is off by default would pass unnoticed.",
     "kind": "cell unit",
     "inputs": [
-      "apps/cli/tests/io/next/below.test.js"
+      "apps/cli/tests/io/next/load-ceiling-below.test.js"
     ]
   },
-  "cli.io-next-below.cli-next-load-ceiling-with-next-holdaboveload": {
+  "cli.io-next-load-ceiling-below.cli-next-load-ceiling-with-next-holdaboveload": {
     "proves": {
       "specs": [
         "C7"
@@ -22,20 +22,7 @@
     "why": "Without it, a regression where cli.next.load-ceiling.with-next-holdaboveload-off-a-load: clause 3: with next.holdAboveLoad off, a load above the ceiling changes nothing would pass unnoticed.",
     "kind": "cell unit",
     "inputs": [
-      "apps/cli/tests/io/next/below.test.js"
-    ]
-  },
-  "cli.io-next-resumes.above-ceiling-holder-resumes": {
-    "proves": {
-      "specs": [
-        "C7"
-      ],
-      "claim": "above machine.loadCeiling a seat that holds a claim still resumes it."
-    },
-    "why": "Without it, a regression where a seat holding a claim stops resuming it above the load ceiling would pass unnoticed.",
-    "kind": "cell unit",
-    "inputs": [
-      "apps/cli/tests/io/next/resumes.test.js"
+      "apps/cli/tests/io/next/load-ceiling-below.test.js"
     ]
   }
 }
