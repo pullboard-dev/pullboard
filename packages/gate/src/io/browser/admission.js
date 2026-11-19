@@ -23,6 +23,7 @@ import {
 } from '../../../../git/index.js';
 import { literalShellWords } from '../../../../kernel/index.js';
 import { foreignNodeOptions } from '../test/isolation.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { declaresBrowser } from '../../logic/declaration.js';
 
 const TEST_RUNNER = 'apps/cli/src/io/run/tests.js';
@@ -73,9 +74,9 @@ function explicitRunnerFiles(args) {
  * @param {string | undefined} pathValue
  * @returns {string | null}
  */
-export function resolveExecutable(command, pathValue = process.env.PATH) {
+export function resolveExecutable(command, pathValue = environmentAdapter().get('PATH')) {
   if (command.includes('/')) return resolve(command);
-  const suffixes = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';') : [''];
+  const suffixes = process.platform === 'win32' ? environmentAdapter().get('PATHEXT', '.EXE;.CMD;.BAT').split(';') : [''];
   for (const directory of (pathValue ?? '').split(process.platform === 'win32' ? ';' : ':')) {
     for (const suffix of suffixes) {
       const candidate = resolve(directory || '.', command + suffix);
@@ -256,7 +257,7 @@ async function ownSourceCheck(root, words, { commit, env }) {
 }
 
 /** Parse the frozen check and read its explicit test files' declarations, failing closed on unknown shell. */
-export async function checkNeedsBrowser(root, command, { commit, env = process.env, onFallback } = {}) {
+export async function checkNeedsBrowser(root, command, { commit, env = environmentAdapter().all(), onFallback } = {}) {
   if (foreignNodeOptions(env.NODE_OPTIONS, env)) return browserFallback(onFallback, '<frozen check>', 'NODE_OPTIONS may load an unclassified module');
   let words = literalShellWords(command);
   if (words && await ownSourceCheck(root, words, { commit, env })) return false;
@@ -299,7 +300,7 @@ export async function checkNeedsBrowser(root, command, { commit, env = process.e
  * @param {{ commit?: string, env?: NodeJS.ProcessEnv }} [options] - commit reads the files from that tree
  * @returns {Promise<string[] | null>}
  */
-export async function explicitCheckFiles(root, command, { commit, env = process.env } = {}) {
+export async function explicitCheckFiles(root, command, { commit, env = environmentAdapter().all() } = {}) {
   if (foreignNodeOptions(env.NODE_OPTIONS, env)) return null;
   let words = literalShellWords(command);
   if (!words) {
