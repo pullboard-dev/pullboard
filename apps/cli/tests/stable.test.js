@@ -115,14 +115,15 @@ test('cli.stable.journey-local-duplicate-id: clause 2: [C7,U148] a test id recor
 });
 
 test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the journeys add, agents, baseline, blueprint, cells, claim, companion and decisions folders has a registered cli.<area>.<slug> title ID', () => {
-  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry-10541.json'), 'utf8'));
+  // The claim policy chaos case keeps its record in the registry of the item that added it (#5705).
+  const records = Object.assign({}, ...['registry-10541.json', 'registry-5705.json'].map(name => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   for (const area of ['add', 'agents', 'baseline', 'blueprint', 'cells', 'claim', 'companion', 'decisions']) {
     for (const file of testFiles(join(journeys, area))) {
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10541.json`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10541.json or registry-5705.json`);
     }
   }
 });
