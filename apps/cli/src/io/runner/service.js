@@ -14,6 +14,7 @@ import { serveRunner } from '../../../../../packages/drive/index.js';
 import { runnerSettingOn } from '../../../../../packages/drive/index.js';
 import { machineSettingsFile } from '../../../../../packages/resources/light.js';
 import { pullGit } from './git.js';
+import { takeRunnerLock } from './lock.js';
 
 /** A pulled land job, as `pullboard runner serve` runs it: merge, check and push trunk by compare-and-swap in the cache [P7]. */
 async function land(claim, { cache, renew, env }) {
@@ -35,11 +36,14 @@ async function codePort(cache) {
 /**
  * Serve until stopped and return the exit code: 0 when serveRunner asked for a restart onto new runner code (the service
  * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal.
+ * The cache folder's lock is taken first, so a second service on one runner root refuses RUNNER_ALREADY_RUNNING before it serves [P7].
  */
-export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal } = {}) {
+export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal, lock = takeRunnerLock } = {}) {
   const [board, keyFile, cache, hint] = argv;
   const say = line => out(`${new Date().toISOString()} ${line}\n`);
+  let held = null;
   try {
+    held = lock(cache);
     say(`runner serve pulling from ${board}`);
     const runnerCode = await port(cache);
     const served = await serve({ board, key: readFileSync(keyFile, 'utf8').trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
@@ -55,7 +59,7 @@ export async function runService(argv, { serve = serveRunner, port = codePort, o
     // An exit is a restart: the service manager starts it again, so a refusal is logged with its code and nothing is lost.
     say(`stopped: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`);
     return 1;
-  }
+  } finally { held?.release(); }
 }
 
 // Only as the service program, so a test can import runService.
