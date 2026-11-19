@@ -286,13 +286,15 @@ export async function clearCompletedBlocks(io, { loadPersonCheck }, now = io.clo
  * @param {string} commonDir
  * @param {Date} now
  * @param {{state: string, spend: number, limit: number|null, which: string|null}} [budget] a budgetState result, shown as one budget line
+ * @param {{allowance?: {known: boolean, percentLeft?: number, resetsAt?: string|number}, seat?: string}} [seatAllowance] a seat's allowance, shown as one allowance line when 20 percent or less is left
  */
-export function personBlockWords(commonDir, now, budget) {
+export function personBlockWords(commonDir, now, budget, seatAllowance) {
   return [
     ...readBlocks(commonDir, { since: new Date(now.getTime() - 86_400_000) })
       .filter(block => block.audience === 'person')
       .map(({ at, code, command, audience, reason, step }) => ({ at, code, command, audience, reason, step })),
     ...budgetWords(budget, now),
+    ...allowanceWords(seatAllowance?.allowance, seatAllowance?.seat, now),
   ];
 }
 
@@ -315,5 +317,28 @@ export function budgetWords(budget, now) {
     audience: 'person',
     reason: `Spend is $${budget.spend.toFixed(2)} of the $${budget.limit.toFixed(2)} ${period} budget${stop ? ': the limit is reached' : ''}.`,
     step: 'Raise the budget in the machine settings, or let the seats idle until the period ends.',
+  }];
+}
+
+/**
+ * The one allowance line Needs you shows for a seat with 20 percent of its allowance left or less, and the 5-percent line instead
+ * (never both) at 5 percent or less; more left, or an unknown allowance, shows none [N2]. A line, so nothing is written to the ledger.
+ *
+ * @param {{known: boolean, percentLeft?: number, resetsAt?: string|number}|undefined} allowance a seatAllowance result
+ * @param {string|undefined} seat the seat the allowance belongs to
+ * @param {Date} now
+ * @returns {Array<{at: string, code: string, command: string, audience: string, reason: string, step: string}>}
+ */
+export function allowanceWords(allowance, seat, now) {
+  if (!allowance?.known || !Number.isFinite(allowance.percentLeft) || allowance.percentLeft > 20) return [];
+  const low = allowance.percentLeft <= 5;
+  const resets = allowance.resetsAt === undefined || allowance.resetsAt === null ? 'at an unknown time' : `at ${new Date(allowance.resetsAt).toISOString()}`;
+  return [{
+    at: now.toISOString(),
+    code: low ? 'ALLOWANCE_LOW' : 'ALLOWANCE_WARN',
+    command: 'pullboard stats',
+    audience: 'person',
+    reason: `Seat ${seat ?? 'unknown'} has ${allowance.percentLeft} percent of its allowance left (${low ? '5' : '20'}-percent line); it resets ${resets}.`,
+    step: 'Let the seat idle until the allowance resets, or move its work to another seat.',
   }];
 }

@@ -74,6 +74,7 @@ export {
   fencedHopEnabled,
   judgeByReleaseEnabled,
   endStaleJobsEnabled,
+  retryNewRedsOnceEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
   receiptMissingCauseEnabled,
@@ -81,6 +82,7 @@ export {
   settleOnMainReceiptEnabled,
   recordLapseEnabled,
   runnerCommitReportEnabled,
+  runnersCoresPerShard,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
@@ -93,10 +95,14 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  jsdocCheckEnabled,
   adapterLintEnvEnabled,
+  adapterLintSigningEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
+  adapterLintGithubEnabled,
+  adapterLintSshEnabled,
   idiomSpreadEnabled,
   literalPinsEnabled,
   movesLiveEnabled,
@@ -147,12 +153,14 @@ export {
   nextReadinessCheck,
   nextOneGitRead,
   nextReadinessCache,
+  nextReturnedFirst,
   refuseTempWorktree,
   claimKeepWhileRunning,
   refuseOffMainHead,
   statusShowUsefulBuilders,
   refuseEmptyBar,
   rejectKeepsCheck,
+  soloLowStakesEnabled,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
@@ -182,6 +190,7 @@ export {
   parallelGatesEnabled,
   staticParallelMax,
   reuseGateReceiptsEnabled,
+  relaxRequiredFamilyEnabled,
   asyncFetchEnabled,
   stallStopEnabled,
   memoryFloorMB,
@@ -280,6 +289,8 @@ export {
 
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitComposeAsObject } from './src/logic/settings.js';
+export { landingComposedEquality } from './src/logic/settings.js';
+export { gateSampleSwap } from './src/logic/settings.js';
 export { submitComposeOnRunner } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';

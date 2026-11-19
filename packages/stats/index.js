@@ -49,6 +49,11 @@ export {
   projectReport,
 } from './src/logic/flow/report.js';
 export {
+  chooseTuning,
+  revertTuning,
+} from './src/logic/flow/tune/choose.js';
+export { tuneCycleDue } from './src/logic/flow/tune/cycle.js';
+export {
   WINDOW_STAGES,
   newWindowTrace,
   observeFlowStage,
@@ -126,6 +131,7 @@ export {
 } from './src/io/cost/usage.js';
 export {
   sessionSource,
+  seatAllowance,
   sessionSnapshot,
   usageDifference,
 } from './src/io/cost/session.js';
@@ -217,3 +223,4 @@ export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
 export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
 export { itemRunnerCost } from './src/io/cost/runner.js';
 export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';
+export { allowanceWarning } from './src/logic/allowance.js';

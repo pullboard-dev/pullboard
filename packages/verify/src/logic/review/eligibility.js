@@ -1,6 +1,5 @@
 import { reviewPatchAuthors } from '../../io/review/composition.js';
 import { compositionFamilyFallback } from '../../io/review/composition.js';
-import { seatFamily } from '../../../../items/index.js';
 import { withFamilyReads } from '../../../../items/index.js';
 import { committedItemAuthors } from '../../io/review/independence.js';
 import { earlierHolderProblem } from '../../io/review/independence.js';
@@ -9,14 +8,12 @@ import { strictReviewProblem as strictAuthorProblem } from '../../io/review/inde
 import { strictReviewProblem } from '../../io/review/routing.js';
 import { itemAuthorProblem } from '../../../../items/index.js';
 import { itemReviewPolicy } from '../../io/review/independence.js';
-import { reviewFamilyProblem } from '../../io/review/independence.js';
+import { reviewFamilyEligibility } from '../../io/review/independence.js';
 import { twoTierReviews } from '../../io/review/independence.js';
 import { agentParent } from '../../../../seats/index.js';
 import { canTake } from '../../../../seats/index.js';
 import { itemAuthors } from '../../../../items/index.js';
 import { requiredReviewFamilyProblem } from '../required.js';
-import { familiesDiffer } from './policy.js';
-import { builderFamilyOf } from '../../io/review/routing.js';
 import { Refused } from '../../../../kernel/index.js';
 
 /** Return the first rule failing in the same order as the native review guards. */
@@ -31,9 +28,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   if (required) return required;
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
-  const family = twoTierReviews(board) ? reviewFamilyProblem(board, item, agent.agent_id, familyPolicy)
-    : familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, agent.agent_id), builderFamilyOf(board, item))
-      ? new Refused('O2_FAMILY_MATCH', 'legacy policy requires different declared families') : null;
+  const family = reviewFamilyEligibility(board, item, agent.agent_id, familyPolicy);
   if (family) return family;
   if (item.item_review_by && item.item_review_by !== agent.agent_id && item.item_review_until > board.clock.now().toISOString()) return new Refused('REVIEW_HELD', `${item.item_review_by} currently holds the review`);
   return null;

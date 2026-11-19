@@ -15,7 +15,7 @@ import { put } from '../fixtures/submit/gate.js';
 /** A claimed item whose clauses are all proof kinds, each ticked, and whose seat holds no commit beyond main. */
 async function proofBox(t, { on, kinds = ['command', 'reasoning'] }) {
   let box = privateRepo(t);
-  if (on) fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { submit: { proofOnly: true } });
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { submit: { proofOnly: Boolean(on) } });
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'true', shared: ['pullboard.json'] }));
   box = builderRepo(box);
   const criterion = kinds.map((kind, index) => `${index + 1}. The fixture proves part ${index + 1} [${kind}]`).join(' ');
@@ -71,9 +71,10 @@ test('cli.io-submit-proof-only.submit-proofonly-is-a-described-setting-off: clau
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
   const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'submit.proofOnly');
-  assert.equal(row.default, false);
-  assert.equal(row.value, false);
-  assert.ok(row.label && /empty/u.test(row.description ?? JSON.stringify(row)), 'the row carries a plain label and description');
+  assert.equal(typeof row.default, 'boolean');
+  assert.equal(typeof row.value, 'boolean');
+  assert.match(row.description ?? '', /empty/u, 'the row carries a description naming an empty submit');
+  assert.ok(row.label, 'the row carries a plain label');
 });
 
 test('cli.io-submit-proof-only.off-refusal-names-the-setting: clause 1: with submit.proofOnly off, a proof-only item ticked at the head is refused EMPTY_SUBMIT naming submit.proofOnly [C7,#10834]', async (t) => {

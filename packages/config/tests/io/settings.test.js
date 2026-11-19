@@ -3,7 +3,16 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { adapterLintSshEnabled } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
+import { jsdocCheckEnabled } from '../../index.js';
+import { relaxRequiredFamilyEnabled } from '../../index.js';
+import { adapterLintGithubEnabled } from '../../index.js';
+import { adapterLintSigningEnabled } from '../../index.js';
+import { loadMachineSettings } from '../../index.js';
+import { runnersCoresPerShard } from '../../index.js';
+import { describeSetting } from '../../index.js';
+import { MACHINE_DEFAULTS } from '../../src/io/settings/machine-defaults.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -28,4 +37,75 @@ test('config.io-settings.join-coordinator-seat-off-by-default: clause 2: joinCoo
   assert.equal(withSettings({}, joinCoordinatorSeat), false);
   assert.equal(withSettings({ 'join.coordinatorSeat': false }, joinCoordinatorSeat), false);
   assert.throws(() => withSettings({ 'join.coordinatorSeat': 'yes' }, joinCoordinatorSeat), /join\.coordinatorSeat/u);
+});
+
+test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredFamilyEnabled() is false for empty settings and for review.relaxRequiredFamily false, and true only for an exact true [C7]', () => {
+  assert.equal(withSettings({}, relaxRequiredFamilyEnabled), false);
+  assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
+  assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
+  assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.adapter-lint-github-enabled: clause 1: adapterLintGithubEnabled() reads false when unset and true only when gate.adapterLintGithub is set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#1429]', () => {
+  assert.equal(withSettings({}, adapterLintGithubEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintGithub: false } }, adapterLintGithubEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintGithub: true } }, adapterLintGithubEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintGithub: 'yes' } }, adapterLintGithubEnabled), { code: 'BAD_MACHINE_SETTINGS' });
+});
+
+test('config.io-settings.adapter-lint-github-described: clause 2: describeSetting(gate.adapterLintGithub) names the GitHub adapter and MACHINE_DEFAULTS holds the setting false [C7,#1429]', () => {
+  const row = describeSetting('gate.adapterLintGithub');
+  assert.ok(row, 'description row exists');
+  assert.match(JSON.stringify(row), /GitHub adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintGithub'], false);
+});
+
+test('config.io-settings.adapter-lint-signing-reads-boolean: clause 1: gate.adapterLintSigning reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and adapterLintSigningEnabled() follows it [C7,#1428]', () => {
+  assert.equal(withSettings({}, adapterLintSigningEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSigning: false } }, adapterLintSigningEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSigning: true } }, adapterLintSigningEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintSigning: 'true' } }, adapterLintSigningEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.adapterLintSigning/u.test(error.message));
+});
+
+test('config.io-settings.adapter-lint-signing-described-off: clause 2: describeSetting names the signing adapter and MACHINE_DEFAULTS holds gate.adapterLintSigning false [C7,#1428]', () => {
+  assert.match(describeSetting('gate.adapterLintSigning').description, /signing adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintSigning'], false);
+});
+
+test('config.io-settings.adapter-lint-ssh-reads-off-unless-true: clause 1: gate.adapterLintSsh reads false when unset and true only when set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#11369]', () => {
+  assert.equal(withSettings({}, adapterLintSshEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSsh: false } }, adapterLintSshEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintSsh: true } }, adapterLintSshEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintSsh: 'yes' } }, adapterLintSshEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.adapterLintSsh/u.test(error.message));
+});
+
+test('config.io-settings.adapter-lint-ssh-described-and-off: clause 2: describeSetting names the SSH runner adapter and MACHINE_DEFAULTS holds gate.adapterLintSsh false [C7,#11369]', () => {
+  assert.match(describeSetting('gate.adapterLintSsh').description, /SSH runner adapter/u);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintSsh'], false);
+});
+
+test('config.io-settings.jsdoc-check-reads-false-unset: clause 1: gate.jsdocCheck reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and jsdocCheckEnabled() follows it [C7,#1807]', () => {
+  assert.equal(withSettings({}, jsdocCheckEnabled), false);
+  assert.equal(withSettings({ gate: { jsdocCheck: false } }, jsdocCheckEnabled), false);
+  assert.equal(withSettings({ gate: { jsdocCheck: true } }, jsdocCheckEnabled), true);
+  assert.equal(withSettings({ gate: { jsdocCheck: true } }, () => loadMachineSettings().gate?.jsdocCheck === true), true);
+  assert.throws(() => withSettings({ gate: { jsdocCheck: 'yes' } }, jsdocCheckEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.jsdocCheck/u.test(error.message));
+});
+
+test('config.io-settings.jsdoc-check-described-default-off: clause 2: describeSetting names JSDoc in the description of gate.jsdocCheck and MACHINE_DEFAULTS holds it false [C7,#1807]', () => {
+  assert.match(JSON.stringify(describeSetting('gate.jsdocCheck')), /JSDoc/u);
+  assert.equal(MACHINE_DEFAULTS['gate.jsdocCheck'], false);
+});
+
+test('config.io-settings.cores-per-shard-reads-three-unset: clause 1: runnersCoresPerShard() reads 3 when runners.coresPerShard is unset, 2 when set 2, and a value outside 1-5 or not whole is refused BAD_MACHINE_SETTINGS [C7,#11866]', () => {
+  assert.equal(withSettings({}, runnersCoresPerShard), 3);
+  assert.equal(withSettings({ 'runners.coresPerShard': 2 }, runnersCoresPerShard), 2);
+  for (const bad of [0, 6, 2.5, '2']) {
+    assert.throws(() => withSettings({ 'runners.coresPerShard': bad }, runnersCoresPerShard), error => error.code === 'BAD_MACHINE_SETTINGS' && /runners\.coresPerShard/u.test(error.message));
+  }
+});
+
+test('config.io-settings.cores-per-shard-described-default-three: clause 2: MACHINE_DEFAULTS holds runners.coresPerShard 3 and describeSetting names cores in its description [C7,#11866]', () => {
+  assert.equal(MACHINE_DEFAULTS['runners.coresPerShard'], 3);
+  assert.match(JSON.stringify(describeSetting('runners.coresPerShard')), /cores/u);
 });

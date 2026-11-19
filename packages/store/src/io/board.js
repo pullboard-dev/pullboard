@@ -16,9 +16,8 @@ export { recordExitProgress, requireExitActive } from "../logic/exit/rules/claim
 import { committedItemAuthors } from "../../../verify/index.js";
 import { strictReviewProblem } from "../../../verify/index.js";
 import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../verify/index.js";
-import { seatFamily } from "../../../verify/index.js";
 import { routingStrictReviewProblem } from "../../../verify/index.js";
-import { reviewFamilyProblem } from "../../../verify/index.js";
+import { reviewFamilyEligibility } from "../../../verify/index.js";
 import { declaredLimitProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
@@ -113,6 +112,7 @@ import { gateAtHead } from "./board/next.js";
 import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
+import { reserveItem } from "./board/hold/item.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -357,7 +357,6 @@ export function gateReceiptProblem(board, item) {
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
-  const family = seatFamily(board, agentId);
   return {
     companionWindow: found => companionWindowProblem(board, found),
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -368,9 +367,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
-      ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
-      : null),
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId
@@ -506,6 +503,7 @@ export {
   holdLane,
   releaseLane,
   holdItem,
+  reserveItem,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,

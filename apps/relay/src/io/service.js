@@ -20,12 +20,15 @@ import { refusalDocument } from '../../../cli/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createPushSubscriptions } from './push/subscriptions.js';
 import { createDeviceStore } from './store/device.js';
 import { createDeviceHandler } from '../logic/http/device.js';
 import { createPairingStore } from '../logic/pairing/store.js';
 import { createPairingHandler } from '../logic/pairing/http.js';
 import { createKeyRequestStore } from './store/request.js';
 import { createKeyRequestHandler } from '../logic/http/request.js';
+import { createVaultStore } from './store/vault.js';
+import { createVaultHandler } from '../logic/http/vault.js';
 import { createRelayBrowserHandler } from './browser/page.js';
 import { VERIFIER_STANDING_ENGINE } from '../../../../packages/state/index.js';
 import {
@@ -147,7 +150,7 @@ function sender(who, personOnly = false) {
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
-export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES }) {
+export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES, push = {} }) {
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
@@ -184,7 +187,9 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return typeof approver === 'boolean' ? { ...who, approver } : who;
   }
 
-  const deviceStore = createDeviceStore({ directory: root, now });
+  // Push is off unless the caller reports relay.push on and names its sender; a revoked device's subscription ends with its pairing [C7].
+  const pushStore = createPushSubscriptions({ directory: root, enabled: () => false, fetch: undefined, vapidKey: '', vapidPublic: '', subject: '', now, ...push });
+  const deviceStore = createDeviceStore({ directory: root, now, onRevoke: (account, id) => pushStore.revoke(account, id) });
   // Auth handlers share this same auth object, so revoked sessions cannot mint a new reader elsewhere.
   const releaseSessionGuard = auth.addSessionGuard?.(principal => deviceStore.authorizeSession(principal));
   const deviceHandler = createDeviceHandler({
@@ -210,6 +215,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   });
   const keyRequestStore = createKeyRequestStore({ now });
   const keyRequests = createKeyRequestHandler({ authenticate: (req, id, write) => authorizedRequest(req, id, write), requests: keyRequestStore });
+  const vaultStore = createVaultStore({ directory: root });
+  const vault = createVaultHandler({ authenticate: async (req, write) => deviceStore.authorizeSession(await auth.authenticate(credential(req, origin, write))), vaults: vaultStore, http: { apiJson, apiRefusal, apiStatus, readApiBody, refusalDocument } });
   /** Refuse an old or ambiguous client before the opaque journal can return or accept board records. */
   async function authorizedRequest(req, id, write = false) {
     const who = await authorized(credential(req, origin, write), id, write);
@@ -392,8 +399,48 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     if (boardLinkAuthority) boardLinks = createRelayBoardLinks({ directory: root, authority: boardLinkAuthority,
       authorize: authorizedRequest, auth, withJournal, store: storing, now });
   } catch (error) {
-    clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); quota?.close();
+    clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); vaultStore.close(); quota?.close();
     throw error;
+  }
+
+  /** Serve the push routes: the config a paired page reads (the VAPID public key, while relay.push is on) and the device's subscription with its chosen kinds [C7]. */
+  async function pushHandler(req, res) {
+    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+    const wakeRoute = /^\/api\/v1\/boards\/([^/]+)\/push\/wake$/u.exec(pathname);
+    if (wakeRoute) return wakeHandler(req, res, wakeRoute[1]);
+    const route = /^\/api\/v1\/push\/(config|subscribe)$/u.exec(pathname);
+    if (!route) return false;
+    try {
+      const who = deviceStore.authorizeSession(await auth.authenticate(credential(req, origin, req.method !== 'GET')));
+      if (who.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'Sign in as the person on the paired phone to use push notifications.');
+      if (route[1] === 'config' && req.method === 'GET') { apiJson(res, 200, { enabled: pushStore.enabled(), vapidPublicKey: pushStore.publicKey() }); return true; }
+      if (route[1] !== 'subscribe' || req.method !== 'POST') throw new Refused('NO_ENDPOINT', 'Read push/config or send push/subscribe.');
+      if (!pushStore.enabled()) throw new Refused('PUSH_OFF', 'Phone wake-up notifications are off on this relay; turn relay.push on to store a subscription.');
+      const body = await readApiBody(req, { maxBytes: 8192 });
+      if (!/^device-[0-9a-f]{32}$/u.test(body?.device ?? '') || deviceStore.status(who.user.id, body.device).revoked !== false) throw new Refused('DEVICE_NOT_ENROLLED', 'Pair this device from the linked Mac before subscribing it to notifications.');
+      pushStore.subscribe(who.user.id, body.device, body.subscription, body.kinds);
+      apiJson(res, 200, { subscribed: true, kinds: pushStore.kinds(who.user.id, body.device) });
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
+    return true;
+  }
+
+  /**
+   * Serve the board machine's wake: its sealed alert goes to the board owner's paired devices as the kind plus the sealed blob and nothing else [C7,H5].
+   * Why: the board machine seals the alert, so the relay never sees plaintext; a body with any other field is refused before anything is pushed.
+   */
+  async function wakeHandler(req, res, boardId) {
+    try {
+      if (req.method !== 'POST') throw new Refused('NO_ENDPOINT', 'Send the wake as POST with a kind and a sealed alert.');
+      const who = await authorizedRequest(req, boardId, true);
+      const body = await readApiBody(req, { maxBytes: 16_384 });
+      if (!body || Object.keys(body).some(key => key !== 'kind' && key !== 'sealed') || typeof body.kind !== 'string') {
+        throw new Refused('BAD_WAKE', 'Send only kind and sealed; keep the alert text sealed on the board machine.');
+      }
+      const blob = sealed({ sealed: body.sealed });
+      const sent = await pushStore.wake(who.user.id, body.kind, new Uint8Array(blob));
+      apiJson(res, 200, { woke: sent });
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
+    return true;
   }
 
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
@@ -401,8 +448,10 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     if (await passkeys(req, res)) return;
     if (await pagesHandler(req, res)) return;
     if (await deviceHandler(req, res)) return;
+    if (await pushHandler(req, res)) return;
     if (await pairing(req, res)) return;
     if (await keyRequests(req, res)) return;
+    if (await vault(req, res)) return;
     try {
       if (browser && await browser(req, res)) return;
       let url;
@@ -482,7 +531,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   handle.maintenance = maintain;
   handle.backup = retention.backup;
   handle.maintenanceStatus = () => ({ error: maintenanceError });
-  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); quota?.close(); boardLinks?.close(); };
+  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); pushStore.close(); vaultStore.close(); quota?.close(); boardLinks?.close(); };
   return handle;
 }
 

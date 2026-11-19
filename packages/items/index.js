@@ -2,7 +2,7 @@
 export { criterionSize, defaultItemRoute, shapeRoute } from './src/logic/size.js';
 export { itemCollisionPlan } from './src/io/planning.js';
 export { criterionCells } from './src/io/criterion.js';
-export { BLOCKS_FILE, recordBlock, readBlocks, readLedgerBytes, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/io/blocks.js';
+export { BLOCKS_FILE, recordBlock, readBlocks, readLedgerBytes, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords, allowanceWords } from './src/io/blocks.js';
 export { briefFiles } from './src/logic/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/logic/caught.js';
 export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
@@ -16,7 +16,7 @@ export { itemAuthors, retainedVerifierIdentityProblem, itemAuthorProblem } from 
 export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/logic/decision/queue.js';
 export { dependencyValues, foreignDependencies, dependencyLabel, hasForeignDependencies, dependencyReferences, localDependencyIds, parseDependency, validateNativeDependencies } from './src/logic/dependencies.js';
 export { setItem } from './src/logic/fields.js';
-export { contentionScores, orderByContention, conflictRates } from './src/logic/contention.js';
+export { contentionScores, orderByContention, conflictRates, quietFiles } from './src/logic/contention.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
 export { applyItemHold, applyItemHoldRelease } from './src/logic/holds.js';
 export { splitRecent } from './src/logic/hot-split.js';
@@ -45,7 +45,7 @@ export { readResumeSources } from './src/io/sources.js';
 export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/logic/resume.js';
 export { requireSubmitComposition, composeAfterProof, trunkMoveFact } from './src/logic/submit/composition.js';
 export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitInvariantLine, validateLandingBatch, preserveInvariantEvidence, validateLandingRevision } from './src/logic/submit/invariants.js';
-export { fetchMissingCommits, hasCellsPlan, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';
+export { fetchMissingCommits, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';
 export { ITEM_SIZE_BUDGET, changedLines, oversizeNote } from './src/logic/submit/size.js';
 export { waitForSubmissionVerdict } from './src/io/submit/wait.js';
 export { EFFORT, milestoneRanks, workOrderActive, milestoneOverrides, unblockCounts, computedOrder, workOrderCompare, queueReasons } from './src/logic/order/work.js';

@@ -1,0 +1,4 @@
+{
+  "cli.journeys-resume-e2e-pack.the-run-pack-names-verified-items": {"proves":{"specs":["N21"],"claim":"The run pack names verified items that touched the same files, so a cold agent follows them."},"why":"Without it, a regression where the run pack names verified items that touched the same files, so a cold agent follows them would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/resume/e2e-pack.test.js"]},
+  "cli.journeys-resume-e2e-pack.submit-refuses-a-bar-that-moved": {"proves":{"specs":["V11"],"claim":"Submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover."},"why":"Without it, a regression where submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/resume/e2e-pack.test.js"]}
+}

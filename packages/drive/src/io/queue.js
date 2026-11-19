@@ -3,7 +3,7 @@
  * a job lease, and `pullboard next` hands the result back [C7].
  *
  * Why: since gate.runnersOnly a test run queues on runners for minutes, and seats sat 16-54 min in sleep-and-pgrep
- * loops. Corey, 9 Nov: "waiting is an error". The board holds the run; the seat takes other work.
+ * loops. A seat never waits on a test run: the board holds the run and the seat takes other work.
  */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';

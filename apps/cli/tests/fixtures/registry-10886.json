@@ -1,0 +1,15 @@
+{
+  "cli.io-presence.default-loop-claim-no-item-query": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A claim heartbeat for a default-loop next sends no item-list query, and one for any other io still lists items."
+    },
+    "why": "Without it, a regression where every claiming next lists the whole board items for overlap lines it never prints would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/presence.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/cell.js"
+    ]
+  }
+}

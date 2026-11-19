@@ -20,6 +20,9 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { requireFileLease } from "../../../../items/index.js";
+import { predictedFiles } from "../../../../items/index.js";
+import { quietFiles } from "../../../../items/index.js";
+import { conflictRates } from "../../../../items/index.js";
 
 const PREPARE_ATTEMPTS = 4;
 
@@ -206,7 +209,10 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
   // claims.fileLease (off by default): a live claim's predicted files are leased to it; a refusal writes nothing [C7,#8521].
   if (board.fileLease && operation === 'claim' && actor) {
     const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(args[0]);
-    if (item) requireFileLease(board.db, item, actor, board.fileLease, board.clock.now().toISOString());
+    // A leased file whose recent conflict rate is under queue.contentionThreshold is quiet and shared, not refused [C7,#1441].
+    const quiet = item && board.fileLease.quietThreshold !== undefined
+      ? new Set(quietFiles(predictedFiles(item), conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()), board.fileLease.quietThreshold)) : undefined;
+    if (item) requireFileLease(board.db, item, actor, board.fileLease, board.clock.now().toISOString(), quiet);
   }
   requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) });
   const prepare = PREPARATIONS[operation];

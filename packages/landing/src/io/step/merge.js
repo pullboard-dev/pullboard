@@ -15,8 +15,10 @@ import { Refused } from '../../../../kernel/index.js';
 import { hunkFreshnessEnabled } from '../../../../config/index.js';
 import { runnerOnlyCompose } from '../../../../config/index.js';
 import { landingSquashEnabled } from '../../../../config/index.js';
+import { landingComposedEquality } from '../../../../config/index.js';
 import { squashOnto } from '../land/squash.js';
 import { checkLandingMessages } from '../../logic/message.js';
+import { checkLandingCommits } from '../../logic/message.js';
 import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
 import { scanRidesRunner } from '../scan.js';
@@ -97,6 +99,8 @@ export async function mergeGroup(state, items) {
   const landedCommit = (item) => proven?.get(item.item_id) ?? store.checkedLandingCommit(state.board, item);
   const messages = checkLandingMessages(items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)),
     landingContext(batch.root, batch.base, state.config, landedCommit));
+  // An item's own commits are read as well as the generated message: a Co-Authored-By trailer or a home-folder path in one refuses the landing before anything merges [C7,#11265].
+  await checkLandingCommits(batch.root, batch.base, items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)), landedCommit);
   const merged = [];
   const conflicts = [];
   const resolutions = [];
@@ -219,7 +223,16 @@ export async function mergeGroup(state, items) {
   // A named batch is scanned by the runner job beside its static checks (step/trunk.js), not on the coordinator [C7,#5559].
   // The secret scan stays on the coordinator either way: the runner runs the candidate's own scan.js [#5968].
   if (scanRidesRunner(state)) requireLandingSecretFree(batch.root, batch.base, tip); else await requireLandingModuleResolution(batch.root, batch.base, tip);
-  return { items: merged, conflicts, resolutions, tip, doctrineCounts };
+  // With landing.composedEquality on, the batch records whether its staged tree is the tree of the one item commit proven for it [C7,U159,#10974].
+  const exactTree = landingComposedEquality() ? { ...exactTreeRecord(batch.root, tip), composedEqual: composedTreeEqual(batch.root, tip, merged, conflicts) } : null;
+  return { items: merged, conflicts, resolutions, tip, doctrineCounts, ...(exactTree?.tree ? { exactTree } : {}) };
+}
+
+/** True only for a one-item batch with no conflict whose staged tip has the tree of the item's submitted commit; a multi-item batch is never equal [C7,U159]. */
+function composedTreeEqual(root, tip, merged, conflicts) {
+  if (merged.length !== 1 || conflicts.length) return false;
+  const proven = exactTreeRecord(root, merged[0].commit);
+  return proven !== undefined && proven.tree === exactTreeRecord(root, tip)?.tree;
 }
 
 export { amendLandingEngines };

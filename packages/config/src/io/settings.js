@@ -136,6 +136,11 @@ export function recaptureHandoffEnabled() {
   return loadMachineSettings().gate?.recaptureHandoff === true;
 }
 
+/** Rerun a gate's new reds once on the board only when this machine opted in [C7]; off by default, and only an exact true turns it on. */
+export function retryNewRedsOnceEnabled() {
+  return loadMachineSettings().gate?.retryNewRedsOnce === true;
+}
+
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
@@ -144,6 +149,11 @@ export function endStaleJobsEnabled() {
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
+}
+
+/** Cores one gate shard weighs on a runner, from the flat key "runners.coresPerShard": 3 when unset, a whole number from 1 through 5 otherwise [C7,#11866]. */
+export function runnersCoresPerShard() {
+  return loadMachineSettings()['runners.coresPerShard'] ?? 3;
 }
 
 /** Name the trunk main commit in every runner claim answer, only when this machine opted in (stored flat as "runners.reportCommit") [C7,#10819]. */
@@ -193,6 +203,16 @@ export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
 }
 
+/** Whether the static check refuses new direct signing outside the signing adapter: off by default; only an exact `true` turns it on [C7,#1428]. */
+export function adapterLintSigningEnabled() {
+  return loadMachineSettings().gate?.adapterLintSigning === true;
+}
+
+/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
+export function jsdocCheckEnabled() {
+  return loadMachineSettings().gate?.jsdocCheck === true;
+}
+
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
 export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
@@ -216,6 +236,16 @@ export function viewTimerLayoutEnabled() {
 /** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
 export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
+}
+
+/** Whether the static check refuses new direct GitHub network access outside the GitHub adapter: off by default; only an exact `true` turns it on [C7,#1429]. */
+export function adapterLintGithubEnabled() {
+  return loadMachineSettings().gate?.adapterLintGithub === true;
+}
+
+/** Whether the static check refuses new SSH runner access outside the adapter: off by default; only an exact `true` turns it on [C7,#11369]. */
+export function adapterLintSshEnabled() {
+  return loadMachineSettings().gate?.adapterLintSsh === true;
 }
 
 /** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
@@ -473,6 +503,11 @@ export function refuseOffMainHead() {
 /** Whether freezing a bar refuses an empty criterion (#9443): off by default; only an exact `true` turns it on. */
 export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
+}
+
+/** Whether verify.soloLowStakes is on (#966): off by default; only an exact `true` lets a low-stakes row be self-accepted when every check is machine-run, red before and green after. */
+export function soloLowStakesEnabled() {
+  return loadMachineSettings().verify?.soloLowStakes === true;
 }
 
 /** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
@@ -734,6 +769,11 @@ export function nextOneGitRead() {
  */
 export function nextReadinessCache() {
   return loadMachineSettings().next?.readinessCache === true;
+}
+
+/** Whether next puts returned work (an abandoned or reworked item) ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
+export function nextReturnedFirst() {
+  return loadMachineSettings().next?.returnedFirst === true;
 }
 
 /**
@@ -1215,4 +1255,9 @@ export function renewAfterSyncEnabled() {
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
+}
+
+/** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
+export function relaxRequiredFamilyEnabled() {
+  return loadMachineSettings().review?.relaxRequiredFamily === true;
 }

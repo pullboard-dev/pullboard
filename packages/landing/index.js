@@ -74,3 +74,5 @@ export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
 export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";
 /** The runnerCode port the installed runner service is handed: the runners cell's refresh of the service app folder, through the cell the service already loads [P7,#10825]. */
 export { runnerCodeRefresh } from '../runners/index.js';
+/** Parallel group start: the pulled lander offer loop imports it through this front door [B3,C7,#9836]. */
+export { startGroup } from "./src/io/train/parallel-start.js";

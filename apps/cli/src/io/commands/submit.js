@@ -19,6 +19,7 @@ import { requireNonEmptySubmit } from '../empty.js';
 import { proofOnlyTicked } from '../empty.js';
 import { submitProofOnly } from '../../../../../packages/config/index.js';
 import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composesOnRunner } from '../submit/handoff/compose-on-runner.js';
 import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
@@ -328,8 +329,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const added = (held.item_claim_head ? tryGit(root, ['diff', '--name-only', '--diff-filter=A', held.item_claim_head, commit]).stdout : '').split('\n').filter(Boolean);
     throw new Refused('CHECK_FILE_MISSING', `the frozen check names ${absent.join(', ')}, which commit ${commit.slice(0, 12)} does not contain; this commit added ${added.length ? added.join(', ') : 'no files'}; name the test as the check does, or ask the coordinator to correct the check`);
   }
+  // With submit.composeOnRunner on, the queued gate job composes main and the head, so this command merges nothing and sends the head as it is [C7,#10756].
+  const composeOnRunner = composesOnRunner(ctx);
   let mainMerge = null;
-  if (!isSubmitHandoffWorker(ctx)) {
+  if (!isSubmitHandoffWorker(ctx) && !composeOnRunner) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
     // With submit.composeAsObject on, the composition is a throwaway object (parents main then head) under refs/pullboard/compose:
     // the builder branch never gets a sync merge, and a runner can recompute the same tree from main and head [C7,U159].
@@ -363,7 +366,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   let trunk;
   let regenerated = null;
-  try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
+  try { trunk = composeOnRunner ? { commit: acceptedMain.commit } : authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
   catch (error) {
     if (error?.code !== 'MERGE_CONFLICT') throw error;
     if (!isSubmitHandoffWorker(ctx)) {
@@ -379,7 +382,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
   }
   // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
-  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+  // With submit.composeOnRunner on there is no composed tree here: the runner composes, so this command sends the head as it is [C7,#10757].
+  if (!isSubmitHandoffWorker(ctx) && !composeOnRunner && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
     let declared;
     try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
     catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }

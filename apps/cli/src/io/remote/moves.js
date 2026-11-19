@@ -101,3 +101,22 @@ export async function runRemoteMove(io, parsed, remote) {
   io.flush(status);
   return status;
 }
+
+/**
+ * Beat a URL-joined seat once: post {verb: heartbeat, args: {}, agent} to the board host's /moves; true while the host holds the seat,
+ * false once it refuses the beat. An unreachable host reads as held, so one network blip never ends the beater [P7,B3].
+ * Why: a seat with board.url set has no local board for the claim beater to beat, and each CLI command exits after its move,
+ * so without this its claim is swept two minutes after it is taken. heartbeat stays out of POSITIONS: `pullboard heartbeat` is local.
+ * @param {{ url: string, token: string, agent: string, seatKey?: string }} remote
+ */
+export async function sendRemoteHeartbeat(remote) {
+  const { agent, ...host } = remote;
+  try {
+    await requestJson(host, `${await boardPath(host)}/moves`, { verb: 'heartbeat', args: {}, agent }, MOVE_TIMEOUT_MS);
+    return true;
+  } catch (error) {
+    if (error instanceof Refused && error.code === 'BOARD_UNREACHABLE') return true;
+    if (error instanceof Refused) return false;
+    throw error;
+  }
+}

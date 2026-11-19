@@ -67,10 +67,17 @@ export function shoutsModel({ messages, openIds = [], personAskIds = [], queueAs
     }
     return null;
   };
+  // A reply with no item sits in its question's thread: the sender thread is the one of the first message in its chain.
+  const rootOf = (message) => {
+    const visited = new Set();
+    let entry = message;
+    while (!visited.has(entry.id) && byId.has(entry.answers)) { visited.add(entry.id); entry = byId.get(entry.answers); }
+    return entry;
+  };
   const groups = new Map();
   for (const message of byId.values()) {
     // A shout with no item belongs to its sender's own thread, never to one shared No item thread.
-    const item = itemOf(message), key = item ? 'item:' + item : 'from:' + message.from;
+    const item = itemOf(message), key = item ? 'item:' + item : 'from:' + rootOf(message).from;
     if (!groups.has(key)) groups.set(key, { key, item, sender: message.from, list: [] });
     groups.get(key).list.push(message);
   }

@@ -22,10 +22,10 @@ export const workHelp = `Work
     [--here "reason"]                   file an item whose files belong to another board here anyway, saying why
     [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
-                [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
+                [--brief "..." | --brief-file <file>] [--level light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards
                                         --review-family: require that declared family; case-insensitive, never guessed from model
-                                        --brief: what a cold agent needs; --route light: any model can build it
+                                        --brief: what a cold agent needs; --level light: any model can build it
                                         --private: keep this item in your device-local board for this repo
                 [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
                                         with --criterion and a brief, --check is needed below strong
@@ -34,14 +34,14 @@ export const workHelp = `Work
                                         --private makes a bare item ID refer to this repo's device-local board
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
-  pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+  pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--level light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family
-                [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
+                [--review strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background
                 [--reason "what the old bar got wrong"]   needed to change the criterion or check of an item
                                         that was ever claimed; show and stats list each correction
@@ -54,7 +54,7 @@ export const workHelp = `Work
   pullboard run --scale --lane <lane> --agent "<command>" [--every 60] [--cycles N]
                                         from the main checkout: run as many worker seats as are worth running,
                                         within pullboard settings workers.budget spend per day; idle seats stop first
-  pullboard list [lane] [--all] [--route light|mid|strong] [--field name=value]   open and active items; --all adds closed ones; --field keeps items whose typed field matches (needs items.typedFields)
+  pullboard list [lane] [--all] [--level light|mid|strong] [--field name=value]   open and active items; --all adds closed ones; --field keeps items whose typed field matches (needs items.typedFields)
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
   pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,
@@ -102,7 +102,7 @@ export const workHelp = `Work
                                         holder or coordinator: create a child with the parent’s frozen bar
   pullboard companion <parent> <lane> "<title>" --key <key> [--criterion "<criterion>"] [--specs <ids>]
                                         create one child in another lane; repeat the same parent, lane and key to find it
-                                        --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
+                                        --brief "<brief>"; --level strong|mid|light; only the coordinator sets --check "<command>"
   pullboard shadow-batch <id> <id>... [--json]  compose accepted items onto main in a scratch tree and run the tier-2 checks once; board and main stay unchanged
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
                                         earlier ones as one line; --history prints every note in full; --review prints the review packet
@@ -187,12 +187,12 @@ ${RELEASE_REASON_LINES.map(line => `                                        ${li
                                         answer your decision; person mode is main-checkout only
                                         repo#id answers a sibling repo's decision on its own board
                                         Other options: [--implies <ids>] [--supersedes <answer-id>]
-                                                      [--origin person-relayed|agent|inherited] [--rationale <why>]
+                                                      [--origin person-relayed|agent|inherited] [--rationale <why>] [--cause <key>]
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
   pullboard pass <shout-id> <note>                lead escalates to coordinator; coordinator passes to person
-  pullboard request reopen|hold|withdraw|reroute <id> --cause <key> [--route light|mid|strong] [--note "why"]
-                                        queue a typed coordinator move; reroute needs --route
+  pullboard request reopen|hold|withdraw|reroute <id> --cause <key> [--level light|mid|strong] [--note "why"]
+                                        queue a typed coordinator move; reroute needs --level
                                         Causes: routing-assignment, bar-ambiguity, proof-red-tests, design-choice,
                                                 conflicting-rulings, person-authority, tool-defect
   pullboard request list [--all]        list pending requests; --all includes answered requests
@@ -201,6 +201,7 @@ ${RELEASE_REASON_LINES.map(line => `                                        ${li
                                         done needs matching native move event IDs in request order; it never executes a move
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
+  pullboard rulings <cause>                       every ruling recorded under that cause, newest first, with its shout id and text
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
                 [--work <lane>] [--review-wait <minutes>]
                                         follow the board's live events, one line each as it happens, with or without the view

@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
-import { cellsSnapshotPair } from '../fixtures/cells/snapshot.js';
 import { cellsSnapshotProblems } from '../../src/io/cells-submit-checks.js';
+import { cellsSnapshotPair } from '../fixtures/cells/snapshot.js';
 import { commonJsIn } from '../../../../packages/gate/index.js';
 import { foreignNodeOptions } from '../../../../packages/gate/index.js';
 import { importsIn } from '../../../../packages/gate/index.js';
@@ -26,16 +26,26 @@ test('cli.io-cells-submit-checks.the-snapshot-pair-differs-only-by-the: clause 1
   assert.equal(git(edited.main.root, 'show', 'HEAD:packages/demo/index.js'), "export const demo = 'demo';");
 });
 
-test('cli.io-cells-submit-checks.an-unchanged-candidate-returns-no-problems: clause 1: an unchanged candidate returns no problems with the services the submit gate passes [C7,#10939]', (t) => {
+test('cli.io-cells-submit-checks.missing-census-cache-services-refuse-cells-submit: clause 1: cellsSnapshotProblems on an unchanged snapshot pair, given the options the submit gate builds minus withImportParseCache, refuses CELLS_SUBMIT with canonical census cache services are required [C7,#10963]', (t) => {
   const pair = cellsSnapshotPair(t);
-  // The same services apps/cli/src/io/submit/gate.js passes requireSubmitCells, taken from the same gate imports.
-  // The two folders are separate repositories, so the changed files are given: an unchanged candidate changes none.
-  const result = cellsSnapshotProblems(pair.main.root, pair.candidate.root, {
-    acceptedMain: pair.main.commit,
-    files: [],
-    parsers: { importsIn, commonJsIn },
-    withImportParseCache,
-    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
-  });
-  assert.deepEqual(result.problems, []);
+  const options = {
+    withMainCheckout: () => { throw new Error('the cache refusal comes before any main checkout'); }, acceptedArtifact: null, acceptedArtifacts: null,
+    parsers: { importsIn: () => [], commonJsIn: () => [] }, cacheEligible: () => true, collectMachinery: false,
+    readCutItems: () => [], onInventory: () => {}, onAllCells: () => {},
+  };
+  assert.throws(() => cellsSnapshotProblems(pair.main.root, pair.candidate.root, options),
+    error => error.code === 'CELLS_SUBMIT' && /canonical census cache services are required/u.test(error.message));
+  assert.throws(() => cellsSnapshotProblems(pair.main.root, pair.candidate.root, { ...options, withImportParseCache: work => work(), cacheEligible: undefined }),
+    error => error.code === 'CELLS_SUBMIT' && /canonical census cache services are required/u.test(error.message), 'a missing cacheEligible refuses the same way');
+});
+
+test('cli.io-cells-submit-checks.an-unchanged-candidate-returns-no-problems: clause 1: cellsSnapshotProblems on an unchanged snapshot pair, given the parsers, withImportParseCache and cacheEligible services apps/cli/src/io/submit/gate.js passes it, returns no problems [C7,#10962]', (t) => {
+  const pair = cellsSnapshotPair(t);
+  // The same gate front-door services the submit gate hands requireSubmitCells, not stubs.
+  const options = {
+    acceptedMain: pair.main.commit, withMainCheckout: () => { throw new Error('an unchanged candidate needs no main checkout'); }, acceptedArtifact: null, acceptedArtifacts: null,
+    parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), collectMachinery: false,
+    readCutItems: () => [], onInventory: () => {}, onAllCells: () => {},
+  };
+  assert.deepEqual(cellsSnapshotProblems(pair.main.root, pair.candidate.root, options).problems, []);
 });

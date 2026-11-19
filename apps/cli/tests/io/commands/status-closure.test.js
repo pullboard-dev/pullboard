@@ -1,4 +1,4 @@
-/** The static import closure of the status command loads no more heavy startup modules than today's 11 [C7,#6480]. @pullboard-test-input source-cell apps/cli */
+/** The static import closure of the status command loads no more heavy startup modules than today's 10 [C7,#6480]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -23,7 +23,6 @@ const ALLOWED = [
   'packages/gate/src/io/check/baseline.js',
   'packages/gate/src/io/run/shell.js',
   'packages/resources/index.js',
-  'packages/sandbox/src/io/trusted/policy.js',
   'packages/sentinels/src/io/main.js',
   'packages/state/src/io/machine.js',
   'packages/store/index.js',
@@ -65,9 +64,9 @@ const heavyInClosure = () => {
   return [...staticClosure(entry)].map((file) => relative(root, file)).filter((file) => heavy.has(file)).sort();
 };
 
-test('cli.io-commands-status-closure.the-allow-list-matches-the-11-recorded: clause 1: the allow-list matches the 11 recorded status heavy modules and every closure member is on it [C7,#6480]', () => {
+test('cli.io-commands-status-closure.the-allow-list-matches-the-11-recorded: clause 1: the allow-list matches the 10 recorded status heavy modules and every closure member is on it [C7,#6480]', () => {
   const recorded = JSON.parse(readFileSync(heavyPath, 'utf8')).status;
-  assert.equal(ALLOWED.length, 11, 'the allow-list holds today\'s 11');
+  assert.equal(ALLOWED.length, 10, 'the allow-list holds today\'s 10');
   assert.deepEqual([...ALLOWED].sort(), [...recorded].sort(), 'the allow-list names the same modules as startup-heavy.json');
   const extra = heavyInClosure().filter((file) => !ALLOWED.includes(file));
   assert.deepEqual(extra, [], `status now loads heavy modules beyond the allow-list: ${extra.join(', ')}`);

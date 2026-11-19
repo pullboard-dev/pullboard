@@ -18,6 +18,7 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { commitWithHooks } from './tour-commit.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { startLocalRunner } from './runner/local.js';
 import { slowestSteps } from '../logic/tour-steps.js';
@@ -166,6 +167,10 @@ export async function tour(io) {
    */
   const seatSession = (who) => ({ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: `${basename(dir)}-${who}` });
   const timings = [];
+  // PULLBOARD_TOUR_REAL_HOOKS=1: the scripted commits run git's own hook scripts as processes, as a person's commit does [N10,#10408].
+  // How long each scripted commit took, hooks included, said at the end so a slow commit is seen [N10,#10408].
+  const commitMs = [];
+  const realHooks = process.env.PULLBOARD_TOUR_REAL_HOOKS === '1';
 
   /** The environment one scripted seat runs with. */
   const seatEnv = (who, nested) => ({ ...env, ...seatSession(who), ...(nested ? { PULLBOARD_TEXT_NEXT: '0' } : {}), GIT_AUTHOR_NAME: who, GIT_AUTHOR_EMAIL: `${who}@tour.invalid`, GIT_COMMITTER_NAME: who, GIT_COMMITTER_EMAIL: `${who}@tour.invalid` });
@@ -253,6 +258,15 @@ export async function tour(io) {
     }
     throw new TourStopped(`the land job for #${id} did not land it in two minutes; pullboard runner local shows this machine's runner`);
   };
+  /** One scripted commit: its hooks run in this process, unless the real ones were asked for. */
+  const commit = async (who, message, { all = false } = {}) => {
+    const started = performance.now();
+    try {
+      return await commitWithHooks({ message, all, real: realHooks, messageFile: join(dir, `commit-message-${who}`),
+        label: `git ${typed(['commit', '-q', all ? '-am' : '-m', message])}`,
+        run: (file, args, options) => run(who, file, args, options), pb: (args, options) => pb(who, args, options) });
+    } finally { commitMs.push(performance.now() - started); }
+  };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
       mkdirSync(join(where[who], path, '..'), { recursive: true });
@@ -288,7 +302,7 @@ export async function tour(io) {
     step(3, 'It writes greet(), tests the happy path and submits. Its own gate is green.');
     write('app-1', { 'src/greet.mjs': FIRST, 'src/greet.test.mjs': TEST });
     run('app-1', 'git', ['add', '-A'], { label: '' });
-    run('app-1', 'git', ['commit', '-q', '-m', 'feat(app): greet by name [G1]']);
+    await commit('app-1', 'feat(app): greet by name [G1]');
     const first = await gated('app-1', ['submit', '1']);
 
     step(4, 'A second agent checks out exactly that commit and tries the edge the builder skipped.');
@@ -304,7 +318,7 @@ export async function tour(io) {
     step(6, 'It fixes the edge, adds a test that pins it, and submits a new commit.');
     await pb('app-1', ['claim', '1'], { show: /^claimed/ });
     write('app-1', { 'src/greet.mjs': FIXED, 'src/greet.test.mjs': EDGE_TEST });
-    run('app-1', 'git', ['commit', '-q', '-am', 'fix(app): a blank name greets the world [G1]']);
+    await commit('app-1', 'fix(app): a blank name greets the world [G1]', { all: true });
     // The fix edits a test that existed at the claim, so the submit says why (#814).
     const second = await gated('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found']);
 
@@ -338,5 +352,6 @@ export async function tour(io) {
   io.say(`Look around: cd ${repo} && pullboard log`);
   io.say('see it: pullboard view');
   io.err(slowestSteps(timings));
+  io.err(`scripted commits: ${commitMs.map((ms) => `${Math.round(ms)} ms`).join(', ')}`);
   return 0;
 }

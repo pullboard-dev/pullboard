@@ -23,7 +23,9 @@ import { boardEndpoint } from '../../../drive/index.js';
 import { boardTrunkPack } from '../../../drive/index.js';
 import { createApiHandler } from '../../../api/index.js';
 import { servedTrunkPack } from '../../index.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+
+/** One request on a connection of its own, so each meets a fresh connection as the CLI fixture did. */
+const fetchFresh = (url, init = {}) => fetch(url, { ...init, headers: new Headers({ ...init.headers, connection: 'close' }) });
 
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
 

@@ -100,6 +100,12 @@ function chosenQuality(history, release, reroute, older = false) {
 /** Is the snapshot a release recorded at an engine before `engine`? A record with no engine stamped (null) is older; a hand-built snapshot with none at all is current. */
 const olderEngine = (snapshot, engine) => Number.isInteger(engine) && (snapshot.engine === null || (Number.isInteger(snapshot.engine) && snapshot.engine < engine));
 
+/** The earlier review release by a seat of the releaser's own family since the latest submit, or null; the snapshot's `reviewReleases` is oldest first. */
+const earlierSameFamilyReview = (before) => {
+  const family = before.actor?.family;
+  return typeof family === 'string' && family ? ((before.reviewReleases ?? []).filter(entry => entry?.family === family).at(-1) ?? null) : null;
+};
+
 /** The two newest chosen quality releases since the last unhold and the last route change, newest first. */
 function lastTwoChosen(s, older = false) {
   const history = numbered(s.history ?? []);
@@ -181,6 +187,9 @@ function releaseRules(board) {
       staleRelease: { says: 'the release is a coordinator --stale release', holds: (s, m) => stale(m) },
       calibrates: { says: 'a holder released BUDGET or INELIGIBLE at their own route',
         holds: (s, m) => returnsClaim(s.before, m) && chosenByHolder(s.before, m) && ['BUDGET', 'INELIGIBLE'].includes(m.reason) && s.before.actor?.route === s.before.item.route },
+      reviewReleasedTwice: { says: 'this review release is the second by one family since the latest submit, with io.holdAfterTwoReleases on, at the engine that has the rule, on an item with no hold',
+        holds: (s, m) => !m.stale && s.before.item?.status === 'submitted' && s.before.io?.holdAfterTwoReleases === true && !olderEngine(s.before, board.reviewReleaseTwiceEngine)
+          && !s.before.item.holdReason && earlierSameFamilyReview(s.before) !== null },
       releasedTwice: { says: 'this is the second chosen quality release since the last unhold or route change',
         holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m) && (olderEngine(s.before, board.releaseTwiceEngine) || (!m.on?.length && !INFRA_NOTE.test(m.note ?? '')))
           && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s, olderEngine(s.before, board.releaseTwiceEngine)).length === 2 },
@@ -188,7 +197,7 @@ function releaseRules(board) {
   };
 }
 
-/** The release table: guards in the order today's command throws, then the three outcomes and the two automatic follow-ups. */
+/** The release table: guards in the order today's command throws, then the three outcomes and the automatic follow-ups. */
 function releaseTable({ reasons, staleLimits }, staleProblem) {
   const unknownReason = `a release names why: --reason ${reasons.join('|')} (OTHER also needs --note "what happened")`;
   const dependency = (s, m) => dependencyProblem(s, m)?.message ?? '';
@@ -240,6 +249,12 @@ function releaseTable({ reasons, staleLimits }, staleProblem) {
     followups: Object.freeze([
       { id: 'route-calibration', when: 'calibrates',
         apply: ({ after, move: m }) => escalation(after, `${m.actor} released at the ${after.actor.route} route: ${m.reason}${trimmed(m.note) ? ` (${trimmed(m.note)})` : ''}`) },
+      { id: 'review-released-twice', when: 'reviewReleasedTwice',
+        apply: ({ before, move: m }) => {
+          const first = earlierSameFamilyReview(before);
+          const reason = `Review released twice without a verdict: ${first.by}${first.reason ? ` (${first.reason})` : ''}; ${m.actor} (${trimmed(m.note)})`;
+          return { patch: { holdReason: reason, holdBy: 'coordinator' }, events: [{ kind: 'hold_item', by: 'coordinator', detail: { reason, automatic: 'review-release-twice' } }] };
+        } },
       { id: 'released-twice', when: 'releasedTwice',
         apply: ({ after: s }) => {
           const reasons = listReasons(lastTwoChosen(s));

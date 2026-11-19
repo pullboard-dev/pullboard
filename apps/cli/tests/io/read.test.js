@@ -9,6 +9,7 @@ import { createE2eHelpers } from '../fixtures/e2e.js';
 import { openKitBoard } from '../fixtures/board.js';
 import { withFixtureBoard } from '../fixtures/board.js';
 import { atomic } from '../../../../packages/store/index.js';
+import { itemLine } from '../../src/io/read.js';
 import { withOpenedBoard } from '../../src/io/read.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 
@@ -71,4 +72,19 @@ test('cli.io-read.a-main-dependent-submit-still-refuses-policy: a main-dependent
     box.git(box.repo, 'commit', '-q', '--allow-empty', '--no-verify', '-m', 'chore: lander moves main');
   }), openKitBoard(file)), error => error.code === 'POLICY_SNAPSHOT_STALE' && error.message.includes(`${ref} moved`));
   assert.equal(work, 1, 'the refused write is not replayed');
+});
+
+const MERGED = 'a1b2c3d4e5f60718293a4b5c6d7e8f901234567';
+const ROW = { item_id: 7, item_lane: 'core', item_title: 'A title', item_route: 'strong' };
+
+test('cli.io-read.itemline-landed-names-main-sha: clause 1: itemLine for a withdrawn item at stage landed with a merged commit prints on main at the first 12 characters, and no longer prints (landed) [C7,#11113]', () => {
+  const line = itemLine({ ...ROW, item_status: 'withdrawn', item_stage: 'landed', item_merged_commit: MERGED });
+  assert.equal(line, '#7  withdrawn (on main at a1b2c3d4e5f6)  core  A title');
+  assert.doesNotMatch(line, /\(landed\)/u);
+});
+
+test('cli.io-read.itemline-withdrawn-unmerged-unchanged: clause 2: itemLine for a withdrawn item with no merged commit, and for a verified item, prints the same line as before [C7,#11113]', () => {
+  assert.equal(itemLine({ ...ROW, item_status: 'withdrawn', item_stage: 'withdrawn' }), '#7  withdrawn  core  A title');
+  assert.equal(itemLine({ ...ROW, item_status: 'withdrawn', item_stage: 'landed' }), '#7  withdrawn (landed)  core  A title');
+  assert.equal(itemLine({ ...ROW, item_status: 'verified', item_stage: 'landed', item_verified_by: 'core-1', item_merged_commit: MERGED }), '#7  verified (landed) by core-1  core  A title');
 });

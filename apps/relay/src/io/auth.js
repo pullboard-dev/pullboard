@@ -1,11 +1,8 @@
 /** Hash-only relay sessions and board credentials, authorized by current GitHub roles [H8, H1, H13, H14, H16, H3]. */
 import {
   createHash,
-  createPrivateKey,
-  generateKeyPairSync,
   randomBytes,
   randomUUID,
-  sign,
   timingSafeEqual,
 } from 'node:crypto';
 import {
@@ -15,6 +12,7 @@ import {
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { loadSigningAdapter } from '../../../../packages/keys/index.js';
 import { computerName } from '../../../../packages/seats/index.js';
 import { repositoryName } from './github.js';
 import { approvalContext } from '../../../../packages/link/index.js';
@@ -32,6 +30,8 @@ export const ACCESS_WINDOW_MS = 10 * 60_000;
 /** The credential database's file name under the relay data folder; this module opens and writes it, so it owns the store. */
 export const AUTH_DATABASE_FILE = 'auth.sqlite';
 const MAX_TTL = 30 * 24 * 3600_000;
+/** The passkey stamp key's signing form: base64url DER keys and signatures, as the relay database already stores them. */
+const signing = (await loadSigningAdapter()).createSigningAdapter({ encoding: 'der' });
 
 /** Hash credentials before any database lookup or persistence. */
 function hash(value) { return createHash('sha256').update(value).digest('hex'); }
@@ -150,9 +150,8 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     return lifecycle(() => {
       let keys = db.prepare('SELECT private_key,public_key FROM relay_person_authority WHERE slot=1').get();
       if (!keys) {
-        const pair = generateKeyPairSync('ed25519');
-        keys = { private_key: pair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64url'),
-          public_key: pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') };
+        const pair = signing.generateKeyPair();
+        keys = { private_key: pair.privateKey, public_key: pair.publicKey };
         db.prepare('INSERT INTO relay_person_authority(slot,private_key,public_key) VALUES(1,?,?)').run(keys.private_key, keys.public_key);
       }
       return keys;
@@ -980,8 +979,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
         passkey: { jwk: JSON.parse(passkey.public_key), algorithm: passkey.algorithm, counter: passkey.counter } });
       const at = now();
       const unsigned = { board, request: context.request, digest: context.digest, credential: passkey.id, at };
-      const key = createPrivateKey({ key: Buffer.from(personAuthorityKeys().private_key, 'base64url'), format: 'der', type: 'pkcs8' });
-      const stamp = { ...unsigned, signature: sign(null, presenceAttestation(unsigned), key).toString('base64url') };
+      const stamp = { ...unsigned, signature: signing.sign(personAuthorityKeys().private_key, presenceAttestation(unsigned).toString()) };
       return {
         stamp,
         /** Spend the grant once and keep the passkey's new counter, under the caller's board lock. */

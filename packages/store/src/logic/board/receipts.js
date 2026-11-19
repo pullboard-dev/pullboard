@@ -10,6 +10,8 @@ export { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 export { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 
+import { HEALTH_QUIET_ENGINE } from "../../../../state/light.js";
+
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;
 
@@ -60,8 +62,12 @@ export function healthFindingNotice(finding, resolved = false) {
   return `${resolved ? 'Resolved' : 'Stuck'}: ${finding.subject} ${finding.title} [${finding.cause}], since ${finding.since}. ${finding.why}. ${finding.owner ? `Owner: ${finding.owner}. ` : ''}Next: ${finding.next}.`;
 }
 
+/** The causes the coordinator hears whoever owns them: it rules on each (#1479). */
+const COORDINATOR_CAUSES = new Set(["UNLANDED_CONFLICT", "UNLANDED_WAITING", "UNLANDED_READY", "UNLANDED_STACKED", "DECISION_UNANSWERED", "REQUEST_UNANSWERED", "STALE_ROW_DECISION"]);
+
 /**
- * Who hears a finding: the coordinator, and its owner when the owner is a known address. From HEALTH_CAP_ENGINE an
+ * Who hears a finding: the coordinator, and its owner when the owner is a known address. From HEALTH_QUIET_ENGINE only the known owner
+ * hears it, and the coordinator only when the owner is unknown or the cause is one the coordinator rules on. From HEALTH_CAP_ENGINE an
  * idle seat alone hears that it is idle, so a board of quiet seats never fills the coordinator's feed (#940).
  *
  * @param {{ cause: string, owner: string|null }} finding
@@ -71,6 +77,7 @@ export function healthFindingNotice(finding, resolved = false) {
 export function healthTargets(finding, { engine, coordinator, person, lanes, agents }) {
   const known = (who) => who === person || lanes.includes(who) || agents.some((agent) => agent.agent_id === who);
   const owner = finding.owner && known(finding.owner) ? finding.owner : null;
+  if (engine >= HEALTH_QUIET_ENGINE && owner && !COORDINATOR_CAUSES.has(finding.cause)) return [owner];
   if (engine >= HEALTH_CAP_ENGINE && finding.cause === 'IDLE_AGENT' && owner) return [owner];
   return [...new Set([coordinator, ...(owner ? [owner] : [])])];
 }
@@ -78,7 +85,8 @@ export function healthTargets(finding, { engine, coordinator, person, lanes, age
 /**
  * Deliver one run's notices, resolved first: each finding's shouts, then its event, as earlier engines recorded them.
  * Every finding keeps its event. From HEALTH_CAP_ENGINE the run sends at most HEALTH_SHOUT_CAP shouts and one more to
- * the coordinator saying how many it held back, so a backfill never floods a feed (#940).
+ * the coordinator saying how many it held back, so a backfill never floods a feed (#940). From HEALTH_QUIET_ENGINE a
+ * resolved finding is logged and shouted to no one; an earlier engine's run replays with its original shouts.
  *
  * @param {{ resolved: any[], added: any[], engine: number, coordinator: string, targets: (finding: any) => string[],
  *   shout: (to: string, text: string) => void, log: (finding: any, cleared: boolean) => void }} run
@@ -92,7 +100,7 @@ export function deliverHealthNotices({ resolved, added, pending = [], engine, co
   for (const [finding, cleared, retry] of [...(durableCpu ? pending : []).map(entry => [entry, false, true]),
     ...resolved.map(entry => [entry, true, false]), ...added.map(entry => [entry, false, false])]) {
     let coordinatorSent = false;
-    for (const to of targets(finding)) {
+    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE ? [] : targets(finding)) {
       if (capped && sent >= HEALTH_SHOUT_CAP) { held += 1; continue; }
       shout(to, healthFindingNotice(finding, cleared));
       sent += 1;

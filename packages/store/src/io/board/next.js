@@ -55,6 +55,7 @@ import { foreignBlockers } from "../board.js";
 import { reviewReleaseCooldown } from "../board.js";
 import { parkedClaims } from "../cooldown.js";
 import { reviewerChecks } from "../board.js";
+import { reviewReleasedTwiceBy } from "./reserve/review.js";
 import { reviewFamilyRelaxation } from './review/family.js';
 import { refusesFamilyRelaxation } from './next-refused-pairings.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
@@ -204,7 +205,9 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    const baseChecks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    // A family that released a review twice is never offered it again, so next --verify does not loop on the refusal (REVIEW_RELEASE_TWICE_ENGINE).
+    const checks = { ...baseChecks, reviewNotReleasedTwiceByFamily: entry => reviewReleasedTwiceBy(board, entry.item_id, agentId) };
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {

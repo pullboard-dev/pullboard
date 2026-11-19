@@ -498,6 +498,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
+    "adapter-lint-ssh.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/ssh.js"
+    },
     "adapter-lint-timers.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/timers.js"
@@ -706,6 +710,10 @@
       "kind": "json",
       "owner": "packages/resources/src/io/handoff/worker/cap.js"
     },
+    "event-moves.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/generated/declarations.js"
+    },
     "events.json": {
       "kind": "json",
       "owner": "apps/view/src/io/serve.js"
@@ -838,6 +846,10 @@
     "model-names.json": {
       "kind": "repo-data",
       "owner": "apps/view/src/io/cost/tab.js"
+    },
+    "renderer-moves.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/static/view.js"
     },
     "runtime-profiles.json": {
       "kind": "repo-data",
@@ -1513,7 +1525,7 @@
     },
     "table:temp": {
       "kind": "table",
-      "owner": "packages/outbox/src/logic/undo.js"
+      "owner": "packages/outbox/src/io/relay/undo.js"
     },
     "table:test_result": {
       "kind": "table",
@@ -1525,7 +1537,11 @@
     },
     "table:verdict": {
       "kind": "table",
-      "owner": "packages/verify/src/logic/verdict/assurance.js"
+      "owner": "packages/verify/src/io/review/independence.js"
+    },
+    "table:vault": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "table:waiter": {
       "kind": "table",
@@ -1586,6 +1602,10 @@
     "transition.json": {
       "kind": "repo-data",
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
+    },
+    "vault.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "vendors.json": {
       "kind": "repo-data",

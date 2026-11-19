@@ -3,16 +3,17 @@ import { childEnvironment } from '../../../../../packages/kernel/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import * as resourceApi from '../../../../../packages/resources/light.js';
 import { once } from 'node:events';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { symlinkSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const CLI_NAME = 'pullboard';
+// This worker's installed Pullboard root, the folder holding packages/items; the gate bootstrap judges a main that is not Pullboard's tree with it (#6265).
+const RUNNER_TOOLS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
 
 /**
  * Put the job checkout's CLI first on PATH as `pullboard`, so a fixture never runs an older global install (11 Nov),
@@ -22,12 +23,12 @@ const CLI_NAME = 'pullboard';
 function withCheckoutCli(env, temporary) {
   const jobDirectory = dirname(temporary);
   const checkout = join(jobDirectory, 'checkout');
-  if (!existsSync(checkout)) return env;
+  if (!fs.exists(checkout)) return env;
   const bin = join(jobDirectory, 'cli-bin');
-  mkdirSync(bin, { recursive: true, mode: 0o700 });
-  symlinkSync(join(checkout, 'apps/cli/pullboard.js'), join(bin, CLI_NAME));
+  fs.mkdir(bin, { recursive: true, mode: 0o700 });
+  fs.symlink(join(checkout, 'apps/cli/pullboard.js'), join(bin, CLI_NAME));
   const cache = join(jobDirectory, '../../shared-cache');
-  mkdirSync(cache, { recursive: true, mode: 0o700 });
+  fs.mkdir(cache, { recursive: true, mode: 0o700 });
   return { ...env, PULLBOARD_RUNNER_SHARED_CACHE: cache, PATH: [bin, env.PATH].filter(Boolean).join(delimiter) };
 }
 
@@ -36,13 +37,14 @@ export function scopedEnvironment(S, home, temporary, machineHomePath, gateLease
   return withCheckoutCli({
     ...childEnvironment(S, home, temporary, machineHomePath, nodeOptions),
     ...resourcesApi.gateSlotEnvironment(gateLease),
+    PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS,
   }, temporary);
 }
 
 /** Check that this already installed capsule matches the controller before using its static API. */
 export function loadResourceApi(runtime) {
   const sourceDirectory = join(dirname(fileURLToPath(import.meta.url)), '../../../../..');
-  if (Object.entries(runtime.files).some(([name, source]) => readFileSync(join(sourceDirectory, name), 'utf8') !== source)) {
+  if (Object.entries(runtime.files).some(([name, source]) => fs.readFile(join(sourceDirectory, name), 'utf8') !== source)) {
     throw new Error('trusted runtime cache does not match the request');
   }
   return resourceApi;

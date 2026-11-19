@@ -12,7 +12,7 @@ const OLD = 'apps/cli/src/logic/sweep.js';
 const NEW = 'apps/cli/src/io/sweep/problems.js';
 
 test('codemap.shell-sweep-row.the-cli-sweep-js-row: clause 1: the cli sweep.js row sits in the shell cell in the cells plan with importers repointed [C7]', () => {
-  const rows = JSON.parse(readFileSync(new URL('49-app-cli.json', PLAN), 'utf8')).paths;
+  const rows = JSON.parse(readFileSync(new URL('51-app-cli.json', PLAN), 'utf8')).paths;
   const row = rows.find(([from]) => from === 'src/sweep.js');
   assert.equal(row[1], NEW);
   assert.ok(!rows.some(([, to]) => to === OLD));

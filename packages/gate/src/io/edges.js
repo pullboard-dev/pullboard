@@ -102,14 +102,14 @@ export function lightDoorsOf(root) {
 }
 
 /**
- * One cold load of a module in a fresh Node process, import only (no process start), in milliseconds.
+ * One cold load of a module in a fresh Node process, import only (no process start), in CPU milliseconds: time spent waiting on a loaded runner is not counted [C7].
  *
  * @param {string} root
  * @param {string} door - Repo-relative module path.
  * @returns {Promise<number>} Milliseconds, or Infinity when it never loads.
  */
 function loadOnceMs(root, door) {
-  const script = `const t = performance.now(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); process.stdout.write(String(performance.now() - t));`;
+  const script = `const t = process.cpuUsage(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); const used = process.cpuUsage(t); process.stdout.write(String((used.user + used.system) / 1000));`;
   return new Promise(done => {
     let out = '';
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 });
@@ -512,9 +512,10 @@ export async function writeCellsEdgeCeilings(root) {
 }
 
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
-  const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
+  const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write', '--no-cold-load'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
   else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);
+  else if (process.argv.includes('--no-cold-load')) refuse(cellsEdgeProblems(root));
   else lightDoorProblems(root).then(light => refuse([...cellsEdgeProblems(root), ...light]));
 }
 

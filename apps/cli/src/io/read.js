@@ -202,7 +202,10 @@ export function itemLine(item, name = (id) => id, mainMerge = false) {
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   const staleVerdict = item.item_verdict_state ? `  ${item.item_verdict_state.code}` : '';
   const hold = item.item_hold_reason ? `  held by ${name(item.item_hold_by)}: ${item.item_hold_reason}` : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage}${item.item_gate_runner === 'none' ? ', no runner' : ''})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
+  // A hand-landed item is withdrawn with a merged commit: "(landed)" read as "not on main" and held dependents back (#11113), so the line names where it is on main.
+  const handLanded = item.item_status === 'withdrawn' && item.item_stage === 'landed' && item.item_merged_commit;
+  const stage = handLanded ? `on main at ${String(item.item_merged_commit).slice(0, 12)}` : `${item.item_stage}${item.item_gate_runner === 'none' ? ', no runner' : ''}`;
+  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${stage})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
 }
 
 /** Format a stable agent id for human-facing CLI output. */
@@ -449,13 +452,13 @@ export function withOpenedBoard(ctx, work, board) {
  *
  * @param {any} ctx
  * @param {any} board
- * @returns {{ id: string, lane: string, route?: string, family: string | null, model: string | null, displayName: string }}
+ * @returns {{ id: string, lane: string, route?: string, family: string | null, model: string | null, displayName: string, role?: string }}
  */
 export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, readers = store) {
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   // A seat joined over the served API acts as itself at the board root, which has no worktree of its own [P7].
   const seat = environmentAgent(ctx.info.root, board) ?? (ctx.io.remoteAgent ? readers.agentById(board, ctx.io.remoteAgent) : null);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -463,7 +466,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     if (linked && !registered) throw new Refused('NO_AGENT', 'the linked snapshot has no coordinator; restore a consistent relay snapshot before acting');
     const id = linked ? COORDINATOR : readers.ensureCoordinator(board, ctx.info.root);
     const agent = registered ?? readers.agentAt(board, ctx.info.root);
-    return { id, lane: COORDINATOR, family: agent ? seatFamily(board, agent.agent_id) : null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
+    return { id, lane: COORDINATOR, family: agent ? seatFamily(board, agent.agent_id) : null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names), ...(agent?.agent_role ? { role: agent.agent_role } : {}) };
   }
   const agent = readers.agentAt(board, ctx.info.root) ?? folderIdentity()(board, ctx.info.root)?.agent;
   if (!agent) {
@@ -471,7 +474,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   }
   ctx.io.caller?.('seat', ctx.info.root);
   // The route follows the model this session declares, not only the one the seat joined with (#3678).
-  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
 }
 
 /** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */

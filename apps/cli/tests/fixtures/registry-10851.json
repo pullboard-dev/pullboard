@@ -1,0 +1,3 @@
+{
+  "cli.journeys-next-claims.children-of-an-unheld-parent-hold-one": {"proves":{"specs":["C7","#10851"],"claim":"With claims.perSeat 1 four next calls over four children of a parent another seat holds leave one build claim, also after a queued submit."},"why":"Without it, a regression where with claims.perSeat 1 four next calls over four children of a parent another seat holds leave one build claim, also after a queued submit would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/next/claims.test.js"]}
+}

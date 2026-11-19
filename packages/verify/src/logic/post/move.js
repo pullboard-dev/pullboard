@@ -9,21 +9,22 @@ function idle(reasons, error) {
 }
 
 /** Reuse explicit native next/read ports with unchanged review priority and ordered reservation guards. */
-async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listItems, agentSessionDigest }) {
+async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listItems, agentSessionDigest, reviewOnly }) {
   const omitIds = withBoardRead(ctx, board => [completedId, ...ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems })]);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      let found = await nextOnce(ctx, { omitIds });
+      // A verify accept or reject asks for review work only: a reviewer seat never claims a build item here [C7,#11017].
+      let found = await nextOnce(ctx, reviewOnly ? { omitIds, verify: true } : { omitIds });
       if (found.context) ctx = found.context;
       if (found.skipItem) omitIds.push(found.skipItem); // its folder is another live session's (#3688)
       if (found.retry) continue;
-      let review = Boolean(found.review);
+      let review = Boolean(found.review) || Boolean(reviewOnly);
       if (found.offer) {
         found = await nextOnce(ctx, { verify: true, verifyId: found.item.item_id });
         review = true;
       }
       if (found.retry) continue;
-      if (!found.item) return idle(found.reasons?.length ? found.reasons : ['no eligible work in this seat']);
+      if (!found.item) return idle(reviewOnly ? ['no eligible review work'] : found.reasons?.length ? found.reasons : ['no eligible work in this seat']);
       return { item: found.item, review, held: Boolean(found.held), reasons: found.reasons ?? [],
         ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(found.shared?.length ? { shared: found.shared } : {}) };
     } catch (error) {

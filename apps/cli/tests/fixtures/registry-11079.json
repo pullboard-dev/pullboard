@@ -1,0 +1,3 @@
+{
+  "cli.logic-install-kind.returns-global-npx-project-or-unknown": {"proves":{"specs":["C7"],"claim":"installKind returns global for a path under a global npm prefix node_modules, npx for a path under an _npx cache folder, project for a path under the cwd node_modules, and unknown otherwise."},"why":"Without it, a later update command could not pick the update command that matches how Pullboard was installed.","kind":"cell unit","inputs":["apps/cli/tests/logic/install-kind.test.js","apps/cli/src/logic/install-kind.js"]}
+}

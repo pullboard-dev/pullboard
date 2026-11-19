@@ -1,7 +1,9 @@
 import { seatFamily } from "../../../../verify/index.js";
 import { AGENT_GRANT_ENGINE } from "../../../../state/light.js";
+import { ADVISOR_ROLE_ENGINE } from "../../../../state/light.js";
 import { FAMILY_DECLARE_ENGINE } from "../../../../state/light.js";
 import { heartbeatSeat } from "../presence.js";
+import { writeBoardMeta } from "./meta.js";
 import { now } from "./query.js";
 import { atomic } from "./event/log.js";
 import { afterBoardWrite } from "./event/log.js";
@@ -47,7 +49,10 @@ export function isRemoteAgentPath(path) {
  */
 export function register(board, who) {
   let { lane, path, route = 'strong', family, model, createdBy, id: named } = who;
+  const { role } = who;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (role !== undefined && role !== 'advisor') throw new Refused('BAD_ROLE', `${JSON.stringify(role)} is not a seat role; use --role advisor, or leave --role off`);
+  if (role !== undefined && engine < ADVISOR_ROLE_ENGINE) throw new Refused('ENGINE_VERSION', `a seat role requires engine ${ADVISOR_ROLE_ENGINE}; upgrade Pullboard before using --role`);
   if (engine < 8) model = undefined;
   if (engine < VERIFIER_STANDING_ENGINE) { createdBy = undefined; named = undefined; }
   checkRoute(route);
@@ -116,6 +121,7 @@ export function register(board, who) {
     const recordsFamily = saveJoinedSession(board, id, { ...who, inserting: true });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
     if (createdBy !== undefined) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_creator:${id}`, createdBy);
+    if (role !== undefined) writeBoardMeta(board.db, `agent_role:${id}`, role);
     // Only a relay replica replaying a receipt-bound registration marks the seat enrolled.
     if (board.relayEnrollment === id && createdBy !== undefined && createdBy !== 'machine') {
       board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_enrolled:${id}`, createdBy);
@@ -125,7 +131,7 @@ export function register(board, who) {
     }
     logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
       ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}),
-      ...(who.lockLane ? { lockLane: true } : {}), ...(who.reviewLimits?.length ? { reviewLimits: who.reviewLimits } : {}) });
+      ...(who.lockLane ? { lockLane: true } : {}), ...(role === undefined ? {} : { role }), ...(who.reviewLimits?.length ? { reviewLimits: who.reviewLimits } : {}) });
     fresh = true;
     return id;
   });

@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-core.core-lines-match-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "coreLines returns the item line, expected build, criterion, check and check digest exactly as show printed them for an item with no receipt, refusal or thread."
+    },
+    "why": "Without it, moving these lines out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/core.js"
+    ]
+  }
+}

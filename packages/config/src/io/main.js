@@ -202,11 +202,25 @@ function isFolder(root, entry) {
 }
 
 /**
+ * Give every owns entry that names a folder without a trailing slash its slash, so it matches the files in it.
+ *
+ * @param {any} lanes the merged lanes
+ * @param {string} [root] the repo folder, when known
+ */
+function slashFolderOwns(lanes, root) {
+  if (!root || notPlain(lanes)) return;
+  for (const lane of Object.values(lanes)) {
+    if (!isStringList(lane?.owns)) continue;
+    lane.owns = lane.owns.map(entry => (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry) ? entry + '/' : entry));
+  }
+}
+
+/**
  * Problems in one lane's declaration.
  *
  * @param {string} name
  * @param {any} lane
- * @param {string} [root] the repo folder, when known: owns entries are checked against it
+ * @param {string} [root] the repo folder, when known
  * @returns {string[]}
  */
 function laneProblems(name, lane, root) {
@@ -215,13 +229,6 @@ function laneProblems(name, lane, root) {
   }
   const problems = [];
   if (!isStringList(lane?.owns)) problems.push(`lane "${name}": "owns" is a list of path prefixes`);
-  if (root && isStringList(lane?.owns)) {
-    for (const entry of lane.owns) {
-      if (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry)) {
-        problems.push(`lane "${name}": owns entry "${entry}" names a folder and matches no file in it; write "${entry}/"`);
-      }
-    }
-  }
   if (lane?.specs !== undefined && !isStringList(lane.specs)) {
     problems.push(`lane "${name}": "specs" is a list of spec ids or prefixes`);
   }
@@ -319,6 +326,9 @@ export function configProblems(config, root) {
   }
   if (config.submitDeferAbove !== undefined && (!Number.isSafeInteger(config.submitDeferAbove) || config.submitDeferAbove < 1 || config.submitGate !== 'landing')) {
     problems.push('"submitDeferAbove" is a whole number, 1 or more, with "submitGate": "landing": a submit whose affected selection names more test files runs only its check, static checks and submitInvariants, and the landing gate runs the selection; leave it out to run every selected file at submit');
+  }
+  if (config.confinedImportSelection !== undefined && !['off', 'tests', 'all'].includes(config.confinedImportSelection)) {
+    problems.push('"confinedImportSelection" is "off", "tests" or "all": how far the gate narrows its proof for a change confined to one import closure; off by default');
   }
   if (config.landingShards !== undefined && (!Number.isSafeInteger(config.landingShards) || config.landingShards < 1 || config.landingShards > 64)) {
     problems.push('"landingShards" is a whole number from 1 to 64: how many shards the landing gate splits its test files into');
@@ -591,6 +601,7 @@ export function configFromSource(source, root) {
   if (notPlain(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
   const base = defaults();
   const config = merge(base, knownConfigKeys(raw, base));
+  slashFolderOwns(config.lanes, root);
   const problems = configProblems(config, root);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
   const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);

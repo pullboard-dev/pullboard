@@ -105,7 +105,7 @@ test('cli.journeys-relay-pairing.package-validation-excludes-sender-credentials-
     await assert.rejects(sealPairingBundle(code, invalid), { code: 'PAIR_PACKAGE' });
   }
   const oversized = bundle({ snapshot: { version: 1, tables: {
-    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: 'x'.repeat(PAIR_PACKAGE_BYTES + 1) }],
+    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: randomBytes(PAIR_PACKAGE_BYTES + 1_000_000).toString('base64') }],
   } } });
   await assert.rejects(sealPairingBundle(code, oversized), { code: 'PAIR_PACKAGE_SIZE' });
   for (const invalid of ['', 'abc', 'x'.repeat(98), BOARD + '.A'.repeat(22) + '.B'.repeat(43), null]) {

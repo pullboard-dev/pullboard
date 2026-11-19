@@ -35,7 +35,7 @@ function report() {
   };
 }
 
-test('perf budgets warn by name and fail on a missing action [N40,C7]', async t => {
+test('gate.logic-budgets.perf-budgets-warn-by-name-and: perf budgets warn by name and fail on a missing action [N40,C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-perf-budgets-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   let sequence = 0;
@@ -114,7 +114,7 @@ test('perf budgets warn by name and fail on a missing action [N40,C7]', async t 
   assert.match(evaluatePerfBudgets(report(), extra).errors.join('\n'), /absentMeasurement.*has no measured action/u);
 });
 
-test('main CI saves the eight-project performance report outside the gate [N40,C7]', () => {
+test('gate.logic-budgets.main-ci-saves-the-eight-project: main CI saves the eight-project performance report outside the gate [N40,C7]', () => {
   const workflow = readFileSync(join(ROOT, '.github/workflows/gate.yml'), 'utf8');
   const perf = workflow.match(/\n  perf:\n([\s\S]*)$/u)?.[1];
   assert.ok(perf, 'performance is its own job beside the gate’s matrix jobs');

@@ -9,6 +9,15 @@ import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
+import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import * as store from '../../../../store/index.js';
+import { loadConfig } from '../../../../config/index.js';
+import { mergeGroup } from '../../../src/io/step/merge.js';
 import { delimiter } from 'node:path';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -145,4 +154,92 @@ test('landing.exact.record-refuses-a-malformed-tree: clause 2: validateLandingBa
   for (const exactTree of [{ tree: treeOf(base).slice(0, 12) }, { tree: 'HEAD' }, {}, null, 'tree']) {
     assert.throws(() => validateLandingBatch({ ...batch, exactTree }, 0), error => error.code === 'LAND_BATCH', JSON.stringify(exactTree));
   }
+});
+
+
+/**
+ * Run mergeGroup on a real repository with the settings given. `shape` is how the item commits relate to the trunk the batch builds on:
+ * 'descends' (one item whose commit sits on the trunk, so the merge adds nothing), 'diverged' (one item branched before the trunk moved)
+ * or 'two' (two items). Returns the group's answer.
+ */
+async function composedGroup(t, settings, shape, message = null) {
+  const repo = cellRepo(t, { real: true });
+  const { root: dir } = privateFixtureFiles('pullboard-composed-equality-');
+  const board = openCellBoard(`${dir}/board.sqlite`);
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = `${dir}/machine-home`;
+  mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+  const identity = { GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const before = Object.fromEntries(Object.keys(identity).map(key => [key, process.env[key]]));
+  Object.assign(process.env, identity);
+  t.after(() => {
+    store.closeBoard(board);
+    rmSync(dir, { recursive: true, force: true });
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+    for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  });
+  const g = (...args) => runFixtureGit(args, { cwd: repo.root }).trim();
+  const base = repo.commit;
+  const branchOff = (name, file) => { g('checkout', '-q', '--detach', base); repo.put(file, `${name}\n`); return repo.commitAll(); };
+  let tips;
+  let trunk;
+  if (shape === 'descends') {
+    // The scan and derive files make the batch ride a runner; a runner that answers nothing leaves the merge to the coordinator.
+    repo.put('packages/landing/src/io/scan.js', '// scan\n');
+    repo.put('packages/landing/src/io/derive.js', '// derive\n');
+    trunk = repo.commitAll();
+    repo.put('web/page.txt', 'page\n');
+    tips = [repo.commitAll()];
+  } else {
+    tips = shape === 'two' ? [branchOff('one', 'web/one.txt'), branchOff('two', 'web/two.txt')] : [branchOff('page', 'web/page.txt')];
+    if (message) { g('commit', '--amend', '-q', '-m', message); tips = [g('rev-parse', 'HEAD')]; }
+    g('checkout', '-q', '--detach', base);
+    repo.put('packages/landing/src/io/scan.js', '// scan\n');
+    repo.put('packages/landing/src/io/derive.js', '// derive\n');
+    trunk = repo.commitAll();
+  }
+  g('checkout', '-q', '--detach', shape === 'descends' ? trunk : base);
+  const items = tips.map((tip, index) => ({ item: cellItem(board, { lane: 'web', title: `Composed equality ${index}`, specIds: ['G1'] }), tip }));
+  const batchRoot = `${dir}/batch`;
+  g('worktree', 'add', '-q', '--detach', batchRoot, trunk);
+  t.after(() => { rmSync(batchRoot, { recursive: true, force: true }); });
+  const state = {
+    board, config: { ...loadConfig(repo.root), staticChecks: 'true' }, say() {}, onWait() {}, checkLease: async () => {}, root: repo.root,
+    guardServices: { runStaticChecks: async () => ({ output: '' }) },
+    landingPorts: { badgeCounts: () => ({}), writeBadges: () => [] },
+    write: async (_name, [{ batch }]) => batch,
+    batch: { id: 'b1', root: batchRoot, base: trunk, external: true, candidates: items.map(({ item, tip }) => ({ id: item.item_id, commit: tip })), items: [], conflicts: [], resolutions: [] },
+  };
+  const result = await mergeGroup(state, items.map(({ item, tip }) => ({ id: item.item_id, commit: tip })));
+  return { result, trunk, base };
+}
+
+test('landing.merge.composed-equality-records: clause 1: with landing.composedEquality on, a one-item batch records exactTree.composedEqual true when its staged tree is the submitted commit tree, false when the trees differ or the batch holds two items [C7,U159,#10974]', async t => {
+  const equal = await composedGroup(t, { landing: { composedEquality: true } }, 'descends');
+  assert.equal(equal.result.exactTree.composedEqual, true);
+  assert.match(equal.result.exactTree.tree, /^[a-f0-9]{40,64}$/u);
+  const differs = await composedGroup(t, { landing: { composedEquality: true } }, 'diverged');
+  assert.equal(differs.result.items.length, 1);
+  assert.equal(differs.result.exactTree.composedEqual, false);
+  const many = await composedGroup(t, { landing: { composedEquality: true } }, 'two');
+  assert.equal(many.result.items.length, 2);
+  assert.equal(many.result.exactTree.composedEqual, false);
+});
+
+test('landing.merge.composed-equality-off-records-nothing: clause 2: with the setting off, mergeGroup records no composedEqual field, and validateLandingBatch accepts a batch that carries it [C7,U159,#10974]', async t => {
+  const off = await composedGroup(t, {}, 'descends');
+  assert.equal(off.result.exactTree, undefined);
+  const batch = { version: 1, id: 'batch-7', state: 'merging', base: off.trunk, tip: off.base, root: '/tmp/composed', branch: 'refs/heads/main',
+    items: [], owner: 'coordinator', logPath: '/dev/null' };
+  const tree = 'a'.repeat(40);
+  assert.doesNotThrow(() => validateLandingBatch({ ...batch, exactTree: { tree, composedEqual: true } }, 0));
+});
+
+test('landing.merge.refuses-own-commit-trailer-or-path: clause 2: a batch whose item commit carries a Co-Authored-By trailer or a home-folder path is refused LAND_HEADER with nothing merged, and a clean item merges [C7,#11265]', async t => {
+  for (const message of ['chore: scratch\n\nCo-Authored-By: Fixture Name <fixture@example.test>', 'chore: scratch of /Users/fixture/work/repo']) {
+    await assert.rejects(composedGroup(t, {}, 'diverged', message), error => error.code === 'LAND_HEADER' && /nothing merged/u.test(error.message));
+  }
+  const clean = await composedGroup(t, {}, 'diverged', 'chore: scratch clean');
+  assert.equal(clean.result.items.length, 1);
 });

@@ -14,7 +14,7 @@ import { DERIVED_SETTING } from '../../src/io/proof/derived.js';
 function recorded(t, setting = '1') {
   const dir = privateFixtureFiles('pullboard-derived-reads-').root;
   const previous = process.env[DERIVED_SETTING];
-  if (setting === '1') process.env[DERIVED_SETTING] = '1'; else delete process.env[DERIVED_SETTING];
+  if (setting === '1') delete process.env[DERIVED_SETTING]; else process.env[DERIVED_SETTING] = '0';
   const db = new DatabaseSync(join(dir, 'board.sqlite'));
   t.after(() => {
     if (previous === undefined) delete process.env[DERIVED_SETTING]; else process.env[DERIVED_SETTING] = previous;

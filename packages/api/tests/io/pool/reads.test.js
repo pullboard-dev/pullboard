@@ -4,14 +4,14 @@ import { BroadcastChannel } from 'node:worker_threads';
 import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { boardId } from '../../../../store/index.js';
 import { openBoardForRead } from '../../../../store/index.js';
 import { serveApi } from '../../../index.js';
 
 const SECRET = 'fixture-secret';
-const CELL = new URL('../../../../store/tests/fixtures/cell.js', import.meta.url).href;
+const CELL = new URL('../../../../board/tests/fixtures/cell-board.js', import.meta.url).href;
 const STORE = new URL('../../../../store/index.js', import.meta.url).href;
 const API = new URL('../../../index.js', import.meta.url).href;
 const VIEW_PORTS = Object.freeze(Object.fromEntries(['projectState', 'activeViewAgents', 'viewProofSummary', 'compactItemSummaries', 'viewFlowSummary']

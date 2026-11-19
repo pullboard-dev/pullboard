@@ -65,8 +65,12 @@ async function landWith(t, settings, { answer, writeBadges = () => [] } = {}) {
     write: async (_name, [{ batch }]) => batch,
     batch: { id: 'b1', root: batchRoot, base: trunk, external: true, candidates: [{ id: item.item_id, commit: tip }], items: [], conflicts: [], resolutions: [] },
   };
+  const reflog = () => git(batchRoot, 'reflog', '--format=%gs', 'HEAD').split('\n').filter(Boolean);
+  const reflogBefore = reflog();
   const outcome = await mergeGroup(state, [{ id: item.item_id, commit: tip }]).then(result => ({ result }), error => ({ error }));
-  return { ...outcome, said, root: batchRoot, trunk, tip, head: git(batchRoot, 'rev-parse', 'HEAD') };
+  // Newest first: what the call added is the head of the list beyond the entries that were already there.
+  const reflogAdded = reflog().slice(0, reflog().length - reflogBefore.length);
+  return { ...outcome, said, root: batchRoot, trunk, tip, head: git(batchRoot, 'rev-parse', 'HEAD'), reflogAdded };
 }
 
 /** The dead runner: composeOnRunner returns null. */
@@ -116,4 +120,22 @@ test('landing.compose-runner-only.no-badge-write-on-the-coordinator: clause 2: w
   assert.equal(landed.error, undefined, landed.error?.message);
   assert.equal(landed.result.items.length, 1);
   assert.deepEqual(calls, [], 'the runner wrote the badges; the coordinator wrote none');
+});
+
+test('landing.compose-runner-only.only-checkouts-reach-the-batch-root: clause 1: with landing.runnerOnlyCompose on and a runner answering, every HEAD reflog entry mergeGroup adds to the batch root is a checkout, the last detached at the runner tip, with no merge or commit entry [C7,#10941]', async t => {
+  let answered = null;
+  // The runner composes in its own worktree, so only mergeGroup's own moves reach the batch root reflog.
+  const answer = batch => {
+    const runnerRoot = join(batch.root, '..', 'runner');
+    git(batch.root, 'worktree', 'add', '-q', '--detach', runnerRoot, batch.base);
+    answered = composedAnswer({ ...batch, root: runnerRoot });
+    return answered;
+  };
+  const landed = await landWith(t, { landing: { runnerOnlyCompose: true } }, { answer });
+  assert.equal(landed.error, undefined, landed.error?.message);
+  const runnerTip = answered.split('\n').find(line => line.startsWith(COMPOSE_TIP)).slice(COMPOSE_TIP.length);
+  assert.ok(landed.reflogAdded.length > 0, 'mergeGroup moved HEAD at least once');
+  assert.deepEqual(landed.reflogAdded.filter(entry => !entry.startsWith('checkout: moving from ')), [], 'no merge, commit, amend or reset entry was added');
+  assert.ok(landed.reflogAdded[0].endsWith(' to ' + runnerTip), 'the last checkout is detached at the runner tip');
+  assert.equal(landed.head, runnerTip);
 });

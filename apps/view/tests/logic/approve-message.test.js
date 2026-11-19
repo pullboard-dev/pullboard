@@ -23,3 +23,18 @@ test('view.x-approve-message.clause-1-the-page-script-builds-its: clause 1: the 
   const line = script.split('\n').find((text) => text.includes("move.verb === 'spec-approve') return"));
   assert.ok(line?.includes('function approveMessage('), 'the served page carries the shared message function');
 });
+
+test('view.approve-apply.commit-named: clause 1: a result carrying applied.commit names the commit id instead of pending apply [N26]', () => {
+  const message = approveMessage('G1.2', { applied: { committed: true, commit: '0123456789abcdef' } });
+  assert.equal(message, 'approved rows G1.2 and committed 0123456');
+  assert.ok(!message.includes('pending apply'));
+});
+
+test('view.approve-apply.left-named: clause 2: a result carrying applied.left shows that one command left [N26]', () => {
+  assert.equal(approveMessage('G1.2', { applied: { left: 'pullboard spec apply' } }), 'approved rows G1.2; one command left: pullboard spec apply');
+});
+
+test('view.approve-apply.absent-keeps-pending: clause 2: a result with no applied field keeps the pending apply text [N26]', () => {
+  assert.equal(approveMessage('G1.2', {}), 'approved rows G1.2 (pending apply)');
+  assert.equal(approveMessage('G1.2', { applied: {} }), 'approved rows G1.2 (pending apply)');
+});

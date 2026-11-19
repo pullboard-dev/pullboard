@@ -16,6 +16,7 @@ import { snapshotWarmCheckout } from '../../../../../packages/runners/light.js';
 import { recycleWarmCheckout } from '../../../../../packages/runners/light.js';
 import { discardWarmCheckout } from '../../../../../packages/runners/light.js';
 import { checkSourceTagNames } from '../../../../../packages/runners/light.js';
+import { createHash } from 'node:crypto';
 import { chmodSync } from 'node:fs';
 import { createReadStream } from 'node:fs';
 import { createWriteStream } from 'node:fs';
@@ -375,10 +376,16 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
   return measured;
 }
 
-/** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers. */
+/** The sha256 of a tree's package-lock.json bytes, or 'none' when it has none: what the receipt stamps as the dependencies a run installed [C7,#1112]. */
+export function lockfileHash(root) {
+  const lockFile = join(root, 'package-lock.json');
+  return existsSync(lockFile) ? createHash('sha256').update(readFileSync(lockFile)).digest('hex') : 'none';
+}
+
+/** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers; returns the sha256 of the lockfile bytes installed from, or 'none' when the tree has no package-lock.json [C7,#1112]. */
 export async function installDependencies(S, root, runnerRoot, env, tracker, api) {
   const packageFile = join(root, 'package.json');
-  if (!existsSync(packageFile)) return;
+  if (!existsSync(packageFile)) return 'none';
   const packageText = readFileSync(packageFile, 'utf8');
   const manifest = JSON.parse(packageText);
   const lockFile = join(root, 'package-lock.json');
@@ -389,8 +396,9 @@ export async function installDependencies(S, root, runnerRoot, env, tracker, api
     if (Object.keys(manifest.dependencies ?? {}).length || Object.keys(manifest.devDependencies ?? {}).length) {
       throw new Error('dependency setup requires a committed npm package-lock.json');
     }
-    return;
+    return 'none';
   }
+  const dependencies = lockfileHash(root);
   const admission = await acquireResourceApi(api, { name: 'cache-npm', capacity: 1, scope: 'machine', root: runnerRoot,
     repo: runnerRoot, agent: `pullboard-ssh-npm-${S.workerId}`, kind: 'dependency-cache',
     onWait: () => assertTransportLive(S) }, join(runnerRoot, 'cache', 'resource-pool'));
@@ -410,4 +418,5 @@ export async function installDependencies(S, root, runnerRoot, env, tracker, api
     await drainOwned(S, npm);
     if (result.error || result.code !== 0 || result.signal) throw new Error('committed npm dependencies could not be installed');
   } finally { admission.release(); }
+  return dependencies;
 }

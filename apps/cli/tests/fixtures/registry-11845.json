@@ -1,0 +1,33 @@
+{
+  "cli.io-next-lag.no-merge-instruction": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "lagLine for a checkout behind main names the commits behind and the base age and says submit composes current main; the words merge main before you build are gone."
+    },
+    "why": "Without it, a seat keeps being told to merge main before each build, which submit already does itself.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/lag.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/submit.js"
+    ]
+  },
+  "cli.io-next-lag.item-folder-silent": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A next that hands out an item in its own item folder prints no lag line for the seat checkout, and a next that hands out nothing still prints it."
+    },
+    "why": "Without it, a seat is told it lags main right beside an item folder that was cut from current main.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/lag.js",
+      "apps/cli/src/io/commands/next.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/testkit.js"
+    ]
+  }
+}

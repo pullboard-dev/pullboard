@@ -99,7 +99,7 @@ function applyAutomatic(board, id, events, { escalate, setItem, logEvent, insert
     else if (event.kind === 'hold_item') {
       setItem(board, id, { item_hold_reason: event.detail.reason, item_hold_by: event.by, item_hold_at: board.clock.now().toISOString() });
       logEvent(board, event.by, 'hold_item', id, event.detail);
-      insertShout(board, { from: 'sentinel', to: 'coordinator', text: `#${id} held after two releases: ${event.detail.reason.replace(/^Released twice: /u, '')}`, lanes: [], detail: { item: id } });
+      insertShout(board, { from: 'sentinel', to: 'coordinator', text: `#${id} held after two releases: ${event.detail.reason.replace(/^Released twice: /u, '')}${event.detail.automatic === 'review-release-twice' ? '; next: decide who reviews it, then pullboard unhold ' + id : ''}`, lanes: [], detail: { item: id } });
     }
   }
 }
@@ -146,6 +146,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
         if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message);
         setItem(board, id, { item_review_by: null, item_review_until: null });
         logEvent(board, agentId, 'release', id, decided.events[0].detail);
+        applyAutomatic(board, id, decided.events.slice(1), { escalate, setItem, logEvent, insertShout });
         return true;
       }
       if (reviewHolder(board, item) !== agentId) {

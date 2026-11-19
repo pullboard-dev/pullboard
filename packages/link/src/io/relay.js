@@ -1364,6 +1364,8 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
         clearedExclusion = clearRelayExclusion(root);
         if (reusableSession === undefined) await publishExcludedBoards({ ...signed, account, url }, io, request);
       }
+      // A paused baseline upload waits for the relay, but relay on is still the person's explicit opt back in, so the opt-out ends here too (#1299).
+      else if (state.baselinePause) clearedExclusion = clearRelayExclusion(root);
       result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields, openBoard: io.openBoard });
     }
     catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields, openBoard: io.openBoard }); }

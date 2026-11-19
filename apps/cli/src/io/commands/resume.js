@@ -257,6 +257,13 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       : unavailableWorktreeLocation();
   }
   const { me } = card;
+  // The coordinator's allowance line: a Codex session's rate limits, or unknown without one; stats loads only on this branch [C7,#1058].
+  if (me.id === COORDINATOR) {
+    const { allowanceWarning, seatAllowance, sessionSource } = await import('../../../../../packages/stats/index.js');
+    const source = sessionSource();
+    const line = allowanceWarning(source?.provider === 'codex' ? seatAllowance(source.file) : { known: false }, me.id);
+    if (line) card.allowance = line;
+  }
   const name = (id) => agentDisplayName(card.agents, ctx.config, id);
   if (diagnostics) card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, staleDoctrineRows(ctx, doctrine, { headDoctrine: sources.headDoctrine })).map((item) => ({ ...item, ...staleItemFinding(item) }));
   if (isMain && diagnostics) {
@@ -354,6 +361,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       ? `waiting on the person: #${need.id} from ${need.ref} (${span(ctx, need.at)}): ${firstLine(need.text)}`
       : `needs the person: ${need.ref}: ${firstLine(need.text)} (${need.what})`);
     if (card.rigor?.notice) say(card.rigor.notice);
+    if (card.allowance) say(card.allowance);
     section(card.rigor?.undrafted ?? [], (cause) => `Rigor needs a proved draft: ${cause.key}, items ${cause.items.map(item => `#${item.id}`).join(', ')}; pullboard rigor draft "${cause.key.replaceAll('"', '\\"')}" "<rule>" --check "<command>" --red <commit> --green <commit>`);
     if (card.toVerify.length) say('review queue:');
     section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);

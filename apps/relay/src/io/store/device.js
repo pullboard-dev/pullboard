@@ -13,8 +13,8 @@ import {
   createExcludedTables,
 } from './excluded.js';
 
-/** Keep device revocations durable so an in-flight native wrap cannot recreate deleted grants. */
-export function createDeviceStore({ directory, now = Date.now }) {
+/** Keep device revocations durable so an in-flight native wrap cannot recreate deleted grants; onRevoke(account, id) runs once the revocation commits, so a push subscription ends with its pairing. */
+export function createDeviceStore({ directory, now = Date.now, onRevoke = () => {} }) {
   const file = join(directory, 'devices.sqlite');
   let db;
   /** Open device storage only when used, preserving legacy pairing and unauthorized no-write paths. */
@@ -78,6 +78,11 @@ export function createDeviceStore({ directory, now = Date.now }) {
       database().prepare('DELETE FROM device_session WHERE expires<=?').run(now());
       database().prepare('INSERT OR IGNORE INTO device_session VALUES(?,?,?,?)')
         .run(principal.user.id, principal.id, device, principal.expires);
+    },
+    /** Whether this session was bound to an enrolled device, so a browser with cleared storage can be told its pairing was lost. */
+    knownSession(principal) {
+      if (principal.kind !== "session" || !db && !existsSync(file)) return false;
+      return Boolean(database().prepare("SELECT 1 FROM device_session WHERE account=? AND session=? AND expires>?").get(principal.user.id, principal.id, now()));
     },
     /** A revoked phone cannot reuse its original session to bypass device routes and fetch ciphertext. */
     authorizeSession(principal) {
@@ -168,6 +173,17 @@ export function createDeviceStore({ directory, now = Date.now }) {
       touch(account, id);
       return database().prepare('SELECT board,engine,wrapped FROM wrapped_key WHERE account=? AND device=? ORDER BY board').all(account, id);
     },
+    /** Replace one board's wraps for this account with exactly the given device wraps, in one transaction, so a device left out of a rotated set reads none. */
+    replaceBoardWraps(account, board, wraps) {
+      database().exec('BEGIN IMMEDIATE');
+      try {
+        for (const { device } of wraps) active(account, device);
+        database().prepare('DELETE FROM wrapped_key WHERE account=? AND board=?').run(account, board);
+        const insert = database().prepare('INSERT INTO wrapped_key VALUES(?,?,?,?,?)');
+        for (const { device, engine, wrapped } of wraps) insert.run(account, device, board, engine, wrapped);
+        database().exec('COMMIT');
+      } catch (error) { database().exec('ROLLBACK'); throw error; }
+    },
     /** Return when a phone of this account last read its approvals or keys, and whether it was revoked; null fields for an unknown id. */
     status(account, id) {
       const row = database().prepare('SELECT seen, revoked FROM device WHERE account=? AND id=?').get(account, id);
@@ -186,6 +202,7 @@ export function createDeviceStore({ directory, now = Date.now }) {
         database().prepare('DELETE FROM wrapped_key WHERE account=? AND device=?').run(account, id);
         database().exec('COMMIT');
       } catch (error) { database().exec('ROLLBACK'); throw error; }
+      onRevoke(account, id);
     },
     /** Delete the unlinked board's grants without changing unrelated devices or boards. */
     unlink(board) { if (db || existsSync(file)) database().prepare('DELETE FROM wrapped_key WHERE board=?').run(board); },

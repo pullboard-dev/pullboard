@@ -5,6 +5,7 @@ import { viewFlowSummary } from "../logic/summary/state.js";
 import { projectSummary } from "../logic/summary/project.js";
 import { modelPresentation } from "./cost/tab.js";
 import { noLinkPage } from "./no-link.js";
+import { viewSessionCookie } from "./serve-session.js";
 import { NO_LINK_CSS } from "./no-link.js";
 import { NO_LINK_STYLESHEET } from "./no-link.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
@@ -382,8 +383,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
-  const cookieName = `pullboard_view_${randomBytes(9).toString('hex')}`;
-  const session = randomBytes(18).toString('base64url');
+  // Both derive from the secret, so a view restarted with the same secret accepts the cookie the first one set.
+  const { name: cookieName, value: session } = viewSessionCookie(secret);
   const sessionKey = Buffer.from(session);
   /** Match this view's session cookie only in same-origin requests or a typed top-level page visit. */
   const cookieMatches = (req) => {

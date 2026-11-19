@@ -63,3 +63,30 @@ test('cli.io-commands-add.accepts-a-registry-record-or-a-cell-without-one: claus
 test('cli.io-commands-add.accepts-a-registry-cell-test-with-the-setting-off: clause 3: with the setting off, the same bar naming a strict-registry cell test without its record is accepted [C7,U148,#10677]', async () => {
   await requireTestMirror(mainWith(true), bar('packages/demo/tests/io/thing.test.js'), false);
 });
+
+test('cli.io-commands-add.json-carries-level: clause 1: add --json prints level equal to route, as join --json already does [C7,#11064]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const result = JSON.parse(added.out);
+  assert.ok(result.route, 'route is kept');
+  assert.equal(result.level, result.route);
+  assert.equal(result.route, result.item.item_route);
+});
+
+test('cli.io-commands-add.edit-and-worktree-json-carry-level: clause 2: edit --json and worktree --json print level equal to route [C7,#11064]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Page', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const edited = await box.inProcess(box.repo, 'edit', id, '--criterion', 'The page renders [test]', '--reason', 'The first criterion was too vague', '--json');
+  assert.equal(edited.code, 0, edited.err + edited.out);
+  const edit = JSON.parse(edited.out);
+  assert.ok(edit.route, 'route is kept');
+  assert.equal(edit.level, edit.route);
+  const made = await box.inProcess(box.repo, 'worktree', 'web', '--json');
+  assert.equal(made.code, 0, made.err + made.out);
+  const tree = JSON.parse(made.out);
+  assert.ok(tree.route, 'route is kept');
+  assert.equal(tree.level, tree.route);
+});
