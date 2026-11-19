@@ -4,6 +4,7 @@
  * binds its checkout lease first, as the full path does; a seat this entry cannot name takes the full path (#5719).
  */
 import { resolve } from 'node:path';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { commandOutput } from '../../../../../packages/config/browser.js';
 import { loadConfig } from '../../../../../packages/config/light.js';
 import { loadDoctrine } from '../../../../../packages/doctrine/light.js';
@@ -74,7 +75,7 @@ async function runThinHookOnce(args, streams) {
     let ctx = null;
     try { ctx = lightContext(io); } catch (error) { if (!(error instanceof Refused && error.code === 'NO_CONFIG')) throw error; }
     // A repo without pullboard.json binds nothing: hookCommand passes it.
-    session = ctx ? await bindHookSession(ctx, args[1], streams.env ?? process.env) : { release() {} };
+    session = ctx ? await bindHookSession(ctx, args[1], streams.env ?? environmentAdapter().all()) : { release() {} };
     if (!session) return null;
     const code = await withGitCommandMemo(() => hookCommand(io, { first: args[1], second: args[2] }));
     io.flush(io.exitCode(code));
