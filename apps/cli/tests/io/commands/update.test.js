@@ -1,11 +1,10 @@
 /** pullboard update runs the upgrade that matches the install through its ports and prints what changed [C7,#1303]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import packageData from '../../../../../package.json' with { type: 'json' };
 import { run } from '../../../src/io/commands/update.js';
 
-const NAME = packageData.name;
-const RUNNING = packageData.version;
+const NAME = 'pullboard';
+const RUNNING = '0.9.4';
 const CHANGELOG = '# Changelog\n\n## [9.9.9] - 2099-01-01\n\nnewest fix\n\n## [9.9.8] - 2099-01-01\n\nolder fix\n\n## [0.0.1] - 2000-01-01\n\nancient\n';
 
 /** Ports for one install: the script path and PWD decide the kind; every call is recorded. */
@@ -17,6 +16,7 @@ function ports(over = {}) {
     latest: () => '9.9.9',
     run: line => { calls.ran.push(line); return 0; },
     changelog: () => CHANGELOG,
+    package: () => ({ name: NAME, version: RUNNING }),
   };
   return { calls, port: { ...base, ...over } };
 }

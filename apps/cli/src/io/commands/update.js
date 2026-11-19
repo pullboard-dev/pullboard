@@ -19,6 +19,7 @@ const REAL = {
   changelog: () => readFileSync(new URL('../../../../../CHANGELOG.md', import.meta.url), 'utf8'),
   scriptPath: () => realpathSync(process.argv[1]),
   env: () => process.env,
+  package: () => packageData,
 };
 
 /**
@@ -27,7 +28,7 @@ const REAL = {
  */
 export function run(io, _args, ports = {}) {
   const port = { ...REAL, ...ports };
-  const { name, version } = packageData;
+  const { name, version } = port.package();
   const upgrade = upgradeCommand(installKind({ scriptPath: port.scriptPath(), env: port.env() }), name);
   if (upgrade.refusal) throw upgrade.refusal;
   const latest = port.latest(name);
