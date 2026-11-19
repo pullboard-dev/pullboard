@@ -184,3 +184,22 @@ export async function mainOwnedReds(context, failures, { mainReds = null, rerun 
   if (!shared) return null;
   return { known: [...ledger, ...shared].map(row => ({ file: row.file, name: row.name })), ledger: [...new Set(ledger.map(row => row.file))].sort() };
 }
+
+/** The most distinct files one rerun of a proof red covers; a wider red is a real break, not a timing flake. */
+const RERUN_FILE_LIMIT = 3;
+
+/**
+ * Rerun a proof red's failing files once, on the same merged tree, and return the failures that fail again.
+ * Why: a red in one to three files on a loaded runner is often timing, and one rerun of those files tells the two apart; a wider
+ * red, or no failures to name, calls nothing and returns null so the red stands as it was [C7,#11744].
+ *
+ * @param {{ file: string, name: string }[] | null | undefined} failures - The red's failing tests, each with its file.
+ * @param {{ rerun: (files: string[]) => Promise<{ file: string, name: string }[] | null> }} ports - rerun runs those files and returns the failures that remain, [] when green, null when it cannot say.
+ * @returns {Promise<{ file: string, name: string }[] | null>} [] when the rerun is green; null when nothing was rerun or the rerun could not say.
+ */
+export async function rerunRedOnce(failures, { rerun }) {
+  const files = [...new Set((failures ?? []).map(row => row.file))];
+  if (!files.length || files.length > RERUN_FILE_LIMIT) return null;
+  const again = await rerun(files);
+  return Array.isArray(again) ? again : null;
+}
