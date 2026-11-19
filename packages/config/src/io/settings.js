@@ -80,7 +80,7 @@ export function overlapStaticProofEnabled() {
   return loadMachineSettings().gate?.overlapStaticProof === true;
 }
 
-/** Whether gate.excuseMainTimingReds is on (#9753): on by default; only an exact `false` turns it off. */
+/** Whether gate.excuseMainTimingReds is on (#9753): off by default; only an exact `true` turns it on. */
 export function excuseMainTimingReds() {
   return loadMachineSettings().gate?.excuseMainTimingReds === true;
 }
@@ -90,7 +90,7 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
-/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+/** Whether submit.residentChecks is on (#10275): on by default; only an exact `false` turns it off. */
 export function residentChecks() {
   return loadMachineSettings().submit?.residentChecks !== false;
 }
