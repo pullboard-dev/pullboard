@@ -6,7 +6,6 @@
   "src/hooks.js": "packages/commits/src/io/hooks.js",
   "src/infra-note.js": "packages/commits/src/io/note.js",
   "src/import-only-change.js": "packages/commits/src/logic/import-only-change.js",
-  "src/plan-row-change.js": "packages/commits/src/logic/change/row/plan.js",
   "src/tier-row-change.js": "packages/commits/src/logic/change/row/tier.js",
   "src/why-file.js": "packages/commits/src/logic/why.js",
   "test/agent-guidance.test.js": "packages/commits/tests/guidance.test.js",
