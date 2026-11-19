@@ -7,6 +7,7 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { readBoardKey } from '../../../../../packages/keys/index.js';
@@ -17,13 +18,14 @@ import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
 const fileSystem = fileSystemAdapter();
 
+const ENVIRONMENT = environmentAdapter();
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const CLI = join(REPOSITORY, 'apps/cli/pullboard.js');
 
 /** Run one production CLI command in the current repository and parse only its JSON document. */
 function cli(root, args) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [CLI, ...args, '--json'], { cwd: root, env: ENVIRONMENT.all(), stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     const timer = setTimeout(() => child.kill('SIGKILL'), 60_000);
     child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
@@ -54,7 +56,7 @@ async function commonDirectory(root) {
 /** Run Git without a shell and return its bounded textual result. */
 function cliGit(root, args) {
   return new Promise((resolveResult, reject) => {
-    const child = spawn('git', args, { cwd: root, env: process.env, stdio: ['ignore', 'pipe', 'ignore'] });
+    const child = spawn('git', args, { cwd: root, env: ENVIRONMENT.all(), stdio: ['ignore', 'pipe', 'ignore'] });
     let stdout = '';
     child.stdout.setEncoding('utf8').on('data', (part) => { stdout += part; });
     child.once('error', reject);
