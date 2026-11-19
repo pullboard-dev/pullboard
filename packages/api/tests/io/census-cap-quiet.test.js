@@ -1,7 +1,7 @@
 /** With census.jobsPerRunnerQuiet set, a runner holding no non-census job is offered that many census jobs; any other runner keeps census.jobsPerRunner [C7,#9500]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { claimJob } from '../../index.js';
 import { offerJob } from '../../index.js';
 
