@@ -227,7 +227,6 @@
     "packages/gate/src/io/timed.js": 1,
     "packages/gate/src/io/timing.js": 1,
     "packages/gate/src/io/watchdog.js": 1,
-    "packages/git/src/io/check/definition.js": 11,
     "packages/git/src/io/check/project-files.js": 1,
     "packages/git/src/io/check/receipts.js": 4,
     "packages/git/src/io/launch/ratchet.js": 1,
