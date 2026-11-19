@@ -326,6 +326,7 @@ const ROWS = [
   ['reviewLease', 'Review claim length', 'How long a review reservation lasts before it expires.', 'Claims', 'duration'],
   ['seat.checkpoints', 'Record seat checkpoints', 'On, a seat records a checkpoint fact at claim, submit, an exit-rule stop and handoff: what is done, what is left, decisions taken, evidence and tokens used; off (default) records none.', 'Agents', 'on/off'],
   // This repo: Landing
+  ['confinedImportSelection', 'Confined import selection', 'How far the gate narrows its proof for a change confined to one import closure: off (default), tests (only when every changed file sits under a cell tests folder) or all; nothing reads it yet.', 'Landing', 'choice'],
   ['generated', 'Generated files', 'Each generated file with the command that makes it and the files it reads; a declaration missing its generator is refused; off unless declared.', 'Checks', 'list'],
   ['landing.adaptiveBatch', 'Adaptive landing batch size', 'When enabled, an automatic land offer starts at one item and takes one more after every three clean batches in a row, never more than line.landingBatchSize, and drops back to one after any stopped batch; off (default), an offer takes line.landingBatchSize or everything.', 'Landing', 'on/off'],
   ['landing.asyncFetch', 'Fetch in the background when landing', 'When enabled, the lander starts its remote fetch without waiting for it; off (default), landing waits for the fetch to finish.', 'Landing', 'on/off'],
