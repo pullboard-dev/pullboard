@@ -54,9 +54,23 @@ test('jobs.priority.reserved-slot: a class with a reserve still gets its reserve
   assert.deepEqual([1, 2, 3, 4].map(() => claim(unreserved, { reserve: { interactive: 0.5 }, slots: 4 })), ['test:1', 'test:2', 'test:3', 'test:4']);
 });
 
-test('jobs.priority.default-order: with no priority setting the claim order is unchanged: landings, then test runs, then the rest by age [C7]', t => {
+test('jobs.priority.default-order: with no priority setting the claim order is landings, then test and main-test runs by age, then the rest by age [C7]', t => {
   const db = mixedQueue(t);
-  assert.deepEqual([1, 2, 3, 4].map(() => claim(db, { slots: 4 })), ['land:1', 'test:1', 'main-test:1', 'gate:1']);
+  assert.deepEqual([1, 2, 3, 4].map(() => claim(db, { slots: 4 })), ['land:1', 'main-test:1', 'test:1', 'gate:1']);
+});
+
+test('jobs.priority.main-test-before-shards: with an older gate-shard row and a newer main-test row offered, the plain order offers the main-test row first [C7]', t => {
+  const { db } = cellBoard(t, ':memory:');
+  offer(db, 'shard:1', 'gate-shard', 'gate', 1);
+  offer(db, 'main-test:2', 'main-test', 'background', 2);
+  assert.deepEqual([1, 2].map(() => claim(db)), ['main-test:2', 'shard:1']);
+});
+
+test('jobs.priority.land-still-first: a land row still comes before a main-test row [C7]', t => {
+  const { db } = cellBoard(t, ':memory:');
+  offer(db, 'main-test:1', 'main-test', 'background', 1);
+  offer(db, 'land:2', 'land', 'landing', 2);
+  assert.deepEqual([1, 2].map(() => claim(db)), ['land:2', 'main-test:1']);
 });
 
 /** Offer one job with a payload padded past 40 KB, as a gate shard's offer is. */
@@ -68,7 +82,7 @@ function bulkyOffer(db, id, kind, priority, now) {
 /** The claim scan as it ran before: one join carrying every offered payload through the sorter, then the runnable filter. */
 function beforeIds(db, { now, limit, reserve, runnable }) {
   const rank = "CASE json_extract(step.job_step_payload, '$.priority') WHEN 'interactive' THEN 0 WHEN 'gate' THEN 1 WHEN 'landing' THEN 2 ELSE 3 END";
-  const plain = "CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 ELSE 2 END";
+  const plain = "CASE job.job_kind WHEN 'land' THEN 0 WHEN 'test' THEN 1 WHEN 'main-test' THEN 1 ELSE 2 END";
   const pushFirst = "CASE WHEN job.job_kind = 'gate-shard' AND job.job_id LIKE 'push:%' THEN 0 ELSE 1 END";
   const rows = db.prepare(`SELECT job.job_id, job.job_kind, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
