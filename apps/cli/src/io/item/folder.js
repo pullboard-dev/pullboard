@@ -1,5 +1,6 @@
 /** Per-item Git worktrees for a joined seat [B5,C7]. */
 import { existsSync } from 'node:fs';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
@@ -91,7 +92,7 @@ function workersSetInEnvironment(env) {
  * @returns {boolean | null}
  */
 function workersSetInFiles(root) {
-  const env = process.env;
+  const env = environmentAdapter().all();
   if (CONFIG_SELECTORS.some(key => env[key] !== undefined)) return null;
   const fromEnvironment = workersSetInEnvironment(env);
   if (fromEnvironment === null) return null;
@@ -623,7 +624,7 @@ function branchExists(root, ref) {
 
 /** The runner hosting this seat's item folders, or null; the runner command and its cells load only when the seat names one, so a plain command never pays for them [C7]. */
 async function hostedRunner() {
-  return process.env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim() ? (await import('../commands/runner.js')).itemFolderRunner() : null;
+  return environmentAdapter().get('PULLBOARD_ITEM_FOLDER_RUNNER')?.trim() ? (await import('../commands/runner.js')).itemFolderRunner() : null;
 }
 
 /**
