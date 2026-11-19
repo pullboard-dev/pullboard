@@ -34,8 +34,9 @@ function sharedRun() {
   for (const name of FILES) write(name, readFileSync(new URL(name, FIXTURE)));
   mkdirSync(join(root, '.pullboard', 'junit'), { recursive: true });
   const row = junitCommand('swift');
+  // SwiftPM nests its own sandbox-exec, which hangs inside the runner sandbox; --disable-sandbox and a scratch path in the copy avoid it.
   // The failing test makes swift test exit non-zero, as a red gate does; the report is still written.
-  const run = spawnSync('sh', ['-c', row.command], { cwd: root, encoding: 'utf8', timeout: RUN_LIMIT_MS });
+  const run = spawnSync('sh', ['-c', `${row.command} --disable-sandbox --scratch-path ${join(root, '.build')}`], { cwd: root, encoding: 'utf8', timeout: RUN_LIMIT_MS });
   shared = { root, reportFile: join(root, row.report), run };
   return shared;
 }
