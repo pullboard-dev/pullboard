@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { fetchFresh } from '../fixtures/http.js';
 import { createApiHandler } from '../../../api/index.js';
 import { exportBoard } from '../../../store/index.js';
 import { semanticBoardDigest } from '../../../store/index.js';
