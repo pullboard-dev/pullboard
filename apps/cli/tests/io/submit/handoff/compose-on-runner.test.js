@@ -39,3 +39,26 @@ test('cli.io-submit-handoff-compose-on-runner.off-a-stale-declared-file-regenera
   assert.equal(git(folder, 'show', `${row.candidate}:gen/out.txt`), 'two', 'the regenerated output is committed');
   assert.match(result.out, /Regenerated gen\/out\.txt from its declared generator/u);
 });
+
+/** The gate record of one submit as the board holds it: the tree the gate proves, main's tip tree, and the outcome of the command. */
+function gateRecord({ git, folder, head, main, result, row }, on) {
+  const composed = on ? git(folder, 'merge-tree', '--write-tree', '--no-messages', main, head).split('\n')[0] : git(folder, 'rev-parse', `${row.candidate}^{tree}`);
+  return { composed, mainTree: git(folder, 'rev-parse', `${main}^{tree}`), code: result.code, files: git(folder, 'ls-tree', '-r', '--name-only', composed) };
+}
+
+test('cli.io-submit-handoff-compose-on-runner.on-and-off-record-the-same-gate: clause 1: on one fixture the gate record of a submit with submit.composeOnRunner on equals the gate record with it off: the composed tree, the main tree and the outcome match [C7,#10758]', async t => {
+  const on = gateRecord(await submitted(t, { on: true }), true);
+  const off = gateRecord(await submitted(t, { on: false }), false);
+  assert.equal(on.code, 0);
+  assert.deepEqual(on, off, 'both modes record the same composed tree, main tree, outcome and file list');
+});
+
+test('cli.io-submit-handoff-compose-on-runner.main-moved-after-the-claim-same-tree: clause 2: on a fixture where main moved after the claim, both modes compose the same tree and that tree holds the file main added [C7,#10758]', async t => {
+  const onRun = await submitted(t, { on: true });
+  const offRun = await submitted(t, { on: false });
+  const on = gateRecord(onRun, true);
+  const off = gateRecord(offRun, false);
+  assert.equal(on.composed, off.composed, 'the composed trees are the same tree');
+  assert.match(on.files, /^web\/newer-main\.txt$/mu, 'the tree holds the file main added after the claim');
+  assert.match(on.files, new RegExp(`^web/${onRun.id}\\.txt$`, 'mu'), 'the tree holds the builder file');
+});

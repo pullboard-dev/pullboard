@@ -84,7 +84,8 @@ export function defaults() {
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
-    slices: { enforcePaths: false },
+    // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
+    slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
     next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
@@ -512,6 +513,9 @@ export function configProblems(config, root) {
   }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
+  }
+  if (config.slices?.composeLanding !== undefined && typeof config.slices.composeLanding !== 'boolean') {
+    problems.push('"slices.composeLanding" is true or false');
   }
   if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
