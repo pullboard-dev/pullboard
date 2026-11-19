@@ -66,7 +66,8 @@ function commandLoads(args, runner = false, extraEnv = {}) {
   env.PULLBOARD_RESIDENT = '0';
   env.PULLBOARD_COUNT_FILE = `${files.root}/seen.txt`;
   const result = spawnSync(process.execPath, ['--import', PRELOAD, `${ROOT}apps/cli/pullboard.js`, ...args.split(' ')], { cwd: seat.web, encoding: 'utf8', env });
-  return { loaded: new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean)).size, status: result.status, stdout: result.stdout, stderr: result.stderr };
+  const urls = new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean));
+  return { loaded: urls.size, urls, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 for (const [command, budget] of Object.entries(budgets)) {
@@ -91,4 +92,11 @@ test('cli.journeys-imports-closure-budget.pullboard-hook-post-commit-exits-0: cl
   assert.equal(run.stdout, '');
   assert.equal(run.stderr, '');
   assert.equal(run.loaded, 1);
+});
+
+test('cli.journeys-imports-closure-budget.cold-status-trimmed-modules: a cold pullboard status loads none of the drive step machinery a healthy board never needs [C7,#11941]', () => {
+  const run = commandLoads('status');
+  const dropped = ['once.js', 'diagnose.js', 'reclaim.js'].map(name => `packages/drive/src/io/${name}`);
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.deepEqual(loadedDrops, [], `a cold status loaded ${loadedDrops.join(', ')}: the fallback reclaim loads the drive step machinery only when a gate job has lapsed`);
 });
