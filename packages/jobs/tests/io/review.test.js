@@ -1,7 +1,7 @@
 /** A review reservation is a lease on the item's review job: one reviewer at a time, lapsing and releasing with a trail [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { jobView } from '../../index.js';
 import { LEASE_MS } from '../../index.js';
 import { reclaimLapsedReviews } from '../../index.js';
