@@ -99,6 +99,7 @@ export {
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
+  adapterLintGithubEnabled,
   adapterLintSshEnabled,
   idiomSpreadEnabled,
   literalPinsEnabled,
