@@ -60,6 +60,7 @@ import {
 } from '../../../../../packages/resources/index.js';
 import { cleanGitEnvironment } from '../../../../../packages/git/index.js';
 import { secretsIn } from '../../../../../packages/commits/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
 /** Copy one authenticated phase without buffering the full command output into controller memory. */
 function phaseCopy(raw, phase, path) {
@@ -196,8 +197,9 @@ function runCheckAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLe
   const copy = join(scratch, 'repo');
   const home = join(scratch, 'home');
   mkdirSync(home, { mode: 0o700 });
-  const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
-  const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
+  const machine = environmentAdapter();
+  const verifierHome = machine.get('HOME') ?? machine.get('USERPROFILE');
+  const npmCache = machine.get('npm_config_cache') ?? join(verifierHome ?? home, '.npm');
   const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
   if (gateLease) Object.assign(env, gateSlotEnvironment(gateLease),
     gateLease.testOutcomeRunId ? { [TIMING_RUN_ID_ENV]: gateLease.testOutcomeRunId } : {});
