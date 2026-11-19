@@ -58,7 +58,7 @@ test('cli.io-verify.with-no-open-main-red-repair-naming: control: with no open M
 
 const MERGE_CRITERION = 'The page meets its bar:\n1) The page names its title [reasoning]';
 
-/** An item with no test check, a tick at commit A by the reviewer, and a submitted head B that is A plus a merge of main, and, when `laterEdit` is set, a later commit that changes the item file. */
+/** An item with no test check, a tick at commit A by an earlier holder, web-1, and a submitted head B submitted by a second holder, web-2, that is A plus a merge of main, and, when `laterEdit` is set, a later commit that changes the item file. */
 async function mergedHeadItem(t, laterEdit) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -85,7 +85,7 @@ async function mergedHeadItem(t, laterEdit) {
     box.git(box.web, 'commit', '-q', '-am', 'fix(web): change fixture 1 after the tick [G1]');
   }
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
-  helpers.historicalCheckSubmission(box, submitted);
+  helpers.historicalCheckSubmission(box, submitted, 'web-2');
   const review = join(box.dir, 'merge-tick-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, submitted);
   assert.equal(joinFixtureSeat(box, review, 'api').code, 0);
