@@ -13,10 +13,8 @@
  */
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,18 +32,20 @@ import { walk } from '../../../../../packages/gate/index.js';
 export const ENFORCED_FILE = 'apps/view/data/tests/pure-roots.json';
 /** View test files that count as roots: the view cell's tests and the CLI journeys the cockpit tests moved to [V32]. */
 const VIEW_TEST_FILES = /^(?:apps\/view\/tests|apps\/cli\/journeys)\/.+\.test\.js$/u;
+/** The old-to-new rows of the renderer modules the freeze moved; this check owns them, not the restructure plan. */
+const RENDERER_MOVES = fileURLToPath(new URL('renderer-moves.json', import.meta.url));
 const RENDERER_MODULES = /^src\/view\/(?!page-)(?:.*-(?:model|render)|activity-words|needs-panel|needs-list|roadmap-summary|roadmap-block|home|row-component|pipeline|lifecycle-chart|held-items|record-row|items-selection|segmented-control|lifecycle-diagram)\.js$/u;
 
 /**
- * The checked tree's path map, old path to new, read from every shard; an unreadable shard is skipped.
+ * The checked tree's path map, old path to new: its own path-map.json and the renderer moves this check keeps as
+ * data beside it; an unreadable file is skipped.
  *
  * @param {string} root - repository root of the tree being checked
  * @returns {Map<string, string>}
  */
 function pathMap(root) {
-  const map = new Map(), shards = resolve(root, 'packages/codemap/data/plan/path-map');
-  const names = existsSync(shards) ? readdirSync(shards).filter(name => name.endsWith('.json')).map(name => join(shards, name)) : [];
-  for (const file of [resolve(root, 'path-map.json'), ...names]) {
+  const map = new Map();
+  for (const file of [resolve(root, 'path-map.json'), RENDERER_MOVES]) {
     let data;
     try { data = JSON.parse(readFileSync(file, 'utf8')); } catch { continue; }
     if (data && typeof data === 'object' && !Array.isArray(data)) for (const [from, to] of Object.entries(data)) if (typeof to === 'string') map.set(from, to);
