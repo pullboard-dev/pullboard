@@ -1,9 +1,11 @@
 /**
  * The timing cases whose red on main may excuse a gate (#9754): each row names a test file (path without its extension)
- * and the start of a case name. Only the read-startup "clause 1" case is listed; its 200 ms bar is never touched here.
+ * and the start of a case name. Only two cases are listed, the read-startup "clause 1" case and the store light door
+ * cold-load case; neither bar is touched here.
  */
 export const TIMING_ROWS = Object.freeze([
   Object.freeze({ file: 'apps/cli/tests/io/commands/read-startup', namePrefix: 'clause 1' }),
+  Object.freeze({ file: 'packages/store/tests/io/light-load', namePrefix: 'store.io-light-load.' }),
 ]);
 
 /** A test file path without its final extension, so a row names the file whichever suffix the runner reports. */
