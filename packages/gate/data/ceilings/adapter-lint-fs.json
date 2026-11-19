@@ -270,8 +270,6 @@
     "packages/jobs/src/io/gate/runner-time.js": 3,
     "packages/jobs/src/io/gate/span.js": 6,
     "packages/jobs/src/io/launch.js": 7,
-    "packages/keys/src/io/relay.js": 1,
-    "packages/keys/src/io/relay/client.js": 1,
     "packages/landing/src/io/completion.js": 4,
     "packages/landing/src/io/computed/conflict/receipt.js": 1,
     "packages/landing/src/io/computed/conflict/return.js": 1,
