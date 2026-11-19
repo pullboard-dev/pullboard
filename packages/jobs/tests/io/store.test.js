@@ -2,9 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { holdBoard } from '../fixtures/hold-board.js';
-import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { atomically } from '../../index.js';
 import { createJob } from '../../index.js';
 import { setWriteHold } from '../../index.js';
@@ -123,7 +122,7 @@ test('jobs.store.hold-port-skips-savepoint: clause 2: an atomically() call neste
 
 /** A real board file with the production job tables, its handle on busy_timeout 0, so only atomically's own wait counts. */
 function heldBoard(t) {
-  const file = join(privateFixtureFiles('pullboard-jobs-busy-').root, 'board.sqlite');
+  const file = cellRepo(t, { real: true }).boardFile;
   const db = cellBoard(t, file, undefined, { real: true }).db;
   db.exec('PRAGMA busy_timeout = 0');
   return { db, file };
