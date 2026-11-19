@@ -7,13 +7,14 @@ import { closePassingMainReds } from '../../src/io/take.js';
 import { mainRedBuildOffer } from '../../src/io/take.js';
 import { takeSelection } from '../../src/io/take.js';
 import { nextProgress } from '../../src/io/take.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { actorClaims } from '../fixtures/ports.js';
 import { counted } from '../fixtures/ports.js';
 import { fixture } from '../fixtures/ports.js';
 import { take } from '../fixtures/ports.js';
 
 test('sandbox.take.selection-and-offer-once: next --take calls its selection and review offer once each [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const first = box.add('First open item');
   box.add('Second open item');
   const counts = counted(t, takeSelection);
@@ -23,7 +24,7 @@ test('sandbox.take.selection-and-offer-once: next --take calls its selection and
 });
 
 test('sandbox.take.holding-seat-returns-claim: a holding seat returns its claim from next --take without the mandatory review offer [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const held = box.add('Already held');
   box.add('Another open item');
   box.claim(held, box.seats.actor);
@@ -35,7 +36,7 @@ test('sandbox.take.holding-seat-returns-claim: a holding seat returns its claim 
 });
 
 test('sandbox.take.write-runs-chosen-item-guards: next --take: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const raced = box.add('Raced by a peer');
   const spare = box.add('Still free', { brief: 'Files: web/spare.js\nTest: the real board claims the spare item.' });
   // A peer claims the chosen item after the read selection and before the write's claim guards run.
@@ -86,7 +87,7 @@ test('sandbox.take.no-claim-still-times-out: clause 2: a run past the budget tha
 });
 
 test('sandbox.take.main-red-claim-worktrees-in-flight: clause 1: the claim worktrees main-red routing is handed list only in-flight items and return the claimed items\' recorded files as the whole open list does [C7,#5329]', t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const repair = box.add('Main red repair');
   const held = box.add('Held by the builder');
   box.add('Another open item');
@@ -116,7 +117,7 @@ async function preparedBy(t, work) {
 }
 
 test('sandbox.take.closing-reads-no-list-without-main-run: clause 1: closePassingMainReds with no run recorded for main\'s commit sends the board no open-items list query [C7,#5329]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   box.add('Open item one');
   box.add('Open item two');
   const listing = await preparedBy(t, () => store.listItems(box.board));

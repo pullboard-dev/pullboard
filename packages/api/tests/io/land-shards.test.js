@@ -1,7 +1,7 @@
 /** A land job's runner offers the landing proof as gate-shard jobs through the shards queue action [P7,C7,#7818]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { SHARD_JOB_KIND } from '../../index.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
