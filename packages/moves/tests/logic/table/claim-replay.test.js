@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded claim history fixture to replay it through the table. The claim and renew table replays claims recorded on a real board with zero disagreements, and refuses what the board refuses [C7,#8241]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,7 +34,7 @@ const read = readClaimRecords(recordedBoard(), { since: HISTORY.since, only: HIS
 const { records } = read;
 const run = (record, change = {}) => runTable(CLAIM.table, CLAIM.rules, structuredClone({ ...record.snapshot, ...change.snapshot }), { ...structuredClone(record.move), ...change.move });
 
-test('clause 1: replaying recorded board history through the claim and renew table gives zero disagreements [C7,#8241]', () => {
+test('moves.claim-replay.replaying-recorded-board-history-through-the-claim: clause 1: replaying recorded board history through the claim and renew table gives zero disagreements [C7,#8241]', () => {
   const report = replayTable(CLAIM.table, CLAIM.rules, records, { cut: HISTORY.since });
   assert.deepEqual(report.disagreements, []);
   assert.deepEqual([report.total, report.agreed, report.notReplayable], [records.length, records.length, 0]);
@@ -42,7 +43,7 @@ test('clause 1: replaying recorded board history through the claim and renew tab
   assert.deepEqual(read.unreplayable.map(entry => entry.path), Array(2).fill('renew: written by the gate red return, not the claim command'));
 });
 
-test('clause 1: the replay covers claims, renewals, sealed seat caps and the policy re-freeze note [C7,#8241]', () => {
+test('moves.claim-replay.the-replay-covers-claims-renewals-sealed-seat: clause 1: the replay covers claims, renewals, sealed seat caps and the policy re-freeze note [C7,#8241]', () => {
   const via = new Set(records.flatMap(record => run(record).via));
   for (const path of ['claim', 'renew', 'policy-refrozen-fact']) assert.ok(via.has(path), `${path} replayed`);
   const written = records.map(record => record.recorded.events[0].detail);
@@ -54,7 +55,7 @@ test('clause 1: the replay covers claims, renewals, sealed seat caps and the pol
   assert.ok(read.echoed.builderGone > 0, "a claim inside a gone builder's first-refusal window");
 });
 
-test('clause 1: a recorded claim replayed with one captured fact broken is a disagreement the replay names [C7,#8241]', () => {
+test('moves.claim-replay.a-recorded-claim-replayed-with-one-captured: clause 1: a recorded claim replayed with one captured fact broken is a disagreement the replay names [C7,#8241]', () => {
   const record = records.find(entry => entry.recorded.events[0].kind === 'claim' && entry.snapshot.item.status === 'open');
   const held = { ...structuredClone(record), snapshot: { ...structuredClone(record.snapshot), item: { ...record.snapshot.item, holdReason: 'held' } } };
   const elsewhere = { ...structuredClone(record), snapshot: { ...structuredClone(record.snapshot), actor: { ...record.snapshot.actor, lane: 'nowhere' } } };
@@ -65,13 +66,13 @@ test('clause 1: a recorded claim replayed with one captured fact broken is a dis
   assert.equal(replayTable(CLAIM.table, CLAIM.rules, [lapsed], { cut: HISTORY.since }).disagreements[0].differs, 'detail');
 });
 
-test('clause 1: the claim table refuses in the order the command throws, with the words the command prints [C7,#8241]', () => {
+test('moves.claim-replay.the-claim-table-refuses-in-the-order: clause 1: the claim table refuses in the order the command throws, with the words the command prints [C7,#8241]', () => {
   const record = records.find(entry => entry.recorded.events[0].kind === 'claim' && entry.snapshot.item.status === 'open' && entry.snapshot.item.parentId === null);
   assert.deepEqual(run(record, { snapshot: { item: null } }).refused, { code: 'NO_ITEM', message: `no item #${record.move.id}; see: pullboard list`, next: CLAIM_NEXT.NO_ITEM,
     row: 'item-exists', fact: 'itemExists', trace: [{ fact: 'itemExists', holds: false }] });
   assert.equal(run(record, { snapshot: { actor: { ...record.snapshot.actor, joined: false } } }).refused.next, CLAIM_NEXT.NOT_JOINED);
   const other = { id: 1, leaseUntil: '2999-01-01T00:00:00.000Z', parentId: null, verdict: null, builtBy: null, awaitingGateOrReview: false };
-  assert.deepEqual(run(record, { move: { itemFolder: false }, snapshot: { actorClaims: [other] } }).refused.message, 'you already hold #1; submit or release it first (child items are free)');
+  assert.deepEqual(run(record, { move: { itemFolder: false }, snapshot: { actorClaims: [other] } }).refused.message, 'you already hold #1; submit or release it first (children of an item you hold are free)');
   const capped = run(record, { move: { itemFolder: true }, snapshot: { actorClaims: [other], io: { ...record.snapshot.io, seatCap: { n: 1, how: 'claims.perSeat sets 1' } } } }).refused;
   assert.deepEqual([capped.code, capped.next], ['ONE_CLAIM', CLAIM_NEXT.ONE_CLAIM]);
   assert.match(capped.message, /a seat holds up to 1 \(claims\.perSeat sets 1\)/u);

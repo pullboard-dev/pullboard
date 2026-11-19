@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell codemap cli */
 /** @pullboard-world-pin reads the committed cells plan row, the cli sources and the front door to prove the sweep.js move. */
 /** The cli sweep.js core row sits in the shell cell, with its importers repointed [C7]. */
 import assert from 'node:assert/strict';
@@ -10,8 +11,8 @@ const CLI = new URL('../../../../../../apps/cli/', import.meta.url);
 const OLD = 'apps/cli/src/logic/sweep.js';
 const NEW = 'apps/cli/src/io/sweep/problems.js';
 
-test('clause 1: the cli sweep.js row sits in the shell cell in the cells plan with importers repointed [C7]', () => {
-  const rows = JSON.parse(readFileSync(new URL('49-app-cli.json', PLAN), 'utf8')).paths;
+test('codemap.shell-sweep-row.the-cli-sweep-js-row: clause 1: the cli sweep.js row sits in the shell cell in the cells plan with importers repointed [C7]', () => {
+  const rows = JSON.parse(readFileSync(new URL('51-app-cli.json', PLAN), 'utf8')).paths;
   const row = rows.find(([from]) => from === 'src/sweep.js');
   assert.equal(row[1], NEW);
   assert.ok(!rows.some(([, to]) => to === OLD));

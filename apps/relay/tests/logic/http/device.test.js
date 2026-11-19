@@ -28,7 +28,7 @@ import { excludedInventoryId } from '../../../index.js';
 import { seal } from '../../../../../packages/kernel/index.js';
 import { unseal } from '../../../../../packages/kernel/index.js';
 
-test('excluded inventories keep names sealed, isolate accounts and refuse revoked devices [H5,H15,H17]', async t => {
+test('relay.logic-http-device.excluded-inventories-keep-names-sealed-isolate: excluded inventories keep names sealed, isolate accounts and refuse revoked devices [H5,H15,H17]', async t => {
   const box = await relayDeviceFixture(t);
   const owner = await browserSession(box);
   const phone = await createDeviceKeys();
@@ -169,7 +169,7 @@ async function signedDevice(box, account, locator) {
   return { keys, secret, input, signed: await signDeviceEnrollment(secret, input) };
 }
 
-test('relay devices isolate accounts, persist opaque wraps, expire enrollments and tombstone revocation [H5,H15,H17]', async (t) => {
+test('relay.logic-http-device.relay-devices-isolate-accounts-persist-opaque: relay devices isolate accounts, persist opaque wraps, expire enrollments and tombstone revocation [H5,H15,H17]', async (t) => {
   const box = await relayDeviceFixture(t);
   const cookieA = await browserSession(box);
   const identityA = await deviceRequest(box, '/auth/session', { cookie: cookieA });
@@ -326,7 +326,7 @@ test('relay devices isolate accounts, persist opaque wraps, expire enrollments a
   assert.equal(oldId.document.error?.code, 'DEVICE_REVOKED', 'a fresh sign-in does not resurrect the tombstoned device id');
 });
 
-test('pending phone link names are session-scoped and exclude used or expired approvals [H5,H15,H17]', async (t) => {
+test('relay.logic-http-device.pending-phone-link-names-are-session: pending phone link names are session-scoped and exclude used or expired approvals [H5,H15,H17]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-device-approvals-'));
   let now = 1_800_000_000_000;
   const devices = createDeviceStore({ directory: root, now: () => now });

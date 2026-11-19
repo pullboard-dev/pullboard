@@ -15,7 +15,7 @@ import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../../tests/fixtures/submit/gate.js';
 
-test('an item claimed before the gate existed submits once a gate exists [C7,B26]', async (t) => {
+test('cli.journeys-submit-gate-selection-preexisting.an-item-claimed-before-the-gate: an item claimed before the gate existed submits once a gate exists [C7,B26]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: '', shared: ['pullboard.json'] }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');

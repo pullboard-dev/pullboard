@@ -22,10 +22,11 @@ export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, com
 export { installRunnerPackage } from "./src/io/package/install.js";
 export { transportText, runnerFailure, resultFrom } from "./src/io/result.js";
 export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProbeRunnerHealth, runnerExecutionServices as healthRunnerExecutionServices } from "./src/io/health.js";
-export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, objectRecord } from "./src/io/source/scan.js";
+export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, lastHistoryWalk, objectRecord } from "./src/io/source/scan.js";
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/io/pack.js";
 export { requestFor, queuedSource } from "./src/io/request.js";
-export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/io/dispatch.js";
+export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, serveRunnerController as dispatchServeRunnerController } from "./src/io/dispatch.js";
+export { runOnRunnerAsync as dispatchRunOnRunnerAsync, bridgeDeadlineMs, refuseLegacyControllerEntry } from "./src/io/run-async.js";
 export { pinRunnerTooling, runnerToolingPinned, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/io/tooling/remote.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/io/package/files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/io/module/parser.js";
@@ -44,7 +45,7 @@ export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupP
 
 export { committedRunnerController, archivedToolingSource } from './src/io/tooling/committed.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/tooling/dirty.js';
-export { installRunnerService, runnerServiceProblems, runnerServiceRecords, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { runnerCodeRefresh, installRunnerService, runnerServiceProblems, runnerServiceRecords, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
 export { localNetworkHost, serviceForm } from './src/logic/service.js';
 export { expandTestFolders } from "./src/io/pull/folders.js";
 export { mainRedUpdates } from './src/logic/main/reds.js';

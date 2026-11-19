@@ -38,7 +38,7 @@ function postThroughServe(board, queue, home, id) {
   return boardJobQueueCall(board, { action: 'receipt', job: id, runner: 'r1', token: held.token, receipt: { version: 1, status: 0 } }, { mode: 'pull', now: 14 });
 }
 
-test('clause 1: with runs_store on, a receipt posted to the serve is applied at once and no unapplied receipt is left [B2,P7]', t => {
+test('api.receipt-apply.runs-store-receipt-posted-serve: clause 1: with runs_store on, a receipt posted to the serve is applied at once and no unapplied receipt is left [B2,P7]', t => {
   const { board, queue, home } = boardWith(t, true);
   const answer = postThroughServe(board, queue, home, 'note:1');
   assert.equal(answer.recorded, true);
@@ -47,7 +47,7 @@ test('clause 1: with runs_store on, a receipt posted to the serve is applied at 
   assert.deepEqual(queue.port.receiptsSince(0, { limit: 10 }), [], 'the receipt is acked, so the inbox holds nothing unapplied');
 });
 
-test('clause 1: with runs_store off, the serve posts to the board\'s job rows as on main and writes no run row [B2,P7]', t => {
+test('api.receipt-apply.runs-store-off-serve-posts: clause 1: with runs_store off, the serve posts to the board\'s job rows as on main and writes no run row [B2,P7]', t => {
   const { board, queue, home } = boardWith(t, false);
   assert.equal(queue, null);
   const answer = postThroughServe(board, queue, home, 'note:2');

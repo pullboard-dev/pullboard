@@ -39,13 +39,13 @@ function violations(cells) {
   return found;
 }
 
-test('clause 1 [C7]: the jobs, drive, land, receipt, transport and pin edges in the cell plan match the DJ19 table', () => {
+test('codemap.rfc-0008-edges.the-jobs-drive-land-receipt: clause 1 [C7]: the jobs, drive, land, receipt, transport and pin edges in the cell plan match the DJ19 table', () => {
   const cells = loadPlan();
   for (const name of Object.keys(TABLE)) assert.ok(cells.some(cell => cell.name === name), `the plan has the ${name} cell`);
   assert.deepEqual(violations(cells), []);
 });
 
-test('clause 1 [C7]: an edge outside the table, or a package importing drive or land, is a violation', () => {
+test('codemap.rfc-0008-edges.an-edge-outside-the-table: clause 1 [C7]: an edge outside the table, or a package importing drive or land, is a violation', () => {
   assert.deepEqual(violations([{ name: 'drive', kind: 'package', imports: ['kernel', 'jobs', 'apps/lib'] }]), ['drive -> apps/lib: not in the DJ19 table']);
   assert.deepEqual(violations([{ name: 'jobs', kind: 'package', imports: ['drive'] }]), ['jobs -> drive: no package imports drive or land', 'jobs -> drive: not in the DJ19 table']);
   assert.deepEqual(violations([{ name: 'resources', kind: 'package', imports: ['land'] }]), ['resources -> land: no package imports drive or land']);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { waitForFixtureProgress } from '../../../apps/cli/tests/fixtures/progress.js';
 
-test('a progressing fixture may cross the old total deadline [C7]', async () => {
+test('kernel.progress.a-progressing-fixture-may-cross-the: a progressing fixture may cross the old total deadline [C7]', async () => {
   let clock = 0;
   await waitForFixtureProgress({
     child: { exitCode: null, signalCode: null },
@@ -19,7 +19,7 @@ test('a progressing fixture may cross the old total deadline [C7]', async () => 
   assert.equal(clock, 60_000);
 });
 
-test('a parallel CLI may spend more than one old wait window before its real gate enters [B3,V4,Q1,Q3]', async () => {
+test('kernel.progress.a-parallel-cli-may-spend-more: a parallel CLI may spend more than one old wait window before its real gate enters [B3,V4,Q1,Q3]', async () => {
   let clock = 0;
   let ready = false;
   let progress = 0;
@@ -40,7 +40,7 @@ test('a parallel CLI may spend more than one old wait window before its real gat
   assert.equal(clock, 150_000);
 });
 
-test('an alive fixture with no progress fails at the quiet window [C7]', async () => {
+test('kernel.progress.an-alive-fixture-with-no-progress: an alive fixture with no progress fails at the quiet window [C7]', async () => {
   let clock = 0;
   await assert.rejects(waitForFixtureProgress({
     child: { exitCode: null, signalCode: null },
@@ -56,7 +56,7 @@ test('an alive fixture with no progress fails at the quiet window [C7]', async (
   assert.equal(clock, 20_000);
 });
 
-test('an exited fixture fails before the quiet window [C7]', async () => {
+test('kernel.progress.an-exited-fixture-fails-before-the: an exited fixture fails before the quiet window [C7]', async () => {
   let clock = 0;
   const child = { exitCode: null, signalCode: null };
   await assert.rejects(waitForFixtureProgress({

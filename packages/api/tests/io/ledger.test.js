@@ -19,7 +19,7 @@ function postThrough(board, { id, kind, receipt }) {
   return boardJobQueueCall(board, { action: 'receipt', job: id, runner: 'r-ledger', token: held.token, receipt }, { mode: 'pull', now: 3 });
 }
 
-test('clause 1: after one pulled gate job posts, the board holds one row per run file with its inputKey and context class, green files of a red job included [P7]', t => {
+test('api.ledger.after-pulled-gate-job-posts: clause 1: after one pulled gate job posts, the board holds one row per run file with its inputKey and context class, green files of a red job included [P7]', t => {
   // The ledger a runner's phaseLedger gives for a proof phase red in one file only (packages/gate/tests/io/test/account/phase.test.js).
   const ledger = { contexts: [CONTEXT], files: [[GREEN, GREEN_KEY, 0, 'pass'], [RED, RED_KEY, 0, 'fail']], omitted: 0 };
   const board = cellBoard(t, ':memory:');
@@ -34,7 +34,7 @@ test('clause 1: after one pulled gate job posts, the board holds one row per run
   assert.deepEqual(testResults(board.db, { inputKey: GREEN_KEY }).map(row => row.status), ['pass'], 'the green row is found by its inputKey');
 });
 
-test('clause 1: a shard receipt writes its files too [P7]', t => {
+test('api.ledger.shard-receipt-writes-files-too: clause 1: a shard receipt writes its files too [P7]', t => {
   const board = cellBoard(t, ':memory:');
   const key = 'a'.repeat(64), context = 'b'.repeat(64);
   const ledger = { contexts: [context], files: [['x.test.js', key, 0, 'pass'], ['y.test.js', key, 0, 'pass']], omitted: 0 };

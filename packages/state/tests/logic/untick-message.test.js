@@ -13,7 +13,7 @@ function recorded(message) {
   return [...message.matchAll(/pullboard fact 77 note "([^"]+)"/gu)].map(match => ({ type: 'fact', kind: 'note', by: 'seat', text: match[1] }));
 }
 
-test('clause 1: one message prints a filled-in fact command per unticked clause with its number and kind [C7]', () => {
+test('state.logic-untick-message.clause-1-one-message-prints-a-filled-in: clause 1: one message prints a filled-in fact command per unticked clause with its number and kind [C7]', () => {
   const problem = clauseInspectionProblem(item, [], options);
   assert.equal(problem?.code, 'CLAUSE_UNTICKED');
   assert.match(problem.message, /pullboard fact 77 note "clause 1 \[test\]: /u);
@@ -21,7 +21,7 @@ test('clause 1: one message prints a filled-in fact command per unticked clause 
   assert.equal(recorded(problem.message).length, 2);
 });
 
-test('clause 2: recording exactly the printed notes makes the problem go away [C7]', () => {
+test('state.logic-untick-message.clause-2-recording-exactly-the-printed: clause 2: recording exactly the printed notes makes the problem go away [C7]', () => {
   const printed = clauseInspectionProblem(item, [], options).message;
   assert.equal(clauseInspectionProblem(item, recorded(printed), options), null);
 });

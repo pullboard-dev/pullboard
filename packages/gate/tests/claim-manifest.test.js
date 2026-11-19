@@ -1,3 +1,5 @@
+/** @pullboard-test-input test-tree */
+/** @pullboard-test-input packages/gate/data/tests/test-manifest.json */
 /** Each test manifest row lists the spec ids its test names cite, and the freeze refuses to delete the sole proof of a claim [C7]. */
 /** @pullboard-world-pin: reads the committed test manifest and the test files it lists. */
 import assert from 'node:assert/strict';
@@ -10,7 +12,7 @@ import { testNameIds } from '../src/io/test/names.js';
 const ROOT = new URL('../../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('packages/gate/data/tests/test-manifest.json', ROOT), 'utf8'));
 
-test('clause 1: a manifest row lists the spec ids its test names cite [C7]', () => {
+test('gate.claim-manifest.manifest-row-lists-spec-ids: clause 1: a manifest row lists the spec ids its test names cite [C7]', () => {
   const rows = manifest.files.filter(row => row.specs.length && existsSync(new URL(row.file, ROOT)));
   assert.ok(rows.length > 100, 'many rows cite spec ids');
   for (const row of rows.slice(0, 200)) {
@@ -18,7 +20,7 @@ test('clause 1: a manifest row lists the spec ids its test names cite [C7]', () 
   }
 });
 
-test('clause 2: the freeze refuses to delete a file whose spec ids no other surviving file cites, naming them [C7]', () => {
+test('gate.claim-manifest.freeze-refuses-delete-file-whose: clause 2: the freeze refuses to delete a file whose spec ids no other surviving file cites, naming them [C7]', () => {
   const row = (file, specs, extra = {}) => ({ file, kind: 'unit', specs, ...extra });
   const plan = planFreeze([
     row('a/tests/sole.test.js', ['X1', 'X2'], { tag: 'delete' }),

@@ -39,7 +39,7 @@ function replayPorts({ greenOnRerun = FLAKY, open = [] } = {}) {
   } };
 }
 
-test('clause 1: replaying the 8:19 pm batch lands #5815 and #5763 with 4 main charges, 4 quarantine records and no LAND_TEST_DEFECT [C7,#5862]', async () => {
+test('landing.judge.replaying-the-8-19-pm-batch: clause 1: replaying the 8:19 pm batch lands #5815 and #5763 with 4 main charges, 4 quarantine records and no LAND_TEST_DEFECT [C7,#5862]', async () => {
   const { state, writes } = landingState();
   const { ports, reruns } = replayPorts();
   const judged = await judgeRed(state, redGate([...MAIN_RED, ...FLAKY]), ports);
@@ -57,7 +57,7 @@ test('clause 1: replaying the 8:19 pm batch lands #5815 and #5763 with 4 main ch
   assert.notEqual(state.batch.state, 'test-defect', 'the trunk is not held');
 });
 
-test('a file red on its rerun is not quarantined: the composition stays red and carries its twice-red cases to its item [C7,#5862]', async () => {
+test('landing.judge.a-file-red-on-its-rerun: a file red on its rerun is not quarantined: the composition stays red and carries its twice-red cases to its item [C7,#5862]', async () => {
   const { state } = landingState();
   const { ports } = replayPorts({ greenOnRerun: FLAKY.slice(1) });
   const judged = await judgeRed(state, redGate([...MAIN_RED, ...FLAKY]), ports);
@@ -66,7 +66,7 @@ test('a file red on its rerun is not quarantined: the composition stays red and 
   assert.equal(state.batch.quarantine, undefined, 'nothing is quarantined while a red remains');
 });
 
-test('a second flake of a file inside its 48 h quarantine window is the item\'s red, not another quarantine [C7,#5862]', async () => {
+test('landing.judge.a-second-flake-of-a-file: a second flake of a file inside its 48 h quarantine window is the item\'s red, not another quarantine [C7,#5862]', async () => {
   const { state } = landingState();
   const { ports } = replayPorts({ open: [FLAKY[0]] });
   const judged = await judgeRed(state, redGate(FLAKY), ports);

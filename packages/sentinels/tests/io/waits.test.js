@@ -84,7 +84,7 @@ function resourceDatabase(file, holders, waiters) {
   db.close();
 }
 
-test('a checkout lease held past budget while commands wait is filed once, then deduplicated, and a dead holder is pruned [C7]', async t => {
+test('sentinels.waits.checkout-lease-filed-once-then-deduped: a checkout lease held past budget while commands wait is filed once, then deduplicated, and a dead holder is pruned [C7]', async t => {
   const m = machine(t);
   const holder = m.sleeper(), waiter = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
@@ -113,7 +113,7 @@ test('a checkout lease held past budget while commands wait is filed once, then 
   assert.ok(dead.reclaimed.some(line => /pruned/u.test(line)));
 });
 
-test('clause 1: a gate waiter queued behind busy runners is a queue wait, not a pool hold, so that wait ends within budget [C7,#6857]', async t => {
+test('sentinels.waits.queue-wait-not-pool-hold: clause 1: a gate waiter queued behind busy runners is a queue wait, not a pool hold, so that wait ends within budget [C7,#6857]', async t => {
   const m = machine(t);
   const waiter = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
@@ -123,7 +123,7 @@ test('clause 1: a gate waiter queued behind busy runners is a queue wait, not a 
   assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a gate waiter behind busy runners files nothing');
 });
 
-test('clause 1: the cause is fixed: a gate wait behind runners that each name a cause (busy, quarantined, kept, overloaded) is a queue wait, within budget [C7,#8023]', async t => {
+test('sentinels.waits.cause-fixed-queue-wait-within-budget: clause 1: the cause is fixed: a gate wait behind runners that each name a cause (busy, quarantined, kept, overloaded) is a queue wait, within budget [C7,#8023]', async t => {
   const m = machine(t);
   const waiter = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
@@ -134,7 +134,7 @@ test('clause 1: the cause is fixed: a gate wait behind runners that each name a 
   assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a waiter whose every runner names its cause files no pool hold');
 });
 
-test('clause 2: the hold reproduced from the evidence (static waiter, no holder, one runner quarantined) ends within budget [C7,#8023]', async t => {
+test('sentinels.waits.static-waiter-quarantined-ends-within-budget: clause 2: the hold reproduced from the evidence (static waiter, no holder, one runner quarantined) ends within budget [C7,#8023]', async t => {
   const m = machine(t);
   const waiter = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
@@ -145,7 +145,7 @@ test('clause 2: the hold reproduced from the evidence (static waiter, no holder,
   assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a waiter whose every runner names its cause files no pool hold');
 });
 
-test('clause 2: the hold reproduced from the evidence: a gate waiter with a free runner and no holder is still over budget [C7,#6857]', async t => {
+test('sentinels.waits.free-runner-no-holder-over-budget: clause 2: the hold reproduced from the evidence: a gate waiter with a free runner and no holder is still over budget [C7,#6857]', async t => {
   const m = machine(t);
   const stuck = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
@@ -155,7 +155,7 @@ test('clause 2: the hold reproduced from the evidence: a gate waiter with a free
   assert.equal(row.breach, true, 'a gate waiter with a free runner and no holder is still over budget');
 });
 
-test('a board writer holding past two seconds is a breach and a dead writer marker is removed [C7]', async t => {
+test('sentinels.waits.board-writer-breach-dead-marker-removed: a board writer holding past two seconds is a breach and a dead writer marker is removed [C7]', async t => {
   const m = machine(t);
   const directory = `${m.paths.boardFile}.write-holders`;
   mkdirSync(directory, { recursive: true });
@@ -175,7 +175,7 @@ test('a board writer holding past two seconds is a breach and a dead writer mark
   assert.match(m.items()[0].item_brief, /Doing: node/u, 'the item says what the holder was doing');
 });
 
-test('a resource write queue whose writer holds past budget is filed, and a dead writer lock is reclaimed [C7]', async t => {
+test('sentinels.waits.resource-queue-filed-dead-lock-reclaimed: a resource write queue whose writer holds past budget is filed, and a dead writer lock is reclaimed [C7]', async t => {
   const m = machine(t);
   const queue = join(m.paths.machineHome, 'resources.sqlite.writes');
   mkdirSync(queue, { recursive: true });
@@ -191,7 +191,7 @@ test('a resource write queue whose writer holds past budget is filed, and a dead
   assert.ok(dead.reclaimed.some(line => /writer\.lock/u.test(line)));
 });
 
-test('a hand-off place waiting past budget is filed and a reservation of a gone submitter is dropped [C7]', async t => {
+test('sentinels.waits.handoff-place-filed-gone-reservation-dropped: a hand-off place waiting past budget is filed and a reservation of a gone submitter is dropped [C7]', async t => {
   const m = machine(t);
   const place = join(m.paths.handoffQueue, '000000000001-job-a.json');
   writeFileSync(place, '{}');
@@ -207,7 +207,7 @@ test('a hand-off place waiting past budget is filed and a reservation of a gone 
   assert.equal((await recordWaits(await m.snapshot(), m.ports())).filed.length, 1);
 });
 
-test('a gate with no span progress past five minutes and a landing run past fifteen are filed per cause [C7]', async t => {
+test('sentinels.waits.gate-and-landing-filed-per-cause: a gate with no span progress past five minutes and a landing run past fifteen are filed per cause [C7]', async t => {
   const m = machine(t);
   const now = Date.now();
   const job = m.board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
@@ -228,7 +228,7 @@ test('a gate with no span progress past five minutes and a landing run past fift
   assert.equal(m.board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'shout'").get().n >= 1, true, 'the run is recorded on the board');
 });
 
-test('clause 1 [test]: a runner whose worker is running a job is busy, not unavailable, so no runner-unavailable row is judged or filed [C7,#7626]', async t => {
+test('sentinels.waits.running-worker-runner-busy-not-unavailable: clause 1 [test]: a runner whose worker is running a job is busy, not unavailable, so no runner-unavailable row is judged or filed [C7,#7626]', async t => {
   const m = machine(t);
   const since = new Date(Date.now() - 20 * MINUTE).toISOString();
   const file = join(m.paths.machineHome, 'resources.sqlite');
@@ -245,7 +245,7 @@ test('clause 1 [test]: a runner whose worker is running a job is busy, not unava
   assert.equal(down[0].breach, true);
 });
 
-test('a runner job past twenty minutes is filed with its host, job folder and test [C7]', async t => {
+test('sentinels.waits.runner-job-past-twenty-minutes-filed: a runner job past twenty minutes is filed with its host, job folder and test [C7]', async t => {
   const m = machine(t);
   const ps = ['  500   90  11:32:22 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
     '  501  500     11:32:00 /u/bin/node /Users/example/.pullboard-runner/jobs/job-1/checkout/test/relay-client.test.js',
@@ -263,7 +263,7 @@ test('a runner job past twenty minutes is filed with its host, job folder and te
   assert.equal((await recordWaits(snapshot, m.ports())).filed.length, 1);
 });
 
-test('an orphaned Pullboard process past five minutes is stopped by exact pid with SIGTERM [C7]', async t => {
+test('sentinels.waits.orphan-process-stopped-by-pid: an orphaned Pullboard process past five minutes is stopped by exact pid with SIGTERM [C7]', async t => {
   const m = machine(t);
   const folder = privateFixtureFiles('pullboard-orphan-').root;
   t.after(() => rmSync(folder, { recursive: true, force: true }));
@@ -289,7 +289,7 @@ test('an orphaned Pullboard process past five minutes is stopped by exact pid wi
   await waitForCondition(() => gone(pid), 'the orphan exits on SIGTERM');
 });
 
-test('a claim kept alive only by an orphaned heartbeat loop is a breach: the loop stops and the claim returns to the board [C7]', async t => {
+test('sentinels.waits.orphan-heartbeat-claim-returned: a claim kept alive only by an orphaned heartbeat loop is a breach: the loop stops and the claim returns to the board [C7]', async t => {
   const m = machine(t);
   const worktree = join(m.root, 'seat');
   mkdirSync(worktree);
@@ -325,7 +325,7 @@ test('a claim kept alive only by an orphaned heartbeat loop is a breach: the loo
   assert.ok(recorded.reclaimed.some(line => line.includes(`#${id}: released`)));
 });
 
-test('the view runs the wait audit every minute, one pass at a time per board [C7]', async () => {
+test('sentinels.waits.view-runs-audit-every-minute: the view runs the wait audit every minute, one pass at a time per board [C7]', async () => {
   const timers = [], audited = [];
   const observer = startServeSentinel({ projects: () => [{ root: '/one' }, { root: '/one' }], enabled: () => true,
     every: () => ({ unref() {} }), cancel: () => {},
@@ -339,7 +339,7 @@ test('the view runs the wait audit every minute, one pass at a time per board [C
   await observer.close();
 });
 
-test('with sixty breaches the run records one shout line under 400 characters on the real board [C7]', async t => {
+test('sentinels.waits.sixty-breaches-one-shout-line: with sixty breaches the run records one shout line under 400 characters on the real board [C7]', async t => {
   const m = machine(t);
   const rows = Array.from({ length: 60 }, (_, index) => ({ surface: 'gate', key: `gate:#${1000 + index}:gate`, holder: `#${1000 + index} gate shard.started ${'x'.repeat(80)}`,
     pid: null, ageMs: 40 * 3_600_000, budgetName: 'gateProgressMs', budgetMs: 300_000, breach: true, waiters: [], oldestWaiterMs: 0,
@@ -355,7 +355,7 @@ test('with sixty breaches the run records one shout line under 400 characters on
   assert.match(said[0], new RegExp(`^waits: 60 over budget, filed #${recorded.filed[0].id} #${recorded.filed[1].id} [#\\d ]*(?:and \\d+ more)?, reclaimed 0; pullboard waits for detail$`, 'u'));
 });
 
-test('waits record files a mid item add accepts: Files: naming the holder\'s source, a Test: line and a check [C7]', async t => {
+test('sentinels.waits.record-files-accepted-by-add: waits record files a mid item add accepts: Files: naming the holder\'s source, a Test: line and a check [C7]', async t => {
   const m = machine(t);
   const holder = m.sleeper(), waiter = m.sleeper();
   const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
@@ -383,7 +383,7 @@ function runnerHeldGate(m, now) {
   m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
 }
 
-test('clause 1: the audit files no stall item for a runner-held gate whose lease renews through a six-minute claim [C7]', async t => {
+test('sentinels.waits.runner-held-gate-renewing-lease-no-item: clause 1: the audit files no stall item for a runner-held gate whose lease renews through a six-minute claim [C7]', async t => {
   const m = machine(t);
   runnerHeldGate(m, Date.now());
   const snapshot = await m.snapshot();
@@ -394,7 +394,7 @@ test('clause 1: the audit files no stall item for a runner-held gate whose lease
   assert.deepEqual(m.items(), [], 'the board holds no waits: item for it');
 });
 
-test('clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {
+test('sentinels.waits.job-age-from-last-renewal: clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {
   const m = machine(t);
   runnerHeldGate(m, Date.now());
   const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
@@ -402,7 +402,7 @@ test('clause 2: the hold read from #6121\'s job ends within budget: its age coun
   assert.ok(gate.ageMs < 60_000, 'it is a renewal old, not the six minutes since the claim');
 });
 
-test('clause 1: a runner unavailable inside waiterMs is no breach, one past it is, and no audited runnerUnavailableMs row exists [C7]', () => {
+test('sentinels.waits.runner-unavailable-within-waiter-no-breach: clause 1: a runner unavailable inside waiterMs is no breach, one past it is, and no audited runnerUnavailableMs row exists [C7]', () => {
   const budgets = waitBudgets();
   assert.equal(budgets.runnerUnavailableMs, undefined, 'the audited five-minute row is gone');
   assert.equal(budgets.waiterMs, 120_000, 'the handoff queue keeps its two-minute budget');
@@ -413,7 +413,7 @@ test('clause 1: a runner unavailable inside waiterMs is no breach, one past it i
   assert.equal(past.breach, true);
 });
 
-test('a board write held 2.5 s breaches the two second boardWriteMs budget, never the old audited 10 s row [C7,#8147]', () => {
+test('sentinels.waits.board-write-2-5s-breaches: a board write held 2.5 s breaches the two second boardWriteMs budget, never the old audited 10 s row [C7,#8147]', () => {
   const budgets = waitBudgets();
   assert.equal(budgets.boardWriteMs, 2_000, 'the row is lowered to the 2 s budget and never raised');
   assert.ok(budgets.boardWriteMs <= budgets.databaseMs, 'a board write has no looser budget than the database');
@@ -425,7 +425,7 @@ test('a board write held 2.5 s breaches the two second boardWriteMs budget, neve
   assert.equal(resource.breach, true, 'the resource write queue keeps databaseMs');
 });
 
-test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
+test('sentinels.waits.key-is-repo-relative: a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {
   const key = waitKey({ surface: 'board-write', key: '/Users/user/Code/Open Source/pullboard-local/.git/pullboard/board.sqlite:edit' });
   assert.equal(key, 'board-write:.git/pullboard/board.sqlite:edit');
   assert.doesNotMatch(key, /Open Source|\/Users\b/u, 'no absolute path or space survives');

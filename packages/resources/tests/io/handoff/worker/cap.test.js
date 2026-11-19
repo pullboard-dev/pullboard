@@ -31,7 +31,7 @@ function privateHome() {
   };
 }
 
-test('a damaged durable ticket counter refuses instead of reordering the queue [C7]', async () => {
+test('resources.cap.a-damaged-durable-ticket-counter-refuses: a damaged durable ticket counter refuses instead of reordering the queue [C7]', async () => {
   const cleanup = privateHome();
   try {
     mkdirSync(handoffQueueDirectory(), { recursive: true });

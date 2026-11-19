@@ -5,12 +5,12 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { createEvaluator } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { createSender } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { createWaiter } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { startChrome } from '../../../../../apps/cli/tests/fixtures/chrome.js';
+import { createEvaluator } from '../../fixtures/chrome.js';
+import { createSender } from '../../fixtures/chrome.js';
+import { createWaiter } from '../../fixtures/chrome.js';
+import { startChrome } from '../../fixtures/chrome.js';
 
-test('a wait that throws while the page changes keeps waiting [C7]', async (t) => {
+test('gate.io-clone-wait.a-wait-that-throws-while-the: a wait that throws while the page changes keeps waiting [C7]', async (t) => {
   let replacementResponse;
   const transition = {
     replacementStartedAt: null,
@@ -128,7 +128,7 @@ test('a wait that throws while the page changes keeps waiting [C7]', async (t) =
 });
 
 /** Prove waitFor retries a DevTools navigation error instead of abandoning its condition. */
-test('a wait keeps waiting through a DevTools error from a page navigation [C7]', async (t) => {
+test('gate.io-clone-wait.a-wait-keeps-waiting-through-a: a wait keeps waiting through a DevTools error from a page navigation [C7]', async (t) => {
   let afterRequests = 0;
   const server = createServer((request, response) => {
     if (request.url === '/before') {

@@ -33,7 +33,7 @@ const COMMIT = 'a'.repeat(40), CODE = 'c'.repeat(64);
 const SNAPSHOT = { manifest: { version: 1, files: [{ file: 'test/a.test.js', tier: 'T1', packages: ['.'], reasons: [] }] },
   owners: new Map([['src/a.js', 'packages/a']]), packageFiles: new Set(['package.json']), helpers: new Map([['test/helper.js', new Set(['.'])]]) };
 
-test('a recorded tier snapshot reads back whole, and a damaged or foreign entry is a miss [C7]', t => {
+test('gate.io-test-tier-cache.a-recorded-tier-snapshot-reads-back: a recorded tier snapshot reads back whole, and a damaged or foreign entry is a miss [C7]', t => {
   const home = privateMachine(t);
   assert.equal(readTierSnapshot(COMMIT, CODE), null);
   writeTierSnapshot(COMMIT, CODE, SNAPSHOT);
@@ -48,7 +48,7 @@ test('a recorded tier snapshot reads back whole, and a damaged or foreign entry 
   assert.equal(existsSync(join(home, 'tier-snapshots', code, 'not-a-commit.v8.gz')), false);
 });
 
-test('selectTestTiers selects the same units from cached snapshots as from fresh ones, and a later process reads the cache [C7]', async t => {
+test('gate.io-test-tier-cache.selecttesttiers-selects-the-same-units-from: selectTestTiers selects the same units from cached snapshots as from fresh ones, and a later process reads the cache [C7]', async t => {
   const home = privateMachine(t);
   const root = process.cwd();
   const commit = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });

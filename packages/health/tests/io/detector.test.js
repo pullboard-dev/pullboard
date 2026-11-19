@@ -34,7 +34,7 @@ function board() {
   return { db, gate };
 }
 
-test('three red gates with unaccounted failures within an hour raise one Stuck shout naming the gates and the first unparsed line [C7]', () => {
+test('health.detector.three-reds-stuck: three red gates with unaccounted failures within an hour raise one Stuck shout naming the gates and the first unparsed line [C7]', () => {
   const { db, gate } = board();
   gate(101, 50, 'red', UNNAMED);
   gate(102, 30, 'red', UNNAMED);
@@ -55,14 +55,14 @@ test('three red gates with unaccounted failures within an hour raise one Stuck s
   assert.deepEqual(unaccountedRedFindings(db, new Date(NOW)), found, 'the same scan reads the same finding, so the sentinel shouts it once');
 });
 
-test('red gates whose failures are fully accounted raise no shout [C7]', () => {
+test('health.detector.accounted-quiet: red gates whose failures are fully accounted raise no shout [C7]', () => {
   const { db, gate } = board();
   for (const item of [201, 202, 203, 204]) gate(item, item - 195, 'red', NAMED);
   assert.deepEqual(unaccountedRedFindings(db, new Date(NOW)), []);
   assert.deepEqual(unaccountedRedFindings(new DatabaseSync(':memory:'), new Date(NOW)), [], 'a board without job tables has no reds to count');
 });
 
-test('one unaccounted red among a handful of accounted reds stays quiet below 20 percent [C7]', () => {
+test('health.detector.under-20-percent-quiet: one unaccounted red among a handful of accounted reds stays quiet below 20 percent [C7]', () => {
   const { db, gate } = board();
   gate(301, 10, 'red', UNNAMED);
   for (const item of [302, 303, 304, 305, 306]) gate(item, 5, 'red', NAMED);

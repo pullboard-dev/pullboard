@@ -28,3 +28,17 @@ export function attachRelayCause(refusal) {
   refusal.relayCause = relayUnavailableCause({ error: refusal, ...current });
   return refusal;
 }
+
+/**
+ * The relay status a refused read needs, built from the exclusion list already loaded (#9765): `excluded` is the entry
+ * naming the open board (by its board id, or by a listed name), else null. Pure; nothing calls it yet.
+ * @param {{ openBoard?: string|null, exclusions?: object[]|null, machines?: object[]|null }} load
+ * @returns {{ relayOn: true, machine: null, excluded: object|null, machines: object[] }}
+ */
+export function statusFromLoad({ openBoard = null, exclusions = [], machines = [] } = {}) {
+  const entries = Array.isArray(exclusions) ? exclusions : [];
+  const found = openBoard == null ? undefined : entries.find((entry) => entry?.board === openBoard || entry?.id === openBoard
+    || entry?.name === openBoard || (Array.isArray(entry?.names) && entry.names.includes(openBoard)));
+  const excluded = found ? { ...found, name: found.name ?? openBoard } : null;
+  return { relayOn: true, machine: null, excluded, machines: machines ?? [] };
+}

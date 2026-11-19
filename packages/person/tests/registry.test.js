@@ -1,4 +1,5 @@
-/** Every person-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9397]. @pullboard-test-input source-cell packages/person */
+/** @pullboard-test-input source-cell packages/person */
+/** Every person-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9397]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

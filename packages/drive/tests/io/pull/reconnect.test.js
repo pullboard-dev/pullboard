@@ -6,7 +6,7 @@ import { testGit as pullGit } from '../../fixtures/git.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
-test('#6390 clauses 1-2: after 8 failed calls the waits double from 1 s and stop at 4 s, and the first call after the board answers is a claim with no wait [C7]', async () => {
+test('drive.reconnect.c-6390-clauses-1-2-after: #6390 clauses 1-2: after 8 failed calls the waits double from 1 s and stop at 4 s, and the first call after the board answers is a claim with no wait [C7]', async () => {
   let calls = 0, answeredAt = null;
   const events = [];
   const stop = new AbortController();

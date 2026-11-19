@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/src/io/cockpit.js apps/view/src/io/serve.js */
 /** View-owned import formatting follows the lane's two module declarations [C7]. */
 import assert from 'node:assert/strict';
 import {

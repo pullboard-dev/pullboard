@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { runProfiledShellAsync } from '../../../index.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 
-test('the asynchronous gate backend runs its child and writes a terminal profile [C7]', async t => {
+test('gate.io-main-async.the-asynchronous-gate-backend-runs-its: the asynchronous gate backend runs its child and writes a terminal profile [C7]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-async-backend-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q'], { cwd: root, encoding: 'utf8' });

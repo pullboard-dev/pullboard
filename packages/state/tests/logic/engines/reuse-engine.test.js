@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { boundedProofReason } from '../../../src/logic/submission/proof.js';
 import { submissionProof } from '../../../src/logic/submission/proof.js';
 
-test('a selection reason longer than a proof holds is cut and names what it elided [C7]', () => {
+test('state.logic-engines-reuse-engine.a-selection-reason-longer-than-a-proof: a selection reason longer than a proof holds is cut and names what it elided [C7]', () => {
   const reason = 'selected because '.concat('test/cockpit/example.test.js reads src/view/page-render.js; '.repeat(800));
   assert.ok(reason.length > 40_000, 'the case reproduces the 47,949-character reason that refused #1605');
   const bounded = boundedProofReason(reason);
@@ -16,7 +16,7 @@ test('a selection reason longer than a proof holds is cut and names what it elid
     'the raw reason is still refused, so the producer must bound it');
 });
 
-test('a reason that already fits is kept word for word [C7]', () => {
+test('state.logic-engines-reuse-engine.a-reason-that-already-fits-is-kept-word: a reason that already fits is kept word for word [C7]', () => {
   const reason = 'selected by the changed files';
   assert.equal(boundedProofReason(reason), reason);
 });

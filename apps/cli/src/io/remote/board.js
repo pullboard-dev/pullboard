@@ -21,7 +21,7 @@ export function remoteBoard() {
  * board refusals into refusals that keep the board's own code and next step.
  * Every call opens its own connection (agent: false): the shared keep-alive pool reuses a socket the board closed while idle,
  * which surfaced as ECONNRESET on a POST that then must not be retried [P7].
- * @param {{ url: string, token: string }} remote
+ * @param {{ url: string, token: string, seatKey?: string | null }} remote
  * @param {string} path An absolute API path.
  * @param {any} [body] A JSON body to POST; omitted for a read.
  * @param {number} [timeout] Milliseconds to wait for the answer.
@@ -32,7 +32,8 @@ export function requestJson(remote, path, body, timeout = READ_TIMEOUT_MS) {
   const target = new URL(origin + path);
   const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
   const payload = body === undefined ? null : JSON.stringify(body);
-  const headers = { authorization: `Bearer ${remote.token}`, accept: 'application/json',
+  // A move as a seat carries that seat's own key beside the board key, or a served board refuses it SEAT_CREDENTIAL [P7,#10790].
+  const headers = { authorization: `Bearer ${remote.token}`, accept: 'application/json', ...(remote.seatKey ? { 'x-pullboard-seat-key': remote.seatKey } : {}),
     ...(payload === null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) }) };
   return new Promise((resolve, reject) => {
     const unreachable = (why) => new Refused('BOARD_UNREACHABLE', `cannot reach board.url ${origin} (${why}); start pullboard serve on the board host, or fix it with pullboard settings board.url <url>`);
@@ -84,6 +85,17 @@ export function seatAgent(cwd) {
   catch { return null; }
 }
 
+/**
+ * The seat's own key that a remote join kept in this worktree's git config beside its name, or null when `agent` is
+ * another seat (PULLBOARD_AGENT naming one) or the seat joined before keys were issued [P7,#10790].
+ * @param {string} cwd
+ * @param {string} agent
+ */
+export function seatKey(cwd, agent) {
+  const read = (name) => { try { return gitExecFileSync(['config', '--get', name], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; } catch { return null; } };
+  return agent && read('pullboard.agent') === agent ? read('pullboard.seatKey') : null;
+}
+
 /** Print one item from the board host, as show's header lines print it. */
 async function showRemote(io, remote, positionals) {
   const raw = String(positionals[1] ?? '').replace(/^#/u, '');
@@ -99,20 +111,32 @@ async function showRemote(io, remote, positionals) {
   if (item.brief) io.say(`brief:\n  ${String(item.brief).split('\n').join('\n  ')}`);
 }
 
-/** Print this seat's agent from the board host's state. */
+/**
+ * One seat's own row from the board host's agent route: its lane, route and the ids it holds claimed, without the board state,
+ * which is 10 MB and too slow for a read budget [P7].
+ * @param {{ url: string, token: string }} remote
+ * @param {string} name
+ */
+export async function seatRoute(remote, name) {
+  try { return await getJson(remote, `${await boardPath(remote)}/agents/${encodeURIComponent(name)}`); }
+  catch (error) {
+    if (error instanceof Refused && error.code === 'NO_AGENT') throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}`, 'run pullboard join <lane> with board.url set');
+    throw error;
+  }
+}
+
+/** Print this seat's agent from the board host's agent route. */
 async function whoamiRemote(io, remote, cwd) {
   const name = seatAgent(cwd);
   if (!name) throw new Refused('NO_AGENT', 'this seat has no agent name; run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
-  const document = await getJson(remote, `${await boardPath(remote)}/state`);
-  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
-  if (!agent) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}; run pullboard join <lane> with board.url set`);
+  const agent = await seatRoute(remote, name);
   const board = new URL(remote.url).origin;
   io.result?.({ id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, board });
   io.say(`${agent.agent_id} (${agent.agent_lane} lane${agent.agent_route === 'light' ? ', light route' : ''}) via ${board}`);
 }
 
 /**
- * The seat a commit hook checks in a boardless clone with board.url set, read from the served board's state, or null
+ * The seat a commit hook checks in a boardless clone with board.url set, read from the served board's agent route, or null
  * when board.url is unset so the local check decides. An unreachable board or an unnamed seat refuses, never passes.
  * Why: the pre-commit lane check needs the seat's lane, and only the board host knows it [P7].
  * @param {string} cwd
@@ -123,8 +147,7 @@ export async function remoteHookSeat(cwd) {
   if (!remote) return null;
   const name = seatAgent(cwd);
   if (!name) throw new Refused('NO_AGENT', 'this clone has board.url set but no seat name, so its lane is unknown', 'run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
-  const document = await getJson(remote, `${await boardPath(remote)}/state`);
-  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
+  const agent = await seatRoute(remote, name);
   if (!agent?.agent_lane) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}`, 'run pullboard join <lane> with board.url set');
   return { agent_id: agent.agent_id, agent_lane: agent.agent_lane };
 }

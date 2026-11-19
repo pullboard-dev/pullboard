@@ -1,6 +1,9 @@
 /** A burst of file changes wakes a file waiter once, not once per change, and a later change wakes it again [C7]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fileChangeWaiter } from '../../index.js';
 
 /** A native watch that hands its callbacks to the test, and a timer the test fires by hand. */
@@ -16,7 +19,7 @@ function fakeKit() {
   return { watch, schedule, cancel, callbacks, scheduled };
 }
 
-test('clause 2: file-watch callbacks are coalesced: a burst of changes runs one refresh, not one per file [C7]', t => {
+test('activity.wait.coalesced-refresh: clause 2: file-watch callbacks are coalesced: a burst of changes runs one refresh, not one per file [C7]', t => {
   const kit = fakeKit();
   const name = `nonexistent-${process.pid}`;
   const inputs = Array.from({ length: 20 }, (_, index) => `/${name}/input-${index}`);
@@ -35,7 +38,7 @@ test('clause 2: file-watch callbacks are coalesced: a burst of changes runs one 
   assert.equal(waiter.version(), before + 2);
 });
 
-test('closing a waiter cancels its pending pass [C7]', () => {
+test('activity.wait.close-cancels-pass: closing a waiter cancels its pending pass [C7]', () => {
   const kit = fakeKit();
   const name = `nonexistent-${process.pid}`;
   const waiter = fileChangeWaiter([`/${name}/input`], kit);
@@ -47,7 +50,7 @@ test('closing a waiter cancels its pending pass [C7]', () => {
   assert.equal(waiter.version(), 0, 'a closed waiter never wakes');
 });
 
-test('clause 2: a costly wake spaces the next pass by a multiple of its cost, capped, and a quiet change is not delayed [C7]', () => {
+test('activity.wait.costly-wake-spacing: clause 2: a costly wake spaces the next pass by a multiple of its cost, capped, and a quiet change is not delayed [C7]', () => {
   const kit = fakeKit();
   const name = `nonexistent-${process.pid}`;
   let clock = 1000, cost = 100;
@@ -79,4 +82,29 @@ test('clause 2: a costly wake spaces the next pass by a multiple of its cost, ca
   fire();
   assert.equal(kit.scheduled[5].delay, window, 'a change long after the last pass waits only the coalescing window');
   waiter.close();
+});
+
+test('activity.io-wait.idle-wait-no-spin: clause 1: a file waiter waiting 5 s on an unchanged board file uses under 0.5 s of process CPU [C7]', async t => {
+  const scratch = privateFixtureFiles('pullboard-idle-wait-');
+  const file = join(scratch.root, 'board.sqlite');
+  writeFileSync(file, 'board');
+  const waiter = fileChangeWaiter([file]);
+  t.after(() => waiter.close());
+  const before = process.cpuUsage();
+  await waiter.wait({ after: waiter.version(), deadline: Date.now() + 5000 });
+  const used = process.cpuUsage(before);
+  assert.ok((used.user + used.system) / 1e6 < 0.5, `the idle wait used ${(used.user + used.system) / 1e6} s of CPU`);
+});
+
+test('activity.io-wait.wakes-on-write: clause 2: a write to the watched board file during the wait wakes it within 1 s [C7]', async t => {
+  const scratch = privateFixtureFiles('pullboard-wake-wait-');
+  const file = join(scratch.root, 'board.sqlite');
+  writeFileSync(file, 'board');
+  const waiter = fileChangeWaiter([file]);
+  t.after(() => waiter.close());
+  const start = waiter.version();
+  const sleeping = waiter.wait({ after: start, deadline: Date.now() + 1000 });
+  writeFileSync(file, 'board changed');
+  await sleeping;
+  assert.ok(waiter.version() > start, 'the write, not the one-second deadline, ended the wait');
 });

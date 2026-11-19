@@ -1,5 +1,8 @@
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
+import { landingStats } from '../../../../../packages/landing/index.js';
+import { landingStatsLines } from '../../../../../packages/landing/index.js';
+import { landingComposedEquality } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
@@ -13,6 +16,8 @@ import { gateRuns } from '../../../../../packages/flakes/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/index.js';
 import { landWhyLines } from '../../../../../packages/landing/index.js';
+import { landOneByHand as landItemByHand } from '../../../../../packages/landing/index.js';
+import { heldTestDefects } from '../../../../../packages/landing/index.js';
 import { withBoardRead } from '../board/read.js';
 import { landingWaits } from '../landing/waiting.js';
 import { landingWaitLine } from '../landing/waiting.js';
@@ -46,6 +51,14 @@ export async function run(io, { first, second, rest, values }) {
     const why = await withBoardRead(ctx, (board) => landWhy(board, ctx.clock.now()));
     if (values.json) io.result(why);
     else for (const line of landWhyLines(why)) io.say(line);
+    return 0;
+  }
+  if (values.stats) {
+    if (!landingComposedEquality()) throw new Refused('STATS_OFF', 'pullboard land --stats reads the composition each landing records, and landing.composedEquality is off', 'the person sets landing.composedEquality to true in the machine settings');
+    const ctx = context(io);
+    const stats = await withBoardRead(ctx, (board) => landingStats(store.landingBatches(board), { now: ctx.clock.now().getTime() }));
+    if (values.json) io.result(stats);
+    else for (const line of landingStatsLines(stats)) io.say(line);
     return 0;
   }
   const act = (work) => actOn(io, work);
@@ -94,7 +107,7 @@ export async function run(io, { first, second, rest, values }) {
 }
 
 /**
- * `pullboard land --item <id>`: the refusals that guard landing one accepted item by hand (#9569). It lands nothing yet.
+ * `pullboard land --item <id> --reason "<why>"`: lands one accepted item by hand through the landing package (#9569, #9571), after the refusals that guard it.
  * Off by default, because the board lands accepted items by itself once landing.byHand is not set.
  */
 function landOneByHand(ctx, board, me, values) {
@@ -104,7 +117,15 @@ function landOneByHand(ctx, board, me, values) {
   if (!/^[1-9][0-9]*$/u.test(id)) throw new Refused('USAGE', `--item takes an item number, not "${id}"`, 'pullboard land --item <id>');
   const item = store.getItem(board, Number(id));
   if (!item || item.item_status !== 'verified' || item.item_merged_commit) throw new Refused('NOT_ACCEPTED', `#${id} is not an accepted item waiting to land${item ? ` (${item.item_status}${item.item_merged_commit ? ', already landed' : ''})` : ''}`, `wait for a reviewer to accept #${id}: pullboard show ${id}`);
-  throw new Refused('NOT_BUILT_YET', `landing #${id} by hand is not built yet`, 'the board lands accepted items by itself; run pullboard next for other work');
+  const reason = String(values.reason ?? '').trim();
+  if (!reason) throw new Refused('HAND_REASON', 'landing by hand names why: pass a reason', `pullboard land --item ${id} --reason "<why>"`);
+  const trunk = mainCheckout(ctx.info.root);
+  // The hold is read on the checked-out trunk, as the automatic landing reads it; a waived defect still counts here, so the record names it.
+  const held = trunk ? heldTestDefects(ctx.info.root, board, { branch: trunk.branch, commit: trunk.commit }) : [];
+  const landed = landItemByHand(board, Number(id), { root: ctx.info.root, reason, held, agentId: me.id, exactTreeCheck: ctx.config.landing?.exactTreeCheck === true });
+  ctx.io.result?.(landed);
+  ctx.io.say?.(`#${id} landed by hand as ${landed.commit.slice(0, 12)}: ${landed.reason}; bypassed hold: ${landed.hold}`);
+  return 0;
 }
 
 /** The refusal when no runner can take a land job: no trunk remote of record and no local runner on this machine. */

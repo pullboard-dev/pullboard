@@ -92,7 +92,7 @@ function droppedJobsCall(t, api, id) {
   call(api, `/api/v1/boards/${id}/jobs`, { body: { action: 'claim', runner: 'fixture-runner' }, signal: abort.signal }).catch(() => {});
 }
 
-test('clause 1 [A2,C7]: with a request handler blocked for 30 s, the API answers health within 200 ms', { timeout: 30_000 }, async (t) => {
+test('api.pool.clause-request-handler-blocked-api: clause 1 [A2,C7]: with a request handler blocked for 30 s, the API answers health within 200 ms', { timeout: 30_000 }, async (t) => {
   const { entry, id } = fixtureBoard(t);
   const channel = `pool-one-${process.pid}`;
   const blocked = blockedHandlers(t, channel, 1);
@@ -107,7 +107,7 @@ test('clause 1 [A2,C7]: with a request handler blocked for 30 s, the API answers
   assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with a handler blocked`);
 });
 
-test('clause 2 [A2,C7]: with every pool worker blocked, health answers within 200 ms and new work is refused API_BUSY instead of hanging', { timeout: 30_000 }, async (t) => {
+test('api.pool.clause-every-pool-worker-blocked: clause 2 [A2,C7]: with every pool worker blocked, health answers within 200 ms and new work is refused API_BUSY instead of hanging', { timeout: 30_000 }, async (t) => {
   const { entry, id } = fixtureBoard(t);
   const channel = `pool-all-${process.pid}`;
   const api = await served(t, entry, handlerPorts({ channel, blockMs: 30_000 }));
@@ -129,7 +129,7 @@ test('clause 2 [A2,C7]: with every pool worker blocked, health answers within 20
   assert.ok(took < 5_000, `the busy refusal took ${took.toFixed(0)} ms`); // budget: declared ceiling, a 1 s queue wait plus margin, never a hang.
 });
 
-test('clause 3 [A2,C7]: a request-thread stall over 500 ms is recorded as an api_stall board event naming the route', { timeout: 30_000 }, async (t) => {
+test('api.pool.clause-request-thread-stall-over: clause 3 [A2,C7]: a request-thread stall over 500 ms is recorded as an api_stall board event naming the route', { timeout: 30_000 }, async (t) => {
   const { project, entry, id } = fixtureBoard(t);
   // The board lookup calls projects() on the request thread; the first lookup busy-waits 800 ms there.
   let stall = false;

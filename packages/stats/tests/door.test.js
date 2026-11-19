@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/stats packages/kernel */
 /** The stats pure door carries the flow comparison to a browser: its closure holds no node: built-in and no shell file [C7,D3]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,8 +8,11 @@ import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { compareFlowWindows } from '../browser.js';
+import * as barrel from '../index.js';
+import * as light from '../light.js';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const COORDINATOR_NAMES = ['previousCoordinatorMilestone', 'coordinatorActions', 'coordinatorActionRise', 'readWorkFreeReleases'];
 const SPECIFIER = /^\s*(?:import|export)\b[^;'"]*?\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gmu;
 
 /** Every file the pure door reaches by static import, and the specifiers that are not repository files. */
@@ -27,17 +31,33 @@ function closure(entry) {
   return { files: [...files].map(file => relative(ROOT, file)), outside };
 }
 
-test('the stats pure door reaches no node: built-in and no shell file [C7,D3]', () => {
+test('stats.door.the-stats-pure-door-reaches-no: the stats pure door reaches no node: built-in and no shell file [C7,D3]', () => {
   const { files, outside } = closure('packages/stats/browser.js');
   assert.deepEqual(outside, [], 'a browser cannot load a node: built-in or a package specifier');
   assert.deepEqual(files.filter(file => /(?:^|\/)src\/shell\//u.test(file)), [], 'a pure door reaches no shell file');
   assert.ok(files.includes('packages/stats/src/logic/flow.js'), 'the door reaches the flow comparison');
 });
 
-test('the pure door runs compareFlowWindows: no history is not fabricated, and an incomplete prefix is refused by name [C7]', () => {
+test('stats.door.the-pure-door-runs-compareflowwindows-no: the pure door runs compareFlowWindows: no history is not fabricated, and an incomplete prefix is refused by name [C7]', () => {
   const now = Date.parse('2026-11-09T12:00:00Z');
   assert.deepEqual(compareFlowWindows([], { now, windowMinutes: 60, complete: false }),
     { version: 1, available: false, reason: 'complete event history is required for comparison' });
   const empty = compareFlowWindows([], { now, windowMinutes: 60, complete: true });
   assert.equal(empty.version, 1);
+});
+
+test('stats.door.light-exports-the-coordinator-names: clause 1: the light door exports the four coordinator action and work-free names strictly equal to the stats barrel\'s [C7]', () => {
+  for (const name of COORDINATOR_NAMES) {
+    assert.equal(typeof light[name], 'function', `${name} is exported by the light door`);
+    assert.strictEqual(light[name], barrel[name], `${name} is the barrel's function`);
+  }
+});
+
+test('stats.door.coordinator-names-pull-no-shell: clause 2: the static closure of the three files that define the coordinator names holds no stats file outside logic and io/actions.js [C7]', () => {
+  const defining = ['packages/stats/src/io/actions.js', 'packages/stats/src/logic/actions.js', 'packages/stats/src/logic/work/free.js'];
+  const stats = new Set(defining.flatMap(entry => closure(entry).files)
+    .filter(file => file.startsWith('packages/stats/')));
+  for (const entry of defining) assert.ok(stats.has(entry), `${entry} is in the closure`);
+  const outside = [...stats].filter(file => !file.startsWith('packages/stats/src/logic/') && file !== 'packages/stats/src/io/actions.js');
+  assert.deepEqual(outside, [], 'no stats file but logic and io/actions.js is reached');
 });

@@ -2,6 +2,8 @@
   "foreign": [
     "package.json",
     "composer.json",
+    "deno.json",
+    "deno.jsonc",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
@@ -363,6 +365,10 @@
       "kind": "sqlite",
       "owner": "packages/verify/src/io/proof/derived.js"
     },
+    "*.derived-state.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/health/src/io/derived.js"
+    },
     "*.rigor-derived.sqlite": {
       "kind": "sqlite",
       "owner": "packages/rigor/src/io/derived.js"
@@ -484,9 +490,17 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
     },
+    "adapter-lint-env.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/env.js"
+    },
     "adapter-lint-fs.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
+    },
+    "adapter-lint-timers.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/timers.js"
     },
     "auth.sqlite": {
       "kind": "sqlite",
@@ -586,7 +600,7 @@
     },
     "cells-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/gate/src/io/test/tier/selection.js"
+      "owner": "packages/gate/src/io/edges.js"
     },
     "cells-test-batches.json": {
       "kind": "json",
@@ -793,6 +807,10 @@
       "kind": "json",
       "owner": "packages/state/src/io/engine/numbers.js"
     },
+    "literal-pins-allowlist.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
+    },
     "load-bearing.json": {
       "kind": "json",
       "owner": "packages/gate/src/logic/load/bearing.js"
@@ -844,6 +862,10 @@
     "guards.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
+    },
+    "job-terminal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
     },
     "push-only.json": {
       "kind": "repo-data",
@@ -997,6 +1019,10 @@
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
     },
+    "relay-outbox.unsealed.json": {
+      "kind": "json",
+      "owner": "packages/outbox/src/io/relay.js"
+    },
     "relay-relink.json": {
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
@@ -1121,6 +1147,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/uses.js"
     },
+    "starting.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
+    },
     "startup.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
@@ -1131,7 +1161,7 @@
     },
     "stats-history.jsonl": {
       "kind": "jsonl",
-      "owner": "apps/cli/src/io/commands/stats.js"
+      "owner": "packages/stats/src/io/time/history.js"
     },
     "storage-quota.sqlite": {
       "kind": "sqlite",
@@ -1180,6 +1210,10 @@
     "table:decision_handoff_v1": {
       "kind": "table",
       "owner": "packages/items/src/io/decision.js"
+    },
+    "table:derived_state": {
+      "kind": "table",
+      "owner": "packages/health/src/io/derived.js"
     },
     "table:device": {
       "kind": "table",
@@ -1347,7 +1381,7 @@
     },
     "table:person_enrollment": {
       "kind": "table",
-      "owner": "apps/relay/src/logic/person/enrollment/store.js"
+      "owner": "apps/relay/src/io/store/enrollment.js"
     },
     "table:phone_approval": {
       "kind": "table",
@@ -1479,7 +1513,7 @@
     },
     "table:temp": {
       "kind": "table",
-      "owner": "packages/outbox/src/logic/undo.js"
+      "owner": "packages/outbox/src/io/relay/undo.js"
     },
     "table:test_result": {
       "kind": "table",
@@ -1491,7 +1525,11 @@
     },
     "table:verdict": {
       "kind": "table",
-      "owner": "packages/verify/src/logic/verdict/assurance.js"
+      "owner": "packages/verify/src/io/review/independence.js"
+    },
+    "table:vault": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "table:waiter": {
       "kind": "table",
@@ -1503,7 +1541,7 @@
     },
     "temporary-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/codemap/src/io/cells/scripts/cache.js"
+      "owner": "apps/cli/src/io/cells/cache.js"
     },
     "test-cells.json": {
       "kind": "repo-data",
@@ -1539,11 +1577,11 @@
     },
     "timer.guard.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "timer.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "tooling-pin.json": {
       "kind": "json",
@@ -1553,8 +1591,12 @@
       "kind": "repo-data",
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
     },
+    "vault.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/store/vault.js"
+    },
     "vendors.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/items/src/logic/vendors.js"
     },
     "view-bind.json": {
@@ -1564,6 +1606,10 @@
     "view-reuse.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-timer-layout.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/view-timer-layout.js"
     },
     "view.json": {
       "kind": "json",
@@ -1611,10 +1657,5 @@
     }
   },
   "exceptions": [],
-  "writeOwnerDebt": [
-    "stats-history.jsonl",
-    "timer.guard.sqlite",
-    "timer.json",
-    "vendors.json"
-  ]
+  "writeOwnerDebt": []
 }

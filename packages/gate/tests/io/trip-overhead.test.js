@@ -8,13 +8,13 @@ const trip = { at: '2026-11-15T20:00:00.000Z', kind: 'submit', waitMs: 90_000, a
   slot: { kind: 'runner', reason: 'r' }, runner: { id: 'studio', kind: 'pull' },
   executionPhases: { version: 1, prepareMs: 0, capacityWaitMs: 0, sourceMs: 0, dependenciesMs: 0, commandMs: 38_000, cleanupMs: 0, totalMs: 38_000 } };
 
-test('clause 1: a runner receipt records its per-trip overhead in ms, excluding the slot wait and the test time [C7]', () => {
+test('gate.trip-overhead.receipt-records-overhead: clause 1: a runner receipt records its per-trip overhead in ms, excluding the slot wait and the test time [C7]', () => {
   assert.equal(tripOverheadMs(trip), 8000);
   assert.equal(tripOverheadMs({ ...trip, slot: { kind: 'ordinary', reason: 'r' } }), null, 'a local run has no trip');
   assert.equal(tripOverheadMs({ ...trip, executionPhases: null }), null, 'no executor phases, no split');
 });
 
-test('clause 2: a recorded overhead above the budget is reported with the runner and trip named, and only then [C7]', () => {
+test('gate.trip-overhead.over-budget-reported: clause 2: a recorded overhead above the budget is reported with the runner and trip named, and only then [C7]', () => {
   const rows = [{ ...trip, tripOverheadMs: 8000 }, { ...trip, runner: { id: 'mini' }, at: '2026-11-15T21:00:00.000Z', tripOverheadMs: 12_500 }];
   const lines = tripOverheadReport(rows, 10_000);
   assert.equal(lines.length, 1);

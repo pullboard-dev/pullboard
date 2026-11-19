@@ -372,22 +372,15 @@ function parseOneDocument(stdout) {
 }
 
 
-catalogCase('[A1] command results match the catalog across roots: reads, spec and hooks', [
+catalogCase('[A1] command results match the catalog across roots: reads', [
   'agents',
   'badge',
-  'blueprint add',
-  'blueprint starters',
   'capacity',
   'doctor',
-  'doctrine check',
   'gate',
   'health',
   'heartbeat',
   'help',
-  'hook commit-msg',
-  'hook pre-commit',
-  'hook pre-merge-commit',
-  'hook pre-push',
   'hooks',
   'init',
   'lanes',
@@ -400,14 +393,6 @@ catalogCase('[A1] command results match the catalog across roots: reads, spec an
   'resume',
   'settings',
   'skills',
-  'spec',
-  'spec check',
-  'spec draft',
-  'spec show',
-  'spec signers',
-  'spec signoff',
-  'spec unmet',
-  'spec view',
   'stats',
   'stats moves',
   'stats pipeline',
@@ -476,6 +461,30 @@ catalogCase('[A1] command results match the catalog across roots: reads, spec an
   await json(box, repo, 'log');
   await json(box, repo, 'list');
   await json(box, repo, 'gate');
+}, ['agents', 'badge', 'capacity', 'decisions', 'doctor', 'gate', 'health', 'heartbeat', 'help', 'hooks', 'inbox', 'init', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'prompt', 'request', 'resources', 'resume', 'settings', 'skills', 'stats', 'status', 'version', 'whoami']);
+
+
+catalogCase('[A1] command results match the catalog across roots: spec and hooks', [
+  'blueprint add',
+  'blueprint starters',
+  'doctrine check',
+  'hook commit-msg',
+  'hook pre-commit',
+  'hook pre-merge-commit',
+  'hook pre-push',
+  'spec',
+  'spec check',
+  'spec draft',
+  'spec show',
+  'spec signers',
+  'spec signoff',
+  'spec unmet',
+  'spec view',
+], async () => {
+  const box = await project();
+  const { repo } = box;
+  assert.equal(box.initialized.version, 1);
+  assertRequiredShape(box.initialized, shapeFor('init').required, 'init');
 
   await json(box, repo, 'spec', ['--json']);
   await json(box, repo, 'spec', ['check'], 'check');
@@ -509,39 +518,29 @@ catalogCase('[A1] command results match the catalog across roots: reads, spec an
   await json(processBox(box), repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   await json(processBox(box), repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   await json(processBox(box), repo, 'hook', ['pre-push'], 'pre-push');
-}, ['agents', 'badge', 'blueprint', 'capacity', 'decisions', 'doctor', 'doctrine', 'gate', 'health', 'heartbeat', 'help', 'hook', 'hooks', 'inbox', 'init', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'prompt', 'request', 'resources', 'resume', 'settings', 'skills', 'spec', 'stats', 'status', 'version', 'whoami']);
+}, ['blueprint', 'doctrine', 'hook', 'init', 'spec']);
 
 
-catalogCase('[A1] command results match the catalog across roots: items, shouts and runs', [
+catalogCase('[A1] command results match the catalog across roots: items and spec changes', [
   'add',
-  'answer',
   'check',
   'claim',
-  'decisions',
   'done',
   'edit',
   'escalate',
   'fact',
-  'forget',
   'hold',
-  'inbox',
   'join',
   'list',
   'merged',
-  'next',
-  'pass',
   'patch',
   'patch attach',
   'patch list',
   'patch remove',
   'refreeze',
   'release',
-  'run',
-  'shout',
   'show',
   'submit',
-  'sweep',
-  'tour',
   'verify',
   'why',
   'why file',
@@ -597,11 +596,34 @@ catalogCase('[A1] command results match the catalog across roots: items, shouts 
   await json(box, repo, 'escalate', ['5', '--note', 'the first route needs another pass']);
   await json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
   await json(box, repo, 'hold', ['app', '--off']);
+}, ['add', 'check', 'claim', 'done', 'edit', 'escalate', 'fact', 'hold', 'init', 'join', 'list', 'merged', 'next', 'patch', 'refreeze', 'release', 'show', 'spec', 'submit', 'verify', 'whoami', 'why', 'withdraw', 'worktree']);
 
-  await json(box, secondPath, 'shout', ['Please decide', '--decision', '--kind', 'question']);
+
+catalogCase('[A1] command results match the catalog across roots: shouts, runs and next', [
+  'answer',
+  'decisions',
+  'forget',
+  'inbox',
+  'next',
+  'pass',
+  'run',
+  'shout',
+  'sweep',
+  'tour',
+], async () => {
+  const box = await project();
+  const { repo } = box;
+
+  const review = await json(box, repo, 'worktree', ['review']);
+  const reviewPath = review.path;
+  const secondPath = join(box.dir, 'review-two');
+  await box.git(repo, 'worktree', 'add', '-q', secondPath, '-b', 'review/two');
+  await json(box, secondPath, 'join', ['review']);
+  await json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
+  const first = await json(box, secondPath, 'shout', ['First ask', '--decision', '--kind', 'question']);
   await json(box, repo, 'decisions');
-  await json(box, repo, 'pass', ['1', 'The test run is complete']);
-  await json(box, repo, 'answer', ['2', 'Yes, keep the change', '--as', 'person']);
+  const passed = await json(box, repo, 'pass', [String(first.id), 'The test run is complete']);
+  await json(box, repo, 'answer', [String(passed.id), 'Yes, keep the change', '--as', 'person']);
   await json(box, secondPath, 'inbox');
   await json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 
@@ -622,7 +644,7 @@ catalogCase('[A1] command results match the catalog across roots: items, shouts 
   assert.ok(tourRepo && existsSync(tourRepo), 'the reported tour repo exists until the test cleans it up');
   assert.match(basename(dirname(tourRepo)), /^pullboard-tour-/, 'cleanup is confined to the generated tour folder');
   TEMP_DIRS.push(dirname(tourRepo));
-}, ['add', 'answer', 'check', 'claim', 'decisions', 'done', 'edit', 'escalate', 'fact', 'forget', 'hold', 'inbox', 'init', 'join', 'list', 'merged', 'next', 'pass', 'patch', 'refreeze', 'release', 'run', 'shout', 'show', 'spec', 'submit', 'sweep', 'tour', 'verify', 'whoami', 'why', 'withdraw', 'worktree']);
+}, ['add', 'answer', 'decisions', 'forget', 'inbox', 'init', 'join', 'next', 'pass', 'run', 'shout', 'sweep', 'tour', 'whoami', 'worktree']);
 
 
 catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', [
@@ -1398,13 +1420,21 @@ catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real
 }, ['add', 'field', 'init']);
 
 /**
- * The four run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
- * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; four files run on four runners.
+ * The run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
+ * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; separate files run on separate runners.
  */
 const CATALOG_GROUPS = {
-  results: [
-    '[A1] command results match the catalog across roots: reads, spec and hooks',
-    '[A1] command results match the catalog across roots: items, shouts and runs',
+  'results-a1': [
+    '[A1] command results match the catalog across roots: reads',
+  ],
+  'results-a2': [
+    '[A1] command results match the catalog across roots: spec and hooks',
+  ],
+  'results-b1': [
+    '[A1] command results match the catalog across roots: items and spec changes',
+  ],
+  'results-b2': [
+    '[A1] command results match the catalog across roots: shouts, runs and next',
   ],
   lanes: [
     '[A1,B21,B27] a lane decision is answered by its agent through CLI JSON',
@@ -1420,20 +1450,26 @@ const CATALOG_GROUPS = {
   ],
   commands: [
     '[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON',
-    '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
     '[A1] intake records a real outside pull request through the CLI',
-    '[A1,C7] test runs named test files as a pulled job and reports the runner',
+    '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
+    '[A1,C7,#8842] route suggests light items through the catalog',
+    '[A1,C7] rules replays the event log through the catalog',
+  ],
+  'commands-b': [
+    '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
     '[A1,H11] sync shares a board through a real Git remote without an account',
+    '[A1,C7] compact reports a dry run through the catalog',
+    '[A1,C7,#8071] replay reports a table through the catalog',
+    '[A1,C7,#8072] explain reports a table through the catalog',
+  ],
+  'commands-c': [
+    '[A1,C7] test runs named test files as a pulled job and reports the runner',
     '[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON',
     '[A1,C7] additive roots expose a real report and refuse missing native audit evidence',
     '[A1,C7] red explain reports absent evidence through the catalog',
     '[A1,C7] mutate reports caught and missed faults through the catalog',
-    '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
-    '[A1,C7,#8842] route suggests light items through the catalog',
-    '[A1,C7] rules replays the event log through the catalog',
-    '[A1,C7] compact reports a dry run through the catalog',
-    '[A1,C7,#8071] replay reports a table through the catalog',
-    '[A1,C7,#8072] explain reports a table through the catalog',
+  ],
+  'commands-d': [
     '[A1,C7] contribute check reports an accepted record through the catalog',
     '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
     '[A1,C7,#8378] moves reports each move table state through real CLI JSON',

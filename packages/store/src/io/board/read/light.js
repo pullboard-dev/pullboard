@@ -95,18 +95,24 @@ export function boardId(board) {
   return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('board_id').meta_value;
 }
 
+/** An item holds files in flight while it is claimed, submitted, or verified and not yet merged. */
+const inFlightNow = item => item.item_status === 'claimed' || item.item_status === 'submitted'
+  || (item.item_status === 'verified' && !item.item_merged_commit);
+
 /**
  * Items, newest first, as a reader should see them. Closed items (verified, withdrawn) only when
- * asked.
+ * asked. With `inFlight`, only the items holding files in flight (claimed, submitted, verified and not
+ * merged), read without the board's open and landed history [C7,#10795].
  *
  * @param {any} board
- * @param {{ lane?: string, all?: boolean }} [filter]
+ * @param {{ lane?: string, all?: boolean, inFlight?: boolean }} [filter]
  * @returns {any[]}
  */
-export function listItems(board, { lane, all = false } = {}) {
+export function listItems(board, { lane, all = false, inFlight = false } = {}) {
   const hasLane = lane !== undefined && lane !== null;
+  if (inFlight) all = false;
   // One command lists the board's items many times (next did 19 times); the same unchanged board answers from memory.
-  const key = `${hasLane ? lane : ''}\0${all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
+  const key = `${hasLane ? lane : ''}\0${inFlight ? 'in-flight' : all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
   const version = boardDataVersion(board);
   const remembered = LISTED.get(board.db)?.get(key), at = now(board);
   // Any reader's clock may reuse the list: lapsed claims stay lapsed later, and live ones hold until the first expiry.
@@ -117,24 +123,27 @@ export function listItems(board, { lane, all = false } = {}) {
   if (!all) {
     const everything = LISTED.get(board.db)?.get(`${hasLane ? lane : ''}\0true\0${board.executionEngineVersion ?? ENGINE_VERSION}`);
     if (everything && everything.version === version && everything.at <= at && !(everything.expires <= at)) {
-      const open = everything.items.filter(item => item.item_status !== 'verified' && item.item_status !== 'withdrawn');
+      const open = everything.items.filter(inFlight ? inFlightNow : item => item.item_status !== 'verified' && item.item_status !== 'withdrawn');
       if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
       LISTED.get(board.db).set(key, { at, version, expires: everything.expires, items: open.map(item => ({ ...item })) });
       return open.map(item => ({ ...item }));
     }
   }
-  const rows = board.db.prepare(listItemsSql({ all, hasLane })).all(...(hasLane ? [lane] : []));
+  const rows = board.db.prepare(listItemsSql({ all, hasLane, inFlight })).all(...(hasLane ? [lane] : []));
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
-  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
+  const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'review_policy', 'expected_build', 'landed'].includes(key)) : [];
   // Every item's hand-off record in one read of the job tables, where the record lives [C7].
   const records = handoffRecords(board.db, { live: true });
   const pulled = pulledGateRecords(board.db, null, Date.parse(at));
-  const items = rows.map((row) => {
+  const normalized = rows.map((row) => {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
+    // Labels read these two fields; the level is the route, and strict review is a stored policy with a review family or the sensitive flag (verify is not imported here).
+    item.item_level = item.item_route;
+    if (family !== null || strictPolicy(row.review_policy)) item.item_review_tier = 'strict';
     item.item_stage = itemStage(item, pulled.get(item.item_id) ?? records.get(item.item_id) ?? null, Boolean(row.landed), at);
     if (item.item_stage === 'in the gate' && pulled.get(item.item_id)?.noRunner) item.item_gate_runner = 'none';
     // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
@@ -145,12 +154,23 @@ export function listItems(board, { lane, all = false } = {}) {
     if (imported) item.item_rehome_import = JSON.parse(imported);
     return item;
   });
+  // A claim whose lease lapsed reads as open above, so it leaves the in-flight list exactly as it leaves the all-items one.
+  const items = inFlight ? normalized.filter(inFlightNow) : normalized;
   // A held claim reads as open once its lease passes, so the remembered list lasts only until the first future lease
   // ends; a lapsed claim held by its gate changes only with the gate's board_meta write, which moves the data version.
   const expires = items.filter(item => item.item_status === 'claimed' && (item.item_lease_until ?? '') > at).map(item => item.item_lease_until).sort()[0];
   if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
   LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
+}
+
+/** Whether a stored review policy names a review family or marks the item sensitive; an unreadable policy is not strict. */
+function strictPolicy(stored) {
+  if (stored === null || stored === undefined) return false;
+  try {
+    const policy = JSON.parse(stored);
+    return policy?.sensitive === true || Boolean(policy?.reviewFamily);
+  } catch { return false; }
 }
 
 /**
@@ -160,17 +180,20 @@ export function listItems(board, { lane, all = false } = {}) {
  * all-items list of a 3,800-item board made thousands of scattered event reads and next ran past its routing
  * budget on a cold board [#3848]. The merged events are read once, through the event kind index.
  *
- * @param {{ all: boolean, hasLane: boolean }} filter
+ * @param {{ all: boolean, hasLane: boolean, inFlight?: boolean }} filter
  * @returns {string}
  */
-export function listItemsSql({ all, hasLane }) {
-  return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build,
+export function listItemsSql({ all, hasLane, inFlight = false }) {
+  const scope = inFlight ? "(item_status IN ('claimed','submitted') OR (item_status='verified' AND COALESCE(item_merged_commit,'')=''))"
+    : all ? '1' : "item_status NOT IN ('verified','withdrawn')";
+  return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, policy.meta_value AS review_policy, expected.meta_value AS expected_build,
       item.item_id IN (SELECT item_id FROM event WHERE event_kind='merged') AS landed
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
       LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
+      LEFT JOIN board_meta policy ON policy.meta_key='review_independence:' || item.item_id
       LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
-      AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`;
+      AND ${scope}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`;
 }
 
 /** Remembered item lists by connection and filter; each entry names the board data version it read. */
@@ -187,7 +210,8 @@ export function agentAt(board, path) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
   if (!agent) return agent;
   const model = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${agent.agent_id}`)?.meta_value ?? null;
-  return withSeatPresence(board, [{ ...agent, agent_model: model, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
+  const role = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_role:${agent.agent_id}`)?.meta_value ?? null;
+  return withSeatPresence(board, [{ ...agent, agent_model: model, agent_role: role, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
 }
 
 /** The board's time source and a snapshot over an open read-only connection, with the native engine thresholds [C7]. */

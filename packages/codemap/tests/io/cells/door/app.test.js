@@ -46,26 +46,26 @@ function movedApp(t, { body = 'export const run = () => 1;\n', door = "export { 
   return { ...project, moved: () => plan(root, '--moved', 'app:cli') };
 }
 
-test('an app core.js that index.js re-exports and whose closure holds only relative files passes [C7,D3]', t => {
+test('codemap.app.an-app-core-js-that: an app core.js that index.js re-exports and whose closure holds only relative files passes [C7,D3]', t => {
   const { moved } = movedApp(t);
   const run = moved();
   assert.deepEqual(run.problems, []);
   assert.equal(run.status, 0);
 });
 
-test('a light app door that imports a bare package is refused with its reason [C7,D3]', t => {
+test('codemap.app.a-light-app-door-that: a light app door that imports a bare package is refused with its reason [C7,D3]', t => {
   const { moved } = movedApp(t, { body: "import { thing } from 'left-pad';\nexport const run = () => thing;\n" });
   const run = moved();
   assert.equal(run.status, 1);
   assert.ok(run.problems.some(text => text.includes('left-pad') && text.includes('light front door')), run.problems.join('\n'));
 });
 
-test('an app light door must be apps/<name>/core.js and be re-exported by index.js, and an app pure door stays refused [C7,D3]', t => {
+test('codemap.app.an-app-light-door-must: an app light door must be apps/<name>/core.js and be re-exported by index.js, and an app pure door stays refused [C7,D3]', t => {
   assert.ok(movedApp(t, { value: 'apps/cli/other.js' }).moved().problems.some(text => text.includes('lightFrontDoor must be apps/cli/light.js')));
   assert.ok(movedApp(t, { key: 'pureFrontDoor' }).moved().problems.some(text => text.includes('pureFrontDoor must be apps/cli/light.js')));
 });
 
-test('a declared apps core.js is no stray in the cell lints, an undeclared one is [C7,D3]', t => {
+test('codemap.app.a-declared-apps-core-js: a declared apps core.js is no stray in the cell lints, an undeclared one is [C7,D3]', t => {
   const { root, put } = movedApp(t);
   put('packages/codemap/data/plan/path-map/cli.json', JSON.stringify({ 'src/cli.js': BODY }));
   const strays = () => cellLintReport(root, { importsIn: sources => sources.map(() => []), commonJsIn: sources => sources.map(() => false) }).metrics.strays.findings.map(row => row.key);

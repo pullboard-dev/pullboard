@@ -43,6 +43,7 @@ import {
 } from '../../../../packages/seats/index.js';
 import {
   detectGate,
+  detectLanguages,
   detectTestGlobs,
   settingCommand,
 } from '../../../../packages/gate/index.js';
@@ -54,9 +55,12 @@ import {
 import { machineHome } from '../../../../packages/resources/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { reviewerStartup } from './next/steps.js';
+import { withAffectedDefault } from '../logic/init/affected-default.js';
+import { languageNotes } from '../logic/init/language-notes.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { remoteShell } from '../../../../packages/person/index.js';
 import { declaredAgentTools } from './skills.js';
+import { installCodexAutomation } from './skills.js';
 import { installSkills } from './skills.js';
 import {
   AGENTS_END,
@@ -821,7 +825,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const configured = configuredGate(root);
-  const config = JSON.parse(configTemplate(gate, detectFixers(root)));
+  const config = withAffectedDefault(JSON.parse(configTemplate(gate, detectFixers(root))), detectLanguages(root));
   // A repo's own test files are protected as bar files for every detected language, not only Node's [#3707].
   const testGlobs = detectTestGlobs(root);
   if (testGlobs.length) config.claim = { barTestFiles: [...defaults().claim.barTestFiles, ...testGlobs] };
@@ -840,6 +844,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
     ...installSkills(root, onWrite, agentTools),
+    ...installCodexAutomation(root, onWrite, agentTools),
     ...(agentHooks ? configureAgentHooks(root, { legacyResume: RESUME_HOOK, onWrite }) : ['skipped agent nudges (--no-hooks)']),
     ...writeMcpConfig(root, onWrite),
   ];
@@ -866,6 +871,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
       ? `no gate yet: record the command that proves the build with ${settingCommand(root, gate)}`
       : `no test command detected; ask the person which command tests this project, then record it with pullboard gate set '<command>'; if this board has no build, use ${settingCommand(root)} to check its spec and practice files; a second agent review checks the actual work`);
   }
+  notes.push(...languageNotes(detectLanguages(root)));
   if (written.length) notes.push(`git add -f -- ${written.map((path) => `'${path.replaceAll("'", "'\\''")}'`).join(' ')}`);
   return notes;
 }

@@ -17,18 +17,18 @@ function missingScriptPaths(root) {
     .filter(word => /^[\w./-]+\.(?:js|mjs|json)$/u.test(word) && !existsSync(join(root, word))).map(path => `${name}: ${path}`));
 }
 
-test('clause 1: every file path a package.json script names exists on main [C7]', () => {
+test('gate.package-scripts.every-file-path-package-json: clause 1: every file path a package.json script names exists on main [C7]', () => {
   assert.deepEqual(missingScriptPaths(ROOT), []);
 });
 
-test('clause 1: the checker flags a script that names a file missing from a synthetic package [C7]', () => {
+test('gate.package-scripts.checker-flags-script-names-file: clause 1: the checker flags a script that names a file missing from a synthetic package [C7]', () => {
   const fixture = privateFixtureFiles('pullboard-package-scripts-');
   fixture.write('package.json', JSON.stringify({ scripts: { ok: 'node tests/present.test.js', broken: 'node tests/missing-example.test.js' } }));
   fixture.write('tests/present.test.js', '');
   assert.deepEqual(missingScriptPaths(fixture.root), ['broken: tests/missing-example.test.js']);
 });
 
-test('clause 2: no live test covers the hosted shapes, so the hosted-shapes script is removed rather than repointed [C7]', () => {
+test('gate.package-scripts.live-test-covers-hosted-shapes: clause 2: no live test covers the hosted shapes, so the hosted-shapes script is removed rather than repointed [C7]', () => {
   const { scripts } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.equal(Object.hasOwn(scripts, 'hosted-shapes'), false);
 });

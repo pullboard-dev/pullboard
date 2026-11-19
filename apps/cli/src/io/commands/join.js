@@ -13,6 +13,7 @@ import {
   COORDINATOR,
   COORDINATOR_GUIDE_FILE,
   reviewCanonicalFamilies,
+  joinCoordinatorSeat,
 } from '../../../../../packages/config/index.js';
 import {
   isLane,
@@ -53,7 +54,8 @@ function registeredFamily(label) {
 
 /**
  * Join a lane on the board host board.url names [P7]. The served board registers the seat with a remote marker in
- * place of a path here, and this worktree's git config pullboard.agent keeps its name for later board calls.
+ * place of a path here, and this worktree's git config keeps its name (pullboard.agent) and its own key
+ * (pullboard.seatKey), which every later move as this seat carries [#10790].
  * @param {any} io
  * @param {{ positionals: string[], values: any }} parsed
  * @param {string} origin The board host, as the seat prints it.
@@ -69,18 +71,25 @@ export async function joinRemote(io, { positionals, values }, origin, postMove) 
   // Per-worktree config, so each seat's worktree in one clone keeps its own name.
   gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
   gitExecFileSync(['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
+  // A board host from before seat keys issues none: the old key is removed so it is never sent as the new seat's.
+  if (result.key) gitExecFileSync(['config', '--worktree', 'pullboard.seatKey', result.key], { cwd: ctx.info.root, stdio: 'ignore' });
+  else try { gitExecFileSync(['config', '--worktree', '--unset', 'pullboard.seatKey'], { cwd: ctx.info.root, stdio: 'ignore' }); } catch { /* none was kept */ }
   io.result?.({ agent: result.agent, lane, route, model, board: origin });
   io.say(`joined as ${result.agent} in the ${lane} lane via ${origin}${route === 'light' ? ', on the light route' : ''}`);
 }
 
 /** Run `pullboard join` and return its exit code. */
-export async function run(io, { first, values }) {
+export async function run(io, { first: named, values }) {
   const ctx = context(io);
+  // laneMode off: a seat names no lane; it is labelled with the first declared one and next serves every lane [C7,#8906].
+  const first = named ?? (ctx.config.laneMode === 'off' && !ctx.info.isMain ? laneNames(ctx.config).filter(lane => lane !== COORDINATOR)[0] : undefined);
   const folder = itemFolderSeat(ctx.info.root);
   if (folder) {
     const from = folder.seat ? JSON.stringify(folder.seat) : 'the lane worktree this folder was made from';
     throw new Refused('JOIN_IN_ITEM_FOLDER', `${ctx.info.root} is an item folder, not a lane worktree; a seat joined here is lost with the folder and its work. Run pullboard from ${from} instead, and join only from a lane worktree made with git worktree add ../<repo>-<lane>`);
   }
+  if (values.role !== undefined && values.role !== 'advisor') throw new Refused('BAD_ROLE', 'use --role advisor, or leave --role off for an ordinary seat');
+  if (values.role !== undefined && ctx.info.isMain) throw new Refused('BAD_ROLE', 'the main checkout is the coordinator, not an advisor; join an advisor from a worktree');
   const wake = seatWakeCommand(values.wake, ctx.info.root);
   const runtime = runtimeSessionIdentity();
   const parent = values.parent === undefined ? runtime?.parent : parentIdentity(values.parent);
@@ -106,7 +115,9 @@ export async function run(io, { first, values }) {
     io.say(`coordinator: read ${COORDINATOR_GUIDE_FILE} before you route anything`);
     return 0;
   }
-  if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
+  // join.coordinatorSeat (off by default, read here in the command layer): a second coordinator-lane seat in a worktree [#10573].
+  const coordinatorSeat = first === COORDINATOR && joinCoordinatorSeat();
+  if (!first || (first === COORDINATOR && !coordinatorSeat) || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
@@ -118,9 +129,9 @@ export async function run(io, { first, values }) {
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
   const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
-  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && !values['lock-lane'] && values['review-limit'] === undefined) {
+  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && values.role === undefined && !values['lock-lane'] && values['review-limit'] === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
-    io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, path: ctx.info.root,
+    io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, level: existing.agent_route, path: ctx.info.root,
       model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
     io.say(`already joined as ${displayName}${existing.agent_family ? ` (family ${existing.agent_family})` : ''}; run pullboard next`);
     return 0;
@@ -133,16 +144,16 @@ export async function run(io, { first, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(coordinatorSeat ? { coordinatorSeat: true } : {}), ...(values['lock-lane'] ? { lockLane: true } : {}), ...(values.role === undefined ? {} : { role: values.role }), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(sameSeat ? { alreadyJoined: true } : {}) });
+  io.result?.({ agent: id, lane: first, route, level: route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(values.role === undefined ? {} : { role: values.role }), ...(sameSeat ? { alreadyJoined: true } : {}) });
   io.say(sameSeat
     ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
-    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
+    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${values.role === undefined ? '' : ` as an ${values.role}`}${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
   return 0;
 }

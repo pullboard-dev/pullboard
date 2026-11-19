@@ -16,7 +16,7 @@ function offered(t, landing, extra = {}) {
   return job.steps.find(step => step.name === 'offered').payload.payload;
 }
 
-test('clause 1: offerLandingJob marks the land payload shardProof only when landing.shardProof is on [C7,#8255]', t => {
+test('api.land-shard-proof-mark.offerlandingjob-marks-land-payload-shardproof: clause 1: offerLandingJob marks the land payload shardProof only when landing.shardProof is on [C7,#8255]', t => {
   assert.equal('shardProof' in offered(t, null, { shardGate: GATE }), false, 'off: the payload carries no mark, whatever gate the offerer holds');
   assert.equal('shardProof' in offered(t, { shardProof: false }, { shardGate: GATE }), false, 'set off: the same');
   assert.deepEqual(offered(t, { shardProof: true }, { shardGate: GATE }).shardProof, GATE, 'on: the payload carries the gate the proof\'s shards run');

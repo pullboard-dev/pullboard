@@ -20,7 +20,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('clause 1: a lane agent drafts a row and cites it without leaving its lane [S1,B26]', async () => {
+test('cli.journeys-hooks-drafts.a-lane-agent-drafts-a-row: clause 1: a lane agent drafts a row and cites it without leaving its lane [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
   assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Show the list', '--criterion', 'web/list.html exists')).code, 0);
   const claimed = (await box.runLocal(box.web, 'claim', '1'));
@@ -33,7 +33,7 @@ test('clause 1: a lane agent drafts a row and cites it without leaving its lane 
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'list.html'), '<ul></ul>\n');
   box.git(box.web, 'add', 'web/list.html');
-  const commit = box.tryGit(box.web, 'commit', '-q', '-m', `feat(web): show the list [${id}]`);
+  const commit = await box.tryGit(box.web, 'commit', '-q', '-m', `feat(web): show the list [${id}]`);
   assert.equal(commit.status, 0, `the lane cites its drafted row in a feature commit: ${commit.stderr}`);
   const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, `the lane submits with the gate pullboard spec check: ${submitted.out}${submitted.err}`);
@@ -50,7 +50,7 @@ test('clause 1: a lane agent drafts a row and cites it without leaving its lane 
   assert.match(row(), /\[approved, must\]/u, 'the approved row is applied');
 });
 
-test('clause 2: a lane draft and a coordinator draft never share an id, in either order [S1,B26]', async () => {
+test('cli.journeys-hooks-drafts.a-lane-draft-and-a-coordinator: clause 2: a lane draft and a coordinator draft never share an id, in either order [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
   const draft = async (cwd, text) => {
     const result = (await box.runLocal(cwd, 'spec', 'draft', text, '--json'));
@@ -63,7 +63,7 @@ test('clause 2: a lane draft and a coordinator draft never share an id, in eithe
   // Coordinator first, committed through the installed hooks: the lane's older files lack it, and its next id still skips it.
   const coordinatorFirst = (await draft(box.repo, 'A coordinator row drafted first'));
   box.git(box.repo, 'add', 'SPEC.md');
-  const committed = box.tryGit(box.repo, 'commit', '-q', '-m', `docs(spec): draft two rows [${coordinatorAfter},${coordinatorFirst}]`);
+  const committed = await box.tryGit(box.repo, 'commit', '-q', '-m', `docs(spec): draft two rows [${coordinatorAfter},${coordinatorFirst}]`);
   assert.equal(committed.status, 0, committed.stderr);
   const laneAfter = (await draft(box.web, 'A lane row drafted after'));
   const ids = [laneFirst, coordinatorAfter, coordinatorFirst, laneAfter];
@@ -82,7 +82,7 @@ test('clause 2: a lane draft and a coordinator draft never share an id, in eithe
   assert.notEqual(approve.code, 0, 'a lane cannot approve its own draft; the person does');
 });
 
-test('clause 3: a lane draft and a main-checkout draft started at the same moment keep distinct ids [S1,B26]', async () => {
+test('cli.journeys-hooks-drafts.a-lane-draft-and-a-main: clause 3: a lane draft and a main-checkout draft started at the same moment keep distinct ids [S1,B26]', async () => {
   const box = e2e.project('pullboard spec check');
   const cli = resolve(import.meta.dirname, '../../pullboard.js');
   /** Start one real spec draft without waiting for it. */

@@ -10,7 +10,7 @@ import {
 
 const MINUTE = 60_000;
 
-test('claim health carries building, stalled, waiting and unknown-idle claims from the board read [B4,C7,#3039]', t => {
+test('health.activity.claim-health-states: claim health carries building, stalled, waiting and unknown-idle claims from the board read [B4,C7,#3039]', t => {
   const at = Date.UTC(2026, 10, 6, 12, 0, 0);
   const board = openBoard(':memory:', { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
@@ -40,7 +40,7 @@ test('claim health carries building, stalled, waiting and unknown-idle claims fr
   assert.equal(health.size, 4);
 });
 
-test('the projection reads a snapshot row into state, idle minutes, waiting ids and handoff pin [B4,C7,#3039]', () => {
+test('health.activity.snapshot-projection: the projection reads a snapshot row into state, idle minutes, waiting ids and handoff pin [B4,C7,#3039]', () => {
   const rows = claimHealthProjection({ claims: [{ id: 7, health: 'stalled', idleMs: 25 * MINUTE + 5, handoff: { pin: 'refs/pullboard/h' } }, { id: 8, health: 'building', idleMs: NaN }] });
   assert.deepEqual(rows.get(7), { state: 'stalled', idleMinutes: 25, waitingOn: [], handoffRef: 'refs/pullboard/h' });
   assert.deepEqual(rows.get(8), { state: 'building', idleMinutes: null, waitingOn: [], handoffRef: null });

@@ -10,7 +10,7 @@ const CLASSIC = 'gh' + 'p_' + 'a'.repeat(36);
 const FINE = 'github' + '_pat_' + 'b'.repeat(50);
 const KEY = '-----' + 'BEGIN RSA PRIVATE ' + 'KEY-----';
 
-test('clause 1: contributionSecrets returns the line and kind of an AWS key id, GitHub tokens and a private key header [C7]', () => {
+test('commits.logic-contribution-secrets.clause-1-contributionsecrets-returns-the: clause 1: contributionSecrets returns the line and kind of an AWS key id, GitHub tokens and a private key header [C7]', () => {
   const text = ['intro', `key ${AWS} here`, `token=${CLASSIC}`, KEY, `pat ${FINE}`].join('\n');
   assert.deepEqual(contributionSecrets(text), [
     { line: 2, kind: 'aws-access-key-id' },
@@ -20,7 +20,7 @@ test('clause 1: contributionSecrets returns the line and kind of an AWS key id, 
   ]);
 });
 
-test('clause 1: contributionSecrets returns an empty list for ordinary text including a 40-hex commit sha [C7]', () => {
+test('commits.logic-contribution-secrets.clause-1-contributionsecrets-returns-an: clause 1: contributionSecrets returns an empty list for ordinary text including a 40-hex commit sha [C7]', () => {
   assert.deepEqual(contributionSecrets(`Fixed in ${'0123456789abcdef'.repeat(2)}01234567\nplain words, ghp is not a token`), []);
   assert.deepEqual(contributionSecrets(''), []);
 });

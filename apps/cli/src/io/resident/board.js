@@ -221,8 +221,19 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
-const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
+const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, residentStartFile, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
 const busyFile = residentBusyFile(pidFile);
+let startLockCleared = false;
+/**
+ * Remove the start lock the client that started this process took, once: when this process listens, when it leaves the
+ * slot to another, or when it exits before either. Never after, so a successor's starter keeps its own lock.
+ */
+function clearStartLock() {
+  if (startLockCleared) return;
+  startLockCleared = true;
+  try { unlinkSync(residentStartFile(pidFile)); } catch { /* Never taken or already gone. */ }
+}
+process.on('exit', clearStartLock);
 
 /** Whether a queued command's client has stopped waiting for it to start, and so runs it in-process itself. */
 const abandoned = request => Number.isFinite(request.sentAt) && Date.now() - request.sentAt > RESIDENT_START_CUTOFF_MS;
@@ -260,6 +271,20 @@ function clientStream(store, frame, isTTY, columns) {
   } };
 }
 
+/**
+ * Answer a client's call to a check this process holds loaded (an unknown name or a throw hands it back to the client's
+ * own child). Why here and not in main: a call is data in, data out, and has no command line to dispatch [C7,#5330].
+ */
+async function answerClientCall(request, send) {
+  const { answerCall, knownCall } = await import('./calls.js');
+  if (!knownCall(request.call)) return null;
+  const previous = process.env.GIT_OPTIONAL_LOCKS;
+  process.env.GIT_OPTIONAL_LOCKS = '0';
+  try { send({ t: 'result', value: await answerCall(request.call, request.payload ?? {}) }); } catch { return null; }
+  finally { if (previous === undefined) delete process.env.GIT_OPTIONAL_LOCKS; else process.env.GIT_OPTIONAL_LOCKS = previous; }
+  return 0;
+}
+
 /** Run one forwarded command and stream its output and exit code back. */
 async function serve(socket, request) {
   const send = (value) => { if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n'); };
@@ -283,6 +308,7 @@ async function serve(socket, request) {
       try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
       if (abandoned(request)) return null;
       send({ t: 'start' });
+      if (request.call) return await answerClientCall(request, send);
       // Written synchronously, so it holds even while this command blocks the event loop.
       try { writeFileSync(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
       const ceiling = residentCommandCeiling(baseEnv);
@@ -359,6 +385,7 @@ function listen() {
   /** Leave the path to the process that holds it, freeing the lock first. */
   const leave = (message) => {
     unlock?.();
+    clearStartLock();
     process.stderr.write(`pullboard resident: ${message}\n`);
     process.exit(0);
   };
@@ -388,6 +415,7 @@ function listen() {
         return leave(`cannot record the resident process in ${pidFile}: ${error.code ?? error.message}`);
       }
       unlock();
+      clearStartLock();
       // Idle time counts from when the process can serve, never from a slow start under load.
       lastActive = clock();
       watchIdle();

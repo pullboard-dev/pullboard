@@ -41,7 +41,7 @@ provideGateHopTable(leaseMs => ({ item, hop, now }, { name, actor, epoch }) => {
 const claim = (db, runner, now) => claimJob(db, { runner, now, leaseMs: LEASE, hop: gateClaimHop(true) });
 const post = (db, held, runner, now) => postReceipt(db, { job: held.job, runner, token: held.token, receipt: { ok: true }, now, leaseMs: LEASE, hop: gateClaimHop(true) });
 
-test('clause 1: a gate offered again at a candidate whose gate finished is claimed and reopens its hop at a later epoch [C7,#8464]', t => {
+test('api.jobs-retry-hop.gate-offered-again-candidate-whose: clause 1: a gate offered again at a candidate whose gate finished is claimed and reopens its hop at a later epoch [C7,#8464]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000);
   post(db, first, 'r1', 6000);
@@ -54,7 +54,7 @@ test('clause 1: a gate offered again at a candidate whose gate finished is claim
   assert.equal(readGateHop(db, 7).state, 'done', 'the retried gate finishes its reopened hop');
 });
 
-test('clause 1: a hop a resubmit ended at this candidate stays over, so its old gate job still ends as superseded [C7,#8353]', t => {
+test('api.jobs-retry-hop.hop-resubmit-ended-this-candidate: clause 1: a hop a resubmit ended at this candidate stays over, so its old gate job still ends as superseded [C7,#8353]', t => {
   const db = board(t);
   claim(db, 'r1', 5000);
   endGateHop(db, gateClaimHop(true), { item: 7, candidate: NEW, now: 6000, leaseMs: LEASE });

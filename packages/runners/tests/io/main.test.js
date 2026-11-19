@@ -1,3 +1,4 @@
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js packages/runners/src/io/policy.js packages/sandbox/src/io/trusted/policy/committed.js */
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { mkdtempSync } from 'node:fs';
@@ -17,7 +18,7 @@ import { packageFiles } from '../../index.js';
 import { runnerPackage } from '../../index.js';
 import { toolSourcePath } from '../../index.js';
 
-test("the runner's computed capsule is closed under its relative imports [C7,O5]", () => {
+test('runners.main.the-runner-s-computed-capsule-is: the runner\'s computed capsule is closed under its relative imports [C7,O5]', () => {
   const root = resolve(import.meta.dirname, '../../../..');
   const capsule = runnerPackage(root);
   const allowed = new Set(packageFiles(root));
@@ -32,7 +33,7 @@ test("the runner's computed capsule is closed under its relative imports [C7,O5]
   }
 });
 
-test('the moved runner load body keeps unrelated front-door modules out of the worker capsule [C7]', () => {
+test('runners.main.the-moved-runner-load-body-keeps: the moved runner load body keeps unrelated front-door modules out of the worker capsule [C7]', () => {
   const root = resolve(import.meta.dirname, '../../../..');
   const files = runnerPackage(root).files;
   assert.equal(Object.hasOwn(files, 'src/runner-load.js'), false, 'the worker reaches the canonical load body without the compatibility hop');
@@ -46,7 +47,7 @@ test('the moved runner load body keeps unrelated front-door modules out of the w
 });
 
 /** Compare real manifest-derived closures, allowing only the removed transparent compatibility hop. */
-test('the runner policy exact-leaf exception preserves every worker body byte [C7]', t => {
+test('runners.main.the-runner-policy-exact-leaf-exception: the runner policy exact-leaf exception preserves every worker body byte [C7]', t => {
   const installed = mkdtempSync(join(tmpdir(), 'pullboard-policy-closure-'));
   t.after(() => rmSync(installed, { recursive: true, force: true }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), installed);

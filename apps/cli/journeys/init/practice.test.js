@@ -24,7 +24,7 @@ import {
 import { standardDoctrine } from '../../../../packages/doctrine/index.js';
 import { practiceTemplate } from '../../../../packages/config/index.js';
 
-test('the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
+test('cli.journeys-init-practice.the-standard-practice-lints-clean-and: the standard practice lints clean, and every approved must-row names its enforcer [S6]', () => {
   const practice = parseSpec(practiceTemplate());
   assert.deepEqual(lintSpec(practice), []);
   assert.equal(practice.rows.length, 0, 'the repo starter no longer copies inherited rules [D4]');
@@ -37,7 +37,7 @@ test('the standard practice lints clean, and every approved must-row names its e
   assert.ok(approvedMusts.every((row) => row.gate));
 });
 
-test('the run guide takes one agent through the whole team, and init installs it beside the others [N31]', () => {
+test('cli.journeys-init-practice.the-run-guide-takes-one-agent: the run guide takes one agent through the whole team, and init installs it beside the others [N31]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-run-'));
   try {
     const guide = promptFor(root, 'run');
@@ -66,7 +66,7 @@ test('the run guide takes one agent through the whole team, and init installs it
   }
 });
 
-test('every role prints its guide without front matter [N6]', () => {
+test('cli.journeys-init-practice.every-role-prints-its-guide-without: every role prints its guide without front matter [N6]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-prompt-'));
   try {
     for (const role of Object.keys(ROLES)) {
@@ -80,7 +80,7 @@ test('every role prints its guide without front matter [N6]', () => {
   }
 });
 
-test("a repo's own guide overrides the shipped one [N6]", () => {
+test('cli.journeys-init-practice.a-repo-s-own-guide-overrides: a repo\'s own guide overrides the shipped one [N6]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-prompt-'));
   try {
     mkdirSync(join(root, '.pullboard', 'prompts'), { recursive: true });
@@ -91,7 +91,7 @@ test("a repo's own guide overrides the shipped one [N6]", () => {
   }
 });
 
-test('skills install once and are never overwritten [I2]', () => {
+test('cli.journeys-init-practice.skills-install-once-and-are-never: skills install once and are never overwritten [I2]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-skills-'));
   try {
     assert.match(installSkills(root)[0], /wrote Claude Code skills: pullboard-decompose/);
@@ -104,7 +104,7 @@ test('skills install once and are never overwritten [I2]', () => {
   assert.equal(withoutFrontMatter('---\nname: x\n---\n\n# Body\n'), '# Body\n');
 });
 
-test('the plan guide keeps git with the builder, routes for the fleet, and reads the conventions [N6]', () => {
+test('cli.journeys-init-practice.the-plan-guide-keeps-git-with: the plan guide keeps git with the builder, routes for the fleet, and reads the conventions [N6]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-prompt-'));
   try {
     const plan = promptFor(root, 'plan');

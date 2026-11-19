@@ -70,7 +70,7 @@ function history() {
   return rows;
 }
 
-test('compact Rigor causes equal the unchanged legacy oracle after every prefix [D1,N19,H16]', () => {
+test('rigor.counter.compact-equals-legacy: compact Rigor causes equal the unchanged legacy oracle after every prefix [D1,N19,H16]', () => {
   const events = history(), shards = new Map();
   for (let n = 0; n < events.length; n += 1) {
     const event = events[n];

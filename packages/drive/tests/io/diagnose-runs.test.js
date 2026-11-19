@@ -22,7 +22,7 @@ async function diagnoseOnce(board, runs, home) {
   return { driven, listed: flakeDiagnosesFor(board.db, 9, { runs }), rows: jobs(home), admitted: readGateDrive(board.db, 'gate:9:a', { runs }) };
 }
 
-test('clause 1: with a runs handle given (runs_store on), the diagnose job writes its job rows only to the runs file [P7,C7]', async t => {
+test('drive.diagnose-runs.with-a-runs-handle-given: clause 1: with a runs handle given (runs_store on), the diagnose job writes its job rows only to the runs file [P7,C7]', async t => {
   const board = fixtureBoard(t);
   const runs = { db: fixtureBoard(t).db };
   const { driven, listed, rows, admitted } = await diagnoseOnce(board, runs, runs.db);
@@ -34,7 +34,7 @@ test('clause 1: with a runs handle given (runs_store on), the diagnose job write
   assert.deepEqual(jobs(board.db), [], 'the board holds no job row');
 });
 
-test('clause 2: with no runs handle (runs_store off), the diagnose job writes the same board job rows as on main [P7,C7]', async t => {
+test('drive.diagnose-runs.with-no-runs-handle-runs: clause 2: with no runs handle (runs_store off), the diagnose job writes the same board job rows as on main [P7,C7]', async t => {
   const board = fixtureBoard(t);
   const off = await diagnoseOnce(board, null, board.db);
   assert.equal(off.driven.transition, 'attached');

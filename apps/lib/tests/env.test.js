@@ -35,7 +35,7 @@ function notice(output, names, paths) {
   for (const path of paths) assert.ok(!lines[0].includes(path), 'the diagnostic names selectors without their values');
 }
 
-test('run-tests clears inherited Git selectors before discovery and a fixture bare init preserves the scratch config [C7]', t => {
+test('lib.env.run-tests-clears-inherited-git-selectors-before: run-tests clears inherited Git selectors before discovery and a fixture bare init preserves the scratch config [C7]', t => {
   const box = fixture(t);
   const target = join(box.work, 'bare-target');
   mkdirSync(target);
@@ -55,7 +55,7 @@ test('run-tests clears inherited Git selectors before discovery and a fixture ba
   notice(child.stdout + child.stderr, SELECTORS, [git, box.scratch]);
 });
 
-test('a gate env override cannot carry GIT_DIR into bare init of a separate fixture [C7]', t => {
+test('lib.env.a-gate-env-override-cannot-carry-git: a gate env override cannot carry GIT_DIR into bare init of a separate fixture [C7]', t => {
   const box = fixture(t);
   const target = join(box.work, 'gate-target');
   mkdirSync(target);

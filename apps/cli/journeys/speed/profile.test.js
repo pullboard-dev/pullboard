@@ -17,6 +17,7 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
 import { residentPoolSize } from '../../src/io/resident/client.js';
 import { residentSocket } from '../../src/io/resident/client.js';
@@ -114,7 +115,7 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test('clause 1: one submit on a large board spawns at most 90 git processes, down from the 136 it spawned before [C7]', (t) => {
+test('cli.journeys-speed-profile.one-submit-on-a-large-board: clause 1: one submit on a large board spawns at most 90 git processes, down from the 136 it spawned before [C7]', (t) => {
   const box = largeBoard(t);
   box.beforeCleanup(() => stopResidents(box.repo));
   const recorder = networkRecorder(box.dir);
@@ -124,6 +125,12 @@ test('clause 1: one submit on a large board spawns at most 90 git processes, dow
   const submits = [0, 1, 2].map(run => added(`Speed submit ${run}`));
   json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: this test measures real spawns
   json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: this test measures real spawns
+  // A submitted item whose gate is not queued or running no longer counts as waiting, and the fixture seat holds one claim; the
+  // three runs each claim their own item, so the seat may hold the three, whatever state an earlier run's gate is in.
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, claims: { ...config.claims, perSeat: submits.length } } });
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.repo, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', 'chore: let the speed seat hold three claims'], { cwd: box.repo, env: box.env });
   const counts = [];
   const shapes = new Map();
   submits.forEach((id, run) => {
@@ -153,7 +160,7 @@ test('clause 1: one submit on a large board spawns at most 90 git processes, dow
   assert.ok(median <= 90, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 90 allowed`);
 });
 
-test('clause 2: the network recorder logs a TCP connect and a name lookup, so its empty log means no network [C7]', (t) => {
+test('cli.journeys-speed-profile.the-network-recorder-logs-a-tcp: clause 2: the network recorder logs a TCP connect and a name lookup, so its empty log means no network [C7]', (t) => {
   const box = largeBoard(t, { scale: { items: 0, events: 0, shouts: 0, seats: 0 } });
   const recorder = networkRecorder(box.dir);
   const probe = "import net from 'node:net'; import dns from 'node:dns';"
@@ -166,7 +173,7 @@ test('clause 2: the network recorder logs a TCP connect and a name lookup, so it
   assert.match(log, /dns localhost/u);
 });
 
-test('clause 3: a stand-in command that takes 300 ms fails, naming the command, its time and the 200 ms budget [C7]', () => {
+test('cli.journeys-speed-profile.a-stand-in-command-that-takes: clause 3: a stand-in command that takes 300 ms fails, naming the command, its time and the 200 ms budget [C7]', () => {
   const standIn = () => runFixtureChild(process.execPath, ['-e', 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300)'], // real process: this test measures real spawns
     { cwd: import.meta.dirname, encoding: 'utf8' });
   const measured = [measure('stand-in', () => ({ code: standIn().status, out: '', err: '' }))];

@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.reofferTrunkBusy'));
 }
 
-test('clause 3: landing.reofferTrunkBusy is a described setting, off by default, on only for an exact true [C7,#9102]', () => {
+test('config.io-reoffer-trunk-busy-setting.clause-3-landing-reoffertrunkbusy-is-a: clause 3: landing.reofferTrunkBusy is a described setting, off by default, on only for an exact true [C7,#9102]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

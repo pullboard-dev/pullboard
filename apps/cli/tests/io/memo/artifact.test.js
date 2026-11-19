@@ -38,7 +38,7 @@ function inventory(directory) {
 
 const FIRST = `${'1'.repeat(64)}.v8.gz`, SECOND = `${'2'.repeat(64)}.v8.gz`;
 
-test('clause 1 and 2: two large shared memos ride in the artifact bundle, and the runner seeds from it [C7]', t => {
+test('cli.io-memo-artifact.clause-1-and-2-two-large-shared: clause 1 and 2: two large shared memos ride in the artifact bundle, and the runner seeds from it [C7]', t => {
   const store = folder(t, 'fixture-memo-artifact-store-'), runner = folder(t, 'fixture-memo-artifact-runner-');
   absorbFixtureMemo(store, memo(FIRST, ['a', 'b'], 120 * 1024));
   absorbFixtureMemo(store, memo(SECOND, ['c', 'd'], 120 * 1024));
@@ -56,7 +56,7 @@ test('clause 1 and 2: two large shared memos ride in the artifact bundle, and th
   for (const name of [FIRST, SECOND]) assert.ok(deserialize(gunzipSync(readFileSync(join(runner, 'fixtures', name)))).entries.size === 2, `${name} seeded`);
 });
 
-test('clause 1: a memo the runner last returned with the same digest is not sent to it again [C7]', t => {
+test('cli.io-memo-artifact.a-memo-the-runner-last-returned-with: clause 1: a memo the runner last returned with the same digest is not sent to it again [C7]', t => {
   const store = folder(t, 'fixture-memo-artifact-held-');
   const held = memo(FIRST, ['a']);
   absorbFixtureMemo(store, held);

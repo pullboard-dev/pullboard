@@ -191,8 +191,7 @@ function placeControls() {
 function pageControl(target) {
   const kind = target.dataset.pageCtl, value = target.tagName === 'SELECT' ? target.value : target.dataset.value ?? '';
   // The control answers at once: it shows its new state and the address takes it now; the page redraws on the next turn.
-  const later = (then) => requestAnimationFrame(() => setTimeout(then, 0));
-  if (kind === 'new') { view.adding = true; later(() => { render(); $('add-title').focus(); }); return; }
+  if (kind === 'new') { view.adding = true; afterPaint(() => { render(); $('add-title').focus(); }); return; }
   if (kind === 'state') view.state = value;
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
@@ -205,7 +204,7 @@ function pageControl(target) {
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
   drawPageControls();
   address();
-  later(render);
+  afterPaint(render);
 }
 
 /** Open one of the strip's menus, or close it; a second press on its button closes it. */
@@ -267,7 +266,7 @@ function switchTab(tab, detail = null) {
   openTab(tab, detail);
   render({ tab: true });
   if (started === undefined || typeof requestAnimationFrame !== 'function') return;
-  requestAnimationFrame(() => setTimeout(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } }, 0));
+  afterPaint(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } });
 }
 
 /**
@@ -956,7 +955,7 @@ function switchTo(root, target = null, record = true) {
   seen = '';
   if (data) render();
   document.body.classList.add('switching');
-  return refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => {
+  return refresh().catch((error) => { $('live').textContent = offlineLine(error); }).finally(() => {
     if (generation === switchGeneration) document.body.classList.remove('switching');
     if (generation === switchGeneration && requestedItem !== null && view.item === requestedItem && view.root === root && view.tab === 'items') reveal();
   });
@@ -1129,10 +1128,10 @@ document.addEventListener('click', (event) => {
     }
     t.setAttribute('aria-expanded', String(open));
     if (panel) panel.hidden = !open;
-    requestAnimationFrame(() => setTimeout(() => {
+    afterPaint(() => {
       render();
       [...$('roadmap').querySelectorAll('[data-roadmap-key]')].find((head) => head.dataset.roadmapKey === key)?.focus({ preventScroll: true });
-    }));
+    });
     return;
   }
   if ('roadmapPage' in t.dataset) { view.roadmapPage = { release: t.dataset.roadmapPage, page: Number(t.dataset.page) || 1, per: view.roadmapPage?.per ?? 25 }; address(); render(); return; }
@@ -1451,7 +1450,7 @@ async function loadTransport() {
     const module = await pageStartup(document.documentElement).within(() => import(configuredTransportModule), 15_000, 'The relay client did not load within 15 seconds.');
     if (typeof module.createTransport !== 'function') throw new Error('The browser transport must export createTransport({ onUpdate }).');
     const configured = await module.createTransport({
-      onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = 'offline: ' + error.message; }) : Promise.resolve(),
+      onUpdate: () => transport ? refresh().catch((error) => { $('live').textContent = offlineLine(error); }) : Promise.resolve(),
       onOpenBoard: openApprovedBoard, waitForRender: true, // A phone's transport keeps its shell until didRender (#899).
     });
     if (!configured || typeof configured.request !== 'function') throw new Error('The browser transport must provide request(path, body).');
@@ -1460,7 +1459,7 @@ async function loadTransport() {
     return transport;
   })();
   try { return await transportLoading; }
-  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say(error.message + ' Check your connection, then reload this page.'); throw error; }
+  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say((${scope.startupFailureLine})(error, ${scope.relayCauseMessage})); throw error; }
   finally { transportLoading = null; }
 }
 
@@ -1493,8 +1492,8 @@ startPage().catch((error) => {
 // The relay transport keeps its own stream and timer. The local view reads on a timer only while it has no live
 // stream, and its live line says so (#545). Each timer asks which the page uses as it fires: the hosted page starts
 // out on the relay and turns to this machine's view once it reaches it (#513).
-if (!snapshot) setInterval(() => { if (!document.hidden && (transport || (hosted.local && hosted.relaySession && configuredTransportModule))) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, 3000);
-if (!snapshot) setInterval(() => { if (!document.hidden && !transport && !(hosted.local && hosted.relaySession && configuredTransportModule) && !connected()) refresh().catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }); }, FALLBACK_MS);
+if (!snapshot) setInterval(() => { if (!document.hidden && (transport || (hosted.local && hosted.relaySession && configuredTransportModule))) refresh().catch((error) => { $('live').textContent = offlineLine(error); }); }, 3000);
+if (!snapshot) setInterval(() => { if (!document.hidden && !transport && !(hosted.local && hosted.relaySession && configuredTransportModule) && !connected()) refresh().catch((error) => { $('live').textContent = offlineLine(error); }); }, FALLBACK_MS);
 setInterval(tickAges, 60000);
 `;
 }

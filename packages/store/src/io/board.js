@@ -79,7 +79,9 @@ import { editItem } from "./board/edit.js";
 import { validateItemEdit } from "./board/edit.js";
 import { attachItemPatch } from "./board/patch/attach.js";
 import { objectItemPatch } from "./board/patch/attach.js";
-import { removeItemPatch } from "./board/patch/remove.js";
+import { applyItemPatchRemoval } from "../../../items/index.js";
+import { getItem as itemForPatch } from "./board/query.js";
+import { invalidateItemPatch } from "./board/patch/attach.js";
 import { prepareClaim as preparedClaim } from "./board/claim.js";
 import { claim as applyPreparedClaim } from "./board/claim.js";
 import { admitSubmit as applySubmitAdmission } from "./board/claim.js";
@@ -94,6 +96,7 @@ import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
 import { verdictEvidence } from "./board/verify.js";
+import { prepareVerdictFacts } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -110,6 +113,7 @@ import { gateAtHead } from "./board/next.js";
 import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
+import { reserveItem } from "./board/hold/item.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -120,7 +124,7 @@ import { recordLandingFlake } from "./board/record/landing/flake.js";
 import { finishLandingBatch } from "./board/batch.js";
 import { intakeOutside } from "./board/outside/intake.js";
 import { applyRehomeItem } from "./board/apply/rehome.js";
-import { approveOutside } from "./board/outside/approve.js";
+import { approveOutside as applyOutsideApproval } from "./outside.js";
 import { setLaneLead } from "./board/lane/lead.js";
 import { activityDeliveryState } from "./board/delivery.js";
 import { activityInterruptWasDelivered } from "./board/delivery.js";
@@ -159,6 +163,14 @@ export {
   rehomeItem,
   reserveRehomeItemId,
 } from "./board/facade.js";
+
+/** Stop applying native bytes without discarding their historical author exclusions; joined from board/patch/remove.js so a cold command loads one module fewer [C7]. */
+function removeItemPatch(board, id, options) {
+  return applyItemPatchRemoval(board, id, options, { atomic, logEvent, getItem: itemForPatch, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
+/** Record the person's exact-commit owner approval; joined from board/outside/approve.js so a cold command loads one module fewer [C7]. */
+function approveOutside(board, id, options) { return applyOutsideApproval(board, id, options, atomic); }
 export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../verify/index.js";
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./baseline/check.js";
 
@@ -478,6 +490,7 @@ export {
   reserveNextReview,
   verify,
   verdictEvidence,
+  prepareVerdictFacts,
   reopen,
   merged,
   withdraw,
@@ -494,6 +507,7 @@ export {
   holdLane,
   releaseLane,
   holdItem,
+  reserveItem,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,
@@ -538,6 +552,6 @@ export function admitSubmit(board, id, options) {
   return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, prepareRecaptureSubmitHandoff, recaptureSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
 
 export { createItemSlice } from "./board/item/slice.js";

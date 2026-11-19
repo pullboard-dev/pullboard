@@ -67,7 +67,7 @@ async function startReports(t) {
   return { url: `http://127.0.0.1:${server.address().port}/`, next: () => (queued.length ? Promise.resolve(queued.shift()) : new Promise((done) => waiting.push(done))) };
 }
 
-test('clause 1: continuous requests across a code-change restart are every one answered, none refused or reset [C7]', { timeout: 120_000 }, async (t) => {
+test('api.handoff.continuous-requests-across-code-change: clause 1: continuous requests across a code-change restart are every one answered, none refused or reset [C7]', { timeout: 120_000 }, async (t) => {
   if (process.platform === 'win32') { t.skip('Windows hands no listening descriptor; serve restarts there as before'); return; }
   const project = cellProject(t, { real: true });
   const opened = openCellBoard(project.boardFile);
@@ -118,7 +118,7 @@ test('clause 1: continuous requests across a code-change restart are every one a
   assert.ok(replies.length > exitedAt, 'requests after the old process exited were answered by the new one');
 });
 
-test('clause 1: a handoff restart starts the new process before the old one stops accepting [C7]', async (t) => {
+test('api.handoff.handoff-restart-starts-new-process: clause 1: a handoff restart starts the new process before the old one stops accepting [C7]', async (t) => {
   const order = [];
   let revision = 'a'.repeat(40);
   const fresh = restartOnCodeMove({ root: '.', revision: () => revision, interval: 5, drain: 1_000, handoff: true, log: () => {},
@@ -131,7 +131,7 @@ test('clause 1: a handoff restart starts the new process before the old one stop
   assert.equal(moved.pid, 1);
 });
 
-test('clause 1: a new process that never listens leaves the old one serving [C7]', async (t) => {
+test('api.handoff.new-process-never-listens-leaves: clause 1: a new process that never listens leaves the old one serving [C7]', async (t) => {
   let closed = 0, relaunched = 0, revision = 'a'.repeat(40), said;
   const gaveUp = new Promise((done) => { said = done; });
   const fresh = restartOnCodeMove({ root: '.', revision: () => revision, interval: 5, drain: 1_000, handoff: true,

@@ -10,9 +10,9 @@ import { fixtureCommitAll } from '../../fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 const CASES = `import test from 'node:test';
-test('first case', () => {});
-test('second case (with parens)', () => {});
-test('third case', () => {});
+test('gate.io-main-cases.first-case: first case', () => {});
+test('gate.io-main-cases.second-case-with-parens: second case (with parens)', () => {});
+test('gate.io-main-cases.third-case: third case', () => {});
 `;
 
 /** A clean repository whose accepted focused command is the plain node runner with the TAP reporter. */
@@ -26,31 +26,34 @@ function fixtureRepo() {
 }
 
 /** The case names a run's TAP says passed. */
+const FIRST = 'gate.io-main-cases.first-case: first case';
+const SECOND = 'gate.io-main-cases.second-case-with-parens: second case (with parens)';
+const THIRD = 'gate.io-main-cases.third-case: third case';
 const ran = run => [...run.output.matchAll(/^ok \d+ - (.+)$/gmu)].map(match => match[1]);
 
-test('clause 1: a comparison given one case name runs only that case of a three-case file on base main [C7]', async () => {
+test('gate.io-main-cases.a-comparison-given-one-case-name: clause 1: a comparison given one case name runs only that case of a three-case file on base main [C7]', async () => {
   const root = fixtureRepo();
   try {
-    const filtered = await runMainComparison(root, 'three.test.js', { cases: ['second case (with parens)'] });
-    assert.deepEqual(ran(filtered), ['second case (with parens)'], JSON.stringify(filtered).slice(0, 1500));
+    const filtered = await runMainComparison(root, 'three.test.js', { cases: [SECOND] });
+    assert.deepEqual(ran(filtered), [SECOND], JSON.stringify(filtered).slice(0, 1500));
     assert.ok(filtered.receiptId, 'the filtered run leaves its own receipt');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('clause 2: a filtered run and a whole-file run of one file share no command, receipt or result [C7]', async () => {
+test('gate.io-main-cases.a-filtered-run-and-a-whole: clause 2: a filtered run and a whole-file run of one file share no command, receipt or result [C7]', async () => {
   const root = fixtureRepo();
   try {
-    const filtered = await runMainComparison(root, 'three.test.js', { cases: ['first case'] });
+    const filtered = await runMainComparison(root, 'three.test.js', { cases: [FIRST] });
     const whole = await runMainComparison(root, 'three.test.js');
-    assert.deepEqual(ran(whole), ['first case', 'second case (with parens)', 'third case'], 'the whole-file run ran every case after the filtered one');
+    assert.deepEqual(ran(whole), [FIRST, SECOND, THIRD], 'the whole-file run ran every case after the filtered one');
     assert.notEqual(filtered.receiptId, whole.receiptId);
     const command = 'node --test';
-    assert.notEqual(mainComparisonCommand(command, 'three.test.js', ['first case']), mainComparisonCommand(command, 'three.test.js'));
-    assert.notEqual(mainComparisonCommand(command, 'three.test.js', ['first case']), mainComparisonCommand(command, 'three.test.js', ['third case']));
+    assert.notEqual(mainComparisonCommand(command, 'three.test.js', [FIRST]), mainComparisonCommand(command, 'three.test.js'));
+    assert.notEqual(mainComparisonCommand(command, 'three.test.js', [FIRST]), mainComparisonCommand(command, 'three.test.js', [THIRD]));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('clause 1: an empty or non-string case list is refused, never run as the whole file [C7]', async () => {
+test('gate.io-main-cases.an-empty-or-non-string-case: clause 1: an empty or non-string case list is refused, never run as the whole file [C7]', async () => {
   const root = fixtureRepo();
   try {
     await assert.rejects(runMainComparison(root, 'three.test.js', { cases: [] }), error => error.code === 'USAGE');

@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { awaitNestedRun } from '../../../index.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServicesSource } from '../../fixtures/execution.js';
 import { HOST } from '../../fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 
@@ -42,7 +42,7 @@ async function execute(box, source) {
 }
 
 for (const [reason, infrastructureRetryCount] of [['cleanup-unverified', 0], ['cleanup-unverified', 1], ['worker-unresponsive', 1]]) {
-  test(`${reason} retry ${infrastructureRetryCount} drops its host pin and restarts admission time [C7]`, async t => {
+  test(`gate.io-requeue-unpins.retry-drops-its-host-pin-and: ${reason} retry ${infrastructureRetryCount} drops its host pin and restarts admission time [C7]`, async t => {
     const box = fixture(t);
     await execute(box, `
 import assert from 'node:assert/strict';
@@ -73,7 +73,7 @@ try {
   });
 }
 
-test('a quarantined pinned first runner sends the real command to the free second runner [C7]', async t => {
+test('gate.io-requeue-unpins.a-quarantined-pinned-first-runner-sends: a quarantined pinned first runner sends the real command to the free second runner [C7]', async t => {
   const box = fixture(t);
   const requests = join(box.directory, 'requests.jsonl');
   writeFileSync(join(box.bin, 'package.json'), JSON.stringify({ type: 'module' }));

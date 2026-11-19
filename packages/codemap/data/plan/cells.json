@@ -250,28 +250,43 @@
     },
     {
       "order": 47,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/47-app-view.json"
+      "name": "fs",
+      "file": "packages/codemap/data/plan/47-fs.json"
     },
     {
       "order": 48,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/48-app-runner.json"
+      "name": "clock",
+      "file": "packages/codemap/data/plan/48-clock.json"
     },
     {
       "order": 49,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/49-app-cli.json"
+      "name": "env",
+      "file": "packages/codemap/data/plan/49-env.json"
     },
     {
       "order": 50,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/50-app-lib.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/50-app-view.json"
     },
     {
       "order": 51,
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/51-app-runner.json"
+    },
+    {
+      "order": 52,
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/52-app-cli.json"
+    },
+    {
+      "order": 53,
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/53-app-lib.json"
+    },
+    {
+      "order": 54,
       "name": "app:relay",
-      "file": "packages/codemap/data/plan/51-app-relay.json"
+      "file": "packages/codemap/data/plan/54-app-relay.json"
     }
   ],
   "stays": [
@@ -435,10 +450,6 @@
     },
     {
       "path": "packages/codemap/src/io/cells/door.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "packages/codemap/src/io/cells/scripts/cache.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
@@ -1545,14 +1556,6 @@
       ]
     },
     {
-      "cell": "config",
-      "row": [
-        "test/registry.test.js",
-        "packages/config/tests/registry.test.js",
-        "seed"
-      ]
-    },
-    {
       "cell": "state",
       "row": [
         "test/bar-corrections.test.js",
@@ -2063,15 +2066,35 @@
         "packages/person/tests/logic/row-decisions.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/api-identity.test.js",
+        "packages/store/tests/io/board.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/board-capture.test.js",
+        "packages/store/tests/io/board/capture.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/shout-item.test.js",
+        "packages/store/tests/logic/board/item/baseline/shout.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
     {
       "path": "src/relay-checkpoint-worker.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/check-baseline.js",
       "cell": "app:lib"
     },
     {
@@ -2577,6 +2600,7 @@
     "board->seats",
     "board->spec",
     "board->state",
+    "board->stats",
     "board->store",
     "board->verify",
     "apps/lib->board"

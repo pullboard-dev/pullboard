@@ -22,14 +22,14 @@ const surfaces = [
   ["src/publish.js", "packages/github/src/shell/publish.js", ["publishTrunk"], provider9]
 ];
 
-test('GitHub front door preserves every exact provider binding [C7,CD60]', async () => {
+test('github.snapshot.provider-bindings: GitHub front door preserves every exact provider binding [C7,CD60]', async () => {
   for (const [old, moved, names, provider] of surfaces) {
     assert.deepEqual(Object.keys(provider).sort(), names, moved);
     for (const name of names) assert.equal(barrel[name], provider[name], old + '#' + name);
   }
 });
 
-test('the broader GitHub barrel cannot masquerade as the CI observation module [C7,CD60]', async () => {
+test('github.snapshot.barrel-not-ci-module: the broader GitHub barrel cannot masquerade as the CI observation module [C7,CD60]', async () => {
   assert.notDeepEqual(Object.keys(barrel).sort(), ['ciObservations']);
   assert.equal(typeof barrel.publishTrunk, 'function', 'the planted barrel route exposes an unrelated operation');
   assert.equal(Object.hasOwn(provider0, 'publishTrunk'), false, 'the CI provider never grants that operation');

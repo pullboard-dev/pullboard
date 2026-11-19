@@ -63,8 +63,10 @@ export function createBudgetMeasure(helpers) {
     sweep: 'releases and reopens board work', init: 'initializes a repository', takeover: 'takes over the coordinator seat',
     worktree: 'creates a worktree', heartbeat: 'records presence', tour: 'is an interactive walkthrough', help: 'is the reference page',
     export: 'prints the whole board as a data document meant for a file, never for an agent context',
-    log: 'prints every event row by row, unbounded by design (#9058), so a large board never builds one string',
   });
+
+  /** Commands whose text is the newest board events, which the measured commands themselves append in a different order and run count on each tree: the declared budget bounds them, the main-size compare cannot. */
+  const EVENT_DEPENDENT = new Set(['log']);
 
   /** Commands whose text reads machine-wide state, which an in-process call does not isolate the way a real process does. */
   const REAL_PROCESS = new Set(['waits']);
@@ -133,7 +135,7 @@ export function createBudgetMeasure(helpers) {
   function ratchetProblems(measured, mainSizes) {
     const problems = [];
     for (const [command, bytes] of Object.entries(measured)) {
-      if (Object.hasOwn(mainSizes, command) && bytes > mainSizes[command]) problems.push(`${command}: ${bytes} bytes, over its main size of ${mainSizes[command]}`);
+      if (!EVENT_DEPENDENT.has(command) && Object.hasOwn(mainSizes, command) && bytes > mainSizes[command]) problems.push(`${command}: ${bytes} bytes, over its main size of ${mainSizes[command]}`);
       if (bytes > outputBudget(command)) problems.push(`${command}: ${bytes} bytes, over its declared budget of ${outputBudget(command)}`);
     }
     return problems;

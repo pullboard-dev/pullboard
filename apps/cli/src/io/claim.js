@@ -17,6 +17,9 @@ import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
+import { relaxRequiredFamilyEnabled } from '../../../../packages/config/index.js';
+import { nextLightShapedStrong } from '../../../../packages/config/index.js';
+import { lightShaped } from '../../../../packages/seats/index.js';
 
 /**
  * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
@@ -29,6 +32,7 @@ async function gitSyncOn(ctx, board) {
   return false;
 }
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { recordCheckpoint } from './seat-checkpoint.js';
 import { sealExitCheckpoints } from './exit/checkpoint.js';
 import * as itemSessions from '../../../../packages/items/index.js';
@@ -59,8 +63,30 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
+import { relayQueueOnFailureEnabled } from '../../../../packages/config/index.js';
+import { flakesRereadRatchetEnabled } from '../../../../packages/config/index.js';
+import { lapsedSweepEnabled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
+
+/** claims.perSeat from one accepted config, or null when it leaves N to the board. */
+function seatCapOf(config) {
+  const n = config?.claims?.perSeat;
+  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
+
+/**
+ * The claims.perSeat a claim on this board obeys: accepted main's committed config, never this seat's checkout [C7,#10831].
+ * Why: a seat on a stale or edited branch read its own pullboard.json and sealed N = 5 into its claims after main set 1,
+ * so one builder held 6-8 claims per next. mainPolicy caches the committed bytes by commit, and the claim reads the same
+ * policy, so next runs no extra Git process for it.
+ *
+ * @param {any} ctx
+ * @returns {number | null}
+ */
+export function trunkPerSeat(ctx) {
+  return seatCapOf(mainPolicy(ctx.info.root).config);
+}
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
 export function currentReworkRoutingPolicy(ctx, board) {
@@ -88,15 +114,17 @@ const LAPSE_MAINTENANCE = new WeakSet();
 /**
  * Expire lapsed leases once before a requested write; nested bootstrap and maintenance never recurse.
  * Why lapsed only: it reads board rows and presence, no Git. Live-claim idle checks run in background maintenance (#2427).
+ * With health.lapsedSweep on the sentinel owns this pass, so a claim, submit or verify issues only its own board write [C7,#8924].
+ * @param {{ lapsedOn?: () => boolean, capture?: Function, recovered?: Function }} [ports] Test seams for the setting read, the relay check and the lapsed capture.
  */
-async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
-  if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
+export async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor, ports = {}) {
+  if (!actor || (ports.lapsedOn ?? lapsedSweepEnabled)() || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
     || operation === 'release' && args[3]?.staleClaim) return;
   // An interrupted relay move owes its caller the original outcome; a maintenance move first would hide it behind RELAY_RETRY_PENDING.
-  if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
+  if ((ports.recovered ?? relayRecovered)(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
-    const { captureLapsedClaims } = requireModule('../../../../packages/health/src/io/stale/state/capture.js');
+    const captureLapsedClaims = ports.capture ?? requireModule('../../../../packages/health/src/io/stale/state/capture.js').captureLapsedClaims;
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
@@ -116,7 +144,10 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
   const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
   if (operation === 'reopen' || operation === 'verify' && args[1]?.decision === 'REJECT') args = firstRefusalArgs(operation, args, configFromSource(coordinatorFile(ctx.info.root, CONFIG_FILE).stdout));
+  // The re-read setting is read here, at the caller, and travels in the move's args so a replica replays the same decision (#10085).
+  if (operation === 'recordLandingBatch' && args[0] && args[0].rereadRatchet === undefined) args = [{ ...args[0], rereadRatchet: flakesRereadRatchetEnabled() }, ...args.slice(1)];
   ctx.io.relayOutbox ??= () => relayOutboxSetting(ctx.info.root);
+  ctx.io.relayQueueOnFailure ??= relayQueueOnFailureEnabled;
   // Every engine-27 registration records the seat that made it: the coordinator from the main
   // checkout, the joined agent from its worktree, or `machine` for a join no seat made (#579).
   if (operation === 'register' && args[0] && args[0].createdBy === undefined) {
@@ -249,6 +280,7 @@ export async function claimOrdered(ctx, board, args) {
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
+  const perSeat = seatCapOf(accepted);
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);
   if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
@@ -271,9 +303,9 @@ export async function claimOrdered(ctx, board, args) {
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
-    ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
+    ...(routeCap ? { routeCap } : {}), ...(nextLightShapedStrong() && lightShaped(held) ? { shapedStrong: true } : {}), ...(perSeat === null ? {} : { perSeat }),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
-    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null, { runs: store.boardRunsReader(board, ctx.file) }),
+    ...store.claimAdmission(board, args[0], args[1].agentId, perSeat, { runs: store.boardRunsReader(board, ctx.file) }),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   // seat.checkpoints (off by default): a fresh claim records what is left to build; a renewal or a correction re-claim records nothing [C7,#8549].
@@ -289,7 +321,16 @@ export async function claimOrdered(ctx, board, args) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function freezer(ctx, options = {}) {
-  return requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  const freeze = requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  return (item) => {
+    const frozen = freeze(item);
+    // With review.relaxRequiredFamily on, an item with a required review family freezes the backlog threshold, the one authority a relaxation witness is checked against [C7,#11119].
+    const relaxAt = ctx.config.verify?.familyRelaxAt;
+    if (!item.item_review_family || !Number.isSafeInteger(relaxAt) || relaxAt < 1 || !relaxRequiredFamilyEnabled()) return frozen;
+    const parsed = JSON.parse(frozen.text);
+    const text = JSON.stringify({ ...parsed, policy: { ...parsed.policy, verify: { ...parsed.policy?.verify, familyRelaxAt: relaxAt } } });
+    return { text, digest: createHash('sha256').update(text).digest('hex') };
+  };
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */

@@ -6,11 +6,11 @@ import { shimCountProblems } from '../../../../packages/codemap/light.js';
 import { shimImportProblems } from '../../../../packages/codemap/index.js';
 import { withCellLintParser } from '../../../../packages/codemap/index.js';
 import { cellsCacheDirectory } from '../../../../packages/codemap/index.js';
-import { inventoryCache } from '../../../../packages/codemap/index.js';
-import { observationCache } from '../../../../packages/codemap/index.js';
+import { inventoryCache } from './cells/cache-door.js';
+import { observationCache } from './cells/cache-door.js';
 import { acceptedCellsIdentity } from '../../../../packages/gate/index.js';
 import { readAcceptedCells } from '../../../../packages/gate/index.js';
-import { inventoryPending } from '../../../../packages/codemap/index.js';
+import { inventoryPending } from './cells/cache-door.js';
 import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { cellExistsSync as existsSync } from '../../../../packages/codemap/index.js';

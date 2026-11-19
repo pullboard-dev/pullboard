@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded release history fixture to replay it through the tables. The release and reclaim tables replay releases recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8240]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -29,7 +30,7 @@ function recordedBoard() {
 const board = recordedBoard();
 const records = readReleaseRecords(board, { since: HISTORY.since, only: HISTORY.releases });
 
-test('clause 1: replaying recorded board history through the release and reclaim tables gives zero disagreements [C7,#8240]', () => {
+test('moves.release-replay.replaying-recorded-board-history-through-the: clause 1: replaying recorded board history through the release and reclaim tables gives zero disagreements [C7,#8240]', () => {
   const release = replayTable(RELEASE.table, RELEASE.rules, records.release, { cut: HISTORY.since });
   const reclaim = replayTable(RECLAIM_TABLE, RECLAIM_RULES, records.reclaim, { cut: HISTORY.since });
   assert.deepEqual(release.disagreements, []);
@@ -41,7 +42,7 @@ test('clause 1: replaying recorded board history through the release and reclaim
   assert.deepEqual(records.unreplayable.map(entry => entry.path), ['release: the item route changed off the record', 'release: counted a structured blocker, which no longer counts']);
 });
 
-test('clause 1: the replay covers every release path the board used, follow-ups included [C7,#8240]', () => {
+test('moves.release-replay.the-replay-covers-every-release-path: clause 1: the replay covers every release path the board used, follow-ups included [C7,#8240]', () => {
   const via = new Set();
   for (const record of records.release) for (const step of runTable(RELEASE.table, RELEASE.rules, structuredClone(record.snapshot), structuredClone(record.move)).via) via.add(step);
   for (const record of records.reclaim) via.add(runTable(RECLAIM_TABLE, RECLAIM_RULES, structuredClone(record.snapshot), structuredClone(record.move)).via[0]);
@@ -50,7 +51,7 @@ test('clause 1: the replay covers every release path the board used, follow-ups 
   for (const kind of ['seat-gone', 'release', 'waiting', 'progress', 'dependency']) assert.ok(kinds.has(kind), `idle ${kind} replayed`);
 });
 
-test('clause 1: a recorded release replayed with one captured fact broken is a disagreement the replay names [C7,#8240]', () => {
+test('moves.release-replay.a-recorded-release-replayed-with-one: clause 1: a recorded release replayed with one captured fact broken is a disagreement the replay names [C7,#8240]', () => {
   const holder = records.release.find(record => record.move.reason === 'BLOCKED' && !record.move.stale && record.snapshot.item.status === 'claimed');
   const stranger = { ...structuredClone(holder), move: { ...structuredClone(holder.move), actor: 'someone-else' } };
   const report = replayTable(RELEASE.table, RELEASE.rules, [stranger], { cut: HISTORY.since });
@@ -60,7 +61,7 @@ test('clause 1: a recorded release replayed with one captured fact broken is a d
   assert.deepEqual(replayTable(RECLAIM_TABLE, RECLAIM_RULES, [moved], { cut: HISTORY.since }).disagreements.map(entry => entry.table.code), ['STALE_STATE_CHANGED']);
 });
 
-test('clause 1: the release table refuses in the order the command throws, with its words [C7,#8240]', () => {
+test('moves.release-replay.the-release-table-refuses-in-the: clause 1: the release table refuses in the order the command throws, with its words [C7,#8240]', () => {
   const record = records.release.find(entry => !entry.move.stale && entry.snapshot.item.status === 'claimed');
   const refuse = (move, snapshot = record.snapshot) => runTable(RELEASE.table, RELEASE.rules, structuredClone(snapshot), { ...structuredClone(record.move), ...move }).refused;
   assert.equal(refuse({ reason: 'NOPE' }).code, 'RELEASE_REASON');

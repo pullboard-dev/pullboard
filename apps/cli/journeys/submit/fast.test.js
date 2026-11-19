@@ -19,12 +19,12 @@ async function readySubmit(t) {
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
-  assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): fast submit ${id} [G1]`).status, 0);
-  assert.equal(box.helpers.commitFile(box, box.repo, 'web/newer-main.txt', 'newer\n', 'feat(web): main moved on [G1]').status, 0);
+  assert.equal((await box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): fast submit ${id} [G1]`)).status, 0);
+  assert.equal((await box.helpers.commitFile(box, box.repo, 'web/newer-main.txt', 'newer\n', 'feat(web): main moved on [G1]')).status, 0);
   return { box, id, folder, claim: claimed };
 }
 
-test('clause 1: submit on a clean committed item returns within 5 seconds and prints the queued gate id [C7]', async t => {
+test('cli.journeys-submit-fast.submit-on-a-clean-committed-item: clause 1: submit on a clean committed item returns within 5 seconds and prints the queued gate id [C7]', async t => {
   const { box, id, folder } = await readySubmit(t);
   const start = Date.now();
   const submitted = await box.runLocal(folder, 'submit', String(id));
@@ -38,7 +38,7 @@ test('clause 1: submit on a clean committed item returns within 5 seconds and pr
   assert.ok(named && row.id === named, `the output names the queued gate id ${named} of job ${row.id}`);
 });
 
-test('clause 3: join, submit and claim never print next --wait as the next step [C7]', async t => {
+test('cli.journeys-submit-fast.join-submit-and-claim-never-print: clause 3: join, submit and claim never print next --wait as the next step [C7]', async t => {
   const { box, id, folder, claim } = await readySubmit(t);
   const submitted = await box.runLocal(folder, 'submit', String(id));
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
@@ -48,7 +48,7 @@ test('clause 3: join, submit and claim never print next --wait as the next step 
   assert.doesNotMatch(joined.out + joined.err, /next --wait/u);
 });
 
-test('clause 2: submit leaves the builder checkout, index and HEAD where they were and runs no merge hook [C7]', async t => {
+test('cli.journeys-submit-fast.submit-leaves-the-builder-checkout-index: clause 2: submit leaves the builder checkout, index and HEAD where they were and runs no merge hook [C7]', async t => {
   const { box, id, folder } = await readySubmit(t);
   const git = (...args) => runFixtureGit(args, { cwd: folder, env: box.env }).trim();
   const inputs = privateFixtureFiles('pullboard-fast-hooks-');

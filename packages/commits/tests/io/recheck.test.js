@@ -29,7 +29,7 @@ function fixture(t) {
   };
 }
 
-test('clause 1: a commit that skipped its hooks and adds an assigned secret is named by the re-check of its range [C1]', t => {
+test('commits.io-recheck.clause-1-a-commit-that-skipped-its-hooks: clause 1: a commit that skipped its hooks and adds an assigned secret is named by the re-check of its range [C1]', t => {
   const repo = fixture(t);
   // Built from parts so this file never holds a secret-shaped line itself.
   const value = ['abcd', 'efgh', 'ijkl', 'mnop', 'qrst'].join('');
@@ -40,7 +40,7 @@ test('clause 1: a commit that skipped its hooks and adds an assigned secret is n
   assert.ok(!found[0].problem.includes(value), 'the value is never echoed');
 });
 
-test('clause 2: a range whose commit header breaks the header rule is named by the re-check [C2]', t => {
+test('commits.io-recheck.clause-2-a-range-whose-commit-header: clause 2: a range whose commit header breaks the header rule is named by the re-check [C2]', t => {
   const repo = fixture(t);
   const bad = repo.commit('notes.txt', 'hello\n', 'Added some notes.');
   const long = repo.commit('more.txt', 'more\n', `docs(notes): ${'a'.repeat(70)}`);
@@ -50,7 +50,7 @@ test('clause 2: a range whose commit header breaks the header rule is named by t
   assert.match(found[1].problem, /shorten the header to 72 characters/u);
 });
 
-test('clause 3: a clean range returns no findings [C1,C2]', t => {
+test('commits.io-recheck.clause-3-a-clean-range-returns-no: clause 3: a clean range returns no findings [C1,C2]', t => {
   const repo = fixture(t);
   repo.commit('notes.txt', 'hello\n', 'docs(notes): add notes');
   assert.deepEqual(recheckRange(repo.root, repo.base, repo.head()), []);

@@ -15,7 +15,7 @@ function offerShards(db, count) {
   for (let at = 1; at <= count; at += 1) offerJob(db, { id: `push:abc:tag:shard:${at}`, kind: SHARD_JOB_KIND, priority: 'gate', now: at });
 }
 
-test('clause 1: a runner takes one gate shard per three cores and no more, so the other runners get the remaining shards [C7,#7765]', t => {
+test('api.shards.runner-takes-gate-shard-per: clause 1: a runner takes one gate shard per three cores and no more, so the other runners get the remaining shards [C7,#7765]', t => {
   const db = boardWith(t);
   offerShards(db, 18);
   const now = 1_000;
@@ -31,7 +31,7 @@ test('clause 1: a runner takes one gate shard per three cores and no more, so th
   assert.equal(take('r-late', 10, 10), null, 'all eighteen are held');
 });
 
-test('clause 1: a finished or released shard frees a slot; a one-core runner holds one shard; a runner not reporting cores is not capped; other kinds are never capped [C7,#7765]', t => {
+test('api.shards.finished-released-shard-frees-slot: clause 1: a finished or released shard frees a slot; a one-core runner holds one shard; a runner not reporting cores is not capped; other kinds are never capped [C7,#7765]', t => {
   const db = boardWith(t);
   offerShards(db, 6);
   const first = claimJob(db, { runner: 'r-small', cores: 2, now: 10 });
@@ -47,7 +47,7 @@ test('clause 1: a finished or released shard frees a slot; a one-core runner hol
   assert.deepEqual(kinds.sort(), ['gate', 'test'], 'a runner at its shard cap still claims every other kind of job');
 });
 
-test('clause 2: a runner with a free slot takes an offered push-gate shard before an item gate or a test job, and still stops at its shard cap [C7,#7790]', t => {
+test('api.shards.runner-free-slot-takes-offered: clause 2: a runner with a free slot takes an offered push-gate shard before an item gate or a test job, and still stops at its shard cap [C7,#7790]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:item-1', kind: 'gate', now: 1 });
   offerJob(db, { id: 'test:run-1', kind: 'test', now: 2 });
@@ -59,7 +59,7 @@ test('clause 2: a runner with a free slot takes an offered push-gate shard befor
   assert.deepEqual(order.slice(1).sort(), ['gate:item-1', 'land:one', 'test:run-1', undefined].sort(), 'the capped runner still takes every other job');
 });
 
-test('clause 2: a push shard is first under a priority reserve too, and a gate-shard job not named push: gets no such rank [C7,#7790]', t => {
+test('api.shards.push-shard-first-under-priority: clause 2: a push shard is first under a priority reserve too, and a gate-shard job not named push: gets no such rank [C7,#7790]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'test:run-1', kind: 'test', priority: 'interactive', now: 1 });
   offerJob(db, { id: 'shard:other', kind: SHARD_JOB_KIND, now: 2 });

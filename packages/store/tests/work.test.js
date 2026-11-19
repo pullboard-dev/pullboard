@@ -57,7 +57,7 @@ function green(board, id) {
     counts: { passed: 1, failed: 0, skipped: 0 }, failures: [] } });
 }
 
-test('with focus on and overflow off, next --verify still offers a green submission outside the focus [C7,#2961]', t => {
+test('store.work.with-focus-on-and-overflow-off: with focus on and overflow off, next --verify still offers a green submission outside the focus [C7,#2961]', t => {
   const { board, builder, reviewer, focus } = focusedBoard(t);
   const outside = submitted(board, builder, 'Outside review', 'strong', 5);
   focus();
@@ -67,7 +67,7 @@ test('with focus on and overflow off, next --verify still offers a green submiss
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item?.item_id, outside);
 });
 
-test('next never offers an out-of-focus open item to build while focus is on and overflow is off [C7,#2961]', t => {
+test('store.work.next-never-offers-an-out-of: next never offers an out-of-focus open item to build while focus is on and overflow is off [C7,#2961]', t => {
   const { board, builder, focused, focus } = focusedBoard(t);
   const outside = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Outside build' });
   focus();
@@ -91,7 +91,7 @@ function strongReviewWaiting(t) {
   return { board, light, reviewer, waiting };
 }
 
-test('clause 1: a light seat in a focused milestone with only strong reviews waiting is told which items and that a strong seat reviews them [B16,B13,#3102]', t => {
+test('store.work.a-light-seat-in-a-focused: clause 1: a light seat in a focused milestone with only strong reviews waiting is told which items and that a strong seat reviews them [B16,B13,#3102]', t => {
   const { board, light, waiting } = strongReviewWaiting(t);
   const result = store.nextFor(board, { agentId: light, lane: 'review', verify: true, observeIdle: true });
   assert.equal(result.item, null);
@@ -101,7 +101,7 @@ test('clause 1: a light seat in a focused milestone with only strong reviews wai
   assert.doesNotMatch(text, /^0\.9\.3 is in focus; nothing is free for you/u, 'the bare nothing-is-free line is replaced');
 });
 
-test('clause 2: a light seat never reserves a strong review, while a strong seat still gets it [B16,B13,#3102]', t => {
+test('store.work.a-light-seat-never-reserves-a: clause 2: a light seat never reserves a strong review, while a strong seat still gets it [B16,B13,#3102]', t => {
   const { board, light, reviewer, waiting } = strongReviewWaiting(t);
   assert.equal(store.nextFor(board, { agentId: light, lane: 'review', verify: true }).item, null);
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item?.item_id, waiting);

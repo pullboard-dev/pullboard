@@ -133,7 +133,7 @@ function trackedSelectionTest(t) {
     'an explicitly named fixture remains runnable even though it is untracked');
 }
 
-test('the runner skips test files git does not track [C7]', trackedSelectionTest);
+test('runners.tests.the-runner-skips-test-files-git: the runner skips test files git does not track [C7]', trackedSelectionTest);
 
 /** Keep perf-shaped helpers importable without launching their standalone entry points. */
 function onlyTestEntriesTest(t) {
@@ -205,7 +205,7 @@ test('perf helpers remain importable [C7]', importedHelpersWork);
   process.stderr.write(`fixture declared cases: before=${expectedCases.length}, after=${expectedCases.length}; raw TAP: before=${beforeTotal}, after=${afterTotal}; helper records removed=${helpers.length}\n`);
 }
 
-test('the suite runs only test files, not helpers or the perf harness [C7]', onlyTestEntriesTest);
+test('runners.tests.the-suite-runs-only-test-files: the suite runs only test files, not helpers or the perf harness [C7]', onlyTestEntriesTest);
 
 /** Run the copied production runner and return the test filenames it actually executed. */
 function runShardFixture(fixture, shard) {
@@ -240,7 +240,7 @@ function shardsSplitTest(t) {
   assert.equal(new Set(allSelected).size, fixture.expected.length, 'no test file appears in more than one shard');
 }
 
-test('shards split the test files with none twice and none missing [C7]', shardsSplitTest);
+test('runners.tests.shards-split-the-test-files-with: shards split the test files with none twice and none missing [C7]', shardsSplitTest);
 
 /** Keep plain temporary projects runnable without requiring a Git index. */
 function outsideGitDiscoveryTest(t) {
@@ -263,7 +263,7 @@ function outsideGitDiscoveryTest(t) {
   assert.equal(readFileSync(fixture.capture, 'utf8'), '', 'no filesystem tests run after Git metadata fails');
 }
 
-test('the runner keeps native discovery outside a Git work tree [C7]', outsideGitDiscoveryTest);
+test('runners.tests.the-runner-keeps-native-discovery-outside: the runner keeps native discovery outside a Git work tree [C7]', outsideGitDiscoveryTest);
 
 /** Assert the production runner names malformed shard ranges and their expected form. */
 function badShardTest() {
@@ -276,4 +276,4 @@ function badShardTest() {
   }
 }
 
-test('a bad shard is refused by name [C7]', badShardTest);
+test('runners.tests.a-bad-shard-is-refused-by: a bad shard is refused by name [C7]', badShardTest);

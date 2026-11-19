@@ -13,7 +13,9 @@ const ROW_RE = new RegExp(`^- (${ID}) \\[([a-z]+)(?:,\\s*([a-z]+))?\\]\\s+(.+)$`
 const ROWISH_RE = new RegExp(`^- ${ID}\\s+\\[`);
 const SECTION_RE = /^##\s+(.+)$/;
 
-export const FIELD_NAMES = ['gate', 'serves', 'signers', 'count', 'runs', 'mode', 'files', 'source', 'verify'];
+export const FIELD_NAMES = ['gate', 'serves', 'signers', 'count', 'runs', 'mode', 'files', 'source', 'quote', 'verify', 'stakes'];
+/** How much a wrong approval costs: a row writes one of these after `| stakes:`; a row that writes none is team [C7]. */
+export const STAKES = ['low', 'team', 'critical'];
 export const CHECK_FIELDS = ['count', 'runs', 'mode', 'files'];
 
 /**
@@ -22,15 +24,16 @@ export const CHECK_FIELDS = ['count', 'runs', 'mode', 'files'];
  * to a `gate: check`;
  * those keys appear on the row only when written, so rows without them parse exactly as before.
  * Any row may add `| source: <name> <id> <url>`, the reference a blueprint rule came from; it too
- * appears only when written.
+ * appears only when written. A source-backed fact may add `| quote: <sentence>`, the words it rests on,
+ * stored next to its value and read back as written.
  * A check command may itself contain ` | `: a part that names no known field continues it.
  *
  * @param {string} rest
- * @returns {{ text: string, gate: string, serves: string[], signers: string[], unknown: string[], count?: string, runs?: string, mode?: string, files?: string, source?: string }}
+ * @returns {{ text: string, gate: string, serves: string[], signers: string[], unknown: string[], stakes: string, count?: string, runs?: string, mode?: string, files?: string, source?: string, quote?: string }}
  */
 function splitFields(rest) {
   const [text = '', ...parts] = rest.split(' | ');
-  const fields = { text: text.trim(), gate: '', serves: [], signers: [], unknown: [] };
+  const fields = { text: text.trim(), gate: '', serves: [], signers: [], unknown: [], stakes: 'team' };
   let inCheck = false;
   let verdictReason = false;
   for (const part of parts) {
@@ -53,7 +56,10 @@ function splitFields(rest) {
     } else if (key.trim() === 'gate') {
       fields.gate = joined;
       inCheck = /^check(\s|$)/u.test(joined);
-    } else if (CHECK_FIELDS.includes(key.trim()) || key.trim() === 'source') fields[key.trim()] = joined;
+    } else if (key.trim() === 'stakes') {
+      if (STAKES.includes(joined)) fields.stakes = joined;
+      else fields.unknown.push(`stakes must be low, team or critical: ${part.trim()}`);
+    } else if (CHECK_FIELDS.includes(key.trim()) || key.trim() === 'source' || key.trim() === 'quote') fields[key.trim()] = joined;
     else if (key.trim() === 'serves') {
       fields.serves = joined.split(',').map((id) => id.trim()).filter(Boolean);
     } else if (key.trim() === 'signers') {

@@ -27,19 +27,19 @@ function landing(t) {
 const mainWith = (rows) => async () => ({ main: 'base', files: rows });
 const relayRed = mainWith([{ file: MAIN_RED.file, result: 'red', failures: [{ file: MAIN_RED.file, name: MAIN_RED.name }] }]);
 
-test('a case base main fails by the same file and name is known-main; a new case in that file is the batch\'s own [C7,#2941]', async t => {
+test('landing.bisect.a-case-base-main-fails-by: a case base main fails by the same file and name is known-main; a new case in that file is the batch\'s own [C7,#2941]', async t => {
   const { state } = landing(t);
   assert.deepEqual(await splitBaseRed(state, [MAIN_RED, NEW_CASE], relayRed), { known: [MAIN_RED], own: [NEW_CASE] });
 });
 
-test('a batch red only in base main\'s own cases returns every item as green and records the known-main cases [C7,#2941]', async t => {
+test('landing.bisect.a-batch-red-only-in-base: a batch red only in base main\'s own cases returns every item as green and records the known-main cases [C7,#2941]', async t => {
   const { state, saves } = landing(t);
   const green = await bisect(state, ITEMS, [MAIN_RED], 'split', async () => assert.fail('no split gate is needed'), relayRed);
   assert.deepEqual(green, ITEMS);
   assert.deepEqual(saves.at(-1).knownMain, [MAIN_RED]);
 });
 
-test('without a base-main comparison the batch is still held [C7,#2941]', async t => {
+test('landing.bisect.without-a-base-main-comparison-the: without a base-main comparison the batch is still held [C7,#2941]', async t => {
   const { state, saves } = landing(t);
   const green = await bisect(state, ITEMS, [MAIN_RED], 'split', async () => assert.fail('no split gate'),
     async () => ({ main: 'base', files: [], unavailable: 'main comparison could not be completed' }));

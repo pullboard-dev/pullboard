@@ -1,0 +1,30 @@
+{
+  "cli.io-landing-pull.offer-lock-records-hold": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an offer through underBoardWriteLock() appends one row to the machine board-writes.jsonl naming its command, pid and outcome, committed or rolled back"
+    },
+    "why": "Without it a landing offer's write lock could stall every board writer with no recorded holder, as it did for 347 s on 18 Nov.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "packages/store/src/io/board/busy.js"
+    ]
+  },
+  "cli.io-landing-pull.offer-lock-marks-holder": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "while the offer holds the lock the board's write-holders folder has its marker, and it is gone after commit or rollback"
+    },
+    "why": "Without it a busy writer could not name the landing offer holding the lock.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "packages/store/src/io/board/busy.js"
+    ]
+  }
+}

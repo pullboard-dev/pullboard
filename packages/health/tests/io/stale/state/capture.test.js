@@ -10,6 +10,7 @@ import { addItem } from '../../../../../store/index.js';
 import { claim } from '../../../../../store/index.js';
 import { logEvent } from '../../../../../store/index.js';
 import { register } from '../../../../../store/index.js';
+import { maintainStaleState } from '../../../../../store/index.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import { policyRepository } from '../../../../../store/tests/fixtures/submit.js';
 import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
@@ -69,33 +70,33 @@ function fixture(t) {
   return { board, holders, job, seatGone, now: () => now };
 }
 
-test('clause 1: a quiet seat whose own test run has waited 5 minutes for a runner keeps its claim [B4,#6128,clause 1]', t => {
+test('health.capture.waiting-test-run-keeps: clause 1: a quiet seat whose own test run has waited 5 minutes for a runner keeps its claim [B4,#6128,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   f.job({ kind: 'test-run', item: quiet.id, step: 'queued', agent: quiet.holder });
   assert.deepEqual(f.seatGone(), [], 'a run queued 5 minutes ago with no heartbeat is in flight');
 });
 
-test('clause 1: a quiet seat whose runner check has run for 5 minutes under a live lease keeps its claim [B4,#6128,clause 1]', t => {
+test('health.capture.runner-check-keeps: clause 1: a quiet seat whose runner check has run for 5 minutes under a live lease keeps its claim [B4,#6128,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   f.job({ kind: 'test', item: quiet.id, step: 'claimed', owner: 'runner-1', leaseUntil: f.now() + 2 * MINUTE });
   assert.deepEqual(f.seatGone(), [], 'a check whose runner renews its lease is in flight');
 });
 
-test('clause 1: a quiet seat whose gate check is running on a runner keeps its claim [B4,#6128,clause 1]', t => {
+test('health.capture.gate-check-keeps: clause 1: a quiet seat whose gate check is running on a runner keeps its claim [B4,#6128,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   f.job({ kind: 'gate', item: quiet.id, step: 'claimed', owner: 'runner-1', leaseUntil: f.now() + 2 * MINUTE });
   assert.deepEqual(f.seatGone(), [], 'a gate check whose runner renews its lease is in flight');
 });
 
-test('clause 2: a quiet seat with no job in flight is still reclaimed at two minutes [B4,#6128,clause 2]', t => {
+test('health.capture.no-job-reclaimed: clause 2: a quiet seat with no job in flight is still reclaimed at two minutes [B4,#6128,clause 2]', t => {
   const f = fixture(t);
   assert.deepEqual(f.seatGone(), [f.holders[0].id]);
 });
 
-test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a quiet claim [B4,#6128,clause 2]', t => {
+test('health.capture.dead-jobs-dont-keep: clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a quiet claim [B4,#6128,clause 2]', t => {
   const f = fixture(t);
   const [quiet, alive] = f.holders;
   f.job({ kind: 'test-run', item: quiet.id, step: 'done', agent: quiet.holder });
@@ -106,7 +107,7 @@ test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a q
   assert.deepEqual(f.seatGone(), [quiet.id]);
 });
 
-test('clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
+test('health.capture.item-folder-run-keeps: clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   // A seat may hold several claims (child items are free), so its sole-claim rule names no item; the folder names one.
@@ -124,4 +125,67 @@ test('clause 1: a test run queued from an item folder records that item on its j
     { launch: () => ({ unref() {} }), now: f.now() - 5 * MINUTE });
   assert.equal(f.board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(queued.id).job_item, quiet.id, 'the job row carries the item');
   assert.deepEqual(f.seatGone(), [], 'the queued run is seen in flight');
+});
+
+/**
+ * A real board where seat A's claim lapsed an hour past its lease but A still writes events, so every capture keeps it,
+ * and seat B holds a live claim. The helper seat captures, as the lapsed pass before a CLI write does.
+ */
+function lapsedKeptFixture(t) {
+  const files = privateFixtureFiles('pullboard-capture-cursor-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  let now = Date.now() - 3 * 60 * MINUTE;
+  const board = fixtureBoard(t, { clock: { now: () => new Date(now) } });
+  register(board, { lane: 'coordinator', path: join(files.root, 'coordinator') });
+  const seat = (name, leaseMs) => {
+    const root = join(files.root, name);
+    mkdirSync(root);
+    const holder = register(board, { lane: 'core', path: root, route: 'strong' });
+    const id = addItem(board, { by: 'coordinator', lane: 'core', title: `Work ${name}`, criterion: 'Work' });
+    claim(board, id, { agentId: holder, lane: 'core', leaseMs, freeze: () => ({ text: 'Work', digest: 'bar' }) });
+    return { holder, id };
+  };
+  const lapsed = seat('lapsed', MINUTE);
+  const live = seat('live', 6 * 60 * MINUTE);
+  const helper = register(board, { lane: 'core', path: join(files.root, 'helper'), route: 'strong' });
+  const alive = ({ holder, id }) => logEvent(board, holder, 'fact', id, { id: `alive-${now}`, kind: 'note', text: 'working', ref: null, supersedes: null });
+  const advance = ms => { now += ms; };
+  advance(3 * 60 * MINUTE);
+  alive(lapsed);
+  alive(live);
+  const ctx = { clock: { now: () => new Date(now) }, config: {} };
+  const capture = () => captureLapsedClaims(ctx, board, helper, { lapsedOnly: true });
+  const events = () => board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
+  return { board, lapsed, live, helper, alive, advance, capture, events, seatRoot: name => join(files.root, name) };
+}
+
+test('health.capture.vetoed-lapse-no-write: clause 1: a pass that keeps every lapsed claim and leaves the scan cursor where it is captures nothing, so no maintenance write opens [C7,#10875,clause 1]', t => {
+  const f = lapsedKeptFixture(t);
+  const first = f.capture();
+  assert.ok(first, 'the first pass moves the scan cursor to the lapsed claim, so it is captured');
+  assert.deepEqual(first.claims, [], 'the lapsed claim is kept: its seat still writes events');
+  maintainStaleState(f.board, { agentId: f.helper, snapshot: first, claimsOnly: true });
+  const cursor = () => f.board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='lapsed_claim_scan_cursor'").get()?.meta_value;
+  assert.equal(cursor(), String(f.lapsed.id));
+  const before = f.events();
+  assert.equal(f.capture(), null, 'nothing to decide and the cursor stays put: no snapshot, so the caller opens no write');
+  assert.equal(f.capture(), null, 'the next command captures nothing either');
+  assert.equal(f.events(), before);
+  assert.equal(cursor(), String(f.lapsed.id));
+});
+
+test('health.capture.cursor-move-still-captures: clause 2: a pass still captures when the scan cursor would move or a claim row needs a decision [C7,#10875,clause 2]', t => {
+  const f = lapsedKeptFixture(t);
+  const moved = f.capture();
+  assert.equal(moved?.claimScan.previous, 0);
+  assert.equal(moved?.claimScan.next, f.lapsed.id, 'the cursor moves, so the pass writes it');
+  maintainStaleState(f.board, { agentId: f.helper, snapshot: moved, claimsOnly: true });
+  // Seat B goes quiet for three minutes and its worktree is gone while seat A keeps writing: B's claim needs a decision
+  // with the cursor unchanged. The write path observes no work, so only a gone worktree makes a live claim decidable.
+  rmSync(f.seatRoot('live'), { recursive: true, force: true });
+  f.advance(3 * MINUTE);
+  f.alive(f.lapsed);
+  const decided = f.capture();
+  assert.equal(decided?.claimScan.next, decided?.claimScan.previous, 'the cursor stays put');
+  assert.deepEqual(decided.claims.map(row => [row.id, row.idle]), [[f.live.id, 'seat-gone']]);
 });

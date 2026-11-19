@@ -33,7 +33,7 @@ function answers(board, runs) {
   };
 }
 
-test('clause 1: with runs_store on, latestGateJob, offeredGate, offeredStep and postedReceipt read one queued gate from the runs file as from the job rows off [P7,#9149]', t => {
+test('api.gate-runs-readers.runs-store-latestgatejob-offeredgate-offeredstep: clause 1: with runs_store on, latestGateJob, offeredGate, offeredStep and postedReceipt read one queued gate from the runs file as from the job rows off [P7,#9149]', t => {
   const off = cellBoard(t, ':memory:');
   queueGate(off.db);
   const board = cellBoard(t, ':memory:');
@@ -48,7 +48,7 @@ test('clause 1: with runs_store on, latestGateJob, offeredGate, offeredStep and 
   assert.deepEqual(answers(board), { latest: null, offered: null, step: null, receipt: null }, 'the board itself holds no job row');
 });
 
-test('clause 2: with runs_store off (the default) each of the four reads the board exactly as on main [P7,#9149]', t => {
+test('api.gate-runs-readers.runs-store-off-default-each: clause 2: with runs_store off (the default) each of the four reads the board exactly as on main [P7,#9149]', t => {
   const board = cellBoard(t, ':memory:');
   queueGate(board.db);
   const main = answers(board);

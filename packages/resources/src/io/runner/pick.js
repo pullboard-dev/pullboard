@@ -94,6 +94,19 @@ export function hasRequiredToolchains(runner, required) {
   return names.every(name => Object.hasOwn(runner.toolchains ?? {}, name));
 }
 
+/**
+ * The refusal text for a job no registered runner can supply the toolchains for: the names no runner records, or all required names
+ * when each is recorded somewhere but never together; null when some runner can. Why: such a job is refused at the runner choice, not left to wait
+ * for a runner that will never exist [C7,#3970].
+ */
+export function unsuppliedToolchainsMessage(runners, text) {
+  const required = requiredToolchainNames(text);
+  if (!required.length || !runners.length || runners.some(runner => hasRequiredToolchains(runner, text))) return null;
+  const absent = required.filter(name => !runners.some(runner => Object.hasOwn(runner.toolchains ?? {}, name)));
+  const names = absent.length ? absent : required;
+  return `no registered runner records ${names.length > 1 ? 'toolchains' : 'toolchain'} ${names.join(', ')} (${runners.map(runner => runner.host).join(', ')}); register one with pullboard runner add <host> --toolchain ${names.join(',')}, then retry`;
+}
+
 /** A runner whose jobs failed for infrastructure this recently is skipped while a healthy runner is free. */
 const RUNNER_TROUBLE_MS = 15 * 60_000;
 

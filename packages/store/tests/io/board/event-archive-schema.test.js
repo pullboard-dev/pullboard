@@ -39,13 +39,13 @@ function boardFile(t) {
   return file;
 }
 
-test('clause 1: a fresh board has an event_archive table with the event columns plus the archive time [C7]', t => {
+test('store.io-board-event-archive-schema.a-fresh-board-has-an-event: clause 1: a fresh board has an event_archive table with the event columns plus the archive time [C7]', t => {
   const file = boardFile(t);
   assert.deepEqual(columns(file, 'event_archive'), [...EVENT_COLUMNS, 'event_archived_at']);
   assert.equal(eventRows(file).length >= 2, true);
 });
 
-test('clause 1: a board from the previous schema gains event_archive on open and no existing row changes [C7]', t => {
+test('store.io-board-event-archive-schema.a-board-from-the-previous-schema: clause 1: a board from the previous schema gains event_archive on open and no existing row changes [C7]', t => {
   const file = boardFile(t);
   const before = eventRows(file);
   const old = new DatabaseSync(file);
@@ -56,7 +56,7 @@ test('clause 1: a board from the previous schema gains event_archive on open and
   assert.deepEqual(eventRows(file), before);
 });
 
-test('clause 2: the archive table starts empty so the hot event table is the only history [C7]', t => {
+test('store.io-board-event-archive-schema.the-archive-table-starts-empty-so: clause 2: the archive table starts empty so the hot event table is the only history [C7]', t => {
   const file = boardFile(t);
   const db = new DatabaseSync(file, { readOnly: true });
   try { assert.equal(db.prepare('SELECT count(*) AS n FROM event_archive').get().n, 0); } finally { db.close(); }

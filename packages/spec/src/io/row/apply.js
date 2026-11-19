@@ -2,7 +2,7 @@
 import { COORDINATOR } from '../../../../config/index.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../../../../state/light.js';
 import { SPEC_DRAFT_REFREEZE_ENGINE } from '../../../../state/light.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import { rowDecisions } from '../../logic/row/draft.js';
 import { markAppliedRevisions } from '../revisions.js';

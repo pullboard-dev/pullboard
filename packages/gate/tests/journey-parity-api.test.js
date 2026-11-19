@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/shout/http.test.js', cases: ['[A2] local HTTP state accepts a safe seen cursor and committed code previews'] }];
 
-test('clause 1: an api.js fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.parity-api.api-js-fixture-sample-gives: clause 1: an api.js fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the api.js fixture starts no CLI process for its calls when the journey runs in-process [C7]', () => {
+test('gate.parity-api.api-js-fixture-starts-cli: clause 2: the api.js fixture starts no CLI process for its calls when the journey runs in-process [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/api.js', import.meta.url), 'utf8');
   assert.equal(source.match(/runFixtureChild\(process\.execPath/gu)?.length, 1, 'the fixture has one real launch, the process-mode path');
   assert.match(source, /JOURNEY_MODE === 'process' \? realRun\(cwd, \.\.\.args\) : runCliSync\(args/u, 'the sync calls reach the CLI in a warm worker unless the journey runs as processes');
