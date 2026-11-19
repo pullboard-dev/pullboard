@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { auditAdapterEnvironment } from '../../../../../packages/kernel/light.js';
 import { processCensus } from '../custody.js';
 import { scheduledChromeCloneSweep } from '../chrome.js';
@@ -29,6 +30,7 @@ import { safeSetupMessage } from './receipt.js';
 import { setupRefusalCode } from './receipt.js';
 import { stopReading } from './receipt.js';
 import { readSpec } from './spec.js';
+import { BROWSER_REFUSAL_FILE } from '../../../../../packages/resources/light.js';
 import { receiveAnalysisArtifact } from '../../../../../packages/resources/light.js';
 import { machineSettingsFile } from '../../../../../packages/resources/light.js';
 import { captureTestRuntimes } from '../../../../../packages/sandbox/light.js';
@@ -102,14 +104,14 @@ export async function main(S) {
     }
   }
   try {
-    const runnerHome = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
+    const runnerHome = isAbsolute(environmentAdapter().get('HOME') || '') ? environmentAdapter().get('HOME') : userInfo().homedir;
     const runnerRoot = spec.root ?? join(runnerHome, '.pullboard-runner');
     recoveryRoot = runnerRoot;
     S.setupPrivatePaths.add(runnerRoot);
     fs.mkdir(runnerRoot, { recursive: true, mode: 0o700 });
     S.setupPrivatePaths.add(fs.realpath(runnerRoot));
     fs.chmod(runnerRoot, 0o700);
-    const configuredMachineHome = process.env.PULLBOARD_MACHINE_HOME;
+    const configuredMachineHome = environmentAdapter().get('PULLBOARD_MACHINE_HOME');
     if (configuredMachineHome !== undefined && !isAbsolute(configuredMachineHome)) throw new Error('machine home is invalid');
     const machineHomePath = configuredMachineHome ?? join(runnerHome, '.pullboard');
     S.setupPrivatePaths.add(machineHomePath);
@@ -176,7 +178,7 @@ export async function main(S) {
       dependencies = await installDependencies(S, root, runnerRoot, env, tracker, api);
     }
     setupStep = 'command start';
-    const browserRefusal = join(runDirectory, 'browser-refusal.json');
+    const browserRefusal = join(runDirectory, BROWSER_REFUSAL_FILE);
     const resultStore = join(runnerRoot, 'test-results', spec.repoId);
     if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
     // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
@@ -248,7 +250,7 @@ export async function main(S) {
   clearTimeout(S.phaseCleanupTimer);
   orphanWatch.finish();
   // The result is already delivered, so the cleanup budget no longer applies; sweep leftovers after each job.
-  if (recoveryRoot && api) await sweepRunnerDiskForWorker(recoveryRoot, S.workerId, Date.now() + 60_000, api, process.env.PULLBOARD_MACHINE_HOME ?? join(userInfo().homedir, '.pullboard'));
+  if (recoveryRoot && api) await sweepRunnerDiskForWorker(recoveryRoot, S.workerId, Date.now() + 60_000, api, environmentAdapter().get('PULLBOARD_MACHINE_HOME') ?? join(userInfo().homedir, '.pullboard'));
   process.exitCode = S.resultSent ? 0 : 1;
   stopReading();
 }
