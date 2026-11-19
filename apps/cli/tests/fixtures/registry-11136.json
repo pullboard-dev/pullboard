@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-fields.field-lines-match-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "fieldLines returns the typed fields block and the related links block exactly as show printed them, and no lines for an empty list."
+    },
+    "why": "Without it, moving these lines out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/fields.js"
+    ]
+  }
+}
