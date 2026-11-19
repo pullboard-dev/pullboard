@@ -1,7 +1,7 @@
 /** With landing.reuseContractResults on, the land job's contracts carry the reuse flag and the ledger's green hits; off, they are exactly as before [C7,#9301]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { recordTestResults } from '../../../store/index.js';
 import { offerLandingJob } from '../../index.js';
 

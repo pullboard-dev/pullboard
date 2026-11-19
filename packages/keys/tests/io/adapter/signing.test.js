@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { createPrivateKey } from "node:crypto";
 import { createPublicKey } from "node:crypto";
+import { generateKeyPairSync } from "node:crypto";
+import { verify } from "node:crypto";
 import { test } from "node:test";
 import * as door from "../../../index.js";
 import { createFakeSigningAdapter } from "../../../src/io/adapter/signing.js";
@@ -62,4 +64,44 @@ test('keys.io-adapter-signing.der-front-door-same-table: clause 2: the factories
   const { publicKey } = real().generateKeyPair();
   assert.match(publicKey, /^-----BEGIN PUBLIC KEY-----/u);
   assert.throws(() => real({ encoding: "jwk" }), { code: "SIGN_ENCODING" });
+});
+
+test('keys.io-adapter-signing.alg-signwith-es256-rs256: clause 1: createSigningAdapter().signWith({ algorithm: ES256 or RS256, privateKey: pem }, text) returns a base64url signature that node:crypto verify accepts (ES256 in ieee-p1363 form), and createFakeSigningAdapter() answers the same contract table with stable strings [C7,#1428]', () => {
+  const real = createSigningAdapter();
+  const fake = createFakeSigningAdapter();
+  const ec = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const pem = (pair) => pair.privateKey.export({ type: "pkcs8", format: "pem" });
+  const es = real.signWith({ algorithm: "ES256", privateKey: pem(ec) }, "ship it");
+  const rs = real.signWith({ algorithm: "RS256", privateKey: pem(rsa) }, "ship it");
+  assert.match(es, DER);
+  assert.match(rs, DER);
+  assert.equal(verify("sha256", Buffer.from("ship it"), { key: ec.publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(es, "base64url")), true);
+  assert.equal(verify("RSA-SHA256", Buffer.from("ship it"), rsa.publicKey, Buffer.from(rs, "base64url")), true);
+  assert.equal(verify("sha256", Buffer.from("ship it!"), { key: ec.publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(es, "base64url")), false);
+  for (const algorithm of ["ES256", "RS256"]) {
+    const first = fake.signWith({ algorithm, privateKey: pem(ec) }, "ship it");
+    assert.match(first, DER);
+    assert.equal(fake.signWith({ algorithm, privateKey: pem(ec) }, "ship it"), first, "the fake is stable");
+  }
+  for (const adapter of [real, fake]) {
+    assert.throws(() => adapter.signWith({ algorithm: "HS256", privateKey: pem(ec) }, "ship it"), { code: "SIGN_ALGORITHM" });
+    assert.throws(() => adapter.signWith({ algorithm: "ES256", privateKey: pem(ec) }, ""), { code: "SIGN_EMPTY" });
+  }
+});
+
+test('keys.io-adapter-signing.signwith-refusals: clause 2: both forms refuse an unknown algorithm or an unreadable key with the same named refusal [C7,#1428]', () => {
+  const real = createSigningAdapter();
+  const fake = createFakeSigningAdapter();
+  const ec = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const pem = ec.privateKey.export({ type: "pkcs8", format: "pem" });
+  const label = "PRIVATE " + "KEY";
+  const broken = "-----BEGIN " + label + "-----\nnot a key\n-----END " + label + "-----\n";
+  for (const adapter of [real, fake]) {
+    for (const privateKey of ["pem", "not a key", "", undefined, 7]) {
+      assert.throws(() => adapter.signWith({ algorithm: "ES256", privateKey }, "ship it"), { code: "SIGN_KEY" }, "an unreadable key: " + String(privateKey));
+    }
+    assert.throws(() => adapter.signWith({ algorithm: "HS256", privateKey: pem }, "ship it"), { code: "SIGN_ALGORITHM" });
+  }
+  assert.throws(() => real.signWith({ algorithm: "ES256", privateKey: broken }, "ship it"), { code: "SIGN_KEY" }, "the real form names a PEM it cannot parse");
 });

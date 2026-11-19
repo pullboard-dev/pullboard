@@ -14,11 +14,11 @@ import { autoLinkProject } from '../../../packages/link/index.js';
 import { readRelayMachine } from '../../../packages/link/index.js';
 import { relayOnAll } from '../../../packages/link/index.js';
 import { registerProject } from '../../../packages/seats/index.js';
-import { closeCellBoard } from '../../../packages/store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 import { CELL_CONFIG } from '../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../packages/store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 import { pressTab } from '../../cli/tests/fixtures/cockpit/stable.js';
 import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
 import { findChromeExecutable } from '../../cli/tests/fixtures/relay/browser.js';
@@ -37,7 +37,7 @@ function addItemTo(boardFile, title) {
  * The snapshot upload is held until the phone has rendered its notice, so the phone is observed before its key arrives.
  */
 async function approvedLinkScenario(t) {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   addItemTo(box.boardFile, FIRST_TITLE);
   const { chrome } = await pairChromePhone(box, t);
   box.server.providerState.repositories.push('notes');
