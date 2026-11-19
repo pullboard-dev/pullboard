@@ -1,7 +1,7 @@
 /** A push shard whose pre-push gate is gone ends at its next claim, and a gate's withdrawn shards are never claimed again [C7,#7805]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { PUSH_ALIVE_MS } from '../../index.js';
 import { SHARD_JOB_KIND } from '../../index.js';
 import { claimJob } from '../../index.js';
