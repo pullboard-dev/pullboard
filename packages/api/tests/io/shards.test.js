@@ -1,7 +1,7 @@
 /** A runner holds no more gate-shard jobs than its cores allow, so a gate's shards spread over every runner that polls [C7,#7765]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { SHARD_JOB_KIND } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { offerJob } from '../../index.js';
