@@ -7,11 +7,8 @@
  */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { openSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
@@ -150,8 +147,8 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
     writeStep(runs?.db ?? board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, noFileLimit: run.noFileLimit === true, root: ctx.info.root, log }, { now });
   });
-  mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
-  const out = openSync(log, 'a', 0o600);
+  disk.mkdir(dirname(log), { recursive: true, mode: 0o700 });
+  const out = disk.open(log, 'a', 0o600);
   try {
     const args = [bin, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
@@ -159,7 +156,7 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
       env: { ...environmentAdapter().all(), PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
     child.unref();
-  } finally { closeSync(out); }
+  } finally { disk.close(out); }
   return { id, status: 'queued', log, files: run.files };
 }
 
@@ -296,13 +293,13 @@ export function readFinalLine(path) {
   if (!path) return null;
   let fd;
   try {
-    fd = openSync(path, 'r');
-    const size = fstatSync(fd).size;
+    fd = disk.open(path, 'r');
+    const size = disk.fstat(fd).size;
     const buffer = Buffer.alloc(Math.min(size, 8192));
-    readSync(fd, buffer, 0, buffer.length, size - buffer.length);
+    disk.read(fd, buffer, 0, buffer.length, size - buffer.length);
     const match = FINAL_LINE.exec(buffer.toString('utf8'));
     return match ? { green: match[1] === 'green', runner: match[2], seconds: Number(match[3]) } : null;
-  } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
+  } catch { return null; } finally { if (fd !== undefined) disk.close(fd); }
 }
 
 /**
