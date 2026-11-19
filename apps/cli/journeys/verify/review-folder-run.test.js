@@ -89,7 +89,7 @@ async function submitted(t, { folderOn = false } = {}) {
   return { box, id, head, reviewer };
 }
 
-test('clause 1: with verify.reviewFolder on, verify accept runs its checks in the review folder, and the seat checkout HEAD and index are unchanged afterwards [C7,#8931]', { timeout: 240_000 }, async t => {
+test('cli.journeys-verify-review-folder-run.with-verify-reviewfolder-on-verify-accept: clause 1: with verify.reviewFolder on, verify accept runs its checks in the review folder, and the seat checkout HEAD and index are unchanged afterwards [C7,#8931]', { timeout: 240_000 }, async t => {
   const { box, id, reviewer } = await submitted(t, { folderOn: true });
   await ok(box, reviewer, 'next', '--verify', String(id));
   const before = { head: box.git(reviewer, 'rev-parse', 'HEAD').trim(), index: box.git(reviewer, 'ls-files', '-s'), status: box.git(reviewer, 'status', '--porcelain') };

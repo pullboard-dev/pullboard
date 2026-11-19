@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
@@ -96,7 +97,6 @@ import {
   invalidateGitFacts,
   isClean,
   resolveCommit,
-  reviewFolder,
   tryGit,
   untracked,
 } from '../../../../../packages/git/index.js';
@@ -181,6 +181,7 @@ import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
 /** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
+const requireModule = createRequire(import.meta.url);
 export function trunkMovedOverlapText(paths, hunks = []) {
   const named = hunks.length ? `, at ${hunks.map(({ file, header }) => `${JSON.stringify(file)} ${JSON.stringify(header)}`).join(', ')}` : '';
   return `main changed files this item touches during review: ${paths.map(path => JSON.stringify(path)).join(', ')}${named}; ask another agent to re-review against current main`;
@@ -362,7 +363,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
     // verify.reviewFolder (off by default): a seat checkout not at the submitted commit is left alone, and the checks run in the detached review folder instead [C7,#8931].
     if (!fromPacket && ctx.config.verify?.reviewFolder === true && !contains(root, commit, headCommit(root) ?? '')) {
-      root = reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
+      root = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
     }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
     if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
