@@ -1,4 +1,4 @@
-/** A claimed item's sharded gate that settled unknown (main receipt missing) stays unsettled until the hold ends; red and review are settled [#11711,C7]. The hold counts from the shard offer, not the gate's creation [#11921]. */
+/** A claimed item's sharded gate that settled unknown (main receipt missing) stays unsettled until a later settle replaces it; red and review are settled [#11711,C7]. The hold counts from the shard offer, not the gate's creation [#11921]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from '../../../fixtures/dispatch.js';
@@ -36,11 +36,21 @@ test('store.submit-handoff-records.unknown-gate-holds-claim: clause 1: an unknow
   }
 });
 
-test('store.submit-handoff-records.unknown-gate-hold-ends: clause 2: the same unknown gate older than the hold is settled [C7,#11711]', t => {
+test('store.submit-handoff-records.unknown-on-main-receipt-awaits: clause 1: a claimed item whose gate is unknown on a missing main receipt is awaiting, however long ago it offered [C7,#11924]', t => {
   const f = settledGate(t);
   f.settle('unknown');
   f.box.advance(GATE_SETTLE_HOLD_MS + 1);
+  assert.equal(gateShardsUnsettled(f.box.board, f.item), true, 'past the fallback bound, an unknown gate still holds');
+  assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.item.item_id)), true, 'so next does not hand its lapsed claim to a fresh seat');
+});
+
+test('store.submit-handoff-records.unknown-settles-red: clause 2: once the receipt records and the gate settles red, the item is no longer awaiting [C7,#11924]', t => {
+  const f = settledGate(t);
+  f.settle('unknown');
+  f.box.advance(GATE_SETTLE_HOLD_MS + 1);
+  f.settle('red');
   assert.equal(gateShardsUnsettled(f.box.board, f.item), false);
+  assert.equal(awaitingGateOrReview(f.box.board, getItem(f.box.board, f.item.item_id)), false, 'a settled red returns the claim as rework');
 });
 
 /** A claimed item whose gate job was created 3 h ago, queued, and passed its checks 1 h ago, offering two shards that are still open. */
