@@ -73,6 +73,7 @@ export const MACHINE_DEFAULTS = {
   'gate.reofferInfraEnd': false,
   'gate.requestIoExtraRoots': false,
   'gate.requireRunnerAttribution': false,
+  'gate.retryNewRedsOnce': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300_000,
