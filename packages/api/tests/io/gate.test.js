@@ -1,10 +1,16 @@
 /** A land job that could not merge an accepted item under separate publish gives it back for a main merge, keeping its accept; a red or hook-refused one still holds [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
+import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
+import { offerProofShards } from '../../src/io/gate.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
 const MAIN = 'a'.repeat(40);
@@ -56,4 +62,38 @@ test('api.gate.land-red-under-separate-still-holds: clause 2: a red or hook-refu
     assert.ok(after.item_hold_at, `${reason} parks it on a hold: ${notes(board)}`);
     assert.equal(events(board, 'reopen').length, 0);
   }
+});
+
+/** A gate job whose receipt's proof plan splits three files two to a core, offered as shards and read back as the runner reads them: each shard's data.shard by index. */
+function shardData(t, needs) {
+  const dir = cellSandbox(t).dir;
+  const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
+  board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  offerJob(board.db, { id: 'gate:s', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
+  const proofPlan = { runner: 'node --test', cores: 2, files: ['web/a.test.js', 'web/b.test.js', 'web/c.test.js'], ...(needs ? { needs } : {}) };
+  const receipt = { version: 1, status: 0, gate: { source: MAIN, green: true, phases: [], proofPlan } };
+  const answer = offerProofShards(board, { job: 'gate:s', receipt, offered: { item: item.item_id, candidate: MAIN, main: MAIN, submit: { agentId: board.seat.id } } });
+  assert.equal(answer.shards.length, 2);
+  // The offered gate job is claimable too, so claim until every job is read and keep the requests that carry a shard.
+  const shards = [];
+  for (let claims = 0; claims < 3; claims++) {
+    const held = claimJob(board.db, { runner: 'r-shard', capabilities: [], now: 8 });
+    const shard = jobRequest(board.db, { job: held.job, runner: 'r-shard', token: held.token }).request.input.data.shard;
+    if (shard) shards.push(shard);
+  }
+  return shards.sort((a, b) => a.index - b.index);
+}
+
+test('api.gate.shard-carries-browser-gui-need: clause 1: offerProofShards puts plan { browser, gui } in each shard\'s data.shard, true when any of that shard\'s files is in the proof plan\'s needs.browser or needs.gui [C7]', t => {
+  const [first, second] = shardData(t, { browser: ['web/b.test.js'], gui: ['web/c.test.js'] });
+  assert.deepEqual(first.files, ['web/a.test.js', 'web/c.test.js']);
+  assert.deepEqual(first.plan, { browser: false, gui: true });
+  assert.deepEqual(second.files, ['web/b.test.js']);
+  assert.deepEqual(second.plan, { browser: true, gui: false });
+});
+
+test('api.gate.shard-plan-absent-without-needs: clause 2: a proof plan with no needs field adds no plan to the shard [C7]', t => {
+  for (const shard of shardData(t, null)) assert.equal('plan' in shard, false, 'a shard of a plan with no needs carries no plan');
 });
