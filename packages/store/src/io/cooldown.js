@@ -1,5 +1,5 @@
 import { listAgents } from './board/query.js';
-import { fileSystemAdapter } from '../../fs/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 
 const fs = fileSystemAdapter();
 
