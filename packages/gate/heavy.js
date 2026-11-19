@@ -485,7 +485,6 @@ import { warmAcceptedCells } from './src/io/inventory.js';
 import { nudgeAcceptedCells } from './src/io/inventory.js';
 import { recordAcceptedCellsFailure } from './src/io/inventory.js';
 import { waitForAcceptedCells } from './src/io/inventory.js';
-import { deriveTestRegistries } from './src/io/test/derived.js';
 import { runJourneyCheck } from './src/io/test/journey-check.js';
 import { unregisteredNewTests } from './src/logic/test-registry.js';
 
@@ -554,4 +553,4 @@ export { maintainPartsStore, prunePartsStore, firstChangedInput, recordInputPart
 export { LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards };
 export { printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly, writeFileTimes, lex };
 export { report, walk, acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure };
-export { waitForAcceptedCells, deriveTestRegistries, runJourneyCheck, unregisteredNewTests };
+export { waitForAcceptedCells, runJourneyCheck, unregisteredNewTests };
