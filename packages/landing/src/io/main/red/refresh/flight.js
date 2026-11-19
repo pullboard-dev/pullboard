@@ -5,11 +5,15 @@
  * up orphaned under launchd while ~40 processes queued on the repo's resource database behind them. A refresh is a read
  * plus a cache write: a second one while the first runs only repeats its work, and the next landing starts a fresh one.
  */
+import { environmentAdapter } from '../../../../../../env/index.js';
 import { join } from 'node:path';
 import { machineHome } from '../../../../../../resources/index.js';
 import { fileSystemAdapter } from '../../../../../../fs/index.js';
 
 const fs = fileSystemAdapter();
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /** The least time between two refresh starts on one machine; PULLBOARD_MAIN_RED_REFRESH_SPACING_MS overrides it. */
 export const REFRESH_SPACING_MS = 5 * 60_000;
@@ -21,7 +25,7 @@ export function refreshFlightFiles(home = machineHome()) {
 
 /** The spacing in force: the override when it is a whole number of milliseconds, else the default. */
 function spacingMs() {
-  const raw = Number(process.env.PULLBOARD_MAIN_RED_REFRESH_SPACING_MS);
+  const raw = Number(environment.get('PULLBOARD_MAIN_RED_REFRESH_SPACING_MS'));
   return Number.isSafeInteger(raw) && raw >= 0 ? raw : REFRESH_SPACING_MS;
 }
 
