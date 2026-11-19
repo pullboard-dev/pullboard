@@ -38,6 +38,7 @@ export { outsideSource, saveOutsideSource, requireOutsideOwner, outsideSandboxPr
 export { outsideVerdict } from './src/io/outside/verify.js';
 export { parentIdentity, parentSessionDigest, canonicalSessionDigest, saveJoinedSession, runtimeSessionIdentity, runtimeParentSession, joinParentSession } from './src/io/parent.js';
 export { workQueue, sayQueue, queueCommand } from './src/logic/queue.js';
+export { stopFacts, stopReason } from './src/logic/stop-reason.js';
 export { reopenAuthority } from './src/logic/reopen/authority.js';
 export { conflictNoteFiles, legacyConflictNote, reopenConflictEvidence, conflictCause, reopenCauseCorrection } from './src/logic/reopen/cause.js';
 export { correctedNoVerdictReopen } from './src/logic/reopen/history.js';
