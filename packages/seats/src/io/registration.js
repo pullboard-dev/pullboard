@@ -1,5 +1,4 @@
 /** Keep disposable boards out of the person's machine inventory [N26,N35]. */
-import { realpathSync } from 'node:fs';
 import {
   homedir,
   tmpdir,
@@ -10,10 +9,13 @@ import {
   resolve,
   sep,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Resolve symlinked temporary roots as well as their spelling at the command line. */
 function physicalPath(path) {
-  try { return realpathSync(path); }
+  try { return fs.realpath(path); }
   catch { return resolve(path); }
 }
 
