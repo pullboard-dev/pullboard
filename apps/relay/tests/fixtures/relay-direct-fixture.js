@@ -5,8 +5,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
 import { relayServerFixture } from './relay-server-fixture.js';
 import { relayIo } from '../../../../packages/link/index.js';
 import { relayOn } from '../../../../packages/link/index.js';
@@ -37,10 +35,12 @@ const ENVIRONMENT = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PULLBOARD_RELA
  * that signs in and links the board through relayOn. The process environment points at the project's private homes until the test ends.
  *
  * @param {import('node:test').TestContext} t
- * @param {{ pollMs?: number, accountStorageBytes?: number, host?: string }} [options] - Passed to the relay fixture.
+ * @param {{ openCellBoard: Function, closeCellBoard: Function, pollMs?: number, accountStorageBytes?: number, host?: string }} [options] - Passed to the relay fixture.
  * @returns {Promise<{ root: string, boardFile: string, origin: string, server: object, io: object, link: (name?: string) => Promise<object>, readLink: () => object, readKey: () => string }>}
  */
-export async function relayDirectFixture(t, options = {}) {
+export async function relayDirectFixture(t, { openCellBoard, closeCellBoard, ...options }) {
+  assert.equal(typeof openCellBoard, 'function', 'the calling test passes the board opener from the board fixture');
+  assert.equal(typeof closeCellBoard, 'function', 'the calling test passes the board closer from the board fixture');
   const project = cellProject(t);
   const root = project.repo;
   assert.equal(project.tryGit(root, 'remote', 'add', 'origin', 'git@github.com:fixture/repository.git').status, 0, 'the project names the repository the relay knows');
