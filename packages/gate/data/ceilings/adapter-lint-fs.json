@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1435,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -243,12 +243,6 @@
     "packages/gate/src/io/file/cap.js": 2,
     "packages/gate/src/io/gate-checkout-pool.js": 8,
     "packages/gate/src/io/gui/admission.js": 1,
-    "packages/gate/src/io/inventory.js": 1,
-    "packages/gate/src/io/journal/preload.js": 1,
-    "packages/gate/src/io/journal/source.js": 1,
-    "packages/gate/src/io/keepalive.js": 3,
-    "packages/gate/src/io/launches.js": 1,
-    "packages/gate/src/io/main/audit/economics.js": 1,
     "packages/gate/src/io/main/audit/scheduler.js": 1,
     "packages/gate/src/io/main/audit/state.js": 4,
     "packages/gate/src/io/main/audit/worker.js": 5,

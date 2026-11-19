@@ -36,9 +36,11 @@ export function childJournalPreloadSource(directory) {
   return `
 import diagnostics from 'node:diagnostics_channel';
 import { spawnSync } from 'node:child_process';
-import { closeSync, openSync, readFileSync, writeSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+// The preload runs in a runner child without the repo's modules, so it takes the built-in file system by name and cannot import the adapter.
+const { closeSync, openSync, readFileSync, writeSync, writeFileSync } = createRequire('/preload.js')('node:fs');
 const PERL_START = ${JSON.stringify(PERL_START)};
 ${exactStartWith.toString().replace('exactStartWith(pid, readFileSync, spawnSync)', 'exactStart(pid)')}
 const directory = ${JSON.stringify(journalDirectory)};

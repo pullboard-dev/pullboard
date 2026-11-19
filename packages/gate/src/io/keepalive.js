@@ -1,11 +1,11 @@
 /** A long seat command keeps its seat's heartbeat fresh while it runs, so a live seat never reads as gone [B3,C7]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { timingSeat } from '../../../seats/light.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * One beat: open the board for read, refresh the seat's presence, close it; a missed beat is retried next tick.
@@ -30,15 +30,15 @@ async function defaultBeat(file, seat) {
 export function itemFolderSeat(cwd) {
   try {
     let root = resolve(cwd);
-    while (!existsSync(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
+    while (!fs.exists(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
     const marker = join(root, '.git');
-    if (statSync(marker).isDirectory()) return null;
-    const match = /^gitdir:\s*(.+)\s*$/u.exec(readFileSync(marker, 'utf8').trim());
+    if (fs.stat(marker).isDirectory()) return null;
+    const match = /^gitdir:\s*(.+)\s*$/u.exec(fs.readFile(marker, 'utf8').trim());
     if (!match) return null;
     const gitDir = resolve(root, match[1]);
-    const seat = JSON.parse(readFileSync(join(gitDir, 'pullboard-item.json'), 'utf8'));
+    const seat = JSON.parse(fs.readFile(join(gitDir, 'pullboard-item.json'), 'utf8'));
     if (seat?.version !== 1 || typeof seat.seat !== 'string') return null;
-    const common = resolve(gitDir, readFileSync(join(gitDir, 'commondir'), 'utf8').trim());
+    const common = resolve(gitDir, fs.readFile(join(gitDir, 'commondir'), 'utf8').trim());
     return { seat: seat.seat, item: seat.item ?? null, file: join(common, 'pullboard', 'seat-timing.jsonl') };
   } catch { return null; }
 }
@@ -91,7 +91,7 @@ async function defaultHeld(file, seat) {
     board = store.openBoardForRead(file);
     if (!board) return false;
     const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(seat)?.agent_path;
-    if (typeof path === 'string' && !existsSync(path)) return false;
+    if (typeof path === 'string' && !fs.exists(path)) return false;
     return Boolean(board.db.prepare("SELECT 1 FROM item WHERE item_status='claimed' AND item_owner=? LIMIT 1").get(seat));
   } catch { return true; }
   finally { try { if (board) store.closeBoard(board); } catch { /* already closed */ } }
