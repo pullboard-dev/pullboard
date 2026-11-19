@@ -6,7 +6,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { needsFullCensus } from '../../../../../packages/codemap/index.js';
-import { readAcceptedCells } from '../../../../../packages/gate/index.js';
+import { readAcceptedCells } from '../../../../../packages/gate/heavy.js';
 import { shellWord } from '../../../../../packages/runners/index.js';
 import { createHash } from 'node:crypto';
 import {

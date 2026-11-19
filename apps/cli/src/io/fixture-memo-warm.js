@@ -5,7 +5,7 @@ import { keepRunnerFixtureMemo } from './memo.js';
 import { fixtureMemoArtifact } from './memo.js';
 import { PLAN_DIR } from '../../../../packages/codemap/index.js';
 import { PLAN_FILE } from '../../../../packages/codemap/index.js';
-import { withGateSlot } from '../../../../packages/gate/index.js';
+import { withGateSlot } from '../../../../packages/gate/heavy.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { checkCommandDefinition } from '../../../../packages/git/index.js';
 import { git } from '../../../../packages/git/index.js';
