@@ -1,0 +1,11 @@
+{
+ "order": 2,
+ "name": "fs",
+ "kind": "package",
+ "root": "packages/fs",
+ "frontDoor": "packages/fs/index.js",
+ "paths": [],
+ "reexports": [],
+ "imports": [],
+ "cuts": []
+}
