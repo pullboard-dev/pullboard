@@ -1,0 +1,4 @@
+{
+  "cli.journeys-submit-nomerge.a-sixty-file-main-merge-leaves-the-folder": {"proves":{"specs":["C7"],"claim":"A submit merge of a 60-file main move written as objects leaves git status empty and HEAD unchanged."},"why":"Without it, a submit that checks out a big main move would leave the item folder changed under the builder.","kind":"journey","inputs":["apps/cli/journeys/submit/nomerge.test.js"]},
+  "cli.journeys-submit-nomerge.a-second-submit-merge-from-the-same-folder": {"proves":{"specs":["C7"],"claim":"A second submit merge from the same folder is not refused DIRTY and composes the same tree."},"why":"Without it, a folder left dirty by the first submit would refuse the second.","kind":"journey","inputs":["apps/cli/journeys/submit/nomerge.test.js"]}
+}
