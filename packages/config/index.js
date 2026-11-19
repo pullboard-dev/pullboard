@@ -74,6 +74,7 @@ export {
   fencedHopEnabled,
   judgeByReleaseEnabled,
   endStaleJobsEnabled,
+  retryNewRedsOnceEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
   receiptMissingCauseEnabled,
