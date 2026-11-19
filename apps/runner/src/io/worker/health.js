@@ -1,4 +1,5 @@
 import { processCensus } from '../custody.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { orphanObserver } from '../orphans.js';
 /** Answer the controller's health request from the worker's own runner root [C7]. */
 import { runnerHealthReply } from '../../../../../packages/runners/light.js';
@@ -10,15 +11,14 @@ import { holderProcessAlive } from '../../../../../packages/runners/light.js';
 import { parseProcessCensus } from '../../../../../packages/kernel/light.js';
 import { exactStart } from '../../../../../packages/gate/light.js';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { userInfo } from 'node:os';
 import { hostname } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Print one health or idle reply for a base64 request, exiting non-zero when the request is not exact. */
 export function serveHealth(encodedRequest) {
@@ -33,7 +33,7 @@ export function serveHealth(encodedRequest) {
 function readRequest(encodedRequest) {
   const request = JSON.parse(Buffer.from(encodedRequest ?? '', 'base64').toString('utf8'));
   if (!/^[a-f0-9-]{36}$/u.test(request.nonce ?? '') || request.root !== undefined && !isAbsolute(request.root)) throw new Error('invalid health request');
-  return { request, root: request.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner') };
+  return { request, root: request.root ?? join(isAbsolute(environmentAdapter().get('HOME') || '') ? environmentAdapter().get('HOME') : userInfo().homedir, '.pullboard-runner') };
 }
 
 /** Preserve the exact failing observation instead of treating unknown custody as an empty runner. */
@@ -53,7 +53,7 @@ exit 1 if $nul < 1 || $nul >= length($buf); print substr($buf, 0, $nul);`;
 function workerExecutableMatches(pid) {
   try {
     let executable;
-    if (process.platform === 'linux') executable = realpathSync('/proc/' + pid + '/exe');
+    if (process.platform === 'linux') executable = fs.realpath('/proc/' + pid + '/exe');
     else if (process.platform === 'darwin') {
       const result = spawnSync('/usr/bin/perl', ['-e', PERL_EXECUTABLE, String(pid)], { encoding: 'utf8', timeout: 2_000,
         maxBuffer: 4096, env: { PATH: '/usr/bin:/bin', LANG: 'C' } });
@@ -61,7 +61,7 @@ function workerExecutableMatches(pid) {
         || !result.stdout || Buffer.byteLength(result.stdout) >= 4096 || result.stdout.includes('\0')) return false;
       executable = result.stdout;
     } else return false;
-    return isAbsolute(executable) && realpathSync(executable) === realpathSync(process.execPath);
+    return isAbsolute(executable) && fs.realpath(executable) === fs.realpath(process.execPath);
   } catch { return false; }
 }
 
@@ -70,7 +70,7 @@ function ordinaryWorkerCommand(command, isEntrypoint, pid) {
   let words;
   if (process.platform === 'linux') {
     try {
-      const bytes = readFileSync('/proc/' + pid + '/cmdline');
+      const bytes = fs.readFile('/proc/' + pid + '/cmdline', null);
       if (!bytes.length || bytes.at(-1) !== 0) return false;
       words = bytes.toString('utf8').slice(0, -1).split('\0');
     } catch { return false; }
@@ -81,7 +81,7 @@ function ordinaryWorkerCommand(command, isEntrypoint, pid) {
   } else return false;
   if (words.length !== 2 || !isEntrypoint(words[1]) || !workerExecutableMatches(pid)) return false;
   if (words[0] === 'node' || words[0] === process.execPath) return true;
-  try { return isAbsolute(words[0]) && realpathSync(words[0]) === realpathSync(process.execPath); }
+  try { return isAbsolute(words[0]) && fs.realpath(words[0]) === fs.realpath(process.execPath); }
   catch { return false; }
 }
 
@@ -95,27 +95,27 @@ function idleWorkerSnapshot(root, diagnostic) {
   let canonical;
   let isWorker, isEntrypoint;
   try {
-    canonical = realpathSync(root);
+    canonical = fs.realpath(root);
     isWorker = runnerWorkerMatcher(root);
     isEntrypoint = runnerWorkerMatcher(root, { exactEntrypoint: true });
   }
   catch (error) { return unknown(diagnostic, 'runner root could not be verified', error); }
   const jobs = join(canonical, 'jobs');
   let jobDirectory;
-  try { jobDirectory = lstatSync(jobs); }
+  try { jobDirectory = fs.lstat(jobs); }
   catch (error) { if (error.code !== 'ENOENT') return unknown(diagnostic, 'jobs directory could not be inspected', error); }
   let directories = [];
   if (jobDirectory) {
     if (!jobDirectory.isDirectory()) return unknown(diagnostic, 'jobs location is not a real directory');
-    try { directories = readdirSync(jobs, { withFileTypes: true }); }
+    try { directories = fs.list(jobs, { withFileTypes: true }); }
     catch (error) { return unknown(diagnostic, 'jobs directory could not be read', error); }
   }
   for (const directory of directories) {
     if (!directory.isDirectory() || directory.isSymbolicLink()) return unknown(diagnostic, 'jobs entry is not a real directory: ' + directory.name);
     try {
-      const file = join(canonical, 'jobs', directory.name, 'worker-owner.json'), stat = lstatSync(file);
+      const file = join(canonical, 'jobs', directory.name, 'worker-owner.json'), stat = fs.lstat(file);
       if (!stat.isFile() || stat.size > 4096) return unknown(diagnostic, 'job owner record is not a bounded regular file: ' + directory.name);
-      const text = readFileSync(file, 'utf8');
+      const text = fs.readFile(file, 'utf8');
       if (Buffer.byteLength(text) > 4096) return unknown(diagnostic, 'job owner record is oversized: ' + directory.name);
       const owner = JSON.parse(text);
       if (!Number.isSafeInteger(owner?.pid) || owner.pid < 1 || typeof owner.started !== 'string'
@@ -130,12 +130,12 @@ function idleWorkerSnapshot(root, diagnostic) {
         return unknown(diagnostic, 'live job owner remains: pid ' + owner.pid);
     } catch (error) { return unknown(diagnostic, error instanceof SyntaxError ? 'job owner JSON is malformed: ' + directory.name : 'job owner record could not be read: ' + directory.name, error); }
   }
-  const home = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
-  const machineHome = process.env.PULLBOARD_MACHINE_HOME ?? join(home, '.pullboard');
+  const home = isAbsolute(environmentAdapter().get('HOME') || '') ? environmentAdapter().get('HOME') : userInfo().homedir;
+  const machineHome = environmentAdapter().get('PULLBOARD_MACHINE_HOME') ?? join(home, '.pullboard');
   if (!isAbsolute(machineHome)) return unknown(diagnostic, 'resource database location is not absolute');
   const resourceFile = join(machineHome, 'resources.sqlite');
   let resourceStat;
-  try { resourceStat = lstatSync(resourceFile); }
+  try { resourceStat = fs.lstat(resourceFile); }
   catch (error) { if (error.code !== 'ENOENT') return unknown(diagnostic, 'resource database could not be inspected', error); }
   if (resourceStat) {
     if (!resourceStat.isFile()) return unknown(diagnostic, 'resource database is not a regular file');
