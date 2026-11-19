@@ -18,13 +18,15 @@ function fixtureRepo() {
 
 const withOwns = owns => ({ ...defaults(), lanes: { web: { owns } } });
 
-test('config.main.owns-folder-needs-slash: clause 1: an owns entry naming a folder without a trailing slash is a problem naming the lane, the entry and the fixed entry [C7]', () => {
+test('config.main.owns-folder-needs-slash: clause 2: configProblems reports no owns problem for an owns entry naming a folder without a trailing slash [C7]', () => {
   const root = fixtureRepo();
-  const problems = configProblems(withOwns(['alpha']), root).filter(problem => problem.includes('owns entry'));
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /lane "web"/u);
-  assert.match(problems[0], /"alpha"/u);
-  assert.match(problems[0], /write "alpha\/"/u);
+  assert.deepEqual(configProblems(withOwns(['alpha']), root).filter(problem => problem.includes('owns')), []);
+});
+
+test('config.main.owns-folder-without-slash-loads: clause 1: configFromSource on a repo with one folder loads an owns entry naming it without a slash with the slash added and throws no BAD_CONFIG, while a plain file and a missing path load unchanged [C7]', () => {
+  const root = fixtureRepo();
+  const config = configFromSource(JSON.stringify({ lanes: { web: { owns: ['alpha', 'notes.md', 'missing'] } } }), root);
+  assert.deepEqual(config.lanes.web.owns, ['alpha/', 'notes.md', 'missing']);
 });
 
 test('config.main.owns-slash-and-files-clean: clause 2: owns listing alpha with a trailing slash plus a plain file name returns no owns problem [C7]', () => {
@@ -32,10 +34,10 @@ test('config.main.owns-slash-and-files-clean: clause 2: owns listing alpha with 
   assert.deepEqual(configProblems(withOwns(['alpha/', 'notes.md', 'missing']), root).filter(problem => problem.includes('owns')), []);
 });
 
-test('config.main.owns-flagged-on-load: loading a repo config with a slashless folder entry refuses it through configProblems [C7]', () => {
+test('config.main.owns-flagged-on-load: clause 3: loading a repo config with a slashless folder entry loads it with the slash added [C7]', () => {
   const root = fixtureRepo();
   fixtureProjectPolicy(root, { config: { lanes: { web: { owns: ['alpha'] } } } });
-  assert.throws(() => loadConfig(root), error => error.code === 'BAD_CONFIG' && /write "alpha\/"/u.test(error.message));
+  assert.deepEqual(loadConfig(root).lanes.web.owns, ['alpha/']);
 });
 
 test('config.io-main.confined-import-selection-values: clause 1: configProblems accepts confinedImportSelection off, tests and all, and names it for true, 1 and "yes" [C7]', () => {
@@ -49,4 +51,14 @@ test('config.io-main.confined-import-selection-default-off: clause 2: a config r
   const config = configFromSource(JSON.stringify({}), fixtureRepo());
   assert.equal(config.confinedImportSelection, undefined);
   assert.equal(configFromSource(JSON.stringify({ confinedImportSelection: 'tests' }), fixtureRepo()).confinedImportSelection, 'tests');
+});
+
+test('config.main.slices-compose-landing-default-off: clause 1: configFromSource reads slices.composeLanding as false when unset and true when set true [C7]', () => {
+  assert.equal(configFromSource('{}', fixtureRepo()).slices.composeLanding, false);
+  assert.equal(configFromSource(JSON.stringify({ slices: { composeLanding: true } }), fixtureRepo()).slices.composeLanding, true);
+});
+
+test('config.main.slices-compose-landing-not-boolean: clause 1: a non-boolean slices.composeLanding is a config problem naming the key [C7]', () => {
+  const problems = configProblems({ ...defaults(), slices: { composeLanding: 'yes' } }, fixtureRepo()).filter(problem => problem.includes('slices.composeLanding'));
+  assert.deepEqual(problems, ['"slices.composeLanding" is true or false']);
 });
