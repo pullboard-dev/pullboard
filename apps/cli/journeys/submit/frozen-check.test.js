@@ -17,7 +17,7 @@ test('cli.journeys-submit-frozen-check.submits-without-pullboard-check: clause 3
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'true', shared: ['pullboard.json'], verify: { inspectClauses: true } }));
   box = builderRepo(box);
-  const added = await coordinatorLocal(box, 'add', 'build', 'Frozen check at submit', '--check', 'node --test test/frozen.test.js',
+  const added = await coordinatorLocal(box, 'add', 'build', 'Frozen check at submit', '--check', 'test -e test/frozen.test.js && node --test test/frozen.test.js',
     '--criterion', '1. The fixture count test passes [test].');
   assert.equal(added.code, 0, added.err + added.out);
   const claimed = await runLocal(box, 'claim', '1');
@@ -27,6 +27,6 @@ test('cli.journeys-submit-frozen-check.submits-without-pullboard-check: clause 3
   const submitted = await runLocal(box, 'submit', '1');
   const answer = submitted.err + submitted.out;
   assert.equal(submitted.code, 0, answer);
-  assert.match(answer, /submit runs the frozen check of #1: node --test test\/frozen\.test\.js/u);
+  assert.match(answer, /submit runs the frozen check of #1: test -e test\/frozen\.test\.js && node --test test\/frozen\.test\.js/u);
   assert.doesNotMatch(answer, /CLAUSE_UNTICKED|CHECK_CONFIRM/u);
 });
