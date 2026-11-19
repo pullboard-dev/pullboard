@@ -179,3 +179,36 @@ test('cli.journeys-speed-profile.a-stand-in-command-that-takes: clause 3: a stan
   const measured = [measure('stand-in', () => ({ code: standIn().status, out: '', err: '' }))];
   assert.throws(() => assertWithinBudget(measured), /stand-in took (?:[3-9]\d\d|\d{4,}) ms \(median of [^)]*\), over its 200 ms budget/u);
 });
+
+test('cli.journeys-speed-profile.submit-marks-name-each-phase: clause 1: with PULLBOARD_SUBMIT_MARKS=1 a submit on a large board prints an authorization mark per step, the preflight/static mark and the queueing marks on stderr, and with it unset prints no submit-mark line [C7]', (t) => {
+  const box = largeBoard(t);
+  box.beforeCleanup(() => stopResidents(box.repo));
+  for (const name of ['NODE_TEST_CONTEXT', 'NODE_TEST_WORKER_ID', 'PULLBOARD_RESIDENT', 'PULLBOARD_SUBMIT_MARKS']) delete box.env[name];
+  const added = (title) => fileFixtureItem(box, box.repo, { lane: 'web', title, diagnose: false, args: ['--specs', 'G1'] }).item_id;
+  const submits = [0, 1].map(run => added(`Marked submit ${run}`));
+  json(box.run(box.web, 'status', '--json'), 'warm status'); // real process: the marks are written by the submit process itself
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, claims: { ...config.claims, perSeat: submits.length } } });
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.repo, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', 'chore: let the speed seat hold two claims'], { cwd: box.repo, env: box.env });
+  const submitOne = (id, run, marked) => {
+    runFixtureGit(['checkout', '-q', '-B', `web/marks-${run}`, 'main'], { cwd: box.web, env: box.env });
+    json(box.run(box.web, 'claim', String(id), '--json'), 'claim'); // real process: the marks are written by the submit process itself
+    mkdirSync(join(box.web, 'web'), { recursive: true });
+    writeFileSync(join(box.web, 'web', `marks-${run}.js`), `export const marks = ${run};\n`);
+    runFixtureGit(['add', '-A'], { cwd: box.web, env: box.env });
+    runFixtureGit(['commit', '-q', '-m', `feat(web): submit marks ${run} [G1]`], { cwd: box.web, env: box.env });
+    if (marked) box.env.PULLBOARD_SUBMIT_MARKS = '1'; else delete box.env.PULLBOARD_SUBMIT_MARKS;
+    const result = box.run(box.web, 'submit', String(id), '--no-next'); // real process: the marks are written by the submit process itself
+    delete box.env.PULLBOARD_SUBMIT_MARKS;
+    assert.equal(result.code, 0, `submit exited ${result.code}: ${result.err}${result.out}`);
+    return result.err.split('\n').filter(line => line.startsWith('submit-mark '));
+  };
+  const marks = submitOne(submits[0], 0, true);
+  const phases = marks.map(line => /^submit-mark (\S+): (\d+) ms$/u.exec(line)).map(found => { assert.ok(found, 'every mark line reads "submit-mark <phase>: <ms> ms"'); return [found[1], Number(found[2])]; });
+  for (const [phase, ms] of phases) console.log(`# SUBMIT mark ${phase} ${ms}`);
+  assert.ok(phases.some(([phase]) => phase.startsWith('authorization/')), 'an authorization/<step> mark');
+  assert.ok(phases.some(([phase]) => phase === 'preflight/static'), 'the preflight/static mark');
+  assert.ok(phases.some(([phase]) => phase.startsWith('queueing/')), 'a queueing/<step> mark');
+  assert.deepEqual(submitOne(submits[1], 1, false), [], 'with PULLBOARD_SUBMIT_MARKS unset a submit prints no submit-mark line');
+});
