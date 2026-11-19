@@ -32,6 +32,7 @@ import { canonicalVendorFamily } from '../../../../../packages/items/index.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { modelTierRoute } from '../route.js';
 import {
   context,
@@ -64,9 +65,9 @@ function registeredFamily(label) {
 export async function joinRemote(io, { positionals, values }, origin, postMove) {
   const lane = positionals[1];
   if (!lane) throw new Refused('NO_LANE', 'name a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
-  const model = requiredModel(values.model, process.env, `join ${shellWord(lane)}`);
+  const model = requiredModel(values.model, environmentAdapter().all(), `join ${shellWord(lane)}`);
   const ctx = context(io);
-  const route = values.route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
+  const route = values.route ?? environmentAdapter().get('PULLBOARD_ROUTE') ?? modelTierRoute(model, ctx.config.modelTiers);
   const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: registeredFamily(values.family) }) } });
   // Per-worktree config, so each seat's worktree in one clone keeps its own name.
   gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
@@ -97,7 +98,7 @@ export async function run(io, { first: named, values }) {
   const sessionDigest = runtime?.session ? parentSessionDigest(runtime.session) : undefined;
   if (ctx.info.isMain) {
     if (first !== COORDINATOR) throw new Refused('MAIN_IS_COORDINATOR', 'the main checkout is the coordinator; join from a worktree: git worktree add ../<dir>');
-    const model = requiredModel(values.model, process.env, `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+    const model = requiredModel(values.model, environmentAdapter().all(), `join ${shellWord(COORDINATOR)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
     const route = values.route ?? 'strong'; // The coordinator is always strong, whatever tier its model name maps to.
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
     const joined = await withBoard(ctx, async (board) => {
@@ -120,14 +121,14 @@ export async function run(io, { first: named, values }) {
   if (!first || (first === COORDINATOR && !coordinatorSeat) || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
-  const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+  const model = requiredModel(values.model, environmentAdapter().all(), `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
   const reviewLimits = String(values['review-limit'] ?? '').split(',').map(limit => limit.trim()).filter(Boolean);
   for (const limit of reviewLimits) {
     if (limit !== 'not-same-family') throw new Refused('BAD_REVIEW_LIMIT', `--review-limit ${limit} is not a review limit; the one limit is not-same-family`, 'pullboard join <lane> --review-limit not-same-family');
   }
   const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
-  const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
+  const route = values.route ?? existing?.agent_route ?? environmentAdapter().get('PULLBOARD_ROUTE') ?? modelTierRoute(model, ctx.config.modelTiers);
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
   if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && values.role === undefined && !values['lock-lane'] && values['review-limit'] === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
