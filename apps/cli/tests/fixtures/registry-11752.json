@@ -1,0 +1,16 @@
+{
+  "cli.logic-show-gate.generic-case-error-leads-with-output-line": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A case whose error is only \"test failed\" is named by the first error line of its phase output."
+    },
+    "why": "Without it, a gate that crashed before any case would show only \"test failed\" and leave the builder nothing to fix from.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/logic/show/gate.test.js",
+      "apps/cli/src/logic/show/gate.js"
+    ]
+  }
+}

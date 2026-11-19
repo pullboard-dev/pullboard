@@ -60,6 +60,17 @@ test('cli.logic-show-gate.a-red-pulled-gate-prints-gate-red: a red pulled gate p
   assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'claimed', gate: null }, { item_id: 1, item_status: 'claimed' }), []);
 });
 
+test('cli.logic-show-gate.generic-case-error-leads-with-output-line: clause 1: a case whose error is only "test failed" is named by the first error line of its phase output [C7]', () => {
+  const gate = { green: false, phases: [{ role: 'proof', status: 1, errors: [{ file: 'test/a.test.js', name: 'a.test.js', error: 'test failed' }],
+    tail: '# Subtest: a.test.js\n# ReferenceError: describe is not defined\n#     at file:///a.test.js:1:1' }] };
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate }, { item_id: 1, item_status: 'claimed' });
+  const named = red.find(line => line.includes('::'));
+  assert.match(named, /ReferenceError: describe is not defined$/u);
+  assert.doesNotMatch(named, /test failed/u);
+  const own = { ...gate, phases: [{ ...gate.phases[0], errors: [{ file: 'test/a.test.js', name: 'a', error: 'expected 1 to equal 2' }] }] };
+  assert.match(pulledRedLines({ id: 'gate:1', step: 'done', gate: own }, { item_id: 1, item_status: 'claimed' }).find(line => line.includes('::')), /expected 1 to equal 2$/u, 'a case with its own error keeps it');
+});
+
 const DEFERRED = { green: false, deferred: true, phases: [{ role: 'proof', status: 1, exit: 'full suite deferred' }] };
 
 test('cli.logic-show-gate.a-done-gate-whose-receipt-is-deferred: clause 1: a done gate whose receipt is deferred to shard jobs prints no GATE_RED line [C7]', () => {
