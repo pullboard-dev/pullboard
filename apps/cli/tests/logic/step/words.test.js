@@ -83,7 +83,6 @@ const SEAT_REFUSALS = [
   ['COMMITS_REFUSED', 'the board host could not record abcdef123456; submit again from the clone', null],
   ['NO_POLICY', 'the item or admitted main history cannot be read; restore Git history before submitting again', null],
   ['SUBMIT_RED_LOOP', 'two red test gates still match this item code (a.js); change the failing code before another submit', null],
-  ['SLICE_PATHS', 'slice #7 changes 1 path(s) outside its declared set, e.g. src/x.js', null],
   ['SUBMIT_HANDOFF_CHANGED', 'the queued gate for #7 changed; run pullboard show 7 to read its actual result', null],
   ['SUBMIT_HANDOFF_RESULT', 'the queued worker observation is unavailable; run pullboard show 7; its gate may still be running', null],
   ['ITEM_WORK_IN_SEAT', 'item work for #7 is committed in the seat checkout /work/seat; item work is built in its item folder /work/item-7', null],
