@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 538,
+  "total": 534,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -178,9 +178,6 @@
     "packages/runners/src/io/tooling/remote.js": 1,
     "packages/runners/src/io/transport.js": 3,
     "packages/sandbox/src/io/environment.js": 10,
-    "packages/sandbox/src/io/mutate.js": 1,
-    "packages/sandbox/src/io/submit/handoff/origin.js": 1,
-    "packages/sandbox/src/io/verify.js": 2,
     "packages/seats/src/io/agent/events.js": 1,
     "packages/seats/src/io/agent/hook.js": 1,
     "packages/seats/src/io/agent/session.js": 11,

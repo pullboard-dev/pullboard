@@ -2459,6 +2459,7 @@
     "apps/cli->search",
     "apps/cli->sandbox",
     "sandbox->kernel",
+    "sandbox->env",
     "apps/cli->state",
     "apps/lib->transport",
     "apps/lib->env",
