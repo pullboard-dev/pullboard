@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import { parseProcessCensus } from "../../../../../kernel/light.js";
 import { recordBoardHold } from "../hold/log.js";
 import { storeName } from '../../store-names.js';
+import { channel } from 'node:diagnostics_channel';
+
+/** Each write transaction's start and end, so a command's remembered item list reads again (read/light.js, #12010). */
+const WRITES = channel('pullboard:board-write');
 
 const fs = fileSystemAdapter();
 
@@ -104,6 +108,7 @@ export function discardBoardWriteMarker(marker) {
 
 /** Start timing after BEGIN without filesystem I/O. */
 export function beginBoardWrite(db, context = {}, marker = null) {
+  if (WRITES.hasSubscribers) WRITES.publish(db);
   const record = { db, start: performance.now(), acquiredAt: Date.now(), pid: process.pid,
     command: 'api', seat: 'unknown', marker, complete: false, boardFile: openBoardFile(db) };
   let records = pending.get(db);
@@ -158,6 +163,7 @@ export function boardWriteLog() { return join(machineHome(), 'board-writes.jsonl
 
 /** Complete only after COMMIT/ROLLBACK or actual connection close; unique records cannot unlink a successor. */
 export function finishBoardWrite(record, released, outcome = 'released') {
+  if (WRITES.hasSubscribers) WRITES.publish(record?.db);
   if (!record || record.complete || !released) return;
   record.complete = true;
   const durationMs = Math.max(0, Math.round((record.releasedAt ?? performance.now()) - record.start));

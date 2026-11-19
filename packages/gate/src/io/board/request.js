@@ -71,7 +71,6 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/keys/src/io/relay.js#removeKeychainValue': 'relay forget removes a keychain value through a synchronous child process',
   'packages/keys/src/io/relay.js#readBoardKey': 'relay move reads the board key through a synchronous child process',
   'packages/keys/src/io/relay.js#forgetBoardKey': 'relay forget deletes the board key through a synchronous child process',
-  'packages/keys/src/io/relay.js#scrubLegacyPersonSessions': 'relay move lists legacy person sessions with a synchronous directory read',
   'packages/landing/src/io/main/red/receipt.js#treeOf': 'mainReceipts resolves the main tree with synchronous git on every submit-time comparison',
   'packages/landing/src/io/main/red/receipt.js#unchangedDescendants': 'one synchronous git log per cached main candidate file',
   'packages/link/src/io/relay/lock.js#locked': 'relay lock check lists the lock folder with a synchronous directory read',
