@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
 import { progressLine } from '../../../../../packages/roadmap/light.js';
@@ -24,10 +25,6 @@ import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
-import { gatePanel } from '../../../../../packages/jobs/index.js';
-import { jobsOf } from '../../../../../packages/jobs/index.js';
-import { jobView } from '../../../../../packages/jobs/index.js';
-import { settledGate } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
   testRuntimeEnvironment,
@@ -70,6 +67,10 @@ import { publicUsage } from '../../../../../packages/stats/light.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 
+const requireModule = createRequire(import.meta.url);
+/** The jobs cell loads at the first gate job or gate panel a show renders: a show of an item with no gate job never pays its 17 modules [C7,#11912]. */
+const jobsCell = () => requireModule('../../../../../packages/jobs/index.js');
+
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
 
@@ -80,11 +81,14 @@ export const nativeBoardRequired = false;
 export function newestGateJob(db, id, receipts = [], { runs = null } = {}) {
   if (runs) return newestRunGateJob(db, id, receipts, runs);
   let job;
-  try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
+  try {
+    if (!db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item = ? LIMIT 1").get(id)) return null;
+    job = jobsCell().jobsOf(db, { kind: 'gate', item: id }).at(-1);
+  } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!job) return null;
   // The receipt's plan, counts and log read back in the inline gate's shape; a receipt without them reads as it was [P7].
   const posted = job.steps.find(step => step.name === 'receipt')?.payload ?? null;
-  return { id: job.id, step: job.step, gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+  return { id: job.id, step: job.step, gate: jobsCell().settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /**
@@ -100,13 +104,13 @@ function newestRunGateJob(db, id, receipts, runs) {
   let run;
   try { run = db.prepare("SELECT * FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_created, rowid").all(id).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!run) return null;
-  const live = runs.db ? jobView(runs.db, run.run_job) : null;
+  const live = runs.db ? jobsCell().jobView(runs.db, run.run_job) : null;
   const posted = live?.steps.find(step => step.name === 'receipt')?.payload ?? null;
   let summary = null;
   try { summary = run.run_state === 'done' ? JSON.parse(run.run_summary ?? 'null') : null; } catch { summary = null; }
   const step = run.run_state === 'done' ? 'done' : live?.step ?? run.run_state;
   return { id: run.run_job, step, ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
-    gate: settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
+    gate: jobsCell().settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /**
@@ -152,7 +156,7 @@ export async function run(io, { first, values }) {
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
     const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
-    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
+    const panel = job ? jobsCell().gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     // The landed-from-main reader lives in the roadmap barrel, which loads only with landing.landedFromMain on, so a cold show reaches the barrel only when it calls it [C7,#11918].
     const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
