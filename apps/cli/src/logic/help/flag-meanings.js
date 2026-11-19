@@ -159,7 +159,6 @@ export const FLAG_MEANINGS = Object.freeze({
   '--root': ['--root <remote-path>', 'the runner\'s Pullboard folder; defaults to ~/.pullboard-runner'],
   '--machine-verified': 'coordinator only: turns machine verification on or off for the item',
   '--machine-commands-file': ['--machine-commands-file <json>', 'coordinator only: the machine verification commands'],
-  '--review-tier': ['--review-tier strict', 'coordinator only: marks the item as additional Strict work; never downgrades'],
   '--on': ['--on <ids>', 'the item ids this one is blocked on; needs --reason BLOCKED'],
   '--stale': 'coordinator only: releases a claim with measured inactivity; needs a note',
   '--session-end': 'frees your build claims at once and keeps the work at a board ref; the SessionEnd hook runs it',
