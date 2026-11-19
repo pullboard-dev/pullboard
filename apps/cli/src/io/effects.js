@@ -1,5 +1,6 @@
 /** Keep post-recording observations outside the bounded CLI dispatcher [B3,H16]. */
 import { heartbeatCommand } from './presence.js';
+import { claimHeartbeatOverlaps } from './presence.js';
 import { statsRecordCoordinatorUsage } from '../../../../packages/config/index.js';
 import { checkpointAfterMove } from '../../../../packages/stats/light.js';
 import { usageCheckpointWorkerEntrypoint } from './checkpoint.js';
@@ -15,7 +16,7 @@ const CLAIMING = new Set(['claim', 'takeHandoff']);
  * session; a background submit worker has no session.
  */
 export async function afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered }) {
-  if (requested && ctx.io.recordedMove) heartbeatCommand(ctx.io, { ctx, board, overlaps: ctx.io.defaultLoop !== true });
+  if (requested && ctx.io.recordedMove) heartbeatCommand(ctx.io, { ctx, board, overlaps: claimHeartbeatOverlaps(ctx.io) });
   if (requested && ctx.io.recordedMove && CLAIMING.has(operation) && !isSubmitHandoffWorker(ctx)) await startClaimBeater(ctx.info.root, { seat: actor, board: ctx.file });
   if (['claim', 'submit', 'release', 'merged', 'withdraw'].includes(operation) && actor) {
     await checkpointAfterMove(ctx, board, { agent: actor, item: args[0], operation }, { ordered, worker: usageCheckpointWorkerEntrypoint(), recordCoordinatorUsage: statsRecordCoordinatorUsage() });
