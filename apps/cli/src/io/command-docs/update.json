@@ -1,0 +1,9 @@
+{
+  "name": "update",
+  "help": "  pullboard update  run the upgrade that matches how Pullboard was installed, then print what changed\n",
+  "required": {
+    "current": "boolean",
+    "from": "string",
+    "to": "string"
+  }
+}
