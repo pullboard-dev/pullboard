@@ -2,6 +2,7 @@
   "units": [
     "apps/runner",
     "packages/config",
+    "packages/fs",
     "packages/gate",
     "packages/git",
     "packages/jobs",

@@ -9,8 +9,7 @@ import { toolBuildLocation } from '../pinned/tool/build.js';
 import { unfinishedFolders } from '../item/folder.js';
 import { fileURLToPath } from 'node:url';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   boardHealth,
   healthLines,
@@ -31,6 +30,8 @@ import { machineLoadVerdict } from '../../../../../packages/resources/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
 import { healthDiskFloorGb } from '../../../../../packages/config/index.js';
 import { diskFloorFinding } from '../health/disk.js';
+
+const fs = fileSystemAdapter();
 
 /** Run `pullboard health` and return its exit code. */
 export async function run(io, { values = {}, statfs } = {}) {
@@ -87,7 +88,7 @@ export async function run(io, { values = {}, statfs } = {}) {
 
 /** Each seat's id by its worktree path, so a block names who was stopped; a missing board names none. */
 function seatsByPath(file) {
-  if (!existsSync(file)) return new Map();
+  if (!fs.exists(file)) return new Map();
   const db = openBoardReadOnly(file);
   try { return new Map(db.prepare('SELECT agent_id, agent_path FROM agent').all().map(seat => [seat.agent_path, seat.agent_id])); }
   finally { db.close(); }
@@ -139,7 +140,7 @@ export function blockLines({ codes, drafts }, { detail = true } = {}) {
 
 /** Read active automatic quarantines without opening a mutable board or exposing private log bytes; the clock lets each item's stage be read. */
 function automaticQuarantines(file, clock) {
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   const db = openBoardReadOnly(file);
   try { return flakeQuarantines({ db, clock }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
   finally { db.close(); }
@@ -147,5 +148,5 @@ function automaticQuarantines(file, clock) {
 
 /** The board file's real path, which is how the hold log names it; the given path when it cannot be resolved. */
 function realBoardFile(file) {
-  try { return realpathSync(file); } catch { return file; }
+  try { return fs.realpath(file); } catch { return file; }
 }
