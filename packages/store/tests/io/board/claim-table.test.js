@@ -54,6 +54,28 @@ test('store.io-board-claim-table.lanes-on-registered-lane: clause 2: the same cl
   assert.equal(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(docs).item_status, 'open', 'nothing is written');
 });
 
+/** A reopened core item whose builder holds the first refusal until 60 minutes after `base`, on a board whose clock the test moves; line.takeoverMinutes is 15. */
+function reopened(t) {
+  const base = Date.parse('2026-10-24T00:00:00Z');
+  let at = base;
+  const board = cellBoard(t, ':memory:', { now: () => new Date(at) });
+  board.movesLive = { claim: true };
+  cellSeat(board, { lane: 'coordinator', path: '/seat/coordinator' });
+  const builder = cellSeat(board, { lane: 'core', path: '/seat/builder' });
+  const other = cellSeat(board, { lane: 'core', path: '/seat/other' });
+  const { item_id: id } = cellItem(board, { lane: 'core', title: 'Returned work', criterion: '1. the claim is recorded [test].', route: 'strong', check: 'true' });
+  board.db.prepare('UPDATE item SET item_built_by = ? WHERE item_id = ?').run(builder.id, id);
+  const detail = { reopenFirstRefusal: { builder: builder.id, until: new Date(base + 60 * 60_000).toISOString() } };
+  board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)').run(new Date(base).toISOString(), 'coordinator', 'reopen', id, JSON.stringify(detail));
+  store.setLineSetting(board, { agentId: 'coordinator', key: 'takeoverMinutes', value: 15, reason: 'seeded takeover window', window: { activeReviewers: 1, submissions: 5 } });
+  // The builder's seat keeps making moves, so only the line takeover wait, never a gone seat, ends its window.
+  const minutes = (n) => {
+    at = base + n * 60_000;
+    board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)').run(new Date(at).toISOString(), builder.id, 'fact', null, '{}');
+  };
+  return { board, id, other, minutes };
+}
+
 const freeze = () => ({ text: '{}', digest: 'claim-table-fixture' });
 
 test('store.io-board-claim-table.unjoined-seat-refused-joined-allowed: clause 2: with moves.live.claim on, the claim refuses NOT_JOINED for a seat that never joined and writes nothing, and the same claim by a joined seat is written [C7]', t => {
@@ -67,4 +89,18 @@ test('store.io-board-claim-table.unjoined-seat-refused-joined-allowed: clause 2:
   assert.equal(board.db.prepare("SELECT COUNT(*) n FROM event WHERE item_id=? AND event_kind='claim'").get(id).n, 0, 'the refusal wrote no claim');
   claim(joined.id);
   assert.equal(board.db.prepare('SELECT item_owner owner FROM item WHERE item_id=?').get(id).owner, joined.id, 'the joined seat holds the item');
+});
+
+test('store.io-board-claim-table.takeover-window-ends-first-refusal: clause 1: claimDecision for a reopened item past the recorded line takeoverMinutes and inside reopenFirstRefusalMinutes is not refused REOPEN_HELD_FOR_BUILDER, matching the writer [test] [C7,#10903]', t => {
+  const { board, id, other, minutes } = reopened(t);
+  minutes(15);
+  store.claim(board, id, { agentId: other.id, lane: 'core', leaseMs: 60 * 60_000, freeze });
+  assert.equal(board.db.prepare('SELECT item_owner owner FROM item WHERE item_id=?').get(id).owner, other.id, 'the takeover claim is written');
+});
+
+test('store.io-board-claim-table.first-refusal-before-takeover: clause 2: the same claim before takeoverMinutes is still refused REOPEN_HELD_FOR_BUILDER [test] [C7,#10903]', t => {
+  const { board, id, other, minutes } = reopened(t);
+  minutes(14);
+  assert.throws(() => store.claim(board, id, { agentId: other.id, lane: 'core', leaseMs: 60 * 60_000, freeze }), error => error.code === 'REOPEN_HELD_FOR_BUILDER');
+  assert.equal(board.db.prepare('SELECT item_status status FROM item WHERE item_id=?').get(id).status, 'open', 'nothing is written');
 });
