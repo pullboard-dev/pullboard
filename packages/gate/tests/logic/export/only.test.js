@@ -1,6 +1,7 @@
 /** The export-only ratchet refuses a new file of only exports and lets the known ones leave [C7]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { EXPORT_ONLY_CEILINGS } from '../../../src/logic/export/only.js';
@@ -30,24 +31,24 @@ test('gate.logic-export-only.the-ceilings-list-only-files-that: clause 1: the ce
   for (const file of files) assert.equal(exportOnly(file, readFileSync(join(root, file), 'utf8')), true, `${file} left the export-only shape; drop it from ${EXPORT_ONLY_CEILINGS}`);
 });
 
-/** A reader over an in-memory plan: an index naming one shard that declares the given door keys. */
-function planReader(doors) {
-  const files = { 'packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ file: 'packages/codemap/data/plan/01-a.json' }] }), 'packages/codemap/data/plan/01-a.json': JSON.stringify(doors) };
-  return file => { if (!(file in files)) throw new Error('missing ' + file); return files[file]; };
+/** An existence check over an in-memory file list. */
+function filesExist(...files) {
+  return file => files.includes(file);
 }
 
-test('gate.logic-export-only.a-one-export-door-the-plan: a one-export door the plan declares passes; the same file undeclared is refused [C7]', () => {
-  const sources = [{ file: 'packages/a/core.js', source: "export { a } from './src/shell/a.js';\n" }, { file: 'packages/a/pure.js', source: "export { b } from './src/core/b.js';\n" }];
-  const declared = declaredDoorFiles(planReader({ lightFrontDoor: 'packages/a/core.js', pureDoor: 'packages/a/pure.js' }));
-  assert.deepEqual([...declared].sort(), ['packages/a/core.js', 'packages/a/pure.js']);
-  assert.deepEqual(exportOnlyProblems(sources, [], declared), []);
-  assert.deepEqual(exportOnlyProblems(sources, [], declaredDoorFiles(planReader({}))).map(row => row.path), ['packages/a/core.js', 'packages/a/pure.js']);
-  assert.deepEqual(exportOnlyProblems(sources, []).map(row => row.path), ['packages/a/core.js', 'packages/a/pure.js'], 'no third argument keeps the rule exactly');
+test('gate.logic-export-only.doors-from-folders: declaredDoorFiles returns each cell folder\'s light.js and browser.js that exist, from the folders alone [C7]', () => {
+  const folders = ['packages/a', 'packages/b', 'apps/c'];
+  const declared = declaredDoorFiles(folders, filesExist('packages/a/light.js', 'packages/a/browser.js', 'packages/b/browser.js', 'packages/b/index.js', 'apps/c/light.js', 'packages/z/light.js'));
+  assert.deepEqual([...declared].sort(), ['apps/c/light.js', 'packages/a/browser.js', 'packages/a/light.js', 'packages/b/browser.js']);
+  const root = join(import.meta.dirname, '../../../../..');
+  const real = declaredDoorFiles(['packages/kernel', 'packages/git', 'packages/queue', 'apps/cli'], file => existsSync(join(root, file)));
+  for (const door of ['packages/kernel/light.js', 'packages/kernel/browser.js', 'packages/git/browser.js', 'packages/queue/light.js', 'apps/cli/light.js']) assert.equal(real.has(door), true, `${door} is a door`);
 });
 
-test('gate.logic-export-only.a-declared-purefrontdoor-passes-and-a: a declared pureFrontDoor passes, and a malformed or missing plan exempts nothing [C7]', () => {
-  const sources = [{ file: 'packages/a/core.js', source: "export { a } from './src/core/a.js';\n" }];
-  assert.deepEqual(exportOnlyProblems(sources, [], declaredDoorFiles(planReader({ pureFrontDoor: 'packages/a/core.js' }))), []);
-  assert.equal(declaredDoorFiles(() => '{not json').size, 0);
-  assert.equal(declaredDoorFiles(() => { throw new Error('no plan'); }).size, 0);
+test('gate.logic-export-only.a-folder-door-passes-and-no-folder-exempts: a one-export door found in its folder passes; the same file with no door found is refused [C7]', () => {
+  const sources = [{ file: 'packages/a/light.js', source: "export { a } from './src/shell/a.js';\n" }, { file: 'packages/a/browser.js', source: "export { b } from './src/core/b.js';\n" }];
+  const declared = declaredDoorFiles(['packages/a'], filesExist('packages/a/light.js', 'packages/a/browser.js'));
+  assert.deepEqual(exportOnlyProblems(sources, [], declared), []);
+  assert.deepEqual(exportOnlyProblems(sources, [], declaredDoorFiles([], filesExist())).map(row => row.path), ['packages/a/light.js', 'packages/a/browser.js']);
+  assert.deepEqual(exportOnlyProblems(sources, []).map(row => row.path), ['packages/a/light.js', 'packages/a/browser.js'], 'no third argument keeps the rule exactly');
 });
