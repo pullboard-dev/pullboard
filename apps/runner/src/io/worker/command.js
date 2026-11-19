@@ -12,13 +12,11 @@ import { fileDenialWatcher } from '../../../../../packages/sandbox/light.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { existsSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 /** Wait until all bytes written to stdout have passed through the stream before publishing a receipt. */
 export async function flushStdout() {
@@ -52,14 +50,14 @@ export function outputSink(S) {
 export async function runCommand(S, spec, root, env, sink, tracker, { continuation = false } = {}) {
   const commandCleanup = continuation ? () => beginPhaseCleanup(S) : () => beginCleanup(S);
   const split = spec.stageMarker ? gateStages(spec.command) : null;
-  const pipes = split?.some(stage => stage.pipeline.length > 1) ? mkdtempSync(join(dirname(root), 'gate-pipes-')) : null;
+  const pipes = split?.some(stage => stage.pipeline.length > 1) ? fs.mkdtemp(join(dirname(root), 'gate-pipes-')) : null;
   const command = split ? `(\n${stagedScript(split, spec.stageMarker, pipes)}\n) 2>&1` : spec.command;
   let shell = '/bin/sh';
   let args = ['-c', command];
   if (spec.pipefail) {
     const probe = spawnSync(shell, ['-c', 'set -o pipefail'], { env, stdio: 'ignore' });
     if (probe.status === 0) args = ['-c', `set -o pipefail\n${command}`];
-    else if (existsSync('/bin/bash')) { shell = '/bin/bash'; args = ['-o', 'pipefail', '-c', command]; }
+    else if (fs.exists('/bin/bash')) { shell = '/bin/bash'; args = ['-o', 'pipefail', '-c', command]; }
     else if (/(?:^|[^|])\|(?:[^|]|$)/u.test(spec.command)) throw new Error('runner shell cannot enforce pipefail');
   }
   const owned = spawnOwned(S, shell, args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -115,14 +113,14 @@ async function applyPrivateGuard(S, root, guard, env) {
   if (!guard) return null;
   try {
     const path = join(root, guard.patch ?? guard.path);
-    const canonical = realpathSync(path);
-    if (!canonical.startsWith(realpathSync(root) + '/')) throw new Error('guard escapes its private checkout');
+    const canonical = fs.realpath(path);
+    if (!canonical.startsWith(fs.realpath(root) + '/')) throw new Error('guard escapes its private checkout');
     if (guard.patch) await git(S, root, ['apply', '-R', '--whitespace=nowarn', '--', guard.patch], env);
     else {
-      const lines = readFileSync(path, 'utf8').split('\n');
+      const lines = fs.readFile(path, 'utf8').split('\n');
       if (guard.to > lines.length) throw new Error('guard lines are absent');
       lines.splice(guard.from - 1, guard.to - guard.from + 1);
-      writeFileSync(path, lines.join('\n'));
+      fs.writeFile(path, lines.join('\n'));
     }
     return { applied: true, problem: '' };
   } catch { return { applied: false, problem: `guard ${guard.text} cannot be reverted inside the submitted checkout`.slice(0, 4096) }; }
