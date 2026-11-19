@@ -22,15 +22,16 @@ const RUN_SCRIPT = [
   "await import(process.env.PULLBOARD_WAIT_BIN_URL);",
 ].join('\n');
 
-/** Writes the board file every 50 ms for 5 s without changing anything a seat can take; a separate process, so its CPU is not the wait's. */
+/** Writes one unused board_meta row on the board file every 50 ms for 5 s, changing nothing a seat can take; a separate process, so its CPU is not the wait's. */
 const WRITER_SCRIPT = [
   "import { DatabaseSync } from 'node:sqlite';",
   "const db = new DatabaseSync(process.argv[2]);",
-  "db.exec('PRAGMA busy_timeout = 5000; CREATE TABLE IF NOT EXISTS fixture_noise (n INTEGER)');",
+  "db.exec('PRAGMA busy_timeout = 5000');",
+  "let count = 0;",
   "const end = Date.now() + 5000;",
   "const timer = setInterval(() => {",
   "  if (Date.now() >= end) { clearInterval(timer); db.close(); return; }",
-  "  try { db.exec('INSERT INTO fixture_noise VALUES (1)'); } catch { /* a busy board skips this write */ }",
+  "  try { db.exec(`INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES ('fixture_noise', '${count += 1}')`); } catch { /* a busy board skips this write */ }",
   "}, 50);",
 ].join('\n');
 
@@ -81,6 +82,7 @@ test('cli.io-commands-next-wait.busy-board-cpu: clause 1: a real next --wait on 
   assert.equal(wrote.code, 0, wrote.err);
   assert.doesNotMatch(waiting.err, /\n\s+at [^\n]*\.js:\d+|Error:/u, `the wait ended in an error: ${waiting.err}`);
   assert.ok(waiting.code === 0 || waiting.code === 1, `exit ${waiting.code}: ${waiting.err}`);
+  assert.ok(waiting.seconds >= 5, `the wait returned after ${waiting.seconds} s, so it did not wait under the writes: ${waiting.err}`);
   assert.equal(waiting.cpu !== null, true, waiting.err);
   t.diagnostic(`the wait ran ${waiting.seconds} s, exit ${waiting.code}: ${(waiting.out + waiting.err).replace(/\s+/gu, ' ').slice(0, 300)}`);
   const figure = Math.round((waiting.cpu - start.cpu) * 100) / 100;
