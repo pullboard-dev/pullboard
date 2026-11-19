@@ -20,10 +20,10 @@ import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-/** A freshly initialised repository with its real git hooks installed and test.inProcessHooks set on the machine as asked. */
+/** A freshly initialised repository with its real git hooks installed and test.inProcessHooks set on the machine as asked, off written explicitly so the off case never rides the fixture default. */
 async function hookedRepo(inProcessHooks) {
   const box = e2e.sandbox();
-  if (inProcessHooks) fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks } });
   const root = join(box.dir, 'hooked');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
