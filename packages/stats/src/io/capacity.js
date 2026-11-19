@@ -33,7 +33,7 @@ function readPlannedCapacity(board, now, reads) {
     return capacityAtRead(cached, now);
   }
   const missing = planCapacity({ items: [], now, sequence: ordinary?.last, simulate: false });
-  return { ...missing, available: false, asOf: null, needsYou: null, workHours: null, tInfinityHours: null,
+  return { ...missing, available: false, readyWidth: null, asOf: null, needsYou: null, workHours: null, tInfinityHours: null,
     bounds: { criticalPathHours: null, stragglerHours: null, landingHours: null }, curve: [],
     monteCarlo: { replicates: 100, completed: 0, nonFinishing: 0, asOf: null, sequence: null },
     agents: { recommended: null, lower: null, upper: null }, finishHours: { lower: null, upper: null },
