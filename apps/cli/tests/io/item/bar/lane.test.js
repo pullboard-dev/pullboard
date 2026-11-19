@@ -24,7 +24,7 @@ function rules(on) {
 /** Titles that share no words, so the duplicate guard never reads one add as another. */
 const TITLES = ['Quartz lantern', 'Harbor meadow', 'Copper tundra', 'Velvet orchard', 'Saffron glacier'];
 let filed = 0;
-const add = (box, cwd, criterion) => cli(box, cwd, ['add', 'web', TITLES[filed++ % TITLES.length], '--specs', 'G1', '--route', 'strong', '--criterion', criterion, '--brief', BRIEF]);
+const add = (box, cwd, criterion, other = null) => cli(box, cwd, ['add', 'web', TITLES[filed++ % TITLES.length], '--specs', 'G1', '--route', 'strong', '--criterion', criterion, '--brief', BRIEF, ...(other ? ['--not-duplicate-of', `${other} a separate case of the same rule`] : [])]);
 
 test('cli.io-item-bar-lane.foreign-path-refused: clause 1: with items.barRulesAtAdd on, add and edit by a web seat refuse a bar naming docs/spec.md, a docs-lane file on main, LANE_FOREIGN_PATH naming the path and the lane [C7,#11739]', async t => {
   const box = await fixture(t, { files: FILES });
@@ -59,8 +59,9 @@ test('cli.io-item-bar-lane.off-or-own-lane-accepted: clause 3: with the setting 
   const off = await add(box, box.seats.actor.path, FOREIGN);
   assert.equal(off.code, 0, off.out + off.err);
   rules(true);
-  const own = await add(box, box.seats.actor.path, OWN);
+  const other = off.document.item.item_id;
+  const own = await add(box, box.seats.actor.path, OWN, other);
   assert.equal(own.code, 0, own.out + own.err);
-  const coordinator = await add(box, box.root, FOREIGN);
+  const coordinator = await add(box, box.root, FOREIGN, other);
   assert.equal(coordinator.code, 0, 'the coordinator may name any path: ' + coordinator.out + coordinator.err);
 });
