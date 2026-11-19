@@ -148,3 +148,16 @@ test('commits.io-hooks.range-refuses-home-path: clause 2: a range check refuses 
   const clean = messages(t, ['feat: one', "Merge branch 'side' into main"]);
   await checkRangeMessages(clean.root, clean.range, { noCoAuthor: true });
 });
+
+test('commits.io-hooks.commit-msg-refuses-a-quote: clause 1: commitMsgProblems refuses a message whose subject or body quotes a name from rules.quotedNames, and passes the same message with quotedNames empty [C7,#11300]', async () => {
+  const { commitMsgProblems } = await import('../../index.js');
+  const rules = { types: ['chore'], maxHeader: 72, banned: [], requireIds: [], noEmoji: false, noCoAuthor: false, quotedNames: ['Sam'] };
+  const spec = { rows: [] };
+  const body = 'chore: tidy the notes\n\nSam wrote: "keep it short"\n';
+  const refused = commitMsgProblems(body, { rules, spec });
+  assert.equal(refused.length, 1);
+  assert.match(refused[0], /line 3 quotes a configured person/u);
+  assert.equal(commitMsgProblems('chore: sam said "tidy" the notes\n', { rules, spec }).length, 1);
+  assert.deepEqual(commitMsgProblems(body, { rules: { ...rules, quotedNames: [] }, spec }), []);
+  assert.deepEqual(commitMsgProblems('chore: tidy the notes\n\nSam reviewed it.\n', { rules, spec }), []);
+});
