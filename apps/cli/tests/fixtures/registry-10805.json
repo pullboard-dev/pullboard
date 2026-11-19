@@ -1,0 +1,32 @@
+{
+  "cli.io-cli-main-options.review-and-review-tier-fold": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "add and edit parse --review standard|strict into the review tier, --review-tier still works and prints one stderr line naming --review."
+    },
+    "why": "Without it the approved --review name would reach add and edit as an unknown flag, or seats on --review-tier would see no notice.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cli-main/options.test.js",
+      "apps/cli/src/io/cli-main/options.js",
+      "apps/cli/src/io/cli-main/run/command.js"
+    ]
+  },
+  "cli.io-cli-main-options.review-key-and-help": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "add --json prints a review key with review_tier as its alias, and help edit names --review and no longer --review-tier."
+    },
+    "why": "Without it a client reading review and one reading review_tier would disagree, and help would keep teaching the old name.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cli-main/options.test.js",
+      "apps/cli/src/io/commands/add.js",
+      "apps/cli/src/logic/help/work.js"
+    ]
+  }
+}
