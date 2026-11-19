@@ -1,7 +1,5 @@
 /** The relay serves the existing cockpit over a device-only decrypting transport [H5,H15]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +11,9 @@ import { lex } from '../../../../../packages/kernel/index.js';
 import { APPROVAL_CARD_STYLES } from '../../logic/browser/card.js';
 import { composeViewStyles } from '../../../../view/light.js';
 import { relayScreenMarkup } from './notice.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 const STYLES = composeViewStyles() + APPROVAL_CARD_STYLES;
 
@@ -93,12 +94,12 @@ function refuseModule(path, text, why) {
 export function browserModules(root, { named, standins = {}, generated = {} }) {
   const served = new Map(), urlOf = new Map(), pending = [];
   // The kernel's light and index doors carry Node-only pieces (the process census imports node:crypto), so every browser graph reads the browser-safe door.
-  const stand = Object.fromEntries(Object.entries({ ...Object.fromEntries(Object.entries(KERNEL_BROWSER_DOORS).filter(([, door]) => existsSync(join(root, door)))), ...standins }).map(([path, value]) => [path, repositoryPath(root, value)]));
+  const stand = Object.fromEntries(Object.entries({ ...Object.fromEntries(Object.entries(KERNEL_BROWSER_DOORS).filter(([, door]) => fileSystem.exists(join(root, door)))), ...standins }).map(([path, value]) => [path, repositoryPath(root, value)]));
   for (const [url, value] of Object.entries(named)) { urlOf.set(repositoryPath(root, value), url); pending.push([url, repositoryPath(root, value)]); }
   const publicUrls = new Set([...Object.keys(named), ...Object.keys(generated)]);
   /** The URL a repository path is served at, queuing its module the first time. */
   const serve = path => {
-    const door = /^packages\/[^/]+\/index\.js$/u.test(path) && existsSync(join(root, path.replace(/index\.js$/u, 'light.js'))) ? path.replace(/index\.js$/u, 'light.js') : path;
+    const door = /^packages\/[^/]+\/index\.js$/u.test(path) && fileSystem.exists(join(root, path.replace(/index\.js$/u, 'light.js'))) ? path.replace(/index\.js$/u, 'light.js') : path;
     const target = stand[path] ?? door;
     if (target.startsWith('/')) return target;
     if (!urlOf.has(target)) { urlOf.set(target, MODULE_PREFIX + target); pending.push([MODULE_PREFIX + target, target]); }
@@ -113,7 +114,7 @@ export function browserModules(root, { named, standins = {}, generated = {} }) {
       if (!text.startsWith('./') && !text.startsWith('../')) refuseModule(where, text, 'a browser cannot load a Node builtin or a bare package');
       // The real repository file wins: a public name is only a virtual alias for a specifier with no file behind it.
       const repository = path === null ? null : posix.normalize(posix.join(posix.dirname(path), text));
-      const real = repository !== null && (Object.hasOwn(stand, repository) || existsSync(join(root, repository)));
+      const real = repository !== null && (Object.hasOwn(stand, repository) || fileSystem.exists(join(root, repository)));
       const asServed = posix.normalize(posix.join(posix.dirname(url), text));
       if (!real && !publicUrls.has(asServed)) refuseModule(where, text, 'it is neither a repository file nor a public relay module');
       const target = real ? serve(repository) : asServed;
@@ -125,8 +126,8 @@ export function browserModules(root, { named, standins = {}, generated = {} }) {
   while (pending.length) {
     const [url, path] = pending.shift();
     if (served.has(url)) continue;
-    if (!existsSync(join(root, path))) refuseModule(path, path, 'the file does not exist');
-    served.set(url, rewrite(url, path, readFileSync(join(root, path), 'utf8')));
+    if (!fileSystem.exists(join(root, path))) refuseModule(path, path, 'the file does not exist');
+    served.set(url, rewrite(url, path, fileSystem.readFile(join(root, path), 'utf8')));
   }
   for (const [url, source] of Object.entries(generated)) served.set(url, rewrite(url, null, source));
   return served;
@@ -164,12 +165,12 @@ export function createRelayBrowserHandler({ authenticate }) {
   } });
   const assets = new Map([
     ['/view.css', ['text/css', STYLES]],
-    ['/relay/screens.css', ['text/css', readFileSync(new URL('./screens.css', import.meta.url), 'utf8')]],
-    ['/manifest.webmanifest', ['application/manifest+json', readFileSync(new URL('../app.webmanifest', import.meta.url), 'utf8')]],
-    ['/service-worker.js', ['text/javascript', readFileSync(new URL('../../logic/worker.js', import.meta.url), 'utf8')]],
-    ['/icons/pullboard.svg', ['image/svg+xml', readFileSync(new URL('../icons/pullboard.svg', import.meta.url), 'utf8')]],
-    ['/icons/pullboard-192.png', ['image/png', readFileSync(new URL('../icons/pullboard-192.png', import.meta.url))]],
-    ['/icons/pullboard-512.png', ['image/png', readFileSync(new URL('../icons/pullboard-512.png', import.meta.url))]],
+    ['/relay/screens.css', ['text/css', fileSystem.readFile(new URL('./screens.css', import.meta.url), 'utf8')]],
+    ['/manifest.webmanifest', ['application/manifest+json', fileSystem.readFile(new URL('../app.webmanifest', import.meta.url), 'utf8')]],
+    ['/service-worker.js', ['text/javascript', fileSystem.readFile(new URL('../../logic/worker.js', import.meta.url), 'utf8')]],
+    ['/icons/pullboard.svg', ['image/svg+xml', fileSystem.readFile(new URL('../icons/pullboard.svg', import.meta.url), 'utf8')]],
+    ['/icons/pullboard-192.png', ['image/png', fileSystem.readFile(new URL('../icons/pullboard-192.png', import.meta.url), null)]],
+    ['/icons/pullboard-512.png', ['image/png', fileSystem.readFile(new URL('../icons/pullboard-512.png', import.meta.url), null)]],
     // A JSON module (an import with { type: 'json' }) must be answered as JSON, or Chrome refuses the whole graph that reaches it [H5,H15].
     ...[...modules].map(([path, source]) => [path, [path.endsWith('.json') ? 'application/json' : 'text/javascript', source]]),
   ]);
