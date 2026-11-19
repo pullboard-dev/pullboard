@@ -20,10 +20,6 @@ export {
   laneOf,
 } from './src/logic/lane/lookup.js';
 export {
-  computerLabel,
-  coordinatorHolder,
-} from './src/logic/holder.js';
-export {
   displayAgentName,
 } from './src/logic/agent/names.js';
 export {

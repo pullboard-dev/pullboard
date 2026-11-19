@@ -17,7 +17,6 @@ const BEFORE = [
   'configFromSource',
   'doctrineFile',
   'environmentProblem',
-  'gitSyncMarkerLinked',
   'healthDiskFloorGb',
   'hunkFreshnessEnabled',
   'listThinRead',

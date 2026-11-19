@@ -1,5 +1,4 @@
 export { familyIndex, aliasEngineOn, familyAliasesOf, familiesDiffer, familyName } from './src/logic/family/aliases.js';
-export { criterionSize, shapeRoute } from './src/logic/size.js';
 export { blocksMayClear, clearCompletedBlocks } from './src/io/blocks.js';
 export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTiming, checkTimingEngine } from './src/logic/check/timing.js';
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/logic/decision/origin.js';
