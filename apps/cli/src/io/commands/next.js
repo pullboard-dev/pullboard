@@ -118,7 +118,8 @@ export async function nextHere(io, values) {
   io.nextPhase = progress.enter;
   try {
     delete io.lagSilent;
-    const code = await nextWithProgress(io, values, progress);
+    // One item list serves every phase of this next between its own writes, instead of a full read per phase and per other seat's commit [C7,N2,#12010].
+    const code = await store.withItemSnapshot(() => nextWithProgress(io, values, progress));
     // An item folder is cut from current main, so the seat checkout's lag says nothing about that build [U159].
     if (!io.lagSilent) sayLag(io, context(io));
     sayCoordinatorCallouts(io);
@@ -232,6 +233,8 @@ async function nextWithProgress(io, values, progress) {
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
   try { for (;;) {
+    // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
+    store.refreshItemSnapshot();
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
