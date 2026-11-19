@@ -39,3 +39,16 @@ test('config.main.owns-flagged-on-load: clause 3: loading a repo config with a s
   fixtureProjectPolicy(root, { config: { lanes: { web: { owns: ['alpha'] } } } });
   assert.deepEqual(loadConfig(root).lanes.web.owns, ['alpha/']);
 });
+
+test('config.io-main.confined-import-selection-values: clause 1: configProblems accepts confinedImportSelection off, tests and all, and names it for true, 1 and "yes" [C7]', () => {
+  const root = fixtureRepo();
+  const named = value => configProblems({ ...defaults(), confinedImportSelection: value }, root).filter(problem => problem.includes('confinedImportSelection'));
+  for (const value of ['off', 'tests', 'all']) assert.deepEqual(named(value), [], `${value} is a valid selection`);
+  for (const value of [true, 1, 'yes']) assert.equal(named(value).length, 1, `${JSON.stringify(value)} is one problem naming the key`);
+});
+
+test('config.io-main.confined-import-selection-default-off: clause 2: a config read with no confinedImportSelection key leaves it unset, which a reader treats as off [C7]', () => {
+  const config = configFromSource(JSON.stringify({}), fixtureRepo());
+  assert.equal(config.confinedImportSelection, undefined);
+  assert.equal(configFromSource(JSON.stringify({ confinedImportSelection: 'tests' }), fixtureRepo()).confinedImportSelection, 'tests');
+});
