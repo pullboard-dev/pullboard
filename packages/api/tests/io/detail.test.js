@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fitFile } from '../../../blueprints/index.js';
 import { loadConfig } from '../../../config/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
@@ -51,7 +52,7 @@ function detailOf(t, file, base, ours, theirs) {
   } });
   const read = itemDetailReader({
     withReadBoard: (_root, body) => body(board, info), projectItemState: (_board, source) => ({ id: source.item_id }), boardOpeners: null,
-    cells: { fitFile: () => false, loadConfig, localDependencyIds: () => [], SUMMARY_KEYS: new Set(), verifiedPasskeyRowDecision: () => null,
+    cells: { fitFile, loadConfig, localDependencyIds: () => [], SUMMARY_KEYS: new Set(), verifiedPasskeyRowDecision: () => null,
       projectItemSpecApprovals: base => base, specApprovalState: () => ({}), verdictProjector: projector, typedFieldsEnabled: () => false, hunkFreshnessEnabled: () => false } });
   return read({ root: dir, id: 'detail-fixture' }, 7);
 }
