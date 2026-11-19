@@ -2472,6 +2472,7 @@
     "config->kernel",
     "gate->codemap",
     "runners->config",
+    "runners->env",
     "items->config",
     "items->state",
     "runners->verify",
