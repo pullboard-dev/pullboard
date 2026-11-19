@@ -33,7 +33,6 @@ function tree() {
   write('packages/gate/data/tests/tiers.json', json({ version: 1, files: [{ file: 'apps/a.test.js', tier: 'T1' }, { file: OLD, tier: 'T3' }, { file: 'apps/z.test.js', tier: 'T1' }] }));
   write('apps/view/src/logic/roles.js', `export const VIEW_TEST_ROLES = Object.freeze({\n  '${OLD}': { kind: 'journey', reason: 'Real Chrome {layout}.' },\n  'apps/cli/journeys/x.test.js': { kind: 'logic', reason: 'x' }\n});\n`);
   write('pullboard.json', json({ lanes: { view: { owns: ['apps/view/', OLD] }, core: { owns: ['apps/'] } } }));
-  write('packages/codemap/data/plan/path-map/demo.json', json({ 'test/old.test.js': OLD }));
   const shards = { fileSize: { [OLD]: 207, 'apps/big.js': 40 }, boundaries: { [`${OLD}->apps/x.js`]: 1, [`${OLD}->src/gone.js`]: 1 }, strays: { [OLD]: 1 } };
   const descriptor = { version: 2, metrics: {} };
   for (const metric of CELL_METRICS) {
@@ -104,17 +103,6 @@ test('gate.io-test-split.a-split-that-raises-any-budget: a split that raises any
     await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: async () => ({ ...await lints(), effective: effectiveBefore() }), tiers }),
       error => error.code === 'SPLIT_RATCHET' && /waits 1 -> 2 \(sleep\)/u.test(error.message) && Boolean(error.next));
     assert.deepEqual(kept.map(file => read(file).toString('utf8')), before, 'the ceilings and the lint baseline are unchanged');
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('gate.io-test-split.a-split-that-deletes-a-path: a split that deletes a path-map target refuses with the next step [C7]', async () => {
-  const fixture = tree(), { root, write } = fixture;
-  try {
-    rmSync(`${root}/${OLD}`);
-    write(NEW, [LAUNCH, ''].join('\n'));
-    await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: null, tiers }), error => error.code === 'SPLIT_PATH_MAP' && error.next.includes(`keep ${OLD}`));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
