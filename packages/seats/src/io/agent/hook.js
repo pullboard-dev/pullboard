@@ -1,6 +1,7 @@
 /** Native hooks provide bounded context and warnings, never a blocking decision [I6]. */
 import { spawn } from 'node:child_process';
 import { AGENT_HOOK_EVENTS } from './events.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Budget: a native hook's worker gets this long before the hook warns and continues; only an in-process caller may widen it (#7800). */
 export const HOOK_TIMEOUT_MS = 2000;
@@ -15,7 +16,7 @@ export async function runAgentHook(io, event, worker) {
   try {
     const result = await new Promise(resolveResult => {
       const child = spawn(process.execPath, [worker, event], {
-        cwd: io.cwd, env: process.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+        cwd: io.cwd, env: environmentAdapter().all(), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
       });
       let text = '', timedOut = false, finished = false;
       /** Retain bounded public board context, excluding diagnostic stderr and vendor transcripts. */

@@ -1,4 +1,5 @@
 import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
 import { isClean } from '../../../git/index.js';
@@ -106,7 +107,7 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { 
 /** A real runtime session may route across its own local seats; marker-only shells stay isolated. The CLI supplies its readers. */
 export function nextSessionSeats(ctx, board, { listAgents, sessionDigest }) {
   if (ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest
-    || !AGENT_SESSION_IDS.some((name) => Boolean(process.env[name]))) return null;
+    || !AGENT_SESSION_IDS.some((name) => Boolean(environmentAdapter().get(name)))) return null;
   const digest = sessionDigest();
   return digest ? localSessionSeats(ctx.info, { agents: listAgents(board), digest }) : null;
 }

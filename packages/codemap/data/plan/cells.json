@@ -2533,6 +2533,7 @@
     "pages->store",
     "person->store",
     "sandbox->store",
+    "seats->env",
     "seats->git",
     "sentinels->store",
     "sentinels->kernel",
