@@ -1,4 +1,5 @@
 /** A member's new device gets its board key from an online member device, vouched by an SSH key on GitHub [E17]. */
+import { environmentAdapter } from '../../../../env/index.js';
 import { createDeviceKeys } from '../../../../keys/index.js';
 import { unwrapDeviceBoardKey } from '../../../../keys/index.js';
 import { wrapDeviceBoardKey } from '../../../../keys/index.js';
@@ -105,7 +106,7 @@ export async function handOverBoardKeys(state, key, { send, githubKeys, root, id
 
 /** The public SSH keys on a GitHub account, read from GitHub itself so the relay cannot add one. */
 export async function githubKeys(login) {
-  const base = new URL(process.env.PULLBOARD_GITHUB_API || 'https://api.github.com');
+  const base = new URL(environmentAdapter().get('PULLBOARD_GITHUB_API') || 'https://api.github.com');
   if (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))) {
     throw new Refused('GITHUB_UNAVAILABLE', 'PULLBOARD_GITHUB_API must be an HTTPS address, or loopback HTTP for tests');
   }

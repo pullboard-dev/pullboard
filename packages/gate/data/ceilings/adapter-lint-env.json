@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 562,
+  "total": 550,
   "files": {
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
@@ -145,12 +145,6 @@
     "packages/landing/src/io/smoke.js": 2,
     "packages/landing/src/io/step/publish.js": 1,
     "packages/landing/src/io/worker.js": 2,
-    "packages/link/src/io/command.js": 1,
-    "packages/link/src/io/relay.js": 2,
-    "packages/link/src/io/relay/board-size.js": 1,
-    "packages/link/src/io/relay/environment.js": 4,
-    "packages/link/src/io/relay/handover.js": 1,
-    "packages/link/src/io/relay/local.js": 3,
     "packages/link/src/io/relay/notices.js": 2,
     "packages/link/src/io/relay/pause.js": 1,
     "packages/link/src/io/relay/proof.js": 2,
