@@ -101,7 +101,9 @@ export function handoffRecords(db, { live = false } = {}) {
   const payload = db.prepare('SELECT job_step_payload AS payload FROM job_step WHERE job_step_id = ?');
   for (const key of keys) {
     if (records.has(key.item)) continue;
-    const record = recordOf(payload.get(key.step).payload);
+    const row = payload.get(key.step);
+    if (!row) continue;
+    const record = recordOf(row.payload);
     if (record !== undefined) records.set(key.item, record);
   }
   return records;
@@ -141,7 +143,7 @@ export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
 /**
  * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard job is
  * still offered or claimed (held for as long as it is), every shard is done but the combined result has not applied (no
- * `note:shards.settled` step), or it settled unknown (red and review outcomes are settled). Why: the gate is the board's
+ * `note:shards.settled` step), or it settled unknown, which holds until its settled note changes (red and review outcomes are settled). Why: the gate is the board's
  * work, and the board applies its result only while the submitting seat holds the item. #8249's claim was released while
  * its 10 shards ran [#8342], and #10883's while its 32 done shards waited for their result to apply, so that gate never
  * applied [C7,#10931].
@@ -159,11 +161,12 @@ export function gateShardsUnsettled(board, item) {
       WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
     if (!shards.total) return false;
     if (shards.live > 0) return true;
+    const settled = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' ORDER BY job_step_id DESC LIMIT 1").get(gate.job_id);
+    // An unknown outcome (main's receipt missing) holds with no time bound: gate.settleOnMainReceipt settles it when the receipt records, and a later settled note, red or review, ends the hold [#11924].
+    if (settled !== undefined && /"outcome"\s*:\s*"unknown"/u.test(settled.payload)) return true;
     if (!(board.clock.now().getTime() - gate.offered < GATE_SETTLE_HOLD_MS)) return false;
     if (shards.open > 0) return true;
-    const settled = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' ORDER BY job_step_id DESC LIMIT 1").get(gate.job_id);
-    // An unknown outcome (main's receipt missing) is not settled: the board applies it only while the seat still holds the claim [#11711].
-    return settled === undefined || /"outcome"\s*:\s*"unknown"/u.test(settled.payload);
+    return settled === undefined;
   } catch { return false; } // an older board has no job tables, so it holds no shards
 }
 
