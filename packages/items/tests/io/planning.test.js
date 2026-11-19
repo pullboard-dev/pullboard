@@ -41,9 +41,9 @@ test('items.planning.same-plan: clause 1: on a fixture code map itemCollisionPla
       '#1 waits for #2 (submitted) on functions packages/a/src/one.js#shared',
     ],
     warnings: [
-      '#1 is call-adjacent to #3: packages/c/src/caller.js#caller -> packages/c/src/callee.js#callee; cross-run tests: packages/c/tests/callee.test.js, packages/c/tests/caller.test.js',
+      '#1 is call-adjacent to #3: packages/c/src/caller.js#caller -> packages/c/src/callee.js#callee; cross-run tests: packages/a/tests/one.test.js, packages/c/tests/callee.test.js, packages/c/tests/caller.test.js',
     ],
-    tests: ['packages/c/tests/callee.test.js', 'packages/c/tests/caller.test.js'],
+    tests: ['packages/a/tests/one.test.js', 'packages/c/tests/callee.test.js', 'packages/c/tests/caller.test.js'],
   });
   // A pair whose modules have no mapped tests waits, and an item that names only that pair is not held by the tested pair above.
   const untested = row(9, ['packages/d/src/caller.js']);
