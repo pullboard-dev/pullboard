@@ -13,8 +13,8 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { FIXTURE_MODEL } from '../../../store/tests/fixtures/cell.js';
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
@@ -63,18 +63,19 @@ test('api.main.clause-served-board-keeps-answering: clause 1 [P7]: a served boar
   const { join } = await import('node:path');
   const { Worker } = await import('node:worker_threads');
   const cell = await import('../../../store/tests/fixtures/cell.js');
+  const boardCell = await import('../../../board/tests/fixtures/cell-board.js');
   const store = await import('../../../store/index.js');
   const project = cell.cellProject(t, { real: true });
-  const opened = cell.openCellBoard(project.boardFile);
+  const opened = boardCell.openCellBoard(project.boardFile);
   let id;
-  try { id = store.boardId(opened); } finally { cell.closeCellBoard(opened); }
+  try { id = store.boardId(opened); } finally { boardCell.closeCellBoard(opened); }
   const code = cell.cellRepo(t, { real: true });
   code.put('shared.cjs', 'exports.one = () => 1;\n');
   code.put('reader.cjs', "module.exports.check = () => require('./shared.cjs').one();\n");
   code.put('server.mjs', MOVING_SERVER);
   code.commitAll();
   const url = (path) => new URL(path, import.meta.url).href;
-  const modules = { api: url('../../index.js'), drive: url('../../../drive/index.js'), store: url('../../../store/index.js'), cell: url('../../../store/tests/fixtures/cell.js') };
+  const modules = { api: url('../../index.js'), drive: url('../../../drive/index.js'), store: url('../../../store/index.js'), cell: url('../../../board/tests/fixtures/cell-board.js') };
   const servers = [];
   t.after(() => Promise.all(servers.map((server) => server.terminate())));
   /** Start the server from the code tree as it is now, and answer its first message: started, port. */
