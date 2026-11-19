@@ -48,6 +48,7 @@ export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
 export const CLEAR_RESERVATION_ENGINE = engineNumber('CLEAR_RESERVATION_ENGINE');
 export const WITHDRAW_AS_MET_ENGINE = engineNumber('WITHDRAW_AS_MET_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
+export const NEEDS_ENGINE = engineNumber('NEEDS_ENGINE');
 export const COST_ENGINE = engineNumber('COST_ENGINE');
 export const COST_INPUT_SPLIT_ENGINE = engineNumber('COST_INPUT_SPLIT_ENGINE');
 export const CPU_SENTINEL_ENGINE = engineNumber('CPU_SENTINEL_ENGINE');

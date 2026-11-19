@@ -222,6 +222,7 @@ export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
 export const CLEAR_RESERVATION_ENGINE = engineNumber('CLEAR_RESERVATION_ENGINE');
 export const WITHDRAW_AS_MET_ENGINE = engineNumber('WITHDRAW_AS_MET_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
+export const NEEDS_ENGINE = engineNumber('NEEDS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');
 export const RELEASE_UNTOUCHED_REROUTE_ENGINE = engineNumber('RELEASE_UNTOUCHED_REROUTE_ENGINE');
