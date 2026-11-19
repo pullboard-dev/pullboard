@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 import { readGateHop } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
