@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1413,
+  "total": 1394,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -100,11 +100,6 @@
     "apps/runner/src/io/worker/checkout.js": 12,
     "apps/runner/src/io/worker/cleanup.js": 3,
     "apps/runner/src/io/worker/command.js": 5,
-    "apps/runner/src/io/worker/entry.js": 8,
-    "apps/runner/src/io/worker/environment.js": 4,
-    "apps/runner/src/io/worker/handoff.js": 1,
-    "apps/runner/src/io/worker/health.js": 4,
-    "apps/runner/src/io/worker/orphan.js": 2,
     "apps/runner/src/io/worker/queue.js": 3,
     "apps/runner/src/io/worker/spec.js": 1,
     "apps/view/src/io/background.js": 1,
