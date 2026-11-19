@@ -579,6 +579,8 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
   for (const claim of items.filter((item) => item.item_status === 'claimed' && Date.parse(item.item_lease_until ?? '') > at)) {
     const holder = agents.find((agent) => agent.id === claim.item_owner);
     if (!holder) continue;
+    // A coordinator reservation or hold placed the claim on purpose, so a free item ranking ahead is not the builder's inversion (#1479).
+    if (claim.item_reservation_holder || claim.item_hold_reason) continue;
     const claimEvent = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim'").get(claim.item_id, holder.id)?.id;
     const proved = claimEvent && board.db.prepare(`SELECT 1 FROM event WHERE event_id>? AND event_by=? AND
       ((item_id=? AND event_kind='proof-run') OR (event_kind='gate-run' AND json_extract(event_detail,'$.run.proof.item')=?)) LIMIT 1`)
