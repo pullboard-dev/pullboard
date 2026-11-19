@@ -84,7 +84,8 @@ export function defaults() {
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
-    slices: { enforcePaths: false },
+    // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
+    slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
     next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
@@ -106,6 +107,7 @@ export function defaults() {
       maxHeader: 72,
       requireIds: ['feat', 'fix'],
       banned: [],
+      quotedNames: [],
       noEmoji: false,
       noCoAuthor: false,
       // Refuse a submit whose new commits name this machine; false only warns (C1).
@@ -513,6 +515,9 @@ export function configProblems(config, root) {
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
   }
+  if (config.slices?.composeLanding !== undefined && typeof config.slices.composeLanding !== 'boolean') {
+    problems.push('"slices.composeLanding" is true or false');
+  }
   if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
@@ -556,6 +561,7 @@ export function configProblems(config, root) {
   if (!isStringList(config.commits.types)) problems.push('"commits.types" is a list of words');
   if (!isStringList(config.commits.requireIds)) problems.push('"commits.requireIds" is a list of types');
   if (!isStringList(config.commits.banned)) problems.push('"commits.banned" is a list of words');
+  if (!isStringList(config.commits.quotedNames)) problems.push('"commits.quotedNames" is a list of names');
   if (typeof config.commits.noHostName !== 'boolean') problems.push('"commits.noHostName" is true or false: whether a submit naming this machine is refused');
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
