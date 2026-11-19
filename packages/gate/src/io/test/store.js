@@ -144,8 +144,9 @@ export function importTestResults(store, packet, inputKeys, completion = null) {
     // Import reds first so a packet's order cannot temporarily promote a known-red key.
     for (const status of ['fail', 'pass']) for (const row of rows) {
       if (row?.status !== status || !allowed.has(row.inputKey)) continue;
+      // A job that exited non-zero still vouches for a green whose own file process exited 0; every other row needs a zero job code [C7,#11103].
       if (completion && row.origin?.request === completion.id && row.commit === completion.commit
-        && completion.code === 0 && !completion.signal) row.origin.completion = completion;
+        && (completion.code === 0 || row.status === 'pass' && row.origin.fileExit === 0) && !completion.signal) row.origin.completion = completion;
       if (storeTestResult(store, row)) imported++;
     }
     return imported;
@@ -157,7 +158,7 @@ export function completedTestResult(entry) {
   const receipt = entry?.origin?.completion;
   return receipt && /^[a-f0-9-]{36}$/u.test(receipt.id) && receipt.id === entry.origin.request
     && receipt.commit === entry.commit && /^[a-f0-9]{40,64}$/u.test(receipt.tree)
-    && receipt.code === 0 && !receipt.signal && HASH.test(receipt.outputSha256)
+    && (receipt.code === 0 || entry.status === 'pass' && entry.origin.fileExit === 0) && !receipt.signal && HASH.test(receipt.outputSha256)
     && HASH.test(receipt.runtimeSha256) && HASH.test(receipt.toolingSha256);
 }
 
