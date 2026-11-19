@@ -33,6 +33,7 @@ import { checkTestFiles } from '../../../../../packages/items/index.js';
 import { shapeRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
+import { githubRepository } from '../../../../../packages/github/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -305,3 +306,6 @@ export function splitBar(config, bar) {
     lane: { criterion: joinClauses(parts, parts.clauses.filter(clause => !owned(clause))), check: checkOwned ? undefined : bar.check, brief: laneLines.join('\n') },
     coordinator: { criterion: joinClauses(parts, parts.clauses.filter(owned)), check: checkOwned ? bar.check : undefined, brief: pieceLines.join('\n') } };
 }
+
+/** The one GitHub read client and repository resolver the commands share, so contribute check --issue reaches GitHub through this front-door import and adds no client of its own. */
+export { githubPullClient, githubRepository };
