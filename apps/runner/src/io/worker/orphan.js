@@ -1,4 +1,5 @@
 /** A worker whose pull-mode job folder was removed ends itself, so its holds free for the line behind it [C7,#5593]. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { existsSync } from 'node:fs';
 import { watch } from 'node:fs';
 
@@ -12,7 +13,7 @@ import { watch } from 'node:fs';
  * @param {{ folder?: string, graceMs?: number, exit?: (code: number) => void }} [options]
  * @returns {{ stop: () => void, finish: () => void }} stop ends the watch; finish also cancels the exit deadline.
  */
-export function watchJobFolder(S, { folder = process.env.PULLBOARD_QUEUE_JOB, graceMs = 30_000, exit = code => process.exit(code) } = {}) {
+export function watchJobFolder(S, { folder = environmentAdapter().get('PULLBOARD_QUEUE_JOB'), graceMs = 30_000, exit = code => process.exit(code) } = {}) {
   let deadline = null;
   let watcher = null;
   const stop = () => { watcher?.close(); watcher = null; };

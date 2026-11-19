@@ -1,4 +1,5 @@
 /** Run bounded Git inside the worker's owned process groups, keeping a redacted cause when it fails [C7]. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { drainOwned } from './process.js';
 import { spawnOwned } from './process.js';
 import { pipeline } from 'node:stream/promises';
@@ -6,7 +7,7 @@ import { pipeline } from 'node:stream/promises';
 /** Bound Git diagnostics and hide runner-private paths, URL credentials and credential assignments. */
 export function safeGitDiagnostic(S, value, root, env) {
   let text = String(value).replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, '').replace(/\r\n?/gu, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, '');
-  for (const [path, label] of [[root, '<source>'], [env.HOME, '<job-home>'], [process.env.HOME, '<runner-home>'], [env.TMPDIR, '<job-tmp>'], ...[...S.setupPrivatePaths].map(path => [path, '<runner-state>'])]) {
+  for (const [path, label] of [[root, '<source>'], [env.HOME, '<job-home>'], [environmentAdapter().get('HOME'), '<runner-home>'], [env.TMPDIR, '<job-tmp>'], ...[...S.setupPrivatePaths].map(path => [path, '<runner-state>'])]) {
     if (path && path.length > 1) text = text.split(path).join(label);
   }
   text = text.replace(/https?:\/\/[^\s"'<>]+/giu, '<url>')

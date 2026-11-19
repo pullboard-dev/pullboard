@@ -1,4 +1,5 @@
 /** The runner worker's mutable process state, created once per loaded copy of its front door [C7]. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 
@@ -9,7 +10,7 @@ import { dirname } from 'node:path';
 export function createWorkerState(entryUrl) {
   const state = {
     entryUrl,
-    safePath: [dirname(process.execPath), process.env.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter),
+    safePath: [dirname(process.execPath), environmentAdapter().get('PATH') || '/usr/local/bin:/usr/bin:/bin'].join(delimiter),
     ownedChildren: new Map(),
     transportLost: false,
     transportDrain: null,
