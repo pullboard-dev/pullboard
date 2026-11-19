@@ -111,6 +111,11 @@ function modulesLoaded(args, runner = false, extraEnv = {}) {
   return commandLoads(args, runner, extraEnv).loaded;
 }
 
+/** The one place this file starts a node child: a script under `top` run with the counting preload, so every measurement shares one launch [C7]. */
+function countedRun(script, top, args, cwd, env) {
+  return spawnSync(process.execPath, ['--import', PRELOAD, join(top, script), ...args], { cwd, encoding: 'utf8', env });
+}
+
 /** The distinct repo files one cold command loads, with their file URLs, the command's exit code and output, measured as modulesLoaded measures [C7]. */
 function commandLoads(args, runner = false, extraEnv = {}, top = ROOT) {
   const files = privateFixtureFiles('closure-budget-');
@@ -126,7 +131,7 @@ function commandLoads(args, runner = false, extraEnv = {}, top = ROOT) {
   env.PULLBOARD_OWN_CLI = '1';
   env.PULLBOARD_RESIDENT = '0';
   env.PULLBOARD_COUNT_FILE = `${files.root}/seen.txt`;
-  const result = spawnSync(process.execPath, ['--import', PRELOAD, join(top, 'apps/cli/pullboard.js'), ...args.split(' ')], { cwd: seat.web, encoding: 'utf8', env });
+  const result = countedRun('apps/cli/pullboard.js', top, args.split(' '), seat.web, env);
   const urls = new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean));
   return { loaded: urls.size, urls, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
@@ -200,7 +205,7 @@ test('cli.journeys-imports-closure-budget.added-modules-against-main: clause 2: 
   const measure = top => {
     const seen = privateFixtureFiles('closure-seen-');
     seen.write('seen.txt', '');
-    const run = runFixtureChild(process.execPath, ['--import', PRELOAD, join(top, 'entry.js')], { cwd: top, encoding: 'utf8', env: { PULLBOARD_COUNT_FILE: join(seen.root, 'seen.txt') } });
+    const run = countedRun('entry.js', top, [], top, { PULLBOARD_COUNT_FILE: join(seen.root, 'seen.txt') });
     assert.equal(run.status, 0, run.stderr);
     return new Set(seen.read('seen.txt').toString('utf8').split('\n').filter(Boolean));
   };
