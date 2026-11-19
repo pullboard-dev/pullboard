@@ -9,13 +9,6 @@
  * The run needs a clean tree, changes nothing under --dry-run, and a second run finds every row done and does nothing.
  */
 /** @pullboard-module-loads packages/gate/src/io/edges.js */
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -26,6 +19,8 @@ import { pathToFileURL } from 'node:url';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { storeName } from './store-names.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 
 const TABLES = ['packages/codemap/data/plan/renames.tsv', 'packages/codemap/data/plan/plan/renames.tsv'];
 const HISTORY = /(^|\/)(?:move-history|history)\/\d+\.json$/u;
@@ -497,7 +492,7 @@ function rebindBaselines(contents, conflicts) {
  */
 async function raiseEdgeCeilings(root, contents, summary) {
   const ceilingPath = [...contents.keys()].find(path => /(?:^|\/)cells-edges\.json$/u.test(path));
-  const checker = ['packages/gate/src/io/edges.js', 'packages/gate/src/io/edges.js'].map(rel => join(root, rel)).find(file => existsSync(file));
+  const checker = ['packages/gate/src/io/edges.js', 'packages/gate/src/io/edges.js'].map(rel => join(root, rel)).find(file => disk.exists(file));
   if (!ceilingPath || !checker) return;
   const { cellsEdgeReport } = await import(pathToFileURL(checker).href);
   const ceilings = JSON.parse(contents.get(ceilingPath));
@@ -541,9 +536,9 @@ function emptyCellShard(contents, descriptorPath, name) {
 export async function freeze(root, { table, dryRun = false, scan = [] } = {}) {
   const status = tryGit(root, ['status', '--porcelain']);
   if (status.status !== 0 || status.stdout) throw refuse('FREEZE_DIRTY', 'the freeze needs a clean tree', 'commit or remove every change, then run it again');
-  const tablePath = table ?? TABLES.map(rel => join(root, rel)).find(file => existsSync(file));
-  if (!tablePath || !existsSync(tablePath)) throw refuse('FREEZE_NO_TABLE', 'no rename table found', 'pass --table <renames.tsv>');
-  const tableText = readFileSync(tablePath, 'utf8');
+  const tablePath = table ?? TABLES.map(rel => join(root, rel)).find(file => disk.exists(file));
+  if (!tablePath || !disk.exists(tablePath)) throw refuse('FREEZE_NO_TABLE', 'no rename table found', 'pass --table <renames.tsv>');
+  const tableText = disk.readFile(tablePath, 'utf8');
   const rows = parseTable(tableText);
   const listed = new Set(tableText.split('\n').map(line => line.split('\t')[0]));
   const files = trackedFiles(root);
@@ -563,7 +558,7 @@ export async function freeze(root, { table, dryRun = false, scan = [] } = {}) {
   const tails = new Map(), originals = new Map();
   for (const file of files) {
     if (deletes.has(file)) continue;
-    const buffer = readFileSync(join(root, file));
+    const buffer = disk.readFile(join(root, file), null);
     const target = where(file);
     if (!isText(file, buffer)) continue;
     let text = buffer.toString('utf8');
@@ -672,20 +667,20 @@ function scanOutside(folder, filePaths) {
   const found = [];
   const rewrite = pathRewriter(filePaths, new Map());
   const walk = (dir, depth) => {
-    for (const name of readdirSync(dir)) {
+    for (const name of disk.list(dir)) {
       const path = join(dir, name);
       let stat;
-      try { stat = statSync(path); } catch { continue; }
+      try { stat = disk.stat(path); } catch { continue; }
       if (stat.isDirectory()) { if (depth < 3 && !/^(?:node_modules|\.git|worktrees|logs?)$/u.test(name)) walk(path, depth + 1); continue; }
       if (stat.size > 300_000 || !/\.(?:sh|zsh|bash|md|txt|plist|json|js|mjs|toml|yml|yaml)$/u.test(name)) continue;
-      const buffer = readFileSync(path);
+      const buffer = disk.readFile(path, null);
       if (buffer.includes(0)) continue;
       let first = null, count = 0;
       rewrite(buffer.toString('utf8'), (from, to, line) => { count += 1; first ??= `${line}: ${from} -> ${to}`; });
       if (count) found.push(`${path}: ${count} paths, first at ${first}`);
     }
   };
-  if (existsSync(folder)) walk(folder, 0);
+  if (disk.exists(folder)) walk(folder, 0);
   return found;
 }
 
@@ -695,8 +690,8 @@ function applyChanges({ root, moves, merges, deletes, contents }) {
   while (pending.length) {
     const blocked = [];
     for (const [old, to] of pending) {
-      if (existsSync(join(root, to))) { blocked.push([old, to]); continue; }
-      mkdirSync(join(root, dirname(to)), { recursive: true });
+      if (disk.exists(join(root, to))) { blocked.push([old, to]); continue; }
+      disk.mkdir(join(root, dirname(to)), { recursive: true });
       const moved = tryGit(root, ['mv', '--', old, to]);
       if (moved.status !== 0) throw refuse('FREEZE_MOVE', `git mv ${old} ${to} failed: ${moved.stderr}`, 'fix the row and run the freeze again on a clean tree');
     }
@@ -708,15 +703,15 @@ function applyChanges({ root, moves, merges, deletes, contents }) {
     if (gone.status !== 0) throw refuse('FREEZE_DELETE', `git rm ${old} failed: ${gone.stderr}`, 'fix the row and run the freeze again on a clean tree');
   }
   for (const old of [...moves.keys(), ...merges.keys(), ...deletes.keys()]) {
-    for (let dir = dirname(old); dir !== '.' && existsSync(join(root, dir)) && !readdirSync(join(root, dir)).length; dir = dirname(dir)) rmSync(join(root, dir), { recursive: true });
+    for (let dir = dirname(old); dir !== '.' && disk.exists(join(root, dir)) && !disk.list(join(root, dir)).length; dir = dirname(dir)) disk.rm(join(root, dir), { recursive: true });
   }
   const written = [];
   for (const [path, text] of contents) {
     const file = join(root, path);
-    const before = existsSync(file) ? readFileSync(file).toString('utf8') : null;
+    const before = disk.exists(file) ? disk.readFile(file, null).toString('utf8') : null;
     if (before === text) continue;
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, text);
+    disk.mkdir(dirname(file), { recursive: true });
+    disk.writeFile(file, text);
     written.push(path);
   }
   for (let at = 0; at < written.length; at += 200) tryGit(root, ['add', '--', ...written.slice(at, at + 200)]);
