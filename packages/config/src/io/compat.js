@@ -20,6 +20,7 @@ function schema(base) {
     withdraw: fields(['review', 'refuseLanded']),
     release: fields(['liftTwiceHold']),
     claims: { ...shape(base.claims), ...fields(['perSeat', 'fileLease', 'fileLeaseHubs']) },
+    jobs: fields(['expediteMax']),
     queue: fields(['contention', 'contentionThreshold']),
     inbox: { tokenBudget: null, keepUntilActed: null, escalateAfterMinutes: null, batchedMarks: null },
     publish: fields(['pullRequest']),

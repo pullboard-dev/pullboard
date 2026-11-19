@@ -49,3 +49,10 @@ test('config.settings-expedite-max.default-three: clause 1: jobs.expediteMax is 
   assert.equal(neighbour.value, unset.value, 'the neighbouring cap resolves through the same read to the same default');
   assert.equal(neighbour.origin, unset.origin);
 });
+
+test('config.settings-expedite-max.configured-value: clause 3: a jobs.expediteMax in the repo policy is kept by the config read and resolves, not stripped as an unknown key [C7,#11809]', t => {
+  const [row] = repoRow(t, { jobs: { expediteMax: 5 } });
+  assert.equal(row.value, 5, 'the configured number resolves');
+  assert.notEqual(row.origin, 'default');
+  assert.equal(row.default, 3);
+});
