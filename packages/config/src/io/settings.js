@@ -193,6 +193,11 @@ export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
 }
 
+/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
+export function jsdocCheckEnabled() {
+  return loadMachineSettings().gate?.jsdocCheck === true;
+}
+
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
 export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;

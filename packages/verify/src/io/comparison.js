@@ -106,7 +106,17 @@ function work(requestFile) {
   process.exitCode = result.status ?? 1;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Whether this module is the process entry. argv[1] keeps the path as typed while import.meta.url is the real path, so a
+ * worker started from a tools folder under a symlinked temp root (/var -> /private/var on macOS) compares real paths;
+ * a plain path comparison exited 0 there having run nothing, and every comparison went unavailable as a dead worker [C7].
+ */
+function startedAsEntry() {
+  try { return Boolean(process.argv[1]) && realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+}
+
+if (startedAsEntry()) {
   // No top-level await: a CommonJS require of this module's graph would refuse it.
   if (process.argv[3] === '--prepare') prepareComparison(process.argv[2]).catch(error => { console.error(error); process.exitCode = 1; });
   else work(process.argv[2]);

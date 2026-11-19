@@ -2090,6 +2090,14 @@
         "packages/store/tests/logic/board/item/baseline/shout.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "commits",
+      "row": [
+        "src/plan-row-change.js",
+        "packages/commits/src/logic/change/row/plan.js",
+        "rule"
+      ]
     }
   ],
   "entries": [
