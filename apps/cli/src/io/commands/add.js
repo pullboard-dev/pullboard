@@ -115,7 +115,7 @@ export async function run(io, args) {
     for (const event of recovered.events) io.onEvent?.(event);
     const id = recovered.result;
     const filed = store.getItem(board, id);
-    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route });
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`#${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
@@ -217,7 +217,7 @@ export async function run(io, args) {
   }
   const warnings = [...evidenceWarnings, ...barWarnings];
   const filed = store.getItem(board, id);
-  io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
+  io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard', ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
