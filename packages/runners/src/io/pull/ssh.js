@@ -1,11 +1,11 @@
 /** One short multiplexed ssh per script for pull-mode runners: node built-ins only, no per-job process kept [5465,5468]. */
 import { spawn } from 'node:child_process';
-import { createReadStream } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pullWord } from './scripts.js';
 import { environmentAdapter } from '../../../../env/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Output kept from one script; a runner file larger than this is an error, never a silent cut. */
 export const PULL_OUTPUT_LIMIT = 64 * 1024 ** 2;
@@ -27,7 +27,7 @@ function sshEnv(env = environmentAdapter().all()) {
 /** Where the shared control socket lives: short, because a unix socket path is capped near 100 bytes. */
 function controlPath(dir) {
   const base = dir.length <= 40 ? dir : `/tmp/pbcm-${process.getuid?.() ?? 0}`;
-  mkdirSync(base, { recursive: true, mode: 0o700 });
+  fileSystem.mkdir(base, { recursive: true, mode: 0o700 });
   return join(base, 'cm-%C');
 }
 
@@ -73,7 +73,7 @@ export function runRunnerScript(runner, script, { stdin = '', ssh = 'ssh', env =
       clearTimeout(timer);
       resolve({ status, signal, stdout: Buffer.concat(out), stderr, error });
     });
-    if (stdin && typeof stdin === 'object' && 'file' in stdin) createReadStream(stdin.file).on('error', failure => { error ??= failure.code ?? failure.name; child.kill('SIGTERM'); }).pipe(child.stdin);
+    if (stdin && typeof stdin === 'object' && 'file' in stdin) fileSystem.createReadStream(stdin.file).on('error', failure => { error ??= failure.code ?? failure.name; child.kill('SIGTERM'); }).pipe(child.stdin);
     else child.stdin.end(stdin);
   });
 }
