@@ -1,0 +1,16 @@
+{
+  "cli.io-submit-wait.waits-on-the-job-row-alone": {
+    "proves": {
+      "specs": [
+        "C7",
+        "V4"
+      ],
+      "claim": "waitForSubmitGate with no gate drive record and no hand-off ticket waits while the job row is queued or running, then returns 0 with the saved result when the row turns green"
+    },
+    "why": "Without it the submit wait refuses on a board that writes no drive record, though the pulled job row already says where the gate is.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/submit/wait.js"
+    ]
+  }
+}

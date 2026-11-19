@@ -19,9 +19,9 @@ import { renewLease } from '../../../jobs/index.js';
 import { JOB_CLASSES } from '../../../jobs/index.js';
 import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
-import { ledgerHits } from '../../../store/index.js';
-import { recordShadow } from '../../../store/index.js';
-import { firstDifference } from '../../../store/index.js';
+import { ledgerHits } from './store.js';
+import { recordShadow } from './store.js';
+import { firstDifference } from './store.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
@@ -113,6 +113,18 @@ function shardsBeforeTests(ordered, aged) {
   const isAged = ({ row }) => aged.has(row.job_id);
   const tail = ordered.slice(firstTest);
   return [...ordered.slice(0, firstTest), ...tail.filter(isAged), ...tail.filter(entry => isShard(entry) && !isAged(entry)), ...tail.filter(entry => !isShard(entry) && !isAged(entry))];
+}
+
+// Budget: a gate job offered this long before the claim moves ahead of gate shards and test jobs, so gate analysis is not starved behind a shard backlog [C7,#11873].
+const GATE_JOB_AGED_MS = 5 * 60_000;
+
+/** The claim order with gate jobs offered gateAgedMs or more before this claim moved ahead of everything but the landing jobs and pre-push shards; each group keeps its age order. */
+function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
+  const isAged = ({ row }) => row.job_kind === 'gate' && row.job_created <= now - gateAgedMs;
+  if (!ordered.some(isAged)) return ordered;
+  const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
+  const rest = ordered.filter(entry => !isAged(entry) && !isFirst(entry));
+  return [...ordered.filter(isFirst), ...ordered.filter(isAged), ...rest];
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -355,7 +367,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -387,7 +399,9 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !overBudget(row.job_kind) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
     // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
-    const offered = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
+    const shardsFirst = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
+    // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
+    const offered = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
     for (const { row, offer } of offered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
@@ -587,12 +601,13 @@ export const JOB_WRITE_BOUND_MS = 5000;
 
 /**
  * Run a job write in one transaction that gives the lock up when it ran past the bound: the write rolls back and refuses JOB_WRITE_TIMEOUT,
- * so one slow write can never hold every seat off the board for minutes. A db may carry its own `jobWriteBoundMs` (a test) [C7,#11029].
+ * so one slow write can never hold every seat off the board for minutes. Only time holding the lock counts, never time waiting for it. A db may carry its own `jobWriteBoundMs` (a test) [C7,#11029].
  */
 function boundedAtomically(db, work) {
   const bound = db.jobWriteBoundMs ?? JOB_WRITE_BOUND_MS;
-  const started = Date.now();
   return atomically(db, () => {
+    // The clock starts once BEGIN IMMEDIATE holds the lock: time spent waiting for it is bounded by the busy timeout, not by this bound [C7,#11914].
+    const started = Date.now();
     const result = work();
     const took = Date.now() - started;
     if (took > bound) throw new Refused('JOB_WRITE_TIMEOUT', `a job write held the board lock for ${took} ms, over the ${bound} ms bound; it was rolled back`, 'retry the call');

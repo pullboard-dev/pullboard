@@ -4,12 +4,8 @@ import {
   cellExistsSync,
   cellReadFileSync,
 } from '../snapshot.js';
-import { mkdirSync } from 'node:fs';
-import { rmdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { cellLintCells } from './shards.js';
 import { readCellLintCellBaseline } from './shards.js';
 import { writeCellLintCellBaseline } from './shards.js';
@@ -22,6 +18,7 @@ import { CELL_BASELINE_DIRECTORY } from '../../../logic/path/map.js';
 import { storeName } from '../../store-names.js';
 export { CELL_BASELINE_DESCRIPTOR };
 export { CELL_BASELINE_DIRECTORY };
+const fs = fileSystemAdapter();
 const DIRECTORY = CELL_BASELINE_DIRECTORY, DESCRIPTOR = CELL_BASELINE_DESCRIPTOR;
 /** Hash the exact persisted UTF-8 bytes, including the final newline. */
 function digest(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
@@ -110,9 +107,9 @@ export function writeCellLintBaseline(root, baseline, { initialize = false, veri
     return;
   }
   const files = cellLintFiles(baseline), descriptor = join(root, DESCRIPTOR);
-  mkdirSync(join(root, DIRECTORY), { recursive: true });
+  fs.mkdir(join(root, DIRECTORY), { recursive: true });
   const lock = join(root, DIRECTORY, '.write-lock');
-  mkdirSync(lock);
+  fs.mkdir(lock);
   const pending = descriptor + `.pending-${process.pid}`;
   let before, pendingCreated = false;
   const written = new Set();
@@ -121,22 +118,22 @@ export function writeCellLintBaseline(root, baseline, { initialize = false, veri
     before = initialize ? new Map() : storedCellLintFiles(root);
     if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(previous)) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read and plan the current generation');
     for (const file of files.keys()) if (!before.has(file) && cellExistsSync(join(root, file))) throw new Refused('CELL_BASELINE', `refuse overwriting unowned metadata ${file}`);
-    for (const [file, bytes] of files) if (file !== DESCRIPTOR) { written.add(file); writeFileSync(join(root, file), bytes); }
-    writeFileSync(pending, files.get(DESCRIPTOR), { flag: 'wx' });
+    for (const [file, bytes] of files) if (file !== DESCRIPTOR) { written.add(file); fs.writeFile(join(root, file), bytes); }
+    fs.writeFile(pending, files.get(DESCRIPTOR), { flag: 'wx' });
     pendingCreated = true;
-    renameSync(pending, descriptor);
+    fs.rename(pending, descriptor);
     written.add(DESCRIPTOR);
-    for (const file of before.keys()) if (!files.has(file)) unlinkSync(join(root, file));
+    for (const file of before.keys()) if (!files.has(file)) fs.unlink(join(root, file));
     readCellLintBaseline(root);
     if (!verify()) throw new Refused('CELL_BASELINE', 'final literal repository inventory differs from the planned baseline; inspect concurrent source changes');
   } catch (error) {
     if (before) {
-      for (const [file, bytes] of before) writeFileSync(join(root, file), bytes);
-      for (const file of written) if (!before.has(file) && cellExistsSync(join(root, file))) unlinkSync(join(root, file));
+      for (const [file, bytes] of before) fs.writeFile(join(root, file), bytes);
+      for (const file of written) if (!before.has(file) && cellExistsSync(join(root, file))) fs.unlink(join(root, file));
     }
     throw error;
   } finally {
-    if (pendingCreated && cellExistsSync(pending)) unlinkSync(pending);
-    rmdirSync(lock);
+    if (pendingCreated && cellExistsSync(pending)) fs.unlink(pending);
+    fs.rmdir(lock);
   }
 }

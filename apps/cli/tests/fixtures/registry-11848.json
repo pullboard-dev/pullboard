@@ -1,0 +1,4 @@
+{
+  "cli.logic-jest-worktrees.unignored-names-fix": {"proves":{"specs":["C7"],"claim":"jestWorktreeProblem, given a jest test script and a Jest config with no ignore entry covering the seat worktrees folder, returns one problem naming the entry to add."},"why":"Without it a Jest project's npm test scans the seat worktrees and reports hundreds of failed suites with no hint why (#11848).","kind":"cell unit","inputs":["apps/cli/src/logic/jest-worktrees.js","apps/cli/tests/logic/jest-worktrees.test.js"]},
+  "cli.logic-jest-worktrees.ignored-or-not-jest": {"proves":{"specs":["C7"],"claim":"a config whose ignore covers the seat worktrees folder, or a test script that runs no jest, returns no problem."},"why":"Doctor must not flag a project that is already fixed or does not use Jest (#11848).","kind":"cell unit","inputs":["apps/cli/src/logic/jest-worktrees.js","apps/cli/tests/logic/jest-worktrees.test.js"]}
+}

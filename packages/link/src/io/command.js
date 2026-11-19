@@ -1,11 +1,9 @@
 /** Opt-in credential-free command phases let private child watchdogs explain a stalled operation [A7,C7]. */
-import { environmentAdapter } from '../../../env/index.js';
-import {
-  appendFileSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
+
+const fs = fileSystemAdapter();
 
 const PHASES = new Set(['waiting-relay', 'waiting-lock', 'local-export']);
 const MAX_TRACE_BYTES = 1024 * 1024;
@@ -23,7 +21,7 @@ export function beginCommandPhase(phase) {
   /** Diagnostic failure cannot change the underlying command or its refusal. */
   function record(event) {
     try {
-      appendFileSync(file, JSON.stringify({ pid: process.pid, id, phase, event,
+      fs.appendFile(file, JSON.stringify({ pid: process.pid, id, phase, event,
         at: Date.now(), uptimeMs: performance.now() }) + '\n', { mode: 0o600 });
     } catch { /* An unavailable diagnostic file never changes command behavior. */ }
   }
@@ -41,8 +39,8 @@ export function commandPhaseSnapshot(file, pid) {
   if (!file) return unavailable(pid, 'no phase capture was configured');
   let events;
   try {
-    if (statSync(file).size > MAX_TRACE_BYTES) return unavailable(pid, 'phase capture exceeded its byte bound');
-    events = readFileSync(file, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+    if (fs.stat(file).size > MAX_TRACE_BYTES) return unavailable(pid, 'phase capture exceeded its byte bound');
+    events = fs.readFile(file, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   } catch { return unavailable(pid, 'phase capture was not available or complete'); }
   const active = new Map();
   const timings = [];
