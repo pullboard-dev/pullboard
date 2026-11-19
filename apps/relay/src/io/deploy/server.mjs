@@ -1,13 +1,6 @@
 /** Production relay entry point for the Railway container [H5,H18]. */
 import { createServer } from 'node:http';
 import {
-  chmodSync,
-  chownSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -18,31 +11,34 @@ import { createGitHubClient } from '../../../index.js';
 import { createRelayHandler } from '../../../index.js';
 import { health } from './health.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 const NODE_UID = 1000;
 const NODE_GID = 1000;
 
 /** Create private relay directories and hand their contents to the unprivileged service user. */
 function prepareStorage(directory) {
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const root = lstatSync(directory);
+  fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
+  const root = fileSystem.lstat(directory);
   if (!root.isDirectory() || root.isSymbolicLink()) {
     throw new Refused('RELAY_STORAGE', 'mount a private regular volume directory at PULLBOARD_RELAY_DATA and restart the service');
   }
-  chmodSync(directory, 0o700);
-  for (const name of readdirSync(directory)) {
+  fileSystem.chmod(directory, 0o700);
+  for (const name of fileSystem.list(directory)) {
     const path = join(directory, name);
-    const entry = lstatSync(path);
+    const entry = fileSystem.lstat(path);
     if (entry.isSymbolicLink()) {
       throw new Refused('RELAY_STORAGE', 'remove symlinks from the private relay volume and restart the service');
     }
     if (entry.isDirectory()) prepareStorage(path);
     else if (entry.isFile()) {
-      chmodSync(path, 0o600);
-      if (process.getuid?.() === 0) chownSync(path, NODE_UID, NODE_GID);
+      fileSystem.chmod(path, 0o600);
+      if (process.getuid?.() === 0) fileSystem.chown(path, NODE_UID, NODE_GID);
     } else throw new Refused('RELAY_STORAGE', 'keep only regular files and directories in the private relay volume');
   }
-  if (process.getuid?.() === 0) chownSync(directory, NODE_UID, NODE_GID);
+  if (process.getuid?.() === 0) fileSystem.chown(directory, NODE_UID, NODE_GID);
 }
 
 /** Drop the startup privilege after preparing Railway's root-mounted volume. */
