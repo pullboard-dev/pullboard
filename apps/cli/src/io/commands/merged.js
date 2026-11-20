@@ -185,14 +185,14 @@ export async function run(io, { first, second, values }) {
       if (!request) prepare();
       if (codeIsFromMain()) {
         const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
-        await (await import('../../../../../packages/gate/index.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
+        await (await import('../../../../../packages/gate/heavy.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
       }
       const batch = await ordered(ctx, board, 'recordTrainLanding', [request]);
       return { batch: batch.id, receiptId: request.receipt.id };
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, composeLanding: ctx.config.slices?.composeLanding === true, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
     return {};
   };
   let announced = false;

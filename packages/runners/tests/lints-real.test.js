@@ -1,8 +1,8 @@
 /** @pullboard-test-input packages/codemap/src/io/cell/scripts/lints.js packages/codemap/src/io/cells/scripts/plan.js packages/codemap/data/baselines/lints/index.json */
 /** @pullboard-test-input ** */
 /** The cell lint tests that read the actual repository or copy real packages; split from lints.test.js for its file budget [C7,CD62,CD64]. */
-import { importsIn } from '../../gate/index.js';
-import { commonJsIn } from '../../gate/index.js';
+import { importsIn } from '../../gate/heavy.js';
+import { commonJsIn } from '../../gate/heavy.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';

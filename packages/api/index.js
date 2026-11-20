@@ -64,6 +64,7 @@ export {
 export { applyInbox } from "./src/io/inbox.js";
 export { withLandingPermit } from "./src/io/permit.js";
 export { endStaleGateJobs } from "./src/io/stale.js";
+export { endStaleShardOffers } from "./src/io/stale.js";
 export {
   endGateHop,
   gateClaimHop,

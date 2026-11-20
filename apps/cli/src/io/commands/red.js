@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
-import { readGateReceipt } from '../../../../../packages/gate/index.js';
-import { receiptStore } from '../../../../../packages/gate/index.js';
-import { testClosures } from '../../../../../packages/gate/index.js';
+import { readGateReceipt } from '../../../../../packages/gate/heavy.js';
+import { receiptStore } from '../../../../../packages/gate/heavy.js';
+import { testClosures } from '../../../../../packages/gate/heavy.js';
 import { context } from '../entry.js';
 import { gitExecFileSync } from '../../../../../packages/git/light.js';
 

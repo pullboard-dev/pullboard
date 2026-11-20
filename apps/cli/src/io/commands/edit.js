@@ -1,6 +1,8 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { barOwnerOptions } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
@@ -28,7 +30,7 @@ import {
   refuseCheckSyntax,
   refuseCheckPullboardTest,
   sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,
@@ -71,6 +73,12 @@ export async function run(io, args) {
   const brief = sealed ? sealed.brief : briefArg(io, values);
   if (values['machine-verified'] !== undefined && !['on', 'off'].includes(values['machine-verified'])) throw new Refused('USAGE', '--machine-verified on|off');
   if (values['machine-commands-file'] !== undefined && me.id !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator marks machine verification');
+  const asPerson = personBarMode(ctx, board, me, values, personMode);
+  // With items.barRulesAtAdd on, an edit that changes the Files list is judged by who owns the files it changes, as claim does [C7,#11777].
+  if (brief !== undefined && itemsBarRulesAtAdd()) {
+    const filed = store.getItem(board, id);
+    requireNoCoordinatorPath(ctx.config, me, { by: asPerson ? store.PERSON : me.id, lane: filed.item_lane, title: filed.item_title, brief }, barOwnerOptions(ctx, true));
+  }
   let change = {
     agentId: me.id,
     ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
@@ -91,7 +99,6 @@ export async function run(io, args) {
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
-  const asPerson = personBarMode(ctx, board, me, values, personMode);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'edit', item: id,
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
   if (confirmed !== null) return confirmed;
