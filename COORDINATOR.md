@@ -42,6 +42,11 @@ Fix the board, not the prompt.
 - **Forced landing:** with the person's OK, when the gate is broken.
 - **Forced means:** green at its exact candidate; never dodges a red.
 
+### Closure ceilings
+
+- **The adapter allowance:** an env or fs adapter-migration item may raise a row of `apps/cli/journeys/imports/closure-budget.json` by exactly that adapter's module count (env 2, fs 1), once per adapter per row, recorded as a fact on the item naming the row, the adapter and the count. No other raise is allowed.
+- **Lander override:** the lander lands a change whose only closure-ceiling refusal is such a recorded raise, and names the item and its fact in the landing note. Any other closure-ceiling refusal stays refused.
+
 ### Outside PRs
 
 - Land outside PRs through the merge train, never GitHub's merge button; GitHub marks the PR merged when their commit reaches main.
