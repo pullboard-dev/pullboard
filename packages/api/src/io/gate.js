@@ -426,9 +426,10 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null, mainRed = null;
   try {
-    // A red whose every failing case main already fails settles green, naming those files in a note [C7,#12215].
+    // A red whose every failing case main already fails settles green, naming those files in a note; a file the item's own diff touches stays red [C7,#12215,#12216].
+    const touched = new Set(offeredRequest(board.db, parent)?.submit?.files ?? []);
     const compared = retry || combined.status === 0 ? null : compareGateWithMain(board, combinedReceipt(gateReceipt, parts, { signatures: true }), offeredGate(board.db, parent)?.main, ports.compareWithMain ?? null);
-    if (compared?.cases.length && compared.cases.every(row => row.onMain === true)) { mainRed = [...new Set(compared.cases.map(row => row.file))]; combined = combinedReceipt(gateReceipt, parts, { ...signatures, mainRed: new Set(parts.map(part => part.job)) }); } else if (retry) {
+    if (compared?.cases.length && compared.cases.every(row => row.onMain === true) && !compared.cases.some(row => touched.has(row.file))) { mainRed = [...new Set(compared.cases.map(row => row.file))]; combined = combinedReceipt(gateReceipt, parts, { ...signatures, mainRed: new Set(parts.map(part => part.job)) }); } else if (retry) {
       // A green retry replaces the red shards it reran; a red one leaves the original red as it was.
       const posted = postedReceipt(board.db, retry.job_id);
       const shardGate = posted?.receipt?.gate ?? {};

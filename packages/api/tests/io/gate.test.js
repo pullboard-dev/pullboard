@@ -192,7 +192,7 @@ const SHARD_RED = (head, failures, signed = true) => ({ version: 1, status: 1, g
 const mainFails = () => ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'item', own: [], receipt: null, job: null })) });
 
 /** A claimed item whose gate offered two shards; shard one posts `red`, shard two posts green, through the receipt dispatch. The last answer is `last`. */
-function twoShardGate(t, { red, options }) {
+function twoShardGate(t, { red, options, files = [] }) {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
@@ -203,7 +203,7 @@ function twoShardGate(t, { red, options }) {
   const head = repo.commit;
   const parent = `gate:${item.item_id}:main-red`;
   offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
-    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files } } });
   const lease = claimJob(board.db, { runner: 'r-gate', capabilities: [], now: 2 });
   const gate = { version: 1, source: head, green: false, environment: { node: process.version, platform: process.platform, arch: process.arch }, phases: [{ role: 'check', status: 0 }],
     analysis: { proofFiles: SHARD_FILES, proofCommand: 'node --test' }, proofPlan: { runner: 'node --test', cores: 1, files: SHARD_FILES } };
@@ -233,6 +233,13 @@ test('api.io-gate.shard-red-outside-main-stays-red: clause 2: a red shard with a
   const none = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: {} });
   assert.equal(none.last.outcome, 'red', JSON.stringify(none.last));
   for (const f of [fresh, none]) assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0);
+});
+
+test('api.io-gate.shard-red-in-item-diff-stays-red: clause 1: a red shard whose failing file main also fails but the item diff touches settles red and appends no main-red note [C7,#12216]', t => {
+  const failures = [{ file: 'web/a.test.js', name: 'loads under load' }];
+  const f = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: { compareWithMain: mainFails() }, files: ['web/a.test.js'] });
+  assert.equal(f.last.outcome, 'red', JSON.stringify(f.last));
+  assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0, 'no main-red note');
 });
 
 const KEY = '1'.repeat(64);
