@@ -9,7 +9,7 @@ import { git } from '../../fixtures/plan.js';
 import { requireSprintProof } from '../../../src/io/step/publish.js';
 import { save } from '../../../src/io/step/merge.js';
 import { validateLandingBatch } from '../../../../items/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { prepareFlakeLanding } from '../../../src/io/step/publish.js';
 import * as store from '../../../../store/index.js';
