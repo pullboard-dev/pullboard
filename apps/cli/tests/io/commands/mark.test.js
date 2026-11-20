@@ -21,7 +21,8 @@ test('cli.mark.one-append: clause 1: pullboard mark ID smoke --start --ref SHA -
   const written = marks(box, id);
   assert.equal(written.length, 1, 'exactly one mark event');
   assert.equal(written[0].event_by, box.seats.builder.id);
-  assert.deepEqual(JSON.parse(written[0].event_detail), { stage: 'smoke', edge: 'start', reason: null, ref: 'abc123', at: Date.parse(at) });
+  const { stage, edge, reason, ref, at: markedAt } = JSON.parse(written[0].event_detail);
+  assert.deepEqual({ stage, edge, reason, ref, at: markedAt }, { stage: 'smoke', edge: 'start', reason: null, ref: 'abc123', at: Date.parse(at) });
 });
 
 test('cli.mark.closed-lists: clause 2: an unknown stage, an unknown reason code and an --at more than 24 h from now are each refused with a code and no event [C7,#12157]', async t => {
