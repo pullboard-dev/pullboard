@@ -1,5 +1,5 @@
 /** Find the repository a file-backed board belongs to, from where its file lives [C7]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { appendFact } from './fact.js';
@@ -12,6 +12,8 @@ import {
   dirname,
   join,
 } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 /**
  * The repository root of a board file stored the way Pullboard stores it, `<root>/.git/pullboard/<file>`, or null for
@@ -27,7 +29,7 @@ export function repositoryOfBoardFile(file) {
   const git = dirname(folder);
   if (basename(folder) !== 'pullboard' || basename(git) !== '.git') return null;
   const root = dirname(git);
-  return existsSync(join(git, 'HEAD')) ? root : null;
+  return fs.exists(join(git, 'HEAD')) ? root : null;
 }
 
 /** Retry one policy operation against the repository named by this board's own file, only after NO_POLICY. */

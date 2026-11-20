@@ -13,6 +13,7 @@ const shard = numbers => `{\n "order": 8,\n "name": "state",\n "paths": [\n${num
 function diverge(file, base, mainText, itemText) {
   const files = privateFixtureFiles('pb-conflict-repos-');
   files.write(file, base);
+  files.write('pullboard.json', JSON.stringify({ lanes: {} }));
   fixtureCommitAll(files.root);
   const git = (...args) => runFixtureSetupGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: files.root });
   const commit = (branch, text) => {
@@ -20,20 +21,33 @@ function diverge(file, base, mainText, itemText) {
     git('commit', '-q', '-am', branch);
     return git('rev-parse', 'HEAD');
   };
+  const root = git('rev-parse', 'HEAD');
   git('checkout', '-q', '-b', 'item');
   const head = commit('item', itemText);
   git('checkout', '-q', 'main');
   const main = commit('main', mainText);
-  return { root: files.root, main, head, file };
+  return { root: files.root, base: root, main, head, file };
+}
+
+/** The file and the three texts of the mechanical-only conflict: the base, main's version and the item head's version, each appending a different plan row. */
+export function mechanicalOnlyConflictTexts() {
+  return { file: SHARD_FILE, base: shard([1, 2]), main: shard([1, 2, 3]), item: shard([1, 2, 4]) };
+}
+
+/** The file and the three texts of the real conflict: main and the item head change the same line of one source file. */
+export function realConflictTexts() {
+  const text = value => `export const limit = ${value};\nexport const other = 1;\n`;
+  return { file: SOURCE_FILE, base: text(1), main: text(2), item: text(3) };
 }
 
 /** Main and the item head each append a different row to one cells-plan shard: git alone conflicts, the mechanical merge does not. */
 export function mechanicalOnlyConflictRepo() {
-  return diverge(SHARD_FILE, shard([1, 2]), shard([1, 2, 3]), shard([1, 2, 4]));
+  const { file, base, main, item } = mechanicalOnlyConflictTexts();
+  return diverge(file, base, main, item);
 }
 
 /** Main and the item head change the same line of one source file: a conflict no mechanical rule resolves. */
 export function realConflictRepo() {
-  const text = value => `export const limit = ${value};\nexport const other = 1;\n`;
-  return diverge(SOURCE_FILE, text(1), text(2), text(3));
+  const { file, base, main, item } = realConflictTexts();
+  return diverge(file, base, main, item);
 }
