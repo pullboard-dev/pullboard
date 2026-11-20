@@ -73,7 +73,7 @@ test('gate.logic-adapter-lints-env.real-tree-scope-installer: clause 3: the lint
 });
 
 test('gate.logic-adapter-lints-env.generated-script-files-exempt: clause 1: the three generated child-script files are listed by exact path and not covered by the lint [C7,#12205]', () => {
-  assert.deepEqual(ENV_GENERATED_SCRIPT_FILES, ['apps/cli/src/io/submit/gate.js', 'apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js']);
+  assert.deepEqual(ENV_GENERATED_SCRIPT_FILES, ['apps/cli/src/io/submit/gate.js', 'apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js', 'apps/cli/src/io/fixture-memo-warm.js']);
   for (const path of ENV_GENERATED_SCRIPT_FILES) assert.equal(coveredByEnvLint(path), false, path);
   assert.equal(coveredByEnvLint('apps/cli/src/io/submit/other.js'), true);
 });
