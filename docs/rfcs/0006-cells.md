@@ -305,3 +305,14 @@ These rules stay after the move plan is retired. Each line names the static chec
 - No import cycle between cells: an edge that closes a cycle is refused. [CD23] check: cell-lints/cycles
 - The shim ratchet: re-export shims only fall, never grow. [CD25, CD64] check: cell-lints/shims
 - File size caps: 500 lines is the aim and 1,500 the hard maximum, and an oversized file takes no added lines. [CD33] check: cell-lints/fileSize
+
+## Amendment, 20 November 2026: standing cell rules after the restructure
+
+These are the rules that stay once the restructure plan in `packages/codemap/data/plan/` is retired. The approved body above is unchanged; this amendment adds to it. Each rule names the check that refuses its breach as `check: <name> (<file>)`, and the file is one that exists in the tree.
+
+- A file belongs to the cell whose folder holds it. check: cells-edges (`packages/gate/src/io/edges.js`)
+- A cross-cell import goes through the other cell's front door, never into its `src`. check: cells-edges (`packages/gate/src/io/edges.js`)
+- Allowed cell edges live in the one declared rule file; an undeclared edge is refused. check: cells-edges (`packages/codemap/data/ceilings/allowed-edges.json`)
+- The cell import graph has no cycle. check: cell-lints/cycles (`packages/codemap/src/io/cell/lints.js`)
+- New source outside a cell or the root allowlist is refused. check: cell-lints/strays (`packages/codemap/src/logic/allowlist.js`, `packages/codemap/src/logic/layout.js`)
+- The shim ratchet and the file size caps stay. check: cell-lints/shims and cell-lints/fileSize (`packages/codemap/src/io/cell/lints.js`)

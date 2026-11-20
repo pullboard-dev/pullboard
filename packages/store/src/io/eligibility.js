@@ -39,7 +39,7 @@ function heldCellItems(board, agentId) {
  * @param {{ lanes?: string[] | null, policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[], reviewHeartbeats?: Map<string, string | null> | null, releaseCooldown?: { minutes: number, now: number } | null }} [options]
  * @returns {{ item: any | null, review: boolean, held: boolean, reasons: string[] }}
  */
-export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, idleBlockers = false, workingFiles = new Map(), reviewHeartbeats = null, releaseCooldown = null, lanes = null } = {}) {
+export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, idleBlockers = false, workingFiles = new Map(), reviewHeartbeats = null, releaseCooldown = null, lanes = null, reservations = false } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
@@ -61,7 +61,7 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   if (stopped) return { item: stopped, review: false, held: true, reasons: [] };
 
   // A seat's own recent releases wait out the cooldown unless nothing else is open for it (#2587); off when not passed.
-  const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: lanes ? [...assignedIds, ...heldCellItems(board, agentId)] : assignedIds, observeIdle, idleBlockers, workingFiles, ...(lanes ? { lanes } : {}) },
+  const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: lanes ? [...assignedIds, ...heldCellItems(board, agentId)] : assignedIds, observeIdle, idleBlockers, workingFiles, ...(reservations ? { reservations } : {}), ...(lanes ? { lanes } : {}) },
     releaseCooldown?.minutes ?? 0, store.nextFor, releaseCooldown?.now);
   return { item: build.item, review: false, held: false, ...(idleBlockers && !build.item ? { blockers: build.blockers ?? [] } : {}), ...(observeIdle && !build.item ? { skips: [...(review.skips ?? []), ...(build.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3), idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }

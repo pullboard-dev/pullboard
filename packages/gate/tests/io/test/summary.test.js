@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { retainTestOutput } from '../../../index.js';
+import { retainTestOutput } from '../../../heavy.js';
 import { boardFolderFile } from '../../../../git/index.js';
 
 const LOG = 'TAP version 13\nok 1 - holds\n1..1\n# pass 1\n# fail 0\n';

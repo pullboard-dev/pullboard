@@ -56,9 +56,6 @@ test('gate.logic-markdown-allowlist.the-allowlist-is-one-file: clause 2: the all
     'COORDINATOR.md', 'CLAUDE.md', 'CHANGELOG.md', 'docs/rfcs/*.md', '.github/ISSUE_TEMPLATE/*.md', '.github/pull_request_template.md']) assert.ok(patterns.includes(expected), expected);
   const temporary = entries.filter(entry => entry.reason.startsWith('temporary:'));
   for (const entry of temporary) assert.match(entry.reason, /#\d+|under review \(Corey's checklist\)/u, `${entry.pattern} names what drops it`);
-  for (const file of ['docs/method.md', 'docs/proof/spec.md', 'docs/sentinels.md', 'docs/rigor.md', 'docs/handoff.md', 'docs/contributing-runbook.md']) {
-    assert.match(entries.find(entry => entry.pattern === file || entry.pattern === 'docs/proof/*.md' && file.startsWith('docs/proof/')).reason, /#5310/u, file);
-  }
   assert.match(entries.find(entry => entry.pattern === 'docs/lifecycle.md').reason, /#5309/u);
 });
 

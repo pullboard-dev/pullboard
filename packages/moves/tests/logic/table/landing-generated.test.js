@@ -347,3 +347,18 @@ test('moves.landing-generated.moves-landing-always-rows-clause-3-every-landing-s
   assert.deepEqual(rowsOf('steady'), rowsOf(undefined), 'a snapshot with no pace runs as steady');
   assert.deepEqual(rowsOf('steady').filter(id => tagged.some(row => row.id === id) || id === 'screened'), [], 'steady reads no Always or screen row: verify holds its bar and no receipt exists');
 });
+
+test('moves.table.landing-merged-at: clause 1: a finite mergedAt in the move rides on the merge, merge-publish and forced merged events, and a move without it gives the events it gave before [C7]', () => {
+  const at = 1763614800000;
+  const mergedEvent = events => events.find(e => e.kind === 'merged');
+  for (const outcome of ['forced-unfinished', 'merge-publish', 'merge']) {
+    const cases = of('merged', outcome);
+    assert.ok(cases.length > 0, `${outcome} fires`);
+    for (const c of cases) {
+      const withAt = run('merged', c.s, { ...c.m, mergedAt: at });
+      assert.deepEqual(mergedEvent(withAt.events).detail, { ...mergedEvent(c.result.events).detail, mergedAt: at }, `${outcome} seed ${c.seed}`);
+      assert.deepEqual(withAt.patch, c.result.patch, `${outcome} patch unchanged, seed ${c.seed}`);
+      for (const bad of [undefined, NaN, '1']) assert.deepEqual(run('merged', c.s, { ...c.m, mergedAt: bad }).events, c.result.events, `${outcome} without a finite mergedAt, seed ${c.seed}`);
+    }
+  }
+});

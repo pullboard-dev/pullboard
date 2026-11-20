@@ -2,8 +2,11 @@
 /** The item slice seeds from the paths and names an item gives, ranks what is closest, and fits a small default budget [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { buildCodeMap } from '../../src/io/map.js';
 import { parseJsdoc } from '../../src/io/map.js';
 import { renderItemSlice } from '../../src/io/map.js';
+import { renderModuleCard } from '../../src/io/map.js';
+import { fixtureCommittedGraph } from '../../../store/tests/fixtures/cell.js';
 
 /** One scanned function as the map stores it. */
 function fn(modulePath, name, { calls = [], callers = [] } = {}) {
@@ -82,6 +85,26 @@ test('clause 2: named modules come before their one-hop neighbours, at most ten 
   assert.ok(small.length <= 1500 * 4, `default slice is ${small.length} characters`);
   assert.match(small, /Omitted context is not evidence of no relationship\./u);
   assert.ok(renderItemSlice(wide, hub, { budget: 4000 }).length > 1500 * 4, 'an explicit larger budget still prints more');
+});
+
+test('codemap.io-map.exported-classes-counted: clause 1: a module exporting only a class is named with the class in its heading, not 0 exported functions [test] [C7]', () => {
+  const map = { mainCommit: 'abc', modules: [{ path: 'src/thing.js', loc: 3, job: null, dependencies: [], external: [], importedBy: [], tests: [],
+    functions: [], values: [{ name: 'Thing', exported: true, line: 1, isClass: true }, { name: 'Hidden', exported: false, line: 2, isClass: true }] }] };
+  const heading = renderModuleCard(map, 'src/thing.js').split('\n')[0];
+  assert.match(heading, /0 exported functions, 1 exported class: Thing\)/u);
+  assert.doesNotMatch(heading, /Hidden/u);
+});
+
+test('codemap.io-map.jest-test-folders: clause 2: .test.js and .spec.js files inside tests or __tests__ folders count as test files with import edges [test] [C7]', () => {
+  const repo = fixtureCommittedGraph('pullboard-map-jest-');
+  repo.put('src/thing.js', 'export class Thing {}\n');
+  repo.put('src/__tests__/thing.test.js', "import { Thing } from '../thing.js';\nexport const made = Thing;\n");
+  repo.put('tests/thing.spec.js', "import { Thing } from '../src/thing.js';\nexport const made = Thing;\n");
+  repo.put('src/notes.spec.js', 'export const loose = 1;\n');
+  const map = buildCodeMap(repo.root, repo.commit());
+  assert.equal(map.testCount, 2, 'the __tests__ file and the tests/ spec file are the test files');
+  assert.deepEqual(map.modules.find(entry => entry.path === 'src/thing.js').tests, ['src/__tests__/thing.test.js', 'tests/thing.spec.js']);
+  assert.ok(map.modules.some(entry => entry.path === 'src/notes.spec.js'), 'a spec file outside a tests folder stays a source module');
 });
 
 test('codemap.map.jsdoc-tags-at-line-start: clause 1: parseJsdoc reads param, returns and throws tags only where the tag opens a JSDoc line [C7]', () => {

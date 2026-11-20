@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { hasTestTiers } from '../../../../gate/heavy.js';
 import { requireTestTierAccount } from '../../../../gate/heavy.js';
 /** Coordinator landing diagnose step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -5,7 +6,6 @@ import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
 import * as store from '../../../../store/index.js';
 import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
@@ -35,6 +35,8 @@ import { repeatedBlockedCause } from '../../logic/hold.js';
 import { REPEATED_LANDING_HOLD } from '../../logic/hold.js';
 import { repeatedLandingNotice } from '../../logic/hold.js';
 import { LANDING_FAULT_CODES } from '../../logic/retry.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The compare port a landing reads base main through: main's receipts on the landing's board, a missing one enqueued
@@ -195,7 +197,7 @@ export async function bisect(state, items, failures, label = 'split', evaluate =
     await save(state, { ...build, state: 'bisecting' });
     // Each half runs only the files the batch failed, those its tree holds; a half without any of them cannot have
     // caused those reds and is green for this split. The final green set runs its whole plan before landing [C7].
-    const focus = [...new Set(failures.map(failure => failure.file).filter(Boolean))].filter(file => existsSync(join(state.batch.root, file)));
+    const focus = [...new Set(failures.map(failure => failure.file).filter(Boolean))].filter(file => fs.exists(join(state.batch.root, file)));
     const gate = focus.length ? await evaluate(state, `${label}-${index}`, { focus }) : { isGreen: true, failures: [], absentFocus: true };
     // Only unwaived reds split a group further; a group red only on waived files is green for bisection [C7,#2900].
     const own = unwaivedFailures(state.board, gate.failures, state.landingPorts);

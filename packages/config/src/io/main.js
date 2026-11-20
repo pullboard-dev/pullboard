@@ -85,9 +85,10 @@ export function defaults() {
     // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
     slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
-    next: { wholeItemsFirst: false },
+    // next.idleMinutes bounds how long a seat's next waits with nothing for it; the person sets it, no agent flag [C7,#12041].
+    next: { wholeItemsFirst: false, idleMinutes: 10 },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
-    cells: { cache: false, shimMaxAgeDays: 7 },
+    cells: { cache: false, shimMaxAgeDays: 7, plan: null },
     agents: { names: 'suffix' },
     // Off by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
     inbox: { tokenBudget: 8192, batchedMarks: false },
@@ -174,6 +175,7 @@ function merge(base, raw) {
       ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
     pushGate: section(raw.pushGate, base.pushGate),
     inbox: section(raw.inbox, base.inbox),
+    next: section(raw.next, base.next),
     agents: section(raw.agents, base.agents),
     claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
       ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
@@ -295,7 +297,8 @@ export function configProblems(config, root) {
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
   if (config.cells !== undefined && (notPlain(config.cells)
       || typeof config.cells.cache !== 'boolean' || !Number.isSafeInteger(config.cells.shimMaxAgeDays) || config.cells.shimMaxAgeDays < 0
-      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
+      || config.cells.plan !== null && (typeof config.cells.plan !== 'string' || !config.cells.plan.trim())
+      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays', 'plan'].includes(key)))) problems.push('"cells" has only boolean "cache", nonnegative whole-number "shimMaxAgeDays" (default 7) and "plan", the nonempty path of the cells plan (absent means a project with no cells)');
   if (config.rigor !== undefined && (notPlain(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || config.rigor.autoDraft !== undefined && typeof config.rigor.autoDraft !== 'boolean'
@@ -510,6 +513,9 @@ export function configProblems(config, root) {
   if (config.next?.wholeItemsFirst !== undefined && typeof config.next.wholeItemsFirst !== 'boolean') {
     problems.push('"next.wholeItemsFirst" is true or false');
   }
+  if (config.next?.idleMinutes !== undefined && (!Number.isSafeInteger(config.next.idleMinutes) || config.next.idleMinutes < 1)) {
+    problems.push('"next.idleMinutes" is a positive whole number of minutes, such as 10 (how long a seat\'s next waits when nothing is offered)');
+  }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
   }
@@ -517,7 +523,7 @@ export function configProblems(config, root) {
     problems.push('"slices.composeLanding" is true or false');
   }
   if (notPlain(config.review)
-    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
+    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders', 'requireProvenBreak'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
     problems.push('"review.starveMinutes" is a positive number of minutes');
   }
@@ -526,6 +532,9 @@ export function configProblems(config, root) {
   }
   if (!['sprint', 'steady', 'strict'].includes(config.pace)) {
     problems.push('"pace" is "sprint", "steady" (default: land after a green gate and an accept) or "strict"');
+  }
+  if (config.review?.requireProvenBreak !== undefined && typeof config.review.requireProvenBreak !== 'boolean') {
+    problems.push('"review.requireProvenBreak" is true or false; unset means on for strict pace and off for steady and sprint');
   }
   if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
     problems.push('"review.excludeEarlierHolders" is true or false');
@@ -593,6 +602,25 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
   }
   return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
 }
+
+/**
+ * Whether an accept must state a proven break at the item's pace.
+ * Unset means on for strict and off for steady and sprint; an explicit true or false wins for every pace [C7].
+ *
+ * @param {any} config the loaded configuration
+ * @param {string} pace the item's frozen pace
+ * @returns {boolean}
+ */
+export function provenBreakRequired(config, pace) {
+  const set = config?.review?.requireProvenBreak;
+  if (set === undefined) return pace === 'strict';
+  if (typeof set !== 'boolean') throw new Refused('BAD_CONFIG', '"review.requireProvenBreak" is true or false; unset means on for strict pace and off for steady and sprint');
+  return set;
+}
+
+/** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
+/** The minutes a seat's next waits with nothing offered: next.idleMinutes, 10 when unset [C7,#12041]. */
+export function nextIdleMinutes(config) { return config?.next?.idleMinutes ?? 10; }
 
 /** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
 export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }

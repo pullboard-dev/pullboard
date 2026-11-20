@@ -10,13 +10,8 @@
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gitSpawnSync } from '../../../git/light.js';
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import {
   dirname,
   join,
@@ -77,8 +72,8 @@ export function loadSpec(root, config) {
   const file = join(root, config.spec);
   const name = config.spec;
   const boards = loadSpecBoards(root, config.specBoards);
-  if (!existsSync(file)) return { ...parseSpec(''), file, name, exists: false, boards };
-  return { ...parseSpec(readFileSync(file, 'utf8')), file, name, exists: true, boards };
+  if (!disk.exists(file)) return { ...parseSpec(''), file, name, exists: false, boards };
+  return { ...parseSpec(disk.readFile(file, 'utf8')), file, name, exists: true, boards };
 }
 
 /**
@@ -229,7 +224,7 @@ export function missingGateFindings(spec, root) {
   const findings = [];
   for (const row of spec.rows) {
     for (const file of gateFiles(row.gate)) {
-      if (existsSync(join(root, file))) continue;
+      if (disk.exists(join(root, file))) continue;
       const lost = lastCommitOf(root, file);
       if (row.status === 'approved' && row.tier === 'must' && lost) {
         const renamed = renamedGatePath(root, file);
@@ -268,7 +263,7 @@ export function repointLandingGates(root, config, base, tip) {
   }
   const spec = loadSpec(root, config);
   if (!spec.exists || !renames.size) return [];
-  const source = readFileSync(spec.file, 'utf8'), lines = source.split('\n'), changes = [];
+  const source = disk.readFile(spec.file, 'utf8'), lines = source.split('\n'), changes = [];
   for (const row of spec.rows) {
     if (!row.gate) continue;
     const gate = row.gate.replace(GATE_FILE_RE, (match, path) => {
@@ -279,7 +274,7 @@ export function repointLandingGates(root, config, base, tip) {
     });
     if (gate !== row.gate) lines[row.line - 1] = replaceRowGate(lines[row.line - 1], gate);
   }
-  if (changes.length) writeFileSync(spec.file, lines.join('\n'));
+  if (changes.length) disk.writeFile(spec.file, lines.join('\n'));
   return changes;
 }
 
@@ -508,7 +503,7 @@ export function signOff(root, spec, { ids, by, on, note = '', commit = '' }) {
   });
   if (problems.length) throw new Refused('CANNOT_SIGN', problems.join('; '));
   const file = join(root, SIGNOFFS_FILE);
-  mkdirSync(dirname(file), { recursive: true });
+  disk.mkdir(dirname(file), { recursive: true });
   if (ssh) {
     if (!commit) throw new Refused('NO_SIGNING_COMMIT', 'signed sign-offs include the commit checked; commit or check out the repo first');
     const rows = ids.map((id) => ({ id, by, on, text: byId.get(id).text, commit, note }));
@@ -516,7 +511,7 @@ export function signOff(root, spec, { ids, by, on, note = '', commit = '' }) {
     return ids.length;
   }
   const lines = ids.map((id) => JSON.stringify({ id, by, on: on.slice(0, 10), text: byId.get(id).text, ...(note ? { note } : {}) }));
-  appendFileSync(file, `${lines.join('\n')}\n`);
+  disk.appendFile(file, `${lines.join('\n')}\n`);
   return ids.length;
 }
 

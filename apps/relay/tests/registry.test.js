@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/relay/tests/fixtures/registry.json apps/relay/tests/** */
 /** Every relay-app test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10240]. @pullboard-test-input source-cell apps/relay */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

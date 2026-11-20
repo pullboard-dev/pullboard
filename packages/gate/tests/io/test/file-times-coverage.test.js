@@ -7,9 +7,9 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';
-import { fileTimesCoverage } from '../../../index.js';
-import { fileTimesCoverageNote } from '../../../index.js';
-import { writeFileTimes } from '../../../index.js';
+import { fileTimesCoverage } from '../../../heavy.js';
+import { fileTimesCoverageNote } from '../../../heavy.js';
+import { writeFileTimes } from '../../../heavy.js';
 
 /** A private git repository whose common dir holds a landing-file-times.json with these files recorded. */
 function repo(t, recorded) {

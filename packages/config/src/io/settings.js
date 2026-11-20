@@ -82,9 +82,9 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
-/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+/** Whether submit.residentChecks is on (#10275): on by default; only an exact `false` turns it off. */
 export function residentChecks() {
-  return loadMachineSettings().submit?.residentChecks === true;
+  return loadMachineSettings().submit?.residentChecks !== false;
 }
 
 /** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
@@ -143,6 +143,11 @@ export function failFastShardsEnabled() {
   return loadMachineSettings().gate?.failFastShards === true;
 }
 
+/** Seed main-test rows for wide-failing files only when this machine opted in [C7,#12094]; off by default, and only an exact true turns it on. */
+export function seedWideMainTestsEnabled() {
+  return loadMachineSettings().gate?.seedWideMainTests === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -179,6 +184,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { derivedStateEnabled } from '../logic/settings.js';
 export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -539,6 +545,11 @@ export function reviewStarveShout() {
   return loadMachineSettings().review?.starveShout === true;
 }
 
+/** Whether a builder's next skips reviews while a seat in lane review is alive (#11946): off by default; only an exact `true` turns it on. */
+export function reviewBuilderOffers() {
+  return loadMachineSettings().review?.builderOffers === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
@@ -582,11 +593,6 @@ export function nameBehindDeviceEnabled() {
   return loadMachineSettings().engine?.nameBehindDevice === true;
 }
 
-
-/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
-export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
-}
 
 /** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
 export function reofferTrunkBusyEnabled() {
@@ -653,6 +659,11 @@ export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
+/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations !== false;
+}
+
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
 export function itemsTestMirrorAtAdd() {
   return loadMachineSettings().items?.testMirrorAtAdd === true;
@@ -678,9 +689,9 @@ export function releaseStaleItemRevision() {
   return loadMachineSettings().release?.staleItemRevision === true;
 }
 
-/** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
+/** Whether a settled hold lifts when main moves (#9699, on by default since #12474): only an exact `false` in the settings file turns it off. */
 export function holdsLiftSettled() {
-  return loadMachineSettings().holds?.liftSettled === true;
+  return loadMachineSettings().holds?.liftSettled !== false;
 }
 
 /**
@@ -860,6 +871,11 @@ export function boardOpensCheckOn() {
 /** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
 export function servePullRoute() {
   return loadMachineSettings().serve?.pullRoute === true;
+}
+
+/** Whether `pullboard serve` runs the serve-restart trial: off by default; only an exact `true` of serve.restartTrial turns it on [C7]. */
+export function serveRestartTrial() {
+  return loadMachineSettings().serve?.restartTrial === true;
 }
 
 /**
