@@ -142,6 +142,11 @@ function insertItems(board, count, status, lane, merged) {
   board.db.exec('BEGIN');
   try { for (let at = 0; at < count; at += 1) insert.run(lane, `${status} ${at}`); board.db.exec('COMMIT'); } catch (error) { board.db.exec('ROLLBACK'); throw error; }
   if (status === 'open') return;
+  // The board's verified rule needs an ACCEPT on the frozen criterion by a verifier other than the builder, at the item's commit.
+  if (status === 'verified') {
+    board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+      SELECT item_id, 'core-2', 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, '2026-11-18T00:00:00Z' FROM item WHERE item_id >= ? AND item_id < ?`).run('b'.repeat(40), 'd'.repeat(64), 'b'.repeat(40), first, first + count);
+  }
   // The fields each status requires, placed the way the stage tests place them: the fixture records where items stand, not how they got there.
   const built = "item_built_by='core-1', item_commit=?2, item_frozen_digest=?3";
   const fields = {
@@ -166,7 +171,7 @@ test('store.io-board-read-light.unfinished-lists-seek-status: clause 1: every sc
   for (const filter of [{ all: false, hasLane: false }, { all: false, hasLane: true }, { all: false, hasLane: false, inFlight: true }, { all: false, hasLane: true, inFlight: true }]) {
     const sql = listItemsSql(filter);
     const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(filter.hasLane ? ['core'] : [])).map(row => row.detail).join('\n');
-    assert.match(plan, /SEARCH item USING (?:COVERING )?INDEX item_(?:status_id|verified_unmerged)/u, JSON.stringify(filter));
+    assert.match(plan, /SEARCH item USING (?:COVERING )?INDEX item_(?:status_id|lane_status)/u, JSON.stringify(filter));
     assert.doesNotMatch(plan, /SCAN item(?! USING)/u, `${JSON.stringify(filter)}\n${plan}`);
   }
 });
