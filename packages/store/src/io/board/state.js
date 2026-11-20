@@ -2,6 +2,8 @@ import { currentProofCounters } from "../../../../verify/index.js";
 import { ensureProofCounters } from "../../../../verify/index.js";
 import { proofCounter } from "../../../../verify/index.js";
 import { workQueue } from "../../../../items/index.js";
+import { boardNeedsJudgement } from "./read/shouts.js";
+import { nextReturnedFirst } from "../../../../config/index.js";
 import { pipelineStats } from "../../../../stats/light.js";
 /** @pullboard-test-input packages/doctrine/src/io/standard.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
@@ -68,7 +70,7 @@ export function stateProofStats(board, now, reads = { events: store.events, coun
 const WIDE_BUILD_ITEMS = 64;
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
-export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, previousHistory = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false, hotState = hotStateEnabled() } = {}, ports) {
+export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, previousHistory = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, stopRules = null, localRelayHealth = null, localCapacity = false, hotState = hotStateEnabled() } = {}, ports) {
   if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.claimHealthSnapshot !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
   const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
@@ -166,6 +168,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     // The whole event list is read here, once, and the dirty items' threads cut from it: a state build kept one query per item, and
     // every item's build re-read the log and every board-wide main move (#8480). A few dirty items still read their own.
     const history = recordedHistory(board, previousHistory);
+    // The list is only built when the setting is on and the async caller passed the stop rules; off, the key is absent [C7,#11668].
+    if (stopRules && nextReturnedFirst()) decorated.needsJudgement = boardNeedsJudgement(board, { history, items: currentItems }, stopRules);
     const wide = dirtyIds.size > WIDE_BUILD_ITEMS;
     const threads = wide ? store.itemThreads(board, [...dirtyIds].filter(id => currentById.has(id)), history) : null;
     const moved = wide ? new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key LIKE 'item_redirect:%'").all().map(row => row.meta_key)) : null;

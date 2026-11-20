@@ -22,6 +22,7 @@ import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
 import { claimTrial } from '../../../../../packages/drive/index.js';
 import { trialClaims } from '../../../../../packages/api/index.js';
 import { serveRestartTrial } from '../../../../../packages/config/index.js';
+import { loadStopRules } from '../../../../../packages/items/index.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
@@ -173,7 +174,9 @@ export async function serveHere(io, values) {
   const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
-  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
+  // The stop rules load once, here where the code is async; the sync state builder takes them as an option [C7,#11668].
+  const stopRules = await loadStopRules();
+  const listening = await catchListeners(() => serveApi({ stopRules, viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog, gateMaintenanceBeat: startBeat }));
   const api = listening.value;

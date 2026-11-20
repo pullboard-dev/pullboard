@@ -6,6 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
+import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
+import { loadStopRules } from '../../../../items/index.js';
 import { buildLocalBoardState } from '../../../src/io/board/state.js';
 import { mechanicalConflictFiles } from '../../../src/io/board.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
@@ -98,4 +100,47 @@ test('store.io-board-state.production-wiring: clause 2: the state build reaches 
   assert.deepEqual(mechanicalConflictFiles(repo, tip, mechanicalHead), [], 'the reader resolves the mechanical conflict');
   assert.deepEqual(mechanicalConflictFiles(repo, tip, sourceHead), ['a.txt'], 'the reader names the real source conflict');
   assert.equal(mechanical.verdictState, undefined, 'the state build used that reader, so the mechanical item stayed fresh');
+});
+
+/** A real board with a coordinator and three open items: one rejected twice and refused once (a wall), one rejected once (rework), one untouched. */
+function judgementBoard(t) {
+  const repo = temporaryRepository(t, 'pullboard-state-judgement-');
+  mkdirSync(join(repo, '.git', 'pullboard'), { recursive: true });
+  const board = cellBoard(t, join(repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date() }, { real: true, gitRoot: repo });
+  cellSeat(board, { lane: 'coordinator', path: '/repo' });
+  const file = title => cellItem(board, { lane: 'web', title, criterion: 'one', route: 'mid', check: 'true', brief: 'Files: web/a.js\nTest: proves it' }).item_id;
+  const [wall, rework, untouched] = [file('Walled item'), file('Reworked item'), file('Untouched item')];
+  const move = (id, kind, detail) => board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
+    .run(new Date().toISOString(), 'fixture-seat', kind, id, JSON.stringify(detail));
+  move(wall, 'reject', { clause: 1, note: 'first reject' });
+  move(wall, 'reject', { clause: 1, note: 'second reject' });
+  move(wall, 'release', { reasonCode: 'INELIGIBLE', note: 'cannot be built as written' });
+  move(rework, 'reject', { clause: 1, note: 'only reject' });
+  return { repo, board, wall, rework, untouched };
+}
+
+/** The state a build gives the board while the machine settings are `settings`, with or without the stop rules passed in. */
+async function judgementState(box, settings, withRules) {
+  const home = join(box.repo, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, settings);
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  try {
+    const stopRules = withRules ? await loadStopRules() : undefined;
+    return buildLocalBoardState(box.repo, 'main', box.board, true, { observedAt: Date.now(), stopRules }, PORTS).state;
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('store.io-board-state.needs-judgement-listed: clause 1: with next.returnedFirst on and the stop rules passed in, the state carries needsJudgement with one entry for the walled item (reason, latest refusal text, 3 attempts) and none for a reworked or untouched item [C7,#11668]', async t => {
+  const box = judgementBoard(t);
+  const state = await judgementState(box, { next: { returnedFirst: true } }, true);
+  assert.deepEqual(state.needsJudgement, [{ id: box.wall, reason: 'wall', refusalText: 'cannot be built as written', attempts: 3 }]);
+});
+
+test('store.io-board-state.needs-judgement-off: clause 2: with next.returnedFirst off or unset, or with no stop rules passed, the state carries no needsJudgement key [C7,#11668]', async t => {
+  const box = judgementBoard(t);
+  assert.equal('needsJudgement' in await judgementState(box, { next: { returnedFirst: false } }, true), false);
+  assert.equal('needsJudgement' in await judgementState(box, {}, true), false);
+  assert.equal('needsJudgement' in await judgementState(box, { next: { returnedFirst: true } }, false), false);
 });

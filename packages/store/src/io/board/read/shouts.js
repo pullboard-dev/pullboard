@@ -5,8 +5,12 @@ import { Refused } from "../../../../../kernel/index.js";
 import {
   events,
   itemThread,
+  itemThreads,
   listItems,
+  openDecisions,
 } from "../query.js";
+import { dependencyValues } from "../../../../../items/index.js";
+import { needsJudgement } from "../../../../../items/index.js";
 import { workerInboxQuery } from "../../../logic/board/worker.js";
 
 /**
@@ -142,4 +146,53 @@ export function milestonePriorities(board) {
     for (const id of milestone.items) if (!priorities.has(id)) priorities.set(id, index);
   }
   return (entry) => priorities.get(entry.item_id) ?? ordered.length;
+}
+
+/** The moves that put an item back, so only items with one of them (or an open decision) have anything to read. */
+const RETURN_KINDS = new Set(['reject', 'reopen', 'release']);
+/** The moves whose detail says why the work came back. */
+const REFUSAL_KINDS = new Set(['reject', 'reopen', 'release']);
+
+/** The item an open decision's shout is addressed to, or null. */
+function decisionItem(ask) {
+  if (Number.isInteger(ask.item)) return ask.item;
+  const named = /^item:(\d+)$/u.exec(ask.shout_to ?? '');
+  return named ? Number(named[1]) : null;
+}
+
+/** The text of the latest move that sent the item back, or ''. */
+function latestRefusalText(thread) {
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const entry = thread[i];
+    if (entry.type !== 'move' || !REFUSAL_KINDS.has(entry.kind)) continue;
+    const text = entry.detail?.note ?? entry.detail?.reason;
+    if (typeof text === 'string' && text !== '') return text;
+  }
+  return '';
+}
+
+/**
+ * The needs-judgement list of a board: one entry { id, reason, refusalText, attempts } per open item whose stop reason is wall or
+ * decision, in item order. Threads come from one pass over the board's events for only the open items that were returned or have an open
+ * decision, not one query per item. attempts counts rejections plus refusals since the last criterion edit [C7,#11668].
+ *
+ * @param {any} board
+ * @param {{ history?: any[], items?: any[] }} read The event list and the listed items, when the caller already holds them.
+ * @param {{ stopReason: Function, stopFacts: Function }} stopRules The stop rules, loaded by the async caller (the items cell has no sync door to them).
+ * @returns {{ id: number, reason: string, refusalText: string, attempts: number }[]}
+ */
+export function boardNeedsJudgement(board, { history = events(board), items = listItems(board, { all: true }) } = {}, { stopReason, stopFacts }) {
+  const byId = new Map(items.map(item => [item.item_id, item]));
+  const open = new Set(items.filter(item => item.item_status === 'open').map(item => item.item_id));
+  const decided = new Set(openDecisions(board).map(decisionItem).filter(id => open.has(id)));
+  const candidates = new Set(decided);
+  for (const event of history) if (event.item_id !== null && open.has(event.item_id) && RETURN_KINDS.has(event.event_kind)) candidates.add(event.item_id);
+  const threads = itemThreads(board, [...candidates].sort((a, b) => a - b), history);
+  const returned = [];
+  for (const [id, thread] of threads) {
+    const openDependencies = dependencyValues(byId.get(id)).filter(dep => Number.isInteger(dep) && byId.has(dep) && !['verified', 'withdrawn'].includes(byId.get(dep).item_status));
+    const facts = stopFacts(thread, { openDecision: decided.has(id), openDependencies });
+    returned.push({ id, reason: stopReason(facts), refusalText: latestRefusalText(thread), attempts: facts.rejections + facts.refusals });
+  }
+  return needsJudgement(returned);
 }
