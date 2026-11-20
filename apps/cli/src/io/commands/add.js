@@ -20,6 +20,7 @@ import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireSpecRow } from '../item/bar.js';
@@ -198,6 +199,7 @@ export async function run(io, args) {
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
   requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
