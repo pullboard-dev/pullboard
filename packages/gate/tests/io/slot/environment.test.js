@@ -1,7 +1,7 @@
 /** withGateSlot admits and runs its action under the env its caller passes, never process.env [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { withGateSlot } from '../../../index.js';
+import { withGateSlot } from '../../../heavy.js';
 import { listResources } from '../../../../resources/index.js';
 import { fixtureCommittedGraph } from '../../../../store/tests/fixtures/cell.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
