@@ -1,0 +1,20 @@
+{
+  "cli.io-landing-pull.ledger-outside-offer-lock": {
+    "proves": { "specs": ["C7"], "claim": "with landing.ledgerMainReds on, offerPulledLanding prepares no test_result statement while its board write lock is held" },
+    "why": "Without it the offer read every ledger row under the board write lock, holding it 10 to 190 s while every other seat got BOARD_BUSY.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/landing/pull.js"]
+  },
+  "cli.io-landing-pull.ledger-main-reds-unchanged": {
+    "proves": { "specs": ["C7"], "claim": "with a red ledger row seeded at a commit, the offered land job carries the same mainReds pair as when the read ran inside the lock" },
+    "why": "Without it moving the ledger read out of the lock could change which main reds a landing job carries.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/landing/pull.js"]
+  },
+  "cli.io-landing-pull.offer-hold-under-1s": {
+    "proves": { "specs": ["C7"], "claim": "with 200,000 test_result rows seeded and ledgerMainReds on, the offer's board-writes.jsonl hold row records heldMs under 1000" },
+    "why": "Without it a large ledger stretched every landing offer's board write hold past a second.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/landing/pull.js"]
+  }
+}
