@@ -544,7 +544,11 @@ export async function verifyHere(ctx, id, { second, values }) {
           const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
             check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true, expectedPlan: sealedPlan });
           if (sealed?.ids) { reused = sealed; sealedReuse = true; }
-          else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
+          else {
+            const recorded = (() => { try { const row = store.events(board, { itemId: id }).findLast(event => event.event_kind === 'submit'); const { files, full, deferred } = JSON.parse(row.event_detail).submissionProof ?? {}; return { files, full, deferred }; } catch { return null; } })();
+            const planNote = sealed?.reason === 'submit selection changed' ? ` (recorded ${JSON.stringify(recorded)}, rebuilt ${JSON.stringify(sealedPlan && { files: sealedPlan.files, full: sealedPlan.full, deferred: sealedPlan.deferred })})` : '';
+            reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}${planNote}` };
+          }
         }
         if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement || sealedReuse)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
