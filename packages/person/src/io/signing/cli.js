@@ -21,9 +21,11 @@ import { Refused } from "../../../../kernel/index.js";
 import { awaitPersonConfirmation } from "../confirmation.js";
 import { loadMachineSettings } from "../../../../config/index.js";
 import { repoInfo } from "../../../../git/index.js";
+import { fileSystemAdapter } from "../../../../fs/index.js";
 import { environmentAdapter } from "../../../../env/index.js";
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 const AUTHORITY_PATH = '/.well-known/pullboard-person-authority';
 
@@ -182,7 +184,7 @@ export function signsPersonMoves(cwd) {
   let file;
   try { file = join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite'); }
   catch { return false; } // Outside a repository there is no board to sign for; the usual checks apply.
-  if (!existsSync(file)) return false;
+  if (!fs.exists(file)) return false;
   let db;
   try { db = store.openBoardReadOnly(file); return personSigning({ db }).signed; }
   catch { return false; } // An unreadable board keeps the stricter shell checks; the command then reports why it cannot open.
