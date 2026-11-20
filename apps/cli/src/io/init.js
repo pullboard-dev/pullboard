@@ -24,6 +24,7 @@ import {
 } from '../../../../packages/config/index.js';
 import { loadDoctrine } from '../../../../packages/doctrine/index.js';
 import { installHooks } from '../../../../packages/commits/index.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import {
   configureAgentHooks,
   LEGACY_RESUME_HOOK,
@@ -244,6 +245,7 @@ export function laneProposalNotes(proposals) {
 
 /** Check whether a command can be found on PATH or in a named project environment without running it. */
 function gateCommandAvailable(root, command) {
+  const env = environmentAdapter();
   /** Check one file without executing it or resolving arbitrary shell syntax. */
   const executableFile = (file) => {
     try {
@@ -260,13 +262,13 @@ function gateCommandAvailable(root, command) {
   const commandFiles = (directory) => {
     const base = join(directory, command);
     if (process.platform !== 'win32' || /\.[^\\/]+$/u.test(command)) return [base];
-    return (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').map((extension) => `${base}${extension}`);
+    return (env.get('PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';').map((extension) => `${base}${extension}`);
   };
   /** Check a PATH directory entry, using the process working directory for an empty entry. */
   const onPath = (directory) => {
     return commandFiles(directory || process.cwd()).some(executableFile);
   };
-  if ((process.env.PATH ?? '').split(delimiter).some(onPath)) return true;
+  if ((env.get('PATH') ?? '').split(delimiter).some(onPath)) return true;
 
   /** Check conventional executable directories inside a named environment. */
   const hasEnvironmentCommand = (environment) => [
@@ -275,26 +277,27 @@ function gateCommandAvailable(root, command) {
   ].some(executableFile);
 
   const environments = new Set([join(root, '.venv')]);
-  if (process.env.UV_PROJECT_ENVIRONMENT) {
-    const configured = process.env.UV_PROJECT_ENVIRONMENT;
+  if (env.get('UV_PROJECT_ENVIRONMENT')) {
+    const configured = env.get('UV_PROJECT_ENVIRONMENT');
     environments.add(resolve(root, configured));
   }
-  if (process.env.POETRY_ACTIVE && process.env.VIRTUAL_ENV) environments.add(process.env.VIRTUAL_ENV);
+  if (env.get('POETRY_ACTIVE') && env.get('VIRTUAL_ENV')) environments.add(env.get('VIRTUAL_ENV'));
   if ([...environments].some(hasEnvironmentCommand)) return true;
   return false;
 }
 
 /** Describe a detected gate that init cannot resolve without executing it. */
 function missingGateNote(root, gate) {
+  const env = environmentAdapter();
   if (!gate) return '';
   const command = gate.trim().split(/\s+/u)[0];
   if (gateCommandAvailable(root, command)) return '';
   if (command === 'pytest') {
     const hasPoetry = fs.exists(join(root, 'poetry.lock'));
-    const hasUv = fs.exists(join(root, 'uv.lock')) || Boolean(process.env.UV_PROJECT_ENVIRONMENT);
+    const hasUv = fs.exists(join(root, 'uv.lock')) || Boolean(env.get('UV_PROJECT_ENVIRONMENT'));
     const searched = ['PATH', 'project `.venv`'];
-    if (process.env.UV_PROJECT_ENVIRONMENT) searched.push('configured uv environment');
-    if (process.env.POETRY_ACTIVE && process.env.VIRTUAL_ENV) searched.push('active Poetry environment');
+    if (env.get('UV_PROJECT_ENVIRONMENT')) searched.push('configured uv environment');
+    if (env.get('POETRY_ACTIVE') && env.get('VIRTUAL_ENV')) searched.push('active Poetry environment');
     const setupHint = hasUv ? 'run `uv sync` and activate its `.venv`'
       : hasPoetry ? 'run `poetry install` and activate that environment'
         : 'install pytest or activate the project `.venv`';
@@ -919,7 +922,7 @@ function continuousIntegration(environment) {
  * @param {{ enabled: boolean, shared: boolean, environment?: Record<string, string | undefined>, stdin?: { isTTY?: boolean }, stdout?: { isTTY?: boolean } }} facts
  * @returns {'ask' | 'print' | 'none'}
  */
-export function relayOfferAtInit({ enabled, shared, environment = process.env, stdin, stdout }) {
+export function relayOfferAtInit({ enabled, shared, environment = environmentAdapter().all(), stdin, stdout }) {
   if (!enabled || shared) return 'none';
   if (AGENT_SHELL_MARKERS.some((name) => Boolean(environment[name]))) return 'print';
   if (continuousIntegration(environment) || remoteShell(environment)) return 'print';
