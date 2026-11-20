@@ -68,7 +68,7 @@ test('store.sprint-pace.verify-snapshot-carries-pace: clause 1: the verify table
 test('store.sprint-pace.steady-unchanged: clause 2: a steady or strict item gets the merged decision, refusals and verify snapshot it got before (no pace key), and the pace adds no board statement [V2,M1,#12173]', t => {
   for (const pace of ['steady', 'strict']) {
     const submitted = tryMerge(boardWith(t, 'submitted', pace));
-    assert.deepEqual(submitted, { code: 'NOT_VERIFIED', message: 'item #7 is submitted; merge verified work only' }, `${pace}: submitted work is refused as before`);
+    assert.deepEqual(submitted, { code: 'NOT_VERIFIED', message: '[NOT_VERIFIED] item #7 is submitted; merge verified work only' }, `${pace}: submitted work is refused as before`);
     assert.deepEqual(tryMerge(boardWith(t, 'verified', pace)), { code: 'merged', commit: COMMIT }, `${pace}: verified work lands as before`);
     const board = boardWith(t, 'submitted', pace);
     const snapshot = verifySnapshot(board, getItem(board, 7), CALL, FACTS, {});
