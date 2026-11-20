@@ -31,6 +31,7 @@ import { refuseUnderTemp } from '../worktree/temp.js';
 import {
   installStep,
 } from '../../../../../packages/git/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   basename,
@@ -70,7 +71,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   if (!store.ROUTES.includes(route)) {
     throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
-  model = requiredModel(model, process.env, `worktree ${shellWord(lane)}${route === 'strong' ? '' : ` --route ${shellWord(route)}`}${family ? ` --family ${shellWord(family)}` : ''}`);
+  model = requiredModel(model, environmentAdapter().all(), `worktree ${shellWord(lane)}${route === 'strong' ? '' : ` --route ${shellWord(route)}`}${family ? ` --family ${shellWord(family)}` : ''}`);
   family = family || modelTier(model)?.family || null;
   const mainRoot = primaryCheckoutRoot(ctx.info);
   if (!mainRoot) throw new Refused('NO_POLICY', 'the primary checkout cannot be proven from Git metadata or the read-only project registry; restore the registry and retry');
