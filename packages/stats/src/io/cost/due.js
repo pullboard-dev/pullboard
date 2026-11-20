@@ -1,22 +1,14 @@
 /** Usage checkpoints a board command only records as due; one detached worker runs them in order [N2,B3]. */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { AGENT_SHELL_MARKERS } from '../../../../kernel/index.js';
 import { AGENT_TRANSCRIPT_ENV } from './session.js';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** `inline` runs the checkpoint inside the command, as before #2504; any other value defers it to the worker. */
 export const USAGE_CHECKPOINT_ENV = 'PULLBOARD_USAGE_CHECKPOINT';
@@ -39,7 +31,7 @@ export function usageDueDirectory(commonDir) {
 
 /** Due request files, oldest first: names sort by move time, then by the last board event they may read. */
 function pending(directory) {
-  try { return readdirSync(directory).filter((name) => REQUEST.test(name)).sort(); } catch { return []; }
+  try { return fs.list(directory).filter((name) => REQUEST.test(name)).sort(); } catch { return []; }
 }
 
 /** A recorded pid that still runs, so a second worker never starts beside it. */
@@ -53,16 +45,16 @@ function takeLock(directory) {
   const lock = join(directory, 'worker.lock');
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const fd = openSync(lock, 'wx', 0o600);
-      try { writeSync(fd, String(process.pid)); } finally { closeSync(fd); }
+      const fd = fs.open(lock, 'wx', 0o600);
+      try { fs.write(fd, String(process.pid)); } finally { fs.close(fd); }
       return true;
     } catch (error) {
       if (error.code !== 'EEXIST') return false;
       let owner;
-      try { owner = Number(readFileSync(lock, 'utf8')); } catch { continue; }
+      try { owner = Number(fs.readFile(lock, 'utf8')); } catch { continue; }
       // A lock still being written has no pid yet; its writer is starting and will drain.
       if (!owner || alive(owner)) return false;
-      rmSync(lock, { force: true });
+      fs.rm(lock, { force: true });
     }
   }
   return false;
@@ -70,16 +62,16 @@ function takeLock(directory) {
 
 /** Whether a live worker holds the queue now. */
 function workerRunning(directory) {
-  try { return alive(Number(readFileSync(join(directory, 'worker.lock'), 'utf8'))); } catch { return false; }
+  try { return alive(Number(fs.readFile(join(directory, 'worker.lock'), 'utf8'))); } catch { return false; }
 }
 
 /** Keep a short private failure log: stage names only, never paths or session identities. */
 function logFailure(directory, line) {
   const file = join(directory, 'worker.log');
   try {
-    if (statSync(file).size > LOG_LIMIT) rmSync(file, { force: true });
+    if (fs.stat(file).size > LOG_LIMIT) fs.rm(file, { force: true });
   } catch { /* no log yet */ }
-  try { appendFileSync(file, `${new Date().toISOString()} ${line}\n`, { mode: 0o600 }); } catch { /* the log is best effort */ }
+  try { fs.appendFile(file, `${new Date().toISOString()} ${line}\n`, { mode: 0o600 }); } catch { /* the log is best effort */ }
 }
 
 /**
@@ -88,14 +80,14 @@ function logFailure(directory, line) {
  */
 export function queueUsageCheckpoint(info, board, { agent, item, operation }, { worker, now, environment = process.env }) {
   const directory = usageDueDirectory(info.commonDir);
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const lastEventId = board.db.prepare('SELECT max(event_id) AS id FROM event').get()?.id ?? 0;
   const session = Object.fromEntries(SESSION_ENV.filter((name) => typeof environment[name] === 'string').map((name) => [name, environment[name]]));
   const request = { version: 1, root: info.root, agent, item, operation, now, lastEventId, environment: session };
   const name = `${String(now).padStart(15, '0')}-${String(lastEventId).padStart(12, '0')}-${process.pid}-${storeName(randomUUID())}`;
   const temporary = join(directory, `.${name}.tmp`);
-  writeFileSync(temporary, JSON.stringify(request), { mode: 0o600 });
-  renameSync(temporary, join(directory, name));
+  fs.writeFile(temporary, JSON.stringify(request), { mode: 0o600 });
+  fs.rename(temporary, join(directory, name));
   if (workerRunning(directory)) return;
   // The worker never holds this agent's checkout or acts as its shell: it orders only numeric usage for the seat at `root`.
   const env = { ...environment };
@@ -114,7 +106,7 @@ export async function drainUsageCheckpoints(commonDir, run) {
       for (let next = pending(directory)[0]; next; next = pending(directory)[0]) {
         const file = join(directory, next);
         let request = null;
-        try { request = JSON.parse(readFileSync(file, 'utf8')); } catch { logFailure(directory, 'stage=request'); }
+        try { request = JSON.parse(fs.readFile(file, 'utf8')); } catch { logFailure(directory, 'stage=request'); }
         // A failed checkpoint keeps today's semantics: unpublished revisions go out with the next checkpoint.
         for (const started = Date.now(); request;) {
           try { await run(request); break; }
@@ -125,8 +117,8 @@ export async function drainUsageCheckpoints(commonDir, run) {
             break;
           }
         }
-        rmSync(file, { force: true });
+        fs.rm(file, { force: true });
       }
-    } finally { rmSync(join(directory, 'worker.lock'), { force: true }); }
+    } finally { fs.rm(join(directory, 'worker.lock'), { force: true }); }
   }
 }

@@ -41,6 +41,7 @@ export function submittedClaimsFallback(claims, pending) {
 /**
  * Name the item folder for each claim a seat holds when a commit in the seat checkout itself is refused.
  * Why: a new user following the README commits in the seat; the refusal (a spec row the seat has not merged yet) never said the work belongs in the item folder [C7,#7946].
+ * A claim whose folder was never created (a lane move or top-up makes one) gets a line naming pullboard claim, never a path that does not exist [C7,#12023].
  *
  * @param {(ctx: any, read: (board: any) => any) => any} hookRead
  * @param {any} ctx hook context
@@ -53,7 +54,11 @@ function seatItemFolderHints(hookRead, ctx, root) {
     if (!seat?.agent_path) return [];
     return store.listItems(board, { lane: seat.agent_lane })
       .filter((item) => item.item_status === 'claimed' && item.item_owner === seat.agent_id && !awaitingGateOrReview(board, item))
-      .map((item) => { const folder = itemFolderPath(seat.agent_path, item.item_id); return `this is the seat checkout; build and commit #${item.item_id} in its item folder ${folder}, then cd ${folder} && pullboard submit ${item.item_id}`; });
+      .map((item) => {
+        const folder = itemFolderPath(seat.agent_path, item.item_id);
+        if (!existsSync(folder)) return `this is the seat checkout; #${item.item_id} has no item folder yet; run pullboard claim ${item.item_id} from the seat checkout to create it`;
+        return `this is the seat checkout; build and commit #${item.item_id} in its item folder ${folder}, then cd ${folder} && pullboard submit ${item.item_id}`;
+      });
   }) ?? [];
 }
 
