@@ -21,6 +21,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
+import { stepAsideCount } from '../../../../../packages/store/index.js';
 import { recordedWriteLock } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/store/index.js';
@@ -277,17 +278,19 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // A submitted sprint item with a green screen on this trunk tip lands as a verified one does; the pace is read from the listed row [V2,M1,#12177].
     const landable = item => item.item_status === 'verified' || sprintLandable(board, item, trunkTip);
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || landable(item)) : landable(item) && !item.item_hold_at && !taken.has(item.item_id));
+    // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
+    const candidates = all.filter(wanted);
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
     const accepted = await acceptOrderOf(root, board, all.filter(wanted).map(item => item.item_id));
     // landing.first in accepted trunk policy goes ahead of the accept order, in the order listed; named ids keep the order named [C7,#7387].
     const pinned = new Map((Array.isArray(policy.config?.landing?.first) ? policy.config.landing.first : []).map((id, index) => [id, index]));
+    // An item that met 2 or more infrastructure failures (lapsed leases, lost CAS) goes behind every other accepted item, as candidates() does; named ids keep the order named [C7,#3118].
+    const aside = new Set(ids ? [] : candidates.filter(item => stepAsideCount(board, item.item_id) >= 2).map(item => item.item_id));
     const rank = item => ids ? ids.indexOf(item.item_id) : accepted.get(item.item_id) ?? Number.MAX_SAFE_INTEGER;
     const pin = item => !ids && pinned.has(item.item_id) ? pinned.get(item.item_id) : Number.MAX_SAFE_INTEGER;
     // landing.priorityOrder: the order next uses (urgent or pinned, milestone position) goes before accept order; named ids keep their order [C7,#3157].
     const byPriority = !ids && policy.config?.landing?.priorityOrder === true ? landingPriorityCompare(board) : () => 0;
     const commitOf = item => item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit;
-    // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
-    const candidates = all.filter(wanted);
     const unverified = forced || !candidates.length ? [] : unverifiedSubmissions(board);
     // landing.pauseOnRed: a red publish holds the items touching its files, and every item when it names none or no item is left [C7,V4].
     const publishHold = forced ? null : requirePublishGreen(root, board, policy.config, { gateRuns }, { perItem: true });
@@ -297,7 +300,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
       if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
       return !stacked;
-    }).sort((left, right) => pin(left) - pin(right) || byPriority(left, right) || rank(left) - rank(right) || left.item_id - right.item_id);
+    }).sort((left, right) => Number(aside.has(left.item_id)) - Number(aside.has(right.item_id)) || pin(left) - pin(right) || byPriority(left, right) || rank(left) - rank(right) || left.item_id - right.item_id);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
     if (publishHold && !chosen.length) throw publishHold.refusal;
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
