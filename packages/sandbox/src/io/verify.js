@@ -27,6 +27,7 @@ import {
 import {
   mainPolicy,
 } from './trusted/policy.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 const SANDBOX_CONTAINER_HOME = '/home/sandbox';
 
@@ -60,7 +61,7 @@ function exportSource(root, commit, directory) {
   const template = join(home, 'empty-template');
   mkdirSync(template);
   // New private export has no inherited Git config, templates, hooks, worktree pointer or alternates.
-  const env = { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_NO_REPLACE_OBJECTS: '1' };
+  const env = { PATH: environmentAdapter().get('PATH'), HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_NO_REPLACE_OBJECTS: '1' };
   git(target, ['init', '-q', '--template=' + template], { env });
   git(target, ['fetch', '-q', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', root, commit], { env });
   git(target, ['checkout', '-q', '--detach', commit], { env });
