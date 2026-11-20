@@ -526,6 +526,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
         // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
         const sealedMain = sealedFallbackMain(store.events(board, { itemId: id }), { reused, reReview, companionDigest, effectiveHead: item.item_effective_head });
+        let sealedReuse = false;
         if (sealedMain) {
           let moveNote = '';
           try {
@@ -535,17 +536,17 @@ export async function verifyHere(ctx, id, { second, values }) {
           let sealedPlan;
           if (!moveNote) {
             try {
-              const sealedConfig = submitGateConfig(ctx.config, policyAt(root, sealedMain).config);
+              const sealedConfig = submitGateConfig(policyAt(root, commit).config, policyAt(root, sealedMain).config);
               const plan = submitGatePlan(root, sealedConfig, { base: item.item_claim_head, trunk: sealedMain, commit, check: frozenCheck(item) });
               sealedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
             } catch { /* A plan that cannot be reproduced grants no reuse. */ }
           }
           const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
             check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true, expectedPlan: sealedPlan });
-          if (sealed?.ids) reused = sealed;
+          if (sealed?.ids) { reused = sealed; sealedReuse = true; }
           else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
         }
-        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
+        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement || sealedReuse)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
