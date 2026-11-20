@@ -7,10 +7,6 @@ export { provingCheck, sayCheckBaseline } from '../../logic/format.js';
 /** Observe a proposed check on an isolated copy of main before recording its move [V2,H16]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import {
-  realpathSync,
-  rmSync,
-} from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import {
@@ -22,6 +18,9 @@ import { runShell } from '../run/shell.js';
 import { mappedCheck } from '../../../../codemap/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { secretsIn } from '../../../../commits/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The local branch the baseline's temporary copy of main is checked out on. */
 const BASELINE_BRANCH = 'pullboard-check-baseline';
@@ -54,7 +53,7 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
       ...(failures.length ? { reason: failures.map(row => `${row.name}: ${row.error}`).join('\n') } : !ran.isGreen && outputTail(ran.output) ? { reason: outputTail(ran.output) } : {}),
       testEvidence: baselineTestEvidence(ran.output, command, checkout) };
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -162,7 +161,7 @@ export function baselineTestEvidence(output, command, root = null) {
 
 /** A directory's real path, or the path itself when it cannot be resolved. */
 function realOrSame(path) {
-  try { return realpathSync(path); } catch { return path; }
+  try { return fs.realpath(path); } catch { return path; }
 }
 
 /**

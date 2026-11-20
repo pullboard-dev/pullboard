@@ -28,6 +28,7 @@ import { staleIdentity } from '../../../fixtures/admission/lease.js';
 import { expireHeartbeat } from '../../../fixtures/admission/lease.js';
 import { capacityChangeCases } from '../../../fixtures/resources/capacity.js';
 import { releaseQueueProof } from '../../../fixtures/resources/release.js';
+import { openKitBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 import { machineSettings } from '../../../fixtures/admission/settings.js';
 import { cpuCheckRepo } from '../../../fixtures/admission/cpu.js';
 import { MODULE } from '../../../fixtures/admission/pool.js';
@@ -153,7 +154,7 @@ test('gate.io-browser-admission-resources.lowering-capacity-never-stops-a-runnin
 /** Browser capacity can grow under the same live gate lease without exceeding either limit [Q1,Q2,Q4]. */
 test('gate.io-browser-admission-resources.raising-busy-browser-capacity-admits-only: raising busy browser capacity admits only the new browser slots [Q1,Q2,Q4]', capacityCases.browser);
 
-test('gate.io-browser-admission-resources.the-gate-pool-serves-the-current: the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ machineSettings, executionServicesSource, fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
+test('gate.io-browser-admission-resources.the-gate-pool-serves-the-current: the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ openKitBoard, machineSettings, executionServicesSource, fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
 
 
 // These cases keep all asynchronous state in separate child processes and private machine homes.

@@ -7,6 +7,7 @@ import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { threadLines } from '../../logic/show/thread.js';
 import { tailLines } from '../../logic/show/tail.js';
 import { fieldLines } from '../../logic/show/fields.js';
 import { reviewLines } from '../../logic/show/review.js';
@@ -145,7 +146,7 @@ export async function run(io, { first, values }) {
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
-  const { fields, links, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  const { fields, links, afterGate, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
     // An accept whose only conflict with main is one the mechanical merge resolves stays fresh, as it does at landing; the merge index loads only for an accepted item [C7,#11417].
@@ -165,6 +166,8 @@ export async function run(io, { first, values }) {
     // Free related links (#9356) load beside the fields, so with the setting off no link is read and show is as it was [C7].
     const links = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).relatedLinks(board, id, { enabled: true })
       .map(other => ({ id: other, title: board.db.prepare('SELECT item_title FROM item WHERE item_id=?').get(other)?.item_title ?? '' })) : [];
+    // The after-gate ids sit beside the after line; the full store loads only for an item that has any [C7].
+    const afterGate = item.item_after && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`after_gate:${id}`) ? (await import('../../../../../packages/store/index.js')).afterGateIds(board, id) : [];
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
@@ -181,10 +184,10 @@ export async function run(io, { first, values }) {
     const runsOn = (() => { try { return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('runs_store')?.meta_value === '1'; } catch { return false; } })();
     const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
     const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
-    if (values.json) return { ...result, gateJob, fields, links };
+    if (values.json) return { ...result, gateJob, fields, links, afterGate };
     result.foreign = await foreignStates(board, item, async () => (await import('../../../../../packages/store/index.js')).foreignDependencyStates);
     const history = store.events(board, { itemId: id });
-    return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+    return { ...result, gateJob, fields, links, afterGate, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
       agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
@@ -219,6 +222,7 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
   io.say(core.item);
+  if (afterGate.length) io.say(`after-gate ${afterGate.map(waitId => `#${waitId}`).join(',')}`);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
@@ -323,17 +327,6 @@ export async function run(io, { first, values }) {
   for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
   if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
   if (tail.withdrawn) io.say(tail.withdrawn);
-  io.say('thread:');
-  for (const entry of thread) {
-    if (entry.kind === 'proof-run') continue;
-    const stamp = `  ${entry.at}  ${agentDisplayName(agents, ctx.config, entry.by)}  `;
-    if (entry.type === 'fact') {
-      io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.answers ? ' (answers ' + entry.answers + ')' : entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
-      if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
-    } else {
-      const detail = entry.detail;
-      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.previousTitle ? ` (title was: ${detail.previousTitle})` : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
-    }
-  }
+  for (const line of threadLines(thread, (by) => agentDisplayName(agents, ctx.config, by), firstLineOf)) io.say(line);
   return 0;
 }

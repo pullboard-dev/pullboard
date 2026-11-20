@@ -2,6 +2,7 @@ import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
 import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
 import { addItem } from './add.js';
+import { announceItemState } from './link/announce.js';
 import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
@@ -73,6 +74,7 @@ import { REVIEW_REQUEST_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { SPEC_APPROVAL_ENGINE } from "../../../../state/light.js";
 import { STRONG_REJECTION_NOTICE_ENGINE } from "../../../../state/light.js";
+import { itemPace } from "./sprint-pace.js";
 
 /** What the verify table needs from the cells the writer already reads; the table decides a verdict only from the engine where every rule it holds was in force. */
 const VERIFY_TABLE_DEPS = Object.freeze({ pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
@@ -193,7 +195,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         atSubmittedCommit: null,
-        notMerged: found => !found.item_merged_commit ? null
+        // Sprint lands submitted work before its verdict, so only steady and strict items refuse a landed one, as the verify table's not-merged guard says [#12180].
+        notMerged: found => !found.item_merged_commit || itemPace(found) === 'sprint' ? null
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
@@ -316,4 +319,16 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}), ...(followUp && keepCheck && found.item_check && getItem(board, followUp)?.item_check === found.item_check ? { keptCheckFrom: found.item_check } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
+}
+
+/**
+ * Tell the parent boards that wait on a verified item its new state, after the verdict has been recorded.
+ * Why: the verdict is a replayed move and cannot carry a transport, so the command passes the link ports here after the move; a failed delivery stays queued for resendPendingBoardStates and never undoes the verdict [E32,B24].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ links: object[] }} ports
+ */
+export async function announceVerdict(board, id, ports) {
+  return announceItemState(board, id, ports);
 }

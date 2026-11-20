@@ -30,7 +30,7 @@ const ACTIVE = new Set(['building', 'testing', 'reviewing', 'landing']);
 const GATE_RUNNING_STEPS = new Set(['claimed', 'started', 'running']);
 const GATE_SETTLED_STEPS = new Set(['green', 'red', 'finished', 'ended', 'result', 'receipt']);
 /** Event kinds that become one row each, as [stage, edge]. */
-const EVENT_STAGES = { add: ['filed', 'point'], claim: ['claimed', 'start'], release: ['released', 'point'], reopen: ['reopened', 'point'], reject: ['rejected', 'point'], submit: ['submitted', 'point'], reserve: ['reviewing', 'start'], accept: ['verdict', 'point'], pass: ['verdict', 'point'], merged: ['merged', 'point'], hold_item: ['held', 'start'], unhold_item: ['held', 'end'] };
+const EVENT_STAGES = { add: ['filed', 'point'], claim: ['claimed', 'start'], release: ['released', 'point'], reopen: ['reopened', 'point'], reject: ['rejected', 'point'], submit: ['submitted', 'point'], submit_offered: ['submitted', 'point'], reserve: ['reviewing', 'start'], accept: ['verdict', 'point'], pass: ['verdict', 'point'], merged: ['merged', 'point'], hold_item: ['held', 'start'], unhold_item: ['held', 'end'] };
 
 /** A JSON object from a detail or payload, or an empty one when it is damaged. */
 function objectOf(value) {
@@ -52,15 +52,29 @@ function row(at, item, stage, edge, actor, reason, ref) {
  */
 function eventRows(events) {
   const rows = [], unmapped = new Map();
-  let released = false;
+  let released = false, offered = false;
   for (const event of events) {
-    const detail = objectOf(event.detail), at = msOf(event.at), mapped = EVENT_STAGES[event.kind];
+    const detail = objectOf(event.detail), at = msOf(event.at);
+    // A mark event names its own stage and edge and the time it marks; a stage outside TIMELINE_STAGES adds no row [C7,#12234].
+    if (event.kind === 'mark') {
+      const marked = msOf(detail.at);
+      if (TIMELINE_STAGES.includes(detail.stage) && Number.isFinite(marked)) rows.push(row(marked, event.item, detail.stage, ['start', 'end', 'point'].includes(detail.edge) ? detail.edge : 'point', event.by, null, detail.ref ?? null));
+      continue;
+    }
+    const mapped = EVENT_STAGES[event.kind];
     if (!mapped) { unmapped.set(event.kind, (unmapped.get(event.kind) ?? 0) + 1); continue; }
+    // The submit after a submit_offered is the same submission, so the one submitted row sits at the offer; a board from before the kind keeps its submit row.
+    if (event.kind === 'submit_offered') offered = true;
+    else if (event.kind === 'submit' && offered) { offered = false; continue; }
+    else if (['claim', 'release', 'reject', 'reopen'].includes(event.kind)) offered = false;
     let [stage, edge] = mapped;
     if (event.kind === 'claim' && released) stage = 're-claimed';
     if (['release', 'reject', 'reopen'].includes(event.kind)) released = true;
     const reason = event.kind === 'release' ? detail.reasonCode ?? null : event.kind === 'reject' ? detail.reason ?? null : event.kind === 'hold_item' ? 'HELD' : event.kind === 'accept' || event.kind === 'pass' ? event.kind : null;
-    rows.push(row(at, event.item, stage, edge, event.by, event.kind === 'unhold_item' ? 'HELD' : reason, detail.commit ?? null));
+    const mergedAt = event.kind === 'merged' && Number.isFinite(detail.mergedAt) && detail.mergedAt <= at ? detail.mergedAt : null;
+    // A merged event that carries the commit's own time places merged there and the board's record lag as its own recorded row; older events have none.
+    rows.push(row(mergedAt ?? at, event.item, stage, edge, event.by, event.kind === 'unhold_item' ? 'HELD' : reason, detail.commit ?? null));
+    if (mergedAt !== null && mergedAt < at) rows.push(row(at, event.item, 'recorded', 'point', event.by, null, detail.commit ?? null));
   }
   return { rows, unmapped: [...unmapped].map(([kind, count]) => ({ kind, count })).sort((a, b) => a.kind.localeCompare(b.kind)) };
 }
@@ -97,9 +111,10 @@ const returned = outcome => outcome === 'red' || outcome === 'stale';
 function stretches(rows, end) {
   const out = [];
   const gate = { queued: new Set(), running: new Set() }, land = { queued: new Set(), running: new Set() };
-  let phase = 'open', rework = false, held = false, wait = null, outcome = null;
+  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false;
   const bucketNow = () => {
     if (held) return { reason: 'HELD' };
+    if (smoking) return { bucket: 'landing' };
     if (land.running.size) return { bucket: 'landing' };
     if (phase === 'merged') return { bucket: 'landing' };
     if (land.queued.size && phase !== 'building') return { bucket: 'waiting to land' };
@@ -125,7 +140,9 @@ function stretches(rows, end) {
     else if (current.stage === 'reviewing') phase = 'reviewing';
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
-    else if (current.stage === 'merged') phase = 'merged';
+    else if (current.stage === 'smoke') smoking = current.edge === 'start';
+    else if (current.stage === 'merged') phase = rows[index + 1]?.stage === 'recorded' ? 'recorded' : 'merged';
+    else if (current.stage === 'recorded') phase = 'recorded';
     if (gateJob) {
       if (current.stage === 'gate-queued') gate.queued.add(current.ref);
       else if (current.stage === 'gate-running') { gate.queued.delete(current.ref); gate.running.add(current.ref); }
