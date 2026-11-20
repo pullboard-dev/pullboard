@@ -37,7 +37,11 @@ export function requireCriterionEvidence(criterion) {
   if (faults.length) {
     const unmeasured = clauses.filter(clause => clause.kind === 'measurement' && !/\d/u.test(clause.text.replace(/\[measurement\]/u, ''))).map(clause => clause.number);
     if (unmeasured.length) fault('BAR_AMBIGUOUS', unmeasured, 'is a [measurement] with no number', 'put the number it must meet in the clause');
-    throw new Refused(faults[0].code, faults.map(entry => entry.said).join('; '), `${faults.map(entry => entry.fix).join('; ')}, then run the command again`);
+    const said = faults.map(entry => entry.said).join('; '), next = `${faults.map(entry => entry.fix).join('; ')}, then run the command again`;
+    // One literal Refused per code, so the refusal walk reads each code the first fault can carry [M1,C7].
+    if (faults[0].code === 'CLAUSE_EVIDENCE_REQUIRED') throw new Refused('CLAUSE_EVIDENCE_REQUIRED', said, next);
+    if (faults[0].code === 'CLAUSE_EVIDENCE_KIND') throw new Refused('CLAUSE_EVIDENCE_KIND', said, next);
+    throw new Refused('CLAUSE_REASONING_ONLY', said, next);
   }
   return clauseEvidenceWarnings(criterion);
 }
