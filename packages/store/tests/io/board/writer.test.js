@@ -8,17 +8,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { commitMove } from '../../../src/io/board/writer.js';
-import { connectBoardWriter } from '../../../src/io/board/writer.js';
-import { createBoardWriter } from '../../../src/io/board/writer.js';
 import * as store from '../../../index.js';
+import { commitMove } from '../../../index.js';
+import { connectBoardWriter } from '../../../index.js';
+import { createBoardWriter } from '../../../index.js';
+import { serveBoardWriter } from '../../../index.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
 import { submitFixture } from '../../fixtures/submit.js';
 import { temporaryRepository } from '../../fixtures/submit.js';
-import { serveBoardWriter } from '../../../src/io/board/writer.js';
 
 /** A real SQLite board file with a move table, a writer applying moves to it, and a socket serving that writer. */
 async function fixture(t) {

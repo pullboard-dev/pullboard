@@ -126,6 +126,20 @@ export function requireNonEmptyCheck(ctx, bar, on, acceptGreen) {
     `name the fixed check: test -f ${absent} && ${check.trim()}, or file it with --accept-green "<why>"`);
 }
 
+/**
+ * Refuse a lane item filed with no spec row, so the filer supplies the row and a builder never drafts one (#11778).
+ * Why: trial boards had builders run pullboard spec draft themselves, writing rows nobody approved; a draft written by add
+ * would still be unapproved and fail UNKNOWN_SPEC until applied, so add refuses and names the two commands that fix it.
+ *
+ * @param {{ lane: string, title: string, specIds: string[] }} item The item as it is about to be filed.
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off files the item as written.
+ */
+export function requireSpecRow(item, on) {
+  if (!on || item.lane === COORDINATOR || item.specIds?.length) return;
+  throw new Refused('SPEC_ROW_NEEDED', `a ${item.lane} item needs a spec row, and this add names none`,
+    `pullboard spec draft "${item.title}", then the same add with --specs <id>`);
+}
+
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
 export async function requireBarPathsOnMain(ctx, bar) {
   const refusal = await missingPathRefusal(ctx, bar);

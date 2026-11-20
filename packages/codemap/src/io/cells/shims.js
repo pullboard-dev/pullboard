@@ -1,8 +1,4 @@
 /** Remove one cell's re-export shims: repoint every importer to the cell front door, then delete what nothing imports [C7,D3]. */
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { posix } from 'node:path';
@@ -31,8 +27,10 @@ import {
   retiredProblems,
 } from './plan/cuts.js';
 import { ownerFor } from './plan/cuts.js';
-import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 /** Marks a use that takes the shim's whole namespace, so every name it exports must stay reachable. */
 const ALL = Symbol('all');
@@ -356,7 +354,7 @@ function materializeAll(box, plans, excluded) {
 /** Write the materialized files, and restore the original bytes of any file touched earlier but no longer edited. */
 function applyToDisk(box, out, touched) {
   for (const file of out.keys()) touched.add(file);
-  for (const file of touched) writeFileSync(join(box.root, file), out.get(file) ?? box.files.get(file));
+  for (const file of touched) fileSystem.writeFile(join(box.root, file), out.get(file) ?? box.files.get(file));
 }
 
 /** The entries whose closures ship to a runner: the worker and each package provider the controller composes. */
@@ -413,9 +411,9 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   const entries = runnerEntries(box, parsers);
   box.runner = runnerClosure(root, entries, parsers, inventory.files);
   box.move = moveClosure(root, parsers, inventory.files);
-  const kept = new Map(), absent = foreignPlan.length ? [] : cell.reexports.filter(shim => !existsSync(join(root, shim)));
-  const live = cell.reexports.filter(shim => !absent.includes(shim) && existsSync(join(root, shim)));
-  for (const shim of cell.reexports.filter(row => !existsSync(join(root, row)))) if (!absent.includes(shim)) kept.set(shim, `${shim} no longer exists; dropping its row rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
+  const kept = new Map(), absent = foreignPlan.length ? [] : cell.reexports.filter(shim => !fileSystem.exists(join(root, shim)));
+  const live = cell.reexports.filter(shim => !absent.includes(shim) && fileSystem.exists(join(root, shim)));
+  for (const shim of cell.reexports.filter(row => !fileSystem.exists(join(root, row)))) if (!absent.includes(shim)) kept.set(shim, `${shim} no longer exists; dropping its row rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
   for (const shim of live) {
     const code = box.files.get(shim)?.toString('utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
     if (!PURE_SHIM.test(code ?? '')) kept.set(shim, `${shim} still holds code, not only re-exports`);
@@ -477,7 +475,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   }
   // One git rm for every deleted shim, not one process each; a refusal falls back to plain file removal (#2232).
   if (deleted.length && tryGit(root, ['rm', '-q', '-f', '--', ...deleted]).status !== 0) {
-    for (const shim of deleted) if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) rmSync(join(root, shim), { force: true });
+    for (const shim of deleted) if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) fileSystem.rm(join(root, shim), { force: true });
   }
   const rewritten = [];
   for (const [shim, made] of plans) for (const edit of made.edits) if (!excluded.has(edit)) rewritten.push({ shim, file: edit.file, from: edit.from, to: edit.text || '(removed duplicate)' });
@@ -524,10 +522,10 @@ export function writeShimHandoff(root, result, cell, { lane = 'core', directory,
   const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
   const add = ['add', lane, handoff.title, '--criterion', handoff.criterion, '--after', String(item ?? '<removal item id>'), '--force-size', 'one cut must enumerate every remaining shim importer'];
   const command = `pullboard ${add.map(quote).join(' ')}`;
-  const out = directory ?? mkdtempSync(join(scratchBase(), 'pullboard-shim-handoff-'));
-  mkdirSync(out, { recursive: true });
-  writeFileSync(join(out, 'fact.txt'), handoff.fact + '\n');
-  writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n${command}\n`);
+  const out = directory ?? fileSystem.mkdtemp(join(scratchBase(), 'pullboard-shim-handoff-'));
+  fileSystem.mkdir(out, { recursive: true });
+  fileSystem.writeFile(join(out, 'fact.txt'), handoff.fact + '\n');
+  fileSystem.writeFile(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n${command}\n`);
   if (fileCut) {
     const short = `Please file after #${item}: ${handoff.title}. `;
     const complete = `${short}${handoff.criterion}`;

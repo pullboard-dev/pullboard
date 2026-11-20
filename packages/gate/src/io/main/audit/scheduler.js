@@ -1,4 +1,5 @@
 /** One repository-owned wake timer; native audit admission remains entirely in the worker [C7]. */
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   execFileSync,
 } from 'node:child_process';
@@ -11,9 +12,6 @@ import {
 import {
   join,
 } from 'node:path';
-import {
-  rmSync,
-} from 'node:fs';
 import {
   setTimeout as pause,
 } from 'node:timers/promises';
@@ -31,6 +29,8 @@ import {
   saveMainAudit,
   timerFiles,
 } from './state.js';
+
+const fs = fileSystemAdapter();
 
 /** Actual OS process start identity prevents mistaking a recycled PID for the timer we own. */
 function started(pid) {
@@ -84,7 +84,7 @@ export async function waitMainAudit(directory, token, dueAt) {
   return withFileLock(guard, () => {
     const file = timer, owner = readMainAudit(file);
     if (owner?.token !== token || owner.pid !== process.pid || owner.dueAt !== dueAt) return false;
-    rmSync(file);
+    fs.rm(file);
     return true;
   });
 }
