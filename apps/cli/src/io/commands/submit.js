@@ -31,6 +31,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { clauseTicks } from '../../../../../packages/state/index.js';
 import { regenerateDeclaredFiles } from '../../../../../packages/gate/heavy.js';
 import {
   pendingSubmitHandoff,
@@ -184,6 +185,26 @@ function authorizationStep(step, work) {
 }
 
 /**
+ * Submit's own step for a frozen check: when a [test] clause waits unticked on the item's check, run that check once at the head,
+ * which ticks the clauses as pullboard check does, so the builder never calls pullboard check. A red check refuses; a check with no recorded author is not run.
+ * Why: the check is frozen at claim and only the coordinator or the person sets it, so a builder's confirmation adds nothing the claim did not accept; builders ran pullboard check 9 to 12 times each [#11844].
+ *
+ * @param {{ item: any, thread: any[], author: string|null, head: string, options?: object, runCheck: (check: string) => Promise<{ green: boolean, report: string }>, say?: (line: string) => void }} step The item, its thread, who set the check, the head, the inspection options and the check runner.
+ * @returns {Promise<boolean>} Whether the check ran green.
+ */
+export async function frozenCheckAtSubmit({ item, thread, author, head, options = {}, runCheck, say = () => {} }) {
+  const check = frozenCheck(item);
+  if (!check || !author) return false;
+  if (!clauseInspectionProblem(item, thread, { ...options, head })) return false;
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
+  if (!criterionClauses(item.item_criterion).some(clause => (clause.kind === null || clause.kind === 'test') && !ticks.has(clause.number))) return false;
+  say(`submit runs the frozen check of #${item.item_id}: ${check}`);
+  const result = await runCheck(check);
+  if (!result.green) throw new Refused('CHECK_RED', `the frozen check of #${item.item_id} is red: ${check}\n${result.report}`, `fix what it names, then submit again; pullboard check ${item.item_id} runs it alone`);
+  return true;
+}
+
+/**
  * Submit: a clean tree, nothing untracked, the gate green at HEAD, then the board (V4).
  *
  * The cheap checks run before the gate, so a submit that cannot succeed fails fast.
@@ -271,6 +292,22 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightStart = performance.now();
   // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
   if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles: (_root, item) => gateFilesOf(item), recordMainComparison }));
+  // A [test] clause waiting on the item's frozen check: submit runs that check itself before inspecting clauses [#11844].
+  if (inspectClauses) await authorizationStep('frozen-check', async () => {
+    const seen = withBoard(ctx, (board) => {
+      const me = whoAmI(ctx, board), item = store.getItem(board, id);
+      return item.item_status === 'claimed' && item.item_owner === me.id ? { item, me, thread: store.itemThread(board, id), author: store.itemCheckAuthor(board, id) } : null;
+    });
+    if (!seen) return;
+    const { executeCheck } = await import('./check.js');
+    await frozenCheckAtSubmit({ item: seen.item, thread: seen.thread, author: seen.author, head: headCommit(root),
+      options: { gateFiles: gateFilesOf(seen.item), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(seen.item)) : [] },
+      say: line => ctx.io.say(line),
+      runCheck: async (check) => {
+        const run = await executeCheck(ctx.io, ctx, seen.item, { check, by: seen.author, caller: seen.me.id, values: {}, quiet: true });
+        return { green: run.isGreen, report: run.isGreen ? '' : (await import('../../../../../packages/gate/index.js')).digestOf(run.output) };
+      } });
+  });
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);

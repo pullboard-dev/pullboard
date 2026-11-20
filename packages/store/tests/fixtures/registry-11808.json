@@ -1,0 +1,4 @@
+{
+  "store.io-board-submit.new-parent-head-reopens-dependents": {"proves":{"specs":["C7"],"claim":"Submitting a parent at a new commit reopens each dependent whose recorded after-gate base holds the old head, with a note naming the old and the new head."},"why":"Without this test a dependent built on a parent's old head stays in review after the parent changed, and lands work proven against code that is gone.","kind":"contract","inputs":["packages/store/src/io/board/submit.js","packages/store/src/io/board/item/after-gate.js"]},
+  "store.io-board-submit.same-parent-head-leaves-dependents": {"proves":{"specs":["C7"],"claim":"Submitting a parent at the same commit its dependents were built on leaves every dependent as it was."},"why":"Without this test every parent resubmit could send its dependents back and undo review work that is still valid.","kind":"contract","inputs":["packages/store/src/io/board/submit.js","packages/store/src/io/board/item/after-gate.js"]}
+}
