@@ -34,6 +34,8 @@ import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { startReceiptScreen } from './gate/screen-start.js';
+import { applyPostLandReceipt } from './gate/post-land-main-test.js';
+import { postLandJob } from './gate/post-land-main-test.js';
 import { queuePostLandMainTest } from './gate/post-land-main-test.js';
 import { sprintLandable } from './gate/sprint-land.js';
 import { applyMainTestReceipt } from './recheck.js';
@@ -1253,10 +1255,8 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted, ports);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
-  if (kind === 'test') {
-    const accept = settleQueuedAccept(board, posted);
-    return accept.applied ? accept : applyTestReceipt(board, posted);
-  }
+  if (kind === 'test' && postLandJob(posted.job)) return applyPostLandReceipt(board, posted, ports);
+  if (kind === 'test') { const accept = settleQueuedAccept(board, posted); return accept.applied ? accept : applyTestReceipt(board, posted); }
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
