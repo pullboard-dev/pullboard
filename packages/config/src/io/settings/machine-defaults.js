@@ -131,7 +131,7 @@ export const MACHINE_DEFAULTS = {
   'landing.strictFullSuite': false,
   'launch.reachableDispatcher': false,
   'line.tune': false,
-  'list.thinRead': false,
+  'list.thinRead': true,
   'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,

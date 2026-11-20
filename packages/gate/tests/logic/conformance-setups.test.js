@@ -7,8 +7,10 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { conformanceResults } from '../../src/logic/conformance-setups.js';
 import { conformanceSetups } from '../../src/logic/conformance-setups.js';
 import { setupAvailability } from '../../src/logic/conformance-setups.js';
+import { CONFORMANCE_STAGES } from '../../src/logic/conformance-setups.js';
 import { junitCases } from '../../src/logic/junit.js';
 import { SELECTION_UNITS } from '../../src/logic/selection-unit.js';
 
@@ -54,4 +56,36 @@ test('gate.conformance-setups.fixtures: clause 3: every listed fixture exists an
     assert.ok(cases.some(row => row.outcome === 'pass'), `${language} has a passing case`);
     assert.ok(cases.some(row => row.outcome === 'fail'), `${language} has a failing case`);
   }
+});
+
+test('gate.conformance-setups.results-rows: clause 1: conformanceResults gives one row per setup and stage carrying the outcome and run id of the latest run that reached that stage [C7]', () => {
+  const setups = conformanceSetups();
+  const runs = [
+    { id: 'r1', language: 'go', at: '2026-11-18T10:00:00Z', stages: { claim: 'pass', submit: 'pass', gate: 'fail' } },
+    { id: 'r2', language: 'go', at: '2026-11-19T10:00:00Z', stages: { claim: 'pass', submit: 'pass', gate: 'pass', review: 'pass' } },
+    { id: 'r0', language: 'go', at: '2026-11-17T10:00:00Z', stages: { land: 'pass' } },
+  ];
+  const rows = conformanceResults(setups, runs, () => true);
+  assert.equal(rows.length, setups.length * CONFORMANCE_STAGES.length);
+  assert.deepEqual(CONFORMANCE_STAGES, ['claim', 'submit', 'gate', 'review', 'accept', 'land']);
+  assert.deepEqual(rows.map(row => [row.language, row.stage]), setups.flatMap(({ language }) => CONFORMANCE_STAGES.map(stage => [language, stage])));
+  const go = Object.fromEntries(rows.filter(row => row.language === 'go').map(row => [row.stage, row]));
+  assert.deepEqual(go.gate, { language: 'go', stage: 'gate', outcome: 'pass', run: 'r2' }, 'the later run wins a stage both reached');
+  assert.equal(go.claim.run, 'r2');
+  assert.deepEqual([go.land.outcome, go.land.run], ['pass', 'r0'], 'an older run still answers a stage only it reached');
+  assert.deepEqual([go.accept.outcome, go.accept.run], ['unknown', null]);
+});
+
+test('gate.conformance-setups.results-unavailable-unknown: clause 2: a setup whose toolchain is missing is unavailable at every stage, never red, and a setup with no recorded run is unknown [C7]', () => {
+  const setups = conformanceSetups();
+  const runs = [{ id: 'r1', language: 'rust', at: '2026-11-19T10:00:00Z', stages: { claim: 'fail' } }];
+  const rows = conformanceResults(setups, runs, name => name !== 'cargo');
+  const rust = rows.filter(row => row.language === 'rust');
+  assert.equal(rust.length, CONFORMANCE_STAGES.length);
+  assert.ok(rust.every(row => row.outcome === 'unavailable' && row.run === null), 'rust is unavailable at every stage even with a recorded run');
+  const node = rows.filter(row => row.language === 'node');
+  assert.ok(node.every(row => row.outcome === 'unknown' && row.run === null), 'a setup with no run is unknown');
+  assert.ok(!rows.some(row => row.outcome === 'red'), 'nothing is red');
+  const present = conformanceResults(setups, runs, () => true).find(row => row.language === 'rust' && row.stage === 'claim');
+  assert.equal(present.outcome, 'fail');
 });
