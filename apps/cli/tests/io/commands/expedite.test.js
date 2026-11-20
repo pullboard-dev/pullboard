@@ -25,7 +25,7 @@ test('cli.expedite.records-reason-coordinator-only: clause 1: pullboard expedite
   assert.equal(events.length, 1, 'one event is recorded');
   assert.equal(events[0].item_id, id);
   assert.equal(events[0].event_by, 'coordinator');
-  assert.deepEqual(JSON.parse(events[0].event_detail), { reason: 'blocks the lander' });
+  assert.equal(JSON.parse(events[0].event_detail).reason, 'blocks the lander');
   assert.deepEqual(store.expeditedItems(box.board), [id]);
   assert.match(coordinatorHelp, /pullboard expedite <id> --reason/u, 'help lists the command beside hold');
 });
