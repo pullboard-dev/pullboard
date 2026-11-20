@@ -3,10 +3,12 @@ import { STRICT_RENAME_ENGINE } from '../../../../state/light.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_DEFAULT_ENGINE } from '../../../../state/light.js';
 import { REVIEW_TIER_ENGINE } from '../../../../state/light.js';
-import { readFileSync } from 'node:fs';
 import { itemPatches } from '../../../../items/browser.js';
 import { itemPatchPaths } from '../../../../items/browser.js';
 import { outsideSource } from '../../../../items/browser.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 // Rulings 39301/39401: source areas and named guard tests, never all test/board/review/person families.
 const SOURCE_DIRECTORIES = ['apps/relay/', 'src/gate/', 'src/auth/', 'src/relay/', 'src/kernel/', 'src/landing/', 'src/runner/',
@@ -90,7 +92,7 @@ const SOURCE_FILES = new Set([
 ]);
 // An old Standard body keeps its tier after moving under a cell the area rule would otherwise raise to Strict (#1574).
 const STANDARD_MOVED = new Set(['packages/link/src/io/command.js']);
-const GUARD_LIST = JSON.parse(readFileSync(new URL('../../../data/tests/guard.json', import.meta.url), 'utf8'));
+const GUARD_LIST = JSON.parse(fs.readFile(new URL('../../../data/tests/guard.json', import.meta.url), 'utf8'));
 // A moved guard test keeps its class under its old path too, so a replay of older work reads the same tier.
 const GUARD_TESTS = new Set([...GUARD_LIST.paths, ...Object.keys(GUARD_LIST.moved)]);
 

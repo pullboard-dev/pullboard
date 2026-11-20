@@ -1,11 +1,15 @@
 /** @pullboard-test-input source-cell gate */
 /** The static stage refuses a new package test importing the CLI child fixture, and only a new one [C7,#8435]. */
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 import { cliChildImportProblems } from '../../../src/io/test/child-fixture.js';
+import { fixtureGitCommand } from '../../fixtures/child.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { runFixtureSetupGit } from '../../fixtures/child.js';
 
 const FIXTURE = ['apps', 'cli', 'tests', 'fixtures', 'child.js'].join('/');
@@ -43,4 +47,23 @@ test('gate.io-test-child-fixture.a-branch-that-adds-no-such: clause 2: a branch 
   files.write('packages/b/tests/other.test.js', PLAIN);
   commit();
   assert.deepEqual(cliChildImportProblems(files.root, { exceptions: [] }), []);
+});
+
+test('gate.io-test-child-fixture.git-runs-by-its-real-path: clause 1: a git child whose env PATH holds no git before the system one runs by the real git path, and any other command is unchanged [C7,#11824]', () => {
+  const real = '/real/bin/git';
+  assert.equal(fixtureGitCommand('git', { PATH: '/usr/bin:/bin' }, real), real);
+  assert.equal(fixtureGitCommand('git', { PATH: '/nonexistent-folder:/usr/bin' }, real), real);
+  assert.equal(fixtureGitCommand('node', { PATH: '/usr/bin:/bin' }, real), 'node');
+  assert.equal(fixtureGitCommand('git', { PATH: '/usr/bin:/bin' }, null), 'git', 'a machine whose shim is the git itself keeps the plain command');
+});
+
+test('gate.io-test-child-fixture.a-fixture-git-wrapper-still-runs: clause 2: a fixture whose env PATH holds its own bin/git wrapper still runs that wrapper [C7,#11824]', t => {
+  const files = privateFixtureFiles('pb-git-wrapper-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  files.write('bin/git', '#!/bin/sh\necho wrapped\n');
+  chmodSync(join(files.root, 'bin', 'git'), 0o755);
+  const env = { ...process.env, PATH: `${join(files.root, 'bin')}:/usr/bin:/bin` };
+  assert.equal(fixtureGitCommand('git', env, '/real/bin/git'), 'git');
+  const run = runFixtureChild('git', ['--version'], { env, encoding: 'utf8' });
+  assert.equal(run.stdout.trim(), 'wrapped');
 });
