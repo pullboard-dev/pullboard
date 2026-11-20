@@ -3,6 +3,7 @@
  * the relay is a mailbox. A move applies here and returns at once; a read never syncs or takes a lock. One
  * background sender per machine pushes the queued moves and pulls other machines' moves, for every board on it.
  */
+import { environmentAdapter } from '../../../../env/index.js';
 import {
   createHash,
   randomUUID,
@@ -29,7 +30,7 @@ export const SENDER_BACKGROUND_ENV = 'PULLBOARD_RELAY_SENDER_BACKGROUND';
  * @param {NodeJS.ProcessEnv} env
  * @returns {boolean}
  */
-export function senderInBackground(env = process.env) {
+export function senderInBackground(env = environmentAdapter().all()) {
   return env[SENDER_BACKGROUND_ENV] !== '0';
 }
 
@@ -127,7 +128,7 @@ export function stopOutdatedSender() {
 export function replaceOutdatedSender(root, launchSender) {
   const stopped = stopOutdatedSender();
   if (stopped && typeof launchSender === 'function' && senderInBackground() && !senderHolding() && startingSender()) {
-    const env = { ...process.env };
+    const env = environmentAdapter().all();
     delete env.PULLBOARD_RELAY_TOKEN;
     launchSender(root, env);
   }
@@ -175,7 +176,7 @@ export function nudgeRelaySender(root, file, launchSender) {
     } finally { rmSync(temporary, { force: true }); }
     stopOutdatedSender(); // A sender from before an upgrade refuses every new move; this version's takes over.
     if (senderHolding() || !startingSender()) return;
-    const env = { ...process.env };
+    const env = environmentAdapter().all();
     delete env.PULLBOARD_RELAY_TOKEN; // The sender works only with this machine's own saved credentials.
     launchSender(root, env);
   } catch { /* A board the sender misses now is served by the next command's nudge; the move is already saved. */ }
@@ -190,7 +191,7 @@ export function nudgeRelaySender(root, file, launchSender) {
  * @returns {boolean}
  */
 export function localFirstBoard(file, outboxSetting) {
-  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined || !existsSync(file)) return false;
+  if (environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || !existsSync(file)) return false;
   let state;
   try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { return false; }
   if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
@@ -210,7 +211,7 @@ export function localFirstLink(file, operation, args, io, { loadLink, acknowledg
   try { state = loadLink(file); } catch { return null; }
   if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
     || state.baselineConflict || state.baselinePause || state.baselineStale || state.environment) return null;
-  if (process.env.PULLBOARD_RELAY_TOKEN !== undefined || io?.relayCanary || io?.personRequest || io?.personRequestMoveId) return null;
+  if (environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || io?.relayCanary || io?.personRequest || io?.personRequestMoveId) return null;
   // A takeover needs the relay's authenticated sign-in lineage, which only the relay's order carries.
   if (acknowledgedOperations.includes(operation) || args?.[0]?.landingFence !== undefined) return null;
   if (senderPolicy.credentialActor({ operation, args }) === 'person') return null;

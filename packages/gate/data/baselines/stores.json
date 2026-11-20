@@ -452,6 +452,10 @@
         "packages/runners/src/io/module/parser/worker.js": 1
       }
     },
+    "review-lease-*.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/next/review-lease.js"
+    },
     "setup-*.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
@@ -509,6 +513,10 @@
     "adapter-lint-timers.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/timers.js"
+    },
+    "allowed-edges.json": {
+      "kind": "repo-data",
+      "owner": "packages/codemap/src/io/cell/rule.js"
     },
     "auth.sqlite": {
       "kind": "sqlite",
@@ -1410,6 +1418,10 @@
     "table:phone_approval": {
       "kind": "table",
       "owner": "apps/relay/src/io/store/device.js"
+    },
+    "table:program": {
+      "kind": "table",
+      "owner": "packages/jobs/src/io/store.js"
     },
     "table:registry_lock": {
       "kind": "table",
