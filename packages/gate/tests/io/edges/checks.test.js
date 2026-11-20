@@ -94,7 +94,7 @@ const CHECKS = join(REPO, 'packages/gate/src/io');
 /** Every packages/gate/src/io check module whose main-module guard resolves process.argv[1] (#3666). */
 function guardedChecks() {
   return readdirSync(CHECKS, { recursive: true }).filter(file => file.endsWith('.js'))
-    .filter(file => readFileSync(join(CHECKS, file), 'utf8').includes('realpathSync(process.argv[1])'));
+    .filter(file => /realpath(?:Sync)?\(process\.argv\[1\]\)/u.test(readFileSync(join(CHECKS, file), 'utf8')));
 }
 
 /** The source of an ES module that imports each named check, then prints how many it imported. */

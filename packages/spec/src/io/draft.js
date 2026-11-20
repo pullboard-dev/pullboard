@@ -2,7 +2,8 @@
  * Write one draft row into SPEC.md or the doctrine file, under a section, with the next free id
  * (spec draft, rigor draft) [S1,D1]. A draft is never approved here: only the person approves.
  */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { Refused } from '../../../kernel/index.js';
 import { writeRowApply } from './row/decisions.js';
 import {
@@ -56,7 +57,7 @@ export function draftRow(root, config, { target, text, gate, tier = 'must', sect
   const extra = [...fields, ...(origin === undefined ? [] : [`source: ${origin}`]), ...(quote === undefined ? [] : [`quote: ${quote}`])];
   const line = [`- ${id} [draft, ${tier}] ${text} | gate: ${gate}`, ...extra].join(' | ');
   if (!write) return { id, file: name, line, row: { id, status: 'draft', tier, text, gate, section: section.name, prefix: section.prefix } };
-  const source = readFileSync(parsed.file, 'utf8');
+  const source = disk.readFile(parsed.file, 'utf8');
   const after = insertSectionRows(source, parsed, section, [line]);
   // A write that fails must refuse before any id is printed, so a printed id always names a row that is on disk.
   try { writeRowApply(root, { records: [], files: [{ file: name, before: source, after }], signoffs: { before: null, receipts: [] } }); }

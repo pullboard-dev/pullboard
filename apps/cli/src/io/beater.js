@@ -1,14 +1,14 @@
 /** A claim keeps its seat alive for as long as the agent session that took it lives [B3,C7]. */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { storeName } from './store-names.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The beater's cadence: four beats inside the two-minute seat-gone limit, so one missed beat never costs a claim. */
 export const BEATER_EVERY_MS = 30_000;
@@ -45,8 +45,8 @@ export function processTable(run = execFileSync) {
  * some other way. Why: the CLI's parent shell exits after each command, so the beater watches the session, which
  * lives as long as the agent does, whatever tool it is [B3].
  */
-export function agentSession({ env = process.env, ppid = process.ppid, table = processTable() } = {}) {
-  const named = Number(env.PULLBOARD_AGENT_PID);
+export function agentSession({ env = environmentAdapter(), ppid = process.ppid, table = processTable() } = {}) {
+  const named = Number(env.get('PULLBOARD_AGENT_PID'));
   if (Number.isSafeInteger(named) && named > 1) {
     const row = table?.get(named);
     return table && !row ? null : { pid: named, start: row?.start ?? null };
@@ -78,7 +78,7 @@ export function agentAlive({ pid, start }, { run = execFileSync, signal = proces
 function beaterLock(board, seat) { return join(dirname(board), 'beaters', `${storeName(encodeURIComponent(seat))}`); }
 
 /** The recorded beater for `seat`, or null. */
-function readLock(lock) { try { return JSON.parse(readFileSync(lock, 'utf8')); } catch { return null; } }
+function readLock(lock) { try { return JSON.parse(fs.readFile(lock, 'utf8')); } catch { return null; } }
 
 /**
  * Start the detached beater for `seat` on the board file `board`, bound to the agent session behind this CLI call; it
@@ -87,9 +87,9 @@ function readLock(lock) { try { return JSON.parse(readFileSync(lock, 'utf8')); }
  * Why: on 11 Nov 43 of 45 live seats lost a claim while editing or running native tests outside the CLI: only CLI
  * writes, hooks and submit's keepalive beat, and Codex seats have no hooks [B3,C7].
  */
-export async function startClaimBeater(cwd, { seat, board }, { env = process.env, session = () => agentSession({ env }), launch = null, alive = agentAlive } = {}) {
+export async function startClaimBeater(cwd, { seat, board }, { env = environmentAdapter(), session = () => agentSession({ env }), launch = null, alive = agentAlive } = {}) {
   try {
-    if (env.PULLBOARD_CLAIM_BEATER === '0') return { started: false, reason: 'off' };
+    if (env.get('PULLBOARD_CLAIM_BEATER') === '0') return { started: false, reason: 'off' };
     if (typeof seat !== 'string' || !seat || typeof board !== 'string' || !board) return { started: false, reason: 'no seat' };
     const agent = session();
     if (!agent) return { started: false, reason: 'no agent session' };
@@ -99,13 +99,15 @@ export async function startClaimBeater(cwd, { seat, board }, { env = process.env
       return { started: false, reason: 'running', pid: held.pid };
     }
     const entry = fileURLToPath(new URL('./beater/run.js', import.meta.url));
-    const args = [JSON.stringify({ cwd, seat, board, lock, agent, everyMs: Number(env.PULLBOARD_BEATER_MS) || BEATER_EVERY_MS })];
+    const args = [JSON.stringify({ cwd, seat, board, lock, agent, everyMs: Number(env.get('PULLBOARD_BEATER_MS')) || BEATER_EVERY_MS })];
     // The beater drops the lock only while it names the beater, so recording it after the launch is safe.
-    mkdirSync(dirname(lock), { recursive: true });
+    fs.mkdir(dirname(lock), { recursive: true });
     // The drive cell loads here, once a beater really starts, so a claim with no agent session never pays for it [C7].
-    const pid = (launch ?? (await import('../../../../packages/drive/index.js')).startDetachedCheck)(entry, { args, cwd, env: { ...env, PULLBOARD_CLAIM_BEATER: '0' } });
+    const pid = (launch ?? (await import('../../../../packages/drive/index.js')).startDetachedCheck)(entry, { args, cwd, env: { ...env.all(), PULLBOARD_CLAIM_BEATER: '0' } });
     if (!pid) return { started: false, reason: 'launch failed' };
-    writeFileSync(lock, JSON.stringify({ version: 1, pid, agent, seat }) + '\n', { mode: 0o600 });
+    // The adapter's file write takes no mode, so the lock opens by descriptor to stay private to its owner.
+    const descriptor = fs.open(lock, 'w', 0o600);
+    try { fs.write(descriptor, JSON.stringify({ version: 1, pid, agent, seat }) + '\n'); } finally { fs.close(descriptor); }
     return { started: true, pid, agent };
   } catch (error) { return { started: false, reason: error?.message ?? String(error) }; }
 }
@@ -119,7 +121,7 @@ export async function startClaimBeater(cwd, { seat, board }, { env = process.env
  */
 export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null }, { alive = agentAlive, pid = process.pid, send = null, ...options } = {}) {
   try {
-    const { keepClaimsAlive } = await import('../../../../packages/gate/index.js');
+    const { keepClaimsAlive } = await import('../../../../packages/gate/heavy.js');
     if (remote?.url) {
       const post = send ?? (await import('./remote/moves.js')).sendRemoteHeartbeat;
       let refused = false;
@@ -136,6 +138,6 @@ export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATE
       // Any file in the board's folder names the board, so the binding names the board itself.
       seatOf: () => ({ seat, file: board }), ...options });
   } finally {
-    if (readLock(lock)?.pid === pid) rmSync(lock, { force: true });
+    if (readLock(lock)?.pid === pid) fs.rm(lock, { force: true });
   }
 }

@@ -3,6 +3,7 @@ import { engineNumber } from './src/logic/engine/number.js';
 /** Pure state source classification, without loading the native board [C7]. */
 export const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 export { correctedBar } from "./src/logic/bar.js";
+export { isRecordedConflictContext } from "./src/logic/recorded/context.js";
 export { engineAtLeast } from "./src/logic/engine/minimum.js";
 export { MACHINE } from "./src/logic/machine/declaration.js";
 export const ACCEPTED_RELAND_ENGINE = engineNumber('ACCEPTED_RELAND_ENGINE');
@@ -72,6 +73,7 @@ export const GONE_CLAIM_ENGINE = engineNumber('GONE_CLAIM_ENGINE');
 export const HANDOFF_ENGINE = engineNumber('HANDOFF_ENGINE');
 export const HEALTH_CAP_ENGINE = engineNumber('HEALTH_CAP_ENGINE');
 export const HEALTH_EPISODE_ENGINE = engineNumber('HEALTH_EPISODE_ENGINE');
+export const BOARD_RELEASE_CODES_ENGINE = engineNumber('BOARD_RELEASE_CODES_ENGINE');
 export const HEALTH_QUIET_ENGINE = engineNumber('HEALTH_QUIET_ENGINE');
 export const HEALTH_SENTINEL_ENGINE = engineNumber('HEALTH_SENTINEL_ENGINE');
 export const HISTORICAL_AUTHORS_ENGINE = engineNumber('HISTORICAL_AUTHORS_ENGINE');

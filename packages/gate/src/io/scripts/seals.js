@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import {
   sealStatus,
   unsealedPackages,
-} from '../../../index.js';
+} from '../../../heavy.js';
 
 const USAGE = 'usage: node packages/gate/src/io/scripts/seals.js unsealed <base> [head] [--root <dir>] | status [rev] [--root <dir>]\n';
 const args = process.argv.slice(2);

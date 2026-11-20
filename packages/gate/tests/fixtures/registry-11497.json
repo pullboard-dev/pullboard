@@ -1,0 +1,4 @@
+{
+  "gate.logic-adapter-lints-env.generated-preload-is-exempt": {"proves":{"specs":["C7"],"claim":"The gate preload path is not covered by the environment lint and its reads report nothing."},"why":"Its reads sit in a generated string run in a child process that cannot import the adapter; an exact-path exemption keeps every sibling covered.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/env.js"]},
+  "gate.logic-adapter-lints-env.real-tree-generated-preload": {"proves":{"specs":["C7"],"claim":"The lint run over this checkout with the setting on returns no row naming the gate preload."},"why":"Proves the exemption is wired through envLintRows on the real tree, with the preload ceiling row removed.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/env.js","packages/gate/data/ceilings/adapter-lint-env.json"]}
+}

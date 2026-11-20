@@ -3,16 +3,11 @@ import { refuseUnreviewable } from '../../../../../packages/verify/index.js';
 import { normalizeItemPatch } from '../../../../../packages/items/index.js';
 import { itemPatchParts } from '../../../../../packages/items/index.js';
 import { laneOf } from '../../../../../packages/seats/index.js';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { itemPolicy } from '../../../../../packages/sandbox/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { claimedItemRoot } from '../../../../../packages/items/index.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as store from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -25,6 +20,9 @@ import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
 import { context } from '../read.js';
 import { withBoardRead } from '../board/read.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const MAX_PATCH_BYTES = 8 * 1024 * 1024;
 
@@ -32,10 +30,10 @@ const MAX_PATCH_BYTES = 8 * 1024 * 1024;
 function patchText(root, file) {
   const path = resolve(root, file);
   let stat;
-  try { stat = statSync(path); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read patch file "${file}"`); }
+  try { stat = fs.stat(path); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read patch file "${file}"`); }
   if (!stat.isFile() || stat.size > MAX_PATCH_BYTES) throw new Refused('ITEM_PATCH_FORMAT', 'supply a regular UTF8 patch file of at most eight MiB');
   let bytes;
-  try { bytes = readFileSync(path); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read patch file "${file}"`); }
+  try { bytes = fs.readFile(path, null); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read patch file "${file}"`); }
   if (bytes.length > MAX_PATCH_BYTES) throw new Refused('ITEM_PATCH_FORMAT', 'supply a regular UTF8 patch file of at most eight MiB');
   const text = bytes.toString('utf8');
   if (!Buffer.from(text, 'utf8').equals(bytes)) throw new Refused('ITEM_PATCH_FORMAT', 'patch file must contain valid UTF8');
@@ -64,9 +62,9 @@ function writeParts(root, directory, parts) {
     if (!/^[a-z0-9][a-z0-9-]*$/u.test(part.lane)) throw new Refused('ITEM_PATCH_FORMAT', 'owning lane cannot name a portable split output');
     return join(target, part.lane + '.patch');
   });
-  if (files.some(file => existsSync(file))) throw new Refused('ITEM_PATCH_OUTPUT', 'a split output already exists; choose a fresh --out directory');
-  mkdirSync(target, { recursive: true });
-  for (const [n, file] of files.entries()) writeFileSync(file, parts[n].patch, { flag: 'wx' });
+  if (files.some(file => fs.exists(file))) throw new Refused('ITEM_PATCH_OUTPUT', 'a split output already exists; choose a fresh --out directory');
+  fs.mkdir(target, { recursive: true });
+  for (const [n, file] of files.entries()) { const handle = fs.open(file, 'wx'); try { fs.write(handle, parts[n].patch); } finally { fs.close(handle); } }
   return parts.map((part, n) => ({ ...part, file: files[n] }));
 }
 
