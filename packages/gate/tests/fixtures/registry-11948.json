@@ -1,0 +1,3 @@
+{
+  "gate.language-toolchains.php-no-test-script-writes-no-gate": {"proves":{"specs":["C7"],"claim":"a PHP repo whose composer.json has no scripts.test gets no gate or affectedTests command, and with scripts.test it gets composer test"},"why":"Without it, init writes composer test into a repo that has no test script and every gate runs red.","kind":"cell unit","inputs":["packages/gate/tests/logic/language-toolchains.test.js"]}
+}

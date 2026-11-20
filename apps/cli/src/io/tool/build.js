@@ -24,10 +24,12 @@ import { git } from '../../../../../packages/git/light.js';
 import { gitChildEnv } from '../../../../../packages/git/light.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
 import { withGitFacts } from '../../../../../packages/git/light.js';
-import { timerFiles as auditTimerFiles } from '../../../../../packages/gate/index.js';
+import { timerFiles as auditTimerFiles } from '../../../../../packages/gate/heavy.js';
 import { mainPolicy } from '../../../../../packages/sandbox/light.js';
 import { withFileLock } from '../../../../../packages/outbox/light.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
+const environment = environmentAdapter();
 const TOKEN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 const NOFOLLOW = constants.O_NOFOLLOW;
 const TIMER = { label: 'tool build gate timer', folder: 'tool-build-scheduler' };
@@ -142,7 +144,7 @@ function workerEnvironment(root) {
 export async function scheduleToolBuildGate(ctx) {
   if (ctx.config.toolBuild?.autoGate !== true) return { scheduled: false, reason: 'disabled' };
   // A runner job's processes die with the job; a detached timer would outlive it in the job's checkout (#2513).
-  if (process.env.PULLBOARD_RUNNER_JOB) return { scheduled: false, reason: 'runner-job' };
+  if (environment.get('PULLBOARD_RUNNER_JOB')) return { scheduled: false, reason: 'runner-job' };
   let stage = 'lookup';
   try {
     const current = await canonical(ctx);
