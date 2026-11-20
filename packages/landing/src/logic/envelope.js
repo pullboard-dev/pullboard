@@ -2,6 +2,10 @@
 import { git } from '../../../git/index.js';
 import { isClean } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { TRANSIENT_CODES } from '../../../kernel/index.js';
+
+/** The one transient code set (kernel's), re-exported so the landing retry judgement reads it through the envelope's existing kernel edge [C7,#3779]. */
+export { TRANSIENT_CODES };
 
 /** Refuse source mutation without rewriting or cleaning up another operation's Git state. */
 function changedEnvelope() {
