@@ -13,6 +13,7 @@ import { cellLintGrowth } from './ratchet.js';
 import { validateCellLintBaseline } from './ratchet.js';
 import { tryGit } from '../../../../../git/index.js';
 import {
+  mappedPath,
   readPathMap,
   pathMapFromFiles,
 } from '../../../logic/path/map.js';
@@ -134,12 +135,37 @@ export function readCellLintCellBaseline(root, base) {
   if (touched.size) {
     const snapshot = cellSourceSnapshot(root);
     const pathMap = snapshot ? pathMapFromFiles(snapshot.files, snapshot.entries) : readPathMap(root);
-    const report = { pathMap: Object.fromEntries(pathMap), metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
-      findings: Object.entries(baseline.metrics[metric].allowances).map(([key, count]) => ({ key, count })),
+    const report = { metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
+      findings: Object.entries(baseline.metrics[metric].allowances).map(([key, count]) => ({ key: translatedKey(metric, key, pathMap), count })),
     }])) };
-    if (cellLintGrowth(report, base).length) throw new Refused('CELL_BASELINE', 'per-cell shard raises an accepted allowance');
+    if (cellLintGrowth(report, translatedBase(base, pathMap)).length) throw new Refused('CELL_BASELINE', 'per-cell shard raises an accepted allowance');
   }
   return baseline;
+}
+/** Translate an accepted allowance key through the committed path map, as the ratchet does for measured findings. */
+function translatedKey(metric, key, map) {
+  if (metric === 'cycles') return key;
+  if (metric === 'boundaries') return key.split('->').map(path => mappedPath(map, path)).join('->');
+  if (metric === 'unreachableExports') {
+    const at = key.lastIndexOf('#');
+    return mappedPath(map, key.slice(0, at)) + key.slice(at);
+  }
+  if (metric === 'unknown') {
+    const at = key.indexOf(':');
+    return mappedPath(map, key.slice(0, at)) + key.slice(at);
+  }
+  return mappedPath(map, key);
+}
+/** Copy the accepted baseline with every allowance key translated; a collision keeps the larger count. */
+function translatedBase(base, map) {
+  return { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => {
+    const allowances = Object.create(null);
+    for (const [key, count] of Object.entries(base.metrics[metric].allowances)) {
+      const next = translatedKey(metric, key, map);
+      allowances[next] = Math.max(allowances[next] ?? 0, count);
+    }
+    return [metric, { count: Object.values(allowances).reduce((sum, count) => sum + count, 0), allowances }];
+  })) };
 }
 /** Publish only per-cell shard files; a refused verification restores the exact prior bytes. */
 export function writeCellLintCellBaseline(root, base, target, verify) {
