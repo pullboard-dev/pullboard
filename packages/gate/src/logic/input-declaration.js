@@ -39,3 +39,54 @@ export function declaresSource(source) {
   }
   return false;
 }
+
+/** A repo path the exact rule holds to a header: a cell's data, tests (the folder itself included) or journeys folder, or docs [C7,#12055]. */
+export const DECLARED_READ_PATH = /^(?:(?:packages|apps)\/[^/]+\/(?:data|tests|journeys)|docs)(?:\/|$)/u;
+
+/**
+ * The patterns a test's leading header lines declare it reads, as regular expressions over repo paths. A source-cell line
+ * and source-tree name source, never a data, tests or journeys path, and a bare `**` names nothing exact, so none of them
+ * counts; docs-tree covers docs and test-tree covers every cell's tests and journeys folders [C7,#12055].
+ *
+ * @param {string} source
+ * @returns {RegExp[]}
+ */
+export function declaredReadPatterns(source) {
+  const patterns = [];
+  for (const line of source.split(/\r?\n/u)) {
+    if (line === '// pullboard: browser') continue;
+    if (!line.startsWith('/** @pullboard-')) break;
+    const match = /^\/\*\* @pullboard-test-input (.+?) \*\/$/u.exec(line.trim());
+    if (!match || isSourceCellLine(line)) continue;
+    for (const value of match[1].trim().split(/\s+/u)) {
+      if (value === 'source-tree' || value === '**') continue;
+      if (value === 'docs-tree') patterns.push(/^docs(?:\/|$)/u);
+      else if (value === 'test-tree') patterns.push(/^(?:packages|apps)\/[^/]+\/(?:tests|journeys)(?:\/|$)/u);
+      else patterns.push(globExpression(value));
+    }
+  }
+  return patterns;
+}
+
+/** A header glob as an expression: `**` spans folders, `*` stays inside one. */
+function globExpression(glob) {
+  let text = '';
+  for (let at = 0; at < glob.length; at += 1) {
+    if (glob.startsWith('**', at)) { text += '.*'; at += 1; }
+    else if (glob[at] === '*') text += '[^/]*';
+    else text += glob[at].replace(/[.+?^${}()|[\]\\]/gu, '\\$&');
+  }
+  return new RegExp(`^${text}$`, 'u');
+}
+
+/**
+ * True when the declared patterns cover a read of `path`: the path itself, or for a folder read everything under it. A path
+ * that escapes the repository is compared by its tail, so `../tests/fixtures/a.json` needs a header ending in it.
+ */
+export function readIsDeclared(patterns, path) {
+  if (path.startsWith('../')) {
+    const tail = path.replace(/^(?:\.\.\/)+/u, '');
+    return patterns.some(pattern => pattern.test(tail) || pattern.source.replace(/\\/gu, '').endsWith(`/${tail}$`));
+  }
+  return patterns.some(pattern => pattern.test(path) || pattern.test(`${path}/\0`));
+}

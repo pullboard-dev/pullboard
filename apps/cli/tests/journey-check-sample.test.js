@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runJourneyCheck } from '../../../packages/gate/index.js';
+import { runJourneyCheck } from '../../../packages/gate/heavy.js';
 import { journeySampleAsked } from './fixtures/journey-sample.js';
 import { mutateCell } from '../src/io/mutate/run.js';
 

@@ -34,7 +34,7 @@ import {
   assertObservationsEqual,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('the view fixture opts out of the background view [N26]', () => {
+test('cli.journeys-shout-journeys-fixture-presentation.the-view-fixture-opts-out-of: the view fixture opts out of the background view [N26]', () => {
   const box = machine();
   const originalHome = box.env.PULLBOARD_MACHINE_HOME;
   const originalFile = join(originalHome, 'settings.json');
@@ -69,7 +69,7 @@ test('the view fixture opts out of the background view [N26]', () => {
     'later copied or hooked CLI commands retain the effective machine opt-out');
 });
 
-test('clause 1: borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', async () => {
+test('cli.journeys-shout-journeys-fixture-presentation.borrowed-board-presentation-keeps-parity-shows: clause 1: borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', async () => {
   const box = machine();
   const p = project(box, 'projector');
   await box.runIn(p.repo, 'add', 'web', 'Existing projection row', '--criterion', 'same native data');
@@ -99,7 +99,7 @@ test('clause 1: borrowed board presentation keeps parity, shows staged rows, and
   }
 });
 
-test('observation-time ages compare by their own clock [A10]', () => {
+test('cli.journeys-shout-journeys-fixture-presentation.observation-time-ages-compare-by-their: observation-time ages compare by their own clock [A10]', () => {
   const since = '2026-10-10T09:00:00.000Z';
   const firstAsOf = '2026-10-10T10:00:00.000Z';
   const secondAsOf = '2026-10-10T10:00:00.129Z';

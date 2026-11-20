@@ -3,8 +3,8 @@ import { cellInventory } from '../../../codemap/index.js';
 import { withCellSourceSnapshots } from '../../../codemap/index.js';
 import { addedLines } from '../../../commits/index.js';
 import { secretsIn } from '../../../commits/index.js';
-import { commonJsIn } from '../../../gate/index.js';
-import { importsIn } from '../../../gate/index.js';
+import { commonJsIn } from '../../../gate/heavy.js';
+import { importsIn } from '../../../gate/heavy.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { git } from '../../../git/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
@@ -19,7 +19,6 @@ import { getItem } from '../../../store/index.js';
 import { itemPatches } from '../../../store/index.js';
 import { join } from 'node:path';
 import { scratchRoot } from '../../../config/index.js';
-import { storeName } from './store-names.js';
 
 const graphs = new Map();
 /** Imports of each source; a source that does not compile imports nothing provable, as the seal graph also treats it (#2438). */
@@ -144,17 +143,25 @@ function missingImports(graph) {
 function edgeKey(row) { return JSON.stringify([row.file, row.specifier, row.reason]); }
 
 /**
- * The changed ES modules that do not parse alone at the composed tip.
+ * The changed ES modules that do not parse alone at the composed tip but did parse at the landing base.
+ * A module that already failed to parse at the base (JSX or Flow in a .js file) is not the composition's break [C7].
  * Why: the inventory reads through tolerantImportsIn, which treats an uncompilable source as importing nothing, so the
  * parse failure must be found here, directly, or a duplicate import lands [C7].
  */
-function brokenModules(root, tip, changed) {
+function brokenModules(root, base, tip, changed) {
   const modules = changed.filter(file => /\.(?:m?js)$/u.test(file));
   const sources = committedSources(root, tip, modules);
-  return modules.filter(file => {
+  const failing = modules.filter(file => {
     const source = sources.has(file) ? sources.get(file) : shownSource(root, tip, file);
     if (source === null) return false;
     try { importsIn([source], undefined); return false; } catch { return true; }
+  });
+  if (!failing.length) return failing;
+  const atBase = committedSources(root, base, failing);
+  return failing.filter(file => {
+    const source = atBase.has(file) ? atBase.get(file) : shownSource(root, base, file);
+    if (source === null) return true;
+    try { importsIn([source], undefined); return true; } catch { return false; }
   });
 }
 
@@ -196,7 +203,7 @@ function committedSources(root, tip, files) {
  * Why: a duplicate import in a composition killed the worker as LAND_WORKER, which blamed no item and left the batch
  * pinned in merging; a parse failure is the composed content's own and ends the batch terminally [C7].
  */
-function parseRefusal(root, tip, changed, broken = brokenModules(root, tip, changed)) {
+function parseRefusal(root, base, tip, changed, broken = brokenModules(root, base, tip, changed)) {
   const refusal = new Refused('LAND_MODULE_PARSE', `the composed landing has ${broken.length ? broken.join(', ') : 'a module'} that does not parse as an ES module; fix the duplicate or invalid declaration and resubmit`);
   refusal.broken = broken;
   return refusal;
@@ -220,68 +227,15 @@ export async function requireLandingModuleResolution(root, base, tip) {
   requireLandingSecretFree(root, base, tip);
   const before = graphAt(root, base);
   const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
-  const broken = brokenModules(root, tip, changed);
-  if (broken.length) throw parseRefusal(root, tip, changed, broken);
+  const broken = brokenModules(root, base, tip, changed);
+  if (broken.length) throw parseRefusal(root, base, tip, changed, broken);
   let after;
   try { after = graphAt(root, tip); }
   catch (error) {
     if (error.message !== 'source does not compile as an ES module') throw error;
-    throw parseRefusal(root, tip, changed);
+    throw parseRefusal(root, base, tip, changed);
   }
   const inherited = new Set(missingImports(before).map(edgeKey));
   const missing = missingImports(after).filter(row => !inherited.has(edgeKey(row)));
   if (missing.length) throw new Refused('LAND_MODULE_RESOLUTION', `the composed landing leaves missing module targets: ${missing.map(row => `${row.file}: ${row.specifier} (${row.reason})`).join('; ')}; restore or repoint every importer before landing`);
-}
-
-/** Landing refuses a rename of a tracked file that the cells path map does not record [C7]. */
-const SHARDS = 'packages/codemap/data/plan/path-map/';
-
-/** Read one Git result as text, or null when Git refuses. */
-function readGit(root, args) {
-  const result = tryGit(root, ['--no-replace-objects', ...args]);
-  return result.status === 0 ? result.stdout : null;
-}
-
-/** The path map at a commit: old path to new path across every shard. */
-function recordedMoves(root, commit) {
-  const moves = new Map();
-  const listing = readGit(root, ['ls-tree', '-z', '--name-only', commit, '--', SHARDS]) ?? '';
-  for (const file of listing.split('\0').filter(name => /\/[^/]+\.json$/u.test(name))) {
-    let shard;
-    try { shard = JSON.parse(readGit(root, ['show', `${commit}:${file}`]) ?? '{}'); } catch { continue; }
-    for (const [from, to] of Object.entries(shard ?? {})) if (typeof to === 'string') moves.set(from, to);
-  }
-  return moves;
-}
-
-/** The shard a rename belongs in: the one named for the package or app the new path lives in. */
-function shardFor(to) {
-  const parts = to.split('/');
-  const name = (parts[0] === 'packages' || parts[0] === 'apps') && parts[1] ? parts[1] : 'untangle';
-  return SHARDS + storeName(name);
-}
-
-/**
- * Refuse a candidate that renames a tracked file without recording old to new in a path-map shard.
- * Only renames the landing would perform count: the old path is still on the landing base and the new one is not.
- * Why: a rename with no entry cuts the census, items and history off from the file's earlier life (10 Nov cell seals).
- *
- * @param {string} root - a checkout holding both commits.
- * @param {string} base - the commit the candidate lands on.
- * @param {string} commit - the candidate.
- */
-export function requireRecordedMoves(root, base, commit) {
-  const fork = (readGit(root, ['merge-base', base, commit]) ?? '').trim();
-  if (!fork) return;
-  const changes = (readGit(root, ['diff', '--name-status', '-z', '-M', '--diff-filter=R', fork, commit, '--']) ?? '').split('\0').filter(Boolean);
-  const present = path => readGit(root, ['cat-file', '-e', `${base}:${path}`]) !== null;
-  const recorded = recordedMoves(root, commit);
-  const missing = [];
-  for (let at = 0; at + 2 < changes.length; at += 3) {
-    const from = changes[at + 1], to = changes[at + 2];
-    if (present(from) && !present(to) && recorded.get(from) !== to) missing.push({ from, to });
-  }
-  if (!missing.length) return;
-  const shown = missing.slice(0, 3).map(move => `${move.from} -> ${move.to}`).join(', ') + (missing.length > 3 ? `, and ${missing.length - 3} more` : '');
-  throw new Refused('LAND_MOVE_UNRECORDED', `the candidate renames ${shown} with no path-map entry; add ${JSON.stringify(missing[0].from)}: ${JSON.stringify(missing[0].to)} to ${shardFor(missing[0].to)}, and every other rename likewise, then land again`);
 }

@@ -9,7 +9,7 @@
     "why": "Without it, the command would still merge before the runner composes, doing the work twice.",
     "kind": "cell unit",
     "inputs": [
-      "apps/cli/tests/io/submit/handoff/compose-on-runner.test.js"
+      "apps/cli/tests/io/submit/handoff/compose-on-runner/merge.test.js"
     ]
   },
   "cli.io-submit-handoff-compose-on-runner.with-the-setting-off-submit-merges-as": {
@@ -22,7 +22,7 @@
     "why": "Without it, a default-off setting could change every submit unnoticed.",
     "kind": "cell unit",
     "inputs": [
-      "apps/cli/tests/io/submit/handoff/compose-on-runner.test.js"
+      "apps/cli/tests/io/submit/handoff/compose-on-runner/merge.test.js"
     ]
   }
 }
