@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** The cockpit harness's sendBack answers its show read and reject in this process, with the same result as the real-process call [C7,U149]. */
 import assert from 'node:assert/strict';
