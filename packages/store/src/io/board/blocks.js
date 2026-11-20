@@ -50,7 +50,7 @@ export function listBlocks(board) {
 }
 
 /**
- * Claim every open member of a named block for one seat in one transaction, or none of them [C7,#2202].
+ * Claim every open member of a named block for one seat with every refusal checked before the first claim, or none of them [C7,#2202].
  * Why: each member takes the ordinary claim and the same lease, so one clock reading serves the whole block; members keep their own criteria and verdicts.
  * Members are item-folder claims sized to the whole block (ten live claims at most), so the one-top-level-claim rule does not stop the second member.
  * A member another seat holds refuses BLOCK_CLAIMED naming it before anything is written, and a seat whose route is below the tier refuses BLOCK_TIER.
@@ -60,7 +60,6 @@ export function listBlocks(board) {
  * @returns {{ name: string, claimed: number[], leaseUntil: string }}
  */
 export function claimBlock(board, { agentId, name, ...options }) {
-  return atomic(board, () => {
     const row = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = ?").get(BLOCK_PREFIX + name);
     if (!row) throw new Refused("NO_BLOCK", `no block named ${name}`);
     const block = JSON.parse(row.meta_value);
@@ -88,5 +87,4 @@ export function claimBlock(board, { agentId, name, ...options }) {
     } finally {
       board.clock = original;
     }
-  });
 }
