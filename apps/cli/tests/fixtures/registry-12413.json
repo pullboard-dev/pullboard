@@ -1,0 +1,4 @@
+{
+  "cli.commands-show.thin-equal": {"proves": {"specs": ["C7"], "claim": "With read.thinCommands on, show of a plain item prints the same lines and exit code as with it off."}, "why": "The thin door may only change how the facts are read, never what show prints.", "kind": "cell unit", "inputs": ["apps/cli/tests/io/commands/show.test.js", "apps/cli/src/io/commands/show.js"]},
+  "cli.commands-show.thin-null-falls-back": {"proves": {"specs": ["C7"], "claim": "With read.thinCommands on, show of an item with a thread entry prints the full path lines, the thin door returning null."}, "why": "An item with a receipt or thread entry needs the heavy sections the thin door does not read.", "kind": "cell unit", "inputs": ["apps/cli/tests/io/commands/show.test.js", "apps/cli/src/io/commands/show.js"]}
+}
