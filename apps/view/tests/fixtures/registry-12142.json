@@ -1,0 +1,4 @@
+{
+  "view.dashboard.history-paged": {"proves":{"specs":["N26"],"claim":"dashboardRuntime read() asks for events with after and limit and keeps asking until a page comes back short, covering a history longer than two batches."},"why":"One unbounded events read of a 600k-event board returns an empty 200, and the Pipeline and Dashboard lose their history.","kind":"cell unit","inputs":["apps/view/src/io/dashboard/runtime.js","apps/view/tests/io/dashboard/runtime.test.js"]},
+  "view.page.cost-gap-paged": {"proves":{"specs":["N26"],"claim":"readCostHistory's gap scan names a limit on every events read it sends."},"why":"An unbounded gap read of a large board fails the same way the Dashboard history read did.","kind":"cell unit","inputs":["apps/view/src/io/page/boards.js","apps/view/tests/io/page/cost-history.test.js"]}
+}
