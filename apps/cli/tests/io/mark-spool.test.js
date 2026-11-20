@@ -52,6 +52,10 @@ test('cli.mark.replay-original-at: clause 1: the next mark after the board frees
   assert.equal(written[0].at, Date.parse(at), 'the spooled mark keeps its original at');
   assert.equal(written[1].at, box.clock.now().getTime());
   assert.equal(readFileSync(spoolPath(box.file), 'utf8'), '', 'the spool is empty after the replay');
+  const timeline = await cli(box, box.seats.builder.path, ['timeline', String(id)]);
+  assert.equal(timeline.code, 0, timeline.out + timeline.err);
+  const row = timeline.document.rows.find(each => each.stage === 'smoke' && each.edge === 'start');
+  assert.equal(row?.at, Date.parse(at), 'pullboard timeline shows the spooled mark at its original time');
 });
 
 test('cli.mark.replay-no-double: clause 2: a spool replayed twice, with a crash after the first write, yields one row per mark [C7,#12158]', async t => {
