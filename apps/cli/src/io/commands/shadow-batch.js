@@ -7,9 +7,10 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { context } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { scratchFolder } from '../../../../../packages/config/index.js';
-import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const USAGE = 'use pullboard shadow-batch <id> <id>... [--json] to run the tier-2 checks once over accepted items composed onto main';
 
@@ -70,7 +71,7 @@ export function run(io, { first, second, rest, values }) {
     if (conflict === null) results = tierTwoChecks(ctx.config).map(([name, command]) => runCheck(name, command, scratch));
   } finally {
     tryGit(root, ['worktree', 'remove', '--force', scratch]);
-    rmSync(scratch, { recursive: true, force: true });
+    fs.rm(scratch, { recursive: true, force: true });
     tryGit(root, ['worktree', 'prune']);
   }
   const wallMs = Math.round(performance.now() - started);

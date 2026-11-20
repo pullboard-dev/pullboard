@@ -913,6 +913,11 @@ export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
+/** Whether health.derivedState is on (#8974): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function derivedStateEnabled() {
+  return loadMachineSettings().health?.derivedState === true;
+}
+
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
 export function typedFieldsEnabled() {
   return loadMachineSettings().items?.typedFields === true;

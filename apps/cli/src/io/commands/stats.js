@@ -25,7 +25,6 @@ import { pipelinePerHour } from '../../../../../packages/stats/index.js';
 import { pipelinePerHourLines } from '../../../../../packages/stats/index.js';
 import { movesStats } from '../../../../../packages/stats/index.js';
 import { movesLines } from '../../../../../packages/stats/index.js';
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
@@ -77,6 +76,8 @@ import {
   context,
   withBoard,
 } from '../entry.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
@@ -132,7 +133,7 @@ export function run(io, { first, second, rest, values }) {
     let transcripts;
     if (values.transcripts !== undefined) {
       try {
-        const bytes = readFileSync(resolve(io.cwd, values.transcripts));
+        const bytes = fs.readFile(resolve(io.cwd, values.transcripts), null);
         if (bytes.length > 4 * 1024 * 1024) throw new Error('larger than 4 MiB');
         transcripts = JSON.parse(bytes.toString('utf8'));
       } catch (error) { throw new Refused('USAGE', `cannot read supplied command transcripts: ${error.message}`); }
