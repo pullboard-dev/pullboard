@@ -383,6 +383,9 @@ export function loadMachineSettings() {
   if (value.gate?.refuseTempWorktree !== undefined && typeof value.gate.refuseTempWorktree !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseTempWorktree in ${file} must be true or false`);
   }
+  if (value.claim?.checkCeiling !== undefined && typeof value.claim.checkCeiling !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `claim.checkCeiling in ${file} must be true or false`);
+  }
   if (value.claim?.keepWhileRunning !== undefined && typeof value.claim.keepWhileRunning !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `claim.keepWhileRunning in ${file} must be true or false`);
   }

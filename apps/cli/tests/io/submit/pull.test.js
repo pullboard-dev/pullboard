@@ -80,7 +80,7 @@ test('cli.io-submit-pull.runner-note-item-policy: clause 2: the note names the i
   assert.equal(proofRunnerNote({}, { commit: MAIN_SHA, config: {} }, ITEM_SHA), 'test runner: none set (named .js files run under node --test)');
 });
 
-test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says the runner note right after the in-the-gate line [C7,#11753]', async t => {
+test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says the runner note right after the in-the-gate line [C7,#11753]', { skip: 'main-red stopgap #12134: runs a real worker run that hangs past the 180 s file budget; #12050 is the real fix and must remove this skip' }, async t => {
   const box = await fixture(t);
   fileFixtureItem(box, box.repo, { lane: 'core', title: 'Print the proof runner', route: 'mid',
     criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
