@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** The real cockpit fixture reads close API and stylesheet connections [N38,C7]. */

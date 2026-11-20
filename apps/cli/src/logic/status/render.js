@@ -20,6 +20,7 @@ export function statusLines(summary, options) {
   lines.push(landing);
   if (summary.landingBatch) lines.push(summary.landingBatch);
   lines.push(...format.capacityLines(summary.capacityForecast));
+  if (summary.staffing) lines.push(format.staffingLines(summary.staffing));
   if (summary.usefulBuilders) lines.push(...format.usefulBuilderLines(summary.usefulBuilders));
   lines.push(format.signingLine(summary.person));
   for (const entry of [...summary.staleState.holds, ...summary.staleState.claims, ...summary.staleState.reviews]) {

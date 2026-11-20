@@ -1,6 +1,7 @@
 /** @pullboard-module-loads ** */
 // Custom reporters are user-selected: ** covers every committed module, not a finite reporter list.
 /** Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim. */
+import { shardPlan } from './run-tests-plan.js';
 import { basename } from 'node:path';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
@@ -1229,7 +1230,7 @@ async function main(args) {
     return;
   }
   const timing = beginSuiteTiming(process.cwd(), args), selectionAt = performance.now();
-  process.env[COLLECTION_ID_ENV] ||= timing.id;
+  if (!environment.get(COLLECTION_ID_ENV)) environment.set(COLLECTION_ID_ENV, timing.id);
   const sharding = shardArguments(args, optionTakesValue);
   if (sharding.error) {
     process.stderr.write(`run-tests: ${sharding.error}\n`);
@@ -1239,35 +1240,35 @@ async function main(args) {
   args = sharding.args;
   const fullSuite = !hasTestFiles(args);
   const shortEligible = namesOnlyTestFiles(args);
-  let browser = fullSuite;
-  if (!browser) {
+  const plan = shardPlan(environment.all());
+  let browser = plan ? plan.browser : fullSuite;
+  if (!browser && !plan) {
     const { testsNeedBrowser } = await import('./browser/admission.js');
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
-  const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
+  const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: environment.get(LANDING_RUN_ENV) === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), environment.all()) : explicitTestFiles(args) });
   process.stderr.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
-  const { testsNeedGui } = await import('./gui/admission.js');
   let guiFiles;
   try {
     guiFiles = actions.files ?? (fullSuite
-      ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
+      ? (isGitWorkTree(process.cwd(), environment.all()) ? trackedDefaultTestFiles(process.cwd(), environment.all()) : [])
       : explicitTestFiles(args));
   } catch (error) {
     process.stderr.write(`run-tests: could not list tracked test files: ${error.message}\n`);
     process.exitCode = 1;
     return;
   }
-  const gui = testsNeedGui(process.cwd(), guiFiles);
+  const gui = plan ? plan.gui : (await import('./gui/admission.js')).testsNeedGui(process.cwd(), guiFiles);
   const { cpuRunnerRequired } = await import('./admission/cpu/load.js');
   const runnerAdmission = (await import('../../../config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
-  timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
+  timing.plan(fullSuite && isGitWorkTree(process.cwd(), environment.all()) ? trackedDefaultTestFiles(process.cwd(), environment.all()) : guiFiles,
     fullSuite && !narrowsSelection(args, optionTakesValue));
   timing.phase('selectionMs', selectionAt); clock.mark('selection');
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
-  const shardLabel = process.env[LANDING_SHARD_ENV];
+  const shardLabel = environment.get(LANDING_SHARD_ENV);
   const run = async (gateMarkers) => {
     const setupAt = performance.now();
     const sandbox = fs.mkdtemp(join(tmpdir(), 'pullboard-test-run-'));
@@ -1277,7 +1278,7 @@ async function main(args) {
     const cloneCheck = browser && process.platform === 'darwin'
       ? await import('./clone.js') : null;
     let clonesBefore;
-    if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
+    if (fileTimes) environment.set(LANDING_FILE_TIMES_ENV, fileTimes);
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
       timing.phase('setupMs', setupAt); clock.mark('admission');

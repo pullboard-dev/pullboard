@@ -1,6 +1,6 @@
 /** Pure choice of which runner screenshot files come back to the caller, never reading a file or the runner [C7,#2097]. */
 import { posix } from 'node:path';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 
 /** The most the png files of one runner job may total together: 4 MiB. */
 export const SCREENSHOT_MAX_BYTES = 4 * 1024 * 1024;
