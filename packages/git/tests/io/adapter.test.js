@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
@@ -379,6 +380,27 @@ test('git.adapter.real-path-resolution: clause 1: the real adapter spawns the fi
   const real = withGitAdapter(realGitAdapter, () => gitSpawnSync(['--version'], { encoding: 'utf8' }));
   assert.equal(real.status, 0);
   assert.match(real.stdout, /^git version /u);
+});
+
+test('git.adapter.path-keyed-resolution: two PATHs each spawn their own git, and a removed git is resolved again under the same PATH [C7]', (t) => {
+  const files = privateFixtureFiles('pullboard-git-path-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  const shim = (name) => {
+    const dir = join(files.root, name);
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'git'), `#!/bin/sh\necho ${name}\n`, { mode: 0o755 });
+    return dir;
+  };
+  const first = shim('first'), second = shim('second');
+  const tail = process.env.PATH ?? '';
+  const run = (path) => String(realGitAdapter.spawnSync(['--version'], { encoding: 'utf8', env: { ...process.env, PATH: path } }).stdout).trim();
+  assert.equal(run(`${first}${delimiter}${tail}`), 'first');
+  assert.equal(run(`${second}${delimiter}${tail}`), 'second', 'another PATH spawns its own git, not the first one cached');
+  assert.equal(realGitPath(`${first}${delimiter}${tail}`), join(first, 'git'), 'one resolution per PATH string is reused');
+  rmSync(first, { recursive: true, force: true });
+  const again = realGitAdapter.spawnSync(['--version'], { encoding: 'utf8', env: { ...process.env, PATH: `${first}${delimiter}${tail}` } });
+  assert.equal(again.error, undefined, 'the removed git is not spawned');
+  assert.match(String(again.stdout), /^git version /u, 'the same PATH resolves the next git');
 });
 
 test('git.adapter.real-path-fallback: clause 2: a failed or empty resolution falls back to plain git [C7]', () => {

@@ -27,7 +27,7 @@ export async function prePushHook(io, ctx, info, loadGraphs) {
   const refsText = await readStdin(io.stdin);
   // Only a push runs the gate, so the gate, runner, landing and flake graphs load here and never for a commit hook [C7,#3250].
   const { resourceAgent, withBoard } = await import('../entry.js');
-  const { gateReport, isStampedGreen, runGate } = await import('../../../../../packages/gate/index.js');
+  const { gateReport, isStampedGreen, runGate } = await import('../../../../../packages/gate/heavy.js');
   const { runnerExecutionServices, landingExecutionServices, nativeWaivedLandingProof, quarantineWaivers } = await loadGraphs();
   if (gitBoardDataPush(info.root, refsText)) {
     io.say('pre-push: validated append-only board data; no code refs are updated');

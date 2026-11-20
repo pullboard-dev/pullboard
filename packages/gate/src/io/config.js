@@ -89,7 +89,13 @@ function detectHere(root, rows) {
     const unittest = unittestCommand(root);
     if (unittest) add('python', unittest);
   }
-  if (fs.exists(join(root, 'composer.json'))) add('php', 'composer test');
+  // Composer runs only a scripts.test entry, so a composer.json without one writes no gate or affectedTests command [C7,#11948].
+  if (fs.exists(join(root, 'composer.json'))) {
+    try {
+      const test = JSON.parse(fs.readFile(join(root, 'composer.json'), 'utf8'))?.scripts?.test;
+      if (typeof test === 'string' ? test.trim() : Array.isArray(test) && test.length) add('php', 'composer test');
+    } catch { /* An unreadable composer.json does not hide another ecosystem. */ }
+  }
   if (fs.exists(join(root, 'mix.exs'))) add('elixir', 'mix test');
   if (fs.list(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');
   if (fs.exists(join(root, 'CMakeLists.txt'))) add('cmake', 'cmake -S . -B build && cmake --build build && ctest --test-dir build');

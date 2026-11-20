@@ -36,6 +36,7 @@ function fixture(t, red = []) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('packages/items/index.js', `import { writeFileSync } from 'node:fs';\nexport function requireSubmitComposition(root, candidate, trunk, main, parentBase) { writeFileSync('parent-base.txt', String(parentBase)); ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { ${refuse('selection', 'SELECTION_RED')}
