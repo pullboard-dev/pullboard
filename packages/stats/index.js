@@ -53,6 +53,7 @@ export {
   revertTuning,
 } from './src/logic/flow/tune/choose.js';
 export { tuneCycleDue } from './src/logic/flow/tune/cycle.js';
+export { tuneFixes, tuneRecord, lastTuneChange } from './src/logic/flow/tune/fixes.js';
 export {
   WINDOW_STAGES,
   newWindowTrace,
