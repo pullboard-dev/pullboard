@@ -24,11 +24,11 @@ import { temporaryDirectory } from '../board.js';
 
 /**
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
- * a git adapter wrapper that logs each git start, and the offer's logged  lock seam. Returns what the offer did. With `derived`, the machine turns health.derivedState on (`setting`, default true) and a table is swept
+ * a git adapter wrapper that logs each git start, and the offer's logged  lock seam. Returns what the offer did. With `before`, the case seeds board rows first. With `derived`, the machine turns health.derivedState on (`setting`, default true) and a table is swept
  * before the offer at trunk (`swept: 'current'`, the default) or at another commit (`'older'`), holding `verdicts` by item id (a state, or null for fresh; an item left out gets null).
  * Stale reopens go straight to the store, and `beforeLock` is the number of git starts before the lock was taken.
  */
-export async function offerWithLog(t, { concurrentOffer = false, derived = null, paces = {}, lapses = {}, held = [], config = {} } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, derived = null, paces = {}, lapses = {}, held = [], config = {}, before = null } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -67,6 +67,8 @@ export async function offerWithLog(t, { concurrentOffer = false, derived = null,
   for (const [id, count] of Object.entries(lapses)) for (let lapse = 0; lapse < count; lapse += 1) store.countLeaseLapse(board, Number(id));
   // Items a landing red on their own tests left held: item id list.
   for (const id of held) store.holdItem(board, id, { agentId: 'coordinator', reason: 'a landing red on its own tests' });
+  // Rows a case seeds on the board before the offer runs (a post-land test job, an item mid pull-out): before({ board, main }).
+  before?.({ board, main });
   // The offer reads machine settings from this private home: parallel gates on, so each entry's changed files are read.
   process.env.PULLBOARD_MACHINE_HOME = home;
   fixtureMachineSettings(home, { landing: { parallelGates: true }, ...(derived && derived.setting !== false ? { health: { derivedState: true } } : {}) });

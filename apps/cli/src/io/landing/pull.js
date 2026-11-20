@@ -26,6 +26,7 @@ import { recordedWriteLock } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/store/index.js';
 import { itemPace } from '../../../../../packages/store/index.js';
+import { pullingLanding } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/heavy.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { mechanicalConflictFiles } from '../../../../../packages/landing/index.js';
@@ -271,6 +272,41 @@ export function landingOfferBatches(free, { size, parallel = false }) {
   return batches;
 }
 
+/** A step payload as an object; a blob stub (a body past the jobs store's inline limit) reads as `{ stub: true }`, since only a long red receipt grows that big. */
+function stepPayload(text) {
+  const payload = JSON.parse(text ?? '{}');
+  return payload && typeof payload === 'object' && Object.hasOwn(payload, 'blob') ? { stub: true } : payload;
+}
+
+/**
+ * The sprint hold: the newest finished post-land main-wide test job when it is red and a sprint item it carried is not yet pulled out, else null.
+ * Why: a sprint landing queues one main-wide test on the landed tip, and a red receipt reopens its items into a pull-out; the next sprint
+ * item landed meanwhile would sit on the red tip. A pending or stuck job never holds (the offer uses the last finished result), so sprint
+ * is never stalled by a runner that has not answered. A later finished green job is the newest, so it lifts the hold.
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board
+ * @param {{ runs: { db: import('node:sqlite').DatabaseSync } } | null} [queue] - with runs_store on, the runs file holds the job rows
+ * @returns {{ job: string, pending: number[] } | null}
+ */
+export function sprintMainRed(board, queue = null) {
+  const db = queue ? queue.runs.db : board.db;
+  const finished = db.prepare(`SELECT j.job_id AS job, s.job_step_payload AS payload FROM job j
+    JOIN job_step s ON s.job_step_job = j.job_id AND s.job_step_name = 'receipt'
+    WHERE j.job_id >= 'post-land:' AND j.job_id < 'post-land;' AND +j.job_kind = 'test' AND j.job_step = 'done'
+    ORDER BY j.job_created DESC, j.rowid DESC, s.job_step_seq DESC LIMIT 1`).get();
+  if (!finished) return null;
+  let payload;
+  try { payload = stepPayload(finished.payload); } catch { return null; }
+  const receipt = payload.receipt;
+  const phase = receipt?.gate?.phases?.[0];
+  if (!payload.stub && receipt?.status === 0 && receipt?.gate?.green === true && (phase?.status ?? 0) === 0) return null;
+  const offered = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' ORDER BY job_step_id LIMIT 1").get(finished.job);
+  let items = [];
+  try { items = stepPayload(offered?.payload).payload?.postLand?.items ?? []; } catch { /* an unreadable offer names no item */ }
+  const pending = items.filter(id => Number.isSafeInteger(id) && pullingLanding(board, id));
+  return pending.length ? { job: finished.job, pending } : null;
+}
+
 /**
  * Offer the board's accepted, unmerged, unheld items as one land job, or return null when this machine lands them
  * itself (no trunk remote of record, and not pull or no local runner). While a land job is open no second automatic
@@ -326,10 +362,18 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // landing.priorityOrder: the order next uses (urgent or pinned, milestone position) goes before accept order; named ids keep their order [C7,#3157].
     const byPriority = !ids && policy.config?.landing?.priorityOrder === true ? landingPriorityCompare(board) : () => 0;
     const commitOf = item => item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit;
+    // runs_store on: queueRun makes its own board transaction (intent, move, confirm), so the offers cannot sit inside this raw write lock; their ids are minted from the items, so a retried offer reuses its job [B2,P7].
+    const queue = queueFor(board, 'coordinator', { file: ctx.file });
+    // A sprint item waits while the newest finished main-wide test is red and its items are not yet pulled out; steady items are offered as before [V2,M1,#12502].
+    let mainRed;
+    const sprintHold = item => forced || itemPace(item) !== 'sprint' ? null : (mainRed === undefined ? (mainRed = sprintMainRed(board, queue)) : mainRed);
     const unverified = forced || !candidates.length ? [] : unverifiedSubmissions(board);
     // landing.pauseOnRed: a red publish holds the items touching its files, and every item when it names none or no item is left [C7,V4].
     const publishHold = forced ? null : requirePublishGreen(root, board, policy.config, { gateRuns }, { perItem: true });
     const chosen = candidates.filter(item => {
+      const redMain = sprintHold(item);
+      if (redMain && ids) throw new Refused('MAIN_RED', `#${item.item_id} waits: MAIN_RED on ${redMain.job}, red until ${redMain.pending.map(id => `#${id}`).join(' ')} ${redMain.pending.length > 1 ? 'are' : 'is'} pulled out`, 'land it after the pull-out records pulled, or go around with --forced "<why>"');
+      if (redMain) { ctx.io.say?.(`#${item.item_id} waits: MAIN_RED on ${redMain.job}, until ${redMain.pending.map(id => `#${id}`).join(' ')} ${redMain.pending.length > 1 ? 'are' : 'is'} pulled out`); return false; }
       if (publishHold && publishRedTouched(publishHold.files, landingChangedFiles(root, trunkTip, commitOf(item))).length) return false;
       const stacked = stackedUnverified(root, trunkTip, unverified, item, commitOf(item));
       if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
@@ -350,8 +394,6 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     for (const entry of items) publishItemRef(root, remote, entry);
     const listed = tryGit(root, ['ls-remote', '--', remote, trunkRef(root)]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    // runs_store on: queueRun makes its own board transaction (intent, move, confirm), so the offers cannot sit inside this raw write lock; their ids are minted from the items, so a retried offer reuses its job [B2,P7].
-    const queue = queueFor(board, 'coordinator', { file: ctx.file });
     // Every git read and machine-settings read the offer needs happens here, before the lock: they depend only on root, trunkTip, policy and the chosen items, and under the lock they held every other board write for 30 s+ [C7,#11105].
     const trunk = trunkRef(root);
     // line.collisionFreeBatch: items changing the same file wait for the next batch; the files are read here, before the lock [C7,S8,#11105].

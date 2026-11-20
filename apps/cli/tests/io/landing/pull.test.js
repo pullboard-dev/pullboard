@@ -1,4 +1,5 @@
 /** landingOfferBatches cuts one offer's free items into jobs: sliced by size as before, or one job per item of the first parallel start group [C7,#9836]. */
+// fixture-subject: addItem
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -11,6 +12,8 @@ import { offerPulledLanding } from '../../../src/io/landing/pull.js';
 import { acceptOrderOf } from '../../../src/io/landing/pull.js';
 import { sweepDerivedState } from '../../../../../packages/health/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
+import { createJob } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
 import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js';
 import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
@@ -251,4 +254,59 @@ test('cli.landing-pull.payload-sprint-plan: clause 1: a landing offered for a sp
   assert.deepEqual(bare.testCommand, ['false']);
   const steady = await offerWithLog(t, { paces: { 1: 'steady', 2: 'steady' }, config });
   assert.equal(steady.jobs.some(job => 'sprint' in job), false);
+});
+
+/** A post-land main-wide test job on the board: one id per landed tip, offered carrying `items`; finished with a red or green receipt unless `receipt` is null. */
+function postLandJob(board, { tip, items, receipt, now }) {
+  const job = `post-land:${tip.repeat(40).slice(0, 40)}`;
+  createJob(board.db, { id: job, kind: 'test', candidate: tip.repeat(40).slice(0, 40), base: tip.repeat(40).slice(0, 40), now });
+  writeStep(board.db, job, 'offered', { needs: [], payload: { postLand: { job: 'land:fixture', items } } }, { now });
+  if (!receipt) return job;
+  const red = receipt === 'red';
+  writeStep(board.db, job, 'receipt', { runner: 'r-fixture', attempt: 1, receipt: { version: 1, status: red ? 1 : 0, outcome: receipt, gate: { green: !red, phases: [{ status: red ? 1 : 0, failures: [] }] } } }, { seq: 1, now });
+  board.db.prepare("UPDATE job SET job_step = 'done' WHERE job_id = ?").run(job);
+  return job;
+}
+
+/** A sprint item the red job reopened: item 3 on the board with its pull_out recorded, and its pulled event too when `pulled`. */
+function pullingItem(board, { pulled = false } = {}) {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'landed sprint work the red main reopened' });
+  store.atomic(board, () => store.logEvent(board, 'coordinator', 'pull_out', id, { commit: 'c'.repeat(40), mergedCommit: 'd'.repeat(40) }));
+  if (pulled) store.atomic(board, () => store.logEvent(board, 'coordinator', 'pulled', id, { commit: 'e'.repeat(40) }));
+  return id;
+}
+
+/** The ids the offer put into land jobs. */
+const offeredIds = jobs => jobs.flatMap(job => job.items.map(entry => entry.id)).sort();
+
+test('cli.landing.pull.sprint-holds-on-red-main: clause 1: while the newest finished post-land job is red with its item not yet pulled, the offer sends no sprint item and says MAIN_RED naming that job, a steady item goes as before, and a pending job never holds [C7,V2,M1,#12502]', async t => {
+  let red;
+  const held = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    const id = pullingItem(board);
+    red = postLandJob(board, { tip: 'a', items: [id], receipt: 'red', now: 10 });
+  } });
+  assert.deepEqual(offeredIds(held.jobs), [2], 'only the steady item is offered');
+  assert.ok(held.said.some(line => line.startsWith('#1 waits: MAIN_RED on ' + red)), `the offer names the red job: ${held.said.join(' | ')}`);
+  // A newer pending job is ignored: the last finished result still holds.
+  const pending = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    const id = pullingItem(board);
+    postLandJob(board, { tip: 'a', items: [id], receipt: 'red', now: 10 });
+    postLandJob(board, { tip: 'b', items: [], receipt: null, now: 20 });
+  } });
+  assert.deepEqual(offeredIds(pending.jobs), [2], 'a pending newer job leaves the red one in force');
+  // A board whose only post-land job is pending holds nothing.
+  const only = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'sprint' }, before: ({ board }) => { postLandJob(board, { tip: 'b', items: [], receipt: null, now: 20 }); } });
+  assert.deepEqual(offeredIds(only.jobs), [1, 2], 'a pending or stuck job never holds sprint');
+});
+
+test('cli.landing.pull.sprint-resumes-after-green-or-pulled: clause 1: once the red job items are each pulled, or a later finished post-land job is green, the next offer sends the sprint item [C7,V2,M1,#12502]', async t => {
+  const pulled = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    postLandJob(board, { tip: 'a', items: [pullingItem(board, { pulled: true })], receipt: 'red', now: 10 });
+  } });
+  assert.deepEqual(offeredIds(pulled.jobs), [1, 2], 'a pulled red job holds nothing');
+  const green = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    postLandJob(board, { tip: 'a', items: [pullingItem(board)], receipt: 'red', now: 10 });
+    postLandJob(board, { tip: 'b', items: [], receipt: 'green', now: 20 });
+  } });
+  assert.deepEqual(offeredIds(green.jobs), [1, 2], 'a later finished green job lifts the hold');
 });
