@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard } from '../../../../lib/index.js';
+import { openBoard } from '../../../../../packages/board/index.js';
 import { docsRepository } from '../../fixtures/generated/docs.js';
 import { generatedDocs } from '../../../src/io/generated/docs.js';
 
