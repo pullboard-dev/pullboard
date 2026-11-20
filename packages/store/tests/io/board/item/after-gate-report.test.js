@@ -63,7 +63,7 @@ function timed(t) {
   cellSeat(board, { lane: "coordinator", path: "/repo" });
   const seat = (name, lane, route) => cellSeat(board, { lane, path: `/${name}`, family: `${name} Vendor`, route });
   const seats = { builder: seat("builder", "core", "mid"), first: seat("first", "core", "mid"), second: seat("second", "core", "mid"), third: seat("third", "core", "mid"), reviewer: seat("reviewer", "review", "strong") };
-  const item = title => cellItem(board, { lane: "core", title, criterion: `1. ${CLAUSE} [test]`, route: "mid", check: "true", brief: "Files: src/a.js\nTest: proves it" }).item_id;
+  const item = title => cellItem(board, { lane: "core", title, criterion: CLAUSE, route: "mid", check: "true", brief: "Files: src/a.js\nTest: proves it" }).item_id;
   const claim = (id, seat) => store.claim(board, id, { agentId: seat.id, lane: "core", leaseMs: 7_200_000, freeze: row => ({ text: JSON.stringify({ criterion: row.item_criterion, policy: POLICY }), digest: `digest:${id}` }) });
   const submitted = title => {
     const id = item(title);
