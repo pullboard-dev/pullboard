@@ -113,3 +113,16 @@ test('cli.io-commands-add.strict-baseline-off: clause 1: with claim.checkCeiling
   const baseline = baselineOf(box, JSON.parse(added.out).item.item_id);
   assert.equal('strict' in baseline, false);
 });
+
+test('cli.add.needs-flag: clause 1: add --needs browser,gui stores both and show --json reports item_needs, and add --needs gpu is refused USAGE naming browser and gui [C7,#11206]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Needs both', '--specs', 'G1', '--needs', 'browser,gui', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const shown = await box.inProcess(box.repo, 'show', id, '--json');
+  assert.deepEqual(JSON.parse(shown.out).item.item_needs, ['browser', 'gui']);
+  const refused = await box.inProcess(box.repo, 'add', 'web', 'Needs a gpu', '--specs', 'G1', '--needs', 'gpu', '--json');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.err + refused.out, /USAGE/u);
+  assert.match(refused.err + refused.out, /browser and gui/u);
+});
