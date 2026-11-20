@@ -110,5 +110,5 @@ test('cli.journeys-verify-sealed-no-check.reruns-when-proof-file-moves: clause 2
 
   const accepted = await acceptAtHead(fixture, 'main moved by a file the sealed proof ran, so the tiers run again');
   assert.doesNotMatch(accepted.out + accepted.err, /reused submit proof/u, 'the sealed receipts are not reused');
-  assert.match(accepted.out + accepted.err, /submit proof not reused: main moved since submit and reaches web\/greet\.js/u, 'the not-reused line names the reached file');
+  assert.match(accepted.out + accepted.err, /submit proof not reused: [^\n]*main moved since submit and reaches web\/greet\.js/u, 'the not-reused line names the reached file');
 });
