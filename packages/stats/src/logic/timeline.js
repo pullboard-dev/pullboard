@@ -179,6 +179,83 @@ export function timelineOf({ events = [], jobs = [], steps = [], now, item: give
   });
   for (const part of parts) if (!ACTIVE.has(part.bucket) && (!longest || part.ms > longest.ms)) longest = { from: part.from, to: part.to, ms: part.ms, fromStage: part.fromStage, toStage: part.toStage, reason: part.reason ?? part.bucket };
   const total = last ? (end ?? last.at) - rows[0].at : 0;
-  const summary = { total_ms: total, buckets, waits, unaccounted_ms: unaccounted, unaccounted_share: total ? unaccounted / total : 0, unaccounted: unaccountedStretches, longest_gap: longest, open_until: end ?? null };
+  const summary = { total_ms: total, gates: jobs.filter(job => job.kind === 'gate').length, buckets, waits, unaccounted_ms: unaccounted, unaccounted_share: total ? unaccounted / total : 0, unaccounted: unaccountedStretches, longest_gap: longest, open_until: end ?? null };
   return { rows, summary, unmapped: fromEvents.unmapped };
+}
+
+/** The ms two [from, to] ranges share. */
+function overlap(from, to, otherFrom, otherTo) { return Math.max(0, Math.min(to, otherTo) - Math.max(from, otherFrom)); }
+
+/** Stall ranges merged so none counts twice, as [from, to] pairs. */
+function stallRanges(fleetRows) {
+  const ranges = fleetRows.filter(entry => entry.kind === 'api_stall' && entry.ms > 0).map(entry => [msOf(entry.at) - entry.ms, msOf(entry.at)]).sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const range of ranges) {
+    if (merged.length && range[0] <= merged.at(-1)[1]) merged.at(-1)[1] = Math.max(merged.at(-1)[1], range[1]);
+    else merged.push([...range]);
+  }
+  return merged;
+}
+
+/** The ms of [from, to] that fall inside the stall ranges. */
+const stalledMs = (from, to, ranges) => ranges.reduce((sum, range) => sum + overlap(from, to, range[0], range[1]), 0);
+
+/** An item's id from a timeline entry. */
+const itemOf = entry => entry.item ?? entry.rows[0]?.item ?? null;
+
+/** The nearest-rank percentile of a sorted list. */
+const percentile = (sorted, share) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(share * sorted.length) - 1))];
+
+/**
+ * The fleet's time: per-stage median and p90, the share of all item-time by bucket and by wait reason (UNACCOUNTED included, the shares sum to 100),
+ * gates per landed item and the ten slowest items with their biggest gap.
+ *
+ * Why: one item's timeline says where its time went; the fleet answer says which stage to fix first.
+ * An api_stall fleet row that overlaps an unaccounted stretch labels the overlap API_BUSY and leaves the rest UNACCOUNTED.
+ * A gap whose stretch is more than half stalled is named API_BUSY.
+ *
+ * @param {{ item: number, rows: object[], summary: object }[]} timelines - timelineOf results, one per item.
+ * @param {{ kind: string, at: string|number, ms: number }[]} [fleetRows] - Fleet rows with no item, such as api_stall (at is when the stall ended, ms how long it lasted).
+ * @returns {object}
+ */
+export function fleetSummary(timelines, fleetRows = []) {
+  const stalls = stallRanges(fleetRows);
+  const durations = new Map();
+  const buckets = Object.fromEntries(TIMELINE_BUCKETS.map(name => [name, 0]));
+  const waits = Object.fromEntries(WAIT_REASONS.map(name => [name, 0]));
+  let unaccounted = 0, total = 0, gates = 0, landed = 0;
+  for (const { rows, summary } of timelines) {
+    rows.forEach((value, index) => {
+      if (index === rows.length - 1) return;
+      if (!durations.has(value.stage)) durations.set(value.stage, []);
+      durations.get(value.stage).push(rows[index + 1].at - value.at);
+    });
+    total += summary.total_ms;
+    gates += summary.gates ?? 0;
+    if (rows.some(value => value.stage === 'merged')) landed += 1;
+    for (const name of TIMELINE_BUCKETS) buckets[name] += summary.buckets[name];
+    for (const name of WAIT_REASONS) waits[name] += summary.waits[name];
+    for (const stretch of summary.unaccounted) {
+      const stalled = Math.min(stretch.ms, stalledMs(stretch.from, stretch.to, stalls));
+      waits.API_BUSY += stalled;
+      unaccounted += stretch.ms - stalled;
+    }
+  }
+  const percent = ms => (total ? (ms / total) * 100 : 0);
+  const stages = {};
+  for (const [stage, list] of [...durations].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const sorted = list.slice().sort((a, b) => a - b);
+    stages[stage] = { count: sorted.length, median_ms: percentile(sorted, 0.5), p90_ms: percentile(sorted, 0.9) };
+  }
+  const slowest = timelines.filter(entry => entry.summary.total_ms > 0).sort((a, b) => b.summary.total_ms - a.summary.total_ms || itemOf(a) - itemOf(b)).slice(0, 10).map(entry => {
+    const { summary } = entry;
+    const gap = summary.longest_gap;
+    const relabel = gap && gap.reason === UNACCOUNTED && stalledMs(gap.from, gap.to, stalls) * 2 > gap.ms;
+    return { item: itemOf(entry), total_ms: summary.total_ms, biggest_gap: gap ? { ...gap, reason: relabel ? 'API_BUSY' : gap.reason } : null };
+  });
+  return {
+    items: timelines.length, landed, total_ms: total, gates_per_landed: landed ? gates / landed : null, stages,
+    share: { buckets: Object.fromEntries(Object.entries(buckets).map(([name, ms]) => [name, percent(ms)])), waits: Object.fromEntries(Object.entries(waits).map(([name, ms]) => [name, percent(ms)])), [UNACCOUNTED]: percent(unaccounted) },
+    unaccounted_ms: unaccounted, slowest,
+  };
 }
