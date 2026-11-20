@@ -48,7 +48,7 @@ const receiveCommits = async (...args) => (await import('./submit/pushed.js')).r
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
   const { openBoard, openBoardForRead } = io.nativeBoard;
-  return { moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
+  return { moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, githubKeys: io.githubKeys, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
 }
 
 /** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */
@@ -73,7 +73,7 @@ export function personCommandContext(io, { main, ordered } = {}) {
     withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord,
     remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure,
     decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher,
-    relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground,
+    relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, githubKeys: io.githubKeys,
     scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck,
     checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts,
     outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox,
