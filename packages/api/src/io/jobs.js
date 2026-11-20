@@ -33,11 +33,24 @@ import { noteLease } from '../../../jobs/index.js';
 import { noteLapse } from '../../../jobs/index.js';
 import { noteClaimKey } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
+import { setWriteHold } from '../../../jobs/index.js';
+import { beginBoardWrite } from '../../../store/index.js';
+import { finishBoardWrite } from '../../../store/index.js';
+import { prepareBoardWriteMarker } from '../../../store/index.js';
+import { discardBoardWriteMarker } from '../../../store/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
 import { freeGateHop } from './hop.js';
 
 export { SHARD_JOB_KIND };
+
+// A job write holds the board lock like any board write, so it is recorded in board-writes.jsonl and marked in the write-holders folder [C7].
+setWriteHold({
+  prepare: (db) => prepareBoardWriteMarker(db, { command: 'api-job' }),
+  begin: (db, marker) => beginBoardWrite(db, { command: 'api-job' }, marker),
+  finish: (record, outcome) => { record.releasedAt = performance.now(); finishBoardWrite(record, true, outcome); },
+  discard: discardBoardWriteMarker,
+});
 // Budget: a runner holds one gate shard per this many cores at a time, as a serve's default slots do (drive's CORES_PER_JOB), however many slots it was set to.
 const CORES_PER_SHARD = 3;
 // Budget: a test job (a builder run, a census job) weighs this many cores against its runner, and a runner holding no test job may always take one, as the builder floor of TEST_FLOOR_CORES.
@@ -896,7 +909,8 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
   const prefix = `${job}:shard:`;
   // queueRun makes its own board transaction, so with runs_store on the offers do not sit inside a runs transaction.
   const ids = (queue ? work => work() : work => atomically(db, work))(() => {
-    const prior = jobs.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ?').all(SHARD_JOB_KIND, prefix.length, prefix);
+    // A key range on job_id (the primary key) up to prefix + U+FFFF; +job_kind keeps the planner off job_kind_created [C7,#12095].
+    const prior = jobs.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ?').all(SHARD_JOB_KIND, prefix, `${prefix}\uFFFF`);
     endJobs(jobs, prior.filter(row => row.job_candidate !== merged && row.job_step !== 'done').map(row => row.job_id), { reason: 'the land job proved another merged commit', now });
     return buckets.map(({ files: part, timing }, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
@@ -922,7 +936,7 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
 export function withdrawLandShards(db, job, { now = Date.now() } = {}) {
   if (db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(job)?.job_kind !== 'land') return [];
   const prefix = `${job}:shard:`;
-  const open = db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? AND job_step <> 'done'").all(SHARD_JOB_KIND, prefix.length, prefix).map(row => row.job_id);
+  const open = db.prepare("SELECT job_id FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? AND job_step <> 'done'").all(SHARD_JOB_KIND, prefix, `${prefix}\uFFFF`).map(row => row.job_id);
   return endJobs(db, open, { reason: 'the land job it served ended', now });
 }
 

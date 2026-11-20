@@ -1,5 +1,4 @@
 /** A member's new device gets its board key from an online member device, vouched by an SSH key on GitHub [E17]. */
-import { environmentAdapter } from '../../../../env/index.js';
 import { createDeviceKeys } from '../../../../keys/index.js';
 import { unwrapDeviceBoardKey } from '../../../../keys/index.js';
 import { wrapDeviceBoardKey } from '../../../../keys/index.js';
@@ -104,22 +103,6 @@ export async function handOverBoardKeys(state, key, { send, githubKeys, root, id
   }
 }
 
-/** The public SSH keys on a GitHub account, read from GitHub itself so the relay cannot add one. */
-export async function githubKeys(login) {
-  const base = new URL(environmentAdapter().get('PULLBOARD_GITHUB_API') || 'https://api.github.com');
-  if (base.protocol !== 'https:' && !(base.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname))) {
-    throw new Refused('GITHUB_UNAVAILABLE', 'PULLBOARD_GITHUB_API must be an HTTPS address, or loopback HTTP for tests');
-  }
-  let keys;
-  try {
-    const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),
-      { headers: { accept: 'application/vnd.github+json' }, redirect: 'error', signal: AbortSignal.timeout(10_000) }); // budget: one GitHub read, the same ceiling as a relay request.
-    if (!response.ok) throw new Error(String(response.status));
-    keys = await response.json();
-  } catch { throw new Refused('GITHUB_UNAVAILABLE', `could not read ${login}'s SSH keys from GitHub; the key request waits for the next command`); }
-  return (Array.isArray(keys) ? keys : []).map(entry => entry?.key).filter(key => typeof key === 'string' && /^(?:ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com) [A-Za-z0-9+/=]+$/u.test(key));
-}
-
 /** Hand this board's key to member devices that asked; a failure here never fails the command that noticed [E17]. */
 export async function handOverKeys(root, state, key, send, io) {
   delete io.keyRequestsWaiting;
@@ -131,6 +114,6 @@ export async function handOverKeys(root, state, key, send, io) {
       try { identity = { body, signature: signSshVouch(JSON.stringify(['pullboard-person-identity', body]), 'pullboard-person-identity') }; }
       catch (error) { if (!(error instanceof Refused)) throw error; }
     }
-    await handOverBoardKeys(state, key, { send, githubKeys, root, identity }, io);
+    await handOverBoardKeys(state, key, { send, githubKeys: io.githubKeys, root, identity }, io);
   } catch (error) { if (!(error instanceof Refused)) throw error; io.err(`pullboard: a new device's key request waits: ${error.message}`); }
 }

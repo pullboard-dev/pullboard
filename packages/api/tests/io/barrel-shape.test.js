@@ -81,6 +81,7 @@ const BEFORE = [
   'provideMainRedNotes',
   'provideMainTestRecorder',
   'providePostLandMainTest',
+  'providePostLandPullOut',
   'provideRefusalTrials',
   'provideScreenStart',
   'provideTimingExcuse',
@@ -102,6 +103,7 @@ const BEFORE = [
   'shardJobs',
   'shardedResult',
   'sprintLandable',
+  'trialClaims',
   'withLandingPermit',
   'withdrawLandShards',
 ];

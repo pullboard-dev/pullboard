@@ -24,9 +24,6 @@ import { rejectionReturnEnabled } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
-import { mainRedReviewItems } from '../../../landing/index.js';
-import { computedReturnArgs } from '../../../landing/index.js';
-import { mainRedReworkItems } from '../../../landing/index.js';
 import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
@@ -40,6 +37,7 @@ import { nextReturnedFirst } from '../../../config/index.js';
 import { nextCapBuilders } from '../../../config/index.js';
 import { nextLightShapedStrong } from '../../../config/index.js';
 import { nextRouteByTier } from '../../../config/index.js';
+import { routeReservations } from '../../../config/index.js';
 import { tierOmissions } from './tier-routing.js';
 import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
@@ -59,6 +57,16 @@ const PASSED_OVER = new Set([...UNBUILDABLE, 'CROSS_OWNERSHIP']);
 
 /** The health cell loads only when a fresh claim shouts a stuck review cover [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
+
+/** The landing barrel, loaded on the first main-red or return helper call and kept for the process [C7]. */
+let landingBarrel = null;
+const landing = () => landingBarrel ??= requireModule('../../../landing/index.js');
+/** Main-red review items of the landing cell. */
+function mainRedReviewItems(...args) { return landing().mainRedReviewItems(...args); }
+/** Main-red rework items of the landing cell. */
+function mainRedReworkItems(...args) { return landing().mainRedReworkItems(...args); }
+/** The arguments a computed return reopens with. */
+function computedReturnArgs(...args) { return landing().computedReturnArgs(...args); }
 
 /**
  * The command line functions one next loop calls: board access, the seat lookup, the claim and item-folder helpers.
@@ -502,13 +510,15 @@ function nextPick(ctx, board, values, ports) {
     rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
   // next.routeByTier (off by default): items routed to another tier are left out of this seat's pick [C7,#8800].
   const tierLeftOut = nextRouteByTier() ? tierOmissions(ctx.config, board, items, me) : [];
+  // An item another seat's gate job holds (offered or claimed at any head) or that waits on review is in flight: next never hands it out again [C7,#12128].
+  const inFlight = items.filter(item => item.item_owner !== me.id && item.item_status === 'claimed' && awaitingGateOrReview(board, item)).map(item => item.item_id);
   // A port may hand next a derived gate-at-head reader; with none, or null, the options are exactly as before [C7,#8945].
   const derivedGate = ports.derivedGateAtHead?.(ctx.info.root, board) ?? null;
   const selection = { ...(laneOff ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}), buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(derivedGate ? { derivedGateAtHead: derivedGate } : {}), ...(derivedSeatFamily ? { derivedSeatFamily } : {}), ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...composeLandingOf(ctx), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut, ...inFlight], observeIdle: values.observeIdle,
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(derivedGate ? { derivedGateAtHead: derivedGate } : {}), ...(derivedSeatFamily ? { derivedSeatFamily } : {}), ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(routeReservations() ? { reservations: true } : {}), ...composeLandingOf(ctx), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const labelled = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Returned work leads only when no label bound already chose another item, so the two settings never fight over the top [C7,#11255].

@@ -10,10 +10,10 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { acceptedInventoryKey } from '../../../../../../packages/codemap/index.js';
-import { acceptedCellsIdentity } from '../../../../../../packages/gate/index.js';
-import { readAcceptedCells } from '../../../../../../packages/gate/index.js';
+import { acceptedCellsIdentity } from '../../../../../../packages/gate/heavy.js';
+import { readAcceptedCells } from '../../../../../../packages/gate/heavy.js';
 import { machineHome } from '../../../../../../packages/resources/index.js';
-import { warmAcceptedCells } from '../../../../../../packages/gate/index.js';
+import { warmAcceptedCells } from '../../../../../../packages/gate/heavy.js';
 import { withMainCheckout } from '../../../../../../packages/landing/index.js';
 import { withFileLock } from '../../../../../../packages/outbox/index.js';
 

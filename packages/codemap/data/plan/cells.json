@@ -2098,6 +2098,14 @@
         "packages/commits/src/logic/change/row/plan.js",
         "rule"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/gate-resource.test.js",
+        "packages/gate/tests/io/main/resource.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2579,7 +2587,6 @@
     "moves->activity",
     "moves->items",
     "moves->seats",
-    "moves->landing",
     "moves->roadmap",
     "moves->config",
     "moves->link",

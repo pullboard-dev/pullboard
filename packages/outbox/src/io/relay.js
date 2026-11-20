@@ -229,6 +229,8 @@ export const ITEM_SLOTS = Object.freeze({
   // Request and acted-on event IDs are native event identities, never item references.
   answerTypedRequests: [],
   recordPublishFinding: [[0, 'item']],
+  // A block names its member items in `ids`; a block claim names the block, and its members come from the stored record.
+  addBlock: [[0, 'ids', '*']], claimBlock: [],
   register: [], ensureCoordinator: [], shout: [], passDecision: [], holdLane: [], releaseLane: [],
   moveMilestone: [], editMilestone: [], removeMilestone: [], shipMilestone: [],
   recordRowDecisions: [], decideSpecRevisions: [], applyRowDecisions: [], draftSpecRow: [], recordSpecApprovalBaseline: [],

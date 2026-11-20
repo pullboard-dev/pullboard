@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { guiRunning } from '../../../src/io/runner/service.js';
 import { runService } from '../../../src/io/runner/service.js';
 import { runnerCommand } from '../../../src/io/commands/runner.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
@@ -93,4 +94,27 @@ test('cli.io-runner-service.command-passes-the-job-worker-factor: clause 2: pull
     assert.equal(seen.length, 1);
     assert.equal(seen[0].jobWorkerFactor, want, JSON.stringify(document));
   }
+});
+
+test('cli.io-runner-service.peer-port-on: clause 1: runService with machine setting runners.oneServePerHost on passes serve a peer { session, guiRunning }, session being gui when env PULLBOARD_RUNNER_SESSION is gui and daemon otherwise, and with the setting off the serve call carries no peer key [C7,P7]', async t => {
+  for (const [session, want] of [['gui', 'gui'], [undefined, 'daemon'], ['other', 'daemon']]) {
+    const env = { PULLBOARD_RUNNER_JOBS: '10', ...(session ? { PULLBOARD_RUNNER_SESSION: session } : {}) };
+    const { options } = await withSettings(t, { 'runners.oneServePerHost': true }, () => entry(t, { port: async () => null, answer: { jobs: [] }, env }));
+    assert.equal(options.peer.session, want, String(session));
+    assert.equal(typeof options.peer.guiRunning, 'function');
+  }
+  for (const document of [{ 'runners.oneServePerHost': false }, {}, undefined]) {
+    const { options } = await withSettings(t, document, () => entry(t, { port: async () => null, answer: { jobs: [] } }));
+    assert.equal(Object.hasOwn(options, 'peer'), false, JSON.stringify(document));
+  }
+});
+
+test('cli.io-runner-service.gui-running-probe: clause 2: guiRunning, given an injected exec, returns true only when launchctl print gui/<uid>/dev.pullboard.runner-serve exits 0 and prints state = running, and returns false on a nonzero exit or a thrown error [C7,P7]', () => {
+  const asked = [];
+  const exec = reply => (file, args) => { asked.push([file, ...args]); if (reply instanceof Error) throw reply; return reply; };
+  assert.equal(guiRunning({ uid: 501, exec: exec({ status: 0, stdout: '\tstate = running\n' }) }), true);
+  assert.deepEqual(asked[0], ['launchctl', 'print', 'gui/501/dev.pullboard.runner-serve']);
+  assert.equal(guiRunning({ uid: 501, exec: exec({ status: 0, stdout: '\tstate = waiting\n' }) }), false);
+  assert.equal(guiRunning({ uid: 501, exec: exec({ status: 113, stdout: 'state = running' }) }), false);
+  assert.equal(guiRunning({ uid: 501, exec: exec(new Error('spawn launchctl ENOENT')) }), false);
 });

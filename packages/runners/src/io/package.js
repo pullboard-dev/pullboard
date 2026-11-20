@@ -1,9 +1,6 @@
 import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
-import { existsSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import {
   dirname,
   join,
@@ -21,6 +18,9 @@ import { parseWithPaths } from './module/parser.js';
 import { commonJsWithCompiler as commonJsIn } from '../../../kernel/index.js';
 import { importsWithCompiler as importsIn } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Files an export writes at run time; a URL to one names no shipped source. */
 const RUNTIME_ONLY = new Set([TOOLING_MANIFEST_NAME]);
@@ -73,15 +73,15 @@ function dependency(file, specifier, manifest) {
 
 /** True for a path under root that is a folder; such a runtime URL is a location, not a module in the closure. */
 function isFolder(root, target) {
-  try { return statSync(join(root, target)).isDirectory(); } catch { return false; }
+  try { return fs.stat(join(root, target)).isDirectory(); } catch { return false; }
 }
 
 export { LEGACY_WORKER_ENTRY, WORKER_ENTRY };
 
 /** The worker entry of this tree: the legacy path while it exists (0.9.3 layout), else the cell path. */
 export function workerEntry(root) {
-  if (existsSync(join(root, 'src/runner-worker.js'))) return 'src/runner-worker.js';
-  return existsSync(join(root, LEGACY_WORKER_ENTRY)) ? LEGACY_WORKER_ENTRY : WORKER_ENTRY;
+  if (fs.exists(join(root, 'src/runner-worker.js'))) return 'src/runner-worker.js';
+  return fs.exists(join(root, LEGACY_WORKER_ENTRY)) ? LEGACY_WORKER_ENTRY : WORKER_ENTRY;
 }
 
 /** Reuse only successful exact-source analysis inside this reader; every read validates fresh paths and bytes. */
@@ -112,7 +112,7 @@ function derivePackage(root, entry, previous, parse, step) {
   try {
     step('list the package files');
     allowed = new Set(packageFiles(root));
-    manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    manifest = JSON.parse(fs.readFile(join(root, 'package.json'), 'utf8'));
   } catch (error) { unavailable('package.json', error.message); }
   const files = {};
   const analyses = new Map();
@@ -124,7 +124,7 @@ function derivePackage(root, entry, previous, parse, step) {
     step(`read ${level.length} closure files from ${level[0]}`);
     for (const file of level) {
       if (!allowed.has(file)) unavailable(file, 'the import closure leaves package.json files');
-      files[file] = readFileSync(join(root, file), 'utf8');
+      files[file] = fs.readFile(join(root, file), 'utf8');
       const count = Object.keys(files).length;
       if (count > 4096) unavailable(file, 'the import closure exceeds its file-count bound');
     }
@@ -177,7 +177,7 @@ export function controllerPolicyFingerprints(root) {
   const previous = lastPolicyAnalysis?.root === absoluteRoot ? lastPolicyAnalysis.analyses : new Map();
   const analyses = new Map();
   const allowed = new Set(packageFiles(root));
-  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFile(join(root, 'package.json'), 'utf8'));
   const fingerprints = new Map();
   const parser = createRunnerModuleParser();
   let bytes = 0;
@@ -188,7 +188,7 @@ export function controllerPolicyFingerprints(root) {
       pending = [];
       for (const file of level) {
         if (!allowed.has(file)) unavailable(file, 'the gate policy import leaves package.json files');
-        const source = readFileSync(join(root, file));
+        const source = fs.readFile(join(root, file), null);
         bytes += source.length;
         // This is a bounded local fingerprint, independent of the unchanged 1 MiB worker capsule ceiling.
         if (fingerprints.size >= 4096 || bytes > 16 * 1024 ** 2) unavailable(file, 'the local policy fingerprint exceeds its source bound');

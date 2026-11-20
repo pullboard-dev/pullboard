@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { readGateReceipt } from '../../../packages/gate/index.js';
+import { readGateReceipt } from '../../../packages/gate/heavy.js';
 import { eventRows } from './events.js';
 
 /** Return an explicit sample summary, preserving a missing population as null. */
