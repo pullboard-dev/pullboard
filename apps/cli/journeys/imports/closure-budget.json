@@ -11,5 +11,6 @@
   "hook post-commit": 1,
   "claim 1": 1050,
   "release 1 --reason OTHER --note x": 1052,
-  "add web Measure-again --criterion x": 1574
+  "add web Measure-again --criterion x": 1574,
+  "verify 1 accept --note x": 1688
 }
