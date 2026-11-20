@@ -1,4 +1,5 @@
-/** The runner's Sprint proof ports run the commands a land job carries on a temp trunk [C7,#12228]. @pullboard-test-input source-cell landing */
+/** @pullboard-test-input source-cell landing */
+/** The runner's Sprint proof ports run the commands a land job carries on a temp trunk [C7,#12228]. */
 import assert from 'node:assert/strict';
 import { existsSync } from "node:fs";
 import { readdirSync } from "node:fs";
