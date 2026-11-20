@@ -97,6 +97,7 @@ const BEFORE = [
   'shardClaimCap',
   'shardJobs',
   'shardedResult',
+  'sprintLandable',
   'withLandingPermit',
   'withdrawLandShards',
 ];
