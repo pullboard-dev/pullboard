@@ -7,10 +7,6 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  mkdirSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
 } from 'node:path';
 import {
@@ -44,6 +40,8 @@ import {
   Refused,
 } from '../../../kernel/index.js';
 import { storeName } from './store-names.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Bind a release to the accepted coordinator head and accepted command, with no dirty-tree substitute. */
 export function releaseSource(root) {
@@ -103,13 +101,13 @@ export async function runReleaseGate(root, { agent = 'release', onWait, executio
   }
   const coordinator = checkCoordinatorRelease(root, { personOverride });
   // Only this execution path writes native release custody. The structural reader has no writer.
-  mkdirSync(releaseReceiptDirectory(root), { recursive: true, mode: 0o700 });
+  fs.mkdir(releaseReceiptDirectory(root), { recursive: true, mode: 0o700 });
   const file = releaseReceiptFile(root, request.id);
   const body = releaseReceiptBody(envelope, expected);
-  writeFileSync(file, body, { flag: 'wx', mode: 0o600 });
+  fs.writeFile(file, body, { flag: 'wx', mode: 0o600 });
   recordCoordinatorRelease(root, request.id, source.head, coordinator);
   // This private execution path has now checked the actual full receipt, source and all executor custody.
-  writeFileSync(gitPath(root, 'pullboard-gate-green'), `${source.tree}\n`);
+  fs.writeFile(gitPath(root, 'pullboard-gate-green'), `${source.tree}\n`);
   return { receipt: releaseReceiptFields(envelope, expected), file, timing,
     seconds: timing?.seconds ?? Math.ceil((Date.now() - Date.parse(startedAt)) / 1000), overBudget: timing?.status === 'OVER_BUDGET', gateLog: run.log, profilePath: run.profilePath };
 }

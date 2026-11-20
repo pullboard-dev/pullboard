@@ -5,6 +5,7 @@ export function rowDecisionReplacement(source, decision, text) {
     .replace(/(\]\s+)([^|]*)(?=\s*\||$)/u, (_, prefix, old) => `${prefix}${text}${old.match(/\s+$/u)?.[0] ?? ''}`);
 }
 
+/** List the blocks only the person can clear, each with its plain reason and step, newest first. */
 export function personNeeds(state) {
   /** Keep visible agent names identical to the page without depending on its runtime. */
   const name = (id) => {

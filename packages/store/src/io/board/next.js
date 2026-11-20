@@ -9,6 +9,8 @@ import {
 } from "../../logic/exit/rules/continuation.js";
 import { pendingSubmitHandoff } from "../submit/handoff/records.js";
 import { submitHandoff } from "../submit/handoff/records.js";
+import { afterGateIds } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
 import { firstRefusal } from "../../logic/board/item/lookup.js";
 import { builderFamilyOf } from "../../../../verify/index.js";
 import { familiesDiffer } from "../../../../verify/index.js";
@@ -17,6 +19,8 @@ import { seatFamily } from "../../../../verify/index.js";
 import { idleReason } from "../../../../seats/index.js";
 import { liveRouteProblem } from "../../../../seats/index.js";
 import { withLocalSeatPresence } from "../presence.js";
+import { missingNeeds } from "../../../../queue/light.js";
+import { agentAbilities } from "../needs.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { criticalPathEnabled } from "../../../../items/index.js";
 import { criticalPathOrder } from "../../../../items/index.js";
@@ -140,7 +144,7 @@ function composeLandingReview(board) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} options
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -183,17 +187,23 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  // An open item names the abilities it needs [U136,#1888]; a seat lacking one is never offered it. One read for the whole board, not one per item (#5329).
+  const abilities = new Set(agentAbilities(board, agentId));
+  const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item\\_needs:%' ESCAPE '\\'").all()
+    .map(row => [Number(row.meta_key.slice('item_needs:'.length)), JSON.parse(row.meta_value)]));
+  const lacksAbility = (entry) => entry.item_status === 'open' && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
     if (omitIds.includes(entry.item_id)) skip(entry, 'OMITTED');
     else if (!canTake(route, entry.item_route) || !routes.includes(entry.item_route)) skip(entry, 'ROUTE_FILTER');
+    else if (lacksAbility(entry)) skip(entry, 'NEEDS_ABILITY');
     else if (runnable && !entry.item_check) skip(entry, 'CHECK_REQUIRED');
     else if (verify && entry.item_built_by === agentId) skip(entry, 'SELF_VERIFY');
     else if (verify && skipIds.includes(entry.item_id)) skip(entry, 'SELF_SESSION_VERIFY');
   }
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check) && !lacksAbility(entry)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
       && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));
@@ -414,7 +424,9 @@ export function nextFor(board, options) {
     if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
+      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn'
+        // An after-gate parent that is submitted with a green gate at its head no longer holds its dependent back [C7,#11805].
+        && !(afterGateIds(board, entry.item_id).includes(before.item_id) && gateGreenParent(board, before.item_id)));
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { skip(entry, continuation.code); reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
@@ -513,6 +525,32 @@ function jobAtHead(entry, job) {
 }
 
 /**
+ * Name the item's newest gate job when it finished with its proof deferred and nothing settled it: its receipt says
+ * gate.deferred, not green, and the job has no note:shards.settled step. It carries no hand-off record, so the checks
+ * below never see it. Why: such an item showed GATE_WAITING to each new holder, a release reopened it, and next handed
+ * it out again; six items were each claimed 4-5 times in two hours (19 Nov) [C7]. A reopen or reject after the job
+ * ends the hold. A board with no job tables holds nothing.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @param {string | undefined} returned - the newest reopen or reject event time
+ * @returns {string | null}
+ */
+function deferredGateUnsettled(board, entry, returned) {
+  let row;
+  try {
+    row = board.db.prepare(`SELECT j.job_id AS id, j.job_candidate AS candidate, j.job_step AS step, j.job_updated AS at,
+      json_extract(r.job_step_payload, '$.receipt.gate.deferred') AS deferred, json_extract(r.job_step_payload, '$.receipt.gate.green') AS green,
+      EXISTS (SELECT 1 FROM job_step s WHERE s.job_step_job = j.job_id AND s.job_step_name = 'note:shards.settled') AS settled
+      FROM job j LEFT JOIN job_step r ON r.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name = 'receipt')
+      WHERE j.job_kind = 'gate' AND j.job_item = ? ORDER BY j.job_created DESC, j.rowid DESC LIMIT 1`).get(entry.item_id);
+  } catch { return null; }
+  if (!row || row.step !== 'done' || row.deferred !== 1 || row.green === 1 || row.settled) return null;
+  if (returned && returned > new Date(row.at).toISOString()) return null;
+  return `gate deferred at ${String(row.candidate ?? row.id).slice(0, 12)}, its proof unsettled`;
+}
+
+/**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running or green gate, or an infrastructure stop under the item's frozen bar, means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
@@ -525,10 +563,12 @@ function jobAtHead(entry, job) {
  * @returns {string | null}
  */
 export function gateAtHead(board, entry) {
-  const job = submitHandoff(board, entry.item_id);
-  if (!job || !jobAtHead(entry, job)) return null;
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
   const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
+  const deferred = deferredGateUnsettled(board, entry, returned);
+  if (deferred) return deferred;
+  const job = submitHandoff(board, entry.item_id);
+  if (!job || !jobAtHead(entry, job)) return null;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
   // An infrastructure stop covers the head only under the bar it was built for: a refreeze or edit since asks for a new build.
   const state = job.state === 'infrastructure' ? (INFRA_HELD.has(job.error?.code) && (job.digest ?? null) === (entry.item_frozen_digest ?? null) ? job.error.code : null)

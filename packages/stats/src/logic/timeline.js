@@ -29,8 +29,13 @@ export const TIMELINE_JOB_KINDS = Object.freeze({ gate: 'gate', 'gate-shard': 'g
 const ACTIVE = new Set(['building', 'testing', 'reviewing', 'landing']);
 const GATE_RUNNING_STEPS = new Set(['claimed', 'started', 'running']);
 const GATE_SETTLED_STEPS = new Set(['green', 'red', 'finished', 'ended', 'result', 'receipt']);
+/** The outcomes and classes a gate_settled event may carry; anything else is ignored so a damaged event cannot invent a reason [C7,#12316]. */
+const SETTLE_OUTCOMES = new Set(['green', 'red', 'stale', 'unknown']);
+const SETTLE_CLASSES = new Set(['item', 'main-red', 'stale-base', 'infra']);
+/** The wait reason for the stretch after a gate settles with the given class; every other class keeps the rework bucket. */
+const SETTLE_WAITS = { 'main-red': 'MAIN_RED', 'stale-base': 'STALE_BASE' };
 /** Event kinds that become one row each, as [stage, edge]. */
-const EVENT_STAGES = { add: ['filed', 'point'], claim: ['claimed', 'start'], release: ['released', 'point'], reopen: ['reopened', 'point'], reject: ['rejected', 'point'], submit: ['submitted', 'point'], reserve: ['reviewing', 'start'], accept: ['verdict', 'point'], pass: ['verdict', 'point'], merged: ['merged', 'point'], hold_item: ['held', 'start'], unhold_item: ['held', 'end'] };
+const EVENT_STAGES = { add: ['filed', 'point'], claim: ['claimed', 'start'], release: ['released', 'point'], reopen: ['reopened', 'point'], reject: ['rejected', 'point'], submit: ['submitted', 'point'], submit_offered: ['submitted', 'point'], reserve: ['reviewing', 'start'], accept: ['verdict', 'point'], pass: ['verdict', 'point'], merged: ['merged', 'point'], hold_item: ['held', 'start'], unhold_item: ['held', 'end'] };
 
 /** A JSON object from a detail or payload, or an empty one when it is damaged. */
 function objectOf(value) {
@@ -51,22 +56,41 @@ function row(at, item, stage, edge, actor, reason, ref) {
  * Why: an unmapped kind is reported, never dropped, so a new event kind shows up instead of hiding time.
  */
 function eventRows(events) {
-  const rows = [], unmapped = new Map();
-  let released = false;
+  const rows = [], unmapped = new Map(), settled = new Map();
+  let released = false, offered = false;
   for (const event of events) {
-    const detail = objectOf(event.detail), at = msOf(event.at), mapped = EVENT_STAGES[event.kind];
+    const detail = objectOf(event.detail), at = msOf(event.at);
+    // A mark event names its own stage and edge and the time it marks; a stage outside TIMELINE_STAGES adds no row [C7,#12234].
+    if (event.kind === 'mark') {
+      const marked = msOf(detail.at);
+      if (TIMELINE_STAGES.includes(detail.stage) && Number.isFinite(marked)) rows.push(row(marked, event.item, detail.stage, ['start', 'end', 'point'].includes(detail.edge) ? detail.edge : 'point', event.by, null, detail.ref ?? null));
+      continue;
+    }
+    // A gate_settled event adds no row: it names the outcome and class of the gate-settled row whose ref is its job [C7,#12316].
+    if (event.kind === 'gate_settled') {
+      if (detail.job != null) settled.set(detail.job, { outcome: SETTLE_OUTCOMES.has(detail.outcome) ? detail.outcome : null, class: SETTLE_CLASSES.has(detail.class) ? detail.class : null });
+      continue;
+    }
+    const mapped = EVENT_STAGES[event.kind];
     if (!mapped) { unmapped.set(event.kind, (unmapped.get(event.kind) ?? 0) + 1); continue; }
+    // The submit after a submit_offered is the same submission, so the one submitted row sits at the offer; a board from before the kind keeps its submit row.
+    if (event.kind === 'submit_offered') offered = true;
+    else if (event.kind === 'submit' && offered) { offered = false; continue; }
+    else if (['claim', 'release', 'reject', 'reopen'].includes(event.kind)) offered = false;
     let [stage, edge] = mapped;
     if (event.kind === 'claim' && released) stage = 're-claimed';
     if (['release', 'reject', 'reopen'].includes(event.kind)) released = true;
     const reason = event.kind === 'release' ? detail.reasonCode ?? null : event.kind === 'reject' ? detail.reason ?? null : event.kind === 'hold_item' ? 'HELD' : event.kind === 'accept' || event.kind === 'pass' ? event.kind : null;
-    rows.push(row(at, event.item, stage, edge, event.by, event.kind === 'unhold_item' ? 'HELD' : reason, detail.commit ?? null));
+    const mergedAt = event.kind === 'merged' && Number.isFinite(detail.mergedAt) && detail.mergedAt <= at ? detail.mergedAt : null;
+    // A merged event that carries the commit's own time places merged there and the board's record lag as its own recorded row; older events have none.
+    rows.push(row(mergedAt ?? at, event.item, stage, edge, event.by, event.kind === 'unhold_item' ? 'HELD' : reason, detail.commit ?? null));
+    if (mergedAt !== null && mergedAt < at) rows.push(row(at, event.item, 'recorded', 'point', event.by, null, detail.commit ?? null));
   }
-  return { rows, unmapped: [...unmapped].map(([kind, count]) => ({ kind, count })).sort((a, b) => a.kind.localeCompare(b.kind)) };
+  return { rows, settled, unmapped: [...unmapped].map(([kind, count]) => ({ kind, count })).sort((a, b) => a.kind.localeCompare(b.kind)) };
 }
 
 /** Gate and landing rows: created is queued, the first claim or run starts the work, the first result ends it. */
-function jobRows(item, jobs, steps) {
+function jobRows(item, jobs, steps, settled = new Map()) {
   const byJob = new Map();
   for (const step of steps) { if (!byJob.has(step.job)) byJob.set(step.job, []); byJob.get(step.job).push(step); }
   const rows = [];
@@ -81,7 +105,11 @@ function jobRows(item, jobs, steps) {
     const end = list.find(step => GATE_SETTLED_STEPS.has(step.name));
     if (end) {
       const payload = objectOf(end.payload), outcome = end.name === 'green' || end.name === 'red' ? end.name : payload.outcome ?? payload.state ?? null;
-      rows.push(row(end.at, item, gate ? 'gate-settled' : 'landing', 'end', null, gate ? outcome : null, job.id));
+      const event = gate ? settled.get(job.id) : undefined;
+      const settledRow = row(end.at, item, gate ? 'gate-settled' : 'landing', 'end', null, gate ? event?.outcome ?? outcome : null, job.id);
+      // The event's class rides on the row; a board from before the event reads class null and the step-derived reason as it did.
+      if (gate) settledRow.class = event?.class ?? null;
+      rows.push(settledRow);
     }
   }
   return rows;
@@ -97,12 +125,14 @@ const returned = outcome => outcome === 'red' || outcome === 'stale';
 function stretches(rows, end) {
   const out = [];
   const gate = { queued: new Set(), running: new Set() }, land = { queued: new Set(), running: new Set() };
-  let phase = 'open', rework = false, held = false, wait = null, outcome = null;
+  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null;
   const bucketNow = () => {
     if (held) return { reason: 'HELD' };
+    if (smoking) return { bucket: 'landing' };
     if (land.running.size) return { bucket: 'landing' };
     if (phase === 'merged') return { bucket: 'landing' };
     if (land.queued.size && phase !== 'building') return { bucket: 'waiting to land' };
+    if (settleWait && !gate.running.size && !gate.queued.size && (phase === 'submitted' || phase === 'open')) return { reason: settleWait };
     if (phase === 'building') return { bucket: rework ? 'rework' : 'building' };
     if (phase === 'submitted') {
       if (gate.running.size) return { bucket: 'testing' };
@@ -118,18 +148,20 @@ function stretches(rows, end) {
     const current = rows[index];
     const gateJob = current.stage.startsWith('gate-'), landJob = current.stage === 'land-queued' || (current.stage === 'landing' && current.ref);
     if (current.stage === 'filed') { phase = 'open'; }
-    else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; }
+    else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; settleWait = null; }
     else if (current.stage === 'released') { phase = 'open'; wait = current.reason === 'BLOCKED' ? 'DEPENDENCY' : null; }
     else if (current.stage === 'rejected' || current.stage === 'reopened') { phase = 'open'; rework = true; outcome = null; }
-    else if (current.stage === 'submitted') { phase = 'submitted'; rework = false; outcome = null; gate.queued.clear(); gate.running.clear(); }
+    else if (current.stage === 'submitted') { phase = 'submitted'; rework = false; outcome = null; settleWait = null; gate.queued.clear(); gate.running.clear(); }
     else if (current.stage === 'reviewing') phase = 'reviewing';
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
-    else if (current.stage === 'merged') phase = 'merged';
+    else if (current.stage === 'smoke') smoking = current.edge === 'start';
+    else if (current.stage === 'merged') phase = rows[index + 1]?.stage === 'recorded' ? 'recorded' : 'merged';
+    else if (current.stage === 'recorded') phase = 'recorded';
     if (gateJob) {
       if (current.stage === 'gate-queued') gate.queued.add(current.ref);
       else if (current.stage === 'gate-running') { gate.queued.delete(current.ref); gate.running.add(current.ref); }
-      else { gate.queued.delete(current.ref); gate.running.delete(current.ref); outcome = current.reason ?? 'green'; if (returned(outcome)) rework = true; }
+      else { gate.queued.delete(current.ref); gate.running.delete(current.ref); outcome = current.reason ?? 'green'; if (returned(outcome)) rework = true; settleWait = SETTLE_WAITS[current.class] ?? null; }
     } else if (landJob) {
       if (current.stage === 'land-queued') land.queued.add(current.ref);
       else if (current.edge === 'start') { land.queued.delete(current.ref); land.running.add(current.ref); }
@@ -156,7 +188,7 @@ export function timelineOf({ events = [], jobs = [], steps = [], now, item: give
   const item = events.find(event => event.item != null)?.item ?? given;
   const fromEvents = eventRows(events);
   const sourceOrder = new Map();
-  const all = [...fromEvents.rows, ...jobRows(item, jobs, steps)];
+  const all = [...fromEvents.rows, ...jobRows(item, jobs, steps, fromEvents.settled)];
   all.forEach((value, index) => sourceOrder.set(value, index));
   const rows = all.sort((a, b) => a.at - b.at || sourceOrder.get(a) - sourceOrder.get(b));
   rows.forEach((value, index) => { value.delta = index === 0 ? null : value.at - rows[index - 1].at; });
@@ -179,6 +211,83 @@ export function timelineOf({ events = [], jobs = [], steps = [], now, item: give
   });
   for (const part of parts) if (!ACTIVE.has(part.bucket) && (!longest || part.ms > longest.ms)) longest = { from: part.from, to: part.to, ms: part.ms, fromStage: part.fromStage, toStage: part.toStage, reason: part.reason ?? part.bucket };
   const total = last ? (end ?? last.at) - rows[0].at : 0;
-  const summary = { total_ms: total, buckets, waits, unaccounted_ms: unaccounted, unaccounted_share: total ? unaccounted / total : 0, unaccounted: unaccountedStretches, longest_gap: longest, open_until: end ?? null };
+  const summary = { total_ms: total, gates: jobs.filter(job => job.kind === 'gate').length, buckets, waits, unaccounted_ms: unaccounted, unaccounted_share: total ? unaccounted / total : 0, unaccounted: unaccountedStretches, longest_gap: longest, open_until: end ?? null };
   return { rows, summary, unmapped: fromEvents.unmapped };
+}
+
+/** The ms two [from, to] ranges share. */
+function overlap(from, to, otherFrom, otherTo) { return Math.max(0, Math.min(to, otherTo) - Math.max(from, otherFrom)); }
+
+/** Stall ranges merged so none counts twice, as [from, to] pairs. */
+function stallRanges(fleetRows) {
+  const ranges = fleetRows.filter(entry => entry.kind === 'api_stall' && entry.ms > 0).map(entry => [msOf(entry.at) - entry.ms, msOf(entry.at)]).sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const range of ranges) {
+    if (merged.length && range[0] <= merged.at(-1)[1]) merged.at(-1)[1] = Math.max(merged.at(-1)[1], range[1]);
+    else merged.push([...range]);
+  }
+  return merged;
+}
+
+/** The ms of [from, to] that fall inside the stall ranges. */
+const stalledMs = (from, to, ranges) => ranges.reduce((sum, range) => sum + overlap(from, to, range[0], range[1]), 0);
+
+/** An item's id from a timeline entry. */
+const itemOf = entry => entry.item ?? entry.rows[0]?.item ?? null;
+
+/** The nearest-rank percentile of a sorted list. */
+const percentile = (sorted, share) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(share * sorted.length) - 1))];
+
+/**
+ * The fleet's time: per-stage median and p90, the share of all item-time by bucket and by wait reason (UNACCOUNTED included, the shares sum to 100),
+ * gates per landed item and the ten slowest items with their biggest gap.
+ *
+ * Why: one item's timeline says where its time went; the fleet answer says which stage to fix first.
+ * An api_stall fleet row that overlaps an unaccounted stretch labels the overlap API_BUSY and leaves the rest UNACCOUNTED.
+ * A gap whose stretch is more than half stalled is named API_BUSY.
+ *
+ * @param {{ item: number, rows: object[], summary: object }[]} timelines - timelineOf results, one per item.
+ * @param {{ kind: string, at: string|number, ms: number }[]} [fleetRows] - Fleet rows with no item, such as api_stall (at is when the stall ended, ms how long it lasted).
+ * @returns {object}
+ */
+export function fleetSummary(timelines, fleetRows = []) {
+  const stalls = stallRanges(fleetRows);
+  const durations = new Map();
+  const buckets = Object.fromEntries(TIMELINE_BUCKETS.map(name => [name, 0]));
+  const waits = Object.fromEntries(WAIT_REASONS.map(name => [name, 0]));
+  let unaccounted = 0, total = 0, gates = 0, landed = 0;
+  for (const { rows, summary } of timelines) {
+    rows.forEach((value, index) => {
+      if (index === rows.length - 1) return;
+      if (!durations.has(value.stage)) durations.set(value.stage, []);
+      durations.get(value.stage).push(rows[index + 1].at - value.at);
+    });
+    total += summary.total_ms;
+    gates += summary.gates ?? 0;
+    if (rows.some(value => value.stage === 'merged')) landed += 1;
+    for (const name of TIMELINE_BUCKETS) buckets[name] += summary.buckets[name];
+    for (const name of WAIT_REASONS) waits[name] += summary.waits[name];
+    for (const stretch of summary.unaccounted) {
+      const stalled = Math.min(stretch.ms, stalledMs(stretch.from, stretch.to, stalls));
+      waits.API_BUSY += stalled;
+      unaccounted += stretch.ms - stalled;
+    }
+  }
+  const percent = ms => (total ? (ms / total) * 100 : 0);
+  const stages = {};
+  for (const [stage, list] of [...durations].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const sorted = list.slice().sort((a, b) => a - b);
+    stages[stage] = { count: sorted.length, median_ms: percentile(sorted, 0.5), p90_ms: percentile(sorted, 0.9) };
+  }
+  const slowest = timelines.filter(entry => entry.summary.total_ms > 0).sort((a, b) => b.summary.total_ms - a.summary.total_ms || itemOf(a) - itemOf(b)).slice(0, 10).map(entry => {
+    const { summary } = entry;
+    const gap = summary.longest_gap;
+    const relabel = gap && gap.reason === UNACCOUNTED && stalledMs(gap.from, gap.to, stalls) * 2 > gap.ms;
+    return { item: itemOf(entry), total_ms: summary.total_ms, biggest_gap: gap ? { ...gap, reason: relabel ? 'API_BUSY' : gap.reason } : null };
+  });
+  return {
+    items: timelines.length, landed, total_ms: total, gates_per_landed: landed ? gates / landed : null, stages,
+    share: { buckets: Object.fromEntries(Object.entries(buckets).map(([name, ms]) => [name, percent(ms)])), waits: Object.fromEntries(Object.entries(waits).map(([name, ms]) => [name, percent(ms)])), [UNACCOUNTED]: percent(unaccounted) },
+    unaccounted_ms: unaccounted, slowest,
+  };
 }

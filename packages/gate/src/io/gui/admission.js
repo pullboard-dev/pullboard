@@ -1,15 +1,17 @@
 /** Explicit test-file desktop requirements, independent of Chrome command-line flags [C7,V4]. */
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { explicitCheckFiles } from '../browser/admission.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { git } from '../../../../git/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
+const fs = fileSystemAdapter();
 
 /** Only an explicit file annotation requests a GUI; --headless does not establish this capability. */
 export function testsNeedGui(root, files) {
   return files.some(file => {
-    try { return headerNeedsGui(readFileSync(resolve(root, file), 'utf8')); }
+    try { return headerNeedsGui(fs.readFile(resolve(root, file), 'utf8')); }
     catch { return false; } // Missing files retain their normal execution failure; they cannot add an inferred capability.
   });
 }
@@ -31,9 +33,34 @@ function headerNeedsGui(source, tag = '@pullboard-test-gui') {
 /** The files whose leading comments carry a @pullboard-test-timing line: each needs an exclusive runner for its timing measurements; a missing file never counts [C7]. */
 export function timingTestFiles(root, files) {
   return files.filter(file => {
-    try { return headerNeedsGui(readFileSync(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
+    try { return headerNeedsGui(fs.readFile(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
     catch { return false; }
   });
+}
+
+/** The paths a test declares it reads, one per `@pullboard-test-reads <path>` line in its leading comments; later code never counts [C7]. */
+export function declaredReads(source) {
+  const paths = [];
+  let remaining = source.replace(/^#![^\n]*(?:\n|$)/u, '').trimStart();
+  while (remaining.startsWith('/*') || remaining.startsWith('//')) {
+    const block = remaining.startsWith('/*');
+    const end = block ? remaining.indexOf('*/', 2) : remaining.indexOf('\n');
+    if (block && end < 0) break;
+    const comment = remaining.slice(2, end < 0 ? remaining.length : end);
+    for (const match of comment.matchAll(/^[ \t]*\*?[ \t]*@pullboard-test-reads[ \t]+(\S+)[ \t]*\r?$/gmu)) paths.push(match[1]);
+    remaining = end < 0 ? '' : remaining.slice(end + (block ? 2 : 1)).trimStart();
+  }
+  return paths;
+}
+
+/** The declared reads of each given test file as a Map of file to paths; a missing file declares none [C7]. */
+export function readsDeclared(root, files) {
+  const reads = new Map();
+  for (const file of files) {
+    try { reads.set(file, declaredReads(fs.readFile(resolve(root, file), 'utf8'))); }
+    catch { reads.set(file, []); }
+  }
+  return reads;
 }
 
 /** Read the project's tracked Node test files when an opaque full gate supplies no explicit selection. */
@@ -75,7 +102,7 @@ function committedTestsNeedGui(root, entries, files) {
 }
 
 /** Classify an explicit check from its exact committed tree when supplied, otherwise its live checkout. */
-export async function checkNeedsGui(root, command, { commit, env = process.env } = {}) {
+export async function checkNeedsGui(root, command, { commit, env = environmentAdapter().all() } = {}) {
   const files = await explicitCheckFiles(root, command, { commit, env });
   if (commit !== undefined) {
     const entries = committedGuiFiles(root, commit);
