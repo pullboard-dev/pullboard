@@ -10,7 +10,7 @@ import {
   readGateReceipt,
   receiptStore,
   receiptBinds,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 import { checkTrainLandingReceipt } from '../../../../../../packages/landing/index.js';
 import { policyAt } from '../../../../../../packages/sandbox/index.js';
 import {

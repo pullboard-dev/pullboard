@@ -1,0 +1,11 @@
+{
+  "cli.io-worktree-maintenance-compaction.daily-archives-events-when-on": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "One daily compaction moves the events of an item verified over ARCHIVE_AFTER_DAYS ago to event_archive with board.archiveEvents on, and moves nothing with it off."
+    },
+    "why": "The event archiver was never run by any schedule, so the hot event table grew without bound.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/worktree/maintenance/compaction.js"]
+  }
+}

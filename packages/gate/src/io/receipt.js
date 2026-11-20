@@ -4,10 +4,7 @@
  * so `pullboard stats` can show a day of waits beside run times. Native proof runs add proofReceiptIds linking that
  * same timing receipt to their immutable gate receipts and board-stamped show chain. Measuring only; no slot behaviour lives here.
  */
-import { appendFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { repoInfo } from '../../../git/index.js';
@@ -15,6 +12,8 @@ import { runnerPhaseLine } from './timing.js';
 
 import { testTimeBudget } from '../logic/test/budget/time.js';
 import { testTimeBudgetLines } from '../logic/test/budget/time.js';
+
+const fs = fileSystemAdapter();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -111,16 +110,16 @@ export function receiptOf(tracker, { kind, slot, endAt = Date.now() }) {
 export function recordReceipt(root, receipt) {
   try {
     const file = receiptLog(root);
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-    appendFileSync(file, JSON.stringify(receipt) + '\n', { mode: 0o600 });
+    fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
+    fs.appendFile(file, JSON.stringify(receipt) + '\n', { mode: 0o600 });
   } catch { /* The receipt is diagnostic; the run's own verdict stands without it. */ }
 }
 
 /** The receipts of the last day, skipping any line that is not a whole receipt. */
 export function recentReceipts(root, now = Date.now()) {
   const file = receiptLog(root);
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').split('\n').flatMap((line) => {
+  if (!fs.exists(file)) return [];
+  return fs.readFile(file, 'utf8').split('\n').flatMap((line) => {
     try {
       const receipt = JSON.parse(line);
       return now - Date.parse(receipt.at) <= DAY_MS && Number.isFinite(receipt.waitMs) && Number.isFinite(receipt.runMs) ? [receipt] : [];
@@ -134,8 +133,8 @@ export function retainedReceipts(root, { from, to }) {
   const end = Date.parse(to);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
   const file = receiptLog(root);
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').split('\n').flatMap((line) => {
+  if (!fs.exists(file)) return [];
+  return fs.readFile(file, 'utf8').split('\n').flatMap((line) => {
     if (!line.trim()) return [];
     try {
       const receipt = JSON.parse(line);
@@ -195,7 +194,7 @@ export function receiptLine(receipt) {
 export function gateWaitStats(root, now = Date.now()) {
   const stats = receiptStats(recentReceipts(root, now));
   const file = receiptLog(root);
-  const receipts = !existsSync(file) ? [] : readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).map(line => {
+  const receipts = !fs.exists(file) ? [] : fs.readFile(file, 'utf8').split('\n').filter(line => line.trim()).map(line => {
     try { const row = JSON.parse(line); return row && typeof row.kind === 'string' ? row : { malformed: true }; }
     catch { return { malformed: true }; }
   });
