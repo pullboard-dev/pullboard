@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 import { submittedWithoutGate } from '../../../tests/fixtures/submitted-seam.js';
 
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
@@ -45,6 +46,7 @@ function choice(box, cwd, value) {
 test('cli.journeys-fact-board-schema-carry.a-stamped-pre-carry-board-upgrades: a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
   const T0 = Date.now();
   const box = e2e.project();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   console.log(`TIMING project ${Date.now() - T0} ms`);
   choice(box, box.repo, 'base');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');

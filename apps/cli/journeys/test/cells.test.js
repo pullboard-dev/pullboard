@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/gate/data/tests/test-cells.json packages/**tests/*.test.js */
 /** The test-cell check classifies every test as a cell test or a listed journey, ratchets its findings, and reports sealed cells [C7]. */
 import assert from 'node:assert/strict';
 import {

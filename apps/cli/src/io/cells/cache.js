@@ -16,7 +16,6 @@ import { cellGit as git } from '../../../../../packages/codemap/index.js';
 import { cellsCacheDirectory } from '../../../../../packages/codemap/index.js';
 import { publishCacheEntry } from '../../../../../packages/codemap/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { temporaryCellEdges } from '../../../../../packages/codemap/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -166,10 +165,10 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
     onMode(fallback ? 'candidate-full-fallback' : 'candidate-incremental', cause);
     return fallback ? cellInventory(checkout, parsers) : updateCellInventory(checkout, parsers, prior, changed);
   }
-  /** A completed main report shares its immutable source while expiring temporary authority is read now. */
+  /** A completed main report is served exactly as stored for its immutable source. */
   function report(checkout, commit) {
     if (!strict || !artifact?.available || git(checkout, ['rev-parse', `${commit}^{tree}`]).trim() !== artifact.descriptor.tree) return null;
-    return currentInventoryReport(artifact.report, artifact.inventory);
+    return artifact.report;
   }
   return { base, candidate, report };
 }
@@ -229,30 +228,6 @@ export function observationCache(root, key, eligible = () => false) {
 export function inventoryPending(message, commit) {
   return Object.assign(new Error(`accepted cells inventory is not ready: ${message}; the background main inventory producer must complete before retry`),
     { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, inventoryCommit: commit });
-}
-
-/** The temporary-edges file a finding key or problem line names, wherever the checker reads it from. */
-const TEMPORARY_FILE = /^((?:[\w.-]+\/)*temporary-edges\.json)(?:[:[]|$)/u;
-
-/** Refresh only date-dependent temporary edges; immutable source/report findings stay cached. */
-function currentInventoryReport(report, inventory) {
-  const temporary = temporaryCellEdges(inventory.files);
-  const metrics = Object.fromEntries(Object.entries(report.metrics).map(([name, value]) => [name, { ...value,
-    findings: value.findings.filter(row => name === 'shims' ? !row.key.startsWith('temporary:')
-      : name !== 'unknown' || !TEMPORARY_FILE.test(row.key)) }]));
-  const unknown = report.unknown.filter(row => !TEMPORARY_FILE.test(`${row.file}:`));
-  for (const row of temporary.edges) metrics.shims.findings.push({ key: `temporary:${row.importer}->${row.target}`, count: 1,
-    detail: `contract #${row.contractItem}; expires ${row.expires} UTC` });
-  for (const reason of temporary.problems) {
-    const file = reason.match(TEMPORARY_FILE)[1];
-    unknown.push({ file, reason });
-    metrics.unknown.findings.push({ key: `${file}::${reason}`, count: 1, detail: reason });
-  }
-  for (const value of Object.values(metrics)) {
-    value.findings.sort((a, b) => a.key.localeCompare(b.key));
-    value.count = value.findings.reduce((sum, row) => sum + row.count, 0);
-  }
-  return { ...report, metrics, unknown };
 }
 
 /** Verify one bounded streamed bundle against the exact descriptors bound by the native check command. */

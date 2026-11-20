@@ -1,0 +1,4 @@
+{
+  "cli.io-verify-merge-ticks.a-merge-of-main-only-keeps-the-cited-head": {"proves":{"specs":["C7"],"claim":"sameWorkHeads returns a cited head A when the submitted head is A plus a merge of main that left the item files and cited test files identical."},"why":"Without it a check-less accept refuses CLAUSE_UNTICKED for work a merge of main did not change.","kind":"cell unit","inputs":["apps/cli/src/io/verify/merge-ticks.js"]},
+  "cli.io-verify-merge-ticks.a-changed-file-or-no-ancestor-gives-none": {"proves":{"specs":["C7"],"claim":"sameWorkHeads returns none when the merge changed an item file or cited test file, the cited commit is not an ancestor, or no files are recorded."},"why":"Without it a tick could vouch for work that changed after it ran.","kind":"cell unit","inputs":["apps/cli/src/io/verify/merge-ticks.js"]}
+}

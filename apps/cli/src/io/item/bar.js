@@ -10,6 +10,9 @@ import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 /** The coordinator's lane and seat id: laneOf names it for every path no lane owns. */
 export const COORDINATOR = 'coordinator';
 
+/** The longest --after chain add and edit accept, the new item itself counted. */
+export const MAX_CHAIN_DEPTH = 3;
+
 /**
  * The paths a bar names that the build cannot reach on main: absent from main and owned by no lane, such as the test/ and
  * bin/ layout the Cells move retired, which no seat may recreate. Why: 284 live items named such paths and every core
@@ -92,7 +95,7 @@ export function requireRegistryRecord(tracked, named, isTest) {
     if (at < 0 || !isTest(path) || path.slice(at).startsWith('/tests/registry')) continue;
     const cell = path.slice(0, at);
     if (!tracked.some(file => file.startsWith(`${cell}/tests/registry`) && isTest(file))) continue;
-    if (named.some(other => other.startsWith(`${cell}/tests/fixtures/registry`) && other.endsWith('.json'))) continue;
+    if (named.some(other => (other.startsWith(`${cell}/tests/fixtures/registry`) || other === `${cell}/tests/registry.json`) && other.endsWith('.json'))) continue;
     const record = `${cell}/tests/fixtures/registry.json`;
     throw new Refused('REGISTRY_TEST_ID', `the bar names ${path}, a test in a strict-registry cell, but not its registry record ${record}`,
       `name ${record} in the bar and title each test <cell id>.<area>.<name>: clause N: ..., not a bare clause N title`);
@@ -141,6 +144,46 @@ export function requireAfterNeeded(ctx, bar, { on, after = [], self = null, item
   const ids = waits.map(wait => wait.id).sort((a, b) => a - b);
   throw new Refused('AFTER_NEEDED', `the bar names ${waits.map(wait => `${wait.paths.join(', ')} (added by the unmerged branch of #${wait.id})`).join('; ')}, missing from main`,
     `rerun with --after ${ids.join(',')}`);
+}
+
+/** The deepest chain an open item waits on, itself first, as ids; a closed or unknown id is no chain (a cycle stops where it repeats). */
+export function chainDepthOf(items) {
+  const rows = new Map(items.map(row => [String(row.item_id), row]));
+  const open = row => row.item_status === 'open' || row.item_status === 'claimed' || row.item_status === 'submitted' || (row.item_status === 'verified' && !row.item_merged_commit);
+  const afterOf = row => (Array.isArray(row.item_after) ? row.item_after : String(row.item_after ?? '').split(',')).map(id => String(id).trim().replace(/^.*#/u, '')).filter(Boolean);
+  const chain = (id, seen) => {
+    const row = rows.get(String(id));
+    if (!row || !open(row) || seen.has(String(id))) return [];
+    const next = new Set(seen).add(String(id));
+    let deepest = [];
+    for (const parent of afterOf(row)) {
+      const found = chain(parent, next);
+      if (found.length > deepest.length) deepest = found;
+    }
+    return [row.item_id, ...deepest];
+  };
+  return id => chain(id, new Set());
+}
+
+/**
+ * Refuse a new --after list whose longest chain through open items is deeper than MAX_CHAIN_DEPTH, itself counted, CHAIN_TOO_DEEP.
+ * Why: deep --after chains stall behind their slowest link; filing interface-first pieces keeps each one buildable now.
+ * Existing deep chains are not touched: only the item being added or edited is measured.
+ *
+ * @param {Array<string|number>|string|undefined} after the item's own --after list
+ * @param {(id: string) => Array<string|number>} depthOf the deepest chain an open item waits on, itself first; empty for a closed item
+ * @param {number|null} [self] the edited item, which never counts as its own link
+ */
+export function requireChainDepth(after, depthOf, self = null) {
+  const parents = (Array.isArray(after) ? after : String(after ?? '').split(',')).map(id => String(id).trim().replace(/^.*#/u, '')).filter(id => id && id !== String(self));
+  let deepest = [];
+  for (const parent of parents) {
+    const found = depthOf(parent);
+    if (found.length > deepest.length) deepest = found;
+  }
+  if (deepest.length + 1 <= MAX_CHAIN_DEPTH) return;
+  throw new Refused('CHAIN_TOO_DEEP', `the --after chain is ${deepest.length + 1} deep (the item, then ${deepest.map(id => `#${id}`).join(' -> ')}); the limit is ${MAX_CHAIN_DEPTH}`,
+    'split interface-first: file the contract piece with no --after, and let each later piece wait on it alone');
 }
 
 /**

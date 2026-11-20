@@ -8,7 +8,7 @@ import { cellsEdgeReport } from '../../gate/src/io/edges.js';
 
 const REPO = join(import.meta.dirname, '../../..');
 const FILES = [
-  'packages/resources/src/io/handoff/worker/cap.js',
+  'packages/resources/src/io/handoff/prune.js',
 ];
 
 test('resources.app-edges.cellsedgereport-repo-packageapps-has-no-row: clause 1: cellsEdgeReport(repo).packageApps has no row for the listed files [C7]', () => {

@@ -8,8 +8,6 @@ import { automaticLandingEnabled } from '../../../../../packages/merge/index.js'
 import { primaryCheckoutRoot } from '../worktree.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { requireManualLanding } from '../../../../../packages/merge/index.js';
-import { badgeCounts } from '../../../../view/index.js';
-import { badgeDocuments } from '../../../../view/index.js';
 import { pairPrefix } from '../../../../../packages/flakes/index.js';
 import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
@@ -135,6 +133,7 @@ function noLandingRunner() {
 
 /** Offer a runner land job from the main checkout (pull.js's offerPulledLanding), loaded only when a landing is offered. */
 async function offerLanding(ctx, root, options = {}) {
+  const { badgeCounts, badgeDocuments } = await import('../../../../view/index.js');
   return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, pairPrefix, quarantineWaivers, gateRuns, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
 }
 
