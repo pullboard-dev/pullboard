@@ -14,21 +14,22 @@ import { runnerSourceHold } from '../../../index.js';
 const ITEM = 41;
 
 /** A bare trunk remote holding main and one accepted item commit that adds its own file. */
-function landFixture(t) {
+function landFixture(t, files = { 'item.txt': 'item\n' }, pace = undefined) {
   const { root: dir } = privateFixtureFiles('pullboard-land-job-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const { root: work, put } = fixture(t);
   const remote = join(dir, 'remote.git');
   git(dir, 'clone', '-q', '--bare', work, remote);
   git(work, 'checkout', '-q', '-b', 'item');
-  put('item.txt', 'item\n');
+  for (const [file, text] of Object.entries(files)) put(file, text);
   git(work, 'add', '-A');
   git(work, 'commit', '-q', '-m', 'feat: item [C7]');
   const commit = git(work, 'rev-parse', 'HEAD').trim();
   git(work, 'push', '-q', remote, 'main:refs/heads/main', `item:refs/heads/item-${ITEM}`);
   const tip = () => git(dir, '--git-dir', remote, 'rev-parse', 'refs/heads/main').trim();
-  const payload = { remote, trunk: 'refs/heads/main', expect: tip(), publish: 'separate', items: [{ id: ITEM, commit, ref: `refs/heads/item-${ITEM}` }] };
-  return { dir, payload, tip, workdir: join(dir, 'runner') };
+  const payload = { remote, trunk: 'refs/heads/main', expect: tip(), publish: 'separate', items: [{ id: ITEM, commit, ref: `refs/heads/item-${ITEM}`, ...(pace ? { pace } : {}) }] };
+  const rev = (...args) => git(dir, '--git-dir', remote, ...args).trim();
+  return { dir, payload, tip, rev, workdir: join(dir, 'runner') };
 }
 
 /** The refusal a runner raises when its checkout is not the queued candidate. */
@@ -151,4 +152,39 @@ test('landing.job.red-install-names-command-returns-no-item: clause 2: a red ins
   assert.match(receipt.detail, /exit 3 # npm ci/u);
   assert.deepEqual(receipt.returned, []);
   assert.equal(box.tip(), before, 'a red install lands nothing');
+});
+
+const SPRINT_PASS = 'import { test } from "node:test";\ntest("ok", () => {});\n';
+const SPRINT_FAIL = 'import { test } from "node:test";\ntest("broken", () => { throw new Error("boom"); });\n';
+/** The commands a sprint land job carries: no static stage, node's own test runner over test files. */
+const sprintCommands = () => ({ static: null, testCommand: [process.execPath, '--test'], testFiles: '\\.test\\.js$' });
+
+test('landing.runner-sprint-exact.green-record-on-receipt: clause 1: a sprint land job proves its merged tree before the push and records exactTree { tree, pin, cells, result } on the receipt [C7,#12230]', async t => {
+  const box = landFixture(t, { 'packages/demo/tests/ok.test.js': SPRINT_PASS }, 'sprint');
+  const receipt = await runLandingJob({ ...box.payload, sprint: sprintCommands() }, { workdir: box.workdir, checks: () => ({ ok: true }) });
+  assert.equal(receipt.outcome, 'landed', JSON.stringify(receipt.detail));
+  assert.deepEqual(receipt.exactTree, { tree: box.rev('rev-parse', 'refs/heads/main^{tree}'), pin: receipt.trunk, cells: ['packages/demo'], result: 'green' });
+});
+
+test('landing.runner-sprint-exact.red-no-push: clause 2: a sprint job whose change breaks a test in its own folder pushes nothing, ends as a red check, and its receipt exactTree.result is red [C7,#12230]', async t => {
+  const box = landFixture(t, { 'packages/demo/tests/broken.test.js': SPRINT_FAIL }, 'sprint');
+  const before = box.tip();
+  const receipt = await runLandingJob({ ...box.payload, sprint: sprintCommands() }, { workdir: box.workdir, checks: () => ({ ok: true }) });
+  assert.equal(receipt.outcome, 'red');
+  assert.equal(receipt.exactTree.result, 'red');
+  assert.deepEqual(receipt.landed, []);
+  assert.deepEqual(receipt.returned.map(row => row.id), [ITEM]);
+  assert.equal(box.tip(), before, 'a red proof pushes nothing');
+});
+
+test('landing.runner-sprint-exact.steady-unchanged: clause 3: a job whose items all carry pace steady, or no pace, runs no sprintProof, has no exactTree key and takes the same steps as on main [C7,#12230]', async t => {
+  const files = { 'packages/demo/tests/broken.test.js': SPRINT_FAIL };
+  const plain = await (async () => { const box = landFixture(t, files); return runLandingJob(box.payload, { workdir: box.workdir, checks: () => ({ ok: true }) }); })();
+  for (const pace of ['steady', undefined]) {
+    const box = landFixture(t, files, pace);
+    const receipt = await runLandingJob({ ...box.payload, sprint: sprintCommands() }, { workdir: box.workdir, checks: () => ({ ok: true }) });
+    assert.equal(receipt.outcome, 'landed', JSON.stringify(receipt.detail));
+    assert.equal('exactTree' in receipt, false);
+    assert.deepEqual(receipt.phases.map(row => row.phase), plain.phases.map(row => row.phase));
+  }
 });

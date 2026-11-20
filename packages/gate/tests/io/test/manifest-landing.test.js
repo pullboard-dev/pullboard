@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { deriveTestRegistries } from '../../../index.js';
-import { retainTestValueTimings } from '../../../index.js';
+import { retainTestValueTimings } from '../../../heavy.js';
 
 const MANIFEST = 'packages/gate/data/tests/test-manifest.json';
 const A = 'packages/cell/tests/alpha.test.js';
