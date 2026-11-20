@@ -184,6 +184,8 @@ test('cli.journeys-imports-closure-budget.cold-commit-msg-trimmed-modules: claus
     'src/logic/machine.js', 'src/logic/registry.js', 'src/logic/repo-paths.js', 'src/logic/scratch-base.js', 'src/logic/transient.js', 'src/logic/words.js'].map(name => `packages/kernel/${name}`);
   const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
   assert.ok(run.urls.size > 0, run.stderr);
+  const files = [...run.urls].map(url => relative(ROOT, fileURLToPath(url.split('?')[0]))).sort();
+  assert.ok(files.length < budgets['hook commit-msg'], `a cold hook commit-msg loaded ${files.length} modules, not fewer than its ${budgets['hook commit-msg']} row: ${files.join(', ')}`);
   assert.deepEqual(loadedDrops, [], `a cold hook commit-msg loaded ${loadedDrops.join(', ')}: the entry enables its compile cache after the hook shim, and the seat address files take Refused from the kernel browser door`);
 });
 
