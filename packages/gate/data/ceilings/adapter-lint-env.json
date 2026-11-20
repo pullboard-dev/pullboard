@@ -147,9 +147,6 @@
     "packages/store/src/io/board/busy.js": 1,
     "packages/store/src/io/board/hold/log.js": 1,
     "packages/store/src/io/home.js": 3,
-    "packages/verify/src/io/bar/actor.js": 2,
-    "packages/verify/src/io/evidence.js": 1,
-    "packages/verify/src/io/proof/derived.js": 1,
-    "packages/verify/src/io/review/packet.js": 1
+    "packages/transport/src/io/ssh.js": 3
   }
 }
