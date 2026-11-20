@@ -405,6 +405,11 @@ function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMi
   return candidates.length ? { item: null, reasons: ['every item next could offer carries a label already at its maximum (next.labelBounds)'] } : queueTop;
 }
 
+/** slices.composeLanding (off by default) reaches the build selection and both review offers as who.composeLanding, beside next.wholeItemsFirst [C7,#11345]. */
+function composeLandingOf(ctx) {
+  return ctx.config.slices?.composeLanding === true ? { composeLanding: true } : {};
+}
+
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values, ports) {
   const { whoAmI, currentReworkRoutingPolicy, mainLaneWork } = ports;
@@ -413,17 +418,21 @@ function nextPick(ctx, board, values, ports) {
   // Recorded by background maintenance: next runs no Git in another seat's worktree (#2427).
   const workingFiles = recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   if (!values.defaultLoop) for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
+  // A port may also hand next a derived seat-family answer (a map or a reader of seat id to family); with none, or null, nextFor computes every family as before [C7,#11384].
+  const seatFamilies = ports.derivedSeatFamily?.(ctx.info.root, board) ?? null;
+  const derivedSeatFamily = seatFamilies instanceof Map ? id => seatFamilies.get(id) : seatFamilies;
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => values.defaultLoop
     ? (() => {
       const item = nextSelection.defaultOffer(board, { agentId: me.id, lane: me.lane, verify: true,
+        ...composeLandingOf(ctx),
         policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable,
-        routes: values.routes, observeIdle: values.observeIdle,
+        routes: values.routes, observeIdle: values.observeIdle, ...(derivedSeatFamily ? { derivedSeatFamily } : {}),
         skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
         priority: mainRedReviewItems(ctx.info.root, board) }).item;
       return item ? { item, mandatory: true, urgent: 'default-loop' } : null;
     })()
-    : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
+    : nextSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, ...composeLandingOf(ctx), policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 5, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
@@ -451,7 +460,7 @@ function nextPick(ctx, board, values, ports) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(derivedGate ? { derivedGateAtHead: derivedGate } : {}), ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(derivedGate ? { derivedGateAtHead: derivedGate } : {}), ...(derivedSeatFamily ? { derivedSeatFamily } : {}), ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...composeLandingOf(ctx), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).

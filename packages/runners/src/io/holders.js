@@ -1,4 +1,5 @@
 /** Sort a runner's live resource holders into the controller's live jobs, orphans it no longer owns, and the rest [C7]. */
+import { environmentAdapter } from '../../../env/index.js';
 
 /**
  * A worker holder younger than this is never judged an orphan: its controller may have admitted it after it read
@@ -54,7 +55,7 @@ export function sortHolders(holders, live, { now = Date.now(), alive, clientOf =
 }
 
 /** The address this process's own SSH session came from, or null outside SSH. */
-export function currentSshClient(env = process.env) {
+export function currentSshClient(env = environmentAdapter().all()) {
   return /^(\S+)\s/u.exec(env.SSH_CLIENT ?? '')?.[1] ?? null;
 }
 
