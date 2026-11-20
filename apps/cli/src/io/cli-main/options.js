@@ -70,6 +70,7 @@ const OPTIONS = {
   static: { type: 'boolean' },
   withdraw: { type: 'string' },
   after: { type: 'string', multiple: true },
+  'after-gate': { type: 'string', multiple: true },
   'stale-before': { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },

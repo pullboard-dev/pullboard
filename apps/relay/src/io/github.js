@@ -131,10 +131,13 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
         const rate = ['x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-ratelimit-resource'].map(name => name + '=' + (response.headers.get(name) ?? '-'));
         log(`github refused ${url.pathname} status=${response.status} ${rate.join(' ')}`);
       }
-      if ([403, 429].includes(response.status) && response.headers.get('x-ratelimit-remaining') === '0') {
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const retryAfterSeconds = response.headers.get('retry-after') !== null && Number.isSafeInteger(retryAfter) && retryAfter >= 0 ? retryAfter : null;
+      if ([403, 429].includes(response.status) && (response.headers.get('x-ratelimit-remaining') === '0' || retryAfterSeconds !== null)) {
         await response.body?.cancel();
         const reset = Number(response.headers.get('x-ratelimit-reset'));
-        const when = Number.isSafeInteger(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : 'the rate limit resets';
+        const resetMs = Number.isSafeInteger(reset) && reset > 0 ? reset * 1000 : retryAfterSeconds !== null ? Date.now() + retryAfterSeconds * 1000 : 0;
+        const when = resetMs > 0 ? new Date(resetMs).toISOString() : 'the rate limit resets';
         throw new Refused('GITHUB_RATE_LIMITED', `GitHub rate limited the relay; wait until ${when}, then retry`);
       }
       if ([401, 403, 404].includes(response.status)) {

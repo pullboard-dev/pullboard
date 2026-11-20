@@ -20,10 +20,11 @@ export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } fro
 export { declareItemField, setItemField, itemFields, fieldIndex, FIELD_TYPES } from './src/io/board/item/fields.js';
 export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
+export { afterGateIds } from './src/io/board/item/after-gate.js';
 export * from "./light.js";
 export { boardLinkEnvelope, boardLinkEnvelopeDigest, boardLinkDeliveryReceipt, createBoardLinkCapability } from './src/io/board/link/envelope.js';
 export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, resendPendingBoardStates, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
-export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
+export { createSshBoardLinkAuthority, boardHasSigner } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
@@ -94,6 +95,8 @@ export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflic
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission, runnerSlotsSnapshot, claimRows } from './src/io/board/claim.js';
 /** The verdict reads a verify prepares before the write lock, loaded at the call so the front door does not load verify.js for every importer [C7,#10868]. */
 export async function prepareVerdictFacts(...call) { return (await import('./src/io/board/verify.js')).prepareVerdictFacts(...call); }
+/** Tell the parent boards that wait on a verified item its new state, loaded at the call so the front door does not load verify.js for every importer [E32,B24]. */
+export async function announceVerdict(...call) { return (await import('./src/io/board/verify.js')).announceVerdict(...call); }
 export { writeBoardCommand } from './src/io/board/write.js';
 export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';

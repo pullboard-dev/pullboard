@@ -43,7 +43,7 @@ export async function run(io, { first, values }) {
   // A --field filter reads the field tables, so it takes the full path and needs items.typedFields [C7,#9353].
   if (values.field !== undefined && !typedFieldsEnabled()) throw new Refused('FIELDS_OFF', 'typed item fields are off', 'turn on items.typedFields in the machine settings first');
   // With list.thinRead on, the thin door serves the rows; null (no readable board, or one a read must not open) takes the full path below [C7,#9089].
-  const thin = listThinRead() && values.field === undefined ? thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock }) : null;
+  const thin = listThinRead() && values.field === undefined ? await thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock, conflictReader: async () => (await import('../../../../../packages/merge/index.js')).mechanicalConflictFiles }) : null;
   const { items, agents, merging, foreign = new Map(), needsRescope = [], fieldIndex } = thin ?? await withBoardRead(ctx, async (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
     // An accept whose only conflict with main is mechanical stays fresh, as it does at landing; the merge index loads only when a row is accepted [C7,#11417].
