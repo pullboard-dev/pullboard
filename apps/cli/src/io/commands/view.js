@@ -1,4 +1,5 @@
 /** The pullboard view command, in its own module so an item adding another command never edits these lines. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { fileURLToPath } from 'node:url';
 import {
   launchBackgroundView,
@@ -124,8 +125,8 @@ export async function viewHere(io, values) {
     if (!(error instanceof Refused)) throw error;
     if (projectRequested) throw error;
   }
-  const internalForeground = process.env.PULLBOARD_VIEW_BACKGROUND_CHILD === '1'
-    || process.env.PULLBOARD_VIEW_FOREGROUND === '1';
+  const internalForeground = environmentAdapter().get('PULLBOARD_VIEW_BACKGROUND_CHILD') === '1'
+    || environmentAdapter().get('PULLBOARD_VIEW_FOREGROUND') === '1';
   if (!internalForeground) {
     const existing = !lan && port ? await runningView(port, scopeCommonDir) : null;
     if (existing) {
@@ -136,7 +137,7 @@ export async function viewHere(io, values) {
       reportView(io, { ...existing, reused: true });
       return 0;
     }
-    if (process.env.AI_AGENT !== undefined || !io.physicalStdoutIsTTY) return await launchBackgroundView(io, port, projectRoot, { lan });
+    if (environmentAdapter().get('AI_AGENT') !== undefined || !io.physicalStdoutIsTTY) return await launchBackgroundView(io, port, projectRoot, { lan });
   }
   let view;
   try {
@@ -175,17 +176,17 @@ export async function viewHere(io, values) {
       try { hosted = port !== 0 && port === defaultViewPort(); } catch { /* A malformed override names no default port. */ }
       error = busyViewPortRefusal(port, hosted);
     }
-    if (process.env.PULLBOARD_VIEW_BACKGROUND_CHILD === '1' && process.send) {
+    if (environmentAdapter().get('PULLBOARD_VIEW_BACKGROUND_CHILD') === '1' && process.send) {
       process.send({ type: 'startup-error', code: error.code ?? 'VIEW_START', message: error.message });
     }
     throw error;
   }
   reportView(io, { ...view, reused: false });
-  if (process.env.PULLBOARD_VIEW_BACKGROUND_CHILD === '1' && process.send) {
+  if (environmentAdapter().get('PULLBOARD_VIEW_BACKGROUND_CHILD') === '1' && process.send) {
     process.send({ type: 'ready', url: view.url, port: view.port, pid: process.pid, boundAt: view.boundAt, ...(lan ? { lan: true } : {}) });
   }
   io.flush?.(0);
-  if (!values['no-open'] && process.env.PULLBOARD_VIEW_BACKGROUND_CHILD !== '1') {
+  if (!values['no-open'] && environmentAdapter().get('PULLBOARD_VIEW_BACKGROUND_CHILD') !== '1') {
     // The OS URL opener, named as literals so the browser census can see it never starts Chrome itself (#2021).
     const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
     const openerArgs = process.platform === 'win32' ? ['/c', 'start', '', view.url] : [view.url];

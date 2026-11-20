@@ -74,6 +74,9 @@ import { FLOW_SIZE_ENGINE } from "../../../../state/light.js";
 import { submissionSize } from "../../../../state/light.js";
 import { moveItem } from "../board.js";
 import { sealClauseInspection } from './repository.js';
+import { sendBackDependents } from './item/after-gate.js';
+import { reopen } from './reopen.js';
+import { release } from './release.js';
 
 const fs = fileSystemAdapter();
 export { sealClauseInspection };
@@ -283,6 +286,8 @@ export function submit(board, id, options) {
     const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
     if (miss) logEvent(board, agentId, 'file_miss', id, miss);
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
+    // A parent resubmitted at a new head sends back each dependent built on the old one [C7,#11808].
+    sendBackDependents(board, id, { head: commit }, { reopen, release, appendFact });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
       if (gateGreen !== true || companion || recordedProof?.knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine acceptance needs an entirely green composed submission without companions or known reds');
