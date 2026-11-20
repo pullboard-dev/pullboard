@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { mainCommit } from '../../../../codemap/index.js';
+import { readCellRule } from '../../../../codemap/index.js';
 import { styleSources } from '../../../../codemap/index.js';
 import { importStyleViolations } from '../../../heavy.js';
 import { engineFolderViolations } from '../../../../state/index.js';
@@ -236,6 +237,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'cells-edges', jsonInputs: ['cells-edges'], reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('file-edges', 1), text = new Map(treeSources(root, sources).map(row => [row.file, row.source]));
     return cellsEdgeProblems(root, {
+      rule: readCellRule(root),
       read: file => text.get(file) ?? fs.readFile(join(root, file), 'utf8'),
       edgesOf: (file, source) => cache.get(file, blobOid(source), () => fileEdges(file, source)),
     }).map(row => `${row.path}:${row.line}: ${row.text}`);
