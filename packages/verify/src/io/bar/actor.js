@@ -7,9 +7,10 @@ import {
   parentSessionDigest,
 } from '../../../../items/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Capture only this runtime's own session and discovered parent before sealing an ordered move. */
-export function nativeBarActor(environment = process.env, registered = {}) {
+export function nativeBarActor(environment = environmentAdapter().all(), registered = {}) {
   const identity = runtimeSessionIdentity(environment);
   if (!identity) return null;
   const session = parentSessionDigest(identity.session);
@@ -23,7 +24,7 @@ export function nativeBarActor(environment = process.env, registered = {}) {
 }
 
 /** A declared parent is usable only for the exact current native session that joined that seat. */
-export function nativeBarActorForSeat(board, agent, environment = process.env) {
+export function nativeBarActorForSeat(board, agent, environment = environmentAdapter().all()) {
   const session = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`agent_session:${agent}`)?.meta_value ?? null;
   return nativeBarActor(environment, { session, parent: agentParent(board, agent) });
 }
