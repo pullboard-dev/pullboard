@@ -1,8 +1,9 @@
 /** Whether a light door is main's own door, read from git when main's folder holds no files (a pull runner's no-checkout clone) [C7]. */
-import { readFileSync } from 'node:fs';
 import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { gitSpawn } from '../../../../git/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /**
  * Run one git command in a checkout and collect its exit status and stdout; a failure to start reads as status 1.
@@ -36,7 +37,7 @@ export function importClosure(root, door, specifiersOf) {
     const file = queue.pop();
     if (seen.has(file)) continue;
     let source;
-    try { source = readFileSync(resolve(root, file), 'utf8'); } catch { continue; }
+    try { source = fs.readFile(resolve(root, file), 'utf8'); } catch { continue; }
     seen.add(file);
     for (const { specifier } of specifiersOf(source)) queue.push(posix.normalize(posix.join(posix.dirname(file), specifier)));
   }

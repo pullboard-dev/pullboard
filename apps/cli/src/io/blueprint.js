@@ -1,6 +1,5 @@
 import { seatFamily } from '../../../../packages/items/index.js';
 /** Helpers for `pullboard blueprint`: adding a blueprint and its private names. Split from src/cli.js, which re-exports it [C7]. */
-import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
@@ -19,6 +18,7 @@ import { starterLaneNotes } from './init.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { loadSpec } from '../../../../packages/spec/index.js';
 import { readSignoffs } from '../../../../packages/spec/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { landBlueprint } from '../../../../packages/blueprints/index.js';
 import { planBlueprint } from '../../../../packages/blueprints/index.js';
 import { starterCheck } from '../../../../packages/blueprints/index.js';
@@ -93,9 +93,9 @@ export async function addBlueprint(ctx, board, me, blueprint, { report = true, r
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const malformed = [[spec.file, spec.problems], [ctx.doctrine.repo.file, ctx.doctrine.repo.problems]].find(([, problems]) => problems.length);
   if (malformed) throw new Refused('SPEC_INVALID', `fix the unparsed row in ${malformed[0]} before adding a blueprint; an existing id may be ambiguous`);
-  const source = readFileSync(spec.file, 'utf8');
+  const source = fileSystemAdapter().readFile(spec.file, 'utf8');
   const configFile = join(ctx.info.root, CONFIG_FILE);
-  const configSource = readFileSync(configFile, 'utf8');
+  const configSource = fileSystemAdapter().readFile(configFile, 'utf8');
   // A question takes the answer this repo already shows as its default, read from package.json
   // only: nothing runs and nothing is fetched (#725).
   const plan = planBlueprint(landBlueprint(blueprint, repoAnswers(ctx.info.root)), { source, spec, doctrine: ctx.doctrine,

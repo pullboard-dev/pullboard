@@ -1,18 +1,13 @@
 /** A submit proof's test files pulled in small batches by every slot the gate gets, merged back into one run and one receipt [C7]. */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { machineHome } from '../../../../resources/index.js';
 import { runShellAsync } from '../run/shell.js';
 import { DatabaseSync } from 'node:sqlite';
 import { storeName } from '../store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** How long a shard waits for its own runner slot before it runs on the gate's first lease instead. */
 export const SHARD_ADMIT_MS = 30_000;
@@ -60,20 +55,20 @@ export function shardPassStore(tree, command, { folder = join(machineHome(), 'sh
   /** The passes on disk for exactly this tree and command; anything unreadable or foreign reads as none. */
   const read = () => {
     try {
-      const doc = JSON.parse(readFileSync(file, 'utf8'));
+      const doc = JSON.parse(fs.readFile(file, 'utf8'));
       return doc?.tree === tree && doc.command === command && Array.isArray(doc.passes) ? doc.passes : [];
     } catch { return []; }
   };
   /** Append one pass with an atomic rename, then drop other trees' records past SHARD_PASS_TTL_MS. A failed write only loses reuse. */
   const record = pass => {
     try {
-      mkdirSync(folder, { recursive: true, mode: 0o700 });
+      fs.mkdir(folder, { recursive: true, mode: 0o700 });
       const temporary = `${file}.${process.pid}.${now()}.tmp`;
-      writeFileSync(temporary, JSON.stringify({ tree, command, passes: [...read(), pass] }), { mode: 0o600 });
-      renameSync(temporary, file);
-      for (const name of readdirSync(folder)) {
+      fs.writeFile(temporary, JSON.stringify({ tree, command, passes: [...read(), pass] }), { mode: 0o600 });
+      fs.rename(temporary, file);
+      for (const name of fs.list(folder)) {
         const path = join(folder, name);
-        if (path !== file && now() - statSync(path).mtimeMs > SHARD_PASS_TTL_MS) rmSync(path, { force: true });
+        if (path !== file && now() - fs.stat(path).mtimeMs > SHARD_PASS_TTL_MS) fs.rm(path, { force: true });
       }
     } catch { /* A pass that cannot be recorded is only run again. */ }
   };
@@ -152,7 +147,7 @@ const QUEUE_DRAINED = 'PROOF_QUEUE_DRAINED';
  * @returns {number}
  */
 export function freeRunnerSlots(file = join(machineHome(), 'resources.sqlite'), { browser = false, gui = false, runners = null } = {}) {
-  if (!existsSync(file)) return 0;
+  if (!fs.exists(file)) return 0;
   if (browser && !Array.isArray(runners)) return 0;
   let db;
   try {
