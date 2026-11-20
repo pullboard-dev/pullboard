@@ -102,3 +102,30 @@ test('cli.io-commands-verify.solo-facts-never-invent-a-row: an empty, unparseabl
   assert.deepEqual(soloLowStakesFacts({ item_frozen: '{"rows":[]}' }, true), {});
   assert.deepEqual(soloLowStakesFacts({ item_frozen: '{"check":"x"}' }, true), {});
 });
+
+const GREEN_RUN = { checked: true, state: 'green' };
+const RED_BASELINE = { result: 'red', command: 'node --test x' };
+const FROZEN_LOW = { item_frozen: JSON.stringify({ rows: [{ id: 'U148', stakes: 'low' }, { id: 'C7', stakes: 'low' }] }), item_check: 'node --test x' };
+const SOUND = { baselinePending: false, baselineInvalid: false, rows: [] };
+
+test('cli.io-commands-verify.solo-person-approval: soloLowStakesFacts marks a row personApproved only when the spec approval state does not list it as agent-approved, so a row an agent changed reads as not approved [C7,#966]', () => {
+  const facts = soloLowStakesFacts(FROZEN_LOW, true, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN });
+  assert.deepEqual(facts.rows, [{ id: 'U148', stakes: 'low', personApproved: true }, { id: 'C7', stakes: 'low', personApproved: true }]);
+  const lowered = soloLowStakesFacts(FROZEN_LOW, true, { approval: { ...SOUND, rows: [{ id: 'C7' }] }, baseline: RED_BASELINE, check: GREEN_RUN });
+  assert.deepEqual(lowered.rows.map((row) => row.personApproved), [true, false]);
+  for (const approval of [undefined, { ...SOUND, baselinePending: true }, { ...SOUND, baselineInvalid: true }, { rows: undefined }]) {
+    const unread = soloLowStakesFacts(FROZEN_LOW, true, { approval, baseline: RED_BASELINE, check: GREEN_RUN });
+    assert.deepEqual(unread.rows.map((row) => row.personApproved), [false, false]);
+  }
+});
+
+test('cli.io-commands-verify.solo-check-facts: soloLowStakesFacts takes redBefore from the board baseline and greenAfter and machineRun from the check verify ran [C7,#966]', () => {
+  const checksOf = (evidence) => soloLowStakesFacts(FROZEN_LOW, true, { approval: SOUND, ...evidence }).checks;
+  assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: GREEN_RUN }), [{ machineRun: true, redBefore: true, greenAfter: true }]);
+  assert.deepEqual(checksOf({ baseline: null, check: GREEN_RUN }), [{ machineRun: true, redBefore: false, greenAfter: true }]);
+  assert.deepEqual(checksOf({ baseline: { result: 'green' }, check: GREEN_RUN }), [{ machineRun: true, redBefore: false, greenAfter: true }]);
+  assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: { checked: false, state: 'green' } }), [{ machineRun: false, redBefore: false, greenAfter: false }]);
+  assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: { checked: true, state: 'red' } }), [{ machineRun: true, redBefore: true, greenAfter: false }]);
+  assert.deepEqual(soloLowStakesFacts({ ...FROZEN_LOW, item_check: '' }, true, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN }).checks, []);
+  assert.deepEqual(soloLowStakesFacts(FROZEN_LOW, false, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN }), {});
+});
