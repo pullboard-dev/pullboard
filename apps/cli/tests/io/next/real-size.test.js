@@ -42,3 +42,20 @@ test('cli.io-next-real-size.cli-next-real-size-next-take-on: cli.next.real-size.
   // The budget is the wall time around the whole command, as the original journey asserted; the profile's own total excludes process start.
   assert.ok(seconds < 2, `next --take took ${seconds.toFixed(2)} s wall on the real-size board:\n${profile.join('\n')}`);
 });
+
+test('cli.io-next-real-size.seed-rows-deterministic: clause 1: after seedRealSize, event row n has agent real-(n mod 1800), kind edit, detail {} and the (n mod 600)th seeded item [N2]', async t => {
+  const box = await fixture(t, { route: 'light' });
+  seedRealSize(box);
+  const { db } = box.board;
+  const items = db.prepare("SELECT item_id FROM item WHERE item_title LIKE 'Real %' ORDER BY item_id").all().map(row => row.item_id);
+  assert.equal(items.length, 600);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM event').get().n, 230_000);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM agent WHERE agent_id LIKE 'real-%'").get().n, 1_800);
+  // The fixture's own setup events come first; the seeded rows are the ones that follow, numbered from 0.
+  const rows = db.prepare("SELECT event_by, event_kind, event_detail, item_id FROM event WHERE event_by LIKE 'real-%' ORDER BY event_id").all();
+  assert.ok(rows.length > 229_900 && rows.length < 230_000);
+  for (const n of [0, 1, 599, 600, 1_799, 1_800, 123_456, rows.length - 1]) {
+    assert.deepEqual({ ...rows[n] }, { event_by: `real-${n % 1800}`, event_kind: 'edit', event_detail: '{}', item_id: items[n % 600] }, `event row ${n}`);
+  }
+  assert.ok(rows.every((row, n) => row.event_by === `real-${n % 1800}` && row.item_id === items[n % 600]), 'every row follows the pattern');
+});
