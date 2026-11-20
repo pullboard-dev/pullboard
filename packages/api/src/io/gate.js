@@ -37,7 +37,6 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
-import { seedWideMainTests } from './recheck.js';
 import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
@@ -1119,8 +1118,6 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
-    // Files that fail in the gates of many items get main's receipt queued when main advances, ahead of the gates that would ask (#12035).
-    try { seedWideMainTests(board, { main: acceptedMain(board.gitRoot), now: options.now }); } catch (error) { if (!error?.code) throw error; }
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
     settleDoneShardGates(board, ports, { now: options.now });
@@ -1129,13 +1126,6 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
   const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
-}
-
-/** Accepted main's commit, read from trunk's ref files first and from Git when they name none; null without a repository. */
-function acceptedMain(root) {
-  if (!root) return null;
-  const read = trunkRevisionReader(repoInfo(root))();
-  return SHA.test(String(read)) ? read : resolveCommit(root, plainTrunkRef(root));
 }
 
 /**
