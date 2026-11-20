@@ -1,0 +1,16 @@
+{
+  "cli.io-commands-contribute.accept-saves-record": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "contribute accept saves a record the parser accepts under its hash and prints the hash; a refused record prints the check failures, saves nothing and exits 1."
+    },
+    "why": "Without it, an accepted contribution could not be snapshotted from the command line, and a refused one might be saved anyway.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/contribute.js",
+      "apps/cli/tests/io/commands/contribute.test.js"
+    ]
+  }
+}
