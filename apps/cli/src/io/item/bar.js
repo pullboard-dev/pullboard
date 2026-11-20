@@ -261,6 +261,27 @@ export async function requireBarPathsOnMain(ctx, bar) {
 }
 
 /**
+ * Refuse a brief Files entry absent from main unless a criterion clause names it, so a builder is never told to edit a file that
+ * is not there and no clause says to create it [C7,#12124].
+ * Why: a brief Files line is the builder's map; an entry missing from main with no clause creating it is a typo or a move.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, brief?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any brief as written.
+ */
+export function briefFilesAbsentFromMain(ctx, bar, on) {
+  if (!on) return;
+  const files = [...new Set(briefFiles(bar.brief ?? '').filter(file => !file.endsWith('/')))];
+  if (!files.length) return;
+  const found = onTrunk(ctx.info.root)(files);
+  const created = String(bar.criterion ?? '');
+  const absent = files.filter(file => !found.has(file) && !created.includes(file));
+  if (!absent.length) return;
+  throw new Refused('BRIEF_FILE_MISSING', `the brief Files list names ${absent.join(', ')}, absent from main, and no clause creates it`,
+    'add a clause that creates the file, or remove the entry from the brief Files list (pullboard edit <id> --criterion/--brief)');
+}
+
+/**
  * Refuse a claim of an open or claimed item whose bar names a path missing from main, on every claim route (claim,
  * next, run), so a builder is never handed a bar no build can satisfy (#5709).
  *
