@@ -610,9 +610,9 @@ function withFixtureBoard(box, work) {
 }
 
 /** Seed a legacy receipt from the old full-gate-only submit rule, for independent verifier audits. */
-function historicalCheckSubmission(box, commit, agentId = 'web-1') {
+function historicalCheckSubmission(box, commit) {
   box.git(box.web, 'update-ref', `refs/pullboard/items/1/${commit.slice(0, 12)}`, commit);
-  withFixtureBoard(box, board => submitFixture(board, 1, { agentId, commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }));
+  withFixtureBoard(box, board => submitFixture(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }));
 }
 
 /** Retain historical submissions whose private check needs an install, fails, or times out. */

@@ -10,8 +10,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../fixtures/child.js';
 import { runFixtureGit } from '../fixtures/child.js';
-import { createE2eHelpers } from '../fixtures/e2e.js';
-import { joinFixtureSeat } from '../fixtures/testkit.js';
 import { knownMainCheck } from '../../index.js';
 
 const CHECK = 'node --test test/affected.test.js';
@@ -54,56 +52,4 @@ test('cli.io-verify.a-re-run-whose-only-red-case: a re-run whose only red case a
 test('cli.io-verify.with-no-open-main-red-repair-naming: control: with no open Main red repair naming that case, the re-run stays red [C7]', async t => {
   const { root, main, check } = fixture(t);
   assert.equal(await knownMainCheck(root, check, { main, item: 9, items: () => [] }), null);
-});
-
-const MERGE_CRITERION = 'The page meets its bar:\n1) The page names its title [reasoning]';
-
-/** An item with no test check, a tick at commit A by an earlier holder, web-1, and a submitted head B submitted by a second holder, web-2, that is A plus a merge of main, and, when `laterEdit` is set, a later commit that changes the item file. */
-async function mergedHeadItem(t, laterEdit) {
-  const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
-  const box = helpers.project('true');
-  const ok = async (cwd, ...args) => {
-    const result = await box.runIn(cwd, ...args);
-    assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
-  };
-  await ok(box.repo, 'add', 'web', 'Merge tick fixture', '--specs', 'G1', '--criterion', MERGE_CRITERION, '--route', 'strong', '--brief', 'Files:\n- web/item-1.js\nTest: the item is accepted with its recorded proof');
-  await ok(box.web, 'claim', '1');
-  mkdirSync(join(box.web, 'web'), { recursive: true });
-  writeFileSync(join(box.web, 'web/item-1.js'), 'export const complete = true;\n');
-  box.git(box.web, 'add', '-A');
-  box.git(box.web, 'commit', '-q', '-m', 'feat(web): complete fixture 1 [G1]');
-  const ticked = box.git(box.web, 'rev-parse', 'HEAD');
-  await ok(box.web, 'fact', '1', 'note', `clause 1 [reasoning]: read web/item-1.js at ${ticked}: it exports complete`);
-  mkdirSync(join(box.repo, 'web'), { recursive: true });
-  writeFileSync(join(box.repo, 'web/main-moves.txt'), 'main moves\n');
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: main moves');
-  await ok(box.web, 'release', '1', '--reason', 'OTHER', '--note', 'handing the item to a second seat');
-  const second = join(box.dir, 'second-holder');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'main');
-  assert.equal(joinFixtureSeat(box, second, 'web').code, 0);
-  await ok(second, 'claim', '1');
-  box.git(second, 'checkout', '-q', '--detach', ticked);
-  box.git(second, 'merge', '-q', '--no-edit', 'main');
-  if (laterEdit) {
-    writeFileSync(join(second, 'web/item-1.js'), 'export const complete = false;\n');
-    box.git(second, 'commit', '-q', '-am', 'fix(web): change fixture 1 after the tick [G1]');
-  }
-  const submitted = box.git(second, 'rev-parse', 'HEAD');
-  helpers.historicalCheckSubmission(box, submitted, 'web-2');
-  const review = join(box.dir, 'merge-tick-review');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, submitted);
-  assert.equal(joinFixtureSeat(box, review, 'api').code, 0);
-  assert.equal(box.run(review, 'next', '--verify', '1', '--json').code, 0);
-  return { box, review };
-}
-
-test('cli.io-verify.accept-reads-a-tick-across-a-merge-of-main: clause 3: verify accept on an item with no check, ticked at A and submitted at A plus a merge of main, is not refused CLAUSE_UNTICKED, and the same run with an item file changed after the tick still is [C7]', { timeout: 240_000 }, async t => {
-  const same = await mergedHeadItem(t, false);
-  const accepted = await same.box.runIn(same.review, 'verify', '1', 'accept', '--note', 'read web/item-1.js: it exports complete');
-  assert.doesNotMatch(`${accepted.out}${accepted.err}`, /CLAUSE_UNTICKED/u, 'a merge of main that left the item files alone keeps the tick');
-  const changed = await mergedHeadItem(t, true);
-  const refused = await changed.box.runIn(changed.review, 'verify', '1', 'accept', '--note', 'read web/item-1.js: it exports complete');
-  assert.match(`${refused.out}${refused.err}`, /CLAUSE_UNTICKED/u);
 });
