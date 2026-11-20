@@ -8,6 +8,7 @@ import { commit } from '../../fixtures/guards.js';
 import { e2e } from '../../fixtures/guards.js';
 import { put } from '../../fixtures/guards.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
 after(e2e.cleanup);
 
@@ -31,6 +32,8 @@ async function submitted(regenerateDeclared, { generator = 'cp gen/in.txt gen/ou
   assert.equal((await box.runLocal(box.web, 'claim', String(id))).code, 0);
   put(box.web, 'gen/in.txt', 'two\n');
   commit(box, box.web, 'feat(core): change the generator input [G1]');
+  // The submit composes main itself, which regeneration needs; the runner-composed default skips it [#10757].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { submit: { composeOnRunner: false } });
   const sent = await box.runLocal(box.web, 'submit', String(id));
   if (refused) return { box, sent };
   assert.equal(sent.code, 0, sent.err + sent.out);
