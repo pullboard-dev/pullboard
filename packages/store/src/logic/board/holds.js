@@ -133,3 +133,35 @@ export function liftSettledHolds(board, event, logEvent, setItem) {
     logEvent(board, 'coordinator', 'unhold_item', item.item_id, { reason: item.item_hold_reason, cause: 'settled', triggerEventId: event.event_id });
   }
 }
+
+/**
+ * The ids of open items whose after list names `id`, in id order; landed and withdrawn items are never dependents.
+ * Why: an item that waits on a withdrawn item is never told it waits on nothing.
+ *
+ * @param {{ item_id: number, item_status: string, item_after?: string | null, item_merged_commit?: string | null }[]} rows item rows
+ * @param {number} id the item others may wait on
+ * @returns {number[]}
+ */
+export function dependentsOf(rows, id) {
+  return rows
+    .filter(row => !row.item_merged_commit && ['open', 'claimed'].includes(row.item_status)
+      && String(row.item_after ?? '').split(',').map(Number).includes(Number(id)))
+    .map(row => Number(row.item_id))
+    .sort((a, b) => a - b);
+}
+
+/**
+ * On a withdraw event, log one dependency_withdrawn event per open item that waits on the withdrawn item. Only logs: it never
+ * changes an item's holds or status, and it runs whatever holds.liftSettled says.
+ *
+ * @param {object} board the open board
+ * @param {object} event the event just written
+ * @param {Function} logEvent writes an event
+ */
+export function flagWithdrawnDependents(board, event, logEvent) {
+  if (event.event_kind !== 'withdraw') return;
+  const rows = board.db.prepare("SELECT item_id,item_status,item_after,item_merged_commit FROM item WHERE item_after<>''").all();
+  for (const dependent of dependentsOf(rows, event.item_id)) {
+    logEvent(board, 'coordinator', 'dependency_withdrawn', dependent, { withdrawn: Number(event.item_id), triggerEventId: event.event_id });
+  }
+}
