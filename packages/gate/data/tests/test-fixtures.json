@@ -2110,10 +2110,10 @@
     "raw-board": 2,
     "hand-policy": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "raw-board": 3
   },
-  "apps/cli/journeys/submit/handoff.test.js": {
+  "apps/cli/tests/io/submit/handoff.test.js": {
     "raw-board": 2
   },
   "packages/gate/tests/io/submit/line.test.js": {
