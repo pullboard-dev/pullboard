@@ -13,6 +13,7 @@ import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { loadConfig } from '../../../config/index.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
+import { nextOnce } from '../../index.js';
 import { nextSelection } from '../../index.js';
 import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
