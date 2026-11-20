@@ -1,8 +1,8 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { environmentAdapter } from '../../../../env/index.js';
-import { testClosures } from '../../../../gate/index.js';
+import { testClosures } from '../../../../gate/heavy.js';
 import { testActionKeys } from '../../../../gate/index.js';
-import { selectAffectedTests } from '../../../../gate/index.js';
+import { selectAffectedTests } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { checkoutCommonDir } from '../../../../git/index.js';
@@ -19,17 +19,15 @@ import {
 } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import {
-  withGateSlot,
-} from '../../../../gate/index.js';
-import { runMainComparison } from '../../../../gate/index.js';
-import { whileGateRuns } from '../../../../gate/index.js';
-import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { withGateSlot } from '../../../../gate/heavy.js';
+import { runMainComparison } from '../../../../gate/heavy.js';
+import { whileGateRuns } from '../../../../gate/heavy.js';
+import { runProfiledShellAsync } from '../../../../gate/heavy.js';
 import {
   readGateReceipt,
   receiptBody,
   receiptStore,
-} from '../../../../gate/index.js';
+} from '../../../../gate/heavy.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
@@ -55,12 +53,12 @@ import {
 } from './matches.js';
 import { completeGate } from '../completion.js';
 import { linkKnownMainReworks } from '../../../../store/index.js';
-import { testsNeedBrowser } from '../../../../gate/index.js';
-import { testsNeedGui } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/heavy.js';
+import { testsNeedGui } from '../../../../gate/heavy.js';
 import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { loadMachineSettings } from '../../../../config/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
-import { recentReceipts } from '../../../../gate/index.js';
+import { recentReceipts } from '../../../../gate/heavy.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 import { storeName } from '../store-names.js';

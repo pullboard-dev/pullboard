@@ -15,6 +15,7 @@ const BEFORE = [
   'boardRemote',
   'browserFreeChecksEnabled',
   'configFromSource',
+  'derivedStateEnabled',
   'doctrineFile',
   'environmentProblem',
   'healthDiskFloorGb',

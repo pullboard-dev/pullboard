@@ -1,0 +1,5 @@
+{
+  "stats.timeline.fleet-summary": {"proves":{"specs":["C7"],"claim":"fleetSummary gives per-stage median and p90, shares that sum to 100, gates per landed item and the slowest items with their biggest gap and reason."},"why":"One item's timeline cannot say which stage costs the fleet the most.","kind":"cell unit","inputs":["packages/stats/src/logic/timeline.js"]},
+  "stats.timeline.fleet-overlay": {"proves":{"specs":["C7"],"claim":"An api_stall row inside an unaccounted stretch labels the overlap API_BUSY and leaves the rest UNACCOUNTED."},"why":"A stall in the API explains time that would otherwise read as unaccounted.","kind":"cell unit","inputs":["packages/stats/src/logic/timeline.js"]},
+  "stats.io-timeline.fleet-real-board": {"proves":{"specs":["C7"],"claim":"readFleetTimelines on a real board returns exactly the items with an event inside the window and the stalls inside it."},"why":"The window start is found by a binary search that a pure fold cannot prove.","kind":"cell unit","inputs":["packages/stats/src/io/timeline.js","packages/stats/src/logic/timeline.js"]}
+}
