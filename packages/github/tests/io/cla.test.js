@@ -43,7 +43,7 @@ test('github.io-cla.loads-commits-and-comments-through-the-adapter: clause 1: tw
   assert.deepEqual(await loadPullRequest(refusing, environment({ CLA_PR_FILE: join(files.root, 'pr.json') })), { commits: [], comments: [], head: 'x', live: false });
 });
 
-test('github.io-cla.loads-commits-and-comments-through-the-adapter: clause 1: a non-ok page throws the GitHub API status for the path [C7]', async () => {
+test('github.io-cla.load-throws-the-status-of-a-non-ok-page: clause 1: a non-ok page throws the GitHub API status for the path [C7]', async () => {
   await assert.rejects(loadPullRequest(createFakeGithubAdapter({}), ENVIRONMENT), /GitHub API 404 for \/repos\/o\/r\/pulls\/7\/commits/u);
 });
 
