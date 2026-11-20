@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deliverHealthNotices } from '../../../src/logic/board/receipts.js';
 import { healthTargets } from '../../../src/logic/board/receipts.js';
+import { healthDigestPlan } from '../../../src/logic/board/receipts.js';
 import { HEALTH_QUIET_ENGINE } from '../../../../state/light.js';
 import { HEALTH_EPISODE_ENGINE } from '../../../../state/light.js';
 
@@ -66,6 +67,42 @@ test('store.logic-board-receipts.flap-within-30-minutes-is-not-reshouted: clause
   assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE, 30).shouts.length, 1, 'at 30 minutes it shouts as before');
   assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE, 45).shouts.length, 1);
   assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE - 1, 10).shouts.length, 1, 'below the engine the flap rule does not apply');
+});
+
+/** A finding for the digest tests, with the cause and subject it needs. */
+function digestFinding(key, cause, subject = `item ${key}`) {
+  return { ...finding(key), cause, subject };
+}
+
+test('store.logic-board-receipts.digest-batches-routine-findings: clause 1: healthDigestPlan sends the five immediate causes at once, buffers every other finding per reader, and after 10 minutes returns one line per reader naming every buffered subject [C7,#1479]', () => {
+  const t0 = '2026-11-19T10:00:00.000Z';
+  const targets = () => ['coordinator'];
+  const immediateCauses = ['UNLANDED_HELD', 'UNLANDED_WAITING', 'UNLANDED_CONFLICT', 'DECISION_UNANSWERED', 'REQUEST_UNANSWERED'];
+  const first = healthDigestPlan({
+    added: [...immediateCauses.map((cause, i) => digestFinding(`i${i}`, cause)), digestFinding('r1', 'IDLE_AGENT', 'seat-a'), digestFinding('r2', 'STALE_CLAIM', 'seat-b')],
+    resolved: [], buffered: {}, lastFlush: { coordinator: t0 }, now: t0, targets });
+  assert.deepEqual(first.immediate.map(([to, found]) => [to, found.key]), immediateCauses.map((_, i) => ['coordinator', `i${i}`]));
+  assert.deepEqual(first.buffered.coordinator.map(entry => entry.subject), ['seat-a', 'seat-b']);
+  assert.deepEqual(first.lines, [], 'inside the window nothing is flushed');
+  const early = healthDigestPlan({ added: [], resolved: [], buffered: first.buffered, lastFlush: first.lastFlush, now: '2026-11-19T10:09:59.000Z', targets });
+  assert.deepEqual(early.lines, []);
+  const later = healthDigestPlan({ added: [], resolved: [], buffered: first.buffered, lastFlush: first.lastFlush, now: '2026-11-19T10:10:00.000Z', targets });
+  assert.equal(later.lines.length, 1);
+  assert.equal(later.lines[0][0], 'coordinator');
+  assert.match(later.lines[0][1], /seat-a, seat-b/u);
+  assert.deepEqual(later.buffered, {});
+  assert.equal(later.lastFlush.coordinator, '2026-11-19T10:10:00.000Z');
+});
+
+test('store.logic-board-receipts.digest-drops-resolved-buffered: clause 2: a buffered finding whose key resolves before its window flushes is dropped and never named in a flush line [C7,#1479]', () => {
+  const t0 = '2026-11-19T10:00:00.000Z';
+  const buffered = { coordinator: [{ key: 'r1', subject: 'seat-a' }, { key: 'r2', subject: 'seat-b' }] };
+  const plan = healthDigestPlan({ added: [], resolved: [digestFinding('r1', 'IDLE_AGENT')], buffered, lastFlush: { coordinator: t0 }, now: '2026-11-19T10:11:00.000Z', targets: () => ['coordinator'] });
+  assert.equal(plan.lines.length, 1);
+  assert.match(plan.lines[0][1], /seat-b/u);
+  assert.doesNotMatch(plan.lines[0][1], /seat-a/u);
+  const all = healthDigestPlan({ added: [], resolved: [digestFinding('r2', 'IDLE_AGENT')], buffered: plan.buffered, lastFlush: plan.lastFlush, now: '2026-11-19T10:30:00.000Z', targets: () => ['coordinator'] });
+  assert.deepEqual(all.lines, []);
 });
 
 /** A builder-owned and a coordinator-owned finding, each carrying the owner role the scan keeps when adviceThroughNext is on. */
