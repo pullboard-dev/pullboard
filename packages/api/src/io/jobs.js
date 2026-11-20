@@ -19,9 +19,9 @@ import { renewLease } from '../../../jobs/index.js';
 import { JOB_CLASSES } from '../../../jobs/index.js';
 import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
-import { ledgerHits } from '../../../store/index.js';
-import { recordShadow } from '../../../store/index.js';
-import { firstDifference } from '../../../store/index.js';
+import { ledgerHits } from './store.js';
+import { recordShadow } from './store.js';
+import { firstDifference } from './store.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
@@ -113,6 +113,18 @@ function shardsBeforeTests(ordered, aged) {
   const isAged = ({ row }) => aged.has(row.job_id);
   const tail = ordered.slice(firstTest);
   return [...ordered.slice(0, firstTest), ...tail.filter(isAged), ...tail.filter(entry => isShard(entry) && !isAged(entry)), ...tail.filter(entry => !isShard(entry) && !isAged(entry))];
+}
+
+// Budget: a gate job offered this long before the claim moves ahead of gate shards and test jobs, so gate analysis is not starved behind a shard backlog [C7,#11873].
+const GATE_JOB_AGED_MS = 5 * 60_000;
+
+/** The claim order with gate jobs offered gateAgedMs or more before this claim moved ahead of everything but the landing jobs and pre-push shards; each group keeps its age order. */
+function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
+  const isAged = ({ row }) => row.job_kind === 'gate' && row.job_created <= now - gateAgedMs;
+  if (!ordered.some(isAged)) return ordered;
+  const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
+  const rest = ordered.filter(entry => !isAged(entry) && !isFirst(entry));
+  return [...ordered.filter(isFirst), ...ordered.filter(isAged), ...rest];
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -355,8 +367,10 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS, place = null }) {
   runnerId(runner);
+  // Two runner ids claiming from one host and runner folder within the gap are one machine split in two [C7].
+  notePlace(runner, place, now);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
@@ -387,7 +401,9 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !overBudget(row.job_kind) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
     // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
-    const offered = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
+    const shardsFirst = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
+    // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
+    const offered = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
     for (const { row, offer } of offered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
@@ -987,9 +1003,9 @@ function reportedCommit(read) {
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
+  const { action, runner, place, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
+    const claim = claimJob(db, { runner, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
     const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }
@@ -1012,4 +1028,48 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
   throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, shardReceipts, release, progress, artifact, receiptPart or receipt');
+}
+
+/** How long a runner id's claim keeps its place held against a second id from the same place. */
+const PLACE_GAP_MS = 30_000;
+/** Runner id to the place it last claimed from and when; refused ids to the same, so the health item can list them. In memory only, no table. */
+const placeClaims = new Map();
+const refusedPlaces = new Map();
+
+/** Whether a claim's place names a host and runner folder as strings. */
+const placeKey = place => (typeof place?.host === 'string' && typeof place?.root === 'string' ? JSON.stringify([place.host, place.root]) : null);
+
+/**
+ * Record a claim's place and refuse a second runner id from the same place whose first id claimed within the gap.
+ * A claim without a place changes nothing. The time is the claim's own `now`, never a new clock read.
+ *
+ * @param {string} runner
+ * @param {{ host?: string, root?: string } | null} place
+ * @param {number} now
+ */
+function notePlace(runner, place, now) {
+  const key = placeKey(place);
+  if (key === null) return;
+  for (const [other, seen] of placeClaims) {
+    if (other === runner || seen.key !== key || now - seen.at >= PLACE_GAP_MS) continue;
+    refusedPlaces.set(runner, { key, at: now, other });
+    throw new Refused('RUNNER_DUPLICATE', `runner ${runner} claims from the same host and runner folder as runner ${other}, which claimed ${Math.max(0, Math.round((now - seen.at) / 1000))} s ago; one runner service per folder`);
+  }
+  placeClaims.set(runner, { key, at: now });
+}
+
+/**
+ * The places where a second runner id was refused within the gap, each with both ids, for the health report.
+ *
+ * @param {number} now
+ * @returns {{ host: string, root: string, runners: string[] }[]}
+ */
+export function duplicateRunnerPlaces(now) {
+  const rows = [];
+  for (const [runner, refused] of refusedPlaces) {
+    if (now - refused.at >= PLACE_GAP_MS) continue;
+    const [host, root] = JSON.parse(refused.key);
+    rows.push({ host, root, runners: [refused.other, runner].sort() });
+  }
+  return rows;
 }

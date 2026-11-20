@@ -5,7 +5,7 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { carriedRows } from '../../logic/census-skip.js';
 import { skipSplit } from '../../logic/census-skip.js';
 
