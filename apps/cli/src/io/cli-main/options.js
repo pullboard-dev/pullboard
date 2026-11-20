@@ -15,6 +15,7 @@ const OPTIONS = {
   'split-coordinator': { type: 'boolean' },
   'expected-minutes': { type: 'string' },
   readiness: { type: 'string' },
+  needs: { type: 'string' },
   sensitive: { type: 'boolean' },
   'machine-verified': { type: 'string' },
   'machine-commands-file': { type: 'string' },
@@ -68,7 +69,9 @@ const OPTIONS = {
   'runner-only': { type: 'boolean' },
   static: { type: 'boolean' },
   withdraw: { type: 'string' },
-  after: { type: 'string' },
+  after: { type: 'string', multiple: true },
+  'after-gate': { type: 'string', multiple: true },
+  'stale-before': { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
@@ -88,7 +91,7 @@ const OPTIONS = {
   role: { type: 'string' },
   route: { type: 'string' }, level: { type: 'string' },
   field: { type: 'string' },
-  family: { type: 'string' }, 'review-family': { type: 'string' },
+  family: { type: 'string' }, 'review-family': { type: 'string' }, abilities: { type: 'string' },
   model: { type: 'string' },
   issue: { type: 'string' },
   as: { type: 'string' },
@@ -118,6 +121,7 @@ const OPTIONS = {
   yes: { type: 'boolean' },
   diagnostics: { type: 'boolean' },
   hosts: { type: 'boolean' },
+  reconcile: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
   due: { type: 'boolean' },
@@ -132,6 +136,8 @@ const OPTIONS = {
   choices: { type: 'string' },
   deadline: { type: 'string' },
   take: { type: 'string' },
+  stuck: { type: 'string' },
+  done: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -178,6 +184,7 @@ const OPTIONS = {
   fields: { type: 'string' },
   history: { type: 'boolean' },
   verbose: { type: 'boolean' },
+  fleet: { type: 'boolean' },
   since: { type: 'string' },
   window: { type: 'string' },
   days: { type: 'string' },
@@ -196,6 +203,10 @@ const OPTIONS = {
   kinds: { type: 'string' }, to: { type: 'string' }, work: { type: 'string' }, 'review-wait': { type: 'string' }, review: { type: 'boolean' }, read: { type: 'string' },
   commit: { type: 'string' },
   ref: { type: 'string' },
+  start: { type: 'boolean' },
+  end: { type: 'boolean' },
+  point: { type: 'boolean' },
+  at: { type: 'string' },
   supersedes: { type: 'string' },
   answers: { type: 'string' },
   origin: { type: 'string' },
@@ -210,6 +221,7 @@ const OPTIONS = {
   'session-end': { type: 'boolean' },
   'draft-splits': { type: 'boolean' },
   implies: { type: 'string' },
+  broke: { type: 'string' },
   owns: { type: 'string' },
   red: { type: 'string' },
   green: { type: 'string' },
@@ -224,7 +236,7 @@ export function parseCommandArgs(argv) {
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), ...(argv[0] === 'flow' ? { apply: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
@@ -240,7 +252,7 @@ export function parseCommandArgs(argv) {
     ...(['add', 'edit'].includes(command) ? { review: { type: 'string' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
-  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
+  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' }, apply: { type: 'boolean' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
   foldLevelIntoRoute(parsed.values);
   if (['add', 'edit'].includes(command)) foldReviewIntoReviewTier(parsed.values);
