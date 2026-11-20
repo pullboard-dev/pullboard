@@ -28,7 +28,9 @@ test('cli.io-commands-resume.text-drops-row-after-apply: clause 2: after spec ap
   const resumed = await box.cmd('resume');
   assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
   assert.doesNotMatch(resumed.stdout, /pending apply/u);
-  assert.doesNotMatch(resumed.stdout, /\bG1\b/u);
+  assert.doesNotMatch(resumed.stdout, /spec apply/u, 'the next step no longer asks for an apply');
+  const named = resumed.stdout.split('\n').filter((line) => /\bG1\b/u.test(line) && !line.startsWith('next: plan the approved rows'));
+  assert.deepEqual(named, [], 'only the plan step may name the now-applied row');
 });
 
 test('cli.io-commands-resume.json-pending-apply-array: clause 3: pullboard resume --json prints a pendingApply array naming G1 [C7,I1]', async (t) => {
