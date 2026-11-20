@@ -79,3 +79,15 @@ test('gate.io-test-tier-selection.a-project-with-no-tier: clause 3: a project wi
     for (const file of DEFAULT_CANARY) assert.ok(plan.proofFiles.includes(file), `${submitGate ?? 'immediate'} submit runs ${file}: ${plan.proofFiles}`);
   }
 });
+
+test('gate.io-test-tier-selection.no-plan-same-selection: clause 1: selectTestTiers picks the same tests for one source change on a temp tree with and without a plan folder [C7]', t => {
+  const source = { 'packages/web/src/page.js': 'export const page = 2;\n' };
+  const without = change(frozen(t), source);
+  const box = frozen(t);
+  change(box, { 'packages/codemap/data/plan/05-web.json': '{"root":"packages/web"}\n' });
+  box.base = git(box.root, 'rev-parse', 'HEAD').trim();
+  const withPlan = change(box, source);
+  assert.deepEqual(withPlan.units, without.units, 'a plan folder in the tree changes no selection');
+  assert.ok(withPlan.units.includes(WEB_TEST), `the changed cell's test runs: ${withPlan.units}`);
+  assert.ok(!withPlan.units.includes(SIZE_TEST), `an unrelated cell's test stays out: ${withPlan.units}`);
+});
