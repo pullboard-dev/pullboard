@@ -13,7 +13,6 @@
   "items/tests/way.test.js",
   "jobs/tests/io/launch.test.js",
   "jobs/tests/logic/panel.test.js",
-  "kernel/tests/logic/seal.test.js",
   "link/tests/io/relay/canary/needs.test.js",
   "link/tests/logic/relay/poll.test.js",
   "merge/tests/logic/carriage.test.js",

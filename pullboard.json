@@ -8,6 +8,7 @@
   "affectedTests": "node packages/gate/src/io/run/tests.js",
   "submitGate": "landing",
   "submitDeferAbove": 20,
+  "confinedImportSelection": "tests",
   "landingShards": 6,
   "pushGate": { "shardMinutes": 40 },
   "landing": {
@@ -421,7 +422,8 @@
     "outbox": true
   },
   "cells": {
-    "cache": true
+    "cache": true,
+    "plan": "packages/codemap/data/plan/cells.json"
   },
   "worktreeMaintenance": {
     "enabled": true,
