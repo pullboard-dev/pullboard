@@ -147,7 +147,6 @@
     "packages/seats/src/io/timing.js": 6,
     "packages/seats/src/io/untouched.js": 3,
     "packages/seats/src/io/wake.js": 8,
-    "packages/sentinels/src/io/waits.js": 2,
     "packages/spec/src/io/approval.js": 1,
     "packages/spec/src/io/boards.js": 3,
     "packages/spec/src/io/draft.js": 1,
