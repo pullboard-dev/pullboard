@@ -1,0 +1,30 @@
+{
+  "cli.io-beater.worker-not-ancestor": {
+    "proves": {
+      "specs": [
+        "B4",
+        "C7"
+      ],
+      "claim": "agentSession keeps PULLBOARD_AGENT_PID first and startClaimBeater records a beater under an ancestor another live beater watches as shared."
+    },
+    "why": "Without it, many seats could all depend only on one long-lived ancestor's pid and their beaters would outlive their workers.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/beater.js"
+    ]
+  },
+  "cli.io-beater.quiet-seat-stops": {
+    "proves": {
+      "specs": [
+        "B4",
+        "C7"
+      ],
+      "claim": "runBeater stops and drops its lock after the quiet interval with no board event and no folder change, and keeps beating while either is recent."
+    },
+    "why": "Without it, a seat whose worker exited could show presence live indefinitely behind a long-lived ancestor.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/beater.js"
+    ]
+  }
+}

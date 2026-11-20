@@ -1,0 +1,3 @@
+{
+  "view.x-render-group.needs-across-two-repos": {"proves":{"specs":["N34","C7"],"claim":"group needs from two repos print one entry per row in order, each with its own repo name, ref and answer root."},"why":"Without it the project-wide Needs-you could send an answer to the wrong repo board with no test naming what it proved.","kind":"cell unit","inputs":["apps/view/tests/logic/render/group.test.js"]}
+}

@@ -8,7 +8,7 @@ import { gateShardsUnsettled } from '../../../../src/io/submit/handoff/records.j
 import { awaitingGateOrReview } from '../../../../src/io/submit/handoff/records.js';
 import { getItem } from '../../../../index.js';
 
-/** A claimed item whose gate job is done, with two shard jobs done; `settle(outcome)` notes the combined result. */
+/** A claimed item whose gate job, submitted by its holder, is done, with two shard jobs done; `settle(outcome)` notes the combined result. */
 function settledGate(t) {
   const box = fixture(t);
   const id = box.add('Item whose gate settled');
@@ -20,9 +20,12 @@ function settledGate(t) {
   job(gate, 'gate');
   job(`${gate}:shard:1`, 'gate-shard');
   job(`${gate}:shard:2`, 'gate-shard');
+  const owner = getItem(box.board, id).item_owner;
+  box.board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'offered', ?, ?)")
+    .run(gate, JSON.stringify({ request: { submit: { agentId: owner } } }), at);
   const settle = outcome => box.board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'note:shards.settled', ?, ?)")
     .run(gate, JSON.stringify({ outcome }), at);
-  return { box, item: { item_id: id }, settle };
+  return { box, item: { item_id: id, item_owner: owner }, settle };
 }
 
 test('store.submit-handoff-records.unknown-gate-holds-claim: clause 1: an unknown settled gate younger than the hold is unsettled, a red or review one is settled [C7,#11711]', t => {

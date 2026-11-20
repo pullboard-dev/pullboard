@@ -3,3 +3,6 @@
 /** The pause reason ends with this text; the idle answer lists it before every other reason [#3741]. */
 export const REVIEW_COVER_PAUSE_TAIL = 'new builds wait for independent review cover';
 
+
+/** The clock table: owner, deadline and default move for every non-terminal item state [B4,C7]. */
+export { CLOCK_TABLE, CLOCK_TERMINAL, clockRow, clockDue } from './src/logic/clock/table.js';

@@ -56,6 +56,7 @@ import {
   ordered,
   CHECKOUT_LEASES,
 } from '../entry.js';
+import { refuseWithdrawnAfter } from './add.js';
 
 const fs = fileSystemAdapter();
 
@@ -142,6 +143,7 @@ export async function run(io, args) {
     requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
     await requireCellTestFixture(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check, brief: before.item_brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || Boolean(asPerson));
   }
+  refuseWithdrawnAfter(board, change.after);
   // A changed --after list is measured on its own: the chain rule applies whether or not the bar changed.
   if (itemsBarRulesAtAdd() && change.after !== undefined) requireChainDepth(change.after, chainDepthOf(store.listItems(board, { all: true })), id);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);

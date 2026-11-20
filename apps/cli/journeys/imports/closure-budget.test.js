@@ -176,6 +176,16 @@ test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a co
   assert.equal(run.urls.has(spec), false, 'pullboard claim 1 loaded apps/cli/src/io/spec.js: import coordinatorFile from apps/cli/src/io/coordinator-file.js');
 });
 
+test('cli.journeys-imports-closure-budget.cold-show-trimmed-modules: a cold pullboard show 1 loads none of the review-retry modules and at most 525 modules in all [C7,#11943]', () => {
+  const run = commandLoads('show 1');
+  const dropped = ['packages/verify/src/logic/verdict/retry.js', 'packages/merge/index.js', 'packages/merge/src/io/trunk.js', 'packages/merge/src/io/compose.js'];
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^#1 +claimed /u, "a cold show 1 still prints the item line");
+  assert.deepEqual(loadedDrops, [], `a cold show loaded ${loadedDrops.join(', ')}: the comparison loads the review-retry composition only when its base run fails`);
+  assert.ok(run.urls.size <= 525, `a cold show 1 loaded ${run.urls.size} modules, over the 525 the env adapter slices need: keep the retry composition out of the cold path`);
+});
+
 test('cli.journeys-imports-closure-budget.headroom-is-five-or-five-percent: clause 1: headroom(ceiling) = max(5, ceil(5% of ceiling)), and the over-ceiling message names each module the change added, capped at 40 [C7]', () => {
   assert.deepEqual([1, 5, 100, 101, 227, 530, 1331, 1520].map(headroom), [5, 5, 5, 6, 12, 27, 67, 76]);
   const added = Array.from({ length: 45 }, (_, index) => `packages/x/m${index + 1}.js`);
