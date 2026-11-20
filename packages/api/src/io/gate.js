@@ -860,7 +860,8 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
   if (stale) return { applied: false, outcome: 'stale', reason: stale };
   recordTimedSubmitReceipt(board, { job, receipt, runner: postedReceipt(board.db, job)?.runner });
   // A gate that left its proof to shards waits for them; the gate result applies when the last shard posts [P7].
-  const sharded = receipt?.gate?.proofPlan ? offerProofShards(board, { job, receipt, offered, rebuilt: rebuiltOnTrunk(board, offered, receipt, { trunk }) }) : null;
+  const rebuilt = receipt?.gate?.proofPlan ? rebuiltOnTrunk(board, offered, receipt, { trunk, job }) : null;
+  const sharded = rebuilt?.returned ?? (receipt?.gate?.proofPlan ? offerProofShards(board, { job, receipt, offered, rebuilt }) : null);
   if (sharded) return sharded;
   // Static rows main also has, which the runner's analysis let pass: each is recorded once as a known main red on the item at the job's pinned main [C7,#10567].
   const knownMain = Array.isArray(receipt?.analysis?.staticKnownMain) ? receipt.analysis.staticKnownMain.filter(row => typeof row?.rule === 'string' && typeof row?.file === 'string') : [];
