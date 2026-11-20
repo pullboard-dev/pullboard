@@ -40,10 +40,23 @@ function blockedFor(board, item, seats, policy, { reviewerChecks, reviewReleaseC
   });
 }
 
+/**
+ * Whether an item's review tier lets a family wait relax: standard, or, when the family wait itself may widen
+ * (review.relaxRequiredFamily on), strict only because of its review family: not sensitive, no strict review tier, not
+ * classified strict [C7,#11127].
+ */
+export function relaxableTier(board, item, itemReviewPolicy, classifiedStrict, familyWaitWidens) {
+  const policy = itemReviewPolicy(board, item.item_id);
+  if (policy.tier === 'standard') return true;
+  return Boolean(familyWaitWidens) && policy.sensitive === false && policy.reviewTier === undefined && !classifiedStrict(board, item.item_id);
+}
+
 /** Whether the subject and its reviewer may be relaxed at all: a standard same-family submission under a threshold. */
-function relaxable(board, subject, agentId, threshold, { seatFamily, familiesDiffer, itemReviewPolicy, reviewHeartbeats = null }) {
+function relaxable(board, subject, agentId, threshold, policy, { seatFamily, familiesDiffer, itemReviewPolicy, classifiedStrict, reviewerChecks, requiredFamilyWaits, reviewHeartbeats = null }) {
   if (!Number.isSafeInteger(threshold) || threshold < 1 || subject.item_status !== 'submitted'
-    || itemReviewPolicy(board, subject.item_id).tier !== 'standard') return false;
+    || !relaxableTier(board, subject, itemReviewPolicy, classifiedStrict, requiredFamilyWaits?.(subject))) return false;
+  // A required-family item waits on seats of one family; any seat of another session than its builder may stand in for it [C7,#11127].
+  if (requiredFamilyWaits?.(subject)) return !reviewerChecks(board, { agentId, policy, familyPolicy: 'require' }).notBuilder(subject);
   const family = seatFamily(board, agentId);
   return Boolean(family && subject.item_builder_family && !familiesDiffer(board, family, subject.item_builder_family));
 }
@@ -51,7 +64,7 @@ function relaxable(board, subject, agentId, threshold, { seatFamily, familiesDif
 /** Derive a reservation witness from native events and the unreserved queue, reusing one selection's authority reads [V1,H16]. */
 export function relaxationWitness(board, subject, agentId, threshold, policy, ports, cache = null) {
   const { reviewHolder, listItems, reviewHeartbeats = null } = ports;
-  if (!relaxable(board, subject, agentId, threshold, ports)) return null;
+  if (!relaxable(board, subject, agentId, threshold, policy, ports)) return null;
   const cacheKey = `${agentId}:${threshold}:${policy}`;
   let state = cache?.get(cacheKey);
   if (!state) {
@@ -81,7 +94,7 @@ export function confirmRelaxation(board, subject, witness, agentId, threshold, p
     || !Array.isArray(witness.activeSeats) || !witness.waiting.includes(subject.item_id)) return null;
   const held = reservedRelaxation(board, subject, agentId);
   if (held) return JSON.stringify(held) === JSON.stringify(witness) ? witness : null;
-  if (!relaxable(board, subject, agentId, threshold, ports) || reviewHolder(board, subject)) return null;
+  if (!relaxable(board, subject, agentId, threshold, policy, ports) || reviewHolder(board, subject)) return null;
   const seats = freeActiveSeats(board, board.clock.now(), reviewHeartbeats);
   if (JSON.stringify(seats) !== JSON.stringify(witness.activeSeats)) return null;
   if (!blockedFor(board, subject, seats, policy, ports)) return null;
