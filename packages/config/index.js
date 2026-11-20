@@ -18,6 +18,7 @@ export {
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
+  provenBreakRequired,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
