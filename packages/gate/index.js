@@ -45,7 +45,7 @@ export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
 export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
-export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
+export { testsNeedGui, projectNeedsGui, checkNeedsGui, timingTestFiles } from "./src/io/gui/admission.js";
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
@@ -58,6 +58,7 @@ export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, releaseTiming, RELEASE_BUDGET_SECONDS, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
+export { conformanceResults } from "./src/logic/conformance-setups.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest, singleFileTapOutcomes } from "./src/io/tap.js";
 export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";

@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { posix } from 'node:path';
 import { gitExecFileSync } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { testOutcomeFields } from '../../../light.js';
 import { frozenBar } from '../../logic/frozen.js';
 import { frozenRowGates } from '../../logic/frozen.js';
@@ -36,7 +37,7 @@ const PATCH_LIMIT = 4 * 1024 * 1024;
 
 /** Run git with repository overrides stripped, so a hook's environment never redirects the read. */
 function gitRead(root, args, input) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  const env = Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !key.startsWith('GIT_')));
   return gitExecFileSync(['-C', root, ...args], { env, maxBuffer: 64 * 1024 * 1024, ...(input === undefined ? { encoding: 'utf8' } : { input }) });
 }
 
