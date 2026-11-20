@@ -1,4 +1,5 @@
 import { requireLandingCompanions } from '../guards.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { timedPhase } from '../timing.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { quarantineBatchGates } from '../../../../verify/index.js';
@@ -100,7 +101,7 @@ export function startBaseRefresh(state, batch, { source = refreshSource, launch 
  * anything it starts never act under, or queue for, a checkout's lease. Why: a refresh is a read plus a cache write, and
  * a refresh started by a write command inherited that command's checkout authority [C7].
  */
-export function refreshEnvironment(env = process.env) {
+export function refreshEnvironment(env = environmentAdapter().all()) {
   const clean = { ...env };
   for (const name of ['PULLBOARD_CHECKOUT_SESSION_TOKEN', ...AGENT_SESSION_IDS]) delete clean[name];
   return clean;

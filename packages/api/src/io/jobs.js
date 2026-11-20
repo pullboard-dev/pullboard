@@ -7,6 +7,8 @@ import { LEASE_MS } from '../../../jobs/index.js';
 import { atomically } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { dehydrateRequest } from '../../../jobs/index.js';
+import { hydrateRequest } from '../../../jobs/index.js';
 import { readPayload } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { upsertProgressStep } from '../../../jobs/index.js';
@@ -221,6 +223,8 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   const argv = runArgv(run);
   if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
   if (payload !== null && Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_BYTES) throw new Refused('JOB_PAYLOAD', `a job payload is at most ${PAYLOAD_BYTES} bytes; name commits and refs, and let the runner fetch the code from git`);
+  // With runs_store on, program text is stored once in the runs file and the offer holds only its hash [B2,P7].
+  if (queue && request !== null && typeof request === 'object' && !Array.isArray(request)) request = dehydrateRequest(queue.runs.db, request);
   if (request !== null && (typeof request !== 'object' || Array.isArray(request) || Buffer.byteLength(JSON.stringify(request)) > STORED_REQUEST_BYTES)) {
     throw new Refused('JOB_REQUEST', `a job request is a JSON object of at most ${STORED_REQUEST_BYTES} bytes; keep large inputs in git and name them`);
   }
@@ -293,12 +297,12 @@ export function offeredRequest(db, job, { runs = null } = {}) {
   if (runs) db = runs.db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   const request = row ? JSON.parse(row.job_step_payload).request ?? null : null;
-  if (!namesParts(request)) return request;
+  if (!namesParts(request)) return hydrateRequest(db, request);
   // A queued job (runs_store on) keeps its whole request in the pending step intend wrote, not in a request step.
   const kept = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name IN (?, 'pending') AND job_step_seq = 0 ORDER BY job_step_name = 'pending'").get(job, REQUEST_STEP);
   const whole = kept ? readPayload(db, kept.job_step_payload) : null;
   if (!whole?.request) throw new Refused('JOB_REQUEST', `job ${job}'s offer names its request step, but the board no longer holds it; resubmit the item for a new gate job`);
-  return whole.request;
+  return hydrateRequest(db, whole.request);
 }
 
 /**

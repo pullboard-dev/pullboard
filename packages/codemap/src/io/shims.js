@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gitExecFileSync } from '../../../git/light.js';
+import { readCellRule } from './cell/rule.js';
 
 /** A front door: a package's index.js or pure core.js, or an app's index.js. */
 const DOOR = /^(?:packages\/[^/]+\/(?:index|core)\.js|apps\/[^/]+\/index\.js)$/u;
@@ -415,7 +416,7 @@ export function cutShims(root, { write = true, frozen = [], reviewed = [] } = {}
   // Apply each file's repoints one at a time, last first so earlier offsets hold, and hold any that breaks the ratchet.
   const ratchet = {
     ceilings: JSON.parse(repo.files.get('packages/gate/data/ceilings/cells-edges.json') ?? '{}'),
-    declared: new Set(JSON.parse(repo.files.get('packages/codemap/data/plan/cells.json') ?? '{}').allowedEdges ?? []),
+    declared: new Set(readCellRule(repo.root).allowedEdges),
   };
   for (const [file, rows] of edits) {
     const original = repo.files.get(file);
