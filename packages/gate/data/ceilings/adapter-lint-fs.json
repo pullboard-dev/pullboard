@@ -99,10 +99,6 @@
     "packages/store/src/io/board/busy.js": 1,
     "packages/store/src/io/board/compact.js": 7,
     "packages/store/src/io/board/event/log.js": 1,
-    "packages/store/src/io/board/hold/log.js": 7,
-    "packages/store/src/io/board/sqlite.js": 2,
-    "packages/store/src/io/board/state.js": 2,
-    "packages/store/src/io/board/submit.js": 1,
-    "packages/store/src/io/board/write/lock.js": 12
+    "packages/store/src/io/board/hold/log.js": 7
   }
 }
