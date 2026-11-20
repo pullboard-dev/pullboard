@@ -2,6 +2,11 @@ import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
 import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
 import { addItem } from './add.js';
+import { sendBackDependents } from './item/after-gate.js';
+import { reopen } from './reopen.js';
+import { release } from './release.js';
+import { appendFact } from './fact.js';
+import { announceItemState } from './link/announce.js';
 import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
@@ -74,6 +79,8 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { SPEC_APPROVAL_ENGINE } from "../../../../state/light.js";
 import { STRONG_REJECTION_NOTICE_ENGINE } from "../../../../state/light.js";
 import { itemPace } from "./sprint-pace.js";
+import { landedSprintPullOut } from "./sprint-pull-out.js";
+import { queueSprintPullOut } from "./sprint-pull-out.js";
 
 /** What the verify table needs from the cells the writer already reads; the table decides a verdict only from the engine where every rule it holds was in force. */
 const VERIFY_TABLE_DEPS = Object.freeze({ pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
@@ -187,6 +194,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     // The verify table decides the verdict event and its follow-ups from the board before the move; where it does not model the call, the original rules below run.
     const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
       companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS, verifyFacts) : null;
+    // A reject of landed sprint work queues its pull-out; read before the move, and only for a sprint item, so steady and strict read nothing more [M2,#12181].
+    const pullOut = isAccept ? null : landedSprintPullOut(board, getItem(board, id));
     const item = moveItem(board, id, verb, {
       transition,
       checks: {
@@ -242,7 +251,11 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       recordRejectedItemRoute: (target, itemId, moveEngine, item, dependencies) => recordRejectedItemRoute(target, itemId, moveEngine, item,
         { ...dependencies, routeCalibrationEngine: ROUTE_CALIBRATION_ENGINE }),
       escalate, tellVerdictImplications }));
+    // The verify table writes the pull_out itself when it decides; where it does not model the call, the writer queues it here.
+    if (pullOut && !decided) queueSprintPullOut(board, id, pullOut, { reason: code });
     if (!isAccept) postRigorNotices(board, trigger);
+    // The dependents built on a rejected after-gate parent go back with it [C7,#11807].
+    if (!isAccept) sendBackDependents(board, id, { cause }, { reopen, release, appendFact });
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
   });
@@ -318,4 +331,16 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}), ...(followUp && keepCheck && found.item_check && getItem(board, followUp)?.item_check === found.item_check ? { keptCheckFrom: found.item_check } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
+}
+
+/**
+ * Tell the parent boards that wait on a verified item its new state, after the verdict has been recorded.
+ * Why: the verdict is a replayed move and cannot carry a transport, so the command passes the link ports here after the move; a failed delivery stays queued for resendPendingBoardStates and never undoes the verdict [E32,B24].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ links: object[] }} ports
+ */
+export async function announceVerdict(board, id, ports) {
+  return announceItemState(board, id, ports);
 }

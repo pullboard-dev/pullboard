@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { mainCommit } from '../../../../codemap/index.js';
 import { styleSources } from '../../../../codemap/index.js';
-import { importStyleViolations } from '../../../index.js';
+import { importStyleViolations } from '../../../heavy.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
@@ -27,9 +27,11 @@ import { clockLintRows } from '../adapter-lints/clock.js';
 import { adapterLintEnvEnabled } from '../../../../config/index.js';
 import { envLintRows } from '../adapter-lints/env.js';
 import { adapterLintFsEnabled } from '../../../../config/index.js';
+import { adapterLintSigningEnabled } from '../../../../config/index.js';
 import { adapterLintSshEnabled } from '../../../../config/index.js';
 import { adapterLintGithubEnabled } from '../../../../config/index.js';
 import { fsLintRows } from '../adapter-lints/fs.js';
+import { signingLintRows } from '../adapter-lints/signing.js';
 import { sshLintRows } from '../adapter-lints/ssh.js';
 import { githubLintRows } from '../adapter-lints/github.js';
 import { idiomSpreadEnabled } from '../../../../config/index.js';
@@ -69,8 +71,8 @@ import {
   readMissingPathBaseline,
 } from '../paths/lint.js';
 import { STATIC_CHECKS } from './check/registry.js';
-import { cliReachRows } from '../../../index.js';
-import { keylessRows } from '../../../index.js';
+import { cliReachRows } from '../../../heavy.js';
+import { keylessRows } from '../../../heavy.js';
 import { repoPath } from '../../../../kernel/light.js';
 import { runChildren } from './children.js';
 import { parallelCap } from './children.js';
@@ -277,6 +279,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
   // Direct GitHub API references outside the GitHub adapter; each file's count may only fall, and off (gate.adapterLintGithub) it reports nothing (#11278).
   { name: 'adapter-lint-github', reads: SOURCE, run: (root, sources, context = MEMORY) => githubLintRows(root, { enabled: context.adapterLintGithub ?? adapterLintGithubEnabled() }) },
+  // Direct node:crypto key and signature calls outside the signing adapter; each file's count may only fall, and off (gate.adapterLintSigning) it reports nothing (#11270).
+  { name: 'adapter-lint-signing', reads: SOURCE, run: (root, sources, context = MEMORY) => signingLintRows(root, { enabled: context.adapterLintSigning ?? adapterLintSigningEnabled() }) },
   // Direct ssh spawns outside the SSH runner adapter; each file's count may only fall, and off (gate.adapterLintSsh) it reports nothing (#11374).
   { name: 'adapter-lint-ssh', reads: SOURCE, run: (root, sources, context = MEMORY) => sshLintRows(root, { enabled: context.adapterLintSsh ?? adapterLintSshEnabled() }) },
   // A statement shape copied into 3 or more files, and named idioms past their ceiling; off (gate.idiomSpread) it reports nothing (#9521).

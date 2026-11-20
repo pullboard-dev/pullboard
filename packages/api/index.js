@@ -101,6 +101,7 @@ export {
 export { provideMainRedNotes } from "./src/io/gate/files.js";
 export { provideScreenStart } from "./src/io/gate/screen-start.js";
 export { providePostLandMainTest } from "./src/io/gate/post-land-main-test.js";
+export { providePostLandPullOut } from "./src/io/gate/post-land-main-test.js";
 export { sprintLandable } from "./src/io/gate/sprint-land.js";
 export {
   CHECK_BASELINE_KIND,

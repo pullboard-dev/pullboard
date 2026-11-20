@@ -109,6 +109,8 @@ import { answerDecision } from "./board/decision/answer.js";
 import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
 import { appendMark } from "./board/mark.js";
+import { expediteItem } from "./board/expedite.js";
+import { expeditedItems } from "./board/expedite.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
 import { gateAtHead } from "./board/next.js";
@@ -118,6 +120,7 @@ import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
 import { clearReservation } from "./board/hold/item.js";
 import { addBlock } from "./board/blocks.js";
+import { claimBlock } from "./board/blocks.js";
 import { listBlocks } from "./board/blocks.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
@@ -191,7 +194,7 @@ export { landingLeaseMove, landingLeaseState } from "../logic/board/landing/leas
 export { boardBusyError } from "./board/access.js";
 export { schemaMissing, writeRefused } from "./board/migrate.js";
 export { itemFiles };
-export { ROUTES, canTake };
+export { ROUTES, canTake, routeOf };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
@@ -507,6 +510,8 @@ export {
   closeFinishedAsks,
   appendFact,
   appendMark,
+  expediteItem,
+  expeditedItems,
   buildOrder,
   nextFor,
   gateAtHead,
@@ -516,6 +521,7 @@ export {
   reserveItem,
   clearReservation,
   addBlock,
+  claimBlock,
   listBlocks,
   releaseItemHold,
   maintainStaleState,
