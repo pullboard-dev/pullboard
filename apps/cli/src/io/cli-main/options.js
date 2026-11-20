@@ -134,6 +134,7 @@ const OPTIONS = {
   choices: { type: 'string' },
   deadline: { type: 'string' },
   take: { type: 'string' },
+  stuck: { type: 'string' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
