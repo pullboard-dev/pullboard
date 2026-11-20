@@ -103,6 +103,7 @@ export async function run(io, args) {
     check: values.check,
     ...(values['check-timing'] === undefined ? {} : { checkTiming: parseCheckTiming(values['check-timing']) }),
     after: editAfter(values.after),
+    afterGate: editAfter(values['after-gate']),
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
