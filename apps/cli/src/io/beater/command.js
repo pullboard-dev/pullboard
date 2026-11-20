@@ -10,7 +10,7 @@ export const COMMAND_KEEPALIVE_MS = 60_000;
  * keeps a command alive.
  */
 export function keepCommandAlive(cwd, { everyMs = Number(process.env.PULLBOARD_KEEPALIVE_MS) || COMMAND_KEEPALIVE_MS, every = setInterval, cancel = clearInterval } = {}) {
-  const timer = every(() => import('../../../../../packages/gate/index.js').then(gate => gate.beatSeat(cwd)).catch(() => { /* retried on the next tick */ }), everyMs);
+  const timer = every(() => import('../../../../../packages/gate/heavy.js').then(gate => gate.beatSeat(cwd)).catch(() => { /* retried on the next tick */ }), everyMs);
   timer?.unref?.();
   return () => cancel(timer);
 }

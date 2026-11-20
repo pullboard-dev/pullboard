@@ -7,6 +7,7 @@ import {
   openBoard,
 } from '../../../index.js';
 import { drainLoop } from '../../../../../packages/drive/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { createTransport } from '../../../../../packages/transport/index.js';
 import { sharedTransport } from '../../../../../packages/transport/index.js';
@@ -29,7 +30,7 @@ const ENTRY = fileURLToPath(import.meta.url);
  * @param {{ env?: NodeJS.ProcessEnv, stdio?: import('node:child_process').StdioOptions }} [spawnOptions]
  * @returns {import('node:child_process').ChildProcess}
  */
-export function spawnDriveWorker(options, { env = process.env, stdio = ['ignore', 'pipe', 'pipe'] } = {}) {
+export function spawnDriveWorker(options, { env = environmentAdapter().all(), stdio = ['ignore', 'pipe', 'pipe'] } = {}) {
   for (const field of ['file', 'job', 'owner']) {
     if (typeof options?.[field] !== 'string' || !options[field]) throw new Refused('DRIVE_WORKER', `a drive worker needs { ${field} }: pass the board file, the job id and the driver id`);
   }
@@ -44,8 +45,8 @@ export function spawnDriveWorker(options, { env = process.env, stdio = ['ignore'
  */
 function workerTransport(local) {
   if (!local) return sharedTransport();
-  const sh = () => spawn('sh', [], { env: process.env, stdio: ['pipe', 'pipe', 'pipe'] });
-  return createTransport({ open: sh, launch: (runner, script) => spawn('sh', ['-c', script], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }) });
+  const sh = () => spawn('sh', [], { env: environmentAdapter().all(), stdio: ['pipe', 'pipe', 'pipe'] });
+  return createTransport({ open: sh, launch: (runner, script) => spawn('sh', ['-c', script], { env: environmentAdapter().all(), stdio: ['ignore', 'pipe', 'pipe'] }) });
 }
 
 /**

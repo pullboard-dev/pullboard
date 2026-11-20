@@ -1,12 +1,14 @@
 /** Reuse only exact immutable-source controller checks, never board authority [C7,H16]. */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../../../packages/git/index.js';
 import { readCheckReceipt } from '../../../../../packages/git/index.js';
 import { writeCheckReceipt } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
-import { foreignNodeOptions } from '../../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../../packages/gate/heavy.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Bind recognized preloads to their actual bytes; unknown options can never reuse a receipt. */
 function preloadState() {
@@ -17,7 +19,7 @@ function preloadState() {
       if (!match) throw new Error('unrecognized preload');
       const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];
       const file = value.startsWith('file:') ? fileURLToPath(value) : value;
-      return { token, digest: createHash('sha256').update(readFileSync(file)).digest('hex') };
+      return { token, digest: createHash('sha256').update(fs.readFile(file, null)).digest('hex') };
     });
   } catch { return null; }
 }

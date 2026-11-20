@@ -38,7 +38,7 @@ export function queuedGateLines(queued, gateText = null) {
  * proof is waiting, not red. Why: a deferred receipt has gate.green false yet names no failing case, and the GATE_RED
  * line sent builders to resubmit and re-queue the whole gate while the shards were only queued [C7].
  *
- * @param {{ id: string, step: string, gate: Record<string, any> | null } | null} gateJob - show's newest gate job.
+ * @param {{ id: string, step: string, gate: Record<string, any> | null, settle?: string } | null} gateJob - show's newest gate job; its settle is the outcome of its newest note:shards.settled step, "stale" when the claim moved while shards ran.
  * @param {{ item_id: number, item_status?: string }} item
  * @param {Array<{ type?: string, text?: string }>} [thread] - show's thread; a settled red or unknown fact for this gate job replaces the waiting line.
  * @returns {string[]} none unless the gate is done, deferred, and the item is still claimed.
@@ -46,6 +46,7 @@ export function queuedGateLines(queued, gateText = null) {
 export function pulledWaitingLines(gateJob, item, thread = []) {
   const gate = gateJob?.gate;
   if (gateJob?.step !== 'done' || !gate || gate.green === true || gate.deferred !== true || item?.item_status !== 'claimed') return [];
+  if (gateJob.settle === 'stale') return [`GATE_STALE: gate job ${gateJob.id} settled stale; build at your claim and run pullboard submit ${item.item_id}`];
   const settled = settledGateWord(thread, gateJob.id);
   if (settled === 'red') return [`GATE_RED: gate job ${gateJob.id} settled red when its shards posted; read the failing parts in the thread, fix, commit, and run pullboard submit ${item.item_id} again`];
   if (settled === 'unknown') return [`GATE_UNKNOWN: gate job ${gateJob.id} settled unknown until main's missing receipts record; run pullboard submit ${item.item_id} again once they do`];
@@ -91,6 +92,20 @@ const RED_ROWS = 10;
 /** Budget: one failing case's error is one line of at most 240 characters; the full log keeps the rest. */
 const RED_ERROR_CHARS = 240;
 
+/** node --test names a file that crashes before any case only "test failed"; the cause is in its output, not in the case error [C7]. */
+function isGenericError(error) {
+  const text = String(error ?? '').trim();
+  return text === '' || text === 'test failed';
+}
+
+/** The first line of a phase's output tail that names an error, without its leading "# ", or null when none does. */
+function causeLine(tail) {
+  for (const line of String(tail ?? '').split('\n')) {
+    if (/(\w*Error|error:|Cannot find|not defined)/u.test(line)) return line.replace(/^\s*#\s?/u, '').trim();
+  }
+  return null;
+}
+
 /**
  * The lines show prints for a claimed item whose newest pulled gate came back red, read from its receipt: GATE_RED with
  * the counts, each failing case once with its first error text, a bounded output tail for a red phase that names no
@@ -109,9 +124,11 @@ export function pulledRedLines(gateJob, item) {
   for (const phase of Array.isArray(gate.phases) ? gate.phases : []) {
     if (!phase || phase.status === 0) continue;
     const rows = (Array.isArray(phase.errors) ? phase.errors : []).filter(row => row && typeof row.name === 'string');
+    const cause = causeLine(phase.tail);
     for (const row of rows) {
       const key = `${row.file}\0${row.name}`;
-      if (!seen.has(key)) { seen.add(key); cases.push(`  ${row.file ?? 'unknown file'} :: ${oneLine(row.name)}: ${oneLine(row.error)}`); }
+      const detail = cause && isGenericError(row.error) ? cause : row.error;
+      if (!seen.has(key)) { seen.add(key); cases.push(`  ${row.file ?? 'unknown file'} :: ${oneLine(row.name)}: ${oneLine(detail)}`); }
     }
     if (!rows.length) tails.push(...String(phase.exit || phase.tail || '').trimEnd().split('\n').slice(-RED_ROWS).map(line => `  ${phase.role} | ${line.slice(0, RED_ERROR_CHARS)}`));
   }

@@ -70,6 +70,7 @@ export async function fixture(t, { ruleProof = false } = {}) {
     PATH: `${shims}${delimiter}${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
+    PULLBOARD_CLAIM_BEATER: '0', // no detached claim beater writes into the fixture while it is removed (#5726).
     GIT_AUTHOR_NAME: 'Test Agent',
     GIT_AUTHOR_EMAIL: 'agent@example.com',
     GIT_COMMITTER_NAME: 'Test Agent',

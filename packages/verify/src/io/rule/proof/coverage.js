@@ -1,8 +1,8 @@
 /** Committed rule coverage is derived on the event writer, never by status or API readers [S1,C7]. */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { tryGit } from '../../../../../git/index.js';
-import { literalShellWords } from '../../../../../kernel/index.js';
+import { tryGit } from '../../../../../git/light.js';
+import { literalShellWords } from '../../../../../kernel/light.js';
 const FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:[cm]?js|cts)$/u;
 
 let runnerFile = null;
