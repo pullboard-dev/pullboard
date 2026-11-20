@@ -1,3 +1,4 @@
+// pullboard: browser
 // fixture-subject: addItem
 /** @pullboard-test-gui */
 import { viewApiPorts } from '../../../view/index.js';
