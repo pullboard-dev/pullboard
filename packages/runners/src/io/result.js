@@ -14,6 +14,8 @@ import { importTestResults } from '../../../gate/light.js';
 import { runnerPhaseFields } from '../../../gate/light.js';
 import { createHash } from 'node:crypto';
 import { verifyRunnerReceipt } from '../logic/signature.js';
+import { SCREENSHOT_MAX_BYTES } from '../logic/screenshots.js';
+import { screenshotPlan } from '../logic/screenshots.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -127,6 +129,8 @@ export function resultFrom(request, result, { privateCheckPhases }) {
     } catch { throw runnerFailure(request, result, 'private-phase-binding'); }
   } else if (receipt.trustedMode !== undefined) throw runnerFailure(request, result, 'unexpected-private-phases');
   const text = staged?.output ?? output.toString('utf8');
+  const screenshots = receipt.screenshots === undefined ? null : verifiedScreenshots(receipt.screenshots);
+  if (receipt.screenshots !== undefined && !screenshots) throw runnerFailure(request, result, 'screenshot-metadata');
   if (receipt.environment !== undefined && environmentProblem(receipt.environment)) throw runnerFailure(request, result, 'environment-metadata');
   if (receipt.executionPhases !== undefined && !runnerPhaseFields(receipt.executionPhases)) throw runnerFailure(request, result, 'phase-metadata');
   if (receipt.sourcePreparation !== undefined && !sourcePreparationFields(receipt.sourcePreparation)) throw runnerFailure(request, result, 'source-preparation-metadata');
@@ -159,7 +163,27 @@ export function resultFrom(request, result, { privateCheckPhases }) {
     ...(receipt.sourcePreparation ? { sourcePreparation: sourcePreparationFields(receipt.sourcePreparation) } : {}),
     executionSource: { commit: receipt.commit, tree: receipt.tree, tooling: request.spec.tooling },
     ...(privateResult ? { privateCheck: { ...privateResult, receipt: receipt.trustedMode }, rawOutputPath: result.rawOutputPath, rawOutputSha256: result.rawSha256 } : {}),
+    ...(screenshots ? { screenshots } : {}),
     executionMain: request.spec.main && receipt.main === request.spec.main ? receipt.main : null, executionLoad: remoteLoad(receipt.load), executionAdmission: admission };
+}
+
+/**
+ * The receipt's screenshot files when every entry is a png under the screenshot directory, the set fits the byte cap, and each
+ * decoded body matches its stated size and sha256; otherwise null, so the caller fails the run as a runner failure [C7,#2097].
+ */
+function verifiedScreenshots(list) {
+  if (!Array.isArray(list)) return null;
+  try {
+    const files = list.map(file => ({ path: file?.path, bytes: file?.bytes }));
+    if (files.some(file => typeof file.path !== 'string' || !Number.isSafeInteger(file.bytes) || file.bytes < 0)) return null;
+    if (screenshotPlan(files, SCREENSHOT_MAX_BYTES).length !== files.length) return null;
+    for (const file of list) {
+      if (typeof file.base64 !== 'string' || typeof file.sha256 !== 'string') return null;
+      const body = Buffer.from(file.base64, 'base64');
+      if (body.length !== file.bytes || createHash('sha256').update(body).digest('hex') !== file.sha256) return null;
+    }
+    return list.map(({ path, bytes, sha256, base64 }) => ({ path, bytes, sha256, base64 }));
+  } catch { return null; }
 }
 
 /** Validate executor-sampled admission intervals and both load timestamps before trusting timing isolation. */

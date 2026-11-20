@@ -14,7 +14,7 @@ export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/b
 export { archiveOldEvents, ARCHIVE_AFTER_DAYS } from './src/io/board/event/archive.js';
 export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
 export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
-export { LEDGER_SCHEMA_SQL, gateFailRows, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
+export { LEDGER_SCHEMA_SQL, gateFailRows, ledgerFiles, ledgerHits, ledgerMainReds, ledgerMissReasons, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
 export { declareItemField, setItemField, itemFields, fieldIndex, FIELD_TYPES } from './src/io/board/item/fields.js';
@@ -95,6 +95,8 @@ export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflic
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission, runnerSlotsSnapshot, claimRows } from './src/io/board/claim.js';
 /** The verdict reads a verify prepares before the write lock, loaded at the call so the front door does not load verify.js for every importer [C7,#10868]. */
 export async function prepareVerdictFacts(...call) { return (await import('./src/io/board/verify.js')).prepareVerdictFacts(...call); }
+/** Tell the parent boards that wait on a verified item its new state, loaded at the call so the front door does not load verify.js for every importer [E32,B24]. */
+export async function announceVerdict(...call) { return (await import('./src/io/board/verify.js')).announceVerdict(...call); }
 export { writeBoardCommand } from './src/io/board/write.js';
 export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
