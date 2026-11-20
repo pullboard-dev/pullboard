@@ -6,6 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../index.js';
 import { openKitBoard } from '../../fixtures/cell.js';
+import { setAfterGate } from '../../../src/io/board/item/after-gate.js';
+import { writeBoardMeta } from '../../../src/io/board/meta.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 // fixture-subject: addItem (a store unit test of submit over a seeded item; the board is opened through the kit)
@@ -70,4 +72,44 @@ test('store.io-board-submit.base-rows-read-once: clause 1: a second recordedBase
   assert.deepEqual(reads.slice(3), [later], 'only the new receipt is read');
   assert.deepEqual(store.recordedBaseRows(board, BASE), [...rows, ...laterRows]);
   assert.equal(reads.length, 4, 'the next call reads nothing');
+});
+
+const OLD = 'c'.repeat(40);
+
+/** A submitted dependent behind an after-gate on a parent whose claim recorded `base`, and the parent ready to submit at COMMIT. */
+function afterGateFixture(t, base) {
+  const board = openKitBoard(':memory:');
+  t.after(() => store.closeBoard(board));
+  store.register(board, { lane: 'coordinator', path: '/repo' });
+  const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
+  const file = name => `test/${name}.test.js`;
+  const built = (title, name) => {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'core', title, criterion: `1. ${file(name)} passes [test]`, specIds: ['C7'], route: 'mid', brief: `Files: src/${name}.js\nTest: ${file(name)} passes` });
+    store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: 3_600_000, freeze: () => ({ text: '{}', digest: `after-gate-${name}` }) });
+    store.logEvent(board, builder, 'proof-run', id, { receipt: { id: `run-${name}`, kind: 'submit', item: id, commit: COMMIT, tree: TREE, green: true, exitCode: 0,
+      testRuntimes: [{ file: file(name) }], testOutcomes: [{ file: file(name), name: 'passes', passed: true, skipped: false }] } });
+    return { id, submit: () => store.submit(board, id, { agentId: builder, commit: COMMIT, tree: TREE, files: [], inspectClauses: true,
+      submissionProof: { version: 1, files: [file(name)], full: false, deferred: true, reason: 'synthetic native board-state fixture; no execution proof' } }) };
+  };
+  const dependent = built('Dependent', 'dependent');
+  dependent.submit();
+  const parent = built('Parent', 'parent');
+  setAfterGate(board, dependent.id, [parent.id]);
+  writeBoardMeta(board.db, `after_gate_base:${dependent.id}`, JSON.stringify({ parent: parent.id, head: base }));
+  return { board, dependent: dependent.id, submitParent: parent.submit };
+}
+
+test('store.io-board-submit.new-parent-head-reopens-dependents: clause 1: resubmitting a parent at a new commit reopens each dependent whose after_gate_base holds the old head, with a note naming both heads [C7,#11808]', t => {
+  const f = afterGateFixture(t, OLD);
+  assert.equal(store.getItem(f.board, f.dependent).item_status, 'submitted');
+  f.submitParent();
+  assert.equal(store.getItem(f.board, f.dependent).item_status, 'open', 'the dependent built on the old head goes back');
+  const notes = store.events(f.board, { itemId: f.dependent }).filter(row => row.event_detail?.includes(OLD) && row.event_detail.includes(COMMIT));
+  assert.ok(notes.length > 0, 'a note names the old head and the new head');
+});
+
+test('store.io-board-submit.same-parent-head-leaves-dependents: clause 2: resubmitting a parent at the same commit its dependents were built on leaves every dependent alone [C7,#11808]', t => {
+  const f = afterGateFixture(t, COMMIT);
+  f.submitParent();
+  assert.equal(store.getItem(f.board, f.dependent).item_status, 'submitted', 'the dependent stays submitted');
 });
