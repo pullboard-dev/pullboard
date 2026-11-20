@@ -1,4 +1,0 @@
-{
-  "cli.journeys-next-take.take-build-one-step": {"proves":{"specs":["C7"],"claim":"next --take --build claims the one open build item, with a submitted review waiting, in a single call that reserves no review."},"why":"A fast seat won every two-step build race and claim hit CROSS_OWNERSHIP; one step removes the race (#11942).","kind":"journey","inputs":["apps/cli/journeys/next/take.test.js"]},
-  "cli.journeys-next-take.take-build-wait": {"proves":{"specs":["C7"],"claim":"next --take --build --wait 1 blocks while no build item is open, then returns the claim once one is filed."},"why":"A builder-only seat must wait for build work without busy polling or taking a review (#11942).","kind":"journey","inputs":["apps/cli/journeys/next/take.test.js"]}
-}
