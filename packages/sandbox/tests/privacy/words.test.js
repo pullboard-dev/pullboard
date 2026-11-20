@@ -54,8 +54,8 @@ import {
 const ROOT = resolve(import.meta.dirname, '../../../..');
 /** The files that hold these patterns to test them; every other tracked file is scanned. */
 const PATTERN_HOLDERS = new Set(['packages/sandbox/tests/privacy/words.test.js', 'docs/privacy.test.js', 'packages/sandbox/tests/privacy/guard.test.js']);
-/** Placeholder home folders that tests plant on purpose to prove redaction. */
-const PLACEHOLDER_HOMES = new Set(['private', 'example', 'person', 'user', 'me', 'you', 'name']);
+/** Placeholder home folders that tests plant on purpose to prove redaction (/home/r, /Users/fixture); only the whole name, so /Users/fixture-owner is still a home. */
+const PLACEHOLDER_HOMES = new Set(['private', 'example', 'person', 'user', 'me', 'you', 'name', 'fixture', 'r', 'u']);
 /** The one exact container-home declaration that is not a host user's home path. */
 const CONTAINER_HOME_DECLARATION = "const SANDBOX_CONTAINER_HOME = '/home/sandbox';";
 const MACHINES = ['Stu' + 'dio', 'Mac' + 'Book', 'M' + 'BP'];
@@ -78,7 +78,7 @@ function rules({ host = hostname(), addresses = privateAddresses(), home = homed
     { name: 'a private machine name', pattern: new RegExp(`\\b(?:${MACHINES.join('|')})\\b`, 'u') },
     ...(short.length >= 3 && !/^localhost$/iu.test(short) ? [{ name: 'this host name', pattern: new RegExp(`\\b${literal(short)}\\b`, 'iu') }] : []),
     ...addresses.map((address) => ({ name: 'a private network address of this machine', pattern: new RegExp(`(?<![\\d.])${literal(address)}(?![\\d])`, 'u') })),
-    { name: 'a home folder', pattern: new RegExp(`(?:${literal(home)}|/(?:Users|home)/(?!(?:${[...PLACEHOLDER_HOMES].join('|')})\\b)[A-Za-z][\\w.-]*)(?=/|\\b)`, 'u') },
+    { name: 'a home folder', pattern: new RegExp(`(?:${literal(home)}|/(?:Users|home)/(?!(?:${[...PLACEHOLDER_HOMES].join('|')})(?![\\w.-]))[A-Za-z][\\w.-]*)(?=/|\\b)`, 'u') },
   ];
 }
 
