@@ -12,6 +12,7 @@ import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import * as store from '../../../../store/index.js';
 import { realGitAdapter } from '../../../../git/index.js';
 import { withGitAdapter } from '../../../../git/index.js';
@@ -236,7 +237,7 @@ const shardOf = rows => formatJson({ order: 8, name: 'state', paths: rows.map(n 
  * checked before main moved, so the merge step's stale check decides whether it still lands (a batch that is not external, which skips no check). Returns the group's run and what it said.
  */
 function staleCheckedGroup(t, mainFile, shape) {
-  const { board, repo, item, main } = verifiedThenMainMoves(t, mainFile, shape);
+  const { board, repo, item, main } = verifiedThenMainMoves(t, mainFile, cellBoard, shape);
   const { root: dir } = privateFixtureFiles('pullboard-merge-mechanical-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = `${dir}/machine-home`;
