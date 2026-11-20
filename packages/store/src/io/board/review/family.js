@@ -5,6 +5,7 @@ import { listItems } from '../query.js';
 import { getItem } from '../query.js';
 import { reviewHolder } from '../query.js';
 import { requiredReviewFamily } from '../../../../../verify/index.js';
+import { requiredReviewFamilyProblem } from '../../../../../verify/index.js';
 import { classifiedStrict } from '../../../../../verify/index.js';
 import { reviewerChecks } from '../../board.js';
 import { relaxRequiredFamilyEnabled } from '../../board.js';
@@ -40,6 +41,23 @@ export function confirmFamilyRelaxation(board, item, witness, agentId, threshold
   if (!frozen || threshold !== undefined && threshold !== frozen) return null;
   return confirmRelaxation(board, item, witness, agentId, frozen, policy,
     { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy, classifiedStrict, reviewHeartbeats, requiredFamilyWaits: found => requiredFamilyWaits(board, found) });
+}
+
+/**
+ * The text a verdict record carries when its review ran under a relaxation witness and the seat is of another family than the item's
+ * required reviewer family, so the record names that the required family was widened and why; null when nothing was widened [C7,#9838].
+ * It reads only the item's stored required family and the seat's family, never the setting, so a replayed verdict records the same text.
+ */
+export function widenedFamilyRecord(board, item, agentId) {
+  const required = requiredReviewFamily(board, item.item_id);
+  if (!required || !requiredReviewFamilyProblem(board, item, agentId)) return null;
+  return `required reviewer family ${required} widened: no live eligible seat of the family for 20 minutes`;
+}
+
+/** The verdict-note line for a review that ran under a relaxation witness, naming a widened required family and why when the family was widened [C7,#9838]. */
+export function relaxationRecordLine(board, item, agentId, relaxation) {
+  const widened = widenedFamilyRecord(board, item, agentId);
+  return `review family relaxed at reservation: ${relaxation.queueLength} waiting, threshold ${relaxation.threshold}; active seats: ${relaxation.activeSeats.join(', ') || 'none'}${widened ? `; ${widened}` : ''}`;
 }
 
 export { frozenRelaxAt, reservedRelaxation } from '../../relaxation.js';
