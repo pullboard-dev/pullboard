@@ -13,8 +13,10 @@ import { retainTestResultCompletion } from '../../../gate/light.js';
 import { importTestResults } from '../../../gate/light.js';
 import { runnerPhaseFields } from '../../../gate/light.js';
 import { createHash } from 'node:crypto';
-import { statSync } from 'node:fs';
 import { verifyRunnerReceipt } from '../logic/signature.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export { RunnerDropped };
 
@@ -119,7 +121,7 @@ export function resultFrom(request, result, { privateCheckPhases }) {
   let privateResult = null;
   if (request.spec.trustedMode) {
     try {
-      if (result.rawOutputPath !== request.rawOutputPath || statSync(result.rawOutputPath).size !== result.rawBytes) throw new Error('missing complete private-check capture');
+      if (result.rawOutputPath !== request.rawOutputPath || fs.stat(result.rawOutputPath).size !== result.rawBytes) throw new Error('missing complete private-check capture');
       privateResult = privateCheckPhases(request.spec.trustedMode, receipt.trustedMode, result.rawBytes);
       if ((privateResult.state === 'pass') !== (receipt.code === 0 && !receipt.signal)) throw new Error('inconsistent private-check completion');
     } catch { throw runnerFailure(request, result, 'private-phase-binding'); }
