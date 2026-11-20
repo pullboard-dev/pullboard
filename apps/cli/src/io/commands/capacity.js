@@ -17,11 +17,11 @@ import { context } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { testCapacityReport } from '../../../../../packages/gate/index.js';
-import { readFileTimes } from '../../../../../packages/gate/index.js';
-import { fileTimesCoverage } from '../../../../../packages/gate/index.js';
-import { fileTimesCoverageNote } from '../../../../../packages/gate/index.js';
-import { trackedDefaultTestFiles } from '../../../../../packages/gate/index.js';
+import { testCapacityReport } from '../../../../../packages/gate/heavy.js';
+import { readFileTimes } from '../../../../../packages/gate/heavy.js';
+import { fileTimesCoverage } from '../../../../../packages/gate/heavy.js';
+import { fileTimesCoverageNote } from '../../../../../packages/gate/heavy.js';
+import { trackedDefaultTestFiles } from '../../../../../packages/gate/heavy.js';
 import { pushGateReport } from '../hook/push.js';
 import { liveRunnerCount } from './runner.js';
 

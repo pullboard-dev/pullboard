@@ -39,11 +39,6 @@ import {
   join,
   resolve,
 } from 'node:path';
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { displayAgentName } from '../../../seats/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
@@ -103,6 +98,7 @@ import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
+import { gateAgedMs } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
 import { codeStampCacheEnabled } from '../../../config/index.js';
 import { milestoneDeltaEnabled } from '../../../config/index.js';
@@ -130,6 +126,9 @@ import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
 import * as snapshotDelta from './snapshot-delta.js';
 import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js'; import { withApplied } from './spec-apply.js'; import { commitOnApplyEnabled } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Native file events arrive in real time, so their coalescing timer keeps the real clock captured at load even when a caller mocks the global one [A2,N26]. */
 const FILE_CLOCK = { schedule: setTimeout, cancel: clearTimeout, now: Date.now };
@@ -225,16 +224,16 @@ function localRelayMarker(info) {
 
 /** Read HEAD and its selected ref without spawning Git on every 200 ms poll. */
 function headFileRevision(info) {
-  const head = readFileSync(join(info.gitDir, 'HEAD'), 'utf8').trim();
+  const head = fs.readFile(join(info.gitDir, 'HEAD'), 'utf8').trim();
   if (/^[0-9a-f]{40,64}$/iu.test(head)) return head.toLowerCase();
   const symbolic = /^ref: (.+)$/.exec(head);
   if (!symbolic) return head;
   const ref = symbolic[1];
-  try { return readFileSync(join(info.commonDir, ref), 'utf8').trim(); }
+  try { return fs.readFile(join(info.commonDir, ref), 'utf8').trim(); }
   catch (error) {
     if (error.code !== 'ENOENT') throw error;
     let packed;
-    try { packed = readFileSync(join(info.commonDir, 'packed-refs'), 'utf8'); }
+    try { packed = fs.readFile(join(info.commonDir, 'packed-refs'), 'utf8'); }
     catch (packedError) {
       if (packedError.code === 'ENOENT') return head;
       throw packedError;
@@ -249,7 +248,7 @@ function headFileRevision(info) {
  */
 function registeredProjects() {
   try {
-    const value = JSON.parse(readFileSync(registryFile(), 'utf8'));
+    const value = JSON.parse(fs.readFile(registryFile(), 'utf8'));
     if (!Array.isArray(value.projects)) return [];
     return value.projects.filter((project) => typeof project?.root === 'string').map((project) => ({
       ...project,
@@ -360,7 +359,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
     const relay = relayFiles(info.commonDir);
     const heads = [...new Set([join(info.gitDir, 'HEAD'), join(info.commonDir, 'HEAD')])];
     const refs = heads.flatMap(path => {
-      try { const ref = /^ref: (.+)$/mu.exec(readFileSync(path, 'utf8')); return ref ? [join(info.commonDir, ref[1])] : []; }
+      try { const ref = /^ref: (.+)$/mu.exec(fs.readFile(path, 'utf8')); return ref ? [join(info.commonDir, ref[1])] : []; }
       catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     });
     const paths = [dbPath, dbPath + '-wal', ...files.map(file => file.path), registryFile(), ...heads, ...refs, join(info.commonDir, 'packed-refs'),
@@ -1204,7 +1203,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, gateAgedMs, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }

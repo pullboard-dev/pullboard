@@ -1,6 +1,6 @@
 import { prepareFlakeLanding } from './publish.js';
 import { checkFlakeRatchet } from './publish.js';
-import { hasTestTiers } from '../../../../gate/index.js';
+import { hasTestTiers } from '../../../../gate/heavy.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { runDeferredGuards } from '../deferred/run.js';
 import * as store from '../../../../store/index.js';
