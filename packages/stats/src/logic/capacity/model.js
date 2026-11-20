@@ -410,7 +410,7 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
   else if (!unknown.length) estimate = evaluate(graph, width, baseline);
   if (!empty && !estimate) unknown.push('completed route, review, rework or landing measurements are insufficient');
   // With no cost estimate the advice falls back to what ready work alone can use; it is labelled so it is never read as measured.
-  const fallback = !empty && !estimate && fit?.available === true && !graph.unknown.length && readyWidth !== null ? Math.min(readyWidth, graph.supply) : null;
+  const fallback = !empty && !estimate && fit?.available === true && fit.samples > 0 && !graph.unknown.length && readyWidth !== null ? Math.min(readyWidth, graph.supply) : null;
   const seats = Number.isSafeInteger(liveSeats) && liveSeats >= 0 ? liveSeats : Number.isSafeInteger(liveSeats?.total) && liveSeats.total >= 0 ? liveSeats.total : null;
   const identities = Array.isArray(liveSeats?.ids) && liveSeats.ids.length === seats && new Set(liveSeats.ids).size === seats
     && liveSeats.ids.every(id => typeof id === 'string' && id) ? liveSeats.ids : null;
