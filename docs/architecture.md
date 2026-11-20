@@ -306,7 +306,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `<hand-off id>`. Created by `shadowSubmitHandoff` in `packages/jobs/src/io/shadow.js`.
 - **Serves:** item claimed by the hand-off's seat at its commit and frozen digest, until the gate's green turns into the submit.
-- **States:** `queued`, `running`, `green`, `submitted`, `red`, `incomplete`, `infrastructure`, `ownership-wait`, `ended`, `reoffered`, `withdrawn`, `done`. Terminal: `green`, `submitted`, `red`, `incomplete`, `ownership-wait`, `ended`, `withdrawn`, `done`.
+- **States:** `queued`, `captured`, `running`, `collected`, `green`, `submitted`, `red`, `incomplete`, `infrastructure`, `ownership-wait`, `ended`, `reoffered`, `withdrawn`, `done`. Terminal: `green`, `submitted`, `red`, `incomplete`, `ownership-wait`, `ended`, `withdrawn`, `done`.
 - **Lease:** none in production since f226542983; legacy handoff-drive rows carried a 2-minute lease (LEASE_MS).
 - **Ends when its item moves on:** partial, at `startSubmitHandoff` in `packages/store/src/io/submit/handoff/retry.js`: checked on queue and on queued to running; a running record is resumed with no item check (no driver resumes one since #6580 deleted the hand-off worker). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate.
 - **Harness:** `apps/cli/tests/io/submit/handoff.test.js`.
@@ -325,27 +325,6 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `running` | `withdrawn` | legacy leased row only: the fallback finds its item no longer submitted at its commit | `endDeadGateJobs` in `packages/drive/src/io/reclaim.js` |
 | `running` | `ended` | legacy leased row only: the fallback finds no step for 20 minutes | `endDeadGateJobs` in `packages/drive/src/io/reclaim.js` |
 | `ended` | `reoffered` | gate.reofferInfraEnd is on and the job ended as infrastructure: one more gate job is offered for the same candidate, then this one is done | `reofferGateJob` in `packages/drive/src/io/reclaim.js` |
-
-#### `gate-drive`: submit gate driver
-
-- **Id:** `gate-drive:<hand-off id>`. Created by `admitGateDrive` in `packages/drive/src/io/gate.js`.
-- **Serves:** the hand-off record while it is queued or running, so the item claimed at the hand-off's commit and digest.
-- **States:** `admitted`, `spawned`, `unstarted`, `queued`, `captured`, `running`, `shard.started`, `shard.done`, `shard.invalid`, `section.done`, `gate.progress`, `gate.stalled`, `collected`, `verdict`, `done`. Terminal: `done`, `unstarted`.
-- **Lease:** LEASE_MS 120 s; renewed every GATE_RENEW_MS 5 s by the driver's timer; a late tick retakes a lapsed lease; GATE_STALL_MS 20 min with no step stalls once, then GATE_INFRA_EXHAUSTED.
-- **Ends when its item moves on:** violated (gap SM1), at `attemptGate` in `packages/drive/src/io/once.js`: no item or hand-off check on admission, on any drive transition, or on renewal; the fallback lists only kind gate, so it never sees this kind. A withdrawn, reopened or replaced item's driver runs to its verdict; a driver freed by SIGTERM stays not done and is never ended.
-- **Harness:** NONE.
-
-| From | To | Trigger | Where |
-|---|---|---|---|
-| (none) | `admitted` | a runner pull admits a queued ticket and takes the lease | `admitGateDrive` in `packages/drive/src/io/gate.js` |
-| `admitted` | `spawned` | the driver process started | `recordGateDriveSpawn` in `packages/drive/src/io/gate.js` |
-| `admitted` | `unstarted` | spawn failed; lease released | `endGateDriveUnstarted` in `packages/drive/src/io/gate.js` |
-| `spawned` | `captured` | candidate and base resolved to trees | `driveOnce` in `packages/drive/src/io/once.js` |
-| `captured` | `running` | source sent, gate started | `driveOnce` in `packages/drive/src/io/once.js` |
-| `running` | `gate.progress` | every 30 s while the gate runs; resets the stall clock | `attemptGate` in `packages/drive/src/io/once.js` |
-| `running` | `gate.stalled` | no step for GATE_STALL_MS | `attemptGate` in `packages/drive/src/io/once.js` |
-| `running` | `collected` | the gate returned, or GATE_INFRA_EXHAUSTED after one stall retry | `driveOnce` in `packages/drive/src/io/once.js` |
-| `collected` | `verdict` | the receipt cell judges; lease released | `recordJobRow` in `packages/drive/src/io/once.js` |
 
 #### `review`: review reservation
 
@@ -658,7 +637,7 @@ Every build claim and every review reservation is checked in one write transacti
 | withdrawal mid-gate | the hand-off record ends withdrawn and its ticket is dropped, but a running driver is not stopped and runs to its verdict | the driver ends at its next renewal tick | `apps/cli/journeys/verify/machine.test.js` |
 | reopen or reject mid-gate | next skips a gate older than the reopen; the driver keeps running | the driver ends at its next renewal tick | `packages/store/tests/io/board/next/gate.test.js` |
 | new head submitted while a gate runs | the old worker is signalled, its slot freed and the new head queued | same | `apps/cli/journeys/submit/handoff/queued.test.js` |
-| lapsed gate job whose item moved on (zombie) | a fallback pass ends legacy kind gate rows; kind gate-drive is never listed | every job kind ends at once when its item leaves its serving state | `apps/cli/tests/io/submit/handoff.test.js` |
+| lapsed gate job whose item moved on (zombie) | a fallback pass ends legacy kind gate rows | every job kind ends at once when its item leaves its serving state | `apps/cli/tests/io/submit/handoff.test.js` |
 | review held on an item that was withdrawn or verified | the review job is not released; a heartbeating reviewer keeps extending it | a verdict, withdraw or reopen releases it in the same transaction | `packages/gate/tests/fixtures/pipeline/review-held-on-an-item-that-was-withdraw.js` |
 | next resumes a claim that changed in the same moment | you hold #N prints from the read snapshot | re-read in the transaction that prints | `packages/gate/tests/fixtures/pipeline/next-resumes-a-claim-that-changed-in-the.js` |
 | a shout names an item this seat cannot act on | next --wait returns a shout asks you to act on #N only for an item open in the seat's lane, claimed by it or reservable by it | same | `packages/gate/tests/fixtures/pipeline/a-shout-names-an-item-this-seat-cannot-a.js` |
@@ -674,7 +653,6 @@ Every build claim and every review reservation is checked in one write transacti
 
 Ordered by severity. Each is a brief the coordinator can file as it stands; a test marked (new) does not exist yet.
 
-- **SM1 (high): gate-drive jobs never check their item.** Files: `packages/drive/src/io/once.js`, `packages/drive/src/io/gate.js`. Test: test/gate-drive-serving-state.test.js (new). Criterion: A gate-drive job whose hand-off record is no longer queued or running, or whose item is not claimed by the hand-off's seat at its frozen digest, writes an ended step {stale:true}, is marked done and stops its gate at its next renewal tick; the drain never admits such a ticket.
 - **SM2 (high): the fallback lists only kind gate.** Files: `packages/drive/src/io/reclaim.js`, `apps/cli/src/io/reclaim.js`. Test: `apps/cli/tests/io/submit/handoff.test.js`. Criterion: lapsedGateJobs lists kinds gate and gate-drive; a lapsed gate-drive job whose hand-off is ended, or whose item left its serving state, ends stale on the next next or status, never driven.
 - **SM3 (high): a running hand-off resumes with no item check.** Files: `packages/store/src/io/submit/handoff/retry.js`. Test: NONE. Criterion: startSubmitHandoff on a running record checks the item is claimed by the record's seat at its digest, as it does for a queued one, and refuses SUBMIT_HANDOFF_CHANGED otherwise; the worker then ends the job.
 - **SM4 (high): the fallback's serving predicate is wrong for pre-submit gates.** Files: `apps/cli/src/io/reclaim.js`. Test: `apps/cli/tests/io/submit/handoff.test.js`. Criterion: the active predicate takes the hand-off record: a queued or running gate serves claimed by its seat at its digest, and only a post-submit job serves submitted at its commit; a pre-submit gate for a claimed item is never ended stale.

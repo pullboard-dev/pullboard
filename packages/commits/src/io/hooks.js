@@ -38,6 +38,7 @@ import {
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
 import { quotedPersonProblems } from "../logic/message.js";
+import { quotedAddedLineProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
@@ -520,6 +521,18 @@ export function preCommitProblems(context) {
   return withSharedReads(context.root, stagedPaths(context.root).touched, () => checkStagedChange(context));
 }
 
+/**
+ * The ITEM_FOLDER_OFF_BRANCH refusal when this checkout is an item folder (a path ending -item-<id>) whose HEAD is not on a `<lane>/item-<id>` branch, else null.
+ * Why: the folder's identity needs that exact branch, so a probe commit on any other branch looked like an unjoined worktree [C7,#10799].
+ */
+function itemFolderOffBranch(root) {
+  const item = /-item-([1-9]\d*)$/u.exec(root)?.[1];
+  if (!item) return null;
+  const branch = tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim();
+  if (branch.endsWith(`/item-${item}`)) return null;
+  return `ITEM_FOLDER_OFF_BRANCH: this is the item folder of #${item} but HEAD is ${branch ? `on ${branch}` : 'detached'}; switch back to <lane>/item-${item}, or probe in a separate worktree (git worktree add <path> <commit> --detach)`;
+}
+
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
@@ -543,6 +556,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     }
     problems.push(...secretsIn(added).map((where) => `possible secret: ${where}`));
   }
+  // Added lines only, and no git call when commits.quotedNames is empty [C7,#11301].
+  if (config.commits?.quotedNames?.length) problems.push(...quotedAddedLineProblems(addedLinesInBatches(root, written), config.commits.quotedNames));
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]), ...deletedGateProblems(root, config));
   const rootTests = rootTestRefusal(written, { isTest: path => (config.claim?.barTestFiles ?? []).some(pattern => matchesPattern(pattern.split('/').at(-1), path)), known: path => ['HEAD', 'refs/heads/main'].some(revision => tryGit(root, ['cat-file', '-e', `${revision}:${path}`]).status === 0), read: path => { const shown = tryGit(root, ['show', `:${path}`]); return shown.status === 0 ? shown.stdout : null; } }); if (rootTests) throw new Refused(rootTests.code, rootTests.message, rootTests.next); // #4005
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
@@ -564,7 +579,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   }
   if (isMain) return problems;
   if (!agent) {
-    problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
+    const offBranch = itemFolderOffBranch(root);
+    problems.push(offBranch ?? 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
     return problems;
   }
   const mergeHeads = mainMergeHeads(root, preMergeHook);

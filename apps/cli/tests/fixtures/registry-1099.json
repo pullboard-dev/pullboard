@@ -1,0 +1,34 @@
+{
+  "cli.sentinel.runs-line-tune": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "One sentinel pass run in process with line.tune on and a due cycle makes the one line change flow tune --apply would make, and a pass with the cycle not due makes none."
+    },
+    "why": "Without it the line tuner has no cadence of its own and the board's line settings move only when a person runs the apply by hand.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/sentinel.js",
+      "apps/cli/src/io/commands/flow.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "packages/stats/index.js",
+      "packages/queue/index.js"
+    ]
+  },
+  "cli.sentinel.line-tune-off-and-refusal": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A sentinel pass with line.tune off never runs the tuner, and a tuner refusal is reported in the pass output without failing the pass."
+    },
+    "why": "Without it an off switch could still write settings, or one refused apply could stop the health pass that carries the board's other watches.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/sentinel.js",
+      "apps/cli/src/io/commands/flow.js",
+      "apps/cli/tests/fixtures/e2e.js"
+    ]
+  }
+}
