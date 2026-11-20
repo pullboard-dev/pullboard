@@ -74,9 +74,11 @@ function deferredGate(board, id, at) {
 }
 
 const DEFERRED_AT = Date.parse('2026-11-19T20:00:00.000Z');
+/** A board clock a minute after the deferred gate, inside its GATE_SETTLE_HOLD_MS hold [#12526]. */
+const SOON = { now: () => new Date(DEFERRED_AT + 60_000) };
 
 test('store.io-board-next-gate.deferred-unsettled-gate-skipped: clause 1: nextFor skips an open item whose newest gate job finished deferred, not green, with no settled shards, as GATE_AT_HEAD naming the deferred gate [C7]', t => {
-  const board = fixtureBoard(t);
+  const board = fixtureBoard(t, { clock: SOON });
   const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'released while its deferred gate waits' });
   deferredGate(board, id, DEFERRED_AT);
   const offered = nextFor(board, { agentId: 'web-2', lane: 'web', observeIdle: true });
@@ -86,12 +88,12 @@ test('store.io-board-next-gate.deferred-unsettled-gate-skipped: clause 1: nextFo
 });
 
 test('store.io-board-next-gate.deferred-settled-gate-offered: clause 2: the same item is offered again once its gate job has a note:shards.settled step, and when a reopen follows the gate job [C7]', t => {
-  const board = fixtureBoard(t);
+  const board = fixtureBoard(t, { clock: SOON });
   const settled = addItem(board, { by: 'coordinator', lane: 'web', title: 'deferred gate settled' });
   const job = deferredGate(board, settled, DEFERRED_AT);
   board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'note:shards.settled', ?, ?)").run(job, JSON.stringify({ outcome: 'stale' }), DEFERRED_AT + 1);
   assert.equal(nextFor(board, { agentId: 'web-2', lane: 'web' }).item?.item_id, settled, 'a settled deferred gate holds nothing');
-  const reopened = fixtureBoard(t);
+  const reopened = fixtureBoard(t, { clock: { now: () => new Date(DEFERRED_AT + 2 * 60 * 60_000 - 1) } });
   const id = addItem(reopened, { by: 'coordinator', lane: 'web', title: 'deferred gate reopened' });
   deferredGate(reopened, id, DEFERRED_AT);
   event(reopened, id, 'reopen', '2026-11-19T21:00:00.000Z');

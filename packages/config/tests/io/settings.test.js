@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { adapterLintSshEnabled } from '../../index.js';
 import { failFastShardsEnabled } from '../../index.js';
+import { holdsLiftSettled } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
 import { jsdocCheckEnabled } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
@@ -126,4 +127,12 @@ test('config.io-settings.fail-fast-shards-setting: clause 1: gate.failFastShards
   assert.equal(withSettings({ gate: { failFastShards: false } }, failFastShardsEnabled), false);
   assert.equal(withSettings({ gate: { failFastShards: true } }, failFastShardsEnabled), true);
   assert.throws(() => withSettings({ gate: { failFastShards: 'true' } }, failFastShardsEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.failFastShards/u.test(error.message));
+});
+
+test('config.io-settings.lift-settled-on: clause 1: holdsLiftSettled returns true with no settings file and false only when holds.liftSettled is set to false, and the machine default is true [C7,#12474]', () => {
+  assert.equal(MACHINE_DEFAULTS['holds.liftSettled'], true);
+  assert.equal(withSettings({}, holdsLiftSettled), true);
+  assert.equal(withSettings({ holds: { liftSettled: true } }, holdsLiftSettled), true);
+  assert.equal(withSettings({ holds: { liftSettled: false } }, holdsLiftSettled), false);
+  assert.match(describeSetting('holds.liftSettled').description, /default/iu);
 });

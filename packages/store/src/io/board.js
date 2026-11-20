@@ -46,6 +46,7 @@ import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
 import { companionWindowProblem } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
+import { relaxRequiredFamilyEnabled } from "../../../config/index.js";
 export { relaxRequiredFamilyEnabled } from "../../../config/index.js";
 export { routeReservations } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
@@ -379,8 +380,11 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     },
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
-    requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy),
+    requiredReviewFamily: (found) => {
+      const problem = requiredReviewFamilyProblem(board, found, agentId);
+      return problem && relaxRequiredFamilyEnabled() && relaxationFor?.(found) ? null : problem;
+    },
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy, { relaxationFor }),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId

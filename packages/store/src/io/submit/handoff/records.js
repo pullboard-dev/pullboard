@@ -140,10 +140,29 @@ export function pulledGateRecords(db, only = null, nowMs = Date.now()) {
 /** The fallback bound on an unsettled sharded gate's claim, counted from when the gate job offered its shards, for a gate with no live shard job. */
 export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
 
+/** The bound on a claim held by its own gate's unknown settle, counted from the note:shards.settled step that said unknown. */
+export const GATE_UNKNOWN_HOLD_MS = 4 * 3_600_000;
+
+/**
+ * The agent that submitted the gate job: the submit request its offered step carries, else its submit_offered event,
+ * else the hand-off record its own steps carry; null when none says.
+ */
+function gateSubmitter(board, item, job) {
+  const request = board.db.prepare("SELECT json_extract(job_step_payload, '$.request.submit.agentId') AS by FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' ORDER BY job_step_id DESC LIMIT 1").get(job);
+  if (typeof request?.by === 'string') return request.by;
+  const offered = board.db.prepare("SELECT event_by AS by FROM event WHERE item_id = ? AND event_kind = 'submit_offered' AND json_extract(event_detail, '$.job') = ? ORDER BY event_id DESC LIMIT 1").get(item, job);
+  if (offered) return offered.by;
+  for (const row of board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? ORDER BY job_step_id DESC").iterate(job)) {
+    const record = recordOf(row.payload);
+    if (record !== undefined) return record.agentId ?? null;
+  }
+  return null;
+}
+
 /**
  * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard job is
  * still offered or claimed (held for as long as it is), every shard is done but the combined result has not applied (no
- * `note:shards.settled` step), or it settled unknown, which holds until its settled note changes (red and review outcomes are settled). Why: the gate is the board's
+ * `note:shards.settled` step), or it settled unknown, which holds the submitter's own claim for GATE_UNKNOWN_HOLD_MS until its settled note changes (red and review outcomes are settled). Why: the gate is the board's
  * work, and the board applies its result only while the submitting seat holds the item. #8249's claim was released while
  * its 10 shards ran [#8342], and #10883's while its 32 done shards waited for their result to apply, so that gate never
  * applied [C7,#10931].
@@ -161,9 +180,13 @@ export function gateShardsUnsettled(board, item) {
       WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
     if (!shards.total) return false;
     if (shards.live > 0) return true;
-    const settled = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' ORDER BY job_step_id DESC LIMIT 1").get(gate.job_id);
-    // An unknown outcome (main's receipt missing) holds with no time bound: gate.settleOnMainReceipt settles it when the receipt records, and a later settled note, red or review, ends the hold [#11924].
-    if (settled !== undefined && /"outcome"\s*:\s*"unknown"/u.test(settled.payload)) return true;
+    const settled = board.db.prepare("SELECT job_step_payload AS payload, job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' ORDER BY job_step_id DESC LIMIT 1").get(gate.job_id);
+    // An unknown outcome (main's receipt missing) holds while gate.settleOnMainReceipt may still settle it, and a later settled note, red or review, ends the hold [#11924].
+    // It holds only its own submitter's claim, and only for GATE_UNKNOWN_HOLD_MS: 25 of 31 stuck claims were pinned with no bound,
+    // several by a previous holder's gate, so the stale sweep never freed them [C7,B8].
+    if (settled !== undefined && /"outcome"\s*:\s*"unknown"/u.test(settled.payload)) {
+      return Boolean(item.item_owner) && gateSubmitter(board, item.item_id, gate.job_id) === item.item_owner && board.clock.now().getTime() - settled.at < GATE_UNKNOWN_HOLD_MS;
+    }
     if (!(board.clock.now().getTime() - gate.offered < GATE_SETTLE_HOLD_MS)) return false;
     if (shards.open > 0) return true;
     return settled === undefined;

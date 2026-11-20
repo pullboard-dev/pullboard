@@ -1,4 +1,5 @@
 /** landingOfferBatches cuts one offer's free items into jobs: sliced by size as before, or one job per item of the first parallel start group [C7,#9836]. */
+// fixture-subject: addItem
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -11,6 +12,8 @@ import { offerPulledLanding } from '../../../src/io/landing/pull.js';
 import { acceptOrderOf } from '../../../src/io/landing/pull.js';
 import { sweepDerivedState } from '../../../../../packages/health/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
+import { createJob } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
 import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js';
 import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
@@ -251,4 +254,90 @@ test('cli.landing-pull.payload-sprint-plan: clause 1: a landing offered for a sp
   assert.deepEqual(bare.testCommand, ['false']);
   const steady = await offerWithLog(t, { paces: { 1: 'steady', 2: 'steady' }, config });
   assert.equal(steady.jobs.some(job => 'sprint' in job), false);
+});
+
+/** A post-land main-wide test job on the board: one id per landed tip, offered carrying `items`; finished with a red or green receipt unless `receipt` is null. */
+function postLandJob(board, { tip, items, receipt, now }) {
+  const job = `post-land:${tip.repeat(40).slice(0, 40)}`;
+  createJob(board.db, { id: job, kind: 'test', candidate: tip.repeat(40).slice(0, 40), base: tip.repeat(40).slice(0, 40), now });
+  writeStep(board.db, job, 'offered', { needs: [], payload: { postLand: { job: 'land:fixture', items } } }, { now });
+  if (!receipt) return job;
+  const red = receipt === 'red';
+  writeStep(board.db, job, 'receipt', { runner: 'r-fixture', attempt: 1, receipt: { version: 1, status: red ? 1 : 0, outcome: receipt, gate: { green: !red, phases: [{ status: red ? 1 : 0, failures: [] }] } } }, { seq: 1, now });
+  board.db.prepare("UPDATE job SET job_step = 'done' WHERE job_id = ?").run(job);
+  return job;
+}
+
+/** A sprint item the red job reopened: item 3 on the board with its pull_out recorded, and its pulled event too when `pulled`. */
+function pullingItem(board, { pulled = false } = {}) {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'landed sprint work the red main reopened' });
+  store.atomic(board, () => store.logEvent(board, 'coordinator', 'pull_out', id, { commit: 'c'.repeat(40), mergedCommit: 'd'.repeat(40) }));
+  if (pulled) store.atomic(board, () => store.logEvent(board, 'coordinator', 'pulled', id, { commit: 'e'.repeat(40) }));
+  return id;
+}
+
+/** The ids the offer put into land jobs. */
+const offeredIds = jobs => jobs.flatMap(job => job.items.map(entry => entry.id)).sort();
+
+test('cli.landing.pull.sprint-holds-on-red-main: clause 1: while the newest finished post-land job is red with its item not yet pulled, the offer sends no sprint item and says MAIN_RED naming that job, a steady item goes as before, and a pending job never holds [C7,V2,M1,#12502]', async t => {
+  let red;
+  const held = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    const id = pullingItem(board);
+    red = postLandJob(board, { tip: 'a', items: [id], receipt: 'red', now: 10 });
+  } });
+  assert.deepEqual(offeredIds(held.jobs), [2], 'only the steady item is offered');
+  assert.ok(held.said.some(line => line.startsWith('#1 waits: MAIN_RED on ' + red)), `the offer names the red job: ${held.said.join(' | ')}`);
+  // A newer pending job is ignored: the last finished result still holds.
+  const pending = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    const id = pullingItem(board);
+    postLandJob(board, { tip: 'a', items: [id], receipt: 'red', now: 10 });
+    postLandJob(board, { tip: 'b', items: [], receipt: null, now: 20 });
+  } });
+  assert.deepEqual(offeredIds(pending.jobs), [2], 'a pending newer job leaves the red one in force');
+  // A board whose only post-land job is pending holds nothing.
+  const only = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'sprint' }, before: ({ board }) => { postLandJob(board, { tip: 'b', items: [], receipt: null, now: 20 }); } });
+  assert.deepEqual(offeredIds(only.jobs), [1, 2], 'a pending or stuck job never holds sprint');
+});
+
+test('cli.landing.pull.sprint-resumes-after-green-or-pulled: clause 1: once the red job items are each pulled, or a later finished post-land job is green, the next offer sends the sprint item [C7,V2,M1,#12502]', async t => {
+  const pulled = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    postLandJob(board, { tip: 'a', items: [pullingItem(board, { pulled: true })], receipt: 'red', now: 10 });
+  } });
+  assert.deepEqual(offeredIds(pulled.jobs), [1, 2], 'a pulled red job holds nothing');
+  const green = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, before: ({ board }) => {
+    postLandJob(board, { tip: 'a', items: [pullingItem(board)], receipt: 'red', now: 10 });
+    postLandJob(board, { tip: 'b', items: [], receipt: 'green', now: 20 });
+  } });
+  assert.deepEqual(offeredIds(green.jobs), [1, 2], 'a later finished green job lifts the hold');
+});
+
+/** The ledger setting on, as pullboard.json sets it on the live board; main reds ride with the contracts, so an affected-tests runner is set too. */
+const AFFECTED = { affectedTests: 'node affected.js' };
+const LEDGER_ON = { ...AFFECTED, landing: { ledgerMainReds: true } };
+
+test('cli.io-landing-pull.ledger-outside-offer-lock: clause 1: with landing.ledgerMainReds on, offerPulledLanding prepares no test_result statement while its board write lock is held; the red-now ledger read runs before the lock [C7,#12533]', async t => {
+  // The setting alone: an affectedTests runner adds landingProof's commit-indexed ledger reads to the job write, which this case does not cover.
+  const { lines, jobs } = await offerWithLog(t, { config: { landing: { ledgerMainReds: true } }, ledger: { reds: ['tests/red.test.js'] } });
+  const enter = lines.indexOf('LOCK_ENTER'), exit = lines.indexOf('LOCK_EXIT');
+  assert.ok(enter >= 0 && exit > enter, `the offer went through the injected lock: ${lines.join(' | ')}`);
+  assert.deepEqual(lines.slice(enter, exit).filter(line => line === 'SQL test_result'), [], 'no test_result statement between lock enter and lock exit');
+  assert.ok(lines.slice(0, enter).includes('SQL test_result'), 'the ledger read still happens, before the lock');
+  assert.equal(jobs.length, 2, 'the offer was written');
+});
+
+test('cli.io-landing-pull.ledger-main-reds-unchanged: clause 2: with a red ledger row seeded at a commit, the offered land job carries the same mainReds pair it carried on main, and none with the setting off [C7,#12533]', async t => {
+  const on = await offerWithLog(t, { config: LEDGER_ON, ledger: { reds: ['tests/red.test.js'], filler: 3 } });
+  assert.equal(on.jobs.length, 2);
+  for (const job of on.jobs) assert.deepEqual(job.mainReds, [['tests/red.test.js', on.main]], 'each job carries the red file and the commit it was red at');
+  const off = await offerWithLog(t, { config: AFFECTED, ledger: { reds: ['tests/red.test.js'] } });
+  for (const job of off.jobs) assert.deepEqual(job.mainReds ?? [], [], 'with the setting off no job carries a main red');
+});
+
+test('cli.io-landing-pull.offer-hold-under-1s: clause 3: with 200,000 test_result rows seeded and ledgerMainReds on, the offer board-writes.jsonl hold row (move offerPulledLanding) records heldMs under 1000 [C7,#12533]', async t => {
+  const { home, jobs, main } = await offerWithLog(t, { config: LEDGER_ON, ledger: { reds: ['tests/red.test.js'], filler: 200_000 } });
+  assert.equal(jobs.length, 2, 'the offer was written');
+  assert.deepEqual(jobs[0].mainReds, [['tests/red.test.js', main]], 'the big ledger was still read');
+  const holds = readFileSync(join(home, 'board-writes.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.move === 'offerPulledLanding');
+  assert.equal(holds.length, 1, 'one hold row for the one offer');
+  assert.ok(holds[0].heldMs < 1000, `the offer held the board write lock ${holds[0].heldMs} ms`);
 });

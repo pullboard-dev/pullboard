@@ -1,11 +1,13 @@
-/** @pullboard-test-input .github/workflows/stale.yml .github/workflows/reopen-clarify.yml */
+/** @pullboard-test-input .github/workflows/stale.yml .github/workflows/reopen-clarify.yml .github/workflows/contribution-gate.yml */
 /** Clarification issues close only after inactivity and reopen only for their author [I1]. */
+/** @pullboard-world-pin: the clauses read the repository workflow files, which are the subject of these rules. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const staleWorkflow = readFileSync(new URL('../../../.github/workflows/stale.yml', import.meta.url), 'utf8');
 const reopenWorkflow = readFileSync(new URL('../../../.github/workflows/reopen-clarify.yml', import.meta.url), 'utf8');
+const gateWorkflow = readFileSync(new URL('../../../.github/workflows/contribution-gate.yml', import.meta.url), 'utf8');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const scriptOffset = reopenWorkflow.indexOf('          script: |\n');
 assert.notEqual(scriptOffset, -1, 'the author-reopen workflow has an executable script');
@@ -110,4 +112,17 @@ test('github.workflows.stale-fourteen-days: the stale script closes an issue qui
   } } };
   await new AsyncFunction('github', 'context', script)(github, { repo: { owner: 'o', repo: 'r' } });
   assert.deepEqual(calls, [['comment', 1, 'Closed. No response. Reply to reopen.'], ['update', 1, 'closed', 'completed']]);
+});
+
+test('github.workflows.contribution-gate-trusted-base: the contribution gate runs on pull requests from the base tree with read-only permission and no secrets [I1]', () => {
+  assert.match(gateWorkflow, /on:\n  pull_request:\n/u);
+  assert.doesNotMatch(gateWorkflow, /pull_request_target/u);
+  assert.match(gateWorkflow, /name: Lands through Pullboard\n/u);
+  assert.match(gateWorkflow, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n/u, 'the base sha is checked out');
+  assert.doesNotMatch(gateWorkflow, /pull_request\.head/u, 'the PR head is never checked out');
+  assert.match(gateWorkflow, /persist-credentials: false\n/u);
+  assert.match(gateWorkflow, /working-directory: trusted-gate\n\s+run: node apps\/cli\/pullboard\.js gate --static\n/u);
+  assert.match(gateWorkflow, /permissions:\n  contents: read\n/u);
+  assert.doesNotMatch(gateWorkflow, /: write\b/u);
+  assert.doesNotMatch(gateWorkflow, /secrets\./u);
 });

@@ -125,7 +125,7 @@ const SURFACE_FILE = Object.freeze({
   'checkout-lease': 'packages/seats/src/io/agent/session.js',
   'checkout-writer': 'packages/seats/src/io/agent/session.js',
   'runner-unavailable': 'packages/resources/src/io/recovery.js',
-  'handoff-queue': 'packages/resources/src/io/handoff/worker/cap.js',
+  'handoff-queue': 'packages/sentinels/src/io/surfaces.js',
   'board-write': 'packages/store/src/io/board/write/lock.js',
   'resource-write': 'packages/resources/src/io/write/queue.js',
   gate: 'apps/cli/src/io/submit/pull.js',

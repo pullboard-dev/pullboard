@@ -5,7 +5,7 @@ import { defineRules } from './rules.js';
  * The limits maintenance applies, as the board applies them today; replay over recorded history checks they still agree.
  * Why: the live constants sit inside the store and health cells with no front-door export; recorded history is what proves these match.
  */
-export const RECLAIM_LIMITS = Object.freeze({ seatQuietMs: 120_000, stallMs: 20 * 60_000, idleReleaseMs: 40 * 60_000, pinnedReleaseMs: 30 * 60_000, recentCommitMs: 30 * 60_000 });
+export const RECLAIM_LIMITS = Object.freeze({ seatQuietMs: 120_000, stallMs: 20 * 60_000, idleReleaseMs: 30 * 60_000, pinnedReleaseMs: 30 * 60_000, recentCommitMs: 30 * 60_000 });
 const IDLE_KINDS = Object.freeze(['stall', 'release', 'waiting', 'progress', 'seat-gone', 'dependency']);
 const BAD = 'stale-state maintenance needs complete captured native observations';
 const CHANGED = 'the board changed after the stale-state observation';
