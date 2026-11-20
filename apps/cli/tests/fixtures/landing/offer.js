@@ -25,7 +25,7 @@ import { temporaryDirectory } from '../board.js';
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
  * a git adapter wrapper that logs each git start, and the offer's logged lock seam. Returns what the offer did.
  */
-export async function offerWithLog(t, { concurrentOffer = false, paces = {}, lapses = {}, held = [] } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, paces = {}, lapses = {}, held = [], config = {} } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -78,7 +78,7 @@ export async function offerWithLog(t, { concurrentOffer = false, paces = {}, lap
       return underBoardWriteLock(target, work);
     } finally { mark('LOCK_EXIT'); }
   };
-  const policy = { config: { flakes: { rerun: true } }, commit: main };
+  const policy = { config: { flakes: { rerun: true }, ...config }, commit: main };
   const logged = { spawnSync: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.spawnSync(args, options); },
     execFileSync: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.execFileSync(args, options); },
     spawn: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.spawn(args, options); } };
