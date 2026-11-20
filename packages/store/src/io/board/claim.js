@@ -77,6 +77,10 @@ import {
   atomic,
   logEvent,
 } from "./event/log.js";
+import { afterGateIds } from './item/after-gate.js';
+import { afterGateBase } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
+import { writeBoardMeta } from './meta.js';
 
 /**
  * Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves.
@@ -199,7 +203,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         if (foreign) return new Refused('BLOCKED', `#${id} waits on ${itemDependencies.dependencyLabel(foreign)} (${foreign.status} on its own board); refresh that board before claiming`);
         for (const dependency of itemDependencies.localDependencyIds(found)) {
           const before = itemById(board, dependency);
-          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')) {
+          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')
+            && !(afterGateIds(board, id).includes(dependency) && gateGreenParent(board, dependency))) {
             return new Refused(
               'BLOCKED',
               `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
@@ -509,6 +514,9 @@ function commitClaim(board, id, prepared, binding, ports) {
       board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(key, JSON.stringify({ item: id, agent: agentId }));
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
+    // A claim that took a gate-green after-gate parent builds on that parent's submitted head: record it for the builder.
+    const afterGateBaseRecord = !renewed ? afterGateBase(board, id) : null;
+    if (afterGateBaseRecord) writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
     if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
     else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
@@ -535,7 +543,7 @@ function commitClaim(board, id, prepared, binding, ports) {
     if (renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCK_ENGINE) renewBlockPeers(board, id, agentId, leaseUntil, moveItem);
     recordPendingOutcome(outcome);
     if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
-    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
+    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}), ...(afterGateBaseRecord ? { afterGateBase: afterGateBaseRecord } : {}) };
   });
 }
 
