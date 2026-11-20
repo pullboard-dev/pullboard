@@ -13,6 +13,7 @@ const shard = numbers => `{\n "order": 8,\n "name": "state",\n "paths": [\n${num
 function diverge(file, base, mainText, itemText) {
   const files = privateFixtureFiles('pb-conflict-repos-');
   files.write(file, base);
+  files.write('pullboard.json', JSON.stringify({ lanes: {} }));
   fixtureCommitAll(files.root);
   const git = (...args) => runFixtureSetupGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { cwd: files.root });
   const commit = (branch, text) => {
@@ -20,11 +21,12 @@ function diverge(file, base, mainText, itemText) {
     git('commit', '-q', '-am', branch);
     return git('rev-parse', 'HEAD');
   };
+  const root = git('rev-parse', 'HEAD');
   git('checkout', '-q', '-b', 'item');
   const head = commit('item', itemText);
   git('checkout', '-q', 'main');
   const main = commit('main', mainText);
-  return { root: files.root, main, head, file };
+  return { root: files.root, base: root, main, head, file };
 }
 
 /** The file and the three texts of the mechanical-only conflict: the base, main's version and the item head's version, each appending a different plan row. */
