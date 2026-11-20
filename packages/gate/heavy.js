@@ -198,7 +198,6 @@ import { projectNeedsGui } from './src/io/gui/admission.js';
 import { checkNeedsGui } from './src/io/gui/admission.js';
 import { timingTestFiles } from './src/io/gui/admission.js';
 import { readsDeclared } from './src/io/gui/admission.js';
-import { LISTING as TEST_CELL_LISTING } from './src/io/test/cells.js';
 import { guiSession } from './src/io/gui/session.js';
 import { mainMovedSinceAudit } from './src/io/main/audit/nudge.js';
 import { nudgeMainAudit } from './src/io/main/audit/nudge.js';
@@ -519,7 +518,7 @@ export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVEN
 export { stagedScript, readPipes, readStages, replayChangedTables, submitImportEdges, regenerateDeclaredFiles, submitGateConfig, submitGatePlan };
 export { submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner, gateWaitReporter, recordGreenRun };
 export { PULLED_JOB_ENV, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote };
-export { submitGateReport, timingDigest, gateReport, testsNeedGui, projectNeedsGui, checkNeedsGui, timingTestFiles, readsDeclared, TEST_CELL_LISTING, guiSession, mainMovedSinceAudit };
+export { submitGateReport, timingDigest, gateReport, testsNeedGui, projectNeedsGui, checkNeedsGui, timingTestFiles, readsDeclared, guiSession, mainMovedSinceAudit };
 export { nudgeMainAudit, scheduleMainAudit, waitMainAudit, mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit };
 export { timerFiles, SETTLED_FILE, attributeAuditFailures };
 export { fileAuditRegressions, auditRegressionTitle, auditRegressionNote, withImportParseCache, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn };
