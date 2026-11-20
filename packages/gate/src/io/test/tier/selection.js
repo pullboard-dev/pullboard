@@ -43,6 +43,9 @@ function sourceGit(root, args, optional = false, { input, binary = false } = {})
   throw new Refused('TEST_SELECTION_SOURCE', 'the immutable test-selection source could not be read; restore Git history and retry');
 }
 
+/** One file's text at an exact commit, or null when the commit lacks it [C7]. */
+export function testSourceAt(root, commit, file) { return sourceGit(root, ['show', `${commit}:${file}`], true); }
+
 const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 /** Answers about exact object ids, which never change: a resolved commit, and whether its tree holds the manifest. */
 const exactAnswers = new Map();
