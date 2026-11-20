@@ -167,6 +167,7 @@ const OPTIONS = {
   transcripts: { type: 'string' },
   checkpoint: { type: 'string' },
   name: { type: 'string' },
+  purpose: { type: 'string' },
   title: { type: 'string' },
   url: { type: 'string' },
   skip: { type: 'string' },

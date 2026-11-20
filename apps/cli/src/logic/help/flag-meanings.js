@@ -60,6 +60,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'settings line --window': 'a JSON window for the setting, such as {"windowMinutes":60}',
   'stats --window': 'landed-item stage times over this window, such as 6h, 30m or 1d',
   'flow tune --window': 'how far back each of the two board windows reaches, such as 6h or 1d',
+  'new package --purpose': 'one line saying what the new cell is for',
   'land --stats': 'counts the last 7 days of landings by same-tree and re-proved',
   'contribute check --issue': 'checks the record in the body of this GitHub issue number',
   'field declare --choices': ['--choices <a,b>', 'the allowed values of a choice field, comma-separated'],

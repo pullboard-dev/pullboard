@@ -207,6 +207,7 @@ ${RELEASE_REASON_LINES.map(line => `                                        ${li
   pullboard rulings <cause>                       every ruling recorded under that cause, newest first, with its shout id and text
   pullboard block add <name> <id> <id> [<id> ...] --tier <light|mid|strong>  record a named block of items
   pullboard block list [--json]                   each block as one row: name, tier and member ids
+  pullboard new package <name> --purpose "<line>"  write a new cell's starter files under packages/<name>
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
                 [--work <lane>] [--review-wait <minutes>]
                                         follow the board's live events, one line each as it happens, with or without the view
