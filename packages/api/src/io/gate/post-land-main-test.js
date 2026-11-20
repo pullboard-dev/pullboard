@@ -1,7 +1,8 @@
-/** The main-wide test job a sprint landing queues on the landed tip; `pullboard serve` hands in the request builder beside the screen starter [V2,M1,#12182]. */
+/** The main-wide test job a sprint landing queues on the landed tip, and its receipt: a red one reopens the sprint items it carries [V2,M1,#12182,#12183]. */
 
 import { itemPace } from '../../../../store/index.js';
 import { offerJob } from '../jobs.js';
+import { store } from './moves.js';
 
 /** The id prefix of a post-land test job; the landed tip follows it, so one tip holds one job. */
 export const POST_LAND_JOB_PREFIX = 'post-land:';
@@ -46,4 +47,52 @@ export function queuePostLandMainTest(board, { job, trunk, items, queue = null }
     process.stderr.write(`${new Date().toISOString()} main-wide test after land job ${job} not queued: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}\n`);
     return null;
   }
+}
+
+/** Whether a job id names a post-land test job: one id per landed tip, under POST_LAND_JOB_PREFIX. */
+export function postLandJob(job) {
+  return String(job ?? '').startsWith(POST_LAND_JOB_PREFIX);
+}
+
+// Budget: the failing cases a reopen note names; the receipt keeps the rest.
+const NOTE_CASES = 5;
+
+/** The offered row of job `job`: the board's, or with runs_store on the runs file's, which the queue holds [B2,P7]. */
+function offeredRow(board, job, queue) {
+  const db = queue ? queue.runs.db : board.db;
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' ORDER BY job_step_id LIMIT 1").get(job);
+  try { return JSON.parse(row?.job_step_payload ?? '{}'); } catch { return {}; }
+}
+
+/**
+ * Apply a post-land test job's receipt. A red one reopens each sprint item its land job landed, still submitted and merged,
+ * through the store's reopen writer with the failing cases and the item's merge commit, so the reopen table's sprint row
+ * pull-out-red writes pull_out and the item goes back to its builder. A green one changes nothing.
+ * Why: a test the sprint landing broke on main was seen only by a hand command, and the landed work stayed on main.
+ * A reopen the board refuses (the item was reopened or accepted meanwhile) is logged and leaves that item as it is.
+ *
+ * @param {any} board
+ * @param {{ job: string, receipt: Record<string, any> }} posted
+ * @param {{ queue?: { runs: { db: import('node:sqlite').DatabaseSync } } | null }} [ports]
+ * @returns {{ applied: boolean, outcome: 'green' | 'red', reopened: number[] }}
+ */
+export function applyPostLandReceipt(board, { job, receipt }, ports = {}) {
+  const phase = receipt?.gate?.phases?.[0];
+  if (receipt?.status === 0 && receipt?.gate?.green === true && (phase?.status ?? 0) === 0) return { applied: false, outcome: 'green', reopened: [] };
+  const offered = offeredRow(board, job, ports.queue ?? null);
+  const failures = (Array.isArray(phase?.failures) ? phase.failures : []).filter(row => row?.file && row?.name).slice(0, NOTE_CASES);
+  const cases = failures.length ? failures.map(row => `${row.file}: ${String(row.name).replace(/[;\r\n]+/gu, ' ').trim()}`).join('; ')
+    : `pullboard.json: main-wide test job ${job} red with no named case`;
+  const reopened = [];
+  for (const id of offered.payload?.postLand?.items ?? []) {
+    const item = store.getItem(board, id);
+    if (item?.item_status !== 'submitted' || !item.item_merged_commit) continue;
+    try {
+      store.reopen(board, id, { agentId: 'coordinator', note: `${cases}; merge commit ${item.item_merged_commit}` });
+      reopened.push(id);
+    } catch (error) {
+      process.stderr.write(`${new Date().toISOString()} #${id} not reopened after main-wide test job ${job} went red: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}\n`);
+    }
+  }
+  return { applied: reopened.length > 0, outcome: 'red', reopened };
 }
