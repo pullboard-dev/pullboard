@@ -113,11 +113,6 @@
     "packages/seats/src/io/timing.js": 6,
     "packages/seats/src/io/untouched.js": 3,
     "packages/seats/src/io/wake.js": 8,
-    "packages/spec/src/io/row/decisions.js": 1,
-    "packages/spec/src/io/row/stale.js": 2,
-    "packages/spec/src/io/rows/approved.js": 1,
-    "packages/spec/src/io/signature.js": 1,
-    "packages/spec/src/io/verdicts.js": 1,
     "packages/store/src/io/board/access.js": 1,
     "packages/store/src/io/board/blobs.js": 1,
     "packages/store/src/io/board/busy.js": 1,
@@ -127,9 +122,6 @@
     "packages/store/src/io/board/sqlite.js": 2,
     "packages/store/src/io/board/state.js": 2,
     "packages/store/src/io/board/submit.js": 1,
-    "packages/store/src/io/board/write/lock.js": 12,
-    "packages/sync/src/io/git/lock.js": 1,
-    "packages/sync/src/io/git/repair.js": 6,
-    "packages/sync/src/io/main.js": 1
+    "packages/store/src/io/board/write/lock.js": 12
   }
 }
