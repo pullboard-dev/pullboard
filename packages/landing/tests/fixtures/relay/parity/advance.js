@@ -1,6 +1,6 @@
 /** A genuinely checked main merge passes the complete native/relay reader oracle [C7,V4,H16]. */
-import { selectAffectedTests } from '../../../../../gate/index.js';
-import { selectTestTreeGuards } from '../../../../../gate/index.js';
+import { selectAffectedTests } from '../../../../../gate/heavy.js';
+import { selectTestTreeGuards } from '../../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../../runners/index.js';
 import { landingExecutionServices } from '../../../../index.js';
 
@@ -13,12 +13,12 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from '../../../../../git/index.js';
-import { runSubmitGate } from '../../../../../gate/index.js';
+import { runSubmitGate } from '../../../../../gate/heavy.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
 import { withSourceComposition } from '../../../../../merge/index.js';
 import { captureSourceAdvanceBasis } from '../../../../../sandbox/index.js';
-import { boardReceiptStore } from '../../../../../gate/index.js';
-import { readGateReceipt } from '../../../../../gate/index.js';
+import { boardReceiptStore } from '../../../../../gate/heavy.js';
+import { readGateReceipt } from '../../../../../gate/heavy.js';
 import { prepareSourceAdvance } from '../../../../../sandbox/index.js';
 
 /** Build real fixture commits and execute the declared exact-tree test before covering the native move. */

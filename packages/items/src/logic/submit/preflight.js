@@ -6,6 +6,7 @@
  */
 import { tryGit } from "../../../../git/index.js";
 import { Refused } from "../../../../kernel/index.js";
+import { environmentAdapter } from "../../../../env/index.js";
 
 /** Git variables that could narrow which objects a read sees; trunk reads run without them. */
 const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|WORK_TREE|INDEX_FILE)$/u;
@@ -23,7 +24,7 @@ const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|CO
  * @returns {{ status: number, stdout: string, stderr: string }}
  */
 export function readTrunkEntry(root, base, file) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !OBJECT_ENV.test(key)));
+  const env = Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !OBJECT_ENV.test(key)));
   const args = ['ls-tree', '-z', base, '--', file];
   let result = tryGit(root, args, { env });
   if (result.status === 0) return result;
@@ -57,7 +58,7 @@ export function readTrunkEntry(root, base, file) {
  * @returns {string[]} The commits still absent after fetching.
  */
 export function fetchMissingCommits(root, commits, remote) {
-  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_TERMINAL_PROMPT: '0' };
+  const env = { ...Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !key.startsWith('GIT_'))), GIT_TERMINAL_PROMPT: '0' };
   const quiet = ['-q', '--no-tags', '--no-write-fetch-head', '--', remote];
   const absent = list => list.filter(commit => tryGit(root, ['cat-file', '-e', `${commit}^{commit}`], { env }).status !== 0);
   let missing = absent(commits);
@@ -74,22 +75,6 @@ function trunkSources(root, env) {
   const remotes = tryGit(root, ['remote'], { env });
   return [...new Set([...(recorded.status === 0 && recorded.stdout ? [recorded.stdout] : []),
     ...(remotes.status === 0 ? remotes.stdout.split('\n').filter(Boolean) : [])])];
-}
-
-/** The cells-plan index whose presence on accepted main turns placement on. */
-const CELLS_PLAN_INDEX = 'packages/codemap/data/plan/cells.json';
-
-/**
- * Whether accepted main carries a cells plan, so placement has anything to check.
- * Why: with no plan, placement is this one read; a submit then skips the placement receipt, whose key hashes the
- * checker's import closure (about 1,700 files, 0.7-4 s on a loaded runner) before any test may start (#5752) [C7].
- *
- * @param {string} root
- * @param {string} base
- * @returns {boolean}
- */
-export function hasCellsPlan(root, base) {
-  return Boolean(readTrunkEntry(root, base, CELLS_PLAN_INDEX).stdout);
 }
 
 /**

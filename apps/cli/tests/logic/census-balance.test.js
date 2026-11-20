@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { balancedJobs } from '../../src/logic/census.js';
 import { censusPlan } from '../../src/logic/census.js';
-import { planLandingShards } from '../../../../packages/gate/index.js';
+import { planLandingShards } from '../../../../packages/gate/heavy.js';
 
 // 200 files whose times run 1 to 10 s in a fixed pattern, and two files far heavier than any job.
 const FILES = Array.from({ length: 200 }, (_, index) => `dir/f${String(index).padStart(3, '0')}.test.js`);
