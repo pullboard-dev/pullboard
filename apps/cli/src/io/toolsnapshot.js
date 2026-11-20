@@ -12,6 +12,7 @@ import { scratchFolder } from '../../../../packages/config/index.js';
 import { scratchRoot } from '../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { relative } from 'node:path';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -34,7 +35,7 @@ export const TOOLS_IDLE_MS = 10 * 60_000;
 
 /** The process environment without the caller's Git variables, so no inherited GIT_DIR or index redirects a command. */
 function cleanGitEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+  return Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([name]) => !name.startsWith('GIT_')));
 }
 
 /**
