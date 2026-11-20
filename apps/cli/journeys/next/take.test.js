@@ -7,8 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { runFixtureChild } from '../../../../packages/gate/tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { fixtureBoard } from '../../tests/fixtures/board.js';
@@ -286,9 +285,8 @@ test('cli.journeys-next-take.take-build-wait: clause 2: next --take --build --wa
 test('cli.journeys-next-take.take-build-real-entry: clause 3: the real CLI entry apps/cli/pullboard.js runs next --take --build and claims the one open build item for the calling seat [C7,#11942]', async t => {
   const box = await fixture(t, { route: 'light' });
   const open = box.add('The one open build item', { route: 'light' });
-  const entry = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
-  const ran = runFixtureChild(process.execPath, [entry, 'next', '--take', '--build', '--json'], { cwd: box.seats.actor.path, env: process.env, encoding: 'utf8', stdio: 'pipe' });
-  assert.equal(ran.status, 0, ran.context);
+  const ran = await runCliInProcess(['next', '--take', '--build', '--json'], { cwd: box.seats.actor.path, env: process.env });
+  assert.equal(ran.status, 0, ran.out + ran.err);
   assert.equal(JSON.parse(ran.stdout).item.item_id, open);
   assert.equal(store.getItem(box.board, open).item_owner, box.seats.actor.id);
 });

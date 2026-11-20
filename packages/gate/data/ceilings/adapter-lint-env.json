@@ -1,12 +1,6 @@
 {
   "version": 1,
   "files": {
-    "apps/cli/src/io/commands/verify.js": 3,
-    "apps/cli/src/io/commands/view.js": 6,
-    "apps/cli/src/io/commands/worktree.js": 1,
-    "apps/cli/src/io/current.js": 2,
-    "apps/cli/src/io/fixture-memo-warm.js": 1,
-    "apps/cli/src/io/hook/push.js": 4,
     "apps/cli/src/io/hook/thin.js": 1,
     "apps/cli/src/io/init.js": 2,
     "apps/cli/src/io/resident/board.js": 7,
@@ -19,7 +13,6 @@
     "packages/config/src/io/main.js": 2,
     "packages/gate/src/io/journal/source.js": 1,
     "packages/gate/src/io/run-tests.js": 40,
-    "packages/gate/src/io/watchdog.js": 2,
     "packages/git/src/io/adapter.js": 2,
     "packages/git/src/io/check/definition.js": 2,
     "packages/git/src/io/enter.js": 1,
