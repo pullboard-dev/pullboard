@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import * as store from '../../../../../packages/store/index.js';
-import { receiptLog } from '../../../../../packages/gate/index.js';
+import { receiptLog } from '../../../../../packages/gate/heavy.js';
 import { boardJobQueueCall } from '../../../../../packages/api/index.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';

@@ -29,11 +29,16 @@ export function requireCriterionEvidence(criterion) {
 /**
  * Refuse a criterion with a plain fault, naming the fix, and return the warnings for the rest.
  *
+ * With `refuseEmpty`, a missing, blank or unnumbered criterion is refused BAR_EMPTY; without it an undefined criterion returns no warnings [C7].
+ *
  * @param {string|undefined} criterion
- * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string }} [options]
+ * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string, refuseEmpty?: boolean }} [options]
  * @returns {{ code: string, clause: number, message: string }[]}
  */
 export function guardBar(criterion, options) {
+  if (options?.refuseEmpty === true && !criterionClauses(String(criterion ?? ''), { single: true }).length) {
+    throw new Refused('BAR_EMPTY', 'this bar is empty or has no numbered clause, so it is not checkable', 'give it numbered clauses with pullboard edit <id> --criterion "1. ... [test]" --reason "...", then run the command again');
+  }
   if (criterion === undefined) return [];
   const { problems, fix, warnings } = lintBar(criterion, options);
   if (problems.length) throw new Refused('BAR_AMBIGUOUS', `this bar is not checkable yet: ${problems.join('; ')}`, `${fix.join('; ')}, then run the command again`);

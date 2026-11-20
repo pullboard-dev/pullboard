@@ -8,6 +8,8 @@ import { PER_ITEM_FULL_SUITE_ENGINE } from '../../../state/light.js';
 import { Refused } from "../../../kernel/light.js";
 
 const BRIEF_LIMIT = 8000;
+/** The brief shape a routed add accepts, shown whole in the NO_BRIEF refusal so no filer guesses it [#11949]. */
+const BRIEF_SHAPE = '; the brief shape is:\nFiles:\npath/to/file.js\n\nTest:\npath/of/the/test';
 const OUT_OF_SCOPE_CHECK = /\b(?:the\s+)?(?:full|entire|complete)\s+suite\s+(?:passes?|is\s+green|succeeds?|runs?\s+successfully)\b|\b(?:CI|continuous\s+integration)\s+(?:must|needs?\s+to|has\s+to|is\s+required\s+to)\s+(?:pass|be\s+green|succeed)\b|\b(?:must|needs?\s+to|has\s+to|required\s+to)\s+pass\s+(?:CI|continuous\s+integration)\b/iu;
 /** Detect an affirmative audit-scope gate per sentence, allowing local removal instructions. */
 function outOfScopeRequirement(text) {
@@ -90,7 +92,8 @@ export function checkRouted({ brief, route, criterion, check }, engine) {
     ...(check.trim() ? [] : ['--check, the command that proves it']),
   ];
   if (missing.length) {
-    throw new Refused('NO_BRIEF', `an item routed ${route} must be buildable cold; it needs ${missing.join(', ')}`);
+    const shape = missing.some(part => part.startsWith('a brief') || part.startsWith('a Test')) ? BRIEF_SHAPE : '';
+    throw new Refused('NO_BRIEF', `an item routed ${route} must be buildable cold; it needs ${missing.join(', ')}${shape}`);
   }
   return brief;
 }

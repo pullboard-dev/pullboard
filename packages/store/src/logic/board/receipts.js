@@ -11,6 +11,7 @@ import { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 export { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 
 import { HEALTH_QUIET_ENGINE } from "../../../../state/light.js";
+import { HEALTH_EPISODE_ENGINE } from "../../../../state/light.js";
 
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;
@@ -30,7 +31,7 @@ export function hasPendingDispatchNotices(board) {
 }
 
 /** Validate and retain only the fields needed to identify and explain a health finding. */
-export function normalizedHealthFindings(findings) {
+export function normalizedHealthFindings(findings, { ownerRole = false } = {}) {
   if (!Array.isArray(findings) || findings.length > 10_000) {
     throw new Refused('HEALTH_FINDINGS', 'a sentinel scan needs at most 10000 health findings; run pullboard health and retry the scan');
   }
@@ -48,7 +49,8 @@ export function normalizedHealthFindings(findings) {
       throw new Refused('HEALTH_FINDINGS', 'a sentinel finding needs its owner address; run pullboard health again');
     }
     seen.add(finding.key);
-    return Object.fromEntries(['key', 'cause', 'item', 'subject', 'title', 'since', 'why', 'next'].map(key => [key, finding[key]]).concat([['owner', who]]));
+    const role = ownerRole && typeof finding.owner?.role === 'string' ? [['ownerRole', finding.owner.role]] : [];
+    return Object.fromEntries(['key', 'cause', 'item', 'subject', 'title', 'since', 'why', 'next'].map(key => [key, finding[key]]).concat([['owner', who]], role));
   });
 }
 
@@ -61,6 +63,9 @@ export function healthFindingIdentity(finding) {
 export function healthFindingNotice(finding, resolved = false) {
   return `${resolved ? 'Resolved' : 'Stuck'}: ${finding.subject} ${finding.title} [${finding.cause}], since ${finding.since}. ${finding.why}. ${finding.owner ? `Owner: ${finding.owner}. ` : ''}Next: ${finding.next}.`;
 }
+
+/** A finding that clears and returns inside this many milliseconds is the same episode and is not shouted again [C7,#1479]. */
+export const FLAP_WINDOW_MS = 30 * 60 * 1000;
 
 /** The causes the coordinator hears whoever owns them: it rules on each (#1479). */
 const COORDINATOR_CAUSES = new Set(["UNLANDED_CONFLICT", "UNLANDED_WAITING", "UNLANDED_READY", "UNLANDED_STACKED", "DECISION_UNANSWERED", "REQUEST_UNANSWERED", "STALE_ROW_DECISION"]);
@@ -87,11 +92,14 @@ export function healthTargets(finding, { engine, coordinator, person, lanes, age
  * Every finding keeps its event. From HEALTH_CAP_ENGINE the run sends at most HEALTH_SHOUT_CAP shouts and one more to
  * the coordinator saying how many it held back, so a backfill never floods a feed (#940). From HEALTH_QUIET_ENGINE a
  * resolved finding is logged and shouted to no one; an earlier engine's run replays with its original shouts.
+ * From HEALTH_EPISODE_ENGINE an added finding whose key resolved less than FLAP_WINDOW_MS before `now` is logged and shouted to no one;
+ * `recentlyResolved` maps finding key to its resolved instant.
+ * With `adviceThroughNext` true a finding whose owner role is builder is logged and shouted to no one: next carries that advice to the builder (#2330).
  *
- * @param {{ resolved: any[], added: any[], engine: number, coordinator: string, targets: (finding: any) => string[],
+ * @param {{ resolved: any[], added: any[], recentlyResolved?: Map<string, string>, now?: string | Date | null, engine: number, coordinator: string, targets: (finding: any) => string[],
  *   shout: (to: string, text: string) => void, log: (finding: any, cleared: boolean) => void }} run
  */
-export function deliverHealthNotices({ resolved, added, pending = [], engine, coordinator, targets, shout, log }) {
+export function deliverHealthNotices({ resolved, added, pending = [], recentlyResolved = new Map(), now = null, engine, coordinator, targets, shout, log, adviceThroughNext = false }) {
   const capped = engine >= HEALTH_CAP_ENGINE;
   const durableCpu = engine >= CPU_SENTINEL_ENGINE;
   const deferred = [];
@@ -100,13 +108,16 @@ export function deliverHealthNotices({ resolved, added, pending = [], engine, co
   for (const [finding, cleared, retry] of [...(durableCpu ? pending : []).map(entry => [entry, false, true]),
     ...resolved.map(entry => [entry, true, false]), ...added.map(entry => [entry, false, false])]) {
     let coordinatorSent = false;
-    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE ? [] : targets(finding)) {
+    const flap = !cleared && !retry && engine >= HEALTH_EPISODE_ENGINE && now !== null && recentlyResolved.has(finding.key)
+      && Date.parse(String(now instanceof Date ? now.toISOString() : now)) - Date.parse(recentlyResolved.get(finding.key)) < FLAP_WINDOW_MS;
+    const advice = adviceThroughNext === true && finding.ownerRole === 'builder';
+    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE || flap || advice ? [] : targets(finding)) {
       if (capped && sent >= HEALTH_SHOUT_CAP) { held += 1; continue; }
       shout(to, healthFindingNotice(finding, cleared));
       sent += 1;
       if (to === coordinator) coordinatorSent = true;
     }
-    if (!cleared && !coordinatorSent && (durableCpu && finding.cause === 'AGENT_CPU'
+    if (!cleared && !flap && !coordinatorSent && (durableCpu && finding.cause === 'AGENT_CPU'
       || engine >= AUTOMATIC_DISPATCH_ENGINE && finding.cause === 'UNPAIRED_WORK')) deferred.push(finding);
     if (!retry) log(finding, cleared);
   }

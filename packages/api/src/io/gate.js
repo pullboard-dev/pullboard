@@ -57,6 +57,8 @@ import { settleQueuedAccept } from './test/accept.js';
 import { caseReworkLines } from './gate/files.js';
 import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
+import { retryNewReds } from './gate/retry.js';
+import { retryShardId } from './gate/retry.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -313,13 +315,16 @@ export function offerProofShards(board, { job, receipt, offered }) {
   const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
   const buckets = Array.from({ length: count }, () => []);
   files.forEach((file, at) => buckets[at % count].push(file));
+  // A plan that names the files needing a browser or a GUI lets each shard carry its own need, so the board hands the runner what it must hold [C7].
+  const needs = plan.needs && typeof plan.needs === 'object' ? plan.needs : null;
+  const needing = (list, part) => Array.isArray(list) && part.some(file => list.includes(file));
   const ids = buckets.map((part, index) => {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
     // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
     const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}) } } } } }, queue).id;
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
     text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });
@@ -350,18 +355,18 @@ function redShard(part) {
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted }) => {
+  const parts = shards.map(({ job, posted, ended = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
     return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null };
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
   const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
-  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? (part.ended ? `ended: ${part.ended}` : 'no proof phase')).slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
@@ -383,15 +388,44 @@ export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}
 export function applyShardReceipt(board, { job }, ports = {}) {
   const parent = offeredRequest(board.db, job)?.gate;
   if (typeof parent !== 'string') return { applied: false, outcome: 'not-shard' };
-  const shards = shardJobs(board.db, parent);
-  const remaining = shards.filter(row => row.job_step !== 'done').length;
+  const every = shardJobs(board.db, parent);
+  // The one retry shard (gate.retryNewRedsOnce) is no part of the proof's own split; it only replaces red shards when green [C7,P7].
+  const retry = every.find(row => row.job_id === retryShardId(parent)) ?? null;
+  const shards = every.filter(row => row !== retry);
+  const remaining = every.filter(row => row.job_step !== 'done').length;
   if (remaining) return { applied: false, outcome: 'waiting', remaining };
   const gateReceipt = postedReceipt(board.db, parent)?.receipt;
   if (!gateReceipt?.gate?.proofPlan) return { applied: false, outcome: 'not-shard' };
   const now = Number.isFinite(ports.receiptNow) ? ports.receiptNow : Date.now();
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
-  const combined = combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) })), { signatures: ports.settleOnMainReceipt === true });
+  const signatures = { signatures: ports.settleOnMainReceipt === true };
+  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, ended: posted ? null : endedDetail(board.db, row.job_id) }; });
+  let combined = combinedReceipt(gateReceipt, parts, signatures);
+  let retried = null;
+  try {
+    if (retry) {
+      // A green retry replaces the red shards it reran; a red one leaves the original red as it was.
+      const posted = postedReceipt(board.db, retry.job_id);
+      const shardGate = posted?.receipt?.gate ?? {};
+      if (posted?.receipt?.status === 0 && shardGate.green === true && (shardGate.phases ?? []).find(row => row.role === 'proof')?.status === 0) {
+        const green = part => part.posted?.receipt?.status === 0 && part.posted.receipt.gate?.green === true && (part.posted.receipt.gate.phases ?? []).find(row => row.role === 'proof')?.status === 0;
+        combined = combinedReceipt(gateReceipt, [...parts.filter(green), { job: retry.job_id, posted }], signatures);
+        retried = shardGate.shard?.files ?? [];
+      }
+    } else if (ports.retryNewRedsOnce === true && combined.status !== 0) {
+      const main = offeredGate(board.db, parent)?.main;
+      const compared = compareGateWithMain(board, combined, main, ports.compareWithMain ?? null);
+      if (compared && retryNewReds(board, { parent, combined, compared }).retried) {
+        // The retry's post applies the result, so this claim is handed back and nothing is noted settled.
+        noteLease(board.db, parent, SHARDS_SETTLING, { released: true }, now);
+        return { applied: false, outcome: 'retrying' };
+      }
+    }
+  } catch (error) {
+    noteLease(board.db, parent, SHARDS_SETTLING, { released: true }, now);
+    throw error;
+  }
   let applied;
   try { applied = applyGateReceipt(board, { job: parent, receipt: combined }, ports); }
   catch (error) {
@@ -401,7 +435,22 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   }
   // The parent notes it settled, whatever the outcome, so settleDoneShardGates never applies it twice [C7,P7].
   noteLease(board.db, parent, SHARDS_SETTLED, { outcome: applied.outcome }, now);
+  if (retried && applied.outcome === 'review') {
+    const offered = offeredGate(board.db, parent);
+    if (offered?.submit) store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
+      text: `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.` });
+  }
   return applied;
+}
+
+/**
+ * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
+ * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
+ */
+function endedDetail(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
+  if (!row) return null;
+  try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
@@ -1067,7 +1116,7 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, receiptMissingCause?: boolean, redLocation?: boolean, settleOnMainReceipt?: boolean, reofferTrunkBusy?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, receiptMissingCause?: boolean, redLocation?: boolean, settleOnMainReceipt?: boolean, retryNewRedsOnce?: boolean, reofferTrunkBusy?: boolean }} options - retryNewRedsOnce: a gate red only in new cases reruns just those files once before it applies (#11712); endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
  *   reofferTrunkBusy: landing.reofferTrunkBusy, offers a trunk-busy land job again after a backoff (#9102);
  *   settleOnMainReceipt: gate.settleOnMainReceipt, settles sharded gates left unknown when main's receipt records (#9057); compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
@@ -1075,9 +1124,9 @@ export function provideMainComparison(lookup) {
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
-  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
+  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).

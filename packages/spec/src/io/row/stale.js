@@ -28,6 +28,8 @@ export function staleRowDecision(record, context) {
   const aliases = new Set(['DOCTRINE.md', 'PRACTICE.md']);
   let changed;
   if (current.file !== record.file && !(record.kind === 'doctrine' && aliases.has(current.file) && aliases.has(record.file))) changed = ['file'];
+  // A standard default decided with no repo line stays current while the repo still has no row for it [C7,#2007].
+  else if (record.standard === true && record.source === '' && current.count === 0) return null;
   else if (current.count !== 1) changed = [current.count ? 'duplicate id' : 'missing row'];
   else if (current.source === record.source || current.source === record.replacement) return null;
   else {

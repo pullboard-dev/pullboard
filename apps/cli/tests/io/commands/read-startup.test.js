@@ -57,6 +57,15 @@ test('cli.io-commands-read-startup.list-loads-none-of-the-heavy-set: clause 1: l
   }
 });
 
+test('cli.io-commands-read-startup.heavy-rows-name-only-reached-modules: clause 1: every module a list or show row of startup-heavy.json names is reached by that command static closure, and the show row is exactly packages/state/src/io/machine.js [C7]', () => {
+  for (const command of ['list', 'show']) {
+    const modules = new Set(staticClosure(`apps/cli/src/io/commands/${command}.js`));
+    const stale = rows[command].filter(path => !modules.has(path));
+    assert.deepEqual(stale, [], `${command} row names modules its closure never reaches`);
+  }
+  assert.deepEqual(rows.show, ['packages/state/src/io/machine.js']);
+});
+
 test('cli.io-commands-read-startup.every-read-command-keeps-a-startup-ceiling: clause 2: every read command keeps a startup ceiling row, none above its audited value [C7]', () => {
   const audited = { version: 800, show: 2000, status: 3000, list: 1500, 'list thin': 200 };
   assert.deepEqual(Object.keys(ceilings).sort(), ['list', 'list thin', 'show', 'status', 'version']);

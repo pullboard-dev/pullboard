@@ -1,0 +1,3 @@
+{
+  "gate.io-stores.adapter-write-counts-as-owner-write": {"proves":{"specs":["CD2","U148"],"claim":"an owner whose only write is fs.rename or fs.write through the fs adapter passes the owner check, and an owner with only reads still fails it"},"why":"Store owners moved onto the fs adapter showed no write call and failed CD2_OWNER_NO_WRITE; without this case a narrowed write pattern would pass the gate unnoticed.","kind":"cell unit","inputs":["packages/gate/src/io/stores.js"]}
+}
