@@ -2,8 +2,8 @@ import { blockingFailures } from '../../../../../packages/verify/index.js';
 import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
 import { quarantineVerdictSnapshot } from '../../../../../packages/flakes/index.js';
 import { sealQuarantineVerdict } from '../../../../../packages/flakes/index.js';
-import { boardReceiptStore } from '../../../../../packages/gate/index.js';
-import { readGateReceipt } from '../../../../../packages/gate/index.js';
+import { boardReceiptStore } from '../../../../../packages/gate/heavy.js';
+import { readGateReceipt } from '../../../../../packages/gate/heavy.js';
 import { checkAtCommit } from '../../../../runner/index.js';
 /** The pullboard gate command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
@@ -11,13 +11,11 @@ import { landingExecutionServices } from '../../../../../packages/landing/index.
 import {
   CONFIG_FILE,
 } from '../../../../../packages/config/index.js';
-import { setHere } from '../../../../../packages/gate/index.js';
-import {
-} from '../../../../../packages/gate/index.js';
+import { setHere } from '../../../../../packages/gate/heavy.js';
 import {
   gateReport,
   runGate,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   accountedFailures,
   liveWaiverProjection,
