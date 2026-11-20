@@ -79,7 +79,11 @@ test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no 
   await stepsAsideFor(box, 'an after-gate list', 5, (db, id) => db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`after_gate:${id}`, '[2]'));
   await stepsAsideFor(box, 'a foreign wait', 6, (db, id) => db.prepare('UPDATE item SET item_after = ? WHERE item_id = ?').run('other-repo#7', id));
   // An accepted item loads the merge index's reader; a reader the read cannot serve sends the call to the full path.
-  onBoard(box, board => board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = 9").run());
+  // A status moves only inside a move, which the board marks in its temp.moving table; the fixture marks it the same way for this one row.
+  onBoard(box, board => {
+    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+    try { board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = 9").run(); } finally { board.db.exec('DELETE FROM temp.moving'); }
+  });
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new ReadNeedsWrite('fixture write'); } }), null, 'ReadNeedsWrite');
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new Error('no such table: fixture_missing'); } }), null, 'schemaMissing');
   // The field tables join the board last: the item that holds no value is still served, so the item that holds one steps aside for its value alone.
