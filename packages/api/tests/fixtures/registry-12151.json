@@ -33,7 +33,7 @@
       "claim": "At 60000 gate-shard rows and 93 offered gate jobs, a pull claim appends at most one gate-queue event, the snapshot's added p95 is printed, and its queue reads search job by index with no scan."
     },
     "why": "Without this measurement the snapshot can slow every runner claim as the board grows.",
-    "kind": "measurement",
+    "kind": "contract",
     "inputs": [
       "packages/api/src/io/gate.js"
     ]
