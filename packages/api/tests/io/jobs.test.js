@@ -362,10 +362,10 @@ function agedSettingBoard(t, settings) {
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
   const { db } = cellBoard(t, join(root, 'board.sqlite'));
-  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'test:one', kind: 'test', now: 150_000 });
   offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
   const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now, gateAgedMs }).claim?.job;
-  assert.equal(claim(5000), 'test:one', 'a runner holding no test job takes the test job');
+  assert.equal(claim(160_000), 'test:one', 'a runner holding no test job takes the test job');
   offerJob(db, { id: 'gate:9', kind: 'gate', now: 10_000 });
   return claim;
 }
