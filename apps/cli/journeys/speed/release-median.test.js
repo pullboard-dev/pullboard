@@ -39,13 +39,28 @@ test('cli.journeys-speed-release-median.the-release-median-on-the-2: clause 1: [
   assert.ok(middle < BUDGET_MS, `release median ${middle.toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')}), over ${BUDGET_MS} ms`);
 });
 
-/** The self time in ms of each profiled function, from the sampled nodes and their time deltas. */
+/** Whether a profiled frame is repo source, so a native or node: frame can be charged to the repo function that called it. */
+function inRepo(frame) {
+  return /\/(apps|packages)\//u.test(frame.url);
+}
+
+/**
+ * The self time in ms of each profiled function, from the sampled nodes and their time deltas. A native or node: frame
+ * is charged to its nearest repo caller and named "<frame> via <caller>", so every row has a source file; the profiler's
+ * own frames are left out.
+ */
 function selfTimes(profile) {
   const byId = new Map(profile.nodes.map((node) => [node.id, node]));
+  const parent = new Map();
+  for (const node of profile.nodes) for (const child of node.children ?? []) parent.set(child, node.id);
   const totals = new Map();
   profile.samples.forEach((id, index) => {
     const frame = byId.get(id).callFrame;
-    const key = `${frame.url}\t${frame.functionName || '(anonymous)'}\t${frame.lineNumber + 1}`;
+    if (frame.url.startsWith('node:inspector')) return;
+    let owner = frame;
+    for (let up = parent.get(id); !inRepo(owner) && up !== undefined; up = parent.get(up)) owner = byId.get(up).callFrame;
+    const name = (frame.functionName || '(anonymous)') + (owner === frame ? '' : ` via ${owner.functionName || '(anonymous)'}`);
+    const key = `${owner.url}\t${name}\t${owner.lineNumber + 1}`;
     totals.set(key, (totals.get(key) ?? 0) + (profile.timeDeltas[index] ?? 0) / 1000);
   });
   return [...totals.entries()].map(([key, ms]) => ({ key, ms })).sort((a, b) => b.ms - a.ms);
