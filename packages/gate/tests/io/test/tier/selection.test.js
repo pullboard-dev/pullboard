@@ -271,3 +271,53 @@ test('gate.io-test-tier-selection.reads-declared-leading-comments-only: clause 1
   assert.deepEqual(reads.get('packages/gate/tests/b.test.js'), []);
   assert.deepEqual(reads.get('packages/gate/tests/gone.test.js'), []);
 });
+
+const READS_TEST = 'packages/alpha/tests/reads-fixture.test.js';
+const NAMED_TEST = 'packages/alpha/tests/reads-named.test.js';
+const FIXTURE_READ = "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nreadFileSync(join(import.meta.dirname, 'fixtures', 'rows.json'));\n";
+
+/** The sealed cell plus a test that reads a cell fixture no header names, and one that names the same read in a header. */
+function readerCell(t) {
+  const box = sealedCell(t);
+  box.put('packages/alpha/tests/fixtures/rows.json', '{}\n');
+  box.put(READS_TEST, FIXTURE_READ);
+  box.put(NAMED_TEST, `/** @pullboard-test-input packages/alpha/tests/fixtures/rows.json */\n${FIXTURE_READ}`);
+  git(box.root, 'add', '-A');
+  writeTestTiers(box.root);
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'readers');
+  return { ...box, base: git(box.root, 'rev-parse', 'HEAD').trim() };
+}
+
+test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers: clause 1: with confinedImportSelection tests, a test whose read firstUndeclaredRead reports as undeclared is selected when it sits in the narrowed cell or its undeclared read is a path inside it [C7]', t => {
+  const edit = { [LONE_TEST]: 'import assert from "node:assert/strict";\nassert.ok(3);\n' };
+  const plan = planWith(readerCell(t), edit, 'tests').plan;
+  for (const file of [LONE_TEST, READS_TEST]) assert.ok(plan.proofFiles.includes(file), `${file} runs: ${plan.proofFiles}`);
+  for (const file of [H_TEST, SRC_TEST, NAMED_TEST]) assert.ok(!plan.proofFiles.includes(file), `${file} declares its reads and imports nothing changed: ${plan.proofFiles}`);
+  assert.deepEqual(plan.owedFiles, [H_TEST, NAMED_TEST, SRC_TEST].sort(), 'the declared and importing tests are owed to landing');
+  const outside = 'packages/beta/tests/reads-alpha.test.js';
+  const tiers = { units: [LONE_TEST, outside, 'packages/beta/tests/plain.test.js'], confinedRoots: ['packages/alpha', 'packages/beta'], changed: [LONE_TEST] };
+  const sources = { [outside]: "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nreadFileSync(join(import.meta.dirname, '../../alpha/tests/fixtures/rows.json'));\n", 'packages/beta/tests/plain.test.js': 'void 0;\n' };
+  const narrowed = narrowConfinedTiers(tiers, { mode: 'tests', select: () => ({ files: [] }), read: file => sources[file] ?? null });
+  assert.deepEqual(narrowed.units, [LONE_TEST, outside], 'a test of another cell whose undeclared read is inside the changed cell is kept, a plain one is dropped');
+  for (const key of [undefined, 'off']) {
+    const whole = planWith(readerCell(t), edit, key).plan;
+    for (const file of [H_TEST, SRC_TEST, NAMED_TEST, READS_TEST]) assert.ok(whole.proofFiles.includes(file), `${key ?? 'absent'} key keeps ${file}: ${whole.proofFiles}`);
+  }
+});
+
+test('gate.io-test-tier-selection.test-only-change-keeps-undeclared-readers-real-path: clause 2: submitGatePlan with confinedImportSelection tests plans fewer than 30 proof files for the landed diff of #11202 and every cell test for a one-line product source edit, and the setting off equals the absent key [C7]', t => {
+  const root = git(import.meta.dirname, 'rev-parse', '--show-toplevel').trim();
+  const commit = '76035f0c70';
+  const base = git(root, 'rev-parse', `${commit}^1`).trim();
+  const plan = key => submitGatePlan(root, { ...NARROW_CONFIG, ...(key === undefined ? {} : { confinedImportSelection: key }) }, { base, commit: git(root, 'rev-parse', commit).trim() });
+  const narrowed = plan('tests');
+  assert.ok(narrowed.proofFiles.length < 30, `fewer than 30 proof files: ${narrowed.proofFiles.length}: ${narrowed.proofFiles.slice(0, 40)}`);
+  for (const file of ['apps/cli/journeys/gate/slot.test.js', 'apps/cli/tests/fixtures/registry-10543.json']) {
+    assert.ok(narrowed.proofFiles.includes(file) || git(root, 'ls-tree', '--name-only', commit, file).trim() === '', `${file} is planned or gone at the merge: ${narrowed.proofFiles}`);
+  }
+  assert.deepEqual(plan('off').proofFiles, plan().proofFiles, 'with the setting off the proof files equal the absent key');
+  const box = readerCell(t);
+  const source = planWith(box, { 'packages/alpha/src/core/a.js': 'export const a = 2;\n' }, 'tests').plan;
+  for (const file of [...CELL_TESTS, READS_TEST, NAMED_TEST]) assert.ok(source.proofFiles.includes(file), `a product source line keeps ${file}: ${source.proofFiles}`);
+});
