@@ -3,6 +3,9 @@ import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
 import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
 import { addItem } from './add.js';
 import { sendBackDependents } from './item/after-gate.js';
+import { afterGateDependents } from './item/after-gate.js';
+import { recordAfterGateRebuild } from './item/after-gate-report.js';
+import { recordAfterGateSaved } from './item/after-gate-report.js';
 import { reopen } from './reopen.js';
 import { release } from './release.js';
 import { appendFact } from './fact.js';
@@ -255,7 +258,9 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (pullOut && !decided) queueSprintPullOut(board, id, pullOut, { reason: code });
     if (!isAccept) postRigorNotices(board, trigger);
     // The dependents built on a rejected after-gate parent go back with it [C7,#11807].
-    if (!isAccept) sendBackDependents(board, id, { cause }, { reopen, release, appendFact });
+    if (!isAccept) sendBackDependents(board, id, { cause }, { reopen, release, appendFact, recordAfterGateRebuild });
+    // A verified after-gate parent records the minutes its dependents built meanwhile [C7,#12326].
+    if (isAccept) recordAfterGateSaved(board, id, afterGateDependents(board, id), { agentId });
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
   });

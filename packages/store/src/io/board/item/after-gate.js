@@ -97,15 +97,15 @@ export function afterGateDependents(board, parentId) {
  * acceptance withdrawn and is reopened, and a claimed one is released by its holder; each carries a note naming the parent. A dependent that already
  * landed gets a notice fact and no reopen. A dependent the board refuses to send back gets a notice fact naming the refusal, so the parent's verdict still records.
  * With `head`, the parent was resubmitted at that commit instead of rejected: only a dependent whose after_gate_base for this parent holds another head goes back, with a note naming both heads [C7,#11808].
- * Why injected: reopen and release belong to modules the claim path, which loads this file, must not import.
+ * Why injected: reopen, release and the rebuild note belong to modules the claim path, which loads this file, must not import.
  *
  * @param {any} board
  * @param {number} parentId
  * @param {{ cause?: string, head?: string }} [options]
- * @param {{ reopen: Function, release: Function, appendFact: Function }} [ports]
+ * @param {{ reopen: Function, release: Function, appendFact: Function, recordAfterGateRebuild?: Function }} [ports]
  * @returns {{ id: number, action: 'reopened' | 'released' | 'notified' | 'refused' }[]}
  */
-export function sendBackDependents(board, parentId, { cause, head } = {}, { reopen, release, appendFact } = {}) {
+export function sendBackDependents(board, parentId, { cause, head } = {}, { reopen, release, appendFact, recordAfterGateRebuild } = {}) {
   const sent = [];
   for (const id of afterGateDependents(board, parentId)) {
     const item = itemById(board, id);
@@ -122,6 +122,7 @@ export function sendBackDependents(board, parentId, { cause, head } = {}, { reop
       else if (item.item_status === 'claimed') release(board, id, item.item_owner, note, 'OTHER');
       else continue;
       sent.push({ id, action: item.item_status === 'claimed' ? 'released' : 'reopened' });
+      recordAfterGateRebuild?.(board, parentId, id);
     } catch (error) {
       if (!error?.code) throw error;
       tell(`${note}, but the board refused to send it back: ${error.code}`); sent.push({ id, action: 'refused' });
