@@ -1,0 +1,4 @@
+{
+  "cli.io-next-returned.lines-for-open-rejects": {"proves":{"specs":["C7"],"claim":"returnedEchoLines returns one rejectionEchoLine per open REJECT item the agent built, in item order, from the verdict reason and note, and nothing for other seats, claimed or submitted items."},"why":"Without it a builder whose work was sent back would not see the reason on its next call.","kind":"cell unit","inputs":["apps/cli/src/io/next/returned.js","apps/cli/tests/io/next/returned.test.js"]},
+  "cli.io-next-returned.reads-only-returned": {"proves":{"specs":["C7"],"claim":"returnedEchoLines gives an empty array and never calls verdictFor with no returned item, and calls it once for the one returned item among others."},"why":"Without it every next call would read a verdict for every item.","kind":"cell unit","inputs":["apps/cli/src/io/next/returned.js","apps/cli/tests/io/next/returned.test.js"]}
+}
