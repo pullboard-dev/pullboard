@@ -20,6 +20,9 @@ import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { applyGateReceipt } from '../../src/io/gate.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { recordGateQueue } from '../../src/io/gate/queue-snapshot.js';
+import { QUEUED_GATES_SQL } from '../../src/io/gate/queue-snapshot.js';
+import { LEASED_GATES_SQL } from '../../src/io/gate/queue-snapshot.js';
 import { WIDE_SEED_SQL } from '../../src/io/recheck.js';
 import { settleDoneShardGates } from '../../src/io/gate.js';
 import { settleWaitingGates } from '../../src/io/gate.js';
@@ -268,6 +271,82 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
 
 test('api.io-gate.shard-offer-ledger-absent-without-rows: clause 1: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+/** A real fixture board with `count` gate jobs offered, each needing a capability only the runner 'r-gpu' has, so a runner with none holds the queue still. */
+function queueBoard(t, count) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  for (let index = 1; index <= count; index += 1) offerJob(board.db, { id: `gate:q${index}:head`, kind: 'gate', needs: ['gpu'], run: ['true'], now: index });
+  return board;
+}
+const queueEvents = board => board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'gate-queue' AND item_id IS NULL ORDER BY event_id").all().map(row => JSON.parse(row.event_detail));
+const pull = (board, runner, capabilities, now) => boardJobQueueCall(board, { action: 'claim', runner, capabilities }, { mode: 'pull', now });
+
+test('api.io-gate.queue-snapshot-on-change: clause 1: two runner claim calls with the same queue append exactly one gate-queue event with queued ids in offer order, leased count, runnersSeen and serveStartedAt [C7]', t => {
+  const board = queueBoard(t, 3);
+  pull(board, 'r-idle', [], 10);
+  pull(board, 'r-idle', [], 11);
+  const events = queueEvents(board);
+  assert.equal(events.length, 1, JSON.stringify(events));
+  const { queued, leased, runnersSeen, serveStartedAt } = events[0];
+  assert.deepEqual({ queued, leased, runnersSeen }, { queued: ['gate:q1:head', 'gate:q2:head', 'gate:q3:head'], leased: 0, runnersSeen: ['r-idle'] });
+  assert.equal(typeof serveStartedAt, 'number');
+});
+
+test('api.io-gate.queue-snapshot-next: clause 2: a call after one job is claimed appends a second gate-queue event without that job in queued, and a call with an unchanged queue after it appends none [C7]', t => {
+  const board = queueBoard(t, 3);
+  pull(board, 'r-idle', [], 10);
+  pull(board, 'r-gpu', ['gpu'], 11);
+  const claimed = board.db.prepare('SELECT job_id FROM job WHERE job_lease_owner IS NOT NULL').all().map(row => row.job_id);
+  assert.equal(claimed.length, 1, 'the capable runner took one job');
+  const second = queueEvents(board).at(-1);
+  assert.equal(queueEvents(board).length, 2);
+  assert.equal(second.queued.includes(claimed[0]), false, 'the claimed job left the queue');
+  assert.equal(second.queued.length, 2);
+  assert.equal(second.leased, 1);
+  assert.deepEqual(second.runnersSeen, ['r-gpu', 'r-idle']);
+  pull(board, 'r-idle', [], 12);
+  assert.equal(queueEvents(board).length, 2, 'an unchanged queue appends nothing');
+});
+
+test('api.io-gate.queue-snapshot-latency: clause 3: at 60000 gate-shard rows and 93 offered gate jobs, 50 pull claims each in a rolled-back transaction append at most one gate-queue event each, the snapshot adds a p95 printed on one line, and its queue reads SEARCH job with no SCAN [C7]', t => {
+  const board = queueBoard(t, 93);
+  board.db.exec('BEGIN');
+  const insert = board.db.prepare("INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, 'gate-shard', 'done', 1, 1)");
+  for (let row = 0; row < 60000; row += 1) insert.run(`gate:q${(row % 300) + 1}:head:shard:${Math.floor(row / 300)}`);
+  board.db.exec('COMMIT');
+  const rollback = new Error('rolled back');
+  const timed = work => {
+    let ms = 0, appended = 0;
+    try {
+      store.atomic(board, () => {
+        const before = board.db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'gate-queue'").get().n;
+        const start = performance.now();
+        work();
+        ms = performance.now() - start;
+        appended = board.db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'gate-queue'").get().n - before;
+        throw rollback;
+      });
+    } catch (error) { if (error !== rollback) throw error; }
+    return { ms, appended };
+  };
+  const claims = [], snapshots = [];
+  for (let call = 0; call < 50; call += 1) {
+    const claim = timed(() => pull(board, `r-${call}`, [], 1000 + call));
+    assert.ok(claim.appended <= 1, `call ${call} appended ${claim.appended} gate-queue events`);
+    claims.push(claim.ms);
+    snapshots.push(timed(() => recordGateQueue(board, { runner: `s-${call}` }, 2000 + call)).ms);
+  }
+  const p95Of = list => list.sort((a, b) => a - b)[Math.ceil(list.length * 0.95) - 1];
+  const after = p95Of(claims), added = p95Of(snapshots);
+  console.log(`api.io-gate.queue-snapshot-latency: pull claim p95 ${after.toFixed(2)} ms after, ${Math.max(after - added, 0).toFixed(2)} ms before; the snapshot adds p95 ${added.toFixed(2)} ms`);
+  for (const sql of [QUEUED_GATES_SQL, LEASED_GATES_SQL]) {
+    const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(sql === LEASED_GATES_SQL ? [1] : [])).map(step => step.detail).join(' | ');
+    assert.match(plan, /SEARCH job/u, plan);
+    assert.doesNotMatch(plan, /SCAN job/u, plan);
+  }
 });
 
 test('api.io-gate.seed-window-in-sql: clause 1: with gate.seedWideMainTests on, the 24 h window is inside the seeding SQL and its query plan searches job by an index and never scans job_step [C7,P7]', t => {
