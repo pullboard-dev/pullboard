@@ -39,6 +39,7 @@ export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTUR
   'packages/items/index.js': `import { record } from '../../bin/record.js';
 export function requireSubmitComposition(root) { record(root, 'composition'); }
 `,
+  'packages/gate/heavy.js': "export * from './index.js';\n",
   'packages/gate/index.js': `import { record } from '../../bin/record.js';
 export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
