@@ -1,0 +1,3 @@
+{
+  "moves.logic-table-reclaim-generated.idle-release-30": {"proves":{"specs":["C7"],"claim":"RECLAIM_LIMITS.idleReleaseMs equals 30 minutes and the reclaim table accepts an idle release row quiet for 30 minutes and refuses one quiet for 29 with BAD_STALE_STATE."},"why":"Without it the idle release limit could drift back to 40 minutes, leaving dead claims held ten minutes longer, or the table could stop reading RECLAIM_LIMITS.","kind":"cell unit","inputs":["packages/moves/tests/logic/table/reclaim-generated.test.js","packages/moves/src/logic/table/reclaim.table.js"]}
+}
