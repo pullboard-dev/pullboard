@@ -10,6 +10,7 @@ import { takeResource } from '../../../../../../packages/resources/index.js';
 import { maintenanceGit } from './archive.js';
 import { workingDirectories } from '../../../../../../packages/landing/index.js';
 import { withFileLock } from '../../../../../../packages/outbox/index.js';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -43,7 +44,7 @@ export function registeredMaintenanceTrees(root) {
 export async function takeMaintenanceCheckout(root, agent) {
   const info = repoInfo(root);
   const name = 'checkout-session:' + createHash('sha256').update(info.gitDir).digest('hex');
-  const inherited = process.env.PULLBOARD_CHECKOUT_SESSION_TOKEN;
+  const inherited = environmentAdapter().get('PULLBOARD_CHECKOUT_SESSION_TOKEN');
   if (inherited && holdsLease({ name, scope: 'repo', root, token: inherited })) return { release() {} };
   return takeResource({ name, capacity: 1, scope: 'repo', root, agent,
     /** Never wait for an active session or stop its command to make maintenance progress. */
