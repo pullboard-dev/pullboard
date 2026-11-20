@@ -181,7 +181,9 @@ const CONTEXT = 'e'.repeat(64);
 const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: 'proof', context: CONTEXT, status });
 
 test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer carries the ledger hit for a file with a recorded pass and a reason none, red or changed for each other file [C7,P7]', t => {
-  const seed = db => recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [row('web/a.test.js', 'pass'), row('web/b.test.js', 'fail'), row('web/b.test.js', 'pass', '2'.repeat(64)), row('web/b.test.js', 'fail', '2'.repeat(64))] });
+  let reasons;
+  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [row('web/a.test.js', 'pass'), row('web/b.test.js', 'fail'), row('web/b.test.js', 'pass', '2'.repeat(64)), row('web/b.test.js', 'fail', '2'.repeat(64))] });
+    reasons = ledgerMissReasons(db, ['web/a.test.js', 'web/b.test.js', 'web/c.test.js']); };
   const [first, second] = shardData(t, undefined, seed);
   // Shard 1 holds a (a recorded pass: a hit) and c (no row at all); shard 2 holds b (a fail and a pass shadowed by a fail: red).
   assert.deepEqual(first.files, ['web/a.test.js', 'web/c.test.js']);
@@ -191,9 +193,7 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
   assert.deepEqual(second.ledger.reasons, { 'web/b.test.js': 'red' });
   assert.equal(second.ledger.files, undefined, 'a shard without a hit hands its runner no hit list');
   // A file with a recorded pass that the runner still misses reads changed: its input key moved.
-  const board = cellBoard(t, ':memory:', undefined, { real: true });
-  recordTestResults(board.db, { receipt: 'r2', origin: 'fixture', rows: [row('web/a.test.js', 'pass')] });
-  assert.deepEqual(ledgerMissReasons(board.db, ['web/a.test.js', 'web/b.test.js']), { 'web/a.test.js': 'changed', 'web/b.test.js': 'none' });
+  assert.deepEqual(reasons, { 'web/a.test.js': 'changed', 'web/b.test.js': 'red', 'web/c.test.js': 'none' });
 });
 
 test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
