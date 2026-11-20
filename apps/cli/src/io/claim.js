@@ -363,7 +363,7 @@ export function claimFreezer(ctx, board) {
     // With claim.checkCeiling on, an item whose recorded check measured over its ceiling is refused here; a pending or unmeasured baseline claims as before [C7,#1273].
     if (claimCheckCeilingEnabled()) {
       const baseline = itemCheckBaseline(board, item);
-      if (baseline) checkVerdict({ measuredMs: typeof baseline.seconds === number ? baseline.seconds * 1000 : undefined, ceilingMs: frozenCheckCeilingMs(ctx.config), remeasurePending: baseline.result === pending, strict: false });
+      if (baseline) checkVerdict({ measuredMs: typeof baseline.seconds === 'number' ? baseline.seconds * 1000 : undefined, ceilingMs: frozenCheckCeilingMs(ctx.config), remeasurePending: baseline.result === 'pending', strict: false });
     }
     return freezer(ctx, { board })(item);
   };
