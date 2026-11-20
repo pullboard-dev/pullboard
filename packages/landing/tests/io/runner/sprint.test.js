@@ -1,0 +1,58 @@
+/** The runner's Sprint proof ports run the commands a land job carries on a temp trunk [C7,#12228]. @pullboard-test-input source-cell landing */
+import assert from 'node:assert/strict';
+import { rmSync } from "node:fs";
+import { test } from "node:test";
+import { runnerSprintPorts } from '../../../src/io/runner/sprint.js';
+import { commandCheck } from '../../../src/io/runner/job.js';
+import { sprintProof } from '../../../src/io/exact.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
+
+const NODE = process.execPath;
+const PASS = 'import { test } from "node:test";\ntest("ok", () => {});\n';
+const FAIL = 'import { test } from "node:test";\ntest("broken", () => { throw new Error("boom"); });\n';
+
+/** A temp trunk with one base commit holding cells packages/alpha and packages/beta, and a way to commit a tip on top of it. */
+function trunk() {
+  const graph = fixtureCommittedGraph('landing-sprint-');
+  graph.put('packages/alpha/src/a.js', 'export const a = 1;\n');
+  graph.put('packages/beta/src/b.js', 'export const b = 1;\n');
+  const base = graph.commit();
+  const tipWith = (changes) => {
+    for (const [path, text] of Object.entries(changes)) graph.put(path, text);
+    return graph.commit();
+  };
+  return { root: graph.root, base, tipWith };
+}
+
+const sprint = (over = {}) => ({ static: [NODE, '-e', 'process.exit(0)'], testCommand: [NODE, '--test'], testFiles: '\\.test\\.js$', ...over });
+
+test('landing.runner-sprint.ports-run-payload-commands: clause 1: the ports list base..tip changes, run the static argv, and run a cell green with no test file and red naming the failing file [C7,#12228]', async () => {
+  const t = trunk();
+  try {
+    const tip = t.tipWith({ 'packages/alpha/src/a.js': 'export const a = 2;\n', 'packages/beta/tests/b.test.js': FAIL });
+    const ports = runnerSprintPorts(t.root, { base: t.base, tip, sprint: sprint(), check: commandCheck });
+    assert.deepEqual(ports.changedFiles().sort(), ['packages/alpha/src/a.js', 'packages/beta/tests/b.test.js']);
+    assert.equal(ports.pin(), tip);
+    assert.equal((await ports.runStatic()).isGreen, true);
+    const redStatic = runnerSprintPorts(t.root, { base: t.base, tip, sprint: sprint({ static: [NODE, '-e', 'process.exit(3)'] }), check: commandCheck });
+    assert.equal((await redStatic.runStatic()).isGreen, false);
+    assert.equal((await ports.runCell('packages/alpha')).isGreen, true);
+    const red = await ports.runCell('packages/beta');
+    assert.equal(red.isGreen, false);
+    assert.deepEqual(red.files, ['packages/beta/tests/b.test.js']);
+  } finally { rmSync(t.root, { recursive: true, force: true }); }
+});
+
+test('landing.runner-sprint.proof-with-ports: clause 2: sprintProof over these ports is green for a passing change and red naming the cell for a change that breaks its own test [C7,#12228]', async () => {
+  const t = trunk();
+  try {
+    const good = t.tipWith({ 'packages/alpha/src/a.js': 'export const a = 2;\n', 'packages/alpha/tests/a.test.js': PASS });
+    const green = await sprintProof({ tree: 'tree-1' }, runnerSprintPorts(t.root, { base: t.base, tip: good, sprint: sprint(), check: commandCheck }));
+    assert.equal(green.result, 'green');
+    assert.deepEqual(green.cells, ['packages/alpha']);
+    const bad = t.tipWith({ 'packages/alpha/tests/a.test.js': FAIL });
+    const red = await sprintProof({ tree: 'tree-2' }, runnerSprintPorts(t.root, { base: good, tip: bad, sprint: sprint(), check: commandCheck }));
+    assert.equal(red.result, 'red');
+    assert.equal(red.failed, 'packages/alpha');
+  } finally { rmSync(t.root, { recursive: true, force: true }); }
+});
