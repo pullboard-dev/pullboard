@@ -1,0 +1,45 @@
+{
+  "cli.logic-show-gate.generic-case-error-leads-with-output-line": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A case whose error is only \"test failed\" is named by the first error line of its phase output."
+    },
+    "why": "Without it, a gate that crashed before any case would show only \"test failed\" and leave the builder nothing to fix from.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/logic/show/gate.test.js",
+      "apps/cli/src/logic/show/gate.js"
+    ]
+  },
+  "cli.logic-show-gate.specific-case-error-unchanged": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A case with its own error keeps that text and gets no extra output line."
+    },
+    "why": "Without it, the output-line fallback could overwrite a specific error a builder can already act on.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/logic/show/gate.test.js",
+      "apps/cli/src/logic/show/gate.js"
+    ]
+  },
+  "cli.io-submit-pulled.generic-error-refusal-names-output-line": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The GATE_RED refusal for a generic test failed case contains the output error line."
+    },
+    "why": "Without it, the refusal ship prints would still say only test failed while show names the cause.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/pulled.test.js",
+      "apps/cli/src/io/submit/pulled.js",
+      "apps/cli/src/logic/show/gate.js"
+    ]
+  }
+}
