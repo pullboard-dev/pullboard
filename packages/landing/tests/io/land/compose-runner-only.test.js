@@ -13,7 +13,7 @@ import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import * as store from '../../../../store/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { mergeGroup } from '../../../src/io/step/merge.js';

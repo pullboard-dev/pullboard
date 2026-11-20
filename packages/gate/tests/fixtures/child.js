@@ -5,6 +5,7 @@ import {
 } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import {
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -13,6 +14,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  delimiter,
   join,
   sep,
 } from 'node:path';
@@ -105,6 +107,32 @@ export function reportFixtureChildFailure(options) {
   return context;
 }
 
+let realGit;
+
+/** The git that the system shim on this machine runs, found once per process; null when the shim is the git itself. */
+export function realGitPath() {
+  if (realGit !== undefined) return realGit;
+  realGit = null;
+  if (process.platform !== 'darwin') return realGit;
+  const found = spawnSync('/usr/bin/xcrun', ['--find', 'git'], { encoding: 'utf8' });
+  const path = found.status === 0 ? found.stdout.trim() : '';
+  if (path && path !== '/usr/bin/git' && existsSync(path)) realGit = path;
+  return realGit;
+}
+
+/**
+ * The command a fixture child spawns. Why: git through the system shim costs two execs per call, so a plain git whose
+ * environment PATH holds no git before the system one runs by its real path; a fixture's own bin/git wrapper still runs.
+ */
+export function fixtureGitCommand(command, env = process.env, real = realGitPath()) {
+  if (command !== 'git' || !real) return command;
+  for (const folder of String(env?.PATH ?? '').split(delimiter)) {
+    if (folder === '/usr/bin') return real;
+    if (folder && existsSync(join(folder, 'git'))) return command;
+  }
+  return real;
+}
+
 /** Run one fixture child and retain enough context to explain any failed result. */
 export function runFixtureChild(command, args = [], options = {}) {
   if (!Array.isArray(args)) { options = args; args = []; }
@@ -112,7 +140,7 @@ export function runFixtureChild(command, args = [], options = {}) {
   const stderrIgnored = options.stdio === 'ignore' || (Array.isArray(options.stdio) && options.stdio[2] === 'ignore');
   const childOptions = stderrIgnored ? { ...options, stdio: options.stdio === 'ignore'
     ? ['ignore', 'ignore', 'pipe'] : [options.stdio[0], options.stdio[1], 'pipe'] } : options;
-  const result = spawnSync(command, args, childOptions);
+  const result = spawnSync(fixtureGitCommand(command, options.env), args, childOptions);
   const elapsedMs = Math.round(performance.now() - started);
   const env = options.env ?? process.env;
   const stderr = safeFixtureDiagnostic(Buffer.isBuffer(result.stderr) ? result.stderr.toString('utf8') : (result.stderr ?? ''), env);
@@ -141,7 +169,7 @@ export function runFixtureChild(command, args = [], options = {}) {
 export function runFixtureChildAsync(command, args, options = {}) {
   const { onStderrChunk, ...spawnOptions } = options;
   const started = performance.now();
-  const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], ...spawnOptions });
+  const child = spawn(fixtureGitCommand(command, spawnOptions.env), args, { stdio: ['ignore', 'pipe', 'pipe'], ...spawnOptions });
   activeFixtureChildren.add(child);
   let stdout = '';
   let rawStderr = '';

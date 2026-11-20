@@ -1,4 +1,5 @@
 /** @pullboard-test-input packages/gate/src/io/browser/admission.js packages/gate/src/io/run/tests.js */
+/** @pullboard-test-timing */
 /** A test file waiting on a nested run lends its place, and every loan is returned or refused cleanly [C7]. */
 import { executionServices } from '../../fixtures/execution.js';
 import { withGateSlot } from '../../../heavy.js';
