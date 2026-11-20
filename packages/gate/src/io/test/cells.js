@@ -147,10 +147,10 @@ function pureHelperMap(pureHelpers) {
   return Array.isArray(pureHelpers) ? Object.fromEntries(pureHelpers.map(path => [path, ''])) : { ...pureHelpers };
 }
 
-/** Whether a target is a cell's front door: its index.js, or its core.js door (an app's core.js is a light door); a package may add pure.js. */
+/** Whether a target is a cell's front door: its index.js, or its core.js door (an app's core.js is a light door); a package may add pure.js. The gate heavy door is the gate's second front door, kept out of the index so a status read never pays for it. */
 function frontDoor(target, cell) {
   const base = cell.startsWith('apps/') ? cell : `packages/${cell}`;
-  return target === `${base}/index.js` || target === `${base}/light.js` || (!cell.startsWith('apps/') && target === `${base}/browser.js`);
+  return target === `${base}/index.js` || target === `${base}/light.js` || (!cell.startsWith('apps/') && target === `${base}/browser.js`) || (cell === 'gate' && target === 'packages/gate/heavy.js');
 }
 
 /** The committed listing: journeys with their reasons, the pure helpers and leaf cells a cell test may import, the ratchet, the sealed cells. */

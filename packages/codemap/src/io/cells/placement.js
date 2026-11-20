@@ -1,9 +1,9 @@
 /** Classify tracked test inputs by their first owned production dependencies, and move a cell's tests home [C7,CD64]. */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 /** Build deterministic ownership for old paths, moved bodies, and existing cell roots. */
 function cellFor(file, plan) {
@@ -279,10 +279,10 @@ export function planTestMove({ tracked, inventory, plan, cell: name, paths = [],
 /** Apply a planned move: git mv each file to its home, then write and stage the repointed import specifiers. */
 export function applyTestMove(root, planned, git) {
   for (const [from, to] of planned.moves) {
-    mkdirSync(join(root, posix.dirname(to)), { recursive: true });
+    fileSystem.mkdir(join(root, posix.dirname(to)), { recursive: true });
     git(['mv', '--', from, to]);
   }
-  for (const write of planned.writes) writeFileSync(join(root, write.file), write.source);
+  for (const write of planned.writes) fileSystem.writeFile(join(root, write.file), write.source);
   if (planned.writes.length) git(['add', '--', ...planned.writes.map(write => write.file)]);
   return testMoveReport(planned);
 }
@@ -363,10 +363,10 @@ function packBatches(files, group, max) {
 
 /** Split a moved file's one-line named imports into one statement per binding, as the import-style check requires. */
 function splitImports(root, file) {
-  const path = join(root, file), source = readFileSync(path, 'utf8');
+  const path = join(root, file), source = fileSystem.readFile(path, 'utf8');
   const out = source.replace(/^(\s*)import\s*\{([^}\n]*,[^}\n]*)\}\s*from\s*(['"][^'"\n]+['"])\s*;?[ \t]*$/gmu,
     (_line, indent, names, from) => names.split(',').map(name => name.trim()).filter(Boolean).map(name => `${indent}import { ${name} } from ${from};`).join('\n'));
-  if (out !== source) writeFileSync(path, out);
+  if (out !== source) fileSystem.writeFile(path, out);
   return out !== source;
 }
 
@@ -380,7 +380,7 @@ function splitImports(root, file) {
 function testBatches(tracked, inventory, plan, { args, root, lex, git, reread }) {
   const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
   if (args.includes('--dry-run')) {
-    const batches = JSON.parse(readFileSync(value('--plan', 'cells-test-batches.json'), 'utf8')).batches;
+    const batches = JSON.parse(fileSystem.readFile(value('--plan', 'cells-test-batches.json'), 'utf8')).batches;
     const results = [];
     for (const batch of batches) {
       const listed = git(['ls-files', '-z']).stdout.split('\0').filter(Boolean);

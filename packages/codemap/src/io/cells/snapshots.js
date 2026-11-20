@@ -15,7 +15,6 @@ import { unplanned } from './scripts/plan.js';
 import { stalePlanRows } from './scripts/plan.js';
 import { entryPlacementProblems } from './plan/cuts.js';
 import { ownedStayProblems } from './plan/cuts.js';
-import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../../kernel/light.js';
 
 /** Parse immutable tree metadata, retaining symlinks and gitlinks as nonregular entries. */
