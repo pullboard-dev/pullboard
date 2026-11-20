@@ -24,13 +24,15 @@ const DOOR = fileURLToPath(new URL('../../../src/io/show/thin.js', import.meta.u
 const BARREL = ['packages/board/index.js', 'apps/lib/light.js'];
 const NOW = '2026-11-20T00:00:00.000Z';
 
-/** A project holding one plain item, #1, that nobody has touched beyond adding it. */
-async function plainProject(t) {
+/** A project holding `count` plain items, #1 on, that nobody has touched beyond adding them. */
+async function plainProject(t, count = 1) {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show item');
-  assert.equal(added.code, 0, added.err);
+  for (let n = 1; n <= count; n++) {
+    const added = await fixtureAdd(box.runLocal, box.repo, 'web', `Thin show item ${n}`);
+    assert.equal(added.code, 0, added.err);
+  }
   return box;
 }
 
@@ -55,35 +57,35 @@ test('cli.io-show-thin.plain-item-facts: clause 1: thinShowFacts returns { item,
   assert.deepEqual(JSON.parse(JSON.stringify(thin.history)), JSON.parse(JSON.stringify(expected.history)));
 });
 
-/** Put a row on the board, prove the door steps aside, take it off, and prove the door serves again: the row alone made it step aside. */
-async function stepsAsideFor(box, name, add, remove) {
-  onBoard(box, board => add(board.db));
-  assert.equal(await thinShowFacts({ cwd: box.repo, id: 1 }), null, `${name}: the door steps aside`);
-  onBoard(box, board => remove(board.db));
-  assert.ok(await thinShowFacts({ cwd: box.repo, id: 1 }), `${name}: with it gone the door serves the item again`);
+/** Prove the door serves item `id`, put a row on the board that makes the full show read a heavy section for it, and prove the door now steps aside: the row alone made it. Events only ever append, so each case has its own item. */
+async function stepsAsideFor(box, name, id, add) {
+  assert.ok(await thinShowFacts({ cwd: box.repo, id }), `${name}: the door serves the item before the row`);
+  onBoard(box, board => add(board.db, id));
+  assert.equal(await thinShowFacts({ cwd: box.repo, id }), null, `${name}: the door steps aside`);
 }
 
 test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no readable board, a drifted board, a receipt, a refusal, a thread entry, a typed field, an after-gate list, a submit, a foreign wait, and a ReadNeedsWrite or schemaMissing error [C7]', async (t) => {
-  const box = await plainProject(t);
+  const box = await plainProject(t, 9);
   const bare = join(box.dir, 'bare');
   mkdirSync(bare);
   box.git(bare, 'init', '-q', '-b', 'main');
   assert.equal(await thinShowFacts({ cwd: bare, id: 1 }), null, 'no readable board');
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 99 }), null, 'no such item');
-  const event = (kind, detail = '{}') => db => db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, 1, ?)').run(NOW, 'fixture', kind, detail);
-  const dropEvents = kind => db => db.prepare('DELETE FROM event WHERE item_id = 1 AND event_kind = ?').run(kind);
-  await stepsAsideFor(box, 'a receipt', event('proof-run', JSON.stringify({ receipt: { run: 'fixture-run' } })), dropEvents('proof-run'));
-  await stepsAsideFor(box, 'a refusal', event('reject'), dropEvents('reject'));
-  await stepsAsideFor(box, 'a thread entry', event('fact', JSON.stringify({ text: 'a fixture fact' })), dropEvents('fact'));
-  await stepsAsideFor(box, 'a submit', event('submit'), dropEvents('submit'));
-  await stepsAsideFor(box, 'an after-gate list', db => db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('after_gate:1', '[2]'), db => db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run('after_gate:1'));
-  await stepsAsideFor(box, 'a foreign wait', db => db.prepare('UPDATE item SET item_after = ? WHERE item_id = 1').run('other-repo#7'), db => db.prepare('UPDATE item SET item_after = NULL WHERE item_id = 1').run());
-  onBoard(box, board => declareItemField(board, { by: 'fixture', name: 'size', type: 'text', enabled: true }));
-  await stepsAsideFor(box, 'a typed field', db => db.prepare("INSERT INTO item_field (item_id, field_name, field_value, field_set_by, field_set_at) VALUES (1, 'size', 'small', 'fixture', ?)").run(NOW), db => db.prepare('DELETE FROM item_field WHERE item_id = 1').run());
+  const event = (kind, detail = '{}') => (db, id) => db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(NOW, 'fixture', kind, id, detail);
+  await stepsAsideFor(box, 'a receipt', 1, event('proof-run', JSON.stringify({ receipt: { run: 'fixture-run' } })));
+  await stepsAsideFor(box, 'a refusal', 2, event('reject'));
+  await stepsAsideFor(box, 'a thread entry', 3, event('fact', JSON.stringify({ text: 'a fixture fact' })));
+  await stepsAsideFor(box, 'a submit', 4, event('submit'));
+  await stepsAsideFor(box, 'an after-gate list', 5, (db, id) => db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`after_gate:${id}`, '[2]'));
+  await stepsAsideFor(box, 'a foreign wait', 6, (db, id) => db.prepare('UPDATE item SET item_after = ? WHERE item_id = ?').run('other-repo#7', id));
   // An accepted item loads the merge index's reader; a reader the read cannot serve sends the call to the full path.
-  onBoard(box, board => board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = 1").run());
-  assert.equal(await thinShowFacts({ cwd: box.repo, id: 1, conflictReader: async () => { throw new ReadNeedsWrite('fixture write'); } }), null, 'ReadNeedsWrite');
-  assert.equal(await thinShowFacts({ cwd: box.repo, id: 1, conflictReader: async () => { throw new Error('no such table: fixture_missing'); } }), null, 'schemaMissing');
+  onBoard(box, board => board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = 9").run());
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new ReadNeedsWrite('fixture write'); } }), null, 'ReadNeedsWrite');
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new Error('no such table: fixture_missing'); } }), null, 'schemaMissing');
+  // The field tables join the board last: the item that holds no value is still served, so the item that holds one steps aside for its value alone.
+  onBoard(box, board => declareItemField(board, { by: 'fixture', name: 'size', type: 'text', enabled: true }));
+  await stepsAsideFor(box, 'a typed field', 7, (db, id) => db.prepare("INSERT INTO item_field (item_id, field_name, field_value, field_set_by, field_set_at) VALUES (?, 'size', 'small', 'fixture', ?)").run(id, NOW));
+  assert.ok(await thinShowFacts({ cwd: box.repo, id: 8 }), 'an item with no field value is still served');
 });
 
 test('cli.io-show-thin.steps-aside-drifted-board: clause 2: thinShowFacts returns null for a board whose shape drifted [C7]', async (t) => {
