@@ -1,0 +1,18 @@
+{
+  "cli.commands-add.from-record": {"proves": {"specs": ["C7"], "claim": "add --from-record <hash> files an item whose title, rows, bar and check come from the accepted snapshot of that hash, and an unknown hash is refused with a named fix."}, "why": "An item must file from the stored hashed snapshot, and outside text must reach a builder only as quoted data.", "kind": "cell unit", "inputs": ["apps/cli/tests/io/commands/add.test.js", "apps/cli/src/io/commands/add.js"]},
+  "cli.commands-add.from-record-quoted": {"proves": {"specs": ["C7"], "claim": "The snapshot text enters the item brief inside a quoted block, never as an instruction."}, "why": "An item must file from the stored hashed snapshot, and outside text must reach a builder only as quoted data.", "kind": "cell unit", "inputs": ["apps/cli/tests/io/commands/add.test.js", "apps/cli/src/io/commands/add.js"]},
+  "cli.io-commands-contribute.accept-saves-record": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "contribute accept saves a record the parser accepts under its hash and prints the hash; a refused record prints the check failures, saves nothing and exits 1."
+    },
+    "why": "Without it, an accepted contribution could not be snapshotted from the command line, and a refused one might be saved anyway.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/contribute.js",
+      "apps/cli/tests/io/commands/contribute.test.js"
+    ]
+  }
+}

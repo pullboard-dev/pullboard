@@ -2587,7 +2587,6 @@
     "moves->activity",
     "moves->items",
     "moves->seats",
-    "moves->landing",
     "moves->roadmap",
     "moves->config",
     "moves->link",

@@ -1,0 +1,3 @@
+{
+  "moves.io-selection.in-flight-never-handed-out": {"proves":{"specs":["C7"],"claim":"nextOnce never returns an item whose gate job is offered or claimed at any head, nor one submitted and awaiting review; an item with none of those is still handed out."},"why":"Two seats rebuilt the same work when next handed out an item that was already in a gate or awaiting review (#12128).","kind":"contract","inputs":["packages/moves/src/io/selection.js","packages/moves/tests/io/selection.test.js","packages/moves/tests/fixtures/next.js"]}
+}

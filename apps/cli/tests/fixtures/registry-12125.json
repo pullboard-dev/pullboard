@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-add.after-withdrawn-refused": {"proves": {"specs": ["C7"], "claim": "add and edit refuse an --after list naming a withdrawn item with AFTER_WITHDRAWN, and accept an after-list of open, claimed, submitted or verified items."}, "why": "Without it an item filed after a withdrawn item waits forever, because a withdrawn item is never verified.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/add.js", "apps/cli/src/io/commands/edit.js", "apps/cli/tests/io/commands/add.test.js"]}
+}

@@ -13,7 +13,7 @@ export const RELEASE_REASON_LINES = Object.freeze([
 export const workHelp = `Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
-  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--after-gate 3,4] [--parent <id>] [--private]
+  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--after-gate 3,4] [--from-record <hash>] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--readiness "<command>"]           the command that says the item is ready to start; edit replaces it, "" clears it
     [--needs browser,gui]               the abilities an agent needs to build it; edit replaces them, "" clears them

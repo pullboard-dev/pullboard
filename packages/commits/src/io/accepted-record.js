@@ -9,6 +9,11 @@ import { parseContributionRecord } from "../logic/contribution.js";
 
 const HASH = /^[0-9a-f]{64}$/u;
 
+/** The accepted-records store inside a repository's pullboard state folder (the caller names the folder). */
+export function acceptedRecordsDir(stateDir) {
+  return join(stateDir, 'accepted-records');
+}
+
 /**
  * Save a record text that parseContributionRecord accepts, unchanged, under the sha256 hex of its bytes; a snapshot is never overwritten.
  *

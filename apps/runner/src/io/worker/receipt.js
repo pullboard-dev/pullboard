@@ -28,6 +28,7 @@ export async function receipt(spec, fields, sink) {
     ...(fields.trustedMode ? { trustedMode: fields.trustedMode } : {}),
     ...(fields.testResults ? { testResults: fields.testResults } : {}),
     ...(fields.handoff ? { handoff: fields.handoff } : {}),
+    ...(fields.screenshots?.length ? { screenshots: fields.screenshots } : {}),
     ...(spec.stageMarker ? { pipeStatuses: fields.pipeStatuses ?? null } : {}), ...(fields.timedOut ? { timedOut: true } : {}), ...(fields.refused ? { refused: fields.refused } : {}), ...(fields.browserRefused ? { browserRefused: true } : {}), ...(fields.denial ? { denial: fields.denial } : {}) };
   let completed = body;
   if (spec.runnerPublicKey) {
