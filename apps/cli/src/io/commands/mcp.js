@@ -11,8 +11,8 @@ import {
 } from '../entry.js';
 
 import { tryGit } from '../../../../../packages/git/index.js';
-import { codeMapGraph } from '../../../../../packages/gate/index.js';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { codeMapGraph } from '../../../../../packages/gate/heavy.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { scanSource } from '../../../../../packages/codemap/index.js';
 import { repositoryImport } from '../../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../../packages/codemap/index.js';

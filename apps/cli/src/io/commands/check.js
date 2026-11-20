@@ -16,7 +16,7 @@ import {
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   checkAcceptCommand,
 } from '../../../../../packages/verify/index.js';
@@ -32,7 +32,7 @@ import {
   runStaticChecks,
   timingDigest,
   withGateSlot,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   check as flakeCheck,
 } from '../../../../../packages/flakes/index.js';
