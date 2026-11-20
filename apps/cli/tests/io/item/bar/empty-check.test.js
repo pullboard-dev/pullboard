@@ -54,7 +54,7 @@ test('cli.io-item-bar-empty-check.real-add: clause 3: the real add command refus
   const settings = JSON.parse(readFileSync(file, 'utf8'));
   settings.items = { ...settings.items, barRulesAtAdd: true };
   writeFileSync(file, JSON.stringify(settings));
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Empty check', '--route', 'strong', '--brief', `Files:\n- web/page.js\nTest: ${ABSENT}`, '--criterion', `1. ${ABSENT} proves the page [test]`, '--check', `npx jest --passWithNoTests ${ABSENT}`);
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Empty check', '--level', 'strong', '--specs', 'G1', '--brief', `Files:\n- web/page.js\nTest: ${ABSENT}`, '--criterion', `1. ${ABSENT} proves the page [test]`, '--check', `npx jest --passWithNoTests ${ABSENT}`);
   assert.notEqual(added.code, 0);
   assert.match(`${added.out}${added.err}`, /CHECK_PASSES_EMPTY/u);
 });
