@@ -62,11 +62,14 @@ import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
 import { provideComparisonStart } from '../../../../../packages/api/index.js';
 import { provideLandingStart } from '../../../../../packages/api/index.js';
-import { machineryRefusal } from '../../../../../packages/gate/index.js';
-import { countTrialGate } from '../../../../../packages/gate/index.js';
+import { provideScreenStart } from '../../../../../packages/api/index.js';
+import { providePostLandMainTest } from '../../../../../packages/api/index.js';
+import { runScreenJob } from '../../../../../packages/drive/index.js';
+import { machineryRefusal } from '../../../../../packages/gate/heavy.js';
+import { countTrialGate } from '../../../../../packages/gate/heavy.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
 import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
-import { recordPulledBaseline } from '../../../../../packages/gate/index.js';
+import { recordPulledBaseline } from '../../../../../packages/gate/heavy.js';
 import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
 import { mainRedMessage } from '../../../../../packages/landing/index.js';
 import { companionMainFailuresUntouched } from '../../../../../packages/landing/index.js';
@@ -154,6 +157,8 @@ export async function serveHere(io, values) {
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
+  provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   traceServeStartup('serve-listen-start');
   // serve.pullRoute (off by default): runners that dial out pull jobs through this API's /pull/ routes [C7,#8765].
   const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
@@ -232,6 +237,20 @@ export async function startReceiptLanding({ root }) {
   return landAfterAcceptance(context(wakeIo(root)));
 }
 
+/**
+ * Run the screen for a sprint item a gate receipt just recorded as submitted: merge its commit onto the trunk tip the gate ran
+ * on, run the board's staticChecks and the trusted commit re-check, and store the receipt as a screen job on the board.
+ * Why: a sprint item lands after a green screen instead of an accept, and nothing ran one, so it waited like a steady item.
+ * The board API calls this only for a sprint item; the re-check loads with the first screen [V2,M1].
+ * @param {{ root: string, item: number, commit: string, digest: string | null, trunk: string }} request
+ */
+export async function startReceiptScreen({ root, item, commit, digest, trunk }) {
+  const [{ wakeIo }, { recheckRange }] = await Promise.all([import('../landing/automatic.js'), import('../../../../../packages/commits/index.js')]);
+  const ctx = context(wakeIo(root));
+  return withBoard(ctx, board => runScreenJob(board.db, { repo: root, item: { id: item, pace: 'sprint', commit, digest }, base: trunk,
+    owner: `serve:${process.pid}`, staticCommand: typeof ctx.config.staticChecks === 'string' ? ctx.config.staticChecks : null, recheck: recheckRange }));
+}
+
 /** The inline gate's main-red wording, which pulled gate facts name an inherited red's owning rework with [V1,C7]. */
 const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(root, board, null, comparison) };
 
@@ -255,6 +274,8 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
+  provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -298,6 +319,8 @@ export async function boardHandlerPorts({ isMain } = {}) {
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
+  provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');

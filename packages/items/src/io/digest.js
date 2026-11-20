@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   localDependencyIds,
   dependencyLabel,
@@ -11,18 +12,6 @@ import {
  * the file read-only and never migrates, syncs or resolves another registered board.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  openSync,
-  readSync,
-  realpathSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
 import {
   basename,
   dirname,
@@ -48,6 +37,8 @@ import {
   staleRowDecision,
 } from "../../../spec/index.js";
 import { loadConfig } from "../../../config/index.js";
+
+const fs = fileSystemAdapter();
 
 /** The briefing stays under 50 KB, counted in UTF-8 bytes. */
 export const DIGEST_MAX_BYTES = 50_000;
@@ -121,7 +112,7 @@ function section(title, entries, total, budget, empty) {
  */
 export function readDigest(file, { name = 'this project', now = new Date(), root, config, healthReport } = {}, ports) {
   const { openBoardReadOnly } = ports;
-  if (!existsSync(file)) throw new Refused('NO_BOARD', 'this repository has no board yet; run pullboard init in the main checkout first');
+  if (!fs.exists(file)) throw new Refused('NO_BOARD', 'this repository has no board yet; run pullboard init in the main checkout first');
   const db = openBoardReadOnly(file);
   try {
     db.exec('BEGIN DEFERRED');
@@ -291,21 +282,21 @@ function render(db, { name, now, root, config, healthReport }, ports) {
 function outputPath(path, commonDir) {
   const target = resolve(path);
   let parent;
-  try { parent = realpathSync(dirname(target)); }
+  try { parent = fs.realpath(dirname(target)); }
   catch { throw new Refused('DIGEST_WRITE', `the folder for ${target} does not exist; create it or choose another --out file`); }
   const canonical = join(parent, basename(target));
-  const inside = relative(realpathSync(commonDir), canonical);
+  const inside = relative(fs.realpath(commonDir), canonical);
   if (basename(canonical) === '.git' || !inside || (inside !== '..' && !inside.startsWith(`..${sep}`) && !isAbsolute(inside))) {
     throw new Refused('DIGEST_WRITE', 'the board lives in .git; choose an --out file outside it, such as briefing.md');
   }
-  if (existsSync(canonical) && statSync(canonical).isFile()) {
-    const fd = openSync(canonical, 'r');
+  if (fs.exists(canonical) && fs.stat(canonical).isFile()) {
+    const fd = fs.open(canonical, 'r');
     try {
       const head = Buffer.alloc(16);
-      if (readSync(fd, head, 0, 16, 0) === 16 && head.toString() === 'SQLite format 3\0') {
+      if (fs.read(fd, head, 0, 16, 0) === 16 && head.toString() === 'SQLite format 3\0') {
         throw new Refused('DIGEST_WRITE', `${canonical} is a database; choose a Markdown --out file, such as briefing.md`);
       }
-    } finally { closeSync(fd); }
+    } finally { fs.close(fd); }
   }
   return canonical;
 }
@@ -324,19 +315,19 @@ export function writeDigest(path, markdown, commonDir) {
   const temporary = join(dirname(target), `.pullboard-digest-${randomUUID()}.tmp`);
   let fd;
   try {
-    fd = openSync(temporary, 'wx', 0o600);
-    writeFileSync(fd, markdown);
-    fsyncSync(fd);
-    closeSync(fd);
+    fd = fs.open(temporary, 'wx', 0o600);
+    fs.writeFile(fd, markdown);
+    fs.fsync(fd);
+    fs.close(fd);
     fd = undefined;
-    renameSync(temporary, target);
+    fs.rename(temporary, target);
     return target;
   } catch (error) {
     if (error instanceof Refused) throw error;
     throw new Refused('DIGEST_WRITE', `could not write ${target}; choose a writable --out file and run pullboard digest again`);
   } finally {
-    if (fd !== undefined) closeSync(fd);
-    rmSync(temporary, { force: true });
+    if (fd !== undefined) fs.close(fd);
+    fs.rm(temporary, { force: true });
   }
 }
 
@@ -356,7 +347,7 @@ export async function watchDigest(file, path, { name, root, config, healthReport
   let seen = -1;
   try {
     while (!signal.aborted) {
-      const stat = statSync(file);
+      const stat = fs.stat(file);
       const current = `${stat.dev}:${stat.ino}`;
       if (current !== identity) {
         // A restored or replaced board file gets a fresh connection.
@@ -383,7 +374,7 @@ export async function watchDigest(file, path, { name, root, config, healthReport
  * @param {any} io
  * @param {{ first?: string, second?: string, rest: string[], values: Record<string, any> }} args
  * @param {{ info: { root: string, commonDir: string }, config: { name?: string }, file: string }} ctx
- * @param {{healthReport: Function}} services Actual upper-layer health observation bound to dispatch.
+ * @param {{healthReport: Function}} ports Actual upper-layer health observation bound to dispatch.
  * @returns {Promise<number>}
  */
 export async function digestCommand(io, { first, second, rest, values }, ctx, ports) {

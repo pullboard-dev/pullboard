@@ -255,6 +255,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `stats review` | `version:number`, `review:object` |
 | `stats runners` | `version:number`, `runners:object` |
 | `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
+| `timeline` | `version:number`, `summary:object` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |
 | `update` | `version:number`, `current:boolean`, `from:string`, `to:string` |
 <!-- api-command-shapes:end -->
@@ -288,6 +289,12 @@ When outstanding reviews reach `verify.reviewRatio` times the active reviewers (
 An existing review reservation is offered back to its holder before a fresh build, even below the queue ratio; this preview does not renew the lease. A free seat also receives an eligible normal review once its current submission has waited more than ten minutes for its first reviewer, even below the queue ratio. A repair matched to a failed approved test on current main leads other reviews; remaining reviews use current submission age. These modern review priorities replace milestone, critical-path and scarcity preferences for reviews, while older sealed engines retain their original selection. Held reviews and all eligibility guards still apply. Strict reviews require a different session and declared vendor family; an overdue item never bypasses those rules. Explicit build intent remains available.
 
 For HTTP `next`, a review offer returns success with `event: null`, `offer` and the ordinary CLI `result`. Send `args.build: true` to claim as before and receive the actual claim event. The unattended `run` command always supplies explicit build intent, records it on fresh claims, and prints the review backlog each iteration.
+
+## Suites by folder
+
+`affectedSuites` in `pullboard.json` is for a repo with more than one language. It maps a folder glob to the test suite that covers it, such as `{"api/**": "api/tests", "web/**": "web/tests"}`. It needs the project `affectedTests` runner, and the config check refuses it without one.
+
+For each changed path, the gate runs the suites of every glob that covers it, once each. A path no glob covers, an unreadable glob or no changed path at all selects the full gate, and the reason names the path or glob. The key replaces import-graph selection; without it nothing changes.
 
 ## Board health
 
