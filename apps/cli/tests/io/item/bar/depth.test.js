@@ -23,16 +23,17 @@ const add = (box, title, ...args) => cli(box, box.seats.actor.path, ['add', 'web
 test('cli.io-item-bar-depth.refuse-over-3: clause 1: requireChainDepth refuses CHAIN_TOO_DEEP when the longest --after chain through open items, itself counted, is deeper than 3, names the deepest chain and says to split interface-first, and accepts depth 3 [C7,#12477]', () => {
   const depthOf = chainDepthOf([row(1, ''), row(2, '1'), row(3, '2'), row(4, '3'), row(5, '1')]);
   assert.deepEqual(depthOf('4'), [4, 3, 2, 1]);
-  requireChainDepth(['3'], depthOf);
+  requireChainDepth(['2'], depthOf);
   requireChainDepth([5], depthOf);
   requireChainDepth([], depthOf);
+  assert.throws(() => requireChainDepth(['3'], depthOf), error => error.code === 'CHAIN_TOO_DEEP' && /#3 -> #2 -> #1/u.test(error.message));
   assert.throws(() => requireChainDepth(['4', '5'], depthOf), error => {
     assert.equal(error.code, 'CHAIN_TOO_DEEP');
     assert.match(error.message, /#4 -> #3 -> #2 -> #1/u);
     assert.match(error.next, /split interface-first/u);
     return true;
   });
-  assert.throws(() => requireChainDepth('#4', depthOf), error => error.code === 'CHAIN_TOO_DEEP');
+  assert.throws(() => requireChainDepth('#3', depthOf), error => error.code === 'CHAIN_TOO_DEEP');
 });
 
 test('cli.io-item-bar-depth.closed-items-and-cycles: clause 1: a merged, closed or unknown item is no link of the chain, a cycle ends where it repeats, and the edited item never counts as its own link [C7,#12477]', () => {
@@ -50,16 +51,16 @@ test('cli.io-item-bar-depth.add-refuses-deep: clause 2: the real add command ref
   const box = await fixture(t);
   barRulesOn();
   const ids = [];
-  for (const title of ['Chain root piece', 'Chain second piece', 'Chain third piece']) {
+  for (const title of ['Render the invoice totals', 'Cache the shipping quotes', 'Expire stale login links']) {
     const filed = await add(box, title, ...(ids.length ? ['--after', String(ids.at(-1))] : []));
     assert.equal(refusal(filed), null, filed.out + filed.err);
     ids.push(Math.max(...store.listItems(box.board, { all: true }).map(item => item.item_id)));
   }
   const before = store.listItems(box.board, { all: true }).length;
-  const refused = await add(box, 'Chain fourth piece', '--after', String(ids.at(-1)));
+  const refused = await add(box, 'Archive old audit exports', '--after', String(ids.at(-1)));
   assert.equal(refusal(refused), 'CHAIN_TOO_DEEP', refused.out + refused.err);
   assert.equal(store.listItems(box.board, { all: true }).length, before, 'the refused add files no item');
-  const loose = await add(box, 'Loose piece');
+  const loose = await add(box, 'Tint the empty-state banner');
   assert.equal(refusal(loose), null, loose.out + loose.err);
   const looseId = Math.max(...store.listItems(box.board, { all: true }).map(item => item.item_id));
   const edited = await cli(box, box.seats.actor.path, ['edit', String(looseId), '--after', String(ids.at(-1))]);
