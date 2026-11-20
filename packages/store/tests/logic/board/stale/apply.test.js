@@ -81,6 +81,7 @@ const OLDER_BOARD_VERSION = 276;
 /** One claimed item and a pass that hands the production maintenance write the given claim row. */
 function swept(t, engine) {
   const box = fixture(t);
+  box.board.movesLive = { reclaim: false };
   if (engine !== undefined) box.board.executionEngineVersion = engine;
   const id = box.add('Item the stale sweep returns');
   box.claim(id);
@@ -101,9 +102,9 @@ function swept(t, engine) {
     workActivity: claimEvent.event_at, idleMs: Date.parse(observedAt) - Date.parse(claimEvent.event_at),
     handoff: { changedFiles: [], changedCount: 0, pin: null, unpinned: 'no work to pin' } });
   const lapsed = ({ observedAt, limits }) => {
-    const item = getItem(box.board, id);
+    const item = box.board.db.prepare('SELECT item_lease_until FROM item WHERE item_id=?').get(id);
     const lease = box.board.db.prepare("SELECT event_id, event_at FROM event WHERE item_id=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(id);
-    return { id, actor: builder, leaseUntil: item.item_lease_until, leaseEventId: lease.event_id, leaseStartedAt: lease.event_at, leaseMs: 3_600_000,
+    return { id, actor: builder, leaseUntil: item.item_lease_until, leaseEventId: lease.event_id, leaseStartedAt: lease.event_at, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease.event_at),
       lastActivity: lease.event_at, since: lease.event_at, limitMs: limits.claim, evidence: { complete: true }, observedAt };
   };
   return { box, id, pass, releases, rows: { seatGone, silent, lapsed } };
