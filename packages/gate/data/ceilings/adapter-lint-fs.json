@@ -136,7 +136,6 @@
     "packages/store/src/io/receipts.js": 2,
     "packages/sync/src/io/git/lock.js": 1,
     "packages/sync/src/io/git/repair.js": 6,
-    "packages/sync/src/io/main.js": 1,
-    "packages/verify/src/io/rule/proof/coverage.js": 1
+    "packages/sync/src/io/main.js": 1
   }
 }
