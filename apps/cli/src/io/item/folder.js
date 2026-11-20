@@ -196,8 +196,8 @@ function worktreeBranches(root) {
  * @param {string} root The repository root.
  * @param {object} item The board item.
  * @param {string} ref The item branch.
- * @param {string|undefined} commit The folder's commit from the worktree list.
- * @param {string|null} mainCommit Main's commit from the same worktree list.
+ * @param {string|undefined} commit The folder's commit.
+ * @param {string|null|undefined} mainCommit Main's commit.
  * @returns {boolean} True when the folder must be kept.
  */
 function holdsUnlandedWork(root, item, ref, commit, mainCommit) {
@@ -214,20 +214,20 @@ function holdsUnlandedWork(root, item, ref, commit, mainCommit) {
  * @param {{ id: string, lane: string }} me the seat
  * @param {string} root the seat checkout
  * @param {number} id the item the folder was made for
- * @param {() => ReturnType<typeof worktreeBranches>} registry The lazy worktree list shared by one pass.
  * @returns {{ item: object, path: string, ref: string }|null} The idle folder, or null when it must be kept in place.
  */
-function idleFolder(ctx, board, me, root, id, registry) {
+function idleFolder(ctx, board, me, root, id) {
   let item;
   try { item = getItem(board, id); } catch { return null; }
   if (!item || (item.item_status === 'claimed' && item.item_owner === me.id) || item.item_status === 'submitted') return null;
   const path = itemFolderPath(root, id), ref = branch(me.lane, id);
-  const branches = registry();
-  if ((branches.get(path) ?? branches.get(canonical(path))) !== ref) return null;
+  // The folder's own files say its branch, commit and repository, so no worktree list launches Git [C7,#12391].
+  if (!fs.exists(path) || checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) return null;
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
   if (status.status !== 0 || status.stdout) return null;
-  const commit = branches.commits.get(path) ?? branches.commits.get(canonical(path));
-  if (holdsUnlandedWork(ctx.info.root, item, ref, commit, branches.mainCommit)) return null;
+  const commit = checkoutHead(path);
+  const mainCommit = checkoutRefCommit(ctx.info.root, `refs/heads/${trunkBranch(ctx.info.root)}`);
+  if (holdsUnlandedWork(ctx.info.root, item, ref, commit, mainCommit)) return null;
   return { item, path, ref };
 }
 
@@ -240,11 +240,9 @@ function idleFolder(ctx, board, me, root, id, registry) {
 export function cleanItemFolders(ctx, board, me, { spare = false } = {}) {
   if (me.id === 'coordinator') return;
   const root = seatRoot(ctx, board, me);
-  let branches = null;
-  const registry = () => (branches ??= worktreeBranches(ctx.info.root));
   let spared = !spare;
   for (const id of seatFolderIds(root)) {
-    const idle = idleFolder(ctx, board, me, root, id, registry);
+    const idle = idleFolder(ctx, board, me, root, id);
     if (!idle) continue;
     if (!spared) { spared = true; continue; }
     const dropBranch = idle.item.item_status === 'withdrawn' || Boolean(idle.item.item_merged_commit);
@@ -309,11 +307,9 @@ export function removeIdleFolder(gitRoot, path, { seat, ref = null, running = []
 async function reuseIdleFolder(ctx, me, id, desired, ref, exists, { board }) {
   if (!board) return false;
   const root = seatRoot(ctx, board, me);
-  let branches = null;
-  const registry = () => (branches ??= worktreeBranches(ctx.info.root));
   for (const old of seatFolderIds(root)) {
     if (old === id) continue;
-    const idle = idleFolder(ctx, board, me, root, old, registry);
+    const idle = idleFolder(ctx, board, me, root, old);
     if (!idle) continue;
     const session = await import('../join.js');
     let prior;
