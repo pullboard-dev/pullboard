@@ -1,9 +1,5 @@
 /** The files a landing derives after its item merges (engine numbers, format table, generated docs, plan placement), as one step a runner job can run [C7,#5568]. */
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -16,6 +12,8 @@ import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { refreshLandingDocs } from './docs.js';
 import { measureHeldRules } from './doctrine.js';
 import { stageTestRegistries } from './registries.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Printed instead of a patch when this checkout is not the tree the coordinator named, so the coordinator derives locally. */
 export const DERIVE_UNAVAILABLE = 'LANDING_DERIVE_UNAVAILABLE';
@@ -43,7 +41,7 @@ function runTighten(root) {
  * Why: main owns the ceilings, so each landing tightens them to what main measures; a failed or timed-out run stages nothing and never fails the landing.
  */
 async function tightenClosureCeilings(root) {
-  if (!existsSync(join(root, TIGHTEN_SCRIPT))) return [];
+  if (!fs.exists(join(root, TIGHTEN_SCRIPT))) return [];
   if (!await runTighten(root)) { git(root, ['checkout', 'HEAD', '--', CLOSURE_CEILINGS]); return []; }
   return git(root, ['diff', '--name-only', 'HEAD', '--', CLOSURE_CEILINGS]).split('\n').filter(Boolean);
 }
@@ -56,7 +54,7 @@ async function tightenClosureCeilings(root) {
  */
 export async function stageLandingDerived(root) {
   const engines = assignEngineNumbers(root);
-  if (existsSync(join(root, 'packages/state/src/io/formats')) && existsSync(join(root, 'docs', 'formats.md'))
+  if (fs.exists(join(root, 'packages/state/src/io/formats')) && fs.exists(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
   refreshLandingDocs(root);
   const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
@@ -112,9 +110,9 @@ export function stageBadgeDocuments(root, documents) {
   const changed = [];
   for (const document of documents) {
     const file = join(root, document.path);
-    if (existsSync(file) && readFileSync(file, 'utf8') === document.text) continue;
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, document.text);
+    if (fs.exists(file) && fs.readFile(file, 'utf8') === document.text) continue;
+    fs.mkdir(dirname(file), { recursive: true });
+    fs.writeFile(file, document.text);
     changed.push(document.path);
   }
   if (changed.length) git(root, ['add', '--', ...changed]);
