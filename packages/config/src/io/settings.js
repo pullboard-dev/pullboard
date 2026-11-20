@@ -82,9 +82,9 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
-/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+/** Whether submit.residentChecks is on (#10275): on by default; only an exact `false` turns it off. */
 export function residentChecks() {
-  return loadMachineSettings().submit?.residentChecks === true;
+  return loadMachineSettings().submit?.residentChecks !== false;
 }
 
 /** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
@@ -141,6 +141,11 @@ export function endStaleJobsEnabled() {
 /** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
 export function failFastShardsEnabled() {
   return loadMachineSettings().gate?.failFastShards === true;
+}
+
+/** Seed main-test rows for wide-failing files only when this machine opted in [C7,#12094]; off by default, and only an exact true turns it on. */
+export function seedWideMainTestsEnabled() {
+  return loadMachineSettings().gate?.seedWideMainTests === true;
 }
 
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
@@ -540,6 +545,11 @@ export function reviewStarveShout() {
   return loadMachineSettings().review?.starveShout === true;
 }
 
+/** Whether a builder's next skips reviews while a seat in lane review is alive (#11946): off by default; only an exact `true` turns it on. */
+export function reviewBuilderOffers() {
+  return loadMachineSettings().review?.builderOffers === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
@@ -647,6 +657,11 @@ export function docsRegenerateOnCommit() {
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
+}
+
+/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations !== false;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
@@ -856,6 +871,11 @@ export function boardOpensCheckOn() {
 /** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
 export function servePullRoute() {
   return loadMachineSettings().serve?.pullRoute === true;
+}
+
+/** Whether `pullboard serve` runs the serve-restart trial: off by default; only an exact `true` of serve.restartTrial turns it on [C7]. */
+export function serveRestartTrial() {
+  return loadMachineSettings().serve?.restartTrial === true;
 }
 
 /**

@@ -8,6 +8,8 @@ import { testTierProofFiles } from './test/tier/selection.js';
 import { testTierReport } from './test/tier/selection.js';
 import { requireSealedSkips } from './test/tier/selection.js';
 import { canaryTests } from './test/tier/selection.js';
+import { testSourceAt } from './test/tier/selection.js';
+import { narrowConfinedTiers } from './test/tier/narrow.js';
 import { startReceipt } from './receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -95,6 +97,7 @@ import { staticFindingsOnMain } from './static/main-findings.js';
 export function submitGateConfig(config, accepted) {
   return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
+    confinedImportSelection: accepted.confinedImportSelection,
     registryGuards: accepted.registryGuards,
     ...(accepted.affectedTests?.trim() ? { affectedTests: accepted.affectedTests } : {}) };
 }
@@ -118,7 +121,10 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
-  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly, componentTier: gateComponentTier() });
+  const wholeTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly, componentTier: gateComponentTier() });
+  // confinedImportSelection comes from accepted main (submitGateConfig), so a branch cannot narrow its own gate; the cell tests it drops ride in owedFiles for landing [C7].
+  const testTiers = wholeTiers && narrowConfinedTiers(wholeTiers, { mode: config.confinedImportSelection, canary: canaryTests(root, commit),
+    read: file => testSourceAt(root, commit, file), select: files => selectAffectedTests(root, { base, trunk, commit, changed: files ?? changed }) }) || wholeTiers;
   const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
@@ -146,7 +152,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const phases = [...(check ? [{ role: 'criterion', command: check }] : []),
     ...(hasFinalProof ? [{ role: 'proof', command: proofCommand }] : [])];
   return { check, selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
-    proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner };
+    proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner, ...(testTiers?.owedFiles?.length ? { owedFiles: testTiers.owedFiles } : {}) };
 }
 
 /**
@@ -487,7 +493,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, ...(criterion.timedOut || proof.timedOut ? { timedOut: true } : {}), executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(plan.testTiers ? { testTiers: plan.testTiers } : {}), ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, ...(criterion.timedOut || proof.timedOut ? { timedOut: true } : {}), executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(plan.testTiers ? { testTiers: plan.testTiers } : {}), ...(plan.owedFiles ? { owedFiles: plan.owedFiles } : {}), ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         ...(criterion.blockingVerdict || proof.blockingVerdict ? { phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{

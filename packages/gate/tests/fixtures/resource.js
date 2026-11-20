@@ -20,7 +20,7 @@ import { BROWSER_SLOT_HELD_ENV } from '../../../../packages/resources/index.js';
 import { GATE_SLOT_HELD_ENV } from '../../../../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../packages/resources/index.js';
-import { TEST_FILE_POOL_ENV } from '../../../../packages/gate/index.js';
+import { TEST_FILE_POOL_ENV } from '../../../../packages/gate/heavy.js';
 import { executionServicesSource } from './execution.js';
 import { fixtureProjectPolicy } from './testkit.js';
 

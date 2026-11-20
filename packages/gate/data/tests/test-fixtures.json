@@ -108,7 +108,7 @@
   "packages/gate/tests/io/admission/cpu/load.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/main/resource.test.js": {
+  "packages/gate/tests/io/main/short.test.js": {
     "hand-policy": 1
   },
   "packages/gate/tests/io/main/output.test.js": {
@@ -354,7 +354,7 @@
     "tempdir": 1,
     "raw-board": 5
   },
-  "apps/cli/journeys/fact/item/notes.test.js": {
+  "apps/cli/tests/io/commands/fact/item-notes.test.js": {
     "model": 2
   },
   "apps/cli/journeys/land/landing/noop.test.js": {
@@ -909,9 +909,6 @@
   "packages/gate/tests/io/main/async.test.js": {
     "tempdir": 2
   },
-  "apps/cli/tests/fixtures/gate/driver.js": {
-    "raw-board": 1
-  },
   "packages/gate/tests/io/main/failures.test.js": {
     "tempdir": 1
   },
@@ -975,13 +972,6 @@
     "raw-board": 1
   },
   "packages/resources/tests/io/handoff/prune.test.js": {
-    "tempdir": 1,
-    "repo-read": 1
-  },
-  "packages/resources/tests/io/handoff/worker/cap.test.js": {
-    "tempdir": 1
-  },
-  "packages/resources/tests/io/handoff/worker/detach.test.js": {
     "tempdir": 1,
     "repo-read": 1
   },
@@ -1237,7 +1227,7 @@
   "packages/landing/tests/io/main/audit/knows.test.js": {
     "tempdir": 2
   },
-  "apps/cli/journeys/fact/main/cache.test.js": {
+  "apps/cli/tests/io/commands/fact/main-cache.test.js": {
     "raw-board": 2
   },
   "apps/cli/tests/fixtures/main/moved.js": {
@@ -1683,7 +1673,7 @@
   "apps/cli/tests/fixtures/reopen/cause.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/reopen/evidence.test.js": {
+  "apps/cli/tests/io/commands/reopen/evidence.test.js": {
     "raw-board": 1
   },
   "packages/gate/tests/io/requeue/valid.test.js": {
@@ -1741,7 +1731,7 @@
   "apps/cli/journeys/companion/companions/review.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/fact/review/packet/cases/fixture.test.js": {
+  "apps/cli/tests/io/commands/fact/review-packet-cases-fixture.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/queue/review.test.js": {
@@ -2142,14 +2132,14 @@
   "apps/cli/journeys/sync/main.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/team/repo.test.js": {
+  "apps/cli/tests/io/commands/fact/team-repo.test.js": {
     "hand-policy": 2,
     "raw-board": 8
   },
   "apps/cli/journeys/export/team/link.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/team/events.test.js": {
+  "apps/cli/tests/io/commands/fact/team-events.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/export/team/board.test.js": {

@@ -100,8 +100,8 @@ function validateBudget(budget, file) {
  */
 export function validateServe(serve, file) {
   if (serve === undefined) return;
-  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port' && key !== 'pullRoute')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address, port and pullRoute; remove it to serve on loopback`);
+  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port' && key !== 'pullRoute' && key !== 'restartTrial')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address, port, pullRoute and restartTrial; remove it to serve on loopback`);
   }
   const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
   if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
@@ -109,6 +109,9 @@ export function validateServe(serve, file) {
   }
   if (serve.pullRoute !== undefined && typeof serve.pullRoute !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.pullRoute in ${file} must be true or false`);
+  }
+  if (serve.restartTrial !== undefined && typeof serve.restartTrial !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.restartTrial in ${file} must be true or false`);
   }
   if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
@@ -236,6 +239,9 @@ export function loadMachineSettings() {
   }
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
+  }
+  if (value.route?.reservations !== undefined && typeof value.route.reservations !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `route.reservations in ${file} must be true or false`);
   }
   if (value.items?.barRulesAtAdd !== undefined && typeof value.items.barRulesAtAdd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.barRulesAtAdd in ${file} must be true or false`);
@@ -445,6 +451,9 @@ export function loadMachineSettings() {
   }
   if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);
+  }
+  if (value.review?.builderOffers !== undefined && typeof value.review.builderOffers !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `review.builderOffers in ${file} must be true or false`);
   }
   if (value.review?.starveShout !== undefined && typeof value.review.starveShout !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.starveShout in ${file} must be true or false`);

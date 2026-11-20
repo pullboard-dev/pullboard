@@ -46,3 +46,10 @@ test("store.io-light-door.exports-relay-reads: clause 1: packages/store/light.js
     assert.equal(light[name], index[name], `${name} is the same function the index exports`);
   }
 });
+
+test("store.io-light-door.exports-local-seat-presence: clause 1: packages/store/light.js exports withLocalSeatPresence, the same function packages/store/index.js exports [C7,#12322]", async () => {
+  const light = await import("../../light.js");
+  const index = await import("../../index.js");
+  assert.equal(typeof light.withLocalSeatPresence, "function", "withLocalSeatPresence is exported by the light door");
+  assert.equal(light.withLocalSeatPresence, index.withLocalSeatPresence, "it is the same function the index exports");
+});

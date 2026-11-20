@@ -57,7 +57,6 @@
     "packages/landing/src/io/step/publish.js",
     "packages/landing/src/io/worker.js",
     "packages/outbox/src/io/relay/checkpoint.js",
-    "packages/resources/src/io/handoff/worker/detach.js",
     "packages/resources/src/io/liveness.js",
     "packages/rigor/src/io/proof.js",
     "packages/runners/src/io/run.js",
@@ -139,9 +138,6 @@
     "packages/sandbox/src/io/regeneration.js"
   ],
   "write-state-file": [
-    "apps/cli/src/io/init/finish.js",
-    "apps/cli/src/io/memo.js",
-    "apps/cli/src/io/pinned/tool/build.js",
     "apps/cli/src/io/scale.js",
     "apps/cli/src/io/submit/remote.js",
     "apps/cli/src/io/worktree/maintenance/observation.js",
@@ -158,7 +154,6 @@
     "packages/doctrine/src/io/checks.js",
     "packages/drive/src/io/local.js",
     "packages/gate/src/io/check/baseline/worker.js",
-    "packages/gate/src/io/inventory.js",
     "packages/gate/src/io/main/audit/state.js",
     "packages/gate/src/io/refusal/trial.js",
     "packages/gate/src/io/run-tests.js",
@@ -193,7 +188,6 @@
     "packages/pin/src/io/keyed.js",
     "packages/pin/src/io/tooling.js",
     "packages/resources/src/io/controller/custody.js",
-    "packages/resources/src/io/handoff/worker/cap.js",
     "packages/resources/src/io/write/queue.js",
     "packages/runners/src/io/checkouts.js",
     "packages/runners/src/io/module/parser.js",

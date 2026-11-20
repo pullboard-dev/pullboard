@@ -427,10 +427,10 @@ export function ceilingsOf(current) {
  * Refuse a file or cell whose undeclared edges grew past its ceiling, naming the plan declaration that would allow it.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges>, ceilings?: ReturnType<typeof ceilingsOf> }} [options] - `files` limits the check to those files (the pre-commit run).
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges>, ceilings?: ReturnType<typeof ceilingsOf>, rule?: { cellOrder?: string[], upwardEdgesGrandfathered?: string[] } }} [options] - `rule` is passed to the upward-edge check; `files` limits the check to those files (the pre-commit run).
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.parse(fs.readFile(CEILINGS, 'utf8')) } = {}) {
+export function cellsEdgeProblems(root, { files, read, edgesOf, rule, ceilings = JSON.parse(fs.readFile(CEILINGS, 'utf8')) } = {}) {
   const current = cellsEdgeReport(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) });
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
@@ -455,7 +455,7 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
     }
   }
   problems.push(...packageAppProblems(current.packageApps, ceilings.packageApps ?? {}));
-  if (!files) for (const entry of upwardAllowedEdges(root)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
+  if (!files) for (const entry of upwardAllowedEdges(root, rule)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
   const fileOf = files ? new Map() : new Map(edgeFiles(root).filter(row => row.edge).map(row => [row.edge, row.file]));
   if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) {
     const file = fileOf.get(entry);
@@ -533,13 +533,15 @@ export function unusedAllowedEdges(root, { files, read = file => fs.readFile(res
  * A deep entry (`from->to/src`) is judged by its cell like any other; an entry naming a cell the plan does not order is left to the unused-entry check.
  *
  * @param {string} root
+ * @param {string} root
+ * @param {{ cellOrder?: string[], upwardEdgesGrandfathered?: string[] }} [rule] - when given, orders and the grandfathered list come from it, not the plan.
  * @returns {{ edge: string, from: string, to: string, fromOrder: number, toOrder: number }[]}
  */
-export function upwardAllowedEdges(root) {
-  const plan = planOf(root);
-  const orders = new Map((plan.cells ?? []).map(cell => [cell.name, cell.order]));
+export function upwardAllowedEdges(root, rule) {
+  const plan = rule ? {} : planOf(root);
+  const orders = rule ? new Map((rule.cellOrder ?? []).map((name, index) => [name, index + 1])) : new Map((plan.cells ?? []).map(cell => [cell.name, cell.order]));
   const orderOf = name => orders.get(name.startsWith('apps/') ? `app:${name.slice(5)}` : name);
-  const grandfathered = new Set(plan.upwardEdgesGrandfathered ?? []);
+  const grandfathered = new Set((rule ?? plan).upwardEdgesGrandfathered ?? []);
   const rows = [];
   for (const edge of declaredList(root)) {
     if (grandfathered.has(edge)) continue;

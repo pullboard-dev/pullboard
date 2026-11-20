@@ -1,0 +1,4 @@
+{
+  "gate.io-test-scripts-tier-overruns.lists-files-over-limit": {"proves":{"specs":["C7"],"claim":"tierOverruns returns exactly the manifest rows over their tier limit with per-tier counts, and lists files with no recorded time apart as unmeasured."},"why":"A file with no time is unknown, not slow; counting it as over would send builders after files nobody measured.","kind":"cell unit","inputs":["packages/gate/src/io/test/scripts/tier-overruns.js"]},
+  "gate.io-test-scripts-tier-overruns.report-prints-rows": {"proves":{"specs":["C7"],"claim":"The report prints one line per over-limit file and the tier count line and exits 0, and with no time record prints no file times recorded and exits 1."},"why":"The measure item reads this output, so its lines and exit codes must be fixed by a case.","kind":"cell unit","inputs":["packages/gate/src/io/test/scripts/tier-overruns.js"]}
+}

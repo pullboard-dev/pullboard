@@ -1,18 +1,7 @@
 /** @pullboard-module-loads ** */
 // Custom reporters are user-selected: ** covers every committed module, not a finite reporter list.
 /** Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim. */
-import { appendFileSync } from 'node:fs';
-import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { shardPlan } from './run-tests-plan.js';
 import { basename } from 'node:path';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
@@ -69,6 +58,8 @@ import { environmentAdapter } from '../../../env/index.js';
 // The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
 import { testRunPhaseClock } from './test/run/phases.js';
 import { storeName } from './store-names.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 const environment = environmentAdapter(); for (const name of removeGitRepositorySelectors(environment.all(), text => process.stderr.write(text))) environment.delete(name);
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -192,15 +183,15 @@ function shellWord(value) {
 function testEnvironment(sandbox, gateMarkers = {}) {
   const home = join(sandbox, 'home');
   const shims = join(sandbox, 'bin');
-  mkdirSync(home, { recursive: true });
-  mkdirSync(shims, { recursive: true });
+  fs.mkdir(home, { recursive: true });
+  fs.mkdir(shims, { recursive: true });
   const refusal = join(shims, 'pullboard');
-  writeFileSync(refusal, '#!/bin/sh\nprintf "pullboard is not installed; current test: %s\\n" "${PULLBOARD_TEST_FILE:-unknown}" >&2\nexit 1\n');
-  chmodSync(refusal, 0o755);
+  fs.writeFile(refusal, '#!/bin/sh\nprintf "pullboard is not installed; current test: %s\\n" "${PULLBOARD_TEST_FILE:-unknown}" >&2\nexit 1\n');
+  fs.chmod(refusal, 0o755);
   const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0];
   const git = join(shims, 'git');
-  writeFileSync(git, `#!/bin/sh\nexec ${shellWord(realGit)} -c user.useConfigOnly=true "$@"\n`);
-  chmodSync(git, 0o755);
+  fs.writeFile(git, `#!/bin/sh\nexec ${shellWord(realGit)} -c user.useConfigOnly=true "$@"\n`);
+  fs.chmod(git, 0o755);
 
   const env = environment.all();
   for (const key of Object.keys(env)) {
@@ -469,7 +460,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
         const parent = byPid.get(process.pid);
         const spawned = byPid.get(child.pid);
         if (parent && spawned && spawned.pgid !== parent.pgid) {
-          appendFileSync(startsPath, `${JSON.stringify({ type: 'child', attempt, parentPid: process.pid,
+          fs.appendFile(startsPath, `${JSON.stringify({ type: 'child', attempt, parentPid: process.pid,
             pid: spawned.pid, pgid: spawned.pgid, started: spawned.started })}\n`);
         }
       } catch (error) {
@@ -478,7 +469,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
         const code = String(error?.code ?? 'snapshot-error').replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 80);
         const reason = String(error?.message ?? error).replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 256);
         try {
-          appendFileSync(startsPath, `${JSON.stringify({ type: 'child-snapshot-unavailable', attempt,
+          fs.appendFile(startsPath, `${JSON.stringify({ type: 'child-snapshot-unavailable', attempt,
             file, parentPid: process.pid, pid: child.pid, code, reason })}\n`);
         } catch {
           process.stderr.write(`run-tests: cleanup for ${basename(file)} UNVERIFIED: ${code}: ${reason}; no unverified process was signaled\n`);
@@ -502,17 +493,17 @@ function watchLandingChildCustody(startsPath, attempt) {
   const pollAcks = () => {
     if (!pending.size && announcementFailureDeadline === null) return;
     try {
-      for (const name of readdirSync(directory)) {
+      for (const name of fs.list(directory)) {
         if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
         const recordPath = join(directory, name);
-        if (!existsSync(`${recordPath}.ack`)) continue;
-        const record = JSON.parse(readFileSync(recordPath, 'utf8'));
-        const ack = JSON.parse(readFileSync(`${recordPath}.ack`, 'utf8'));
+        if (!fs.exists(`${recordPath}.ack`)) continue;
+        const record = JSON.parse(fs.readFile(recordPath, 'utf8'));
+        const ack = JSON.parse(fs.readFile(`${recordPath}.ack`, 'utf8'));
         if (record.attempt !== attempt || record.parentPid !== process.pid
             || ack.attempt !== attempt || ack.parentPid !== process.pid || ack.pid !== record.pid
             || !['bound', 'drained', 'unverified'].includes(ack.status)) continue;
         pending.delete(recordPath);
-        renameSync(`${recordPath}.ack`, `${recordPath}.acked`);
+        fs.rename(`${recordPath}.ack`, `${recordPath}.acked`);
       }
     } catch { /* An unreadable acknowledgement retains worker custody. */ }
     const now = Date.now();
@@ -522,7 +513,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         pending.delete(recordPath);
         try {
           const marker = `${recordPath}.expired`;
-          if (!existsSync(marker)) writeFileSync(marker, JSON.stringify({ attempt, parentPid: process.pid,
+          if (!fs.exists(marker)) fs.writeFile(marker, JSON.stringify({ attempt, parentPid: process.pid,
             expiredAt: new Date(now).toISOString() }), { mode: 0o600, flag: 'wx' });
         } catch { /* Parent-side cleanup reports uncertainty from the original child receipt. */ }
       }
@@ -545,8 +536,8 @@ function watchLandingChildCustody(startsPath, attempt) {
         spawnArgs: Array.isArray(child.spawnargs) ? child.spawnargs : [] };
       try {
         const temporary = `${recordPath}.tmp`;
-        writeFileSync(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
-        renameSync(temporary, recordPath);
+        fs.writeFile(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
+        fs.rename(temporary, recordPath);
         pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
         if (!poll) poll = setInterval(pollAcks, 25); // budget: the child writes ack files into a directory and no file event is reliable across the child exit, so a 25 ms poll stays
       } catch (error) {
@@ -557,13 +548,13 @@ function watchLandingChildCustody(startsPath, attempt) {
         try {
           const failed = `${recordPath}.failure.json`;
           const temporary = `${failed}.${randomUUID()}.tmp`;
-          writeFileSync(temporary, JSON.stringify({ type: 'child-announcement-failed', attempt,
+          fs.writeFile(temporary, JSON.stringify({ type: 'child-announcement-failed', attempt,
             file: record.file, parentPid: process.pid, pid: child.pid, code, reason }), { mode: 0o600, flag: 'wx' });
-          renameSync(temporary, failed);
+          fs.rename(temporary, failed);
           failurePublished = true;
         } catch { /* The worker still releases on its bounded timer; no process is signaled by guess. */ }
         try {
-          appendFileSync(startsPath, `${JSON.stringify({ type: 'child-announcement-unavailable', attempt,
+          fs.appendFile(startsPath, `${JSON.stringify({ type: 'child-announcement-unavailable', attempt,
             file: record.file, parentPid: process.pid, pid: child.pid, code, reason })}\n`);
           failurePublished = true;
         } catch { /* Worker stderr is the last bounded diagnostic fallback. */ }
@@ -582,17 +573,17 @@ function sameProcessIdentity(candidate, captured) {
 /** Publish an acknowledgement only after the parent has bound a child identity or observed a previously bound exit. */
 function writeChildAcknowledgement(recordPath, receipt, identity, status) {
   const acknowledgement = `${recordPath}.ack`;
-  if (existsSync(acknowledgement) || existsSync(`${recordPath}.acked`)) return;
+  if (fs.exists(acknowledgement) || fs.exists(`${recordPath}.acked`)) return;
   const temporary = `${acknowledgement}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ attempt: receipt.attempt, parentPid: receipt.parentPid,
+  fs.writeFile(temporary, JSON.stringify({ attempt: receipt.attempt, parentPid: receipt.parentPid,
     pid: receipt.pid, status, identity }), { mode: 0o600, flag: 'wx' });
-  try { renameSync(temporary, acknowledgement); }
-  catch (error) { rmSync(temporary, { force: true }); if (error.code !== 'EEXIST') throw error; }
+  try { fs.rename(temporary, acknowledgement); }
+  catch (error) { fs.rm(temporary, { force: true }); if (error.code !== 'EEXIST') throw error; }
 }
 
 /** Read only complete append-only worker journal rows while workers may be writing. */
 function landingWorkerReceipts(path) {
-  const contents = readFileSync(path, 'utf8');
+  const contents = fs.readFile(path, 'utf8');
   const complete = contents.endsWith('\n') ? contents : contents.slice(0, contents.lastIndexOf('\n') + 1);
   return complete.split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
 }
@@ -699,12 +690,12 @@ async function drainLandingWorkerDescendants(ownedDescendants, refreshOwnedDesce
 
 /** Run a landing check with execution-ordered failure detection and native runner reporters. */
 async function runLandingTests(args, env, concurrency, fullScope = false) {
-  const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
-  const collectionId = process.env[COLLECTION_ID_ENV];
-  const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
+  const collectAll = environment.get(LANDING_COLLECT_ALL_ENV) === '1';
+  const collectionId = environment.get(COLLECTION_ID_ENV);
+  const collectionShard = environment.get(LANDING_SHARD_ENV) ?? null;
   const { landingFailureReport, landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await services.landing();
   const retainedFailure = landingFailureReport();
-  const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
+  const waivers = landingWaiverProjection(environment.get(LANDING_WAIVERS_ENV));
   let testOutcomes = null;
   const waivedFiles = new Map();
   const hungFiles = new Set();
@@ -712,7 +703,6 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
   const { PassThrough } = await import('node:stream');
-  const { createWriteStream } = await import('node:fs');
   const { pathToFileURL } = await import('node:url');
   const { options, env: testEnv } = await landingTestOptions(args, env, concurrency);
   delete testEnv[LANDING_WAIVERS_ENV];
@@ -725,7 +715,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   }
   const attempt = randomUUID();
   const workerStartsPath = join(testEnv.TMPDIR ?? tmpdir(), `landing-worker-starts-${attempt}.jsonl`);
-  writeFileSync(workerStartsPath, '', { mode: 0o600 });
+  fs.writeFile(workerStartsPath, '', { mode: 0o600 });
   testEnv[LANDING_WORKER_STARTS_ENV] = workerStartsPath;
   testEnv[LANDING_ATTEMPT_ENV] = attempt;
   watchLandingChildSpawns(workerStartsPath, attempt);
@@ -737,7 +727,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     options.reporters.push({ reporter: env.PULLBOARD_AUDIT_COVERAGE_REPORTER, destination: 'stdout' });
   }
   const reporterEntries = options.reporters;
-  if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
+  if (environment.get('PULLBOARD_TEST_ACTIONS')) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
   reporterEntries.push(...(await import('./test/progress.js')).sideReporters(testEnv)); // selection count and per-file progress (#5823)
   delete options.reporters;
   const loadedReporters = [];
@@ -763,7 +753,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const input = new PassThrough({ objectMode: true });
     const output = input.compose(reporter);
     const destination = entry.destination === 'stdout' ? process.stdout
-      : entry.destination === 'stderr' ? process.stderr : createWriteStream(resolve(entry.destination));
+      : entry.destination === 'stderr' ? process.stderr : fs.createWriteStream(resolve(entry.destination));
     const readableEnd = new Promise(resolveEnd => {
       output.once('end', resolveEnd);
       output.once('close', resolveEnd);
@@ -846,7 +836,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       // Bind an announcement once. A later process reusing this PID can never replace it.
       pendingWorkerBindings.set(key, candidate);
       workerRoots.push(candidate);
-      appendFileSync(workerStartsPath, `${JSON.stringify({ type: 'worker-bound', attempt, file: receipt.file,
+      fs.appendFile(workerStartsPath, `${JSON.stringify({ type: 'worker-bound', attempt, file: receipt.file,
         pid: candidate.pid, parentPid: process.pid, pgid: candidate.pgid, started: candidate.started })}\n`);
     }
     const workerByPid = new Map(workerRoots.map(root => [root.pid, root]));
@@ -858,12 +848,12 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       cleanupUnverifiedFiles.add(receipt.file);
       lastCleanupSnapshotError = { code: receipt.code, message: receipt.reason };
     }
-    for (const name of readdirSync(dirname(workerStartsPath))) {
+    for (const name of fs.list(dirname(workerStartsPath))) {
       const prefix = `${basename(workerStartsPath)}.child.${attempt}.`;
       if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
       const recordPath = join(dirname(workerStartsPath), name);
       let receipt;
-      try { receipt = JSON.parse(readFileSync(recordPath, 'utf8')); }
+      try { receipt = JSON.parse(fs.readFile(recordPath, 'utf8')); }
       catch { continue; }
       if (receipt.type === 'child-announcement-failed' && receipt.attempt === attempt
           && selectedFileSet.has(receipt.file)) {
@@ -909,11 +899,11 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   };
   const markPendingChildrenUnverified = () => {
     const prefix = `${basename(workerStartsPath)}.child.${attempt}.`;
-    for (const name of readdirSync(dirname(workerStartsPath))) {
+    for (const name of fs.list(dirname(workerStartsPath))) {
       if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
       const recordPath = join(dirname(workerStartsPath), name);
       let receipt;
-      try { receipt = JSON.parse(readFileSync(recordPath, 'utf8')); }
+      try { receipt = JSON.parse(fs.readFile(recordPath, 'utf8')); }
       catch { continue; }
       if (receipt.type === 'child-announcement-failed' && receipt.attempt === attempt
           && selectedFileSet.has(receipt.file)) {
@@ -925,7 +915,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       const key = `${receipt.attempt}:${receipt.parentPid}:${receipt.pid}:${name}`;
       if (pendingChildBindings.has(key)) continue;
       cleanupUnverifiedFiles.add(receipt.file);
-      if (!existsSync(`${recordPath}.expired`)) writeChildAcknowledgement(recordPath, receipt, null, 'unverified');
+      if (!fs.exists(`${recordPath}.expired`)) writeChildAcknowledgement(recordPath, receipt, null, 'unverified');
       unverifiedChildBindings.add(key);
     }
   };
@@ -968,10 +958,10 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   // owned descendant, detached ones included, is drained or named before this process exits.
   let stoppedByLanding = false;
   const stopShard = () => { stoppedByLanding = true; abortLandingRun(); };
-  if (process.env[LANDING_SHARD_ENV]) process.on('SIGTERM', stopShard);
-  const originalEnv = { ...process.env };
-  for (const key of Object.keys(process.env)) delete process.env[key];
-  Object.assign(process.env, testEnv, { [LANDING_RUN_ENV]: '0' });
+  if (environment.get(LANDING_SHARD_ENV)) process.on('SIGTERM', stopShard);
+  const originalEnv = environment.all();
+  for (const key of Object.keys(environment.all())) environment.delete(key);
+  for (const [key, value] of Object.entries({ ...testEnv, [LANDING_RUN_ENV]: '0' })) environment.set(key, value);
   try {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
@@ -1070,14 +1060,14 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     await workerDrain;
     clearInterval(descendantMonitor);
     endReporters();
-    for (const key of Object.keys(process.env)) delete process.env[key];
-    Object.assign(process.env, originalEnv);
+    for (const key of Object.keys(environment.all())) environment.delete(key);
+    for (const [key, value] of Object.entries(originalEnv)) environment.set(key, value);
     process.off('SIGTERM', stopShard);
   }
   if (collectionId) publishLandingCollection({collectionId,collectionShard,fullScope,selectedFiles,completedFiles,stoppedByLanding,collectionCancelled,reporterError,cleanupUnverifiedReported});
   if (reporterError) throw reporterError;
   if (stoppedByLanding && !firstFailure) {
-    process.stderr.write(`\nLanding shard ${process.env[LANDING_SHARD_ENV]} stopped by the landing after another shard failed; its owned processes were drained\n`);
+    process.stderr.write(`\nLanding shard ${environment.get(LANDING_SHARD_ENV)} stopped by the landing after another shard failed; its owned processes were drained\n`);
     process.exitCode = 1;
     return { status: 1, signal: null };
   }
@@ -1146,14 +1136,14 @@ function namesOnlyTestFiles(args) {
     if (!knownNodeOption(option)) return false;
     if (!argument.includes('=')) takesValue = requiresValue;
   }
-  if (takesValue || foreignNodeOptions(process.env.NODE_OPTIONS)) return false;
+  if (takesValue || foreignNodeOptions(environment.get('NODE_OPTIONS'))) return false;
   const files = explicitTestFiles(args);
   if (!files.length) return false;
   try {
-    const root = realpathSync(process.cwd());
+    const root = fs.realpath(process.cwd());
     return files.every(file => {
       const path = resolve(root, file);
-      return lstatSync(path).isFile() && realpathSync(path).startsWith(root + sep);
+      return fs.lstat(path).isFile() && fs.realpath(path).startsWith(root + sep);
     });
   } catch { return false; }
 }
@@ -1199,7 +1189,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   selectedArgs = await longestFilesFirst(selectedArgs);
   timing.phase('selectionMs', selectionAt);
   const attemptAt = performance.now();
-  const result = process.env[LANDING_RUN_ENV] === '1'
+  const result = environment.get(LANDING_RUN_ENV) === '1'
     ? await runLandingTests(selectedArgs, env, concurrency, fullScope && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
@@ -1218,15 +1208,15 @@ async function main(args) {
   const clock = testRunPhaseClock();
   let concurrency;
   try {
-    if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
-      && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
+    if (!args.length && !environment.get('PULLBOARD_GATE_SLOT_HELD') && !environment.get('PULLBOARD_GATE_SLOT_POOL')
+      && !environment.get('PULLBOARD_GATE_SLOT_TOKEN') && !environment.get(LANDING_SHARD_ENV)) {
       const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
         import('../../index.js'), services.runners(), services.landing(),
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
         // The CLI records the receipt in its own process, so this entry never imports the native board.
-        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).bin.pullboard), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
+        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), JSON.parse(fs.readFile(join(process.cwd(), 'package.json'), 'utf8')).bin.pullboard), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
       }
     }
@@ -1240,7 +1230,7 @@ async function main(args) {
     return;
   }
   const timing = beginSuiteTiming(process.cwd(), args), selectionAt = performance.now();
-  process.env[COLLECTION_ID_ENV] ||= timing.id;
+  if (!environment.get(COLLECTION_ID_ENV)) environment.set(COLLECTION_ID_ENV, timing.id);
   const sharding = shardArguments(args, optionTakesValue);
   if (sharding.error) {
     process.stderr.write(`run-tests: ${sharding.error}\n`);
@@ -1250,45 +1240,45 @@ async function main(args) {
   args = sharding.args;
   const fullSuite = !hasTestFiles(args);
   const shortEligible = namesOnlyTestFiles(args);
-  let browser = fullSuite;
-  if (!browser) {
+  const plan = shardPlan(environment.all());
+  let browser = plan ? plan.browser : fullSuite;
+  if (!browser && !plan) {
     const { testsNeedBrowser } = await import('./browser/admission.js');
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
-  const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
+  const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: environment.get(LANDING_RUN_ENV) === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), environment.all()) : explicitTestFiles(args) });
   process.stderr.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
-  const { testsNeedGui } = await import('./gui/admission.js');
   let guiFiles;
   try {
     guiFiles = actions.files ?? (fullSuite
-      ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
+      ? (isGitWorkTree(process.cwd(), environment.all()) ? trackedDefaultTestFiles(process.cwd(), environment.all()) : [])
       : explicitTestFiles(args));
   } catch (error) {
     process.stderr.write(`run-tests: could not list tracked test files: ${error.message}\n`);
     process.exitCode = 1;
     return;
   }
-  const gui = testsNeedGui(process.cwd(), guiFiles);
+  const gui = plan ? plan.gui : (await import('./gui/admission.js')).testsNeedGui(process.cwd(), guiFiles);
   const { cpuRunnerRequired } = await import('./admission/cpu/load.js');
   const runnerAdmission = (await import('../../../config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
-  timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
+  timing.plan(fullSuite && isGitWorkTree(process.cwd(), environment.all()) ? trackedDefaultTestFiles(process.cwd(), environment.all()) : guiFiles,
     fullSuite && !narrowsSelection(args, optionTakesValue));
   timing.phase('selectionMs', selectionAt); clock.mark('selection');
   let signal = null;
   /** Keep sandbox lifetime inside the held lease, including the complete child process. */
-  const shardLabel = process.env[LANDING_SHARD_ENV];
+  const shardLabel = environment.get(LANDING_SHARD_ENV);
   const run = async (gateMarkers) => {
     const setupAt = performance.now();
-    const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-test-run-'));
+    const sandbox = fs.mkdtemp(join(tmpdir(), 'pullboard-test-run-'));
     // A shard of a sharded landing reports each file's wall time back to its orchestrator.
     const fileTimes = shardLabel ? join(sandbox, 'landing-file-times.jsonl') : '';
     // Observe leftovers around the whole execution, including failed cases; never remove clones.
     const cloneCheck = browser && process.platform === 'darwin'
       ? await import('./clone.js') : null;
     let clonesBefore;
-    if (fileTimes) process.env[LANDING_FILE_TIMES_ENV] = fileTimes;
+    if (fileTimes) environment.set(LANDING_FILE_TIMES_ENV, fileTimes);
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
       timing.phase('setupMs', setupAt); clock.mark('admission');
@@ -1311,20 +1301,20 @@ async function main(args) {
   try {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../../../resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
-    const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1'; const ordinaryShards = process.env[LANDING_RUN_ENV] !== '1' && process.env.PULLBOARD_RUN_SHARDS !== '0';
+    const legacyHeld = environment.get(GATE_SLOT_HELD_ENV) === '1'; const ordinaryShards = environment.get(LANDING_RUN_ENV) !== '1' && environment.get('PULLBOARD_RUN_SHARDS') !== '0';
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
-    if ((process.env[LANDING_RUN_ENV] === '1' || ordinaryShards) && !shardLabel) {
+    if ((environment.get(LANDING_RUN_ENV) === '1' || ordinaryShards) && !shardLabel) {
       // Direct modules, not the barrel: the barrel loads main.js, and an ordinary run never needs it (only a landing counts shards there).
       const [{ landingShardOptions, landingFanOutFiles }, { nativeFileArguments }, { freeRunnerSlots }] = await Promise.all([
         import('./test/selection.js'), import('./test/file/dispatch.js'), import('./shards/proof.js'),
       ]);
-      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../index.js')).landingShardCount(process.cwd());
+      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../heavy.js')).landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
-      shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
+      shardedRun: if (!insideRunnerSlot && (count > 1 || environment.get('PULLBOARD_RELEASE_EXECUTORS'))) {
         const files = landingFanOutFiles(actions.files ?? (fullSuite // Globs expand and fold; a caller shard flag is refused.
-          ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
+          ? (isGitWorkTree(process.cwd(), environment.all()) ? trackedDefaultTestFiles(process.cwd(), environment.all()) : [])
           : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
         if (!files.length && !ordinaryShards) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         if (ordinaryShards && (count = Math.min(count, files.length)) < 2) break shardedRun; // ordinary runs shard over the slots free after landings [C7]
@@ -1377,10 +1367,10 @@ async function main(args) {
         process.exitCode = result.exitCode;
       }, {
         executionServices, browser, gui,
-        kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        kind: environment.get(LANDING_RUN_ENV) === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
         // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
         // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
-        landing: process.env.PULLBOARD_LANDING_CLASS === '1',
+        landing: environment.get('PULLBOARD_LANDING_CLASS') === '1',
         shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {
@@ -1423,7 +1413,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   recordRunnerWait = state => { if (state.admitted) { finishWait?.(); finishWait = null; } else finishWait ??= beginSeatTiming(process.cwd(), 'runner-wait', 'gate slot'); };
   try { await main(process.argv.slice(2)); } finally { finishWait?.(); finishSeatTiming(); }
 } else if (process.argv[1]) {
-  process.env.PULLBOARD_TEST_FILE = process.argv[1];
+  environment.set('PULLBOARD_TEST_FILE', process.argv[1]);
   (await import('./test/action/cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
   const fileTimes = process.env[LANDING_FILE_TIMES_ENV];
   let tokenWaitMs = 0;
@@ -1434,7 +1424,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
     process.once('exit', (code) => {
       // The file's own time, not its wait for a token (#1046), and its exit code, the file's own verdict (#8303).
-      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
+      try { fs.appendFile(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }
@@ -1447,11 +1437,11 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     cleanupWatchdog = installTestWatchdog();
     const file = resolve(process.argv[1]);
     let identityAvailable = false;
-    appendFileSync(startsPath, `${JSON.stringify({ type: 'worker-pending', attempt, file,
+    fs.appendFile(startsPath, `${JSON.stringify({ type: 'worker-pending', attempt, file,
       pid: process.pid, parentPid: process.ppid })}\n`);
     try {
       const identity = await landingWorkerIdentity(process.pid);
-      appendFileSync(startsPath, `${JSON.stringify({ type: 'worker', attempt, file,
+      fs.appendFile(startsPath, `${JSON.stringify({ type: 'worker', attempt, file,
         pid: identity.pid, pgid: identity.pgid, started: identity.started })}\n`);
       identityAvailable = true;
     } catch (error) {
@@ -1459,7 +1449,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
       const code = error.cause?.code ?? error.code ?? 'snapshot-error';
       const reason = String(error.cause?.message ?? error.message ?? error)
         .replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 512);
-      appendFileSync(startsPath, `${JSON.stringify({ type: 'worker-identity-unavailable', attempt, file,
+      fs.appendFile(startsPath, `${JSON.stringify({ type: 'worker-identity-unavailable', attempt, file,
         pid: process.pid, parentPid: process.ppid, code, reason })}\n`);
       process.stderr.write(`run-tests: worker identity unavailable (${code}): ${reason}\n`);
     }

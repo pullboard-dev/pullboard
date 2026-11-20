@@ -9,6 +9,8 @@ import { boardStateAnnouncement } from "../link.js";
 import { boardLinkBody } from "../../../../../kernel/index.js";
 import { boardLinkName } from "../../../../../kernel/index.js";
 import { boardReferenceId } from "../../../../../kernel/index.js";
+import { regressedIds } from "./regress.js";
+import { holdRegressedDependents } from "./regress.js";
 import { boardLinkEnvelope } from "./envelope.js";
 import { boardLinkEnvelopeDigest } from "./envelope.js";
 import { boardLinkDeliveryReceipt } from "./envelope.js";
@@ -170,6 +172,7 @@ export async function receiveBoardState(board, delivery, { authority, capability
     remember(board, stateKey, { ...announcement, receivedAt: board.clock.now().toISOString() });
     remember(board, key, receipt);
     logEvent(board, envelope.sourceBoardId, 'board_link_state', null, { announcement, receipt });
+    holdRegressedDependents(board, { handle: record.child.handle, ids: regressedIds(latest, announcement) });
     return receipt;
   });
 }

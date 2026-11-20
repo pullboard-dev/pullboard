@@ -13,18 +13,13 @@ import { protectedHistoryPath } from './source/scan.js';
 import { scannerTree } from './source/scan.js';
 import { sourceGit } from './source/scan.js';
 import { spawnSync } from 'node:child_process';
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 const MAX_HISTORY_TAGS = 1_024;
 
@@ -122,10 +117,10 @@ function selectTags(root, source, listed) {
  */
 function streamedSourceGit(root, args, directory, name, input) {
   const file = join(directory, name);
-  const output = openSync(file, 'wx', 0o600);
+  const output = fs.open(file, 'wx', 0o600);
   try { sourceGit(root, args, { input, stdio: ['pipe', output, 'pipe'] }); }
-  finally { closeSync(output); }
-  try { return readFileSync(file, 'utf8'); } finally { rmSync(file, { force: true }); }
+  finally { fs.close(output); }
+  try { return fs.readFile(file, 'utf8'); } finally { fs.rm(file, { force: true }); }
 }
 
 /** How many fully scanned commits the pack verdict cache keeps per scanner and policy set. */
@@ -141,7 +136,7 @@ function cleanPackFile(root, protect) {
   const tree = scannerTree();
   if (!tree) return null;
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
-  if (existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'))) return null;
+  if (fs.exists(join(common, 'shallow')) || fs.exists(join(common, 'info', 'grafts'))) return null;
   const environment = environmentAdapter();
   const home = environment.get('PULLBOARD_MACHINE_HOME') || join(environment.get('HOME') || homedir(), '.pullboard');
   return join(home, 'pack-scan', storeName(createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)));
@@ -151,7 +146,7 @@ function cleanPackFile(root, protect) {
 function cleanPackCommits(file) {
   if (!file) return [];
   try {
-    const value = JSON.parse(readFileSync(file, 'utf8'));
+    const value = JSON.parse(fs.readFile(file, 'utf8'));
     return Array.isArray(value) ? value.filter(commit => /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) : [];
   } catch { return []; }
 }
@@ -160,10 +155,10 @@ function cleanPackCommits(file) {
 function saveCleanPackCommits(file, commits) {
   const temporary = `${file}.${process.pid}.partial`;
   try {
-    mkdirSync(join(file, '..'), { recursive: true, mode: 0o700 });
-    writeFileSync(temporary, JSON.stringify(commits), { mode: 0o600 });
-    renameSync(temporary, file);
-  } catch { /* Nothing to keep. */ } finally { rmSync(temporary, { force: true }); }
+    fs.mkdir(join(file, '..'), { recursive: true, mode: 0o700 });
+    fs.writeFile(temporary, JSON.stringify(commits), { mode: 0o600 });
+    fs.rename(temporary, file);
+  } catch { /* Nothing to keep. */ } finally { fs.rm(temporary, { force: true }); }
 }
 
 /** Scan and pack exactly the candidate objects absent from the locked remote cache inventory. */
@@ -200,10 +195,10 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
   }
   if (scanned.length) {
     const scanFile = join(directory, 'history.scan');
-    const output = openSync(scanFile, 'wx', 0o600);
+    const output = fs.open(scanFile, 'wx', 0o600);
     try { sourceGit(root, ['cat-file', '--batch'], { input: `${scanned.join('\n')}\n`, stdio: ['pipe', output, 'pipe'] }); }
-    finally { closeSync(output); }
-    const input = openSync(scanFile, 'r');
+    finally { fs.close(output); }
+    const input = fs.open(scanFile, 'r');
     try {
       for (let index = 0; index < scanned.length; index++) {
         const { object, type, data } = objectRecord(input);
@@ -231,7 +226,7 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
           throw new Refused('RUNNER_SECRET', 'historical source failed its transfer scan; remove the private history or keep this run local');
         }
       }
-    } finally { closeSync(input); rmSync(scanFile, { force: true }); }
+    } finally { fs.close(input); fs.rm(scanFile, { force: true }); }
   }
   // Check every full historical path, including reused cached blobs moved beneath a newly blocked prefix.
   for (const tree of historicalTrees) {
@@ -243,9 +238,9 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
     }
   }
   const pack = join(directory, 'source.pack');
-  const output = openSync(pack, 'wx', 0o600);
+  const output = fs.open(pack, 'wx', 0o600);
   try { sourceGit(root, ['pack-objects', '--stdout'], { input: objects.map(object => `${object}\n`).join(''), stdio: ['pipe', output, 'pipe'] }); }
-  finally { closeSync(output); }
+  finally { fs.close(output); }
   // Every object the runner lacked was read now or by a clean scan; the verdict is kept only when no runner-claimed tip hid history from it.
   if (cleanFile && (!known.length || !sourceGit(root, ['rev-list', '--max-count=1', ...known, '--not', ...clean]).trim())) {
     saveCleanPackCommits(cleanFile, [...new Set([...roots, ...saved])].slice(0, CLEAN_PACK_KEEP));
