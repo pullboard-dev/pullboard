@@ -1,6 +1,7 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
 export * from "./light.js";
 export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
+export { LISTING as TEST_CELL_LISTING } from "./src/io/test/cells.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
 export { createInstallCache } from "./src/io/scripts/pack-cache.js";
 export { createPackCache } from "./src/io/scripts/pack-cache.js";
