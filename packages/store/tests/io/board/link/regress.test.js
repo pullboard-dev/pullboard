@@ -40,7 +40,7 @@ async function linked(t) {
   const receive = async rows => {
     position += 1;
     const correlationId = `state-${position}`;
-    const announcement = { version: 1, linkId: 'regress', generation: 1, sourceBoardId: CHILD, destinationBoardId: parent.boardId,
+    const announcement = { version: 2, linkId: 'regress', generation: 1, sourceBoardId: CHILD, destinationBoardId: parent.boardId,
       position, disclosure: 'states', rows: rows.map(([id, state]) => ({ board: CHILD, id, state })) };
     const envelope = await capability.seal(correlationId, announcement);
     const receipt = { version: 1, deliveryId: position, sourceBoardId: CHILD, destinationBoardId: parent.boardId, linkId: 'regress', generation: 1,
@@ -59,7 +59,7 @@ function waiting(board, id, { merged = null } = {}) {
   return item;
 }
 
-const events = (board, kind) => board.db.prepare('SELECT event_item, event_detail FROM event WHERE event_kind=? ORDER BY event_id').all(kind);
+const events = (board, kind) => board.db.prepare('SELECT item_id, event_detail FROM event WHERE event_kind=? ORDER BY event_id').all(kind);
 
 test('store.io-board-link-regress.reopened-holds-claimed-dependent: clause 1: a received state going from verified or landed back to open holds each claimed dependent with a reason naming repo#id [XB1,#11045]', async t => {
   const { board, receive } = await linked(t);
@@ -81,7 +81,7 @@ test('store.io-board-link-regress.landed-dependent-gets-notice: clause 2: a depe
   assert.equal(getItem(board, done).item_hold_reason, null);
   const notices = events(board, 'board_link_regress_notice');
   assert.equal(notices.length, 1);
-  assert.equal(notices[0].event_item, done);
+  assert.equal(notices[0].item_id, done);
   assert.match(notices[0].event_detail, /kid#8/u);
 });
 
