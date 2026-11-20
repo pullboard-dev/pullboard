@@ -217,6 +217,7 @@ const OPTIONS = {
   'session-end': { type: 'boolean' },
   'draft-splits': { type: 'boolean' },
   implies: { type: 'string' },
+  broke: { type: 'string' },
   owns: { type: 'string' },
   red: { type: 'string' },
   green: { type: 'string' },
