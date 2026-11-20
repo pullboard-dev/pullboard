@@ -7,6 +7,7 @@ import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { reservationLine } from '../../logic/show/core.js';
 import { frozenLines } from '../../logic/show/frozen.js';
 import { threadLines } from '../../logic/show/thread.js';
 import { tailLines } from '../../logic/show/tail.js';
@@ -22,6 +23,7 @@ import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { routeReservations } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { derivedStateEnabled } from '../../../../../packages/config/index.js';
@@ -223,6 +225,8 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
   io.say(core.item);
+  const reserved = reservationLine(item, routeReservations());
+  if (reserved) io.say(reserved);
   if (afterGate.length) io.say(`after-gate ${afterGate.map(waitId => `#${waitId}`).join(',')}`);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
