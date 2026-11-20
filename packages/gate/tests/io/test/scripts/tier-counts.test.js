@@ -2,7 +2,7 @@
 /** The tier-counts script reports T1, T2 and T3 counts and what one front door change selects [C7,#9789]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writeTestTiers } from '../../../../index.js';
+import { writeTestTiers } from '../../../../heavy.js';
 import { tierCountsReport } from '../../../../src/io/test/scripts/tier-counts.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';

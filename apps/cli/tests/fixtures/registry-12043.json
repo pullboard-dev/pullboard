@@ -1,0 +1,3 @@
+{
+  "cli.io-trace.hook-refusals-carry-code": {"proves":{"specs":["C7"],"claim":"a pre-commit block and a commit-msg block each append one trace line with a refusal code, the seat and the hook name, and the stderr text is unchanged"},"why":"Without it a blocked commit leaves a trace line with exit 1 and no code, so no count can tell one kind of block from another.","kind":"cell unit","inputs":["apps/cli/tests/io/trace.test.js"]}
+}

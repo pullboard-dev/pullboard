@@ -74,3 +74,71 @@ test('store.stale-apply.silent-seat-keeps-unknown-gate-claim: clause 3: a seat s
   assert.equal(getItem(f.box.board, f.id).item_owner, f.builder);
   assert.deepEqual(f.releases(), [], 'a refused pass writes no release');
 });
+
+/** An engine below the board-release-codes leaf (277), where the stale sweep's releases keep OTHER. */
+const OLDER_BOARD_VERSION = 276;
+
+/** One claimed item and a pass that hands the production maintenance write the given claim row. */
+function swept(t, engine) {
+  const box = fixture(t);
+  box.board.movesLive = { reclaim: false };
+  if (engine !== undefined) box.board.executionEngineVersion = engine;
+  const id = box.add('Item the stale sweep returns');
+  box.claim(id);
+  const builder = box.seats.builder.id;
+  const claimEvent = box.board.db.prepare("SELECT event_id, event_at FROM event WHERE item_id=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(id);
+  const releases = () => box.board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='release'").all(id).map(row => JSON.parse(row.event_detail));
+  const pass = row => {
+    const observedAt = box.clock.now().toISOString();
+    const previous = Number(box.board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='lapsed_claim_scan_cursor'").get()?.meta_value ?? 0);
+    const limits = staleStateLimits({}, { dependency: true });
+    return maintainStaleState(box.board, { agentId: box.seats.actor.id, claimsOnly: true, snapshot: {
+      observedAt, observedRevision: box.board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, holds: [], reviews: [],
+      limits, claimScan: { previous, next: previous + 1 }, claims: [row({ observedAt, limits })] } });
+  };
+  const seatGone = ({ observedAt }) => ({ id, actor: builder, idle: 'seat-gone', claimEventId: claimEvent.event_id, claimAt: claimEvent.event_at,
+    deadSeat: { observedAt, quietMs: 120_000, heartbeatAt: observedAt, worktreeMissing: true } });
+  const silent = ({ observedAt }) => ({ id, actor: builder, idle: 'release', claimEventId: claimEvent.event_id, claimAt: claimEvent.event_at,
+    workActivity: claimEvent.event_at, idleMs: Date.parse(observedAt) - Date.parse(claimEvent.event_at),
+    handoff: { changedFiles: [], changedCount: 0, pin: null, unpinned: 'no work to pin' } });
+  const lapsed = ({ observedAt, limits }) => {
+    const item = box.board.db.prepare('SELECT item_lease_until FROM item WHERE item_id=?').get(id);
+    const lease = box.board.db.prepare("SELECT event_id, event_at FROM event WHERE item_id=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(id);
+    return { id, actor: builder, leaseUntil: item.item_lease_until, leaseEventId: lease.event_id, leaseStartedAt: lease.event_at, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease.event_at),
+      lastActivity: lease.event_at, since: lease.event_at, limitMs: limits.claim, evidence: { complete: true }, observedAt };
+  };
+  return { box, id, pass, releases, rows: { seatGone, silent, lapsed } };
+}
+
+test('store.stale-apply.claim-release-codes: clause 1: at the board-release-codes engine the sweep writes SEAT_GONE for a gone seat, BUILDER_SILENT for a silent builder and LEASE_LAPSED for a lapsed claim, each with its prose reason unchanged [C7,#12160]', t => {
+  const gone = swept(t);
+  gone.pass(gone.rows.seatGone);
+  assert.equal(gone.releases()[0].reasonCode, 'SEAT_GONE');
+  assert.match(gone.releases()[0].reason, /has no heartbeat for two minutes or its worktree is gone/);
+
+  const silent = swept(t);
+  silent.box.advance(41 * MINUTE);
+  silent.pass(silent.rows.silent);
+  assert.equal(silent.releases()[0].reasonCode, 'BUILDER_SILENT');
+  assert.match(silent.releases()[0].reason, /^Idle 41 minutes: no commit/);
+
+  const lapsed = swept(t);
+  lapsed.box.advance(4 * 60 * MINUTE);
+  lapsed.pass(lapsed.rows.lapsed);
+  assert.equal(lapsed.releases()[0].reasonCode, 'LEASE_LAPSED');
+  assert.equal(lapsed.releases()[0].reason, 'Lapsed claim idle past its stale interval.');
+});
+
+test('store.stale-apply.claim-release-codes-below-engine: clause 2: below the board-release-codes engine the same releases still carry OTHER with the same prose [C7,#12160]', t => {
+  const silent = swept(t, OLDER_BOARD_VERSION);
+  silent.box.advance(41 * MINUTE);
+  silent.pass(silent.rows.silent);
+  assert.equal(silent.releases()[0].reasonCode, 'OTHER');
+  assert.match(silent.releases()[0].reason, /^Idle 41 minutes: no commit/);
+
+  const lapsed = swept(t, OLDER_BOARD_VERSION);
+  lapsed.box.advance(4 * 60 * MINUTE);
+  lapsed.pass(lapsed.rows.lapsed);
+  assert.equal(lapsed.releases()[0].reasonCode, 'OTHER');
+  assert.equal(lapsed.releases()[0].reason, 'Lapsed claim idle past its stale interval.');
+});

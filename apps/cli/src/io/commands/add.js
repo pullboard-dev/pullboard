@@ -182,7 +182,7 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief, check: item.check });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
