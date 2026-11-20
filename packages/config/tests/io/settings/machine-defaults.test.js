@@ -58,7 +58,7 @@ const BEFORE = {
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
-  'gate.jsdocCheck': false,
+  'gate.jsdocCheck': true,
   'gate.junitReport': null,
   'gate.knownMainStatic': false,
   'gate.literalPins': false,
