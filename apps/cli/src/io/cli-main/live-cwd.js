@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
 /**
  * The checkout a command should run in when its working directory has been removed.
@@ -26,7 +27,7 @@ export function survivingDirectory(gone) {
  * @param {{ cwd: () => string, env: Record<string, string|undefined>, chdir: (dir: string) => void }} [process_] - The process's own view, replaceable in tests.
  * @returns {string} A directory that exists.
  */
-export function liveCwd(given, process_ = { cwd: () => process.cwd(), env: process.env, chdir: dir => process.chdir(dir) }) {
+export function liveCwd(given, process_ = { cwd: () => process.cwd(), env: environmentAdapter().all(), chdir: dir => process.chdir(dir) }) {
   let wanted = given;
   if (wanted === undefined) {
     try { return process_.cwd(); } catch { wanted = process_.env.PWD; }
