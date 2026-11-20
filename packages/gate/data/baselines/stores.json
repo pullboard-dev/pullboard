@@ -737,14 +737,6 @@
       "kind": "json",
       "owner": "apps/cli/src/io/disk/use.js"
     },
-    "dispatcher-idle.jsonl": {
-      "kind": "jsonl",
-      "owner": "packages/resources/src/io/handoff/worker/cap.js"
-    },
-    "dispatcher.json": {
-      "kind": "json",
-      "owner": "packages/resources/src/io/handoff/worker/cap.js"
-    },
     "event-moves.json": {
       "kind": "repo-data",
       "owner": "apps/cli/src/io/generated/declarations.js"
@@ -1681,10 +1673,6 @@
     "worker-bundle.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
-    },
-    "worker-cap.json": {
-      "kind": "json",
-      "owner": "packages/resources/src/io/handoff/worker/cap.js"
     },
     "worker-imports.json": {
       "kind": "repo-data",
