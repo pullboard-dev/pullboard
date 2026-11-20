@@ -8,13 +8,7 @@
  * node_modules, work and every directory whose name starts with a dot (.git among them). Paths are
  * repo-relative with forward slashes, and nothing depends on the order the file system lists them.
  */
-import {
-  existsSync,
-  lstatSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { readPathMap } from '../../../codemap/light.js';
 import { tryGit } from '../../../git/index.js';
 import {
@@ -41,18 +35,18 @@ export function mappedWorkingSources(root, identities) {
   }
   cleanMap();
   const map = readPathMap(root, { commit });
-  const canonicalRoot = realpathSync(root);
+  const canonicalRoot = fs.realpath(root);
   /** Preserve actual Buffer bytes and reject missing, symbolic or escaping implementation paths. */
   function bytes(file, optional = false) {
     const path = join(canonicalRoot, file);
     let stat;
-    try { stat = lstatSync(path); }
+    try { stat = fs.lstat(path); }
     catch (error) { if (optional && error.code === 'ENOENT') return null; throw error; }
-    const canonical = realpathSync(path);
+    const canonical = fs.realpath(path);
     if (!stat.isFile() || stat.isSymbolicLink() || !canonical.startsWith(canonicalRoot + sep)) {
       throw new Error('working source must be a contained regular file');
     }
-    return readFileSync(path);
+    return fs.readFile(path, null);
   }
   const result = identities.map(identity => {
     const implementationPath = map.get(identity) ?? identity;
@@ -86,13 +80,13 @@ export function rootOf(argv = process.argv) {
  */
 export function runCheck(meta, find) {
   // Node resolves symlinks in a module's URL but not in argv, so compare real paths.
-  if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(meta.url))) report(find(rootOf()));
+  if (process.argv[1] && fs.exists(process.argv[1]) && fs.realpath(process.argv[1]) === fs.realpath(fileURLToPath(meta.url))) report(find(rootOf()));
 }
 
 /** Preserve every selected working source file, including both compatibility shims and their mapped bodies. */
 export function workingSourceInventory(root, directories) {
   if (!Array.isArray(directories) || !directories.length) throw new Error('working source directories must be explicit');
-  const canonicalRoot = realpathSync(root);
+  const canonicalRoot = fs.realpath(root);
   const head = tryGit(root, ['rev-parse', '--verify', 'HEAD^{commit}']);
   if (head.status !== 0) throw new Error('working source inventory needs a committed map');
   const commit = head.stdout.trim(), map = readPathMap(root, { commit });
@@ -100,12 +94,12 @@ export function workingSourceInventory(root, directories) {
   for (const directory of directories) {
     if (typeof directory !== 'string' || !directory || /[\\:\x00-\x1f\x7f]/u.test(directory)
       || directory.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('invalid working source directory');
-    const path = join(canonicalRoot, directory), stat = lstatSync(path);
-    if (!stat.isDirectory() || stat.isSymbolicLink() || !realpathSync(path).startsWith(canonicalRoot + sep)) {
+    const path = join(canonicalRoot, directory), stat = fs.lstat(path);
+    if (!stat.isDirectory() || stat.isSymbolicLink() || !fs.realpath(path).startsWith(canonicalRoot + sep)) {
       throw new Error('working source directory must be contained and regular');
     }
     selected.add(directory);
-    for (const name of readdirSync(path)) if (name.endsWith('.js')) identities.add(directory + '/' + name);
+    for (const name of fs.list(path)) if (name.endsWith('.js')) identities.add(directory + '/' + name);
   }
   // A private old source may have no shim. Its committed identity still belongs to this original directory scan.
   for (const from of map.keys()) if (from.endsWith('.js') && selected.has(from.slice(0, from.lastIndexOf('/')))) identities.add(from);
@@ -147,6 +141,8 @@ export {
   TEST_FILE,
   walk,
 } from '../../../codemap/light.js';
+
+const fs = fileSystemAdapter();
 
 /** Compare by UTF-16 code units, so the order never depends on the machine's locale. */
 function byText(left, right) {

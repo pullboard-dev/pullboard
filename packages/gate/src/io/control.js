@@ -3,12 +3,10 @@
  * directory; health reads those lines. A gate that refuses every run in its window, or whose known-good case
  * (the project's positiveControl) fails, is an alarm: it can no longer prove that it can pass.
  */
-import {
-  appendFileSync,
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { gitPath } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The append-only record of real gate runs, kept in the git directory so it never enters a commit. */
 export const GATE_RUNS_FILE = 'pullboard-gate-runs.jsonl';
@@ -27,7 +25,7 @@ const LAST_RUNS = 5;
  * @param {{ at: string, green: boolean, control: boolean | null, gate: string, positiveControl: string | null }} run
  */
 export function recordGateRun(root, run) {
-  appendFileSync(gitPath(root, GATE_RUNS_FILE), `${JSON.stringify(run)}\n`);
+  fs.appendFile(gitPath(root, GATE_RUNS_FILE), `${JSON.stringify(run)}\n`);
 }
 
 /**
@@ -39,8 +37,8 @@ export function recordGateRun(root, run) {
  */
 export function gateRuns(root) {
   const file = gitPath(root, GATE_RUNS_FILE);
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').split('\n').flatMap((line) => {
+  if (!fs.exists(file)) return [];
+  return fs.readFile(file, 'utf8').split('\n').flatMap((line) => {
     try {
       const run = JSON.parse(line);
       return run && typeof run.at === 'string' && typeof run.green === 'boolean' ? [run] : [];

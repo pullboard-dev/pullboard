@@ -1,12 +1,11 @@
 /** The fixups product landing carries so the blitz scripts need not: lint listing rebind, renames, ceilings merge, row-aware blame [C7,#5560]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const LINT_DIR = 'packages/codemap/data/baselines/lints';
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -47,20 +46,20 @@ export function mergeCeilings(base, ours, theirs) {
 export function rebindCellListing(root) {
   const folder = join(root, LINT_DIR);
   // The listing is the one file here whose metrics name shards; the shards and the cells folder are the others.
-  const listed = existsSync(folder) ? readdirSync(folder).filter(file => file.endsWith('.json')).sort().find(file => {
-    try { return Object.values(JSON.parse(readFileSync(join(folder, file), 'utf8')).metrics ?? {}).some(row => Array.isArray(row?.shards)); } catch { return false; }
+  const listed = fs.exists(folder) ? fs.list(folder).filter(file => file.endsWith('.json')).sort().find(file => {
+    try { return Object.values(JSON.parse(fs.readFile(join(folder, file), 'utf8')).metrics ?? {}).some(row => Array.isArray(row?.shards)); } catch { return false; }
   }) : null;
   if (!listed) return [];
   const index = join(folder, listed);
   const changed = [];
-  const write = (path, text) => { if (!existsSync(path) || readFileSync(path, 'utf8') !== text) { writeFileSync(path, text); changed.push(path.slice(root.length + 1)); } };
-  const listing = JSON.parse(readFileSync(index, 'utf8'));
+  const write = (path, text) => { if (!fs.exists(path) || fs.readFile(path, 'utf8') !== text) { fs.writeFile(path, text); changed.push(path.slice(root.length + 1)); } };
+  const listing = JSON.parse(fs.readFile(index, 'utf8'));
   for (const row of Object.values(listing.metrics)) {
     let count = 0;
     for (const shard of row.shards) {
       const file = join(root, shard.file);
-      if (!existsSync(file)) continue;
-      const bytes = readFileSync(file);
+      if (!fs.exists(file)) continue;
+      const bytes = fs.readFile(file, null);
       shard.sha256 = sha256(bytes);
       count += Object.values(JSON.parse(bytes).allowances ?? {}).reduce((sum, value) => sum + value, 0);
     }
@@ -70,8 +69,8 @@ export function rebindCellListing(root) {
   write(index, text);
   const baseSha256 = sha256(text);
   const cells = join(root, LINT_DIR, 'cells');
-  for (const name of existsSync(cells) ? readdirSync(cells).filter(file => file.endsWith('.json')).sort() : []) {
-    const cell = JSON.parse(readFileSync(join(cells, name), 'utf8'));
+  for (const name of fs.exists(cells) ? fs.list(cells).filter(file => file.endsWith('.json')).sort() : []) {
+    const cell = JSON.parse(fs.readFile(join(cells, name), 'utf8'));
     for (const row of Object.values(cell.metrics ?? {})) if (Array.isArray(row.remove)) row.remove.sort();
     const payload = { version: cell.version, cell: cell.cell, baseSha256, metrics: cell.metrics };
     write(join(cells, name), encode({ ...payload, sha256: sha256(encode(payload)) }));

@@ -210,9 +210,21 @@ test('cli.journeys-help-main.help-lists-every-edit-option: clause 1: help lists 
   const parsed = new Set([...source.matchAll(/values(?:\.([a-z]+)|\['([a-z-]+)'\])/gu)].map(match => match[1] ?? match[2]));
   for (const name of ['brief', 'brief-file']) parsed.add(name); // briefArg reads both for edit
   if (parsed.delete('route')) parsed.add('level'); // options.js folds --level into values.route (U136)
+  if (parsed.delete('review-tier')) parsed.add('review'); // edit help names --review, which options.js folds into values[review-tier] (U136)
   parsed.delete('as'); // the person flag is documented under the person's own commands
   assert.ok(parsed.has('after'), 'the parsed set includes --after');
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
+});
+
+test('cli.journeys-help-main.help-lists-timeline-forms: clause 1: help --all lists both pullboard timeline forms [C7]', async t => {
+  const e2e = createE2eHelpers();
+  t.after(e2e.cleanup);
+  const box = e2e.project();
+  const all = await box.runLocal(box.repo, 'help', '--all', '--json');
+  assert.equal(all.code, 0, all.err);
+  const text = JSON.parse(all.out).help;
+  assert.ok(text.includes('  pullboard timeline <id> [--json]'), 'help --all lists pullboard timeline <id>');
+  assert.ok(text.includes('  pullboard timeline --fleet [--since 3h] [--json]'), 'help --all lists pullboard timeline --fleet');
 });
 
 test('cli.journeys-help-main.help-says-merge-conflicts-never-count: clause 1: help says merge conflicts never count, scopes handoff to agent worktrees and names what resume --diagnostics adds [V32]', () => {
