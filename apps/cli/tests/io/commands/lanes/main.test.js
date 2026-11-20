@@ -89,7 +89,7 @@ test('cli.journeys-lanes-main.lane-hook-permits-only-an-owned: lane hook permits
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   mkdirSync(join(box.repo, 'api'), { recursive: true });
   writeFileSync(join(box.repo, 'web/old.js'), 'export const value = 1;\n');
-  const before = "import { value } from '../../../../journeys/web/old.js';\nexport const result = value;\n";
+  const before = "import { value } from '../web/old.js';\nexport const result = value;\n";
   writeFileSync(join(box.repo, 'api/view.js'), before);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: seed import fixture');
@@ -120,8 +120,8 @@ test('cli.journeys-lanes-main.lane-hook-accepts-a-deleted-shim: lane hook accept
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   mkdirSync(join(box.repo, 'api'), { recursive: true });
   writeFileSync(join(box.repo, 'web/body.js'), 'export const value = 1;\n');
-  writeFileSync(join(box.repo, 'web/shim.js'), "export { value } from '../../../../journeys/lanes/body.js';\n");
-  const before = "import { value } from '../../../../journeys/web/shim.js';\nexport const result = value;\n";
+  writeFileSync(join(box.repo, 'web/shim.js'), "export { value } from './body.js';\n");
+  const before = "import { value } from '../web/shim.js';\nexport const result = value;\n";
   writeFileSync(join(box.repo, 'api/view.js'), before);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: seed shim fixture');
@@ -146,8 +146,8 @@ test('cli.journeys-lanes-main.lane-hook-accepts-a-deleted-shim: lane hook accept
 test('cli.journeys-lanes-main.cross-lane-import-edits-follow-only: cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
   const { movedImportOnlyChange, movedImportTargets } = await import('../../../../../../packages/commits/src/logic/import-only-change.js');
   const diff = 'R100\0api/old.js\0api/new.js\0D\0api/shim.js\0';
-  const moves = movedImportTargets(diff, path => path === 'api/shim.js' ? "export { value } from '../../../../journeys/lanes/new.js';\n" : null, path => path === 'api/new.js');
-  const before = "import { value } from '../../../../journeys/api/old.js';\nexport const result = value;\n";
+  const moves = movedImportTargets(diff, path => path === 'api/shim.js' ? "export { value } from './new.js';\n" : null, path => path === 'api/new.js');
+  const before = "import { value } from '../api/old.js';\nexport const result = value;\n";
   const after = before.replace('../api/old.js', '../api/new.js');
   assert.equal(movedImportOnlyChange(before, after, 'web/view.js', moves), true);
   assert.equal(movedImportOnlyChange(before, after.replace('result = value', 'result = 1'), 'web/view.js', moves), false);
