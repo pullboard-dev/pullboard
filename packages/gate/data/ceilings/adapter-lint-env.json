@@ -4,7 +4,6 @@
     "apps/cli/src/io/beater.js": 2,
     "apps/cli/src/io/beater/command.js": 1,
     "apps/cli/src/io/cells-submit-checks.js": 1,
-    "apps/cli/src/io/cli-main/run.js": 4,
     "apps/cli/src/io/commands/verify.js": 3,
     "apps/cli/src/io/commands/view.js": 6,
     "apps/cli/src/io/commands/worktree.js": 1,
