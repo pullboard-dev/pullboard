@@ -190,7 +190,9 @@ export function nextFor(board, options) {
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   // An open item names the abilities it needs [U136,#1888]; a seat lacking one is never offered it. One read for the whole board, not one per item (#5329).
   const abilities = new Set(agentAbilities(board, agentId));
-  const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item\\_needs:%' ESCAPE '\\'").all()
+  // A key range on the primary key, never a LIKE: SQLite serves LIKE ... ESCAPE by scanning all of board_meta, 0.7 s a call
+  // on the 815,588-row live board (20 Nov). ';' follows ':' in byte order, so the range holds exactly the item_needs: keys.
+  const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key >= 'item_needs:' AND meta_key < 'item_needs;'").all()
     .map(row => [Number(row.meta_key.slice('item_needs:'.length)), JSON.parse(row.meta_value)]));
   const lacksAbility = (entry) => entry.item_status === 'open' && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
