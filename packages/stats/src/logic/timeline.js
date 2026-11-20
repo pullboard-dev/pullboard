@@ -54,7 +54,14 @@ function eventRows(events) {
   const rows = [], unmapped = new Map();
   let released = false;
   for (const event of events) {
-    const detail = objectOf(event.detail), at = msOf(event.at), mapped = EVENT_STAGES[event.kind];
+    const detail = objectOf(event.detail), at = msOf(event.at);
+    // A mark event names its own stage and edge and the time it marks; a stage outside TIMELINE_STAGES adds no row [C7,#12234].
+    if (event.kind === 'mark') {
+      const marked = msOf(detail.at);
+      if (TIMELINE_STAGES.includes(detail.stage) && Number.isFinite(marked)) rows.push(row(marked, event.item, detail.stage, ['start', 'end', 'point'].includes(detail.edge) ? detail.edge : 'point', event.by, null, detail.ref ?? null));
+      continue;
+    }
+    const mapped = EVENT_STAGES[event.kind];
     if (!mapped) { unmapped.set(event.kind, (unmapped.get(event.kind) ?? 0) + 1); continue; }
     let [stage, edge] = mapped;
     if (event.kind === 'claim' && released) stage = 're-claimed';
@@ -97,9 +104,10 @@ const returned = outcome => outcome === 'red' || outcome === 'stale';
 function stretches(rows, end) {
   const out = [];
   const gate = { queued: new Set(), running: new Set() }, land = { queued: new Set(), running: new Set() };
-  let phase = 'open', rework = false, held = false, wait = null, outcome = null;
+  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false;
   const bucketNow = () => {
     if (held) return { reason: 'HELD' };
+    if (smoking) return { bucket: 'landing' };
     if (land.running.size) return { bucket: 'landing' };
     if (phase === 'merged') return { bucket: 'landing' };
     if (land.queued.size && phase !== 'building') return { bucket: 'waiting to land' };
@@ -125,6 +133,7 @@ function stretches(rows, end) {
     else if (current.stage === 'reviewing') phase = 'reviewing';
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
+    else if (current.stage === 'smoke') smoking = current.edge === 'start';
     else if (current.stage === 'merged') phase = 'merged';
     if (gateJob) {
       if (current.stage === 'gate-queued') gate.queued.add(current.ref);
