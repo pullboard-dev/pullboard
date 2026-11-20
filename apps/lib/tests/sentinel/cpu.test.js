@@ -57,7 +57,10 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   // The cap and engine guards below need a finding the coordinator hears at once, which an AGENT_CPU process is not (it is routine, so it waits in the owning seat's digest).
   // So the same observed processes are labelled with a cause the coordinator rules on, and the delivery queue is driven by those.
   let coordinatorCause = false;
-  const observe = () => agentCpuFindings(board.db, { platform: 'darwin', run, host }).map(finding => (coordinatorCause ? { ...finding, cause: 'REQUEST_UNANSWERED' } : finding));
+  const observe = () => {
+    const found = agentCpuFindings(board.db, { platform: 'darwin', run, host });
+    return coordinatorCause && found ? found.map(finding => ({ ...finding, cause: 'REQUEST_UNANSWERED' })) : found;
+  };
   const scan = () => {
     const observation = scanHealthSentinel(file, { root, config: {}, now: clock.now(), cpu: observe });
     if (observation) store.recordHealthFindings(board, { agentId: 'coordinator', ...observation });
