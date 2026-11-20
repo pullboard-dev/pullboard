@@ -1,5 +1,4 @@
 /** Explicit machine-local canary commands; all messages retain the caller's ordinary authority [H5,H17]. */
-import { realpathSync } from 'node:fs';
 import { COORDINATOR } from '../../../../../config/index.js';
 import { PERSON } from '../../../../../store/index.js';
 import { laneNames } from '../../../../../seats/index.js';
@@ -12,6 +11,9 @@ import { relayCanaryConfig } from '../../../../../config/index.js';
 import { readRelayHealth } from './health.js';
 import { startRelayCanaryWatch } from './watch.js';
 import { runRelayCanary } from './watch.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Read telemetry without contacting the relay or creating a health observation. */
 function status(root, config, io) {
@@ -25,7 +27,7 @@ function status(root, config, io) {
 function requireSeat(ports, ctx, board, config) {
   const me = ports.whoAmI(ctx, board);
   if (me.id === COORDINATOR || me.id === PERSON || !me.id
-    || realpathSync(ctx.info.root) !== realpathSync(config.root) || me.id !== config.agentId) {
+    || fs.realpath(ctx.info.root) !== fs.realpath(config.root) || me.id !== config.agentId) {
     throw new Refused('RELAY_CANARY_SEAT', 'run the canary from its configured ordinary joined seat; do not borrow a coordinator or another seat');
   }
   return me;
@@ -62,7 +64,7 @@ export async function run(io, { first = 'status', second, rest = [], values = {}
     if (!linked || linked.environment) throw new Refused('RELAY_NOT_LINKED', 'link this dedicated canary seat normally before enabling its watch; environment credentials do not configure a canary');
     config = ports.withBoard(ctx, board => {
       const me = ports.whoAmI(ctx, board);
-      const selected = relayCanaryConfig({ enabled: true, root: realpathSync(ctx.info.root), agentId: me.id,
+      const selected = relayCanaryConfig({ enabled: true, root: fs.realpath(ctx.info.root), agentId: me.id,
         deadlineMs: values.timeout === undefined ? 5000 : Number(values.timeout) });
       requireSeat(ports, ctx, board, selected);
       return setRelayCanary(selected);
@@ -85,7 +87,7 @@ export async function run(io, { first = 'status', second, rest = [], values = {}
     if (io.relaySignal?.aborted) controller.abort();
     let result;
     try {
-      result = await runRelayCanary(config, { io: { ...io, relaySignal: controller.signal }, notify: (notice, observation) => {
+      result = await runRelayCanary(config, { io: { ...io, relaySignal: controller.signal }, relayWake: ports.relayWake?.(ctx), notify: (notice, observation) => {
         if (controller.signal.aborted) throw new Refused('RELAY_CANARY_STOPPED', 'the canary stopped; pending notifications remain for its next ordinary run');
         return notify(ports, { ...ctx, io: { ...io, relaySignal: controller.signal } }, config, notice, observation);
       } });
@@ -121,7 +123,7 @@ async function watch(ports, ctx, config) {
     run: (selected, { io }) => {
       ports.withBoard(ctx, board => requireSeat(ports, ctx, board, selected));
       const current = { ...ctx, io: { ...ctx.io, ...io } };
-      return runRelayCanary(selected, { io: current.io, notify: (notice, observation) => notify(ports, current, selected, notice, observation) });
+      return runRelayCanary(selected, { io: current.io, relayWake: ports.relayWake?.(current), notify: (notice, observation) => notify(ports, current, selected, notice, observation) });
     },
     onError: error => ctx.io.err(`Relay canary has a pending observation or notice (${error.code ?? 'RELAY_CANARY_FAILURE'}); the next minute retries it.`),
   });

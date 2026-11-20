@@ -9,7 +9,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { checkoutHead } from '../../../../packages/git/index.js';
 import { commandObservation } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { selectTestTiers } from '../../../../packages/gate/index.js';
+import { selectTestTiers } from '../../../../packages/gate/heavy.js';
 import { junitCases } from '../../../../packages/gate/index.js';
 import { junitClauseTicks } from '../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../packages/verify/index.js';
@@ -19,8 +19,6 @@ import { clauseTicks } from '../../../../packages/state/index.js';
 import { clauseMarks } from '../../../../packages/commits/index.js';
 import { gateCoveredFiles } from '../../../../packages/state/index.js';
 import { testCaseTitles } from '../../../../packages/state/index.js';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { frozenRowGates } from '../../../../packages/verify/index.js';
@@ -28,6 +26,9 @@ import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { evidenceLine } from './shout.js';
 import { primaryCheckoutRoot } from './worktree.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The note a submit records with its clause marks under submit.clauseMarks: each numbered clause of the frozen bar, met with the evidence its tick cites or not marked.
@@ -107,7 +108,7 @@ function folderCoveredFiles(item, changedTests) {
 
 /** The case titles declared by the given test files in the working tree, as rows for the clause readers' `cases`; unreadable files give none (#8880) [C7]. */
 export function titleCases(root, files) {
-  return [...files].flatMap(file => { try { return testCaseTitles(file, readFileSync(join(root, file), 'utf8')); } catch { return []; } });
+  return [...files].flatMap(file => { try { return testCaseTitles(file, fs.readFile(join(root, file), 'utf8')); } catch { return []; } });
 }
 
 /** The changed tests a [test] clause no file covers is ticked by under verify.titleTicks: those holding a case titled for its number (#8880) [C7]. */
@@ -294,7 +295,7 @@ export function junitTickNotes(root, item, thread, head, report) {
   const none = { notes: [], failed: [] };
   if (!report || isAbsolute(report) || report.split(/[\\/]/u).includes('..')) return none;
   let xml, modified;
-  try { xml = readFileSync(join(root, report), 'utf8'); modified = Math.floor(statSync(join(root, report)).mtimeMs / 1000); } catch { return none; }
+  try { xml = fs.readFile(join(root, report), 'utf8'); modified = Math.floor(fs.stat(join(root, report)).mtimeMs / 1000); } catch { return none; }
   const committed = Number(tryGit(root, ['show', '-s', '--format=%ct', head]).stdout);
   if (!Number.isFinite(committed) || modified < committed) return none;
   const read = junitCases(xml);
