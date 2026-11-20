@@ -290,6 +290,12 @@ An existing review reservation is offered back to its holder before a fresh buil
 
 For HTTP `next`, a review offer returns success with `event: null`, `offer` and the ordinary CLI `result`. Send `args.build: true` to claim as before and receive the actual claim event. The unattended `run` command always supplies explicit build intent, records it on fresh claims, and prints the review backlog each iteration.
 
+## Suites by folder
+
+`affectedSuites` in `pullboard.json` is for a repo with more than one language. It maps a folder glob to the test suite that covers it, such as `{"api/**": "api/tests", "web/**": "web/tests"}`. It needs the project `affectedTests` runner, and the config check refuses it without one.
+
+For each changed path, the gate runs the suites of every glob that covers it, once each. A path no glob covers, an unreadable glob or no changed path at all selects the full gate, and the reason names the path or glob. The key replaces import-graph selection; without it nothing changes.
+
 ## Board health
 
 `pullboard health` scans the board read-only and lists every stuck item with its cause, since when, the one next step and who takes it. It opens the board through a read-only connection, records no event, skips relay sync and asks git only `merge-tree`, which never touches a HEAD, index or working tree. It exits 0 when nothing is stuck and 1 when something is; the text form then prints `nothing is stuck`, or one line per finding: `#12 claim lapsed, since 2026-10-17 10:00 (2h): web-3's lease ran out and nobody is building it. Next, web-3 (builder): renew it with pullboard claim 12.`
