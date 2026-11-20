@@ -1,5 +1,5 @@
 {
-  "note": "CD31, CD32: the kernel holds only ids, errors, registries and the plugin shape. This list may only shrink; a file not on it fails packages/kernel/tests/allowlist.test.js. this list is born at main's measured state; logic/config-file.js is folded into browser.js so the browser door loads one module less (#7782). logic/failure/diagnostics.js (f1e5287506), logic/scratch-base.js (5a75339bd5, cells below config read the scratch root) and logic/sleep.js (b279e70614, the one sync sleep entry point) were added on purpose by those landed commits (#7636).",
+  "note": "CD31, CD32: the kernel holds only ids, errors, registries and the plugin shape. This list may only shrink; a file not on it fails packages/kernel/tests/allowlist.test.js. this list is born at main's measured state; logic/config-file.js is folded into browser.js so the browser door loads one module less (#7782). logic/failure/diagnostics.js (f1e5287506), logic/scratch-base.js (5a75339bd5, cells below config read the scratch root), logic/sleep.js (b279e70614, the one sync sleep entry point) and logic/transient.js (fd3b0d576d, #3779, the one transient code set for retry sites) were added on purpose by those landed commits (#7636, #3779).",
   "files": [
     "logic/adapter.js",
     "logic/audit.js",
@@ -19,6 +19,7 @@
     "logic/scratch-base.js",
     "logic/seal.js",
     "logic/sleep.js",
+    "logic/transient.js",
     "logic/words.js"
   ]
 }

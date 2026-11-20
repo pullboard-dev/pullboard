@@ -1,8 +1,8 @@
 /** @pullboard-module-loads packages/gate/src/logic/selection-unit.js */
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
 import { isSourceCellLine } from './inputs.js';
@@ -35,6 +35,9 @@ import {
 } from '../../../../codemap/index.js';
 import { newPackageCliReach } from '../../logic/reach.js';
 import { newKeylessImports } from '../../logic/reach.js';
+
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -185,7 +188,7 @@ function readCommittedSources(root, wanted) {
   const sources = new Map();
   for (const [hash, path] of wanted) {
     try {
-      const bytes = readFileSync(join(root, path));
+      const bytes = disk.readFile(join(root, path), null);
       const algorithm = hash.length === 64 ? 'sha256' : 'sha1';
       const actual = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
       if (actual === hash) sources.set(hash, bytes.toString('utf8'));

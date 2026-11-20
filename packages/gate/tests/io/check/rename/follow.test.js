@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
-import { followRenames } from '../../../../index.js';
+import { followRenames } from '../../../../heavy.js';
 
 const BODY = "import { test } from 'node:test';\ntest('x', () => {});\n// padding so git sees the same file after a move\n".repeat(3);
 
