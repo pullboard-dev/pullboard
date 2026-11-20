@@ -9,8 +9,7 @@
  * defined, so they never count, and neither does a comment. Every .css file under apps/ is
  * read; docs/demo/view.css is a generated copy and is not. One problem per size, at its line.
  */
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -73,7 +72,7 @@ export function uiSizeCounts(root) {
 }
 
 // Parse only this executable entrypoint; importing the scanner never consumes a caller's flags.
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && fileSystemAdapter().exists(process.argv[1]) && fileSystemAdapter().realpath(process.argv[1]) === fileSystemAdapter().realpath(fileURLToPath(import.meta.url))) {
   const { values, positionals } = parseArgs({ options: { counts: { type: 'boolean' } }, allowPositionals: true });
   if (positionals.length > 1) throw new Error('usage: ui-sizes.js [root] [--counts]');
   if (values.counts) process.stdout.write(`${JSON.stringify(uiSizeCounts(resolve(positionals[0] ?? process.cwd())))}\n`);

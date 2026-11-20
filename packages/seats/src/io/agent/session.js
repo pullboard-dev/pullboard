@@ -3,16 +3,6 @@ import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
   resolve,
@@ -24,6 +14,8 @@ import {
 import { Refused } from '../../../../kernel/index.js';
 import { environmentAdapter } from '../../../../env/index.js';
 import { checkoutSessionFile } from './binding.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 export { checkoutSessionFile } from './binding.js';
 
 /**
@@ -47,27 +39,27 @@ function takeoverIntentFile(info) {
 
 /** Remove a takeover's intent once it ends. */
 function removeTakeoverIntent(info) {
-  try { unlinkSync(takeoverIntentFile(info)); } catch { /* No intent left: nothing to remove. */ }
+  try { fileSystem.unlink(takeoverIntentFile(info)); } catch { /* No intent left: nothing to remove. */ }
 }
 
 /** Whether a parent command's inherited token names a writer record still present in this checkout. */
 function liveWriterToken(info, token) {
-  return typeof token === 'string' && /^[a-f0-9-]{36}$/u.test(token) && existsSync(join(checkoutWritersDirectory(info), token + '.json'));
+  return typeof token === 'string' && /^[a-f0-9-]{36}$/u.test(token) && fileSystem.exists(join(checkoutWritersDirectory(info), token + '.json'));
 }
 
 /** Record this process as an active writer of the checkout; the record is the token its children inherit. */
 function writeWriterRecord(info) {
   const directory = checkoutWritersDirectory(info);
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
   const token = randomUUID();
   const file = join(directory, token + '.json');
-  writeFileSync(file, JSON.stringify({ version: 1, pid: process.pid, at: Date.now() }) + '\n', { flag: 'wx', mode: 0o600 });
+  fileSystem.writeFile(file, JSON.stringify({ version: 1, pid: process.pid, at: Date.now() }) + '\n', { flag: 'wx', mode: 0o600 });
   return { token, file };
 }
 
 /** Remove a writer record; a record already gone needs nothing. */
 function removeWriterRecord(record) {
-  try { unlinkSync(record.file); } catch { /* Gone already: a takeover reclaimed it, or the folder was removed. */ }
+  try { fileSystem.unlink(record.file); } catch { /* Gone already: a takeover reclaimed it, or the folder was removed. */ }
 }
 
 /** When a process started, in epoch ms, or null when the OS cannot say (gone, or no ps). */
@@ -89,18 +81,18 @@ function processStartedAt(pid) {
 export async function liveCheckoutWriters(info) {
   const directory = checkoutWritersDirectory(info);
   let names;
-  try { names = readdirSync(directory).filter((name) => /^[a-f0-9-]{36}\.json$/u.test(name)); } catch { return []; }
+  try { names = fileSystem.list(directory).filter((name) => /^[a-f0-9-]{36}\.json$/u.test(name)); } catch { return []; }
   const live = [];
   for (const name of names) {
     const file = join(directory, name);
     let record = null;
-    try { record = JSON.parse(readFileSync(file, 'utf8')); } catch { /* A record being written or removed reads as nothing. */ }
+    try { record = JSON.parse(fileSystem.readFile(file, 'utf8')); } catch { /* A record being written or removed reads as nothing. */ }
     if (!Number.isSafeInteger(record?.pid) || !Number.isFinite(record?.at)) continue;
     let alive = true;
     try { process.kill(record.pid, 0); } catch (error) { alive = error.code === 'EPERM'; }
     const startedAt = alive ? await processStartedAt(record.pid) : null;
     // ps reports whole seconds, so a process that started within a second after the record is still its writer.
-    if (!alive || startedAt !== null && startedAt > record.at + 1_000) { try { unlinkSync(file); } catch { /* Gone already. */ } continue; }
+    if (!alive || startedAt !== null && startedAt > record.at + 1_000) { try { fileSystem.unlink(file); } catch { /* Gone already. */ } continue; }
     live.push({ ...record, file });
   }
   return live;
@@ -118,7 +110,7 @@ function enterBoundSession(info, file, agent, digest) {
   try { record = writeWriterRecord(info); } catch { return null; }
   try {
     const current = readBinding(file, false);
-    if (current?.agent === agent && current.digest === digest && !existsSync(takeoverIntentFile(info))) return record;
+    if (current?.agent === agent && current.digest === digest && !fileSystem.exists(takeoverIntentFile(info))) return record;
   } catch { /* An unreadable binding refuses on the leased path, with its own next step. */ }
   removeWriterRecord(record);
   return null;
@@ -171,9 +163,9 @@ async function checkoutLease(info, name, agent, waitLimitMs) {
 
 /** Read only a digest and local agent identity; damaged bindings need an explicit takeover. */
 function readBinding(file, takeover) {
-  if (!existsSync(file)) return null;
+  if (!fileSystem.exists(file)) return null;
   try {
-    const value = JSON.parse(readFileSync(file, 'utf8'));
+    const value = JSON.parse(fileSystem.readFile(file, 'utf8'));
     if (value.version !== 1 || typeof value.agent !== 'string' || !/^[a-f0-9]{64}$/.test(value.digest) || !Number.isFinite(Date.parse(value.at))) throw new Error('invalid binding');
     return value;
   } catch {
@@ -204,8 +196,8 @@ export async function bindLocalSession(info, { agent, digest, takeover = false, 
   /** Atomically replace the complete local record, keeping identifiers out of durable state. */
   function persist(identity) {
     const pending = file + '.' + process.pid + '.tmp';
-    writeFileSync(pending, JSON.stringify({ version: 1, agent: identity, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
-    renameSync(pending, file);
+    fileSystem.writeFile(pending, JSON.stringify({ version: 1, agent: identity, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
+    fileSystem.rename(pending, file);
   }
   if (keepLease && !takeover) {
     const record = enterBoundSession(info, file, agent, digest);
@@ -225,7 +217,7 @@ export async function bindLocalSession(info, { agent, digest, takeover = false, 
     }
     // A takeover by another session waits for that session's writes in flight; new ones queue on the lease behind it.
     if (takeover && !(previous?.digest === digest && previous?.agent === agent)) {
-      writeFileSync(takeoverIntentFile(info), JSON.stringify({ version: 1, pid: process.pid, at: Date.now() }) + '\n', { mode: 0o600 });
+      fileSystem.writeFile(takeoverIntentFile(info), JSON.stringify({ version: 1, pid: process.pid, at: Date.now() }) + '\n', { mode: 0o600 });
       intent = true;
       await drainCheckoutWriters(info);
     }
@@ -306,18 +298,18 @@ export async function adoptLocalSession(info, { agent, digest, from }) {
         'claim the item again; the claim adopts the folder only once its previous session has ended');
     }
     const pending = file + '.' + process.pid + '.tmp';
-    writeFileSync(pending, JSON.stringify({ version: 1, agent, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
-    renameSync(pending, file);
+    fileSystem.writeFile(pending, JSON.stringify({ version: 1, agent, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
+    fileSystem.rename(pending, file);
   } finally { lease.release(); }
 }
 
 /** Find this session's registered seats from local Git bindings, never from shared board credentials. */
 export function localSessionSeats(info, { agents, digest }) {
   const directory = join(info.commonDir, 'worktrees');
-  if (!existsSync(directory)) return [];
+  if (!fileSystem.exists(directory)) return [];
   const registered = new Map(agents.map((agent) => [agent.agent_id, agent]));
   const seats = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  for (const entry of fileSystem.list(directory, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const gitDir = join(directory, entry.name);
     try {
@@ -325,10 +317,10 @@ export function localSessionSeats(info, { agents, digest }) {
       if (!binding || binding.digest !== digest) continue;
       const agent = registered.get(binding.agent);
       if (!agent || agent.agent_lane === 'coordinator') continue;
-      const gitFile = readFileSync(join(gitDir, 'gitdir'), 'utf8').trim();
-      const root = realpathSync(dirname(gitFile));
+      const gitFile = fileSystem.readFile(join(gitDir, 'gitdir'), 'utf8').trim();
+      const root = fileSystem.realpath(dirname(gitFile));
       if (root !== agent.agent_path) continue;
-      const pointer = readFileSync(gitFile, 'utf8').trim();
+      const pointer = fileSystem.readFile(gitFile, 'utf8').trim();
       if (!pointer.startsWith('gitdir: ') || resolve(root, pointer.slice(8)) !== resolve(gitDir)) continue;
       seats.push(agent);
     } catch (error) {
@@ -353,8 +345,8 @@ export function parentSessionFile(info) {
 export function recordParentSession(info, { parent, digest }) {
   const file = parentSessionFile(info);
   const pending = file + '.' + process.pid + '.tmp';
-  writeFileSync(pending, JSON.stringify({ version: 1, parent, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
-  renameSync(pending, file);
+  fileSystem.writeFile(pending, JSON.stringify({ version: 1, parent, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
+  fileSystem.rename(pending, file);
 }
 
 /** Record the parent of a just-made helper seat; a note that cannot be written never undoes the seat. */
@@ -365,13 +357,13 @@ export function noteHelperParent(info, link) {
 /** Walk the board's linked checkouts and hand each registered agent's Git directory to visit. */
 function eachSeatGitDir(info, agents, visit) {
   const directory = join(info.commonDir, 'worktrees');
-  if (!existsSync(directory)) return;
+  if (!fileSystem.exists(directory)) return;
   const registered = new Map(agents.filter((agent) => agent.agent_lane !== 'coordinator').map((agent) => [agent.agent_path, agent]));
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  for (const entry of fileSystem.list(directory, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const gitDir = join(directory, entry.name);
     try {
-      const agent = registered.get(realpathSync(dirname(readFileSync(join(gitDir, 'gitdir'), 'utf8').trim())));
+      const agent = registered.get(fileSystem.realpath(dirname(fileSystem.readFile(join(gitDir, 'gitdir'), 'utf8').trim())));
       if (agent) visit(agent, gitDir);
     } catch { /* A gone or half-removed checkout is not a seat to list. */ }
   }
@@ -387,7 +379,7 @@ export function seatLinks(info, agents) {
   eachSeatGitDir(info, agents, (agent, gitDir) => {
     for (const [name, field, into] of [['pullboard-parent-session.json', 'parent', parents], ['pullboard-checkout-session.json', 'digest', digests]]) {
       try {
-        const value = JSON.parse(readFileSync(join(gitDir, name), 'utf8'));
+        const value = JSON.parse(fileSystem.readFile(join(gitDir, name), 'utf8'));
         if (value.version === 1 && typeof value[field] === 'string') into.set(agent.agent_id, value[field]);
       } catch { /* No record, or a damaged one: no link. */ }
     }

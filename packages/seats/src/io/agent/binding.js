@@ -1,6 +1,7 @@
 /** A checkout's local session binding file, read without the lease machinery, so a commit hook can check it cheaply [B3,B7]. */
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Keep each worktree's binding in its own Git directory rather than the shared common directory. */
 export function checkoutSessionFile(info) {
@@ -13,7 +14,7 @@ export function checkoutSessionFile(info) {
  */
 export function sessionBound(info, { agent, digest }) {
   try {
-    const value = JSON.parse(readFileSync(checkoutSessionFile(info), 'utf8'));
+    const value = JSON.parse(fileSystem.readFile(checkoutSessionFile(info), 'utf8'));
     return value.version === 1 && value.agent === agent && value.digest === digest;
   } catch { return false; }
 }

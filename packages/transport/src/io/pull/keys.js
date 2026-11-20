@@ -1,11 +1,9 @@
 /** The board's runner key book: a board command issues a key to a named runner and revokes it again [C7]. */
 import { generateKeyPairSync } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const disk = fileSystemAdapter();
 
 /** The file, inside the board folder, that holds the public keys the board trusts, one per runner, and the runner names it revoked. */
 export const RUNNER_KEYS_FILE = 'runner-keys.json';
@@ -17,20 +15,20 @@ const refuse = (code, message, next) => Object.assign(new Error(message), { code
 /** The saved book, or an empty one when none was saved yet or the file cannot be read as JSON. */
 function load(folder) {
   const path = join(folder, RUNNER_KEYS_FILE);
-  if (!existsSync(path)) return { keys: [], revoked: [] };
+  if (!disk.exists(path)) return { keys: [], revoked: [] };
   try {
-    const book = JSON.parse(readFileSync(path, 'utf8'));
+    const book = JSON.parse(disk.readFile(path, 'utf8'));
     return { keys: Array.isArray(book.keys) ? book.keys : [], revoked: Array.isArray(book.revoked) ? book.revoked : [] };
   } catch { return { keys: [], revoked: [] }; }
 }
 
 /** Replace the saved book whole by rename, so a crash never leaves half a file. */
 function save(folder, book) {
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  disk.mkdir(folder, { recursive: true, mode: 0o700 });
   const path = join(folder, RUNNER_KEYS_FILE);
   const next = `${path}.${process.pid}.tmp`;
-  writeFileSync(next, JSON.stringify(book), { mode: 0o600 });
-  renameSync(next, path);
+  disk.writeFile(next, JSON.stringify(book), { mode: 0o600 });
+  disk.rename(next, path);
 }
 
 /**

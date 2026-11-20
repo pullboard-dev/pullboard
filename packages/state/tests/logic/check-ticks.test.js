@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { clauseInspectionProblem } from '../../index.js';
+import { checkRunTickNotes } from '../../index.js';
 import { gateClauseTickNotes } from '../../index.js';
 
 const HEAD = 'a'.repeat(40);
@@ -35,4 +36,15 @@ test('state.logic-check-ticks.clause-2-submit-refuses-no-clause-naming: clause 2
 test('state.logic-check-ticks.clause-2-an-item-with-no-test-file-check: clause 2: an item with no test-file check leaves its [test] clause for a fact [C7]', () => {
   const problem = clauseInspectionProblem(item('1. the count shows [test]', { item_check: 'test ! -e src/x.js' }), [], { gateFiles: new Set(), head: HEAD });
   assert.equal(problem?.code, 'CLAUSE_UNTICKED');
+});
+
+test('state.logic-check-ticks.command-clause-ticked: clause 1: a green check run ticks each [command] clause with a note citing the check and the head [C7]', () => {
+  const notes = checkRunTickNotes(item('1. the count shows [test]\n2. git grep -n thing src/x.js shows it [command]'), HEAD);
+  assert.deepEqual(notes, [`clause 1 [test]: green pullboard check run of node --test ${FILE} at ${HEAD}`, `clause 2 [command]: green pullboard check run of node --test ${FILE} at ${HEAD}`]);
+});
+
+test('state.logic-check-ticks.measurement-and-reasoning-untouched: clause 2: a check run ticks no [measurement] or [reasoning] clause, and an item with an empty check ticks none [C7]', () => {
+  const bar = '1. it loads under 2 s [measurement]\n2. the rule is sound [reasoning]\n3. the file exists [command]';
+  assert.deepEqual(checkRunTickNotes(item(bar), HEAD), [`clause 3 [command]: green pullboard check run of node --test ${FILE} at ${HEAD}`]);
+  assert.deepEqual(checkRunTickNotes(item(bar, { item_check: '' }), HEAD), []);
 });

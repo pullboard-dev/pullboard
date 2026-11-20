@@ -9,6 +9,8 @@ import {
 } from "../../logic/exit/rules/continuation.js";
 import { pendingSubmitHandoff } from "../submit/handoff/records.js";
 import { submitHandoff } from "../submit/handoff/records.js";
+import { afterGateIds } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
 import { firstRefusal } from "../../logic/board/item/lookup.js";
 import { builderFamilyOf } from "../../../../verify/index.js";
 import { familiesDiffer } from "../../../../verify/index.js";
@@ -422,7 +424,9 @@ export function nextFor(board, options) {
     if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
+      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn'
+        // An after-gate parent that is submitted with a green gate at its head no longer holds its dependent back [C7,#11805].
+        && !(afterGateIds(board, entry.item_id).includes(before.item_id) && gateGreenParent(board, before.item_id)));
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { skip(entry, continuation.code); reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
