@@ -38,6 +38,7 @@ import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
 import { contentionScores } from "../../../../items/index.js";
+import { largestDisjointWave } from "../../../../items/index.js";
 import { orderByContention } from "../../../../items/index.js";
 import { itemCollisionPlan } from "../../../../items/index.js";
 import { firstRefusalReason } from "../../../../items/index.js";
@@ -393,6 +394,13 @@ export function nextFor(board, options) {
     const alone = ({ entry, reworkRouting }) => urgent.has(entry.item_id) || redUnowned.has(entry.item_id) || parked.has(entry.item_id) || Boolean(reworkRouting?.rejection) || rejectedFirstEnabled(board) && isReturned(board, entry);
     orderByContention(mine, candidate => alone(candidate) ? `#${candidate.entry.item_id}` : `${tier(candidate.entry)}|${position(candidate.entry)}|${focus?.ids.has(candidate.entry.item_id)}`, hot);
   }
+  // queue.contention: of the ready items no claimed or submitted item shares a file with, only the largest disjoint wave is offered [C7,#1440].
+  const ready = hot ? mine.map(({ entry }) => entry).filter(entry => hot.get(entry.item_id).score < contention.threshold
+    && itemDependencies.localDependencyIds(entry).every(id => ['verified', 'withdrawn'].includes(current(board, itemById(board, id)).item_status))
+    && !itemFileCollisions(entry, inFlight).length) : [];
+  const wave = hot ? new Set(largestDisjointWave(ready)) : null;
+  const waveFiles = wave ? new Set(ready.filter(entry => wave.has(entry.item_id)).flatMap(entry => itemFiles(entry))) : null;
+  const readyIds = new Set(ready.map(entry => entry.item_id));
   const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
@@ -419,6 +427,10 @@ export function nextFor(board, options) {
     if (hot && hot.get(entry.item_id).score >= contention.threshold) {
       const { file, score } = hot.get(entry.item_id);
       skip(entry, 'CONTENTION'); reasons.push(`#${entry.item_id} waits on ${file}: contention ${score} reaches ${contention.threshold}; changes in flight on it land first`); continue;
+    }
+    if (wave && readyIds.has(entry.item_id) && !wave.has(entry.item_id)) {
+      const file = itemFiles(entry).find(path => waveFiles.has(path));
+      skip(entry, 'WAVE'); reasons.push(`#${entry.item_id} waits on ${file}: it shares the file with an item in this wave of disjoint work`); continue;
     }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];

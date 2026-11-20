@@ -192,7 +192,7 @@ export async function run(io, { first, second, values }) {
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, composeLanding: ctx.config.slices?.composeLanding === true, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
     return {};
   };
   let announced = false;
