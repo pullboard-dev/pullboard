@@ -84,7 +84,8 @@ export function tapFailureDiagnostics(output, root, digest) {
     // nested run's TAP; it is part of that failure, never a second failure or the end of this one (#2064).
     const embedded = active && !active.done && line.startsWith(' '.repeat(active.indent));
     if (start && !embedded) {
-      active = { name: start[2].replace(/\s+#.*$/u, ''), indent: start[1].length + 2, lines: [], all: [] };
+      // Strip the TAP directive on the raw line, then undo Node's TAP escapes (\# and \\) so the name matches the case.
+      active = { name: start[2].replace(/\s+#.*$/u, '').replace(/\\([\\#])/gu, '$1'), indent: start[1].length + 2, lines: [], all: [] };
       rows.push(active); omitted = false; continue;
     }
     if (!embedded && /^\s*ok\s+\d+/u.test(line)) { active = null; continue; }

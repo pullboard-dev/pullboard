@@ -117,7 +117,7 @@ export function itemDetailReader({ withReadBoard, projectItemState, isMain, boar
     const source = store.getItem(currentBoard, id);
     const base = projectItemSpecApprovals(projectItemState(currentBoard, source, status), approval);
     // The projector owns this transaction's connection; only derived values cross requests.
-    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled?.() === true }).state(source);
+    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled?.() === true, residualConflicts: store.mechanicalConflictFiles }).state(source);
     const projected = {
       ...base,
       ...(verdictState ? { verdictState } : {}),

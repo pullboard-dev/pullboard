@@ -21,7 +21,7 @@ import {
   openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('clause 1: a spec revision shows old and proposed rows side by side with proposal-id actions [P6,B23,N39]', { timeout: 120_000 }, async () => {
+test('cli.journeys-spec-revision.a-spec-revision-shows-old-and: clause 1: a spec revision shows old and proposed rows side by side with proposal-id actions [P6,B23,N39]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the phone and desktop revision actions.');
   const box = machine();

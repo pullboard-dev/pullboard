@@ -18,8 +18,8 @@ import { fileURLToPath } from 'node:url';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runnerPhaseFields } from '../../../../../packages/gate/index.js';
-import { replayChangedTables } from '../../../../../packages/gate/index.js';
+import { runnerPhaseFields } from '../../../../../packages/gate/heavy.js';
+import { replayChangedTables } from '../../../../../packages/gate/heavy.js';
 import { replayReport } from '../../../../../packages/moves/index.js';
 import { boardFilePath } from '../../../../../packages/store/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
@@ -94,7 +94,7 @@ process.exitCode = status;
  * Why namespace imports: an accepted main that predates an optional export still links (the cells inventory transfer included, so this change can bootstrap), and the step says what it lacks.
  */
 export const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
-import * as gate from './packages/gate/index.js';
+import * as gate from './packages/gate/heavy.js';
 import * as landing from './packages/landing/index.js';
 import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import { spawn } from 'node:child_process';
@@ -251,7 +251,7 @@ try {
   if (selected('selection')) await part('selection', async () => {
     result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
     if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
-      { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
+      { allowBrowserFreeChecks: input.browserFreeChecks, needs: input.needs ?? [], onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
   });
   if (doctrineRun) result.doctrine = await part('doctrine', async () => {
     const held = await doctrineRun;
@@ -440,7 +440,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const cutRows = readCutItems();
   const doctrine = request.doctrine ?? null;
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
-  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
+  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '', ...(request.needs?.length ? { needs: request.needs } : {}),
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
     inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, ...(loadMachineSettings().gate?.knownMainStatic === true ? { knownMainStatic: true } : {}), crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization, trunkRemote: request.trunkRemote ?? trunkRemote(root) ?? '' } : {}) };
   let step;

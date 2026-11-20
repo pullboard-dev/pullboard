@@ -3,6 +3,7 @@ import { engineNumber } from './src/logic/engine/number.js';
 /** Pure state source classification, without loading the native board [C7]. */
 export const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 export { correctedBar } from "./src/logic/bar.js";
+export { isRecordedConflictContext } from "./src/logic/recorded/context.js";
 export { engineAtLeast } from "./src/logic/engine/minimum.js";
 export { MACHINE } from "./src/logic/machine/declaration.js";
 export const ACCEPTED_RELAND_ENGINE = engineNumber('ACCEPTED_RELAND_ENGINE');
