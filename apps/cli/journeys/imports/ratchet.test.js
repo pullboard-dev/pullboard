@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shimImportProblems } from '../../../../packages/codemap/index.js';
 import { stagedShimImportProblems } from '../../../../packages/codemap/index.js';
-import { importsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixturePolicy } from '../../tests/fixtures/testkit.js';
@@ -27,7 +27,7 @@ function problems({ before = '', after, extra = new Map(), criterion = '', file 
     changes: [{ file, before, after }] });
 }
 
-test('new shim imports name the front door; unchanged imports and new front-door imports pass [C7,CD64]', () => {
+test('cli.journeys-imports-ratchet.new-shim-imports-name-the-front: new shim imports name the front door; unchanged imports and new front-door imports pass [C7,CD64]', () => {
   const old = "import { git } from './git.js';\n";
   assert.match(problems({ after: old })[0], /src\/use.js:1:.*src\/git.js.*packages\/git\/index.js/u);
   assert.deepEqual(problems({ before: old, after: old + 'export const value = git;\n' }), []);
@@ -37,7 +37,7 @@ test('new shim imports name the front door; unchanged imports and new front-door
   assert.equal(problems({ before: "import './git.js';\n", after: "import './git.js';\nimport './git.js';\n" }).length, 1);
 });
 
-test('actual module syntax is checked without counting quoted examples or comments [C7,CD64]', () => {
+test('cli.journeys-imports-ratchet.actual-module-syntax-is-checked-without: actual module syntax is checked without counting quoted examples or comments [C7,CD64]', () => {
   assert.deepEqual(problems({ after: `const text = "import { git } from './git.js';";\n// import './git.js';\n` }), []);
   assert.equal(problems({ after: "import {\n git\n} from './git.js';\n" }).length, 1);
   assert.equal(problems({ after: "export { git } from './git.js';\n" }).length, 1);
@@ -48,7 +48,7 @@ test('actual module syntax is checked without counting quoted examples or commen
   assert.equal(problems({ after: "import { git } from '#old';\n", extra: manifest }).length, 1);
 });
 
-test('only the exact finite temporary edge named by the frozen bar passes [C7,CD64]', () => {
+test('cli.journeys-imports-ratchet.only-the-exact-finite-temporary-edge: only the exact finite temporary edge named by the frozen bar passes [C7,CD64]', () => {
   const metadata = edge => new Map([['packages/codemap/data/plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [edge] })]]);
   const edge = { importer: 'src/use.js', target: 'src/git.js', contractItem: 123, expires: '2099-01-01' };
   const after = "import { git } from './git.js';\n";
@@ -58,7 +58,7 @@ test('only the exact finite temporary edge named by the frozen bar passes [C7,CD
   assert.equal(problems({ after, extra: metadata({ ...edge, target: 'src/other.js' }), criterion: 'src/use.js -> src/git.js' }).length, 1);
 });
 
-test('the staged reader ignores unstaged fixes and retains imports already accepted on main [C7,CD64]', () => {
+test('cli.journeys-imports-ratchet.the-staged-reader-ignores-unstaged-fixes: the staged reader ignores unstaged fixes and retains imports already accepted on main [C7,CD64]', () => {
   const old = "import { git } from './git.js';\n";
   const snapshots = new Map([
     ['HEAD', new Map([...FILES, ['packages/codemap/data/plan/cells.json', JSON.stringify(PLAN)]])],
@@ -70,7 +70,7 @@ test('the staged reader ignores unstaged fixes and retains imports already accep
   assert.deepEqual(stagedShimImportProblems({ paths: ['src/use.js'], read, accepted: 'accepted', parseImports: importsIn }), []);
 });
 
-test('the actual native pre-commit refuses staged shim imports and accepts the front door [C7,CD64]', async t => {
+test('cli.journeys-imports-ratchet.the-actual-native-pre-commit-refuses: the actual native pre-commit refuses staged shim imports and accepts the front door [C7,CD64]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

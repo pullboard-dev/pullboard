@@ -16,6 +16,8 @@ const AT = Date.parse('2026-11-15T12:00:00.000Z');
 function claimable(t, shadow) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.claim on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { claim: false };
   cellSeat(board, { lane: 'coordinator', path: '/seat/coordinator' });
   const seat = cellSeat(board, { lane: 'core', path: '/seat/builder' });
   const { item_id: id } = cellItem(board, { lane: 'core', title: 'Shadowed claim', criterion: '1. the claim is recorded [test].', route: 'strong', check: 'true' });

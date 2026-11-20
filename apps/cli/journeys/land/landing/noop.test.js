@@ -6,7 +6,7 @@ import {
   test,
 } from 'node:test';
 import * as store from "../../../../../packages/store/src/io/board.js";
-import { openCellBoard as openBoard } from "../../../../../packages/store/tests/fixtures/cell.js";
+import { openCellBoard as openBoard } from "../../../../../packages/board/tests/fixtures/cell-board.js";
 import { createE2eHelpers } from "../../../tests/fixtures/e2e.js";
 import { landJobs } from "../../../tests/fixtures/land/board.js";
 import { settleLand } from "../../../tests/fixtures/land/settle.js";
@@ -21,7 +21,7 @@ function onBoard(box, work) {
 }
 
 // A plain `land` offers a runner land job; an idle one offers nothing and takes no lease [E25].
-test('an idle empty land takes no lease and writes no event [E25,E26,B3]', async () => {
+test('cli.journeys-land-landing-noop.an-idle-empty-land-takes-no: an idle empty land takes no lease and writes no event [E25,E26,B3]', async () => {
   const box = helpers.project('true');
   const before = onBoard(box, board => ({ events: store.events(board), lease: store.landingLeaseState(board) }));
   const head = box.git(box.repo, 'rev-parse', 'HEAD');

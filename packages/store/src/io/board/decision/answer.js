@@ -17,17 +17,19 @@ import { requestAnswerRefusal } from "../../../../../state/index.js";
 import { tellAnswerImplications } from "../../../../../state/index.js";
 import { insertShout } from "../shout.js";
 import { persistShout } from "../shout.js";
+import { TYPED_REQUEST_CAUSES } from "../../requests.js";
 
 /**
  * Answer an open decision addressed to the caller, delivering passed-up answers to the asker (B27).
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean, channel?: 'terminal' | 'view', implies?: number[], supersedes?: number | null, impliesId?: string, origin?: string, rationale?: string }} options - implies and supersedes tell items (B29,B31); origin and rationale record where the decision came from (N29)
+ * @param {{ agentId: string, text: string, lanes: string[], asPerson?: boolean, channel?: 'terminal' | 'view', implies?: number[], supersedes?: number | null, impliesId?: string, origin?: string, rationale?: string, cause?: string }} options - implies and supersedes tell items (B29,B31); origin and rationale record where the decision came from (N29); cause is one key of TYPED_REQUEST_CAUSES
  * @returns {number}
  */
-export function answerDecision(board, id, { agentId, text, lanes, asPerson = false, channel = 'terminal', implies, supersedes = null, impliesId, origin, rationale }) {
+export function answerDecision(board, id, { agentId, text, lanes, asPerson = false, channel = 'terminal', implies, supersedes = null, impliesId, origin, rationale, cause }) {
   return atomic(board, () => {
+    if (cause !== undefined && !TYPED_REQUEST_CAUSES.includes(cause)) throw new Refused('RULING_CAUSE', `a ruling cause is one of ${TYPED_REQUEST_CAUSES.join(', ')}`);
     const ask = getShout(board, id);
     if (ask.shout_request) {
       if (asPerson || implies?.length || supersedes !== null) throw requestAnswerRefusal(id, { asPerson });
@@ -51,13 +53,28 @@ export function answerDecision(board, id, { agentId, text, lanes, asPerson = fal
     const from = personAnswer ? PERSON : agentId;
     const provenance = answerProvenance(board, { agentId, asPerson: personAnswer, text, origin, rationale });
     if (!personAnswer && leadOwnsDecision(board, ask, agentId)) insertShout(board, { from, to: COORDINATOR, text: `Lane decision #${id}: ${String(text).trim()}`, lanes, detail: { messageKind: 'decision' } });
-    const answerId = tellAnswerImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id, channel, ...(addressedItem === null ? {} : { item: addressedItem }), detail: { ...(implies?.length ? { implies } : {}), ...(supersedes !== null ? { supersedes } : {}), ...(provenance ? { provenance } : {}) } }), { seed: impliesId, implies, supersedes, from, person: PERSON });
+    const answerId = tellAnswerImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), insertShout(board, { from, to: ask.shout_from, text, lanes, answers: id, channel, ...(addressedItem === null ? {} : { item: addressedItem }), detail: { ...(implies?.length ? { implies } : {}), ...(supersedes !== null ? { supersedes } : {}), ...(provenance ? { provenance } : {}), ...(cause === undefined ? {} : { cause }) } }), { seed: impliesId, implies, supersedes, from, person: PERSON });
     if ((personAnswer || agentId === COORDINATOR && isLaneEscalation(board, ask)) && ask.shout_answers !== null) {
       const original = getShout(board, ask.shout_answers);
       insertShout(board, { from, to: original.shout_from, text: `${personAnswer ? 'Person' : 'Coordinator'} answered #${id}: ${String(text).trim()}`, lanes, answers: original.shout_id, channel, ...(shoutItemId(original.shout_to) === null ? {} : { item: shoutItemId(original.shout_to) }) });
     }
     return answerId;
   });
+}
+
+/**
+ * Every ruling recorded under one cause key, newest first: the answers answerDecision wrote with that cause (#1444).
+ *
+ * @param {any} board
+ * @param {string} cause - one key of TYPED_REQUEST_CAUSES
+ * @returns {{ shout: number, text: string, answerer: string, at: string }[]}
+ */
+export function rulingsByCause(board, cause) {
+  if (!TYPED_REQUEST_CAUSES.includes(cause)) throw new Refused("RULING_CAUSE", `a ruling cause is one of ${TYPED_REQUEST_CAUSES.join(", ")}`);
+  return board.db.prepare(`SELECT reply.shout_id AS shout, reply.shout_text AS text, reply.shout_from AS answerer, reply.shout_at AS at
+    FROM event JOIN shout reply ON reply.shout_id = json_extract(event.event_detail, '$.shout')
+    WHERE event.event_kind = 'answer' AND json_extract(event.event_detail, '$.cause') = ?
+    ORDER BY reply.shout_id DESC`).all(cause);
 }
 
 /** The item an open ask is about: the item it was addressed to, the item its decision record names, or the #id its text opens with. */

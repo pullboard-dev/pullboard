@@ -1,0 +1,28 @@
+{
+  "cli.io-submit-handoff-compose-on-runner.with-the-setting-on-submit-merges": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With submit.composeOnRunner on, submit runs no main merge, compose or trunk merge and queues the unmerged head."
+    },
+    "why": "Without it, the command would still merge before the runner composes, doing the work twice.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/handoff/compose-on-runner/merge.test.js"
+    ]
+  },
+  "cli.io-submit-handoff-compose-on-runner.with-the-setting-off-submit-merges-as": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With submit.composeOnRunner off, submit still merges main into the builder source as before."
+    },
+    "why": "Without it, a default-off setting could change every submit unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/handoff/compose-on-runner/merge.test.js"
+    ]
+  }
+}

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { LOAD_BEARING_CEILINGS } from '../../../index.js';
+import { LOAD_BEARING_CEILINGS } from '../../../heavy.js';
 import { changedStaticFailures } from '../../../heavy.js';
-import { loadBearingRaised } from '../../../index.js';
+import { loadBearingRaised } from '../../../heavy.js';
 
 const OLD = 'apps/lib/src/shell/sender.js';
 const MOVED = 'apps/cli/src/shell/sender.js';
@@ -42,7 +42,7 @@ function judgeMove(scratch, { source = SENDER, ceilings }) {
   return changedStaticFailures(scratch.root, [LOAD_BEARING_CEILINGS, MOVED], { staged: true, only: ['load-bearing'] });
 }
 
-test('a path moved in the same change inherits the old ceiling; a new path starts from zero [C7]', () => {
+test('gate.logic-load-bearing.a-path-moved-in-the: a path moved in the same change inherits the old ceiling; a new path starts from zero [C7]', () => {
   const accepted = { [OLD]: { detached: 1, unref: 1 } };
   assert.deepEqual(loadBearingRaised(accepted, { [MOVED]: { detached: 1, unref: 1 } }), [{ path: MOVED, kind: 'detached', from: 0, to: 1 }, { path: MOVED, kind: 'unref', from: 0, to: 1 }]);
   assert.deepEqual(loadBearingRaised(accepted, { [MOVED]: { detached: 1, unref: 1 } }, { [MOVED]: OLD }), []);
@@ -50,19 +50,19 @@ test('a path moved in the same change inherits the old ceiling; a new path start
   assert.equal(loadBearingRaised(accepted, { [OLD]: accepted[OLD], [MOVED]: { detached: 1 } }, { [MOVED]: OLD }).length, 1, 'a copied ceiling, with the old path still listed, is a raise');
 });
 
-test('a renamed file keeps its ceiling in the staged check [C7]', () => {
+test('gate.logic-load-bearing.a-renamed-file-keeps-its: a renamed file keeps its ceiling in the staged check [C7]', () => {
   const scratch = project();
   assert.deepEqual(judgeMove(scratch, { ceilings: { [MOVED]: { detached: 1, unref: 1 } } }), []);
 });
 
-test('a rename plus an increase is refused [C7]', () => {
+test('gate.logic-load-bearing.a-rename-plus-an-increase: a rename plus an increase is refused [C7]', () => {
   const scratch = project();
   const grown = judgeMove(scratch, { source: SENDER.replace('  child.unref();', '  child.unref();\n  child.unref();'), ceilings: { [MOVED]: { detached: 1, unref: 2 } } });
   assert.equal(grown.length, 1, grown.join('\n'));
   assert.match(grown[0], /load-bearing ceiling for apps\/cli\/src\/shell\/sender\.js unref rose from 1 to 2/u);
 });
 
-test('a new file that starts at one is refused [C7]', () => {
+test('gate.logic-load-bearing.a-new-file-that-starts: a new file that starts at one is refused [C7]', () => {
   const scratch = project();
   const fresh = 'apps/cli/src/shell/fresh.js';
   scratch.put(fresh, SENDER);

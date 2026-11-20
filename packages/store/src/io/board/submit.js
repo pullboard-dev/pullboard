@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { boardWriteSnapshot } from './write/preparation.js';
 import { builderFamilyProblem } from '../builder/family.js';
 import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../state/light.js';
@@ -16,6 +16,8 @@ import { clauseInspectionProblem } from '../../../../state/index.js';
 import { clauseInspectionSummary } from '../../../../state/index.js';
 import { clauseReceiptNotes } from '../../../../state/index.js';
 import { gateClauseTickNotes } from '../../../../state/index.js';
+import { clauseTicks } from '../../../../state/index.js';
+import { criterionClauses } from '../../../../state/index.js';
 import { testCaseTitles } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
@@ -74,6 +76,12 @@ import { FLOW_SIZE_ENGINE } from "../../../../state/light.js";
 import { submissionSize } from "../../../../state/light.js";
 import { moveItem } from "../board.js";
 import { sealClauseInspection } from './repository.js';
+import { sendBackDependents } from './item/after-gate.js';
+import { recordAfterGateRebuild } from './item/after-gate-report.js';
+import { reopen } from './reopen.js';
+import { release } from './release.js';
+
+const fs = fileSystemAdapter();
 export { sealClauseInspection };
 
 /** Seal rename evidence from exact Git objects and accepted sensitive-path policy before replication [V4,H16]. */
@@ -122,8 +130,33 @@ export function prepareSubmit(board, id, options) {
   const sealed = boardWriteSnapshot(board);
   if (sealed.version !== snapshot.version) requireBoardWriteSnapshot(board, snapshot, 'submit');
   const prepared = Object.freeze({ ...options });
-  PREPARED_SUBMITS.set(prepared, { board, id, snapshot: sealed });
+  PREPARED_SUBMITS.set(prepared, { board, id, snapshot: sealed, reads: submitReads(board, id, prepared) });
   return prepared;
+}
+
+/**
+ * The reads a submit takes that do not depend on its own write: the builder-family policy, the moves.shadow and
+ * moves.live settings, and the green proofs and committed case titles a native clause inspection reads.
+ * Why here: a submit preflight dry-runs the whole submit inside one rolled-back write, so every read in submit() held
+ * the board's one write lock (756 preflight holds, 3.5 M ms in #10713). Read with no lock held and bound to the
+ * prepared snapshot, so the writer still refuses a board that changed since (#10850) [C7].
+ */
+function submitReads(board, id, options) {
+  const { commit, policyCommit = null, clausePolicyCommit, submissionProof: proof, inspectClauses, titleTicks } = options;
+  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
+  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
+  // A replayed submit decides inspection from its recorded policy in submit(); only the native seal is known here.
+  const proofs = board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE && inspectClauses === true
+    ? inspectionReads(board, id, commit, proof, titleTicks === true) : null;
+  // The moves.shadow and moves.live.submit settings are file reads, so they are read here, before any write opens [C7,#8379,#8384].
+  return { familyPolicy, proofs, shadow: board.movesShadow ?? shadowSetting(), live: (board.movesLive?.submit ?? movesLiveEnabled('submit')) === true };
+}
+
+/** The green proofs of this exact commit and, with titleTicks, the case titles its proof files declare there. */
+function inspectionReads(board, id, commit, proof, titleTicks) {
+  return { greenFiles: greenProofFiles(board, id, commit), outcomes: greenProofOutcomes(board, id, commit),
+    cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [] };
 }
 
 /**
@@ -135,16 +168,15 @@ export function prepareSubmit(board, id, options) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
+ * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} options - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
-  requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
+  const { snapshot, reads } = PREPARED_SUBMITS.get(options);
+  requireBoardWriteSnapshot(board, snapshot, 'submit');
   const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, folderTicks: sealedFolderTicks, titleTicks: sealedTitleTicks, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
-  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
-  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
-    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
+  const { familyPolicy, shadow, live } = reads;
   let inspect = inspectClauses === true, folderTicks = sealedFolderTicks === true, titleTicks = sealedTitleTicks === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -167,12 +199,11 @@ export function submit(board, id, options) {
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
-  // The moves.shadow setting is a file read, so it is read here, before the write opens, and the commit compare is recorded under it [C7,#8379].
-  const shadow = board.movesShadow ?? shadowSetting();
-  // The moves.live.submit setting is read here too: with it on, the COMMIT table's event is the one logged [C7,#8384].
-  const live = (board.movesLive?.submit ?? movesLiveEnabled('submit')) === true;
+  const clauseInspection = (found, { greenFiles, outcomes, cases }) => clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles,
+    gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases, outcomes });
+  // shadow: the commit compare is recorded under moves.shadow; live: with moves.live.submit on, the COMMIT table's event is the one logged [C7,#8379,#8384].
   atomic(board, () => {
-    requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
+    requireBoardWriteSnapshot(board, snapshot, 'submit');
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
       if (!Array.isArray(strictRenames) || strictRenames.some(pair => !Array.isArray(pair) || pair.length !== 2 || !pair.every(path => typeof path === 'string' && path.length > 0))) throw new Refused('BAD_REVIEW_POLICY', 'invalid strict rename witness');
       if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
@@ -202,7 +233,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [], outcomes: greenProofOutcomes(board, id, commit) }) : null,
+          ? clauseInspection(found, reads.proofs ?? inspectionReads(board, id, commit, proof, titleTicks)) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -258,6 +289,8 @@ export function submit(board, id, options) {
     const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
     if (miss) logEvent(board, agentId, 'file_miss', id, miss);
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
+    // A parent resubmitted at a new head sends back each dependent built on the old one [C7,#11808].
+    sendBackDependents(board, id, { head: commit }, { reopen, release, appendFact, recordAfterGateRebuild });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
       if (gateGreen !== true || companion || recordedProof?.knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine acceptance needs an entirely green composed submission without companions or known reds');
@@ -312,6 +345,64 @@ function committedTitleCases(board, commit, files) {
     .flatMap(file => { const shown = tryGit(board.gitRoot, ['show', `${commit}:${file}`]); return shown.status === 0 ? testCaseTitles(file, shown.stdout) : []; });
 }
 
+/** A run id (UUID) holds hex groups a sha reader would take for commits, so it is cut from a tick before its shas are read. */
+const RUN_ID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gu;
+const CITED_SHA = /\b[0-9a-f]{7,40}\b/gu;
+/** The stable ID that opens a case title, such as `store.io-board-submit.some-case:`. */
+const CASE_ID = /^([a-z][a-z0-9]*(?:\.[a-z0-9][a-z0-9-]*)+):/u;
+
+/**
+ * One note per [test] clause (declared or undeclared) the holder has not ticked at `head` whose latest tick by an earlier
+ * author names gate-run test files that a green gate passed at `head` and that hold the same content at a commit the tick
+ * cites. The note names the gate run, the head, the earlier author and the cited commit, so the thread keeps which run
+ * proved the clause and which tick mapped it to its files. [command], [measurement], [reasoning] and [screenshot] clauses
+ * never carry. Why: a rework seat merges main and resubmits, the earlier holder's ticks cite older heads, a sharded gate's
+ * combined proof keeps no per-case outcomes, and accept refused CLAUSE_UNTICKED on a green gate (#9176, #11858) [C7].
+ *
+ * @param {object} board - The open board; board.gitRoot holds the cited commits.
+ * @param {object} item - The submitted item.
+ * @param {object[]} thread - The item's thread, oldest first.
+ * @param {{ gateFiles: Set<string>, outcomes?: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string }} run - Files the green gate ran, its per-case outcomes and the head it proved.
+ * @returns {string[]} Note texts for the item's thread.
+ */
+export function carriedClauseTickNotes(board, item, thread, { gateFiles, outcomes = [], head }) {
+  if (!board.gitRoot || !/^[0-9a-f]{7,64}$/u.test(String(head ?? ''))) return [];
+  const rows = Array.isArray(outcomes) ? outcomes.filter(row => row && typeof row.file === 'string' && typeof row.name === 'string') : [];
+  const criterion = item.item_criterion;
+  const held = clauseTicks(thread, item.item_owner, { criterion, head });
+  const latest = new Map();
+  for (const entry of thread) if (entry.type === 'fact' && entry.kind === 'note' && entry.by && entry.by !== item.item_owner) { latest.delete(entry.by); latest.set(entry.by, true); }
+  const authors = [...latest.keys()].reverse().map(author => ({ author, ticks: clauseTicks(thread, author, { criterion }) }));
+  const shown = new Map();
+  const content = (sha, file) => {
+    const key = `${sha}:${file}`;
+    if (!shown.has(key)) { const read = tryGit(board.gitRoot, ['show', key]); shown.set(key, read.status === 0 ? String(read.stdout) : null); }
+    return shown.get(key);
+  };
+  const notes = [];
+  for (const clause of criterionClauses(criterion)) {
+    if (held.has(clause.number) || (clause.kind !== null && clause.kind !== 'test')) continue;
+    for (const { author, ticks } of authors) {
+      const tick = ticks.get(clause.number);
+      if (tick?.kind !== 'test') continue;
+      const named = new Set([...gateFiles].filter(file => file && tick.evidence.includes(file)));
+      const cases = rows.filter(row => gateFiles.has(row.file) && tick.evidence.includes(CASE_ID.exec(row.name)?.[1] ?? '\0'));
+      for (const row of cases) named.add(row.file);
+      if (!named.size) continue;
+      const ran = rows.filter(row => named.has(row.file));
+      if (ran.some(row => !row.skipped && !row.passed) || cases.some(row => row.skipped || !row.passed)) continue;
+      if ([...named].some(file => ran.some(row => row.file === file) && !ran.some(row => row.file === file && row.passed && !row.skipped))) continue;
+      const cited = String(tick.evidence).toLowerCase().replace(RUN_ID, ' ').match(CITED_SHA) ?? [];
+      const sha = cited.find(one => [...named].every(file => { const before = content(one, file); return before !== null && before === content(head, file); }));
+      if (!sha) continue;
+      const files = [...named].sort().join(' ');
+      notes.push(`clause ${clause.number} [test]: gate run of ${files} green at ${String(head).slice(0, 12)}, carried from ${author}'s tick at ${sha.slice(0, 12)}; ${files} unchanged since ${sha.slice(0, 12)}`);
+      break;
+    }
+  }
+  return notes;
+}
+
 /**
  * The clause checklist notes a settled submission earns, as the inline submit appended them: a green gate's tick note
  * for each [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary. Why here: the
@@ -324,6 +415,7 @@ function committedTitleCases(board, commit, files) {
  */
 export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks = false, titleTicks = false }, append) {
   if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head, folderTicks, titleTicks })) append(text);
+  if (green) for (const text of carriedClauseTickNotes(board, getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head })) append(text);
   // The fail-before, pass-after receipt, stored once: the gate's green head rows against the recorded runs of the base commit [C7].
   const base = getItem(board, id).item_claim_head;
   if (green) for (const text of clauseReceiptNotes(getItem(board, id), itemThread(board, id), { gateFiles, baseRows: recordedBaseRows(board, base), outcomes, head, baseCommit: base })) append(text);
@@ -345,12 +437,25 @@ export function recordedBaseRows(board, base) {
   if (!/^[a-f0-9]{40}$/u.test(base ?? '') || !boardReceiptStore) return [];
   const store = boardReceiptStore(board);
   let names = [];
-  try { names = store ? readdirSync(store) : []; } catch { return []; }
+  try { names = store ? fs.list(store) : []; } catch { return []; }
+  const listed = new Set(names);
+  const known = MAIN_RED_ROWS.get(store) ?? new Map();
+  MAIN_RED_ROWS.set(store, known);
+  for (const name of known.keys()) if (!listed.has(name)) known.delete(name);
   return names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).flatMap(name => {
-    const receipt = readGateReceipt(store, name.slice(0, -5));
-    return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
+    if (!known.has(name)) {
+      const receipt = readGateReceipt(store, name.slice(0, -5));
+      // A receipt that did not read (still being written) is not remembered, so the next call reads it again.
+      if (!receipt) return [];
+      known.set(name, receipt.kind === 'main-red' && Array.isArray(receipt.testOutcomes) ? { head: receipt.head, testOutcomes: receipt.testOutcomes } : null);
+    }
+    const row = known.get(name);
+    return row && row.head === base ? row.testOutcomes : [];
   });
 }
+
+/** What recordedBaseRows kept of each receipt file already read, by receipt store path: null for a receipt that is not main-red. A receipt file never changes once written, so each is read once per process [C7]. */
+const MAIN_RED_ROWS = new Map();
 
 /**
  * Record the machine accept for a green pulled gate receipt on a submitted, machine-eligible item; false when the receipt

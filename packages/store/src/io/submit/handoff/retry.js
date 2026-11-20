@@ -29,6 +29,9 @@ import {
   logEvent,
 } from "../../board/event/log.js";
 import { release } from "../../board.js";
+import { moveItem } from "../../board.js";
+import { IN_STATE } from "../../../../../state/index.js";
+import { BOARD_RELEASE_CODES_ENGINE } from "../../../../../state/index.js";
 import { setItem } from "../../board.js";
 import {
   getItem,
@@ -36,6 +39,7 @@ import {
   proofReceipts,
 } from "../../board/query.js";
 import { Refused } from "../../../../../kernel/index.js";
+import { TRANSIENT_CODES } from "../../../../../kernel/index.js";
 import { runSubmitTable } from "../../../logic/board/landing/lease.js";
 
 /** Requeues of the same candidate after a spent gate infrastructure retry budget. */
@@ -61,7 +65,7 @@ export const RERUNNABLE_RUNNER_REFUSALS = Object.freeze(['RUNNER_SETUP_REFUSED',
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'GIT_READ_INFRASTRUCTURE', 'GATE_INFRA_EXHAUSTED',
   'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
-  'RUNNER_BUSY', ...RERUNNABLE_RUNNER_REFUSALS, 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
+  'RUNNER_BUSY', ...RERUNNABLE_RUNNER_REFUSALS, 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', ...TRANSIENT_CODES,
   'MERGE_CHECK_FAILED',
   // The remote analysis step returned nothing, or the resource lease vanished under the gate: machinery, not source (#3303).
   'RUNNER_RESULT_INVALID',
@@ -221,6 +225,42 @@ function writeQueueHandoff(board, id, options, decided = null) {
     const job = decided?.job ?? { version: 1, id: options.job, agentId: options.agentId, commit: options.commit,
       tree: options.tree, main: options.main, executionCommit: options.executionCommit, executionTree: options.executionTree, digest: options.digest, companionDigest: options.companionDigest, leaseMs: options.leaseMs, state: 'queued', at: now(board) };
     return { job: record(board, id, job), created: true };
+  });
+}
+
+/** Validate the newest main a recapture carries; the job and sender are bound to the saved record when the move is written. */
+function recaptured(options) {
+  if (!SHA.test(options?.main ?? '') || typeof options.agentId !== 'string' || typeof options.job !== 'string') {
+    throw new Refused('BAD_SUBMIT_HANDOFF', 'recapture a queued gate with its job, sender and the newest main commit');
+  }
+}
+
+/** Check a recapture's captured values before the board write opens; nothing is read from git or sealed here. */
+export function prepareRecaptureSubmitHandoff(board, id, options) {
+  recaptured(options);
+  return Object.freeze({ ...options });
+}
+
+/**
+ * Replace a queued gate's captured main with the newest main, and record the move.
+ * Why: main moves while a gate waits, and the held candidate then pinned a main its merge no longer contained, so the
+ * queue refused SUBMIT_HANDOFF_CHANGED instead of running on the main a runner would merge into (#9819, slice of #2987).
+ * Only the seat's own queued job at its frozen bar for its live claim is recaptured; anything else refuses and writes nothing [C7,H16].
+ *
+ * @param {object} board
+ * @param {number} id
+ * @param {{ agentId: string, job: string, main: string }} options - The sender, the queued job's id and the newest main commit.
+ * @returns {{ job: Record<string, any>, created: false }} The queued record now holding the newest main.
+ */
+export function recaptureSubmitHandoff(board, id, options) {
+  recaptured(options);
+  return atomic(board, () => {
+    const saved = matching(board, id, options);
+    const item = getItem(board, id);
+    if (saved.state !== 'queued' || item.item_status !== 'claimed' || item.item_owner !== options.agentId || item.item_frozen_digest !== saved.digest) {
+      throw new Refused('SUBMIT_HANDOFF_CHANGED', 'only the queued gate of the live claim at its frozen bar can recapture main; read the current queued submission');
+    }
+    return { job: record(board, id, { ...saved, main: options.main }), created: false };
   });
 }
 
@@ -566,7 +606,15 @@ function returnToBuilder(board, id, job, error) {
  * @param {{ code: string }} error the retained refusal
  */
 function returnToBoard(board, id, job, error) {
-  release(board, id, job.agentId, `the queued gate was refused (${error.code}); returned to the board for any free seat`, undefined, 'OTHER');
+  const reason = `the queued gate was refused (${error.code}); returned to the board for any free seat`;
+  // The board writes its own closed code: release() takes only builder-chosen codes, so at the engine this does what release does for a claimed item with no first-refusal window [C7,#12220].
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_RELEASE_CODES_ENGINE) {
+    moveItem(board, id, 'release', {
+      checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
+      set: () => ({ item_owner: null, item_lease_until: null }),
+    });
+    logEvent(board, job.agentId, 'release', id, { reason, reasonCode: 'GATE_REFUSED' });
+  } else release(board, id, job.agentId, reason, undefined, 'OTHER');
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, returnedToBoard: true });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it went back to the board for any free seat. pullboard show ${id} prints the refusal.`, lanes: [] });
 }

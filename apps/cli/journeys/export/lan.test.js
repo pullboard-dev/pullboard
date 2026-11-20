@@ -23,7 +23,7 @@ import { lanBoundaryReply } from '../../tests/fixtures/cockpit/lan.js';
 import { startLanView } from '../../tests/fixtures/cockpit/lan.js';
 import { viewLanAddress } from '../../../view/index.js';
 
-test('clause 1: a phone reaches the board on the local network [H19]', { timeout: 180_000 }, async t => { // budget: one real private board, two owned view listeners and a mobile Chrome session.
+test('cli.journeys-export-lan.a-phone-reaches-the-board-on-the-local-network: clause 1: a phone reaches the board on the local network [H19]', { timeout: 180_000 }, async t => { // budget: one real private board, two owned view listeners and a mobile Chrome session.
   t.diagnostic('runtime ' + JSON.stringify({ node: process.version, sqlite: process.versions.sqlite,
     executable: process.execPath, binarySha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));
   const box = machine();
@@ -93,7 +93,7 @@ test('clause 1: a phone reaches the board on the local network [H19]', { timeout
   t.diagnostic('Real LAN-interface HTTP and 375px Chrome; both clients run on this machine, not a second physical phone.');
 });
 
-test('LAN mode selects one private interface and refuses when none is assigned [H19]', () => {
+test('cli.journeys-export-lan.lan-mode-selects-one-private-interface: LAN mode selects one private interface and refuses when none is assigned [H19]', () => {
   const row = (address, internal = false, family = 'IPv4') => ({ address, internal, family });
   const interfaces = {
     lo0: [row('127.0.0.1', true)],

@@ -58,15 +58,20 @@ function sameHunks(root, reviewed, merged) {
 /**
  * True when the checked change merges onto main without conflict and every path it touched carries the same
  * patch after the merge as it did against its reviewed trunk [E8,V8,#2896].
- * Why: main touching a shared file (packages/codemap/data/plan/cells.json) said nothing about the reviewed change, yet it made
+ * Why: main touching a file the change did not touch said nothing about the reviewed change, yet it made
  * every other accept stale and each needed a re-review of identical work.
  * With verify.hunkFreshness on (#9438) the patches are compared hunk by hunk instead of as one patch id per path, so only
  * a changed hunk of the submit's own patch makes the review stale; the caller reads the setting and passes `hunkKeyed`, so the light read door never loads the config package.
+ * When git's merge conflicts, the optional `residualConflicts(root, tip, checked)` port returns the files the mechanical merge cannot resolve: none keeps the accept fresh, any file or no port leaves it stale.
  */
-export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = false } = {}) {
+export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = false, residualConflicts = null } = {}) {
   const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-  if (merged.status !== 0) return false;
+  if (merged.status !== 0) {
+    // A conflict the mechanical merge resolves keeps the accept fresh; the port lists the files it cannot resolve, injected so this light read door never loads the merge package [C7].
+    const left = typeof residualConflicts === 'function' ? residualConflicts(root, tip, checked) : null;
+    return Array.isArray(left) && left.length === 0;
+  }
   const tree = merged.stdout.trim().split('\n')[0];
   return paths.every(path => {
     if (hunkKeyed) {
@@ -152,7 +157,7 @@ export function staleVerdictRefusal(item, state, { composeAsObject = false } = {
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false, derived }) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false, residualConflicts = null, derived }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -225,9 +230,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       readGit(root, ['diff', '--no-renames', '--name-only', '-z', `${commit}^1`, commit, '--']).split('\0').filter(Boolean));
     return changes.get(commit);
   };
-  /** Derive pending proof freshness and an older landing's explicitly recorded review mismatch. */
-  const state = item => {
-    if (item.item_status !== 'verified') return null;
+  /** Derive pending proof freshness and an older landing's explicitly recorded review mismatch; `reopened` reads an item a landing re-proof red sent back to open as if its accept still stood [C7,U159,#10777]. */
+  const state = (item, { reopened = false } = {}) => {
+    if (item.item_status !== 'verified' && !reopened) return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
     // A caller-supplied reader answers from the derived-state table: a state or null is final, undefined computes below [#8945].
     const known = derived?.(item);
@@ -278,7 +283,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
         if (file && mainContains(root, { checked, tip, paths: [...paths] })) return null;
-        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] }, { hunkKeyed })) return null;
+        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] }, { hunkKeyed, residualConflicts })) return null;
         if (file) return { code: 'STALE_VERDICT', file, commit, reviewedTrunk: review.trunk, main: tip,
           ...(review.legacy ? { legacy: true } : {}) };
       }
@@ -290,6 +295,16 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
           : { reason: failure?.reason ?? 'the reviewed Git history is unavailable; restore its objects and re-review' }) };
     }
   };
+  /**
+   * Whether an item reopened by a landing re-proof red (#10776) keeps its accepted verdict [C7,U159,#10777].
+   * With `composedEquality` on, the review stays bound: it is kept unless main changed a file the review covered (the STALE_VERDICT rule), and the stale state is returned for the redo.
+   * With it off, the reopened item follows the rules of today: nothing is kept.
+   */
+  const reopened = (item, { composedEquality = false } = {}) => {
+    if (!composedEquality) return { keep: false };
+    const stale = state(item, { reopened: true });
+    return stale ? { keep: false, stale } : { keep: true };
+  };
   /** Decorate a public item read while preserving every stored proof field. */
   const project = item => {
     const freshness = state(item);
@@ -297,7 +312,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   };
   /** Ask Git about every unlanded verified item's commit in one process, before the per-item reads need them [C7]. */
   const prime = items => askHeld(items.filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => item.item_commit));
-  return { state, project, prime, main: tip ?? null };
+  return { state, reopened, project, prime, main: tip ?? null };
 }
 
 

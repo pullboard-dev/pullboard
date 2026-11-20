@@ -12,7 +12,7 @@ function declaration(served, name) {
   return served.slice(start, next > start ? next : undefined);
 }
 
-test('clause 1: the served page renders the dashboard model without a missing helper [N26]', () => {
+test('view.x-io-page-dashboard-bundle.clause-1-the-served-page-renders-the: clause 1: the served page renders the dashboard model without a missing helper [N26]', () => {
   const served = cockpitPage('', { snapshot: true, commandPhrases: () => ['add'] });
   const names = ['itemLanded', 'withdrawnFromStatus', 'itemStageKey', 'itemStagePresentation', 'dashboardModel'];
   const model = new Function(`${names.map((name) => declaration(served, name)).join('\n')}\nreturn dashboardModel;`)();

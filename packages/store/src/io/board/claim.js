@@ -27,8 +27,11 @@ import {
   REOPEN_FIRST_REFUSAL_ENGINE,
   VERIFIER_STANDING_ENGINE,
   IN_STATE,
+  MOVES,
+  effectiveGuards,
 } from "../../../../state/index.js";
 import { ITEM_FOLDER_ENGINE } from "../../../../state/light.js";
+import { BLOCK_ENGINE } from "../../../../state/light.js";
 import { AGENT_GRANT_ENGINE } from "../../../../state/light.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
 import {
@@ -56,6 +59,7 @@ import { Refused } from "../../../../kernel/index.js";
 import { routeOf } from "../../../../seats/index.js";
 import { canTake } from "../../../../seats/index.js";
 import { cappedRoute } from "../../../../seats/index.js";
+import { takeoverReady } from "../../../../seats/index.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { firstRefusalProblem } from "../../../../items/index.js";
 import { seatGone } from "../presence.js";
@@ -73,6 +77,11 @@ import {
   atomic,
   logEvent,
 } from "./event/log.js";
+import { afterGateIds } from './item/after-gate.js';
+import { afterGateBase } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
+import { recordAfterGateClaim } from './item/after-gate-report.js';
+import { writeBoardMeta } from './meta.js';
 
 /**
  * Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves.
@@ -195,7 +204,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         if (foreign) return new Refused('BLOCKED', `#${id} waits on ${itemDependencies.dependencyLabel(foreign)} (${foreign.status} on its own board); refresh that board before claiming`);
         for (const dependency of itemDependencies.localDependencyIds(found)) {
           const before = itemById(board, dependency);
-          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')) {
+          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')
+            && !(afterGateIds(board, id).includes(dependency) && gateGreenParent(board, dependency))) {
             return new Refused(
               'BLOCKED',
               `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
@@ -254,30 +264,32 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       oneLiveClaim: (found) => {
         // Every modern-engine claim respects the cap, including legacy-shaped children and reworks.
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
+        // A child is free only beside its own parent, the sub-agent case; a child of a parent this seat does not hold is a
+        // build claim like any other, or next stacks every slice of an unheld umbrella item on one seat (#10846).
+        const mine = new Set(board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ?")
+          .all(agentId, now(board)).map(row => row.item_id));
+        const counted = item => (item.item_parent_id === null || !mine.has(item.item_parent_id)) && !isRework(item);
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
             .all(agentId, now(board), id).filter(row => !waitsOnGate(board, gateWaits, row.item_id));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
           // An item-folder claim may sit beside N-1 other top-level claims, N sized by the board (#6262).
-          if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
-            const top = held.filter(row => row.item_parent_id === null && !isRework(row));
+          if (itemFolder === true && counted(found)) {
+            const top = held.filter(counted);
             const { n, how } = !Number.isSafeInteger(perSeat) && Number.isSafeInteger(seatCap) && seatCap >= 1
               ? { n: seatCap, how: `the claiming computer sized N = ${seatCap}; claims.perSeat overrides it` } : claimsPerSeat(board, perSeat);
             seatN = n;
-            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
+            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (children of an item you hold are free)`);
           }
         }
         if (modern && (itemFolder === true || isRenewal(found))) return null;
-        if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
+        if (!counted(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db
-          .prepare(
-            `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
-               AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
-               AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
-          )
-          .all(agentId, now(board), id, agentId)
-          .find(row => !waitsOnGate(board, gateWaits, row.item_id));
-        return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
+          .prepare(`SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed'
+               AND item_lease_until > ? AND item_id != ?`)
+          .all(agentId, now(board), id)
+          .find(row => counted(row) && !waitsOnGate(board, gateWaits, row.item_id));
+        return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (children of an item you hold are free)`) : null;
       },
       rowsInForce: (found) => {
         // Declared: checked only where the criterion freezes, so a renewal or a reclaim keeps its bar.
@@ -309,6 +321,18 @@ const PREPARED_CLAIMS = new WeakMap();
 const CLAIM_PREPARE_ATTEMPTS = 5;
 
 /**
+ * The item-keyed board_meta key families a claim reads, each as the key text before the item id.
+ * Why: exact keys are served by the meta_key primary key; a LIKE '%:<id>' read cannot use any index and scanned the table.
+ */
+const ITEM_META_FAMILIES = [
+  'bar_grandfather:', 'bar_revision:', 'bar_sign:', 'blocked_release_waiting:', 'claim_stalled:', 'claim_waiting:',
+  'exit-handoff:', 'hold_owner:', 'item_check_baseline_', 'item_check_timing:', 'item_decision:', 'item_diagnosis:',
+  'item_expected_build_minutes:', 'item_lineage:', 'item_needs:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
+  'item_review_family:', 'item_source_advance:', 'item_urgent:', 'landing_phases:', 'main_red_failure_lines:',
+  'rehome_import:', 'review_independence:', 'shared-item:', 'stale_hold_until:', 'stale_hold_warning:', 'strict_rename:',
+];
+
+/**
  * The rows a prepared claim depends on: the item (its holder, lease, bar and after-links), the state of each
  * dependency, its own events and item-keyed metadata (check baseline, bar revision and sign-off, machine
  * verification), its pending re-freeze, and the spec decisions and bar setting the freeze reads. Every guard runs
@@ -318,13 +342,14 @@ const CLAIM_PREPARE_ATTEMPTS = 5;
  * @param {number} id
  * @returns {string}
  */
-function claimRows(board, id) {
+export function claimRows(board, id) {
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id) ?? null;
   const dependencies = item ? itemDependencies.localDependencyIds(item).map(dependency =>
     board.db.prepare('SELECT item_id,item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency) ?? null) : [];
   const lastEvent = board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(id)?.id ?? null;
-  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN ('row_decisions','bar_ready_setting')
-    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id));
+  const keys = ['row_decisions', 'bar_ready_setting', ...ITEM_META_FAMILIES.map(family => `${family}${id}`)];
+  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN (${keys.map(() => '?').join(',')})
+    ORDER BY meta_key`).all(...keys);
   return JSON.stringify({ item, dependencies, lastEvent, meta, refreeze: pendingRefreeze(board, id) });
 }
 
@@ -378,8 +403,8 @@ export function prepareClaim(board, id, options, ports) {
 /**
  * Claim an item, or renew your own claim (B4, B5, B12, V2).
  *
- * One live top-level claim per agent, so nobody hoards; child items are free, which is how
- * sub-agents share a lane. A lapsed claim can be taken. Every item is built in its own lane, the
+ * One live top-level claim per agent, so nobody hoards; a child of an item the claimer holds is free,
+ * which is how sub-agents share a lane, and a child of an unheld parent counts like a top-level item (#10846). A lapsed claim can be taken. Every item is built in its own lane, the
  * coordinator's included, so no agent can build another lane's work from the main checkout. The
  * first claim freezes the criterion: `freeze` returns the text and digest the verdict will later be
  * held to. A fresh claim also records `head`, the commit the work starts from, so submit can name
@@ -387,7 +412,8 @@ export function prepareClaim(board, id, options, ports) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} options
+ * @param {object} [ports] the clock and storage ports the claim reads
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
 export function claim(board, id, options, ports) {
@@ -398,19 +424,56 @@ export function claim(board, id, options, ports) {
 /**
  * Record a submit admission on the caller's own live claim without ever sleeping: one preparation, one write.
  * Why: an API request records the witness for a pulled green gate, and a request must not park its thread on
- * Atomics.wait; a board that moved under the preparation refuses BOARD_BUSY and the caller skips the witness [C7].
+ * Atomics.wait. Only the claim's own rows can make the preparation stale, as for a plain claim (#6016): under the
+ * whole-board check any heartbeat or fact another process wrote meanwhile refused BOARD_BUSY, the caller skipped the
+ * witness, and review could never reuse that gate's proof (#10942). The one read beyond those rows, that the admission
+ * id is unused, is checked again under the lock against the events written since the snapshot [C7].
  */
 export function admitSubmit(board, id, options, ports) {
   const snapshot = boardWriteSnapshot(board);
   const rows = claimRows(board, id);
   const plan = claimPlan(board, id, options, ports);
   ports.checkedItemMove(board, id, 'claim', plan.how.checks);
-  const binding = { board, id, snapshot, rows, strict: true, plan };
+  const binding = { board, id, snapshot, rows, strict: false, plan, admissionSince: snapshot.eventId };
   if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
   return commitClaim(board, id, Object.freeze({ ...options }), binding, ports);
 }
 
+/** Whether a claim or renewal written after event `since` already used this submit admission id; a primary-key range read. */
+function admissionUsedSince(board, since, admissionId) {
+  return Boolean(board.db.prepare("SELECT 1 FROM event WHERE event_id > ? AND event_kind IN ('claim','renew') AND json_valid(event_detail) AND json_extract(event_detail,'$.submitAdmission.id')=? LIMIT 1").get(since, admissionId));
+}
+
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
+/**
+ * The checks a block peer's renew passes: the holder check in renewBlockPeers (item exists, this seat owns it, the claim is live) covers most guards of the claim move, so those stay null.
+ * The pending-correction guard is the one it does not cover: a coordinator correction to a held peer's bar must be refrozen before its lease extends, as for any renewal.
+ * Why not the rest: a held item's lane and route cannot be edited, and its bar, route and dependencies change only through that same pending correction.
+ */
+const peerChecks = (board, peer) => ({
+  ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
+  correctionRefrozen: () => pendingRefreezeProblem(board, peer),
+});
+
+/**
+ * Renew every other member the seat holds through a block that names item `id`, to the same lease, each with its own renew event, so a stalled block lapses and is returned as one [C7,#2202].
+ * Why here: a renewal is a claim of a held item, so the one place a renewal is written carries the block along; members keep their own criteria and verdicts.
+ */
+function renewBlockPeers(board, id, agentId, leaseUntil, moveItem) {
+  const peers = new Set();
+  for (const row of board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'block:%'").all()) {
+    const ids = JSON.parse(row.meta_value).ids ?? [];
+    if (ids.includes(id)) for (const member of ids) if (member !== id) peers.add(member);
+  }
+  for (const member of peers) {
+    const held = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(member);
+    if (!held || held.item_owner !== agentId || !isHeld(board, held)) continue;
+    // A peer is already held by this seat, so only the pending-correction guard needs a real check; moveItem writes the lease under its own temp.moving token [C7].
+    moveItem(board, member, 'claim', { checks: peerChecks(board, member), set: () => ({ item_lease_until: leaseUntil }) });
+    logEvent(board, agentId, 'renew', member, { leaseUntil, digest: held.item_frozen_digest, block: true });
+  }
+}
+
 function commitClaim(board, id, prepared, binding, ports) {
   const { moveItem } = ports;
   const options = prepared;
@@ -424,12 +487,13 @@ function commitClaim(board, id, prepared, binding, ports) {
   // refuses before any write opens, and the events it names are the ones written. Boards below the grant engine keep the writer's rules [C7,#8383].
   const live = (board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE && (board.movesLive?.claim ?? movesLiveEnabled('claim')) === true;
   const hook = live ? null : shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
-  const decided = live ? claimDecision(board, id, { options, plan }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
+  const decided = live ? claimDecision(board, id, { options, plan, takeoverReady }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan, takeoverReady })) : null;
   if (live && decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
   return atomic(board, () => {
     const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
+    if (admission && Number.isSafeInteger(binding.admissionSince) && admissionUsedSince(board, binding.admissionSince, admission.id)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
     const frozen = plan.frozen();
     const renewed = isRenewal(item);
@@ -451,6 +515,12 @@ function commitClaim(board, id, prepared, binding, ports) {
       board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(key, JSON.stringify({ item: id, agent: agentId }));
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
+    // A claim that took a gate-green after-gate parent builds on that parent's submitted head: record it for the builder.
+    const afterGateBaseRecord = !renewed ? afterGateBase(board, id) : null;
+    if (afterGateBaseRecord) {
+      writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
+      recordAfterGateClaim(board, id, { ...afterGateBaseRecord, agentId });
+    }
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
     if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
     else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
@@ -474,9 +544,10 @@ function commitClaim(board, id, prepared, binding, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
+    if (renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCK_ENGINE) renewBlockPeers(board, id, agentId, leaseUntil, moveItem);
     recordPendingOutcome(outcome);
     if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
-    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
+    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}), ...(afterGateBaseRecord ? { afterGateBase: afterGateBaseRecord } : {}) };
   });
 }
 

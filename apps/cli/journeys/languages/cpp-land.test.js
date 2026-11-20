@@ -13,7 +13,7 @@ import { cmakeBoard } from '../../tests/fixtures/languages/cpp.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 3: the fixed commit passes ctest, is accepted and lands on the scratch board main [C7,#10515]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-cpp-land.the-fixed-commit-passes-ctest-is: clause 3: the fixed commit passes ctest, is accepted and lands on the scratch board main [C7,#10515]', { timeout: 240_000 }, async (t) => {
   if (!CMAKE) return t.skip(UNAVAILABLE);
   const board = await cmakeBoard(helpers);
   const fixed = await buildAndSubmit(board, null, PASSING);

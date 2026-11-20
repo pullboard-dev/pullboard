@@ -1,4 +1,5 @@
 /** Whole-file limits bound active work separately from post-test cleanup [C7,V10]. */
+import { environmentAdapter } from '../../../env/index.js';
 export const DEFAULT_FILE_WALL_MS = 300_000;
 export const DEFAULT_FILE_IDLE_MS = 90_000;
 /** The policy's per-file budget (2-3 minutes): a file past it is killed whatever its load factor or case budgets. */
@@ -26,7 +27,7 @@ export function wallLoadFactor(load, cores) {
  * An exact per-file or environment limit wins as written; only the default wall scales with `system` load
  * ({ load, cores }, sampled once at file start). Idle detection remains independent.
  */
-export function fileWatchdogLimits(file, env = process.env, system = { load: 0, cores: 1 }) {
+export function fileWatchdogLimits(file, env = environmentAdapter().all(), system = { load: 0, cores: 1 }) {
   let files = {};
   if (env.PULLBOARD_TEST_FILE_LIMITS !== undefined) {
     files = JSON.parse(env.PULLBOARD_TEST_FILE_LIMITS);
@@ -49,3 +50,6 @@ export function fileWatchdogLimits(file, env = process.env, system = { load: 0, 
 export function fileIdleHung({ quietMs, cpuMicros }, idleMs) {
   return quietMs >= idleMs && cpuMicros < quietMs * 10;
 }
+
+/** How many test workers a pulled job may use: its share of the runner's cores, set by the serve that runs it [P7,#5919]. */
+export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';

@@ -1,5 +1,6 @@
 /** Releases the machine caused, which the release-twice hold must not count [C7,H16]. */
 import { INFRA_RELEASE_ENGINE } from '../../../../state/light.js';
+import { REVIEW_RELEASE_TWICE_ENGINE } from '../../../../state/light.js';
 import { ENGINE_VERSION } from '../../../../state/index.js';
 
 /**
@@ -79,4 +80,34 @@ export function liftTwiceHold(board, event, logEvent, setItem) {
     setItem(board, item.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null }, event.event_at);
     logEvent(board, 'coordinator', 'unhold_item', item.item_id, { reason: item.item_hold_reason, cause: mainMoved ? 'main-moved' : 'blocker-landed', triggerEventId: event.event_id });
   }
+}
+
+/**
+ * The review releases of an item since its latest submit, oldest first, each { by, family, reason }; the family is the seat's recorded model family.
+ * Why: the release table holds an item whose review one family releases twice without a verdict; releases the sentinel made for an idle or gone reviewer are not the family's choice [C7].
+ *
+ * @param {object} board the open board
+ * @param {number} id the item
+ * @returns {{by:string,family:string|null,reason:string}[]} the counted review releases
+ */
+export function reviewReleases(board, id) {
+  const since = board.db.prepare(`SELECT MAX(event_id) AS last FROM event WHERE item_id = ? AND event_kind = 'submit'`).get(id)?.last ?? 0;
+  return board.db.prepare(`SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release' AND event_id > ? ORDER BY event_id`).all(id, since)
+    .map(row => ({ by: row.event_by, detail: JSON.parse(row.event_detail || '{}') }))
+    .filter(({ detail }) => detail.review === true && !detail.staleClaim && !detail.idleClaim && !detail.expiredClaim && !detail.goneSeat)
+    .map(({ by, detail }) => ({ by, family: board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(by)?.family ?? null, reason: detail.reason ?? detail.reasonCode ?? '' }));
+}
+
+/**
+ * What the release table needs to hold an item after a second review release by one family: the board's replay engine and the counted releases, or null when the rule is off.
+ * Why: the rule runs only with board.holdAfterTwoReleases on, at or above REVIEW_RELEASE_TWICE_ENGINE, on a submitted item, so older boards keep their decisions [C7].
+ *
+ * @param {object} board the open board
+ * @param {object} item the item row before the release
+ * @returns {{engine:number,reviewReleases:object[]}|null} the snapshot additions, or null
+ */
+export function reviewHoldState(board, item) {
+  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (board.holdAfterTwoReleases !== true || engine < REVIEW_RELEASE_TWICE_ENGINE || item.item_status !== 'submitted') return null;
+  return { engine, reviewReleases: reviewReleases(board, item.item_id) };
 }

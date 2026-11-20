@@ -3,16 +3,15 @@ import { mergeManifestRows } from '../logic/manifest.js';
 import { rowManifest } from '../logic/manifest.js';
 import { generatedDocResolution } from '../logic/conflicts.js';
 import { generatedDocCommand } from '../logic/conflicts.js';
-import {
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { scratchFolder } from '../../../config/index.js';
 import { formatJson } from '../../../codemap/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export { formatJson };
 
@@ -219,7 +218,7 @@ function additiveSource(base, ours, theirs) {
   try {
     const paths = [ours, base, theirs].map((source, index) => {
       const path = join(directory, String(index));
-      writeFileSync(path, source, { mode: 0o600 });
+      fs.writeFile(path, source, { mode: 0o600 });
       return path;
     });
     const label = randomUUID();
@@ -239,7 +238,7 @@ function additiveSource(base, ours, theirs) {
       result.push(...left, ...right);
     }
     return result.join('');
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }
 
 /** Resolve only declared generated output, structural JSON or genuine additions; never execute candidate code. */
@@ -340,7 +339,7 @@ export function resolveMechanicalIndex(root, files, { orderedData = false } = {}
     else remaining.push(path);
   }
   if (remaining.length) return { files: remaining, entries: [], ...(rowConflicts.length ? { rowConflicts } : {}) };
-  for (const entry of resolutions.filter(entry => entry.source !== undefined)) writeFileSync(join(root, entry.path), entry.source);
+  for (const entry of resolutions.filter(entry => entry.source !== undefined)) fs.writeFile(join(root, entry.path), entry.source);
   for (const entry of resolutions.filter(entry => entry.kind === 'generated')) {
     const command = generatedDocCommand(entry.path);
     const generated = spawnSync(process.execPath, command,
@@ -348,7 +347,7 @@ export function resolveMechanicalIndex(root, files, { orderedData = false } = {}
     if (generated.status !== 0) return { files: [], entries: [], failed: {
       path: entry.path, generator: command.join(' '), status: generated.status,
     } };
-    writeFileSync(join(root, entry.path), generated.stdout);
+    fs.writeFile(join(root, entry.path), generated.stdout);
   }
   return { files: [], entries: resolutions.map(({ path, keys, kind }) => ({ path, keys, kind })) };
 }

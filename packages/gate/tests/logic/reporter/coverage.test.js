@@ -14,7 +14,7 @@ import { barTestPath } from '../../../../verify/index.js';
 import { barCoverageForPolicy } from '../../../../verify/index.js';
 import { requireSubmitComposition } from '../../../../items/index.js';
 import { nativeBarActor } from '../../../../verify/index.js';
-import { baselineTestEvidence } from '../../../index.js';
+import { baselineTestEvidence } from '../../../heavy.js';
 import { configFromSource } from '../../../../config/index.js';
 import { runFixtureChild } from '../../fixtures/child.js';
 
@@ -50,7 +50,7 @@ function repository(t) {
   return { root, git, env };
 }
 
-test('[V2,V4] a passing named check cannot hide the failing neighboring case', t => {
+test('gate.logic-reporter-coverage.a-passing-named-check-cannot: [V2,V4] a passing named check cannot hide the failing neighboring case', t => {
   const f = repository(t); const { item, plan } = example();
   const named = runFixtureChild('/bin/sh',['-c',item.item_check],{cwd:f.root,env:f.env,encoding:'utf8'});
   assert.equal(named.status,0,named.stderr);
@@ -60,7 +60,7 @@ test('[V2,V4] a passing named check cannot hide the failing neighboring case', t
   assert.ok(barCoverageCommand(item.item_check,plan).startsWith(`(\n${item.item_check}\n)`),'original shell command remains intact');
 });
 
-test('[V2,V4] unknown, named-only or red duration cannot qualify a fast whole file', () => {
+test('gate.logic-reporter-coverage.unknown-named-only-or-red: [V2,V4] unknown, named-only or red duration cannot qualify a fast whole file', () => {
   const { item, plan } = example();
   for (const evidence of [null, observed(400,'named-check'), {...observed(400),outcome:'fail'}, {...observed(400),source:'unknown'}]) {
     assert.throws(()=>normalizeBarCoverage({...plan,files:[{...plan.files[0],evidence}]},item),e=>e.code==='BAR_COVERAGE');
@@ -70,7 +70,7 @@ test('[V2,V4] unknown, named-only or red duration cannot qualify a fast whole fi
   assert.throws(()=>normalizeBarCoverage({...plan,required:['../outside.test.js']},item),e=>e.code==='BAR_COVERAGE');
 });
 
-test('[V2,V4] a slow file needs explicit landing coverage and keeps its named cases', () => {
+test('gate.logic-reporter-coverage.a-slow-file-needs-explicit: [V2,V4] a slow file needs explicit landing coverage and keeps its named cases', () => {
   const { item, plan, path } = example();
   const slow = {...plan,files:[{path,mode:'landing',evidence:{...observed(1500),outcome:'timeout'},namedCases:['named']}]};
   assert.throws(()=>normalizeBarCoverage(slow,item),e=>e.code==='BAR_COVERAGE');
@@ -81,7 +81,7 @@ test('[V2,V4] a slow file needs explicit landing coverage and keeps its named ca
   assert.equal(normalized.timeoutMs,1000);
 });
 
-test('[V2,V4] the budget includes named, install and all whole files, without raising the timeout', () => {
+test('gate.logic-reporter-coverage.the-budget-includes-named-install: [V2,V4] the budget includes named, install and all whole files, without raising the timeout', () => {
   const { item, plan } = example();
   assert.throws(()=>normalizeBarCoverage({...plan,named:observed(700,'named-check')},item),e=>e.code==='BAR_COVERAGE');
   assert.throws(()=>normalizeBarCoverage({...plan,installMs:600,install:observed(600,'install')},item),e=>e.code==='BAR_COVERAGE');
@@ -90,7 +90,7 @@ test('[V2,V4] the budget includes named, install and all whole files, without ra
   assert.equal(equality.timeoutMs,1000);
 });
 
-test('[V2,V4] accepted project inventory and runner override a supplied plan without executing it', t => {
+test('gate.logic-reporter-coverage.accepted-project-inventory-and-runner: [V2,V4] accepted project inventory and runner override a supplied plan without executing it', t => {
   const f = repository(t); const { item, plan } = example();
   item.item_brief = item.item_brief.replace('Files: test/adjacent.test.js', 'Files: test/adjacent.test.js, test/new.test.js');
   const sourceMain = f.git('rev-parse','HEAD');
@@ -107,7 +107,7 @@ test('[V2,V4] accepted project inventory and runner override a supplied plan wit
   assert.throws(()=>prepareBarCoverage(f.root,item,{commit:sourceMain,config}),e=>e.code==='BAR_COVERAGE');
 });
 
-test('[M1,V4] a conflict-free candidate must contain the exact main used for submit proof', t => {
+test('gate.logic-reporter-coverage.a-conflict-free-candidate-must: [M1,V4] a conflict-free candidate must contain the exact main used for submit proof', t => {
   const f=repository(t);const initial=f.git('rev-parse','HEAD');
   f.git('checkout','-qb','candidate');writeFileSync(join(f.root,'candidate.txt'),'candidate');f.git('add','.');f.git('commit','-qm','test: candidate');const candidate=f.git('rev-parse','HEAD');
   f.git('checkout','-q','main');writeFileSync(join(f.root,'main.txt'),'main');f.git('add','.');f.git('commit','-qm','test: main');const main=f.git('rev-parse','HEAD');
@@ -118,7 +118,7 @@ test('[M1,V4] a conflict-free candidate must contain the exact main used for sub
 });
 
 
-test('[V2,V4] baseline witness distinguishes observed failure, absent case and unrelated setup failure', () => {
+test('gate.logic-reporter-coverage.baseline-witness-distinguishes-observed-failure: [V2,V4] baseline witness distinguishes observed failure, absent case and unrelated setup failure', () => {
   const failed = baselineTestEvidence('TAP version 13\nnot ok 1 - named witness\n  ---\n  duration_ms: 1\n  ...\n', 'node --test');
   assert.deepEqual(failed, { failed: ['named witness'], passed: [], failedCases: [], noTestsMatched: false });
   assert.equal(baselineTestEvidence('run-tests: NO_TESTS_MATCHED: no named case', 'node apps/cli/src/io/run/tests.js').noTestsMatched, true);
@@ -126,7 +126,7 @@ test('[V2,V4] baseline witness distinguishes observed failure, absent case and u
 });
 
 
-test('[V2,V4] new existing test files or accepted execution settings need a new coverage signature', t => {
+test('gate.logic-reporter-coverage.new-existing-test-files-or: [V2,V4] new existing test files or accepted execution settings need a new coverage signature', t => {
   const f=repository(t);const {item,plan}=example();
   item.item_brief=item.item_brief.replace('Files: test/adjacent.test.js','Files: test/adjacent.test.js, test/new.test.js');
   const config=configFromSource('{"affectedTests":"node --test","check":{"timeout":"2s"}}');
@@ -140,7 +140,7 @@ test('[V2,V4] new existing test files or accepted execution settings need a new 
 });
 
 
-test('[V1,H16] native authorship captures only the current runtime, not a historical seat fallback', () => {
+test('gate.logic-reporter-coverage.native-authorship-captures-only-the: [V1,H16] native authorship captures only the current runtime, not a historical seat fallback', () => {
   assert.equal(nativeBarActor({}),null);
   const first=nativeBarActor({CLAUDE_CODE_SESSION_ID:'synthetic-private-author-a'});
   const second=nativeBarActor({CLAUDE_CODE_SESSION_ID:'synthetic-private-author-b'});
@@ -149,7 +149,7 @@ test('[V1,H16] native authorship captures only the current runtime, not a histor
 });
 
 
-test('[V1,H16] a declared helper parent applies only to the actual session that joined', () => {
+test('gate.logic-reporter-coverage.a-declared-helper-parent-applies: [V1,H16] a declared helper parent applies only to the actual session that joined', () => {
   const env={CLAUDE_CODE_SESSION_ID:'synthetic-private-helper'};
   const own=nativeBarActor(env);
   const parent='e'.repeat(64);

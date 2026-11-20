@@ -29,7 +29,7 @@ const {
   project, privateCheckSubmission,
 } = e2e;
 
-test('check refusal stays typed and includes bounded diagnostics when artifact storage is unavailable [V18,V19]', async () => {
+test('cli.journeys-verify-checks-heavy.check-refusal-stays-typed-and-includes: check refusal stays typed and includes bounded diagnostics when artifact storage is unavailable [V18,V19]', async () => {
   const box = privateCheckSubmission({ check: 'echo diagnostic-tail-marker; exit 1' });
   const gitDir = box.git(box.repo, 'rev-parse', '--git-common-dir');
   const outputDirectory = join(box.repo, gitDir, 'pullboard');
@@ -44,7 +44,7 @@ test('check refusal stays typed and includes bounded diagnostics when artifact s
   assert.match(error.next, /^reject with the failing behavior/);
 });
 
-test('private worker drains noisy output and reports a failed log path instead of timing out [V18,V19]', () => {
+test('cli.journeys-verify-checks-heavy.private-worker-drains-noisy-output-and: private worker drains noisy output and reports a failed log path instead of timing out [V18,V19]', () => {
   const box = project();
   const worker = resolve(import.meta.dirname, '../../../runner/src/io/private/check/worker.js');
   const output = spawnSync(process.execPath, [worker], {
@@ -62,7 +62,7 @@ test('private worker drains noisy output and reports a failed log path instead o
   assert.match(result.output, /output capped at 8 MiB; middle omitted/);
 });
 
-test('full multiline output artifact streams beyond the bounded capture under a constrained heap [V18,V2]', async () => {
+test('cli.journeys-verify-checks-heavy.full-multiline-output-artifact-streams-beyond: full multiline output artifact streams beyond the bounded capture under a constrained heap [V18,V2]', async () => {
   const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); const line=Buffer.alloc(1023,120); fs.writeSync(1,"START-FULL\\n"); for(let i=0;i<9000;i++){fs.writeSync(1,line);fs.writeSync(1,"\\n")} fs.writeSync(1,"TAIL-FULL-OUTPUT\\n"); process.exitCode=1'` });
   box.env.NODE_OPTIONS = '--max-old-space-size=96';
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the full failing check output is retained', '--json');

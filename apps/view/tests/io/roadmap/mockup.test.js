@@ -10,7 +10,7 @@ import { roadmapSummary } from '../../../src/logic/summary/roadmap.js';
 const IO = new URL('../../../src/io/', import.meta.url);
 const lines = file => readFileSync(new URL(file, IO), 'utf8').split('\n').length;
 
-test('clause 1: the release header reads title and count, one full-width bar, then one legend [N26]', () => {
+test('view.x-io-roadmap-mockup.clause-1-the-release-header-reads-title: clause 1: the release header reads title and count, one full-width bar, then one legend [N26]', () => {
   const { header } = roadmapSummary({ name: 'M', summary: { total: 10, left: 6, landed: 4, landing: 2, review: 1, building: 1, waiting: 2, held: 0 } });
   const at = marker => header.indexOf(marker);
   const order = ['release-name', 'roadmap-summary-bar', 'roadmap-summary-legend'].map(at);
@@ -19,13 +19,13 @@ test('clause 1: the release header reads title and count, one full-width bar, th
   assert.equal(header.match(/class="roadmap-summary-legend dash-keys"/gu).length, 1, 'one legend');
 });
 
-test('clause 2: a Roadmap row names only its stage, with Landed for Merged, and no route or holder text [N26]', () => {
+test('view.x-io-roadmap-mockup.clause-2-a-roadmap-row-names-only: clause 2: a Roadmap row names only its stage, with Landed for Merged, and no route or holder text [N26]', () => {
   const source = pageRenderScript();
   assert.match(source, /roadmap && stage\.stage === 'Merged' \? 'Landed' : stage\.stage/u, 'Merged reads Landed on the Roadmap');
   assert.match(source, /\(roadmap \|\| brief \? '' : '<small class="stage-detail"/u, 'a Roadmap row carries no stage detail text');
 });
 
-test('clause 3: no stylesheet is over 1500 lines; the new rules live in stage.css, composed through its marker, and main.css is not grown [N26]', () => {
+test('view.x-io-roadmap-mockup.clause-3-no-stylesheet-is-over-1500: clause 3: no stylesheet is over 1500 lines; the new rules live in stage.css, composed through its marker, and main.css is not grown [N26]', () => {
   assert.ok(lines('stage.css') <= 1500);
   const css = composeViewStyles();
   assert.doesNotMatch(css, /@pullboard-[\w-]+-styles/u, 'every marker is filled');

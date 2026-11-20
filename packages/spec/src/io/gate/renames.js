@@ -1,5 +1,6 @@
 /** Real Git rename hints for approved requirements whose gate disappeared [B23,N39]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { gitSpawnSync } from '../../../../git/light.js';
 import { cleanGitEnvironment } from '../../../../git/light.js';
@@ -18,7 +19,7 @@ export function renamedGatePath(root, file) {
     const to = parts[index++];
     if (from === current && to) current = to;
   }
-  return current !== file && existsSync(join(root, current)) ? current : null;
+  return current !== file && disk.exists(join(root, current)) ? current : null;
 }
 
 /** Quote exact row text and a suggested gate as literal shell arguments. */

@@ -1,0 +1,4 @@
+{
+  "cli.io-runner-restart.in-flight-only": {"proves":{"specs":["C7"],"claim":"A claimed item whose gate job waits restarts the runner once for that item, and the check lists only the in-flight items."},"why":"Without it, a regression where the dead-runner check reads the whole open list again would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/restart.test.js"]},
+  "cli.io-runner-restart.no-gate-no-start": {"proves":{"specs":["C7"],"claim":"A board whose only claim has no gate job never starts the runner and answers null."},"why":"Without it, a regression where a claim with no gate job starts a runner would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/restart.test.js"]}
+}

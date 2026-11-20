@@ -138,7 +138,7 @@ function mcpRunner(seats) {
   };
 }
 
-test('a submit and each verdict record the declaring seat\'s model [C7,#2093]', { timeout: 280_000 }, // budget: hang ceiling for a served board, two runner gates per path and about forty calls, not a throughput claim.
+test('cli.journeys-submit-model-recorded.a-submit-and-each-verdict-record: a submit and each verdict record the declaring seat\'s model [C7,#2093]', { timeout: 280_000 }, // budget: hang ceiling for a served board, two runner gates per path and about forty calls, not a throughput claim.
 onSeats(async (seats, t) => {
   await t.test('clause 1: pullboard submit from a seat joined with a model records that model on the submit event', async () => {
     const id = await seats.add('Local submit model');

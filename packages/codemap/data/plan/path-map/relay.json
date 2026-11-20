@@ -38,7 +38,7 @@
   "relay/passkey-http.js": "apps/relay/src/logic/http/passkey.js",
   "relay/passkeys.js": "apps/relay/src/io/passkeys.js",
   "relay/person-enrollment-http.js": "apps/relay/src/logic/person/enrollment/http.js",
-  "relay/person-enrollment-store.js": "apps/relay/src/logic/person/enrollment/store.js",
+  "relay/person-enrollment-store.js": "apps/relay/src/io/store/enrollment.js",
   "relay/retention.js": "apps/relay/src/io/retention.js",
   "relay/service-worker.js": "apps/relay/src/logic/worker.js",
   "relay/service.js": "apps/relay/src/io/service.js",

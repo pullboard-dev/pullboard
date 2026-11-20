@@ -1,19 +1,14 @@
 /** A prepared spare checkout beside each seat, so a claim moves a ready folder instead of writing every tracked file [C7,#5776]. */
-import { existsSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { rmdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { basename } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git } from '../../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../../packages/git/index.js';
 import { gitPath } from '../../../../../../packages/git/index.js';
-import { nextOneGitRead } from '../../../../../../packages/config/index.js';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Tracked files a repository needs before a spare is kept.
@@ -24,20 +19,24 @@ export const SPARE_FROM_FILES = 1_000;
 /** The spare checkout's path beside a seat checkout; its name never matches an item folder, so cleanup never removes it. */
 export function spareFolderPath(seat) { return `${seat}-spare`; }
 
-/** The number of entries in a checkout's index, read from the index header without launching Git; 0 when unreadable. */
-function indexEntries(root) {
+/**
+ * The number of entries in a checkout's index, read from the index header; 0 when unreadable.
+ * The index path comes from the repository's files, and from Git only when those cannot answer (an inherited selector, a reftable store).
+ * Why: asking Git for the path cost a process, 20-22 ms under load, on every claim of a new item folder (#10864).
+ */
+export function indexEntries(root) {
   let fd;
   try {
-    fd = openSync(gitPath(root, 'index', { files: nextOneGitRead() }), 'r');
+    fd = fs.open(gitPath(root, 'index', { files: true }), 'r');
     const header = Buffer.alloc(12);
-    return readSync(fd, header, 0, 12, 0) === 12 && header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : 0;
-  } catch { return 0; } finally { if (fd !== undefined) closeSync(fd); }
+    return fs.read(fd, header, 0, 12, 0) === 12 && header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : 0;
+  } catch { return 0; } finally { if (fd !== undefined) fs.close(fd); }
 }
 
 /** This repository's worktree registry fields for a folder, however its path was spelled, or null when it is not registered. */
 function worktreeFields(root, folder) {
   let real;
-  try { real = realpathSync(folder); } catch { return null; }
+  try { real = fs.realpath(folder); } catch { return null; }
   for (const row of git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0\0')) {
     const fields = row.split('\0');
     const path = fields.find(field => field.startsWith('worktree '))?.slice(9);
@@ -63,15 +62,15 @@ function spareReady(root, spare) {
  */
 function setAsideItemFolder(root, desired) {
   let entries;
-  try { entries = readdirSync(desired); } catch { return false; }
+  try { entries = fs.list(desired); } catch { return false; }
   if (entries.length === 0) {
-    try { rmdirSync(desired); return true; } catch { return false; }
+    try { fs.rmdir(desired); return true; } catch { return false; }
   }
   const kept = `${desired}.prior-${Date.now()}`;
   if (worktreeFields(root, desired)) {
     if (tryGit(root, ['worktree', 'move', desired, kept]).status !== 0) return false;
   } else {
-    try { renameSync(desired, kept); } catch { return false; }
+    try { fs.rename(desired, kept); } catch { return false; }
   }
   process.stderr.write(`item folder ${desired} already existed; it is kept at ${kept}, and the seat's spare checkout takes its place\n`);
   return true;
@@ -89,15 +88,15 @@ function setAsideItemFolder(root, desired) {
  */
 export function takeSpareFolder(root, seat, desired, checkout) {
   const spare = spareFolderPath(seat);
-  if (!existsSync(spare) || !spareReady(root, spare)) return false;
+  if (!fs.exists(spare) || !spareReady(root, spare)) return false;
   // Tracked files only: an untracked file would move along and show in the item's own status, so nothing is lost.
   const status = tryGit(spare, ['status', '--porcelain', '--untracked-files=no']);
   if (status.status !== 0 || status.stdout) return false;
-  if (existsSync(desired) && !setAsideItemFolder(root, desired)) return false;
+  if (fs.exists(desired) && !setAsideItemFolder(root, desired)) return false;
   if (tryGit(root, ['worktree', 'move', spare, desired]).status !== 0) return false;
   // A folder that appeared at the item path after the check still nests the spare: move it back out, and the caller's worktree add refuses plainly.
   const nested = join(desired, basename(spare));
-  if (existsSync(join(nested, '.git'))) { tryGit(root, ['worktree', 'move', nested, spare]); return false; }
+  if (fs.exists(join(nested, '.git'))) { tryGit(root, ['worktree', 'move', nested, spare]); return false; }
   try { git(desired, checkout); }
   catch (error) { git(root, ['worktree', 'move', desired, spare]); throw error; }
   return true;
@@ -114,9 +113,9 @@ export function takeSpareFolder(root, seat, desired, checkout) {
  * @returns {Promise<boolean>} true when a spare was started
  */
 export async function prepareSpareFolder(root, seat, trunk, workers = []) {
-  if (process.env.PULLBOARD_RUNNER_JOB) return false;
+  if (environmentAdapter().get('PULLBOARD_RUNNER_JOB')) return false;
   const spare = spareFolderPath(seat);
-  if (existsSync(spare) || indexEntries(root) < SPARE_FROM_FILES) return false;
+  if (fs.exists(spare) || indexEntries(root) < SPARE_FROM_FILES) return false;
   // Loaded only when a spare is due, so a claim's import graph stays as it was.
   const { startDetachedCheck } = await import('../../../../../../packages/drive/index.js');
   const started = startDetachedCheck(fileURLToPath(new URL('./scripts/spare.js', import.meta.url)), { args: [root, spare, trunk, ...workers], cwd: root });

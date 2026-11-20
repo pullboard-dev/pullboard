@@ -69,6 +69,9 @@ import {
   coordinatorInbox,
   coordinatorInboxLines,
   inboxFirst,
+  applyFirst,
+  pendingApplyIds,
+  pendingApplyLine,
 } from '../../../../../packages/items/index.js';
 import {
   resumeSentinels,
@@ -242,6 +245,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
       holds: store.laneHolds(board),
+      ...(isMain ? { pendingApply: pendingApplyIds(store.rowDecisions(board)) } : {}),
       unread: store.unreadCount(board, me.id),
       newest: store.peekShouts(board, me.id, 1),
       ...(me.id === COORDINATOR ? { inbox: coordinatorInbox(board, me.id, decisions.openDecisions ?? store.openDecisions(board, COORDINATOR), { unreadCount: store.unreadCount, peekShouts: store.peekShouts }) } : {}),
@@ -257,6 +261,13 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       : unavailableWorktreeLocation();
   }
   const { me } = card;
+  // The coordinator's allowance line: a Codex session's rate limits, or unknown without one; stats loads only on this branch [C7,#1058].
+  if (me.id === COORDINATOR) {
+    const { allowanceWarning, seatAllowance, sessionSource } = await import('../../../../../packages/stats/index.js');
+    const source = sessionSource();
+    const line = allowanceWarning(source?.provider === 'codex' ? seatAllowance(source.file) : { known: false }, me.id);
+    if (line) card.allowance = line;
+  }
   const name = (id) => agentDisplayName(card.agents, ctx.config, id);
   if (diagnostics) card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, staleDoctrineRows(ctx, doctrine, { headDoctrine: sources.headDoctrine })).map((item) => ({ ...item, ...staleItemFinding(item) }));
   if (isMain && diagnostics) {
@@ -336,6 +347,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       for (const entry of entries.slice(0, 3)) say(line(entry));
       if (entries.length > 3) say(`  ${entries.length - 3} more; list them with pullboard resume --json`);
     };
+    if (card.pendingApply.length) say(pendingApplyLine(card.pendingApply));
     section(card.openDecisions, (ask) => `open decision #${ask.id} from ${name(ask.asker)} (${ask.age}): ${firstLine(ask.question)}`);
     section(card.recentAnswers, (answer) => `recent decision #${answer.id}: ${name(answer.answeredBy)} answered ${name(answer.asker)} (${answer.age} ago): ${firstLine(answer.answer)}`);
     if (diagnostics && (card.toMerge.length || card.staleVerdicts.length)) {
@@ -354,6 +366,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       ? `waiting on the person: #${need.id} from ${need.ref} (${span(ctx, need.at)}): ${firstLine(need.text)}`
       : `needs the person: ${need.ref}: ${firstLine(need.text)} (${need.what})`);
     if (card.rigor?.notice) say(card.rigor.notice);
+    if (card.allowance) say(card.allowance);
     section(card.rigor?.undrafted ?? [], (cause) => `Rigor needs a proved draft: ${cause.key}, items ${cause.items.map(item => `#${item.id}`).join(', ')}; pullboard rigor draft "${cause.key.replaceAll('"', '\\"')}" "<rule>" --check "<command>" --red <commit> --green <commit>`);
     if (card.toVerify.length) say('review queue:');
     section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);
@@ -372,6 +385,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   let next;
   if (isMain) {
     next = coordinatorNext(diagnostics ? card : { ...card, toMerge: card.acceptedAwaitingLanding, staleVerdicts: [] }, loadSpec(root, ctx.config).rows);
+    next = applyFirst(card.pendingApply, next, ctx.config.spec);
     if (!diagnostics && next.startsWith('merge #')) next = 'pullboard land (checks current verdicts before merging)';
     // The board lands accepted work: the next step is the land job an accepted item lacks, never a hand merge (#7948).
     if (card.landingWaits?.length && next.startsWith('merge #')) next = landingNext(card.landingWaits);

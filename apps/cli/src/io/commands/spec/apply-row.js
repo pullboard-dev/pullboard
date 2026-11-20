@@ -34,7 +34,8 @@ export function requireApplier({ isMain, me, coordinator, channel, values, decis
     return;
   }
   const decidedOn = record => JSON.parse(events.find(event => event.event_id === record.event)?.event_detail ?? '{}').channel;
-  const justApproved = typeof values.row === 'string' && decisions.some(record => record.id === values.row && !record.applied && decidedOn(record) === channel);
+  // A pending decline passes no guard: only the person's approve on this channel opens the one call [#10679].
+  const justApproved = typeof values.row === 'string' && decisions.some(record => record.id === values.row && record.decision === 'approve' && !record.applied && decidedOn(record) === channel);
   if (!isMain || values.commit !== true || !justApproved) throw refusal();
 }
 

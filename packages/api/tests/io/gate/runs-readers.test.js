@@ -1,7 +1,7 @@
 /** The small gate readers take a runs option: with runs_store on they read one queued gate from the runs file, with it off exactly as on main [P7,#9149]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { claimJob } from '../../../index.js';
 import { latestGateJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';

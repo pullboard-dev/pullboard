@@ -10,7 +10,7 @@ import { pullQueue } from '../../tests/fixtures/pull.js';
 /** Claim item 1, commit one file in its folder, then move main on, with submit.composeAsObject set as `on` says. */
 async function readySubmit(t, { on }) {
   const box = await pullProject(t, 1);
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'pull' }, ...(on ? { submit: { composeAsObject: true } } : {}) });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'pull' }, submit: { composeOnRunner: false, ...(on ? { composeAsObject: true } : {}) } });
   const [id] = box.ids;
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
@@ -39,7 +39,7 @@ async function submitted(t, { box, id, folder }) {
   return { result, candidate: row.candidate, main: row.base, fact };
 }
 
-test('clause 1: with submit.composeAsObject on, submit leaves the branch, HEAD, index and checkout alone and submits a composition object with parents main then head under refs/pullboard/compose [C7,U159]', async t => {
+test('cli.journeys-submit-compose.with-submit-composeasobject-on-submit-leaves: clause 1: with submit.composeAsObject on, submit leaves the branch, HEAD, index and checkout alone and submits a composition object with parents main then head under refs/pullboard/compose [C7,U159]', async t => {
   const ready = await readySubmit(t, { on: true });
   const { folder, git, before, main, id } = ready;
   const { candidate } = await submitted(t, ready);
@@ -57,7 +57,7 @@ test('clause 1: with submit.composeAsObject on, submit leaves the branch, HEAD, 
   assert.equal(git(folder, 'rev-parse', `refs/pullboard/compose/${id}/${main.slice(0, 12)}`), candidate, 'the compose ref keeps the composition');
 });
 
-test('clause 2: the composition is the commit the board records for the submit, and the submit names it a composition, not a merge into the builder source [C7,U159]', async t => {
+test('cli.journeys-submit-compose.the-composition-is-the-commit-the: clause 2: the composition is the commit the board records for the submit, and the submit names it a composition, not a merge into the builder source [C7,U159]', async t => {
   const ready = await readySubmit(t, { on: true });
   const { folder, before, main, id } = ready;
   const { result, candidate, main: jobMain, fact } = await submitted(t, ready);
@@ -69,7 +69,7 @@ test('clause 2: the composition is the commit the board records for the submit, 
   assert.doesNotMatch(result.out, /into the builder source/u);
 });
 
-test('clause 3: with the setting off (default), submit records the object merge with parents head then main and writes no compose ref [C7,U159]', async t => {
+test('cli.journeys-submit-compose.with-the-setting-off-default-submit: clause 3: with the setting off (default), submit records the object merge with parents head then main and writes no compose ref [C7,U159]', async t => {
   const ready = await readySubmit(t, { on: false });
   const { folder, git, before, main } = ready;
   const { result, candidate, fact } = await submitted(t, ready);

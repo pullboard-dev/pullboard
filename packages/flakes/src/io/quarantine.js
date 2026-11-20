@@ -35,7 +35,7 @@ import {
   boardReceiptStore,
   receiptBinds,
   receiptFields,
-} from "../../../gate/index.js";
+} from "../../../gate/heavy.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./main.js";
 import { flakeEvents } from "./main.js";
@@ -347,6 +347,9 @@ export function requireBound(board, receipt) {
   if (!gateRuns(board).some(run => run.id === receipt.id)) sealQuarantineVerdict(board, receipt);
 }
 
+/** Marks a request whose receipt binding the board writer checked before its transaction opened. */
+const GATE_RUN_PREBOUND = Symbol.for('pullboard.gateRun.prebound');
+
 /** Validate the complete gate wire shape and actor before any origin binding or board append. */
 function gateRunValue(board, { agentId, receipt }) {
   if (Object.hasOwn(receipt ?? {}, 'testOutcomes') && (board.executionEngineVersion ?? ENGINE_VERSION) < QUARANTINE_CORE_ENGINE) {
@@ -379,11 +382,13 @@ function gateRunValue(board, { agentId, receipt }) {
  * @param {{ agentId: string, receipt: object, lane: string, owners?: Record<string,string> }} request
  * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
  */
-export function recordGateRun(board, { agentId, receipt, lane, owners, autoSubmit }) {
+export function recordGateRun(board, request) {
+  const { agentId, receipt, lane, owners, autoSubmit } = request;
   const value = gateRunValue(board, { agentId, receipt });
   // A caller's own run must be the receipt its gate stored. A sealed move being replayed was checked where it was made
   // (prepareEngineMove), because another machine holds no copy of that receipt; quarantineWaivers checks again here.
-  if (board.executionEngineVersion === undefined) requireBound(board, value);
+  // The board writer's preparation already checked the binding with no lock held and marks the request [#10715].
+  if (board.executionEngineVersion === undefined && !request[GATE_RUN_PREBOUND]) requireBound(board, value);
   return recordSealedGateRun(board, { agentId, receipt: value, lane, owners, autoSubmit });
 }
 

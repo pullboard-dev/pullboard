@@ -44,3 +44,34 @@ export function requireRewrittenRows(items, rows, { enabled = false } = {}) {
   throw new Refused('ROW_REWRITE_MISSING', `item #${first.id} cites ${first.rows.join(', ')}, whose text changed with no rewrite edit recorded for its bar`,
     `ask the coordinator to rewrite its bar: pullboard edit ${first.id} --criterion "<text>" --reason "<why ${first.rows[0]} changed>"`);
 }
+
+/**
+ * Read the open items and the live spec rows through the pullboard command, then refuse like requireRewrittenRows.
+ * pullboard list --json carries item_frozen on every item, so no per-item show is needed; pullboard spec --json carries the live rows.
+ * Reads nothing when the setting is off. Fails closed when either read fails, since the check cannot say a move is safe.
+ *
+ * @param {{ run: (args: string[]) => { status: number, stdout: string, stderr: string }, enabled?: boolean }} fields
+ *   run: runs one pullboard command in the repository; enabled: the verify.requireRowRewrite setting.
+ * @throws {Refused} ROW_REWRITE_MISSING, or ROW_REWRITE_UNREAD when the items or rows cannot be read
+ */
+export function requireRowRewriteForMove({ run, enabled = false }) {
+  if (enabled !== true) return;
+  const listed = run(['list', '--json']);
+  if (listed.status !== 0) throw new Refused('ROW_REWRITE_UNREAD', `could not list the open items: ${String(listed.stderr).trim()}`, 'run pullboard list --json and fix what it reports');
+  const spec = run(['spec', '--json']);
+  if (spec.status !== 0) throw new Refused('ROW_REWRITE_UNREAD', `could not read the live spec rows: ${String(spec.stderr || spec.stdout).trim().slice(0, 300)}`, 'run pullboard spec --json and fix what it reports');
+  requireRewrittenRows(JSON.parse(listed.stdout).items ?? [], JSON.parse(spec.stdout).rows ?? [], { enabled });
+}
+
+/**
+ * Run a move only after the row-rewrite check passes: a refusal leaves the move unrun, so no file moves.
+ *
+ * @template T
+ * @param {{ run: (args: string[]) => { status: number, stdout: string, stderr: string }, enabled?: boolean }} fields
+ * @param {() => T} move
+ * @returns {T}
+ */
+export function moveAfterRowRewrite(fields, move) {
+  requireRowRewriteForMove(fields);
+  return move();
+}

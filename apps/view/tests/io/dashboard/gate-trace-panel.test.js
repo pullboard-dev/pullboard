@@ -37,7 +37,7 @@ function page(t) {
   };
 }
 
-test('clause 1: clicking a gate row opens a panel listing each phase of gate-trace.js with its duration in ms [C7,N26]', t => {
+test('view.x-io-dashboard-gate-trace-panel.clause-1-clicking-a-gate-row-opens: clause 1: clicking a gate row opens a panel listing each phase of gate-trace.js with its duration in ms [C7,N26]', t => {
   const shown = page(t);
   shown.show(projectOf({ 7: FINISHED }));
   assert.match(shown.region.innerHTML, /data-gate-trace="7"/u, 'the In the gate row is a button that opens the trace');
@@ -56,7 +56,7 @@ test('clause 1: clicking a gate row opens a panel listing each phase of gate-tra
   assert.doesNotMatch(shown.region.innerHTML, /data-gate-panel/u, 'a second click shuts the panel');
 });
 
-test('clause 2: the open panel of a running gate names its current phase and re-renders when the next live state arrives [C7,N26]', t => {
+test('view.x-io-dashboard-gate-trace-panel.clause-2-the-open-panel-of-a: clause 2: the open panel of a running gate names its current phase and re-renders when the next live state arrives [C7,N26]', t => {
   const shown = page(t);
   const running = steps => ({ id: 'gate-7', item: 7, step: 'run', created: T0, updated: T0 + 10_000, steps });
   shown.show(projectOf({ 7: running([step('section:static', 1, 0), step('shard:a', 2, 10_000, { shard: 'a' })]) }, { observedAt: T0 + 25_000 }));
@@ -69,7 +69,7 @@ test('clause 2: the open panel of a running gate names its current phase and re-
   assert.match(shown.region.innerHTML, new RegExp('data-gate-phase="shard:b">.*?' + ms(12_000) + '</span></li>'));
 });
 
-test('clause 1: a gate row with no recorded job opens a panel that says so, and the item stays one click away [C7,N26]', t => {
+test('view.x-io-dashboard-gate-trace-panel.clause-1-a-gate-row-with-no: clause 1: a gate row with no recorded job opens a panel that says so, and the item stays one click away [C7,N26]', t => {
   const shown = page(t);
   shown.show(projectOf({}));
   shown.click(7);
@@ -77,7 +77,7 @@ test('clause 1: a gate row with no recorded job opens a panel that says so, and 
   assert.match(shown.region.innerHTML, /data-go="item:7"/u, 'the panel offers the item itself');
 });
 
-test('clause 3: the panel opens in under 200 ms on a large board with 300 items in the gate [C7,N26]', t => {
+test('view.x-io-dashboard-gate-trace-panel.clause-3-the-panel-opens-in-under: clause 3: the panel opens in under 200 ms on a large board with 300 items in the gate [C7,N26]', t => {
   const shown = page(t);
   const extra = 2_000;
   const gates = Object.fromEntries(Array.from({ length: 300 }, (_, index) => [7 + index, { ...FINISHED, id: 'gate-' + (7 + index), item: 7 + index,
@@ -92,7 +92,7 @@ test('clause 3: the panel opens in under 200 ms on a large board with 300 items 
   assert.ok(took < 200, 'the panel opened in ' + took.toFixed(1) + ' ms'); // budget: item #10315 bar clause 3, measured on this large board
 });
 
-test('clause 1: the server reads each item\'s newest gate job and its phase steps, and leaves keepsakes and liveness rows out [C7,N26]', () => {
+test('view.x-io-dashboard-gate-trace-panel.clause-1-the-server-reads-each-item: clause 1: the server reads each item\'s newest gate job and its phase steps, and leaves keepsakes and liveness rows out [C7,N26]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec(`CREATE TABLE job (job_id TEXT PRIMARY KEY, job_kind TEXT, job_item INTEGER, job_step TEXT, job_created INTEGER, job_updated INTEGER);
     CREATE TABLE job_step (job_step_id INTEGER PRIMARY KEY, job_step_job TEXT, job_step_name TEXT, job_step_seq INTEGER, job_step_payload TEXT, job_step_at INTEGER);`);

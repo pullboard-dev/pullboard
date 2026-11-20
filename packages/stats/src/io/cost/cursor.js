@@ -1,10 +1,10 @@
 /** Read each native session log once: a cursor resumes at its last byte offset and never rereads or rehashes old bytes [N2]. */
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
 import { claudeStep } from './provider.js';
 import { codexStep } from './provider.js';
 import { SPLIT_COUNTS } from './usage.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A cursor no checkpoint has used for a week is dropped from the private ledger. */
 const CURSOR_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -74,16 +74,16 @@ function feed(cursor, bytes, cutoff) {
 /** Read only bytes [offset, size) of the file. */
 function readFrom(file, offset, size) {
   const bytes = Buffer.alloc(Math.max(0, size - offset));
-  const fd = openSync(file, 'r');
+  const fd = fs.open(file, 'r');
   try {
     let read = 0;
     while (read < bytes.length) {
-      const n = readSync(fd, bytes, read, bytes.length - read, offset + read);
+      const n = fs.read(fd, bytes, read, bytes.length - read, offset + read);
       if (!n) break;
       read += n;
     }
     return bytes.subarray(0, read);
-  } finally { closeSync(fd); }
+  } finally { fs.close(fd); }
 }
 
 /**

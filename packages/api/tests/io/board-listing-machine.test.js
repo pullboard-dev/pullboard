@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { apiBoardListing } from '../../index.js';
 

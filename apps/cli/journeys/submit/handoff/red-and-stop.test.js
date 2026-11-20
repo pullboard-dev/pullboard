@@ -8,7 +8,7 @@ import { completeSubmitHandoff } from '../../../../../packages/store/index.js';
 import { fixture } from '../../../tests/fixtures/submit/handoff.js';
 import { queueBoard } from '../../../tests/fixtures/submit/handoff.js';
 
-test('clause 1: a queued red returned to its builder writes submitOutcome with the refusal code and its pipelineCause on the same renew event [C7,V4]', t => {
+test('cli.journeys-submit-handoff-red-and-stop.a-queued-red-returned-to-its: clause 1: a queued red returned to its builder writes submitOutcome with the refusal code and its pipelineCause on the same renew event [C7,V4]', t => {
   const box = fixture(t);
   const board = queueBoard(box);
   try {
@@ -30,7 +30,7 @@ test('clause 1: a queued red returned to its builder writes submitOutcome with t
   } finally { board.db.close(); }
 });
 
-test('a queued gate stopped by an infrastructure Git read stays claimed and is never returned to the builder as red [C7,V4]', t => {
+test('cli.journeys-submit-handoff-red-and-stop.a-queued-gate-stopped-by-an: a queued gate stopped by an infrastructure Git read stays claimed and is never returned to the builder as red [C7,V4]', t => {
   const box = fixture(t);
   const board = queueBoard(box);
   try {

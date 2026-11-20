@@ -45,7 +45,8 @@ function behindFixture(t) {
   sh(root, 'commit', '-q', '--allow-empty', '-m', 'chore: start');
   const board = fixtureBoard(t);
   const ports = board.enginePorts;
-  board.enginePorts = { ...ports, operations: [...ports.operations, 'probe'], minimumOperationEngine: () => NEEDED };
+  // The probe move has a store writer, so prepareEngineMove reaches its engine check instead of refusing NO_STORE_WRITER.
+  board.enginePorts = { ...ports, store: { ...ports.store, probe() {} }, operations: [...ports.operations, 'probe'], minimumOperationEngine: () => NEEDED };
   return { root, board };
 }
 

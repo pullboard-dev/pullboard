@@ -13,9 +13,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { awaitNestedRun } from '../../../../index.js';
-import { removeTestSandbox } from '../../../../index.js';
-import { TEST_CHILD_CLEANUP_FAILED } from '../../../../index.js';
+import { awaitNestedRun } from '../../../../heavy.js';
+import { removeTestSandbox } from '../../../../heavy.js';
+import { TEST_CHILD_CLEANUP_FAILED } from '../../../../heavy.js';
 import { runFixtureChildAsync } from '../../../fixtures/child.js';
 import { waitForCondition } from '../../../fixtures/runner/holders.js';
 

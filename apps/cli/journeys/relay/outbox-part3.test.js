@@ -7,9 +7,9 @@ import {
   resolveMove,
 } from '../../../../packages/outbox/index.js';
 
-test('a relay refusal after a recorded move says it was recorded [C6,N26,H16]', recordedRelayRefusal);
+test('cli.journeys-relay-outbox-part3.a-relay-refusal-after-a-recorded: a relay refusal after a recorded move says it was recorded [C6,N26,H16]', recordedRelayRefusal);
 
-test('created-item bindings distinguish repair outputs and survive reordered multi-repair results [B26,H16,H17]', () => {
+test('cli.journeys-relay-outbox-part3.created-item-bindings-distinguish-repair-outputs: created-item bindings distinguish repair outputs and survive reordered multi-repair results [B26,H16,H17]', () => {
   const publication = { move: { id: 'publication', operation: 'recordPublishFinding' } };
   rememberCreatedItems(publication, { item: 9, repair: 12 });
   const gate = { move: { id: 'gate', operation: 'recordGateRun' } };
@@ -36,7 +36,7 @@ test('created-item bindings distinguish repair outputs and survive reordered mul
     'partial replay uses each newly shown local repair identity');
 });
 
-test('selector gap binds only a newly filed repair item [B26,H16]', () => {
+test('cli.journeys-relay-outbox-part3.selector-gap-binds-only-a-newly: selector gap binds only a newly filed repair item [B26,H16]', () => {
   const created = { move: { id: 'gap', operation: 'recordSelectorGap' } };
   rememberCreatedItems(created, { item: 7, filed: true });
   const existing = { move: { id: 'existing', operation: 'recordSelectorGap' } };

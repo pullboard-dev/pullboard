@@ -12,7 +12,7 @@ import { typescriptBoard } from '../../tests/fixtures/languages/typescript.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 2: a submitted commit with a failing TypeScript test is refused red and the refusal names the test [C7,#10569]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-typescript-red.a-submitted-commit-with-a-failing: clause 2: a submitted commit with a failing TypeScript test is refused red and the refusal names the test [C7,#10569]', { timeout: 240_000 }, async (t) => {
   if (!TYPESCRIPT) return t.skip(UNAVAILABLE);
   const board = await typescriptBoard(helpers);
   const red = await buildAndSubmit(board, null, BROKEN);

@@ -17,8 +17,11 @@ export async function run(io) {
   const ctx = context(io);
   // With read.thinCommands on, the thin door serves a plain joined seat; null takes the full path [C7,#9811].
   const me = (readThinCommands() ? thinWhoami(ctx) : null) ?? await fullWhoami(ctx);
-  io.result?.({ ...me, path: ctx.info.root });
-  io.say(`${me.displayName} (${me.lane} lane${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}\naddress ${me.address}`);
+  const env = process.env.PULLBOARD_MODEL;
+  const modelMismatch = env && me.model !== 'unknown' && env !== me.model ? { env, seat: me.model } : null;
+  io.result?.({ ...me, path: ctx.info.root, ...(modelMismatch ? { modelMismatch } : {}) });
+  io.say(`${me.displayName} (${me.lane} lane${me.role ? `, ${me.role}` : ''}${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}\naddress ${me.address}`);
+  if (modelMismatch) io.say(`PULLBOARD_MODEL=${env} differs from this seat's recorded model ${me.model}; verdicts use ${me.model}; make a seat for ${env} with pullboard worktree ${me.lane} --model ${env}`);
   return 0;
 }
 

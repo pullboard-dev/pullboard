@@ -15,7 +15,7 @@ import { writeProject } from '../../tests/fixtures/languages/typescript.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 1: init in a copy of the scratch TypeScript project records npm test as the gate [C7,#10569]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-typescript.init-in-a-copy-of-the: clause 1: init in a copy of the scratch TypeScript project records npm test as the gate [C7,#10569]', { timeout: 240_000 }, async (t) => {
   if (!TYPESCRIPT) return t.skip(UNAVAILABLE);
   const box = typescriptSandbox(helpers);
   const repo = join(box.dir, 'project');

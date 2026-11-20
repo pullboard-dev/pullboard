@@ -6,7 +6,7 @@ import { dashboardRuntime } from '../../../index.js';
 /** Drain only the already queued read-promise callbacks, without a timer or absence assertion. */
 async function delivered() { for (let index = 0; index < 6; index++) await Promise.resolve(); }
 
-test('Dashboard refuses truncated history and isolates a replaced board at the same root [N26]', async t => {
+test('view.x-io-dashboard-runtime.dashboard-refuses-truncated-history-and-isolates-a: Dashboard refuses truncated history and isolates a replaced board at the same root [N26]', async t => {
   const previous = globalThis.document;
   const region = { innerHTML: '', querySelectorAll: () => [] };
   globalThis.document = { getElementById: () => region };
@@ -29,7 +29,7 @@ test('Dashboard refuses truncated history and isolates a replaced board at the s
 
   identity = 'replacement'; reply = { events: [{ event_id: 1 }, { event_id: 2 }, { event_id: 3 }, { event_id: 4 }] };
   runtime.draw(project, ''); await delivered(); runtime.draw(project, '');
-  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0', 'a different native board starts a fresh history read');
+  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0&limit=50000', 'a different native board starts a fresh history read');
   assert.equal(observations.at(-1).options.complete, true);
   assert.deepEqual(observations.at(-1).events.map(event => event.event_id), [1,2,3], 'events beyond the displayed sequence never enter the projection');
   assert.equal(observations.at(-1).options.now, Date.parse(project.observedAt), 'the API observation clock governs rates and lease windows');
@@ -46,11 +46,35 @@ test('Dashboard refuses truncated history and isolates a replaced board at the s
 
   reply = { events: [{ event_id: 1 }, { event_id: 2 }] };
   runtime.draw({ ...project, sequence: 2 }, ''); await delivered(); runtime.draw({ ...project, sequence: 2 }, '');
-  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0', 'a backwards native prefix cannot reuse a later board history');
+  assert.equal(reads.at(-1), '/api/boards/replacement/events?after=0&limit=50000', 'a backwards native prefix cannot reuse a later board history');
   assert.equal(observations.at(-1).options.complete, true);
   runtime.draw(project, 'current compact needs');
   runtime.draw({ ...project, observedAt: '2026-10-27T12:01:00Z' });
   assert.equal(renderedNeeds.at(-1), 'current compact needs', 'clock-only redraw retains the selected board compact calls');
   runtime.draw({ ...project, root: '/another-board' });
   assert.equal(renderedNeeds.at(-1), '', 'another board never inherits prior compact calls');
+});
+
+test('view.dashboard.history-paged: clause 1: the Dashboard reads history in pages with a limit until a page comes back short [N26]', async t => {
+  const previous = globalThis.document;
+  globalThis.document = { getElementById: () => ({ innerHTML: '', querySelectorAll: () => [] }) };
+  t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
+  const all = Array.from({ length: 5 }, (_, index) => ({ event_id: index + 1 }));
+  const reads = [], observations = [];
+  const runtime = dashboardRuntime({
+    model: (project, events, options) => { observations.push({ events, options }); return {}; },
+    html: () => '', summary: () => null, current: () => '/private-fixture', redraw: () => {}, boardPath: () => '/api/boards/paged', eventBatch: 2,
+    api: async path => {
+      reads.push(path);
+      const query = new URLSearchParams(path.split('?')[1]);
+      const limit = Number(query.get('limit'));
+      assert.ok(limit > 0, `every events read names its limit: ${path}`);
+      return { events: all.filter(event => event.event_id > Number(query.get('after'))).slice(0, limit) };
+    },
+  });
+  const project = { root: '/private-fixture', sequence: 5, observedAt: '2026-10-27T12:00:00Z' };
+  runtime.draw(project, ''); for (let turn = 0; turn < 5; turn += 1) await delivered(); runtime.draw(project, '');
+  assert.deepEqual(reads, ['/api/boards/paged/events?after=0&limit=2', '/api/boards/paged/events?after=2&limit=2', '/api/boards/paged/events?after=4&limit=2']);
+  assert.equal(observations.at(-1).options.complete, true, 'the paged history covers the whole prefix');
+  assert.deepEqual(observations.at(-1).events.map(event => event.event_id), [1, 2, 3, 4, 5]);
 });

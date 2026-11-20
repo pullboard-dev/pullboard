@@ -1,6 +1,6 @@
 /** @pullboard-test-loads apps/cli/src/io/run/tests.js packages/gate/src/io/run-tests.js packages/gate/src/io/test/isolation.js src/child-journal-preload.js packages/resources/src/io/home.js packages/config/src/io/settings.js packages/resources/index.js packages/config/src/io/main.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
-import { awaitNestedRun } from '../../../index.js';
+import { awaitNestedRun } from '../../../heavy.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -14,10 +14,10 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
-import { childJournalPreloadSource } from '../../../index.js';
-import { foreignNodeOptions } from '../../../index.js';
-import { gateMachineHome } from '../../../index.js';
-import { gateRuntimeCaptureSource } from '../../../index.js';
+import { childJournalPreloadSource } from '../../../heavy.js';
+import { foreignNodeOptions } from '../../../heavy.js';
+import { gateMachineHome } from '../../../heavy.js';
+import { gateRuntimeCaptureSource } from '../../../heavy.js';
 import { runtimeCaptureSource } from '../../../../sandbox/index.js';
 import { machineHome } from '../../../../resources/index.js';
 import { takeResource } from '../../../../resources/index.js';
@@ -48,19 +48,19 @@ import { defaultViewPort } from ${module('packages/config/src/io/main.js')};
 import { chooseViewPort } from ${module('apps/cli/tests/fixtures/view/port.js')};
 // A test that drops its machine home falls back to the account home, as view-port-fixture.js does.
 delete process.env.PULLBOARD_MACHINE_HOME;
-test(${JSON.stringify(PROBES[0])}, () => {
+  test(${JSON.stringify(PROBES[0])}, () => {
   assert.notEqual(machineHome(), join(userInfo().homedir, '.pullboard'), 'the OS account home is never read');
   assert.ok(!machineHome().startsWith(process.env.ISOLATION_HOSTILE_HOME + '/'), 'the hostile machine is never read');
   assert.deepEqual(loadMachineSettings(), { gateSlots: 2, browserSlots: 1 });
 });
-test(${JSON.stringify(PROBES[1])}, () => {
+  test(${JSON.stringify(PROBES[1])}, () => {
   assert.equal(listResources({ scope: 'machine' }).some((resource) => resource.name === ${JSON.stringify(HOSTILE_LEASE)}), false);
 });
-test(${JSON.stringify(PROBES[2])}, () => {
+  test(${JSON.stringify(PROBES[2])}, () => {
   assert.equal(process.env.CI, undefined);
   assert.equal(foreignNodeOptions(process.env.NODE_OPTIONS), false);
 });
-test(${JSON.stringify(PROBES[3])}, async () => {
+  test(${JSON.stringify(PROBES[3])}, async () => {
   assert.equal(defaultViewPort(), ${DEFAULT_VIEW_PORT});
   assert.notEqual(await chooseViewPort(), ${DEFAULT_VIEW_PORT});
 });

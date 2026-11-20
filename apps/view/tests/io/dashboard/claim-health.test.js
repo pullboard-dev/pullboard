@@ -23,7 +23,7 @@ function board() {
   return dashboardModel(project, events, { now, complete: true });
 }
 
-test('clause 1: the building count leaves out the stalled and waiting claims and shows stalled 1 and waiting 1 [C7,N26]', () => {
+test('view.x-io-dashboard-claim-health.clause-1-the-building-count-leaves-out: clause 1: the building count leaves out the stalled and waiting claims and shows stalled 1 and waiting 1 [C7,N26]', () => {
   const model = board();
   assert.equal(model.stages.building, 1, 'only the claim that is building counts as building');
   assert.equal(model.stages.stalled, 1);
@@ -35,7 +35,7 @@ test('clause 1: the building count leaves out the stalled and waiting claims and
   assert.match(html, /<b>1<\/b>waiting/u);
 });
 
-test('clause 1: a board with no stalled or waiting claim shows no such tiles [C7,N26]', () => {
+test('view.x-io-dashboard-claim-health.clause-1-a-board-with-no-stalled: clause 1: a board with no stalled or waiting claim shows no such tiles [C7,N26]', () => {
   const model = board();
   const plain = { ...model, stages: { ...model.stages, stalled: 0, waitingClaims: 0 } };
   const html = dashboardHtml(plain);
@@ -43,7 +43,7 @@ test('clause 1: a board with no stalled or waiting claim shows no such tiles [C7
   assert.doesNotMatch(html, /<\/b>waiting/u);
 });
 
-test('clause 3: neither the dashboard nor the agent floor counts the stalled claim as building [C7]', () => {
+test('view.x-io-dashboard-claim-health.clause-3-neither-the-dashboard-nor-the: clause 3: neither the dashboard nor the agent floor counts the stalled claim as building [C7]', () => {
   const model = board();
   const floor = agentFloorModel(model, []);
   const keyOf = id => floor.groups.find(group => group.agents.some(agent => agent.id === id))?.key;

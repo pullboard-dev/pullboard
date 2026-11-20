@@ -135,8 +135,8 @@ const BEFORE = {
   ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
-  // hspec-junit-formatter writes the module group (Calc) in classname and no file attribute; the file is test/<Calc>Spec.hs.
-  haskell: row => (row.classname ? `test/${row.classname.replace(/\./gu, '/')}Spec.hs` : null),
+  // hspec-junit-formatter writes the dotted spec module (Data.CalcSpec) in classname and no file attribute; a module ending in Spec is the spec file's own path (Data/CalcSpec.hs), a bare group (Calc) is test/CalcSpec.hs.
+  haskell: row => (row.classname ? (/Spec$/u.test(row.classname) ? `${row.classname.replace(/\./gu, '/')}.hs` : `test/${row.classname.replace(/\./gu, '/')}Spec.hs`) : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
   // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
@@ -214,4 +214,78 @@ test('landing.junit-files.table: clause 2: every JUNIT_FILE_ROWS key and functio
   assert.deepEqual(Object.keys(JUNIT_FILE_ROWS).sort(), Object.keys(BEFORE).sort());
   for (const key of Object.keys(BEFORE)) assert.equal(collapse(JUNIT_FILE_ROWS[key]), collapse(BEFORE[key]), key);
   assert.deepEqual(LANGUAGES.find(row => row.language === 'deno').cases.inputs, ['root']);
+});
+
+test('landing.junit-files.cmake-reads-the-cpp-row: clause 1: junitFile cmake returns the same value junitFile cpp returns for a ctest classname [C7]', () => {
+  assert.equal(junitFile('cmake', { classname: 'calc_test' }), 'calc_test');
+  assert.equal(junitFile('cmake', { classname: 'calc_test' }), junitFile('cpp', { classname: 'calc_test' }));
+});
+
+test('landing.junit-files.cmake-no-classname-is-null: clause 2: junitFile cmake returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('cmake', {}), null);
+  assert.equal(junitFile('cmake', { classname: '' }), null);
+});
+
+test('landing.junit-files.cmake-titles-registered: clause 3: every cmake test title here carries an ID starting landing.junit-files.cmake with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.cmake-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});
+
+test('landing.junit-files.maven-reads-the-java-row: clause 1: junitFile maven returns the same path junitFile java returns for a Surefire dotted classname [C7]', () => {
+  const row = { classname: 'com.example.CalcTest$Inner' };
+  assert.equal(junitFile('maven', row), 'src/test/java/com/example/CalcTest.java');
+  assert.equal(junitFile('maven', row), junitFile('java', row));
+});
+
+test('landing.junit-files.maven-no-classname-is-null: clause 2: junitFile maven returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('maven', {}), null);
+  assert.equal(junitFile('maven', { classname: '' }), null);
+});
+
+test('landing.junit-files.maven-titles-registered: clause 3: every maven test title here carries an ID starting landing.junit-files.maven with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.maven-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});
+
+test('landing.junit-files.haskell-dotted-module-path: clause 1: junitFile haskell returns the dotted spec module as a path with dots turned into folder separators and the .hs suffix [C7]', () => {
+  assert.equal(junitFile('haskell', { classname: 'Data.CalcSpec' }), 'Data/CalcSpec.hs');
+  assert.equal(junitFile('haskell', { classname: 'CalcSpec' }), 'CalcSpec.hs');
+  assert.equal(junitFile('haskell', { classname: 'Calc' }), 'test/CalcSpec.hs');
+});
+
+test('landing.junit-files.haskell-no-classname-is-null: clause 2: junitFile haskell returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('haskell', {}), null);
+  assert.equal(junitFile('haskell', { classname: '' }), null);
+});
+
+test('landing.junit-files.haskell-titles-registered: clause 3: every haskell test title here carries an ID starting landing.junit-files.haskell with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.haskell-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});
+
+test('landing.junit-files.gradle-java-or-kotlin-path: clause 1: junitFile gradle returns the java path for a classname whose source is Java and the kotlin path for a Kotlin one [C7]', () => {
+  assert.equal(junitFile('gradle', { classname: 'com.example.CalcTest' }), 'src/test/java/com/example/CalcTest.java');
+  assert.equal(junitFile('gradle', { classname: 'com.example.CalcTest', kotlin: true }), 'src/test/kotlin/com/example/CalcTest.kt');
+});
+
+test('landing.junit-files.gradle-no-classname-is-null: clause 2: junitFile gradle returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('gradle', {}), null);
+  assert.equal(junitFile('gradle', { kotlin: true }), null);
+});
+
+test('landing.junit-files.gradle-titles-registered: clause 3: every gradle test title here carries an ID starting landing.junit-files.gradle with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.gradle-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
 });

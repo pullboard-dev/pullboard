@@ -31,6 +31,7 @@ import { parseSpec } from '../../../../packages/spec/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -51,7 +52,7 @@ function stagedProblems(root) {
  */
 const check = (message, rules = RULES) => commitMsgProblems(message, { rules, spec: SPEC });
 
-test('a secret in a staged text file is still refused [S1]', (t) => {
+test('cli.journeys-hooks-main-part2.a-secret-in-a-staged-text: a secret in a staged text file is still refused [S1]', (t) => {
   const box = stagedRepo(t);
   const secret = `sk-ant-${'A'.repeat(32)}`;
   writeFileSync(join(box.root, 'settings.js'), `const token = \"${secret}\";\n`);
@@ -61,13 +62,14 @@ test('a secret in a staged text file is still refused [S1]', (t) => {
   assert.ok(!problems.join(' ').includes(secret));
 });
 
-test('a refused merge message points to the message git writes, which is exempt [C4]', () => {
+test('cli.journeys-hooks-main-part2.a-refused-merge-message-points-to: a refused merge message points to the message git writes, which is exempt [C4]', () => {
   assert.match(check('merge: include store date validation')[0], /For a merge, keep the message git writes, which is exempt: git merge --no-edit/);
   assert.deepEqual(check("Merge branch 'store/1'"), []);
 });
 
-test('a spec-less feature commit is told a path that works [S1,B26]', async () => {
+test('cli.journeys-hooks-main-part2.a-spec-less-feature-commit-is: a spec-less feature commit is told a path that works [S1,B26]', async () => {
   const box = e2e.sandbox();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const root = join(box.dir, 'newcomer');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
@@ -124,7 +126,7 @@ test('a spec-less feature commit is told a path that works [S1,B26]', async () =
   }
 });
 
-test('a hook names a Pullboard version mismatch instead of running old rules [C1,I2]', (t) => {
+test('cli.journeys-hooks-main-part2.a-hook-names-a-pullboard-version: a hook names a Pullboard version mismatch instead of running old rules [C1,I2]', (t) => {
   const box = stagedRepo(t);
   const hooks = join(box.root, '.githooks'), bin = join(box.root, '.fakebin'), local = join(box.root, 'node_modules', '.bin');
   mkdirSync(hooks); mkdirSync(bin);
@@ -165,8 +167,9 @@ test('a hook names a Pullboard version mismatch instead of running old rules [C1
   assert.match(result.stderr, /rules of 0\.9\.0 ran/u, 'the hook runs the version that installed it');
 });
 
-test('pre-push keeps its ref records when the version query reads stdin [C3,L3,I2]', () => {
+test('cli.journeys-hooks-main-part2.pre-push-keeps-its-ref-records: pre-push keeps its ref records when the version query reads stdin [C3,L3,I2]', () => {
   const box = e2e.project('test ! -f RED');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   writeFileSync(join(box.repo, 'RED'), 'this older commit is red\n');
   box.git(box.repo, 'add', 'RED');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: create the red commit');
@@ -240,7 +243,7 @@ function cellRepo(t) {
   return box;
 }
 
-test('#4005 clause 1: committing a new unlisted root test is refused naming the cell tests folder and the next step [C7]', (t) => {
+test('cli.journeys-hooks-main-part2.t-4005-clause-1-committing-a-new: #4005 clause 1: committing a new unlisted root test is refused naming the cell tests folder and the next step [C7]', (t) => {
   const box = cellRepo(t);
   writeFileSync(join(box.root, 'test/new.test.js'), "import { test } from 'node:test';\n");
   box.git('add', '--', 'test/new.test.js');
@@ -253,7 +256,7 @@ test('#4005 clause 1: committing a new unlisted root test is refused naming the 
   });
 });
 
-test('#4005 clause 2: a new cell test, a listed journey and an edit to an existing root test all commit [C7]', (t) => {
+test('cli.journeys-hooks-main-part2.t-4005-clause-2-a-new-cell: #4005 clause 2: a new cell test, a listed journey and an edit to an existing root test all commit [C7]', (t) => {
   const box = cellRepo(t);
   mkdirSync(join(box.root, 'packages/alpha/tests'), { recursive: true });
   writeFileSync(join(box.root, 'packages/alpha/tests/unit.test.js'), "import { test } from 'node:test';\n");
@@ -263,7 +266,7 @@ test('#4005 clause 2: a new cell test, a listed journey and an edit to an existi
   assert.deepEqual(stagedProblems(box.root), []);
 });
 
-test('#4005: a repository without the test-cell listing keeps adding root tests as before [C7]', (t) => {
+test('cli.journeys-hooks-main-part2.t-4005-a-repository-without-the-test: #4005: a repository without the test-cell listing keeps adding root tests as before [C7]', (t) => {
   const box = stagedRepo(t);
   mkdirSync(join(box.root, 'test'), { recursive: true });
   writeFileSync(join(box.root, 'test/first.test.js'), "import { test } from 'node:test';\n");

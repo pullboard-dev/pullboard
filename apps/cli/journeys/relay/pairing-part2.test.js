@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createPairingCode } from '../../../../packages/person/index.js';
@@ -59,7 +60,7 @@ function relayFiles(directory) {
   });
 }
 
-test('[H15,H17] pairing HTTP authenticates repository access before publishing or consuming', async (t) => {
+test('cli.journeys-relay-pairing-part2.pairing-http-authenticates-repository-access-before: [H15,H17] pairing HTTP authenticates repository access before publishing or consuming', async (t) => {
   let allowed = true;
   const checks = [];
   const origin = await servePairing(t, async (req, { board, write }) => {
@@ -69,7 +70,7 @@ test('[H15,H17] pairing HTTP authenticates repository access before publishing o
   });
   const issued = createPairingCode(BOARD);
   const larger = bundle({ snapshot: { version: 1, tables: {
-    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: 'x'.repeat(20_000_000) }],
+    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: randomBytes(20_000_000).toString('base64') }],
   } } });
   const sealed = await sealPairingBundle(issued.code, larger);
   assert.ok(Buffer.byteLength(JSON.stringify({ sealed })) > 20_000_000, 'the encrypted package exceeds the former HTTP body bound');
@@ -107,7 +108,7 @@ test('[H15,H17] pairing HTTP authenticates repository access before publishing o
   assert.equal((await replay.json()).error.code, 'PAIR_CODE_USED');
 });
 
-test('[H15,H17] relay service holds only bounded opaque pairing bytes and preserves its existing board files', async (t) => {
+test('cli.journeys-relay-pairing-part2.relay-service-holds-only-bounded-opaque: [H15,H17] relay service holds only bounded opaque pairing bytes and preserves its existing board files', async (t) => {
   const { root } = privateFixtureFiles('pullboard-pair-service-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const boardFile = join(root, 'existing.journal.sqlite');
@@ -171,7 +172,7 @@ test('[H15,H17] relay service holds only bounded opaque pairing bytes and preser
   assert.deepEqual(readdirSync(root).sort(), ['existing.journal.sqlite'], 'pairing bytes stay in bounded memory, not durable relay storage');
 });
 
-test('[H15,H17] production CLI pairs a real second clone and reads the same board', async (t) => {
+test('cli.journeys-relay-pairing-part2.production-cli-pairs-a-real-second: [H15,H17] production CLI pairs a real second clone and reads the same board', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   await box.requireEngineThree();
@@ -195,7 +196,7 @@ test('[H15,H17] production CLI pairs a real second clone and reads the same boar
   assert.ok(!box.calls.some((call) => call.path.includes(printed.document.code)), 'the code secret never appears in a relay request path');
 });
 
-test('[H15,H17] a paired clone synchronizes without a key file from PULLBOARD_RELAY_KEY', async (t) => {
+test('cli.journeys-relay-pairing-part2.a-paired-clone-synchronizes-without-a: [H15,H17] a paired clone synchronizes without a key file from PULLBOARD_RELAY_KEY', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const printed = await box.cliLocal('relay', 'pair');

@@ -11,7 +11,7 @@ export * from './src/logic/cuts.js';
 export { declaredLoads, declaredSourceLoads, declaredSourcePatterns, globPattern, headerLines } from './src/logic/loads.js';
 export * from './src/io/cells/plan.js';
 export { barRewrites, rewriteMovedBars, rewritePaths } from './src/io/cells/move/bars.js';
-export { requireRewrittenRows, unrewrittenRows } from './src/io/cells/move/rows.js';
+export { moveAfterRowRewrite, requireRewrittenRows, requireRowRewriteForMove, unrewrittenRows } from './src/io/cells/move/rows.js';
 export { PLAN_DIR, PLAN_FILE, SEED_FILE, computePlan, planWrites, placePath, readPlan, readSeed, shardFile, writePlan } from './src/io/cells-plan-model.js';
 export { formatJson } from './src/logic/format-json.js';
 export { entryPlacementProblems as planEntryProblems, ownedStayProblems, processEntry, retiredProblems } from './src/io/cells-plan-placement.js';
@@ -44,7 +44,7 @@ export { moveDeclarationFiles, runnerWorkerFiles } from './src/io/cells/move/clo
 export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
 export { namedBindingsIn } from './src/io/module/names.js';
 export { importParseScopes } from './src/io/module/cache.js';
-export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/logic/layout.js';
+export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations, newTestMirrorFindings } from './src/logic/layout.js';
 export { LAYOUT_BASELINE, layoutCheck, layoutReport, layoutWrite } from './src/io/layout.js';
 export { cachedMainFact, mainFactDigest, mainFactToolIdentity } from './src/io/main-facts-cache.js';
 export { narrowedTo, readText, TEST_FILE, walk } from './src/io/check-walk.js';

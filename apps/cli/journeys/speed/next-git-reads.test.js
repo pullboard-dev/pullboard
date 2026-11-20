@@ -59,13 +59,16 @@ async function measured(t, value) {
   return { item: answer?.item?.item_id ?? answer?.item_id, printed, reads };
 }
 
-test('cli.journeys-speed-next-git-reads.with-next-onegitread-on-next-spawns: clause 1: with next.oneGitRead on, next spawns fewer status, rev-parse and rev-list reads than with it off [C7,#9853]', async (t) => {
+test('cli.journeys-speed-next-git-reads.with-next-onegitread-on-next-spawns: clause 1: with next.oneGitRead on, next spawns no more status, rev-parse and rev-list reads than with it off, and at most one of each [C7,#9853]', async (t) => {
   const off = await measured(t, false);
   const on = await measured(t, true);
   console.log(`# next git reads off: ${off.reads.length}; on: ${on.reads.length}`);
   console.log(`# off reads: ${JSON.stringify(off.reads)}; on reads: ${JSON.stringify(on.reads)}`);
   assert.ok(on.reads.length <= off.reads.length, 'the setting never adds a read');
-  assert.ok(on.reads.length < off.reads.length, `fewer reads with it on (${on.reads.length}) than off (${off.reads.length})`);
+  for (const kind of ['status', 'rev-parse', 'rev-list']) {
+    const count = on.reads.filter((read) => read.split(' ')[0] === kind).length;
+    assert.ok(count <= 1, `with it on, next spawns at most one ${kind} read (saw ${count})`);
+  }
 });
 
 test('cli.journeys-speed-next-git-reads.next-hands-out-the-same-item: clause 2: next hands out the same item and prints the same lines with next.oneGitRead on and off [C7,#9853]', async (t) => {

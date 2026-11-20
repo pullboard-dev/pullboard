@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture } from '../../tests/fixtures/init/ignore-box.js';
 
-test('setup commits use repository identity despite inherited agent identity [I1,I2]', async t => {
+test('cli.journeys-init-ignore-rules.setup-commits-use-repository-identity-despite: setup commits use repository identity despite inherited agent identity [I1,I2]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   box.git('config', 'user.name', 'Repository Owner'); box.git('config', 'user.email', 'owner@example.invalid');
@@ -26,7 +26,7 @@ test('setup commits use repository identity despite inherited agent identity [I1
   assert.equal(box.git('config', '--local', '--get-regexp', '^user\\.'), configured, 'setup never changes repository identity settings');
 });
 
-test('a fresh init tells the person and the agent how to start [I9,I1]', async t => {
+test('cli.journeys-init-ignore-rules.a-fresh-init-tells-the-person: a fresh init tells the person and the agent how to start [I9,I1]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   const initialized = await box.output('init', '--verbose');
@@ -42,7 +42,7 @@ test('a fresh init tells the person and the agent how to start [I9,I1]', async t
   assert.match(agents, /^## Pullboard$/mu, 'AGENTS.md carries the approved Pullboard section');
 });
 
-test('init summarizes setup before one final next step [I1,I2,B26]', async t => {
+test('cli.journeys-init-ignore-rules.init-summarizes-setup-before-one-final: init summarizes setup before one final next step [I1,I2,B26]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   const initialized = await box.output('init');
@@ -57,7 +57,7 @@ test('init summarizes setup before one final next step [I1,I2,B26]', async t => 
     'the detailed recipes remain behind --verbose');
 });
 
-test('init appends only the agent-worktree ignore rule and the second init writes nothing [I1,I2,I16]', async t => {
+test('cli.journeys-init-ignore-rules.init-appends-only-the-agent-worktree: init appends only the agent-worktree ignore rule and the second init writes nothing [I1,I2,I16]', async t => {
   for (const previous of [undefined, '', '# existing rules\r\nnode_modules/\r\n!keep-this', '.claude/worktrees/\n# already configured\n']) {
     const box = fixture(t, previous);
     const first = await box.invoke('init');
@@ -77,7 +77,7 @@ test('init appends only the agent-worktree ignore rule and the second init write
   }
 });
 
-test('idempotent setup still restores executable mode on its own managed hooks [I1,I2]', async t => {
+test('cli.journeys-init-ignore-rules.idempotent-setup-still-restores-executable-mode: idempotent setup still restores executable mode on its own managed hooks [I1,I2]', async t => {
   const box = fixture(t);
   assert.equal((await box.invoke('init')).code, 0);
   const hook = join(box.root, '.githooks/pre-commit');
@@ -90,7 +90,7 @@ test('idempotent setup still restores executable mode on its own managed hooks [
   assert.ok(repaired.document.notes.includes('restored executable mode for .githooks/pre-commit'));
 });
 
-test('a real worktree under .claude/worktrees leaves status clean and coordinator submit succeeds [I1,I16]', async t => {
+test('cli.journeys-init-ignore-rules.a-real-worktree-under-claude-worktrees: a real worktree under .claude/worktrees leaves status clean and coordinator submit succeeds [I1,I16]', async t => {
   const box = fixture(t);
   assert.equal((await box.invoke('init')).code, 0);
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'chore: initialize isolated board');

@@ -38,6 +38,7 @@ import { Refused } from '../../../../packages/kernel/light.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -48,8 +49,9 @@ after(e2e.cleanup);
 const SPEC = { ...parseSpec('## G\n- G1 [approved, must] One. | gate: t\n- G2 [retired] Gone.\n'), name: 'SPEC.md' };
 const RULES = defaults().commits;
 
-test("a hook nudges and never blocks, fails open on error or timeout, and init merges with the user's hooks [I6]", async () => {
+test('cli.journeys-hooks-main.a-hook-nudges-and-never-blocks: a hook nudges and never blocks, fails open on error or timeout, and init merges with the user\'s hooks [I6]', async () => {
   const box = e2e.project('true');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const result = await runCliInProcess(['hook', 'SessionStart'], {
     cwd: box.web, env: box.env, input: JSON.stringify({ hook_event_name: 'SessionStart', cwd: box.web }),
   });
@@ -152,7 +154,7 @@ function stagedProblems(root) {
  */
 const check = (message, rules = RULES) => commitMsgProblems(message, { rules, spec: SPEC });
 
-test('hook wiring checks the configured path and accepts pullboard delegation [L3]', (t) => {
+test('cli.journeys-hooks-main.hook-wiring-checks-the-configured-path: hook wiring checks the configured path and accepts pullboard delegation [L3]', (t) => {
   const box = stagedRepo(t);
   const hooks = join(box.root, '.husky');
   mkdirSync(hooks);
@@ -190,19 +192,19 @@ test('hook wiring checks the configured path and accepts pullboard delegation [L
   assert.deepEqual(unwiredHookProblems(box.root), []);
 });
 
-test('clause 1: a clean header citing a live id passes [C1, C2]', () => {
+test('cli.journeys-hooks-main.a-clean-header-citing-a-live: clause 1: a clean header citing a live id passes [C1, C2]', () => {
   assert.deepEqual(check('feat(web): add the page [G1]'), []);
   assert.deepEqual(check('docs: explain lanes'), []);
   assert.deepEqual(check('feat(web)!: drop the old page [G1]\n\nThe old page is gone.'), []);
 });
 
-test('feat and fix cite ids; cited ids exist and are not retired [C2]', () => {
+test('cli.journeys-hooks-main.feat-and-fix-cite-ids-cited: feat and fix cite ids; cited ids exist and are not retired [C2]', () => {
   assert.match(check('feat(web): add the page')[0], /end the header with the spec rows this feat serves, like \[G1\]/);
   assert.match(check('fix: patch [G9]')[0], /G9 is not in SPEC.md/);
   assert.match(check('fix: patch [G2]')[0], /G2 is retired/);
 });
 
-test('doctrine citations are namespaced; a colliding bare id warns that it resolves to SPEC.md [A5]', () => {
+test('cli.journeys-hooks-main.doctrine-citations-are-namespaced-a-colliding: doctrine citations are namespaced; a colliding bare id warns that it resolves to SPEC.md [A5]', () => {
   const doctrine = {
     name: 'DOCTRINE.md',
     repo: { rows: [{ id: 'G1', line: 4 }] },
@@ -216,7 +218,7 @@ test('doctrine citations are namespaced; a colliding bare id warns that it resol
   ]);
 });
 
-test('header format, length, case and period [C1]', () => {
+test('cli.journeys-hooks-main.header-format-length-case-and-period: header format, length, case and period [C1]', () => {
   assert.match(check('Added the page')[0], /type\(scope\): subject/);
   assert.match(check('Added the page')[0], /saw "Added the page"/, 'the refusal shows the header it saw (C4)');
   assert.match(check('feature: add the page [G1]')[0], /type\(scope\): subject/, 'a type outside the configured list is refused');
@@ -230,20 +232,20 @@ test('header format, length, case and period [C1]', () => {
   assert.deepEqual(check('docs: explain lanes\nsecond line'), ['leave a blank line after the header']);
 });
 
-test('comments are dropped; merges, reverts and fixups are exempt [C1]', () => {
+test('cli.journeys-hooks-main.comments-are-dropped-merges-reverts-and: comments are dropped; merges, reverts and fixups are exempt [C1]', () => {
   assert.deepEqual(check('docs: explain lanes\n# Please enter the commit message'), []);
   assert.deepEqual(check("Merge branch 'web/page'"), []);
   assert.deepEqual(check('fixup! feat(web): add the page [G1]'), []);
 });
 
-test('opt-in rules: filler words, emoji, co-author trailers [C1]', () => {
+test('cli.journeys-hooks-main.opt-in-rules-filler-words-emoji: opt-in rules: filler words, emoji, co-author trailers [C1]', () => {
   const strict = { ...RULES, banned: ['basically', 'seamless'], noEmoji: true, noCoAuthor: true };
   const problems = check('docs: basically seamless lanes \u{1F680}\n\nCo-Authored-By: Bot <b@x>', strict);
   assert.deepEqual(problems, ['drop the filler word "basically"', 'drop the filler word "seamless"', 'remove the emoji', 'remove the Co-Authored-By trailer']);
   assert.deepEqual(check('docs: basically fine'), []);
 });
 
-test('blocked paths: env files by name, examples allowed, patterns with a slash match paths [C5]', () => {
+test('cli.journeys-hooks-main.blocked-paths-env-files-by-name: blocked paths: env files by name, examples allowed, patterns with a slash match paths [C5]', () => {
   const protect = { ...defaults().protect, blocked: [...defaults().protect.blocked, 'data/*.csv'] };
   assert.deepEqual(
     blockedPaths(['.env', 'app/.env.local', 'prod.env', '.env.example', 'data/claims.csv', 'docs/data/x.csv', 'src/a.js'], protect),
@@ -253,7 +255,7 @@ test('blocked paths: env files by name, examples allowed, patterns with a slash 
   assert.ok(!matchesPattern('.env.*', 'environment.js'));
 });
 
-test('secrets are named by kind and place, never echoed [C5]', () => {
+test('cli.journeys-hooks-main.secrets-are-named-by-kind-and: secrets are named by kind and place, never echoed [C5]', () => {
   // Built at run time, so this file never holds a string its own pre-commit scan would refuse.
   const fakeKey = ['sk', 'ant', 'abcdefghijklmnopqrstuvwxyz0123'].join('-');
   const diff = [
@@ -268,7 +270,7 @@ test('secrets are named by kind and place, never echoed [C5]', () => {
   assert.ok(found.every((entry) => !entry.includes('abcdefghij')));
 });
 
-test('a large staged binary commits without DIFF_TOO_LARGE [S1]', (t) => {
+test('cli.journeys-hooks-main.a-large-staged-binary-commits-without: a large staged binary commits without DIFF_TOO_LARGE [S1]', (t) => {
   const box = stagedRepo(t);
   const image = Buffer.alloc(9 * 1024 * 1024, 0x41);
   image.set([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0]);
@@ -277,7 +279,7 @@ test('a large staged binary commits without DIFF_TOO_LARGE [S1]', (t) => {
   assert.deepEqual(stagedProblems(box.root), []);
 });
 
-test('a path marked -diff is skipped by the secret scan as git itself skips it [S1]', (t) => {
+test('cli.journeys-hooks-main.a-path-marked-diff-is-skipped: a path marked -diff is skipped by the secret scan as git itself skips it [S1]', (t) => {
   const box = stagedRepo(t);
   writeFileSync(join(box.root, '.gitattributes'), '*.dat -diff\n');
   writeFileSync(join(box.root, 'blob.dat'), `${'ordinary text\n'.repeat(700_000)}`);
@@ -285,7 +287,7 @@ test('a path marked -diff is skipped by the secret scan as git itself skips it [
   assert.deepEqual(stagedProblems(box.root), []);
 });
 
-test('a staged diff beyond the safe output limit is a private coded refusal [P4]', (t) => {
+test('cli.journeys-hooks-main.a-staged-diff-beyond-the-safe: a staged diff beyond the safe output limit is a private coded refusal [P4]', (t) => {
   const box = stagedRepo(t);
   const marker = 'STAGED_CONTENT_MUST_NOT_BE_ECHOED';
   writeFileSync(join(box.root, 'large.txt'), `${marker}\n${'ordinary text\n'.repeat(700_000)}`);

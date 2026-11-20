@@ -13,6 +13,6 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/team.js';
 
-test('clause 1: person-only moves are signed [E22,B26,H16]', { timeout: relayWorkBudgetMs(60) }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
+test('cli.journeys-fact-team-signing.person-only-moves-are-signed: clause 1: person-only moves are signed [E22,B26,H16]', { timeout: relayWorkBudgetMs(60) }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
   await personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyRequest, holdsNoPersonCredential, relayCall, receivedRequests });
 });

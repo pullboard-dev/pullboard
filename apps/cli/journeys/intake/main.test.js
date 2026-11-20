@@ -21,7 +21,7 @@ function refusal(result, expected) {
   assert.equal(JSON.parse(result.out || result.err).error.code, expected, result.out + result.err);
 }
 
-test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
+test('cli.journeys-intake-main.an-intaken-pull-request-is-verified: an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
   const box = intakeFixture(t);
   const filed = await fixtureJSONIn(box, box.repo, 'intake', box.pull.html_url,
     '--criterion', 'The contributed behavior works.', '--check', 'node --test test/contribution.test.js');
@@ -72,7 +72,7 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
 });
 
 
-test('outside issue intake retains source state and distinguishes a maintainer reply [V2,N2]', async t => {
+test('cli.journeys-intake-main.outside-issue-intake-retains-source-state: outside issue intake retains source state and distinguishes a maintainer reply [V2,N2]', async t => {
   const box = intakeFixture(t);
   const first = await fixtureJSONIn(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
   const id = String(first.item?.item_id ?? first.id);
@@ -99,7 +99,7 @@ test('outside issue intake retains source state and distinguishes a maintainer r
 });
 
 
-test('the lower sealing definition still requires outside owner approval [B26,V3]', async t => {
+test('cli.journeys-intake-main.the-lower-sealing-definition-still-requires: the lower sealing definition still requires outside owner approval [B26,V3]', async t => {
   const box = intakeFixture(t);
   const path = 'packages/kernel/src/logic/seal.js';
   advanceOutsideFixture(box, path, 'export const sealFixture = true;\n', ['apps/relay/src/io/deploy/outside.js']);
@@ -109,7 +109,7 @@ test('the lower sealing definition still requires outside owner approval [B26,V3
   assert.ok(source.sensitivity.some(reason => reason.path === path && reason.rule === 'declared-sensitive-path'));
 });
 
-test('outside sealing and command-bearing changes require owner approval [B26,V3]', async t => {
+test('cli.journeys-intake-main.outside-sealing-and-command-bearing-changes: outside sealing and command-bearing changes require owner approval [B26,V3]', async t => {
   const box = intakeFixture(t);
   // Remove the original relay path so it cannot conceal an omitted sealing classification.
   advanceOutsideFixture(box, 'packages/kernel/src/logic/seal.js', 'export const sealFixture = true;\n', ['apps/relay/src/io/deploy/outside.js']);

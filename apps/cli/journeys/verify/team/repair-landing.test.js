@@ -24,7 +24,7 @@ async function step(box, cwd, ...args) {
   return result.out;
 }
 
-test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', async t => {
+test('cli.journeys-verify-team-repair-landing.landing-retains-the-exact-repair-that: clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', async t => {
   const box = helpers.project();
   // The six commits run both hooks in this process; the one merge commit keeps hooks off (git -c core.hooksPath) [C7,#10411].
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });

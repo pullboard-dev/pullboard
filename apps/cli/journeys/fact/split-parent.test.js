@@ -7,7 +7,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 const CHECK = 'node --test web/handler.test.js';
 const CRITERION = '1. the handler returns the canonical result [test]. 2. the handler refuses an empty body [test]. 3. the handler logs the call [test].';
 
-test('clause 1: after split, the parent carries a fact naming every child id [C7,#8917]', async t => {
+test('cli.journeys-fact-split-parent.after-split-the-parent-carries-a: clause 1: after split, the parent carries a fact naming every child id [C7,#8917]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

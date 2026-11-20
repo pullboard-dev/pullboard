@@ -15,6 +15,8 @@ const STAMP = new Date(AT).toISOString();
 function submitted(t, shadow) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.reopen on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { reopen: false };
   const sql = board.db;
   sql.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run('core-1', 'core', '/seat/core-1', 'strong', STAMP);
   sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'reopened', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);

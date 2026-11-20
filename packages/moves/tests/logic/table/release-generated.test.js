@@ -196,7 +196,8 @@ const ok = results.filter(c => !c.result.refused);
 test('moves.release.rows-fire: generated: every guard, outcome and follow-up row of the release table fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].map(row => row.id);
-  assert.deepEqual(rows.filter(row => !fired.has(row)), []);
+  // review-released-twice needs io.holdAfterTwoReleases and a family on the actor: release.test.js owns it, with its own record (moves.release.review-twice-hold).
+  assert.deepEqual(rows.filter(row => !fired.has(row) && row !== 'review-released-twice'), []);
   assert.deepEqual(Object.keys(ROWS), TABLE.guards.map(row => row.id));
   assert.ok(ok.length > CASES / 5, `only ${ok.length} accepted releases`);
 });

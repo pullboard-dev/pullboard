@@ -28,7 +28,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('init prints a short summary and one next step and never suggests killing a process [I1,I2,H5,N26]', async (t) => {
+test('cli.journeys-init-gate.init-prints-a-short-summary-and: init prints a short summary and one next step and never suggests killing a process [I1,I2,H5,N26]', async (t) => {
   await assertShortInit(t, e2e.sandbox);
 });
 
@@ -81,7 +81,7 @@ function gateWarnings(run) {
   });
 }
 
-test('init says when its gate command cannot run [I1, I2]', async () => {
+test('cli.journeys-init-gate.init-says-when-its-gate-command: init says when its gate command cannot run [I1, I2]', async () => {
   const box = e2e.sandbox();
   for (const name of ['UV_PROJECT_ENVIRONMENT', 'POETRY_ACTIVE', 'POETRY_VIRTUALENVS_PATH', 'VIRTUAL_ENV']) delete box.env[name];
   const path = isolatedPath(box);
@@ -157,7 +157,7 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   assert.ok(!defaultMissing.out.includes(shortNote.recipe), 'detailed recipes stay behind verbose');
 });
 
-test('a repo without package.json is told a gate that fits it [C7,B26]', async () => {
+test('cli.journeys-init-gate.a-repo-without-package-json-is: a repo without package.json is told a gate that fits it [C7,B26]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'no-package');
   mkdirSync(root);

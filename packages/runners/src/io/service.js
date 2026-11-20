@@ -22,12 +22,14 @@ import { homedir } from 'node:os';
 import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { posix } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
-import { runRunnerScript } from './pull/ssh.js';
+import { createSshAdapter } from './adapter/ssh.js';
+import { trunkGit } from './tooling/committed.js';
 import { pullWord } from './pull/scripts.js';
 import { localNetworkHost } from '../logic/service.js';
 import { serviceForm } from '../logic/service.js';
@@ -38,6 +40,8 @@ const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 export const SERVICE_ENTRY = 'apps/cli/src/io/runner/service.js';
 /** The launchd label, so a reinstall replaces the one service and --remove finds it. */
 export const SERVICE_LABEL = 'dev.pullboard.runner-serve';
+/** The per-run ceiling a runner's serve gets when its record sets none: the old daemon's 40 minutes [#11871]. */
+const DEFAULT_RUN_CEILING_MS = 2_400_000;
 // Budget: the service and what it imports through the drive and landing front doors is about 8 MB; double that is a runaway closure.
 const SERVICE_BYTES = 16 * 1024 ** 2;
 // Budget: one ssh writes a few files and asks launchd to load them; a minute covers a slow login shell and retries.
@@ -48,9 +52,35 @@ const IMPORT_BEFORE = /(?:\bfrom|\bimport\s*\(?)\s*$/u;
 // A data file a module reads next to itself is written `new URL('./file', import.meta.url)`; it is part of the closure too.
 const URL_BEFORE = /\bnew\s+URL\s*\(\s*$/u;
 const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
+// The files that hold the entries a runner job runs from its install: each is a template string written into the tooling root, so its imports are relative to the repo root (#10826).
+const ENTRY_SOURCES = ['apps/cli/src/io/submit/gate.js', 'apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/fixture-memo-warm.js'];
+const ENTRY_TEMPLATE = /\b([A-Z][A-Z_]*ENTRY) = `((?:[^`\\]|\\.)*)`/gu;
+const ENTRY_IMPORT = /'(\.\/[\w./-]+\.js)'/gu;
 
 /**
- * The service entry and every repo file it imports, by repo path. Only Node built-ins may be imported from outside the
+ * The trusted entries a runner job runs from its install, with the repo files each one names in an import, by repo path.
+ * Why: a job on a board whose main is not Pullboard's own tree runs these from the runner's install, so the install must carry what they import, though service.js never does (#10826).
+ * An import of a file the repo lacks is an optional one the entry guards, so it is left out.
+ *
+ * @param {string} [root] - The repo root.
+ * @returns {{ name: string, text: string, imports: string[] }[]}
+ */
+export function trustedEntries(root = REPO) {
+  const entries = [];
+  for (const source of ENTRY_SOURCES) {
+    let text;
+    try { text = readFileSync(posix.join(root, source), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
+    for (const [, name, template] of text.matchAll(ENTRY_TEMPLATE)) {
+      const imports = [...new Set([...template.matchAll(ENTRY_IMPORT)].map(match => match[1].slice(2)))]
+        .filter(path => statSync(posix.join(root, path), { throwIfNoEntry: false })?.isFile());
+      entries.push({ name, text: template, imports });
+    }
+  }
+  return entries;
+}
+
+/**
+ * The service entry and every repo file it imports, plus what every trusted job entry imports, by repo path. Only Node built-ins may be imported from outside the
  * repo, so the runner needs nothing installed but Node.
  *
  * @param {string} [root] - The repo root.
@@ -59,7 +89,7 @@ const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
  */
 export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   const files = {};
-  const pending = [entry];
+  const pending = [entry, ...trustedEntries(root).flatMap(trusted => trusted.imports)];
   const generated = new Set();
   const present = new Set();
   let bytes = 0;
@@ -183,7 +213,7 @@ export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entr
 
 /** Run git in the trunk store; a non-zero exit rejects with its message. */
 function defaultGit(store) {
-  return args => new Promise((done, fail) => execFile('git', ['--git-dir', store, ...args], { timeout: REFRESH_MS }, (error, _out, stderr) => error ? fail(new Error(String(stderr || error.message).trim())) : done()));
+  return args => trunkGit(store, args, REFRESH_MS);
 }
 
 /**
@@ -310,14 +340,17 @@ export async function runnerServiceInstaller() {
     `  <key>Label</key><string>${xml(plan.label)}</string>`,
     ...(daemon && uid !== 0 ? [`  <key>UserName</key><string>${xml(user)}</string>`] : []),
     '  <key>ProgramArguments</key>', '  <array>', ...args.map(arg => `    <string>${xml(arg)}</string>`), '  </array>',
-    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string></dict>`,
+    // The serve's job count and per-run ceiling: without PULLBOARD_RUNNER_JOBS serveSlots() falls to 3 and a minis' gate jobs go unclaimed [#11871].
+    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string>${[['PULLBOARD_RUNNER_JOBS', plan.jobs], ['PULLBOARD_RUNNER_RUN_CEILING_MS', plan.ceilingMs]].filter(([, value]) => Number.isFinite(value)).map(([name, value]) => `<key>${name}</key><string>${value}</string>`).join('')}</dict>`,
     `  <key>WorkingDirectory</key><string>${xml(dir)}</string>`,
     '  <key>RunAtLoad</key><true/>', '  <key>KeepAlive</key><true/>', '  <key>ThrottleInterval</key><integer>10</integer>',
     `  <key>StandardOutPath</key><string>${xml(log)}</string>`, `  <key>StandardErrorPath</key><string>${xml(log)}</string>`,
     '</dict>', '</plist>', ''].join('\n'));
   // A bootout just before may still be settling; an agent tries the GUI session domain first, then the background user domain.
   let domain = null;
-  const domains = daemon ? uid === 0 ? ['system'] : [] : [`gui/${uid}`, `user/${uid}`];
+  // An agent is not loaded while an older system daemon for the label remains: both would run, so the sudo line removes it first.
+  const pendingRemoval = !daemon && daemonLeft;
+  const domains = daemon ? uid === 0 ? ['system'] : [] : pendingRemoval ? [] : [`gui/${uid}`, `user/${uid}`];
   for (const candidate of domains) {
     for (let attempt = 0; attempt < 5 && !domain; attempt++) {
       if (await launchctl('bootstrap', candidate, plist)) domain = candidate;
@@ -325,7 +358,7 @@ export async function runnerServiceInstaller() {
     }
     if (domain) break;
   }
-  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist, restarted,
+  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, pendingRemoval, domain, plist, restarted,
     ...(daemon ? { daemonPlist, user: uid === 0 ? 'root' : user } : {}), sudo, dir, log, args })}\n`);
 }
 
@@ -387,22 +420,23 @@ function recordService(host, service, file = serviceRecordFile()) {
  * @returns {Promise<object>} What the runner reported: the form, plist, folder and log, whether launchd loaded it, and
  *   the sudo line a person runs when it could not.
  */
-export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = process.env } = {}) {
+export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = environmentAdapter().all() } = {}) {
   const plan = { label: SERVICE_LABEL, root: runner.root ?? '', remove, host: runner.host };
   if (!remove) {
     const target = serviceBoard(board);
     const chosen = key ?? target.key;
     if (!chosen) throw new Refused('BOARD_KEY_REQUIRED', 'the runner needs the board key: pass --key, or use the URL pullboard serve printed with its ?k=', 'pullboard runner install-serve <ssh-host> --board <url> --key <board-key>');
-    Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles() });
+    Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles(),
+      jobs: runner.slots, ceilingMs: runner.ceilingMs ?? DEFAULT_RUN_CEILING_MS });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
-  const run = await runRunnerScript(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
+  const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
   const line = run.stdout.toString('utf8').trim().split('\n').at(-1) ?? '';
   let reply = null;
   try { reply = JSON.parse(line); } catch { reply = null; }
   if (run.status !== 0 || !reply) {
     throw new Refused('RUNNER_SETUP', `runner ${runner.host} did not ${remove ? 'remove' : 'install'} runner serve: ${run.error ?? (run.stderr.trim().slice(-400) || `status ${run.status}`)}`, 'fix the ssh connection or the runner\'s Node, then run the command again');
   }
-  recordService(runner.host, remove ? null : { board: plan.board, form: reply.form, loaded: reply.loaded, sudo: reply.sudo, at: new Date().toISOString() });
+  recordService(runner.host, remove ? null : { board: plan.board, form: reply.form, loaded: reply.loaded, sudo: reply.sudo, ...(reply.pendingRemoval ? { pendingRemoval: true } : {}), at: new Date().toISOString() });
   return { host: runner.host, label: SERVICE_LABEL, ...reply };
 }

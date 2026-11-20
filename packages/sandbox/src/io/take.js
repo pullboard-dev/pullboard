@@ -28,6 +28,7 @@ import {
 } from '../../../kernel/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { pendingFromJobRow } from '../../../config/index.js';
+import { routeReservations } from '../../../config/index.js';
 import { laneNames } from '../../../seats/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
@@ -38,8 +39,14 @@ function selected(ctx, board, values, services) {
   /** Builds never wait on review cover; the backlog is shouted to the coordinator when the build is claimed [#3792]. */
   const withCover = found => found;
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
-  const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id
+  const omittedIds = values.omitIds ?? [];
+  const nowIso = ctx.clock.now().toISOString();
+  const ownClaim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === me.id
+    && item.item_lease_until > nowIso && !omittedIds.includes(item.item_id)
     && !store.pendingSubmitHandoff(board, item, { fromJobRow: pendingFromJobRow() }));
+  const holding = Boolean(ownClaim);
+  // One claim per call: a seat holding an unsubmitted claim with a live lease gets that claim back and selects nothing else (#12122).
+  if (ownClaim) return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
@@ -47,7 +54,7 @@ function selected(ctx, board, values, services) {
   // Items this call already passed over (an unbuildable bar, #5786) are never selected again.
   const omitted = values.omitIds ?? [];
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omitted.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
-    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
+    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return withCover({ item: routing.item, reasons: routing.reasons, review: false, held: false });
     return { ...routing, review: false, held: false };
@@ -58,6 +65,7 @@ function selected(ctx, board, values, services) {
     assignedIds: omitted, workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
     reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
+    ...(routeReservations() ? { reservations: true } : {}),
     ...(ctx.config.laneMode === 'off' && !ctx.info.isMain ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}),
   }));
 }
@@ -69,7 +77,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
     if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
       skipIds: agentSessionDigest ? ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) : [] })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes, pendingFromJobRow: pendingFromJobRow(),
-      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
+      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)) });
   });
 }
 
@@ -79,7 +87,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
  */
 export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
   if (!passingMainRedItems) return;
-  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
+  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, () => store.listItems(board)));
   if (!passing.length) return;
   await withBoard(ctx, async board => {
     const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));
@@ -158,10 +166,16 @@ export async function nextTake(ctx, values = {}, services) {
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true, retryDetail: { phase: 'review reservation', item: looked.item.item_id, code: 'NO_REVIEW_RESERVED' } };
     }
     try {
+      ctx.io.nextPhase?.('claim freezer', looked.item.item_id);
+      const freeze = claimFreezer(ctx, board);
+      ctx.io.nextPhase?.('claim head', looked.item.item_id);
+      const head = headCommit(ctx.info.root);
+      ctx.io.nextPhase?.('claim write', looked.item.item_id);
       await claimOrdered(ctx, board, [looked.item.item_id, {
-        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, leaseMs: ctx.config.leaseMs,
-        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
+        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, laneOff, leaseMs: ctx.config.leaseMs,
+        freeze, head, autoNext: true,
       }]);
+      ctx.io.nextPhase?.('claim cover-stuck', looked.item.item_id);
       if (!looked.held) await services.shoutReviewCoverStuck?.(ctx, board, (c, b, op, args) => ordered(c, b, op, args), me);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: looked.item.item_id, rows: error.rows } };
@@ -217,6 +231,8 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   function stop() { if (timer) clearTimeout(timer); timer = null; monitor?.stop(); }
   /** Name the next real phase and its item before entering potentially slow work. */
   function enter(name, id = null) {
+    // A claim sub-step is a profile cut only: a written claim keeps custody, so it never refuses, restarts the timer or changes the phase [N2,#10690].
+    if (name.startsWith('claim ')) { cut(name); return; }
     check();
     cut(name); stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
     if (COMMITTING.has(name)) committing = true;

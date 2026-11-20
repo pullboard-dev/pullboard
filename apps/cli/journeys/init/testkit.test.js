@@ -55,9 +55,9 @@ async function fixtureAdmissionProof(t) {
   for (const flag of ['--route', '--brief', '--model']) assert.match(helper, new RegExp(flag));
 }
 
-test('testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
+test('cli.journeys-init-testkit.testkit-fixture-helper-satisfies-live-add: testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
 
-test('project() runs its setup init and join in the warm worker with no Node launch, unless a test replaced run [C7]', t => {
+test('cli.journeys-init-testkit.project-runs-its-setup-init-and: project() runs its setup init and join in the warm worker with no Node launch, unless a test replaced run [C7]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const counted = box => {

@@ -66,9 +66,13 @@ export { refreshMainRedComparisons } from './src/io/main/red.js';
 export { holdRefreshFlight } from './src/io/main/red/refresh/flight.js';
 export { recordLandingAudit, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';
 /** Landing as a runner job: the board offers a row, a runner merges and pushes trunk by compare-and-swap [P7]. */
-export { pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
+export { fetchTrunk, pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
 export { landingMainReds } from "./src/logic/main/ledger.js";
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
 export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";
+/** The runnerCode port the installed runner service is handed: the runners cell's refresh of the service app folder, through the cell the service already loads [P7,#10825]. */
+export { runnerCodeRefresh } from '../runners/index.js';
+/** Parallel group start: the pulled lander offer loop imports it through this front door [B3,C7,#9836]. */
+export { startGroup } from "./src/io/train/parallel-start.js";

@@ -11,6 +11,7 @@ import { idArg } from './context.js';
 import { withBoard } from './context.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
+import { leasedOrdered } from './next/review-lease.js';
 import { openItemFolder } from './item/folder.js';
 import { liveFolderRefusal } from './item/folder.js';
 import { claimOrdered } from './claim.js';
@@ -22,6 +23,7 @@ import { dirtyFiles } from './submit.js';
 import * as store from '../../../../packages/store/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { nextHoldAboveLoad } from '../../../../packages/config/index.js';
+import { derivedStateEnabled } from '../../../../packages/config/index.js';
 
 /** Next's selection, loaded at the first selection: its landing and gate loads never ride on the command's load [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
@@ -33,8 +35,53 @@ export function displayedWait(reason, agents, config) {
 }
 
 /** The board access, seat lookup, claim and item-folder helpers the moves cell's next loop calls, so it never loads the CLI. */
-export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
-  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
+/** The derived-state readers, loaded by await import only while health.derivedState is on, so next with it off loads nothing more [C7,#8945]. */
+let derivedReaders = null;
+
+/**
+ * The derived-state table when it is current for main, or null: with health.derivedState off, a table swept at another commit, or main unresolvable [C7,#8945].
+ *
+ * @param {string} root
+ * @param {any} board
+ * @returns {any | null}
+ */
+function currentDerivedTable(root, board) {
+  if (!derivedReaders || !derivedStateEnabled()) return null;
+  let main;
+  try { main = derivedReaders.verdictTrunk(root, { trunkRef: derivedReaders.trunkRef }); } catch { return null; }
+  return derivedReaders.readDerivedState(board, { mainCommit: main, enabled: true });
+}
+
+/**
+ * The gate-at-head reader the moves cell hands to next's pick: with the table current for main, an item it names answers its reason;
+ * otherwise null, so pick computes the gate as before [C7,#8945].
+ *
+ * @param {string} root
+ * @param {any} board
+ * @returns {((entry: any) => string | undefined) | null}
+ */
+function derivedGateAtHead(root, board) {
+  const table = currentDerivedTable(root, board);
+  return table ? entry => table.gateAtHead.get(String(entry.item_id)) : null;
+}
+
+/**
+ * The seat-family answer the moves cell hands to next's pick: with the table current for main, the map of seat id to family it holds;
+ * otherwise null, so next computes every family as before [C7,#3010].
+ *
+ * @param {string} root
+ * @param {any} board
+ * @returns {Map<string, string> | null}
+ */
+function derivedSeatFamily(root, board) {
+  return currentDerivedTable(root, board)?.seatFamilies ?? null;
+}
+
+/** The returned-work rules from the queue and items cells, imported only when next.returnedFirst asks, so show and status never load them through this file [C7,#11255]. */
+const loadReturnedRules = async () => ({ ...(await (await import('../../../../packages/queue/index.js')).loadReturnedFirst()), ...(await (await import('../../../../packages/items/index.js')).loadStopRules()) });
+
+export const nextPorts = Object.freeze({ derivedGateAtHead, derivedSeatFamily, withBoardRead, withBoard, whoAmI, idArg, ordered: leasedOrdered(ordered, ctx => ctx.file), claimOrdered, currentReworkRoutingPolicy,
+  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax, loadReturnedRules });
 
 /**
  * One loop of `next` through the moves cell: claim the next free item, or reserve the next review (V15).
@@ -46,6 +93,10 @@ export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg
 export async function nextOnce(ctx, values) {
   const held = loadHold(ctx, values);
   if (held) return held;
+  if (derivedStateEnabled() && !derivedReaders) {
+    const [{ readDerivedState }, { verdictTrunk }, { trunkRef }] = await Promise.all([import('../../../../packages/health/index.js'), import('../../../../packages/verify/index.js'), import('../../../../packages/git/light.js')]);
+    derivedReaders = { readDerivedState, verdictTrunk, trunkRef };
+  }
   return requireModule('../../../../packages/moves/src/io/selection.js').nextOnce(ctx, values, nextPorts);
 }
 
@@ -102,6 +153,8 @@ export async function topUpClaims(ctx, values, { most = Infinity } = {}) {
       // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
       for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
+      // A seat whose own gate went red fixes that item first (store.next-own-red-first), so it takes no second build until it resubmits.
+      if (store.queuedReds(board, me).length) return 0;
       return store.claimsPerSeat(board, perSeat, { runs: store.boardRunsReader(board, ctx.file) }).n - heldTop(ctx, board).length;
     });
     if (room <= 0) break;

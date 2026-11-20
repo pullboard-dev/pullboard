@@ -6,6 +6,6 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/team.js';
 
-test('person-only moves are signed through optional SSH apply [E22,H16]', optionalPasskeyApply);
+test('cli.journeys-fact-team-apply.person-only-moves-are-signed-through: person-only moves are signed through optional SSH apply [E22,H16]', optionalPasskeyApply);
 
-test('person-only moves are signed: an unlinked CLI applies no passkey decision it cannot verify [E22,H16]', optionalPasskeyApplyThroughCli);
+test('cli.journeys-fact-team-apply.person-only-moves-are-signed-an: person-only moves are signed: an unlinked CLI applies no passkey decision it cannot verify [E22,H16]', optionalPasskeyApplyThroughCli);

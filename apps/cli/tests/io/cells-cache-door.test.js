@@ -10,6 +10,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as codemap from '../../../../packages/codemap/index.js';
 import * as door from '../../src/io/cells/cache-door.js';
+import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
+import { declarationDocBlocks } from '../../src/io/generated/declarations.js';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const OLD = 'packages/codemap/src/io/cells/scripts/cache.js';
@@ -36,9 +38,22 @@ test('cli.io-cells-cache-door.the-codemap-door-no-longer-exports-the: clause 1: 
   }
 });
 
-test('cli.io-cells-cache-door.the-cache-module-reaches-codemap-git-and: clause 1: the cache module reaches codemap, git and kernel only through their doors, with the Git reader from the codemap door [C7,#9464]', () => {
+test('cli.io-cells-cache-door.the-cache-module-reaches-codemap-git-and: clause 1: the cache module reaches codemap, fs, git and kernel only through their doors, with the Git reader from the codemap door [C7,#9464]', () => {
   const cache = readFileSync(join(ROOT, 'apps/cli/src/io/cells/cache.js'), 'utf8');
   const from = [...cache.matchAll(/^import .* from '(\.[^']+)';$/gmu)].map(match => match[1]);
-  assert.deepEqual([...new Set(from)].sort(), ['../../../../../packages/codemap/index.js', '../../../../../packages/git/index.js', '../../../../../packages/kernel/index.js']);
+  assert.deepEqual([...new Set(from)].sort(), ['../../../../../packages/codemap/index.js', '../../../../../packages/fs/index.js', '../../../../../packages/git/index.js', '../../../../../packages/kernel/index.js']);
   assert.match(cache, /import \{ cellGit as git \} from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/codemap\/index\.js';/u);
+});
+
+test('cli.io-cells-cache-door.no-plan-rows: clause 2: the cache, the static view and the event table name no plan path, and the event table renders the same from a tree with no plan folder [C7,#2467]', () => {
+  for (const file of ['apps/cli/src/io/cells/cache.js', 'apps/cli/src/io/static/view.js', 'apps/cli/src/io/generated/declarations.js']) {
+    assert.ok(!readFileSync(join(ROOT, file), 'utf8').includes('packages/codemap/data/plan'), `${file} reads no plan path`);
+  }
+  const bare = privateFixtureFiles('cli-no-plan-');
+  const documentation = 'apps/cli/src/io/documentation';
+  const copy = folder => readdirSync(join(ROOT, folder), { withFileTypes: true }).forEach(entry => entry.isDirectory()
+    ? copy(`${folder}/${entry.name}`) : bare.write(`${folder}/${entry.name}`, readFileSync(join(ROOT, folder, entry.name))));
+  copy(documentation);
+  assert.ok(!existsSync(join(bare.root, 'packages')), 'the bare tree has no plan folder');
+  assert.equal(declarationDocBlocks(bare.root).events, declarationDocBlocks(ROOT).events);
 });

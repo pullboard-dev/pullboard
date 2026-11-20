@@ -25,7 +25,7 @@ const {
   attackCommit, privateCheckSubmission,
 } = e2e;
 
-test('clause 2: accept installs ignored dependencies from frozen policy and doctor audits the same private check [V18,V2]', async () => {
+test('cli.journeys-verify-checks.accept-installs-ignored-dependencies-from-frozen: clause 2: accept installs ignored dependencies from frozen policy and doctor audits the same private check [V18,V2]', async () => {
   const box = privateCheckSubmission({
     install: 'echo frozen-install-ran; mkdir -p web/.deps; printf installed > web/.deps/ready',
     check: 'test -f web/.deps/ready',
@@ -47,7 +47,7 @@ test('clause 2: accept installs ignored dependencies from frozen policy and doct
   assert.doesNotMatch(proof.output, /malicious-install-ran/);
 });
 
-test('accept without check.install keeps CHECK_RED and names the missing setting [V18,V2]', async () => {
+test('cli.journeys-verify-checks.accept-without-check-install-keeps-check: accept without check.install keeps CHECK_RED and names the missing setting [V18,V2]', async () => {
   const box = privateCheckSubmission({ check: 'echo check-failed; test -f web/.deps/ready' });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'checking missing private dependency', '--json');
   assert.equal(refused.code, 1);
@@ -59,7 +59,7 @@ test('accept without check.install keeps CHECK_RED and names the missing setting
   assert.match(error.next, /^reject with the failing behavior or ask the builder to fix and resubmit/);
 });
 
-test('check refusal shows secret-scanned failure lines and a durable full-output file [V18,V2]', async () => {
+test('cli.journeys-verify-checks.check-refusal-shows-secret-scanned-failure: check refusal shows secret-scanned failure lines and a durable full-output file [V18,V2]', async () => {
   const planted = 'sk-proj-' + 'a'.repeat(40);
   const box = privateCheckSubmission({ check: `i=1; while [ "$i" -le 45 ]; do echo "CHECK-LINE-$i"; i=$((i + 1)); done; printf '%s\\n' 'ASSERTION: expected 4, received 3' 'OPENAI_KEY=${planted}'; exit 1` });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the frozen assertion fails', '--json');

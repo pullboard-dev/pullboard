@@ -18,7 +18,7 @@ import { crateBoard } from '../../tests/fixtures/languages/rust.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 3: landing names the failing Rust test when main moved past a green submit and broke it [C7,#10387,#10385]', { timeout: 420_000 }, async (t) => {
+test('cli.journeys-languages-rust-red.landing-names-the-failing-rust-test: landing names the failing Rust test when main moved past a green submit and broke it [C7,#10387,#10385]', { timeout: 420_000 }, async (t) => {
   if (!CARGO) return t.skip(UNAVAILABLE);
   const board = await crateBoard(helpers);
   const built = await buildAndSubmit(board, null, PASSING);

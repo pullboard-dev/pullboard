@@ -7,6 +7,7 @@ import { selectTestTiers } from './test/tier/selection.js';
 import { testTierProofFiles } from './test/tier/selection.js';
 import { testTierReport } from './test/tier/selection.js';
 import { requireSealedSkips } from './test/tier/selection.js';
+import { canaryTests } from './test/tier/selection.js';
 import { startReceipt } from './receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -27,10 +28,7 @@ import {
   projectNeedsGui,
   testsNeedGui,
 } from './gui/admission.js';
-import {
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   join,
 } from 'node:path';
@@ -80,6 +78,8 @@ import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
 import { proveBatches } from './shards/proof.js';
+
+const fs = fileSystemAdapter();
 import { reusedShardFiles } from './shards/proof.js';
 import { shardPassStore } from './shards/proof.js';
 import { plainCheckRun } from './shards/green.js';
@@ -96,7 +96,7 @@ export function submitGateConfig(config, accepted) {
   return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
     registryGuards: accepted.registryGuards,
-    ...(accepted.submitInvariants.length || accepted.registryGuards.length ? { affectedTests: accepted.affectedTests } : {}) };
+    ...(accepted.affectedTests?.trim() ? { affectedTests: accepted.affectedTests } : {}) };
 }
 
 /**
@@ -126,7 +126,8 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const deferFullFallback = !testTiers && deferred && selection.full;
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = !testTiers && deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
-  const invariants = testTiers ? [] : advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
+  // A project with no tier manifest runs its canary on every submit, deferred or not; tier units already carry it [C7,#10874].
+  const invariants = testTiers ? [] : advancePlan?.invariants ?? [...new Set([...(deferred ? config.submitInvariants ?? [] : []), ...canaryTests(root, commit)])].sort();
   const registryGuards = testTiers ? [] : advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, commit, changed, git }),
     ...selectTestTreeGuards(root, { base, trunk, commit, changed })])].sort();
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
@@ -166,7 +167,7 @@ export function reusedProofFiles(root, plan, runner = plan.testRunner) {
 }
 
 /** Decide whether a planned submit needs a browser or GUI slot; a remote analysis runs this beside its plan. */
-export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [] }) {
+export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [], needs = [] }) {
   const { check, selection, deferFullFallback, deferSelection } = plan;
   // Files whose recorded pass is reused run nowhere, so they ask for no browser or GUI slot [C7].
   const reused = new Set(reusedFiles);
@@ -178,7 +179,8 @@ export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, 
     : (selection.full || !allReused && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })));
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
-  return { browser: checkUsesBrowser || proofUsesBrowser, gui };
+  // An item that declares a need gets that slot even when no check or proof file asks [C7,#1888].
+  return { browser: checkUsesBrowser || proofUsesBrowser || (needs ?? []).includes('browser'), gui: gui || (needs ?? []).includes('gui') };
 }
 
 /** Retain all phase identities; conflicting observations never become an arbitrary file binding [V4,H16]. */
@@ -348,7 +350,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
-    try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
+    try { file = fs.stat(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
   // A requeued proof reuses the frozen check's own lease and result instead of running the check again.
@@ -396,7 +398,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const run = { ...await (proofFiles.length > 1
         ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
         : runProfiledShellAsync(root, command, options)), isCached: false, log: proofLog };
-      writeFileSync(proofLog, run.output);
+      fs.writeFile(proofLog, run.output);
       if (plan.testTiers) requireTestTierAccount(run, proofFiles);
       return run;
     };
@@ -440,14 +442,14 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         const done = await separate.promise;
         criterionLease = done.lease;
         if (done.run.reusedGreen) onMachineryNote(reusedCheckNote(done.lease));
-        writeFileSync(checkLog, safeLog(done.run.output), { mode: 0o600 });
+        fs.writeFile(checkLog, safeLog(done.run.output), { mode: 0o600 });
         return done.run;
       }
       const run = check
         ? await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, timedShell, signal }, executionServices)
         : { isGreen: true, output: '', seconds: 0 };
       if (run.reusedGreen) onMachineryNote(reusedCheckNote(criterionLease));
-      if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
+      if (check) fs.writeFile(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
     };
     // One remote lease holds one controller at a time: the proof's batches start on slots of their own beside the item
@@ -498,7 +500,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
-    writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
+    fs.writeFile(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) diagnostics.push([proof, { root,
       command: !deferFullFallback && selection.full ? fullConfig.gate : affectedCommand(config, proofFiles), lease: proofLease }]);
     await recordRun(onFailure, proof);
@@ -509,7 +511,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (countTrials && criterion.isGreen && result.isGreen && observed.length) {
       try { trials = countTrialGate(outputRoot, { id: JSON.stringify(observed.sort()) }); } catch { /* A ledger failure cannot alter the recorded test proof. */ }
     }
-    if (trials.length) writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
+    if (trials.length) fs.writeFile(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
     result.refusalTrials = trials;
     // The span from the last test run's end through the merged result, so no time after the tests is unattributed [C7].
     recordSlotPhase('proof-finish', ranAt);

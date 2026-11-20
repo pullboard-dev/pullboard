@@ -34,7 +34,7 @@ function verifySettings(box, values) {
 /** Merge verify.hunkFreshness into the fixture machine's settings file. */
 function hunkFreshness(box, on) { verifySettings(box, { hunkFreshness: on }); }
 
-test('clause 1: with verify.hunkFreshness on, show, list and the projector landing builds all read an accepted verdict fresh when main only shifted its hunk; an edit to the reviewed hunk reads stale in all three [C7,#10170]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+test('cli.journeys-verify-team-hunk-views.with-verify-hunkfreshness-on-show-list: clause 1: with verify.hunkFreshness on, show, list and the projector landing builds all read an accepted verdict fresh when main only shifted its hunk; an edit to the reviewed hunk reads stale in all three [C7,#10170]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (root, ...args) => {
@@ -111,14 +111,14 @@ async function acceptWhileMainMoves(box, payload) {
   return box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'The notes change line twenty and the frozen check observes it.', '--json');
 }
 
-test('clause 1: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, accept succeeds after main changes the item file at a different hunk during review [C7,#2981]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+test('cli.journeys-verify-team-hunk-views.with-verify-unrelatedtrunkmoves-and-verify-hunkfreshness: clause 1: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, accept succeeds after main changes the item file at a different hunk during review [C7,#2981]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
   const accepted = await acceptWhileMainMoves(box, notes({ insert: 'pre added' }).replace('line 29', 'main tail'));
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   assert.equal(withBoard(box.repo, board => store.verdictsFor(board, 1)).length, 1, 'the accept is recorded');
 });
 
-test('clause 2: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, accept is refused VERDICT_TRUNK_MOVED naming the changed hunk header when main changes a hunk of the item patch during review [C7,#2981]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+test('cli.journeys-verify-team-hunk-views.with-verify-unrelatedtrunkmoves-and-verify-hunkfreshness-on: clause 2: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, accept is refused VERDICT_TRUNK_MOVED naming the changed hunk header when main changes a hunk of the item patch during review [C7,#2981]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
   const refused = await acceptWhileMainMoves(box, notes({ insert: 'pre added', replace: 'item twenty' }));
   // Main lands the very same line: it merges without a conflict, but the reviewed hunk no longer composes into a change.

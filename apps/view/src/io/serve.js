@@ -5,6 +5,7 @@ import { viewFlowSummary } from "../logic/summary/state.js";
 import { projectSummary } from "../logic/summary/project.js";
 import { modelPresentation } from "./cost/tab.js";
 import { noLinkPage } from "./no-link.js";
+import { viewSessionCookie } from "./serve-session.js";
 import { NO_LINK_CSS } from "./no-link.js";
 import { NO_LINK_STYLESHEET } from "./no-link.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
@@ -41,6 +42,7 @@ import {
   writeSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
+import { viewMachineName } from './projects-machine-name.js';
 import { brotliCompressSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
 import { constants as zlibConstants } from 'node:zlib';
@@ -377,12 +379,12 @@ const credentialMatches = (given, expected) => given.length === expected.length 
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, statePorts } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, clock, statePorts, machineName = viewMachineName, projects } = {}) {
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
-  const cookieName = `pullboard_view_${randomBytes(9).toString('hex')}`;
-  const session = randomBytes(18).toString('base64url');
+  // Both derive from the secret, so a view restarted with the same secret accepts the cookie the first one set.
+  const { name: cookieName, value: session } = viewSessionCookie(secret);
   const sessionKey = Buffer.from(session);
   /** Match this view's session cookie only in same-origin requests or a typed top-level page visit. */
   const cookieMatches = (req) => {
@@ -398,7 +400,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary, machineName }, ...(projects === undefined ? {} : { projects }), statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -659,6 +661,14 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
       if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
+      // One item's timeline, read only, for the item page's strip: the very document `pullboard timeline <id> --json` prints, run through the CLI the view is given.
+      const timelineRoute = req.method === 'GET' ? /^\/item-timeline\/(\d+)$/u.exec(url.pathname) : null;
+      if (timelineRoute) {
+        let output = '';
+        const status = await runCommand(['timeline', timelineRoute[1], '--json'], { cwd: projectRoot ?? process.cwd(), ...(clock ? { clock } : {}), stdout: { isTTY: false, write: (text) => { output += text; } }, stderr: { write: () => {} }, onEvent: () => {} });
+        if (status) return json(res, 404, { error: `no timeline for #${timelineRoute[1]}` });
+        return reply(res, 200, 'application/json; charset=utf-8', output);
+      }
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

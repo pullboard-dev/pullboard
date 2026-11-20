@@ -1,0 +1,3 @@
+{
+  "cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit-no-edge": {"proves":{"specs":["C7"],"claim":"With submit.edgeFollowUps on, a submit whose diff adds a file with no import changes no import edge and files no follow-up."},"why":"Without it, a follow-up filed for an edge the item never authored would pass unnoticed.","kind":"journey","inputs":["apps/cli/tests/io/submit/edge-follow-up.test.js"]}
+}

@@ -1,4 +1,4 @@
-/** The gate hop as one fenced backbone row: gate and gate-drive are one kind, one owner, one lease rule, and a write from anyone else is refused [C7,#8068]. */
+/** The gate hop as one fenced backbone row: the gate hop is one kind, one owner, one lease rule, and a write from anyone else is refused [C7,#8068]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
 

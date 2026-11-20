@@ -6,7 +6,7 @@ import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js'
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { projectState } from '../../../src/io/serve.js';
 
-test('clause 1: serve returns row-age data for the newest commit right after a new commit lands [C7]', async t => {
+test('view.x-io-live-row-ages-new-commit.clause-1-serve-returns-row-age-data: clause 1: serve returns row-age data for the newest commit right after a new commit lands [C7]', async t => {
   const project = cellProject(t, { real: true }), board = cellBoard(t, project.boardFile);
   const options = { board, rowAgesLater: true };
   let state = projectState(project.repo, options);

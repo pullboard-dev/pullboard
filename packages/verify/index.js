@@ -24,7 +24,7 @@ export { tier1Shadow, tier1ShadowFields } from './src/logic/shadow.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/logic/proof/provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/logic/required.js';
 export { eligibilityProblem, reviewEligibility } from './src/logic/review/eligibility.js';
-export { earlierHolderProblem, committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/io/review/independence.js';
+export { earlierHolderProblem, committedItemAuthors, itemReviewPolicy, reviewFamilyEligibility, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/io/review/independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/logic/review/policy.js';
 export { reviewQueueLine } from './src/logic/review/queue.js';
 export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf, declaredLimitProblem } from './src/io/review/routing.js';
@@ -63,6 +63,6 @@ export { submitReusePlanDigest } from './src/logic/plan.js';
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/io/kernel.js';
 export { buildReviewPacket, recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
 
-export { reusableSubmitProof, submittedPolicyCommit } from './src/io/reuse.js';
+export { reusableSubmitProof, sealedFallbackMain, submittedPolicyCommit } from './src/io/reuse.js';
 export { sealedMoveOverlap } from './src/io/verdict/trunk.js';
 export { carriesBarReason, barCorrectionFields, barCorrections, barCorrectionLine, barStatsLines, readBarState } from './src/logic/bar/corrections.js';

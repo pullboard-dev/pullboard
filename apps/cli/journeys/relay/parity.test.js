@@ -2,7 +2,7 @@
 import { browserModules } from '../../../relay/index.js';
 import { presentationShout } from '../../../../packages/pages/light.js';
 import { presentationShout as nodePresentationShout } from '../../../../packages/pages/index.js';
-import { importsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
 import { fileURLToPath } from 'node:url';
 /** Native API and actual sealed relay readers must expose the same board [H5,H15,H16,A2]. */
 import assert from 'node:assert/strict';
@@ -12,7 +12,7 @@ import {
   assertReaderParity,
 } from '../../tests/fixtures/relay/parity.js';
 
-test('a field that differs between native and relay readers is refused, naming the field [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: criterion's sixty-second guard ceiling, including real local HTTP and cleanup.
+test('cli.journeys-relay-parity.a-field-that-differs-between-native: a field that differs between native and relay readers is refused, naming the field [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: criterion's sixty-second guard ceiling, including real local HTTP and cleanup.
   const { native, relay } = await parityRoundtrip(t);
   const live = native.agents.find(agent => agent.heartbeatAt !== null);
   assert.ok(live, 'a real native heartbeat is present in the seed');
@@ -23,19 +23,19 @@ test('a field that differs between native and relay readers is refused, naming t
   assertReaderParity(native, relay);
 });
 
-test('every declared operation passes complete reader parity [H5,H16,A2]', { timeout: 120_000 }, async t => { // budget: real transport over every declared operation, about 45 s on an idle runner and over 60 s at load x2; its own test so the field refusal above keeps a full guard of its own.
+test('cli.journeys-relay-parity.every-declared-operation-passes-complete-reader: every declared operation passes complete reader parity [H5,H16,A2]', { timeout: 120_000 }, async t => { // budget: real transport over every declared operation, about 45 s on an idle runner and over 60 s at load x2; its own test so the field refusal above keeps a full guard of its own.
   const { exerciseOperations } = await parityRoundtrip(t);
   const inventory = await exerciseOperations();
   assert.deepEqual(inventory.covered, inventory.declared, 'every declared operation passes complete reader parity');
 });
 
 
-test('single-board parity never seals another board title through a milestone reference [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: the same real transport and cleanup ceiling as the parity guard.
+test('cli.journeys-relay-parity.single-board-parity-never-seals-another: single-board parity never seals another board title through a milestone reference [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: the same real transport and cleanup ceiling as the parity guard.
   const { native, relay } = await parityRoundtrip(t, { foreign: true });
   assertReaderParity(native, relay);
 });
 
-test('local relay health and its Needs stay outside sealed state without hiding other differences [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real local HTTP, sealed snapshot retrieval and cleanup under the guard ceiling.
+test('cli.journeys-relay-parity.local-relay-health-and-its-needs: local relay health and its Needs stay outside sealed state without hiding other differences [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real local HTTP, sealed snapshot retrieval and cleanup under the guard ceiling.
   const { native, relay, restored } = await parityRoundtrip(t, { localHealth: true });
   assert.equal(native.relayHealthAlerts.length, 1, 'actual private canary failures remain visible locally');
   assert.ok(native.needs.some(entry => entry.kind === 'relay-health'), 'local Needs retains the derived alert');
@@ -49,7 +49,7 @@ test('local relay health and its Needs stay outside sealed state without hiding 
 });
 
 
-test('relay pages and presentation browser entries reach no Node built-ins [C7,H5,H15]', () => {
+test('cli.journeys-relay-parity.relay-pages-and-presentation-browser-entries: relay pages and presentation browser entries reach no Node built-ins [C7,H5,H15]', () => {
   const modules = browserModules(fileURLToPath(new URL('../../../..', import.meta.url)), { named: {
     '/relay/pages.js': 'apps/relay/src/logic/browser/pages.js',
     '/relay/presentation.js': 'packages/pages/src/logic/relay/presentation.js',

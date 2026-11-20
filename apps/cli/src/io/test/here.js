@@ -89,7 +89,7 @@ export async function runHere(io, ctx, { agent, item, items = [], files, values 
   if (!values.json && result.output) io.say(result.output.trimEnd());
   // A red run that names no cases proves nothing about which files failed, so it neither files nor closes.
   if (result.green || named) await updateMainReds(io, ctx, { green: result.green, files: result.files, cases });
-  if (result.green && item !== undefined) await recordAgainstMain(() => recordClauseTicks(io, item, files));
+  if (result.green && item !== undefined) await recordAgainstMain(() => recordClauseTicks(io, item, files, { run: values['test-run'], logPath: result.logPath }));
   if (result.green && !values.diagnose && items.length) await recordAgainstMain(() => recordTestProofs(io, ctx, { items, files: result.files ?? files, result }));
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
   if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);

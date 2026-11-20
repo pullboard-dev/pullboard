@@ -15,20 +15,20 @@ function rootWith(t, files) {
   return root;
 }
 
-test('clause 1: build.sbt detects sbt with sbt test and its Scala test globs [#10117,C7]', (t) => {
+test('gate.io-language-sbt-haskell-perl.build-sbt-detects-sbt-with: clause 1: build.sbt detects sbt with sbt test and its Scala test globs [#10117,C7]', (t) => {
   const root = rootWith(t, { 'build.sbt': 'name := "app"\n' });
   assert.deepEqual(detectLanguages(root), [{ language: 'sbt', command: 'sbt test' }]);
   assert.deepEqual(detectTestGlobs(root), ['**/src/test/scala/**/*.scala']);
 });
 
-test('clause 2: stack.yaml detects stack test, a lone .cabal file cabal test, and both together stack test once [#10117,C7]', (t) => {
+test('gate.io-language-sbt-haskell-perl.stack-yaml-detects-stack-test: clause 2: stack.yaml detects stack test, a lone .cabal file cabal test, and both together stack test once [#10117,C7]', (t) => {
   assert.deepEqual(detectLanguages(rootWith(t, { 'stack.yaml': 'resolver: lts-22.0\n' })), [{ language: 'haskell', command: 'stack test' }]);
   assert.deepEqual(detectLanguages(rootWith(t, { 'foo.cabal': 'name: foo\n' })), [{ language: 'haskell', command: 'cabal test' }]);
   assert.deepEqual(detectLanguages(rootWith(t, { 'cabal.project': 'packages: .\n', 'stack.yaml': 'resolver: lts-22.0\n' })), [{ language: 'haskell', command: 'stack test' }]);
   assert.deepEqual(detectTestGlobs(rootWith(t, { 'stack.yaml': '' })), ['**/test/**/*.hs', '**/*Spec.hs']);
 });
 
-test('clause 3: a Perl marker detects prove -lr t only when a t folder exists, and nothing without it [#10117,C7]', (t) => {
+test('gate.io-language-sbt-haskell-perl.a-perl-marker-detects-prove: clause 3: a Perl marker detects prove -lr t only when a t folder exists, and nothing without it [#10117,C7]', (t) => {
   const withTests = rootWith(t, { 'Makefile.PL': 'use ExtUtils::MakeMaker;\n', 't/basic.t': 'use Test::More;\n' });
   assert.deepEqual(detectLanguages(withTests), [{ language: 'perl', command: 'prove -lr t' }]);
   assert.deepEqual(detectTestGlobs(withTests), ['t/**/*.t']);

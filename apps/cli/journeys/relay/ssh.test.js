@@ -15,7 +15,7 @@ async function confirmation(box, route, body, cookie) {
   return { status: response.status, value: await response.json(), cookie: response.headers.get('set-cookie')?.split(';')[0] };
 }
 
-test('SSH relay off then on confirms replacement and retains the old-board off receipt [E12,H5,H16]', async t => {
+test('cli.journeys-relay-ssh.ssh-relay-off-then-on-confirms: SSH relay off then on confirms replacement and retains the old-board off receipt [E12,H5,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;
@@ -79,7 +79,7 @@ async function publicIntent(box, intent) {
   return { ticket, cookie: opened.cookie, status: status.value };
 }
 
-test('SSH replacement requires the active board and an exact authenticated confirmation [E12,H5,H16]', async t => {
+test('cli.journeys-relay-ssh.ssh-replacement-requires-the-active-board: SSH replacement requires the active board and an exact authenticated confirmation [E12,H5,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const previous = JSON.parse(readFileSync(box.linkFile, 'utf8')).board;

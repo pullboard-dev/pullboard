@@ -17,7 +17,7 @@ function simulated() {
   return { state, say, setTimer, clearTimer, tick, now: () => state.time };
 }
 
-test('clause 1: a test run prints its admission and runner [C7]', () => {
+test('gate.logic-test-progress.a-test-run-prints-its: clause 1: a test run prints its admission and runner [C7]', () => {
   const sim = simulated();
   announceTestRun(sim.say, { host: 'runner-54', files: ['test/a.test.js', 'test/b.test.js'], now: sim.now, setTimer: sim.setTimer, clearTimer: sim.clearTimer });
   assert.equal(sim.state.lines.length, 1);
@@ -26,7 +26,7 @@ test('clause 1: a test run prints its admission and runner [C7]', () => {
   assert.match(sim.state.lines[0], /test\/a\.test\.js, test\/b\.test\.js/);
 });
 
-test('clause 2: a running test prints a progress line every 60 s [C7]', () => {
+test('gate.logic-test-progress.a-running-test-prints-a: clause 2: a running test prints a progress line every 60 s [C7]', () => {
   const sim = simulated();
   const stop = announceTestRun(sim.say, { host: 'runner-54', files: ['test/a.test.js'], now: sim.now, setTimer: sim.setTimer, clearTimer: sim.clearTimer });
   assert.equal(sim.state.interval.ms, 60_000);

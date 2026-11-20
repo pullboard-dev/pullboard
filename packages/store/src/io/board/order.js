@@ -80,6 +80,6 @@ function agingDependencies(board, unfinished) {
   if (!wanted.length) return byId;
   const rows = board.db.prepare(`SELECT item_id, item_status, item_updated_at FROM item WHERE item_id IN (SELECT value FROM json_each(?))
     AND NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)`).all(JSON.stringify(wanted));
-  for (const row of rows) byId.set(row.item_id, { item_id: row.item_id, item_status: row.item_status, item_updated_at: row.item_updated_at });
+  for (const row of rows) byId.set(row.item_id, row);
   return byId;
 }

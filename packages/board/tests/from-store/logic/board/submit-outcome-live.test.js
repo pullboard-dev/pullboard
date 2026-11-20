@@ -33,7 +33,7 @@ function write(board, record, value = record.renewal) {
 test('board.submit-outcome-live.with-moves-live-outcome-submit-outcome: clause 1: with moves.live.outcome on, a submit outcome records what the outcome table decides [C7,#8386]', t => {
   for (const record of outcomes) {
     const seen = [];
-    const shadow = boardFor(t, record.snapshot);
+    const shadow = boardFor(t, record.snapshot, { live: false });
     shadow.submitOutcomeShadow = answer => seen.push(answer);
     write(shadow, record);
     const live = write(boardFor(t, record.snapshot, { live: true }), record);
@@ -52,11 +52,11 @@ test('board.submit-outcome-live.with-moves-live-outcome-outcome-the: clause 2: w
   assert.equal(moved.threw.code, 'ITEM_LEASE_LOST');
 });
 
-test('board.submit-outcome-live.with-moves-live-outcome-off-the: clause 3: with moves.live.outcome off (the default) the writer\'s own rules decide [C7,#8386]', t => {
+test('board.submit-outcome-live.with-moves-live-outcome-off-the: clause 3: with moves.live.outcome set false the writer\'s own rules decide [C7,#8386]', t => {
   const [record] = outcomes;
-  const bad = write(boardFor(t, record.snapshot), record, { ...record.renewal, code: 'lower' });
+  const bad = write(boardFor(t, record.snapshot, { live: false }), record, { ...record.renewal, code: 'lower' });
   assert.equal(bad.threw.code, 'USAGE');
   assert.match(bad.threw.message, /retains its actual refusal code/u);
-  const ok = write(boardFor(t, record.snapshot), record);
+  const ok = write(boardFor(t, record.snapshot, { live: false }), record);
   assert.deepEqual(JSON.parse(JSON.stringify(ok.returned)), record.renewal);
 });

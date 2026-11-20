@@ -16,7 +16,7 @@ function shoutTexts(exported) {
   return exported.tables.shout.map((row) => row.shout_text);
 }
 
-test('a move on an accepted relay link waits in the ordered outbox while the relay is down, and replays in order [B26,H16,H17]', async (t) => {
+test('cli.journeys-relay-outbox.a-move-on-an-accepted-relay: a move on an accepted relay link waits in the ordered outbox while the relay is down, and replays in order [B26,H16,H17]', async (t) => {
   const { box, other, contested } = await twoMachines(t, 'Contested while the relay is down');
 
   await box.stopRelay();
@@ -63,7 +63,7 @@ test('a move on an accepted relay link waits in the ordered outbox while the rel
   assert.equal(item(there.document).item_status, 'withdrawn');
 });
 
-test('a queued move names an offline item by the add that made it, never by a number [B26,H16]', () => {
+test('cli.journeys-relay-outbox.a-queued-move-names-an-offline: a queued move names an offline item by the add that made it, never by a number [B26,H16]', () => {
   const add = (id, visible) => ({ move: { id, operation: 'addItem', args: [{ by: 'coordinator', lane: 'app', title: id }] }, visible });
   const outbox = { moves: [add('a', 2), add('b', 3)], results: {} };
   const withdraw = { id: 'w', operation: 'withdraw', args: [3, { agentId: 'coordinator', reason: 'r' }] };
@@ -83,7 +83,7 @@ test('a queued move names an offline item by the add that made it, never by a nu
   assert.deepEqual(resolveMove(queued, outbox).lost, [3], 'a move on an item whose add was refused is named, not sent');
 });
 
-test('every ordered move kind says where it names an item, and each place follows an offline item renumbered at replay [B26,H16]', () => {
+test('cli.journeys-relay-outbox.every-ordered-move-kind-says-where: every ordered move kind says where it names an item, and each place follows an offline item renumbered at replay [B26,H16]', () => {
   assert.deepEqual(ENGINE_OPERATIONS.filter((operation) => !Object.hasOwn(ITEM_SLOTS, operation)), [], 'every engine operation declares its item places, even when it has none');
   assert.deepEqual(Object.keys(ITEM_SLOTS).filter((operation) => !ENGINE_OPERATIONS.includes(operation)), [], 'no declaration names an operation the engine lacks');
   /** Build arguments that hold `value` at one declared place, with a list of one where the pattern has `*`. */
@@ -117,7 +117,7 @@ test('every ordered move kind says where it names an item, and each place follow
   assert.ok(places >= 30, `the walk covers every declared place (${places})`);
 });
 
-test('re-home reservation and delivery moves always require relay order [E15,H16]', () => {
+test('cli.journeys-relay-outbox.re-home-reservation-and-delivery-moves: re-home reservation and delivery moves always require relay order [E15,H16]', () => {
   const state = { mode: 'ordered', baselineAccepted: true, baselineConflict: false, environment: false };
   const io = { relayOutbox: () => true };
   const unavailable = new Refused('RELAY_UNAVAILABLE', 'the relay did not answer');
@@ -128,7 +128,7 @@ test('re-home reservation and delivery moves always require relay order [E15,H16
   }
 });
 
-test('a move that names an offline item where the outbox cannot follow it is refused, never sent [B26,H16]', () => {
+test('cli.journeys-relay-outbox.a-move-that-names-an-offline: a move that names an offline item where the outbox cannot follow it is refused, never sent [B26,H16]', () => {
   const outbox = { moves: [{ move: { id: 'offline-add', operation: 'addItem', args: [{}] }, visible: 7 }] };
   assert.deepEqual(strayItemRefs(outbox, { operation: 'recordHealthFindings', args: [{ agentId: 'coordinator', findings: [{ item: 7, cause: 'x' }] }] }), [7]);
   assert.deepEqual(strayItemRefs(outbox, { operation: 'answerDecision', args: [7, { agentId: 'coordinator', text: 'yes' }] }), [], 'a decision number is a shout, never an item');

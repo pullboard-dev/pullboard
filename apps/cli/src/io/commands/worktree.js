@@ -31,10 +31,8 @@ import { refuseUnderTemp } from '../worktree/temp.js';
 import {
   installStep,
 } from '../../../../../packages/git/index.js';
-import {
-  existsSync,
-  mkdirSync,
-} from 'node:fs';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   basename,
   dirname,
@@ -50,6 +48,8 @@ import {
   shellWord,
   withBoard,
 } from '../entry.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Make a worktree for a new agent in a lane, beside the main checkout, on its own branch, already
@@ -71,7 +71,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   if (!store.ROUTES.includes(route)) {
     throw new Refused('BAD_ROUTE', `route "${route}" is strong (needs a frontier model) or light (any model can build it from the brief)`);
   }
-  model = requiredModel(model, process.env, `worktree ${shellWord(lane)}${route === 'strong' ? '' : ` --route ${shellWord(route)}`}${family ? ` --family ${shellWord(family)}` : ''}`);
+  model = requiredModel(model, environmentAdapter().all(), `worktree ${shellWord(lane)}${route === 'strong' ? '' : ` --route ${shellWord(route)}`}${family ? ` --family ${shellWord(family)}` : ''}`);
   family = family || modelTier(model)?.family || null;
   const mainRoot = primaryCheckoutRoot(ctx.info);
   if (!mainRoot) throw new Refused('NO_POLICY', 'the primary checkout cannot be proven from Git metadata or the read-only project registry; restore the registry and retry');
@@ -83,10 +83,10 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   // gate.refuseTempWorktree (default off): a seat folder in the OS temp directory can be cleared with its work in it (#8513).
   if (refuseTempWorktree()) refuseUnderTemp(pathFor(1), mainConfig);
   const registeredPaths = withBoard(ctx, board => new Set(store.listAgents(board).map(seat => seat.agent_path)));
-  const isTaken = (n) => registeredPaths.has(pathFor(n)) || existsSync(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
+  const isTaken = (n) => registeredPaths.has(pathFor(n)) || fs.exists(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
   let n = 1;
   while (isTaken(n)) n += 1;
-  mkdirSync(dirname(pathFor(n)), { recursive: true });
+  fs.mkdir(dirname(pathFor(n)), { recursive: true });
   let originalBranch = null;
   if (reuseRoot) {
     const previous = withBoard(ctx, board => store.agentAt(board, reuseRoot));
@@ -127,7 +127,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
   const modelWord = shellWord(model);
   const prompt = `You are ${displayName}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nModel: ${modelWord}. This worktree joined with --model ${modelWord}. For another worktree using the same model, pass --model ${modelWord} or set PULLBOARD_MODEL=${modelWord}; for a different agent, use that agent's actual model label.\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.`;
-  io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, model, displayName, prompt });
+  io.result?.({ agent: id, lane, route, level: route, path: root, branch: `${lane}/${n}`, model, displayName, prompt });
   io.say(`made ${root} on branch ${lane}/${n}, joined as ${displayName} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${lockLane ? ', locked to it' : ''}${family ? ` (family ${family})` : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   const install = installStep(root);

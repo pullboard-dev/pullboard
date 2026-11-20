@@ -1,5 +1,6 @@
 /** The pullboard moves command: each move table's recorded shadow compares, disagreements and state, read-only [C7,#8378]. */
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { MACHINE_DEFAULTS } from '../../../../../packages/config/index.js';
 import { backboneSummary } from '../../../../../packages/moves/index.js';
 import { listMoveTables } from '../../../../../packages/moves/index.js';
 import { readBackboneRecords } from '../../../../../packages/moves/index.js';
@@ -26,10 +27,10 @@ export const LIVE_SWITCH = Object.freeze({
   outcome: 'moves.live.outcome', job: 'moves.live.job', reopen: 'moves.live.reopen', reclaim: 'moves.live.reclaim', outbox: 'moves.live.outbox', hop: 'gate.fencedHop',
 });
 
-/** Whether a switch is on: a moves.live switch only when set true; gate.fencedHop unless set false, its default being on [C7,#8327]. */
+/** Whether a switch is on: a moves.live switch as set, else its machine default; gate.fencedHop unless set false, its default being on [C7,#8327,#8395]. */
 function switchOn(name, settings) {
   if (name === 'gate.fencedHop') return settings.gate?.fencedHop !== false;
-  return settings.moves?.live?.[name.slice('moves.live.'.length)] === true;
+  return (settings.moves?.live?.[name.slice('moves.live.'.length)] ?? MACHINE_DEFAULTS[name]) === true;
 }
 
 /**

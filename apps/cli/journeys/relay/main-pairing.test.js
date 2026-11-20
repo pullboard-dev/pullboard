@@ -7,7 +7,7 @@ import { registerSecondProject } from '../../tests/fixtures/relay/auth.js';
 import { fixture } from '../../tests/fixtures/relay/auth.js';
 import { login } from '../../tests/fixtures/relay/auth.js';
 
-test('a cancel during pairing keeps the links and stops pairing cleanly [H5,N26]', async (t) => {
+test('cli.journeys-relay-main-pairing.a-cancel-during-pairing-keeps-the: a cancel during pairing keeps the links and stops pairing cleanly [H5,N26]', async (t) => {
   await t.test('cancellation before the first link remains a no-link outcome', async (t) => {
     const box = await relayClientFixture(t);
     await registerSecondProject(box);
@@ -65,7 +65,7 @@ test('a cancel during pairing keeps the links and stops pairing cleanly [H5,N26]
   });
 });
 
-test('browser state/cookie binding and one-use device ticket protect both sign-in flows [H8, H1]', async (t) => {
+test('cli.journeys-relay-main-pairing.browser-state-cookie-binding-and-one: browser state/cookie binding and one-use device ticket protect both sign-in flows [H8, H1]', async (t) => {
   const box = await fixture(t);
   const web = box.auth.beginWeb();
   const authorized = await fetch(web.authorizationURL, { redirect: 'manual' });

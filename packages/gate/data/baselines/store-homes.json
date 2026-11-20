@@ -77,12 +77,12 @@
   "apps/relay/src/io/service.js": {
     ".journal.sqlite": 3
   },
-  "apps/relay/src/io/store/page.js": {
-    ".journal.sqlite": 1
-  },
-  "apps/relay/src/logic/person/enrollment/store.js": {
+  "apps/relay/src/io/store/enrollment.js": {
     "table:device": 1,
     "table:wrapped_key": 1
+  },
+  "apps/relay/src/io/store/page.js": {
+    ".journal.sqlite": 1
   },
   "apps/runner/src/io/sweep.js": {
     "worker-owner.json": 1,
@@ -174,9 +174,6 @@
   },
   "packages/commits/src/io/signoff.js": {
     "pullboard.json": 1
-  },
-  "packages/commits/src/logic/change/row/plan.js": {
-    "cells.json": 2
   },
   "packages/config/src/io/git/sync.js": {
     "git-sync.json": 1
@@ -398,9 +395,6 @@
   },
   "packages/link/src/io/relay/lock.js": {
     "table:relay_lease": 2
-  },
-  "packages/link/src/io/relay/machine.js": {
-    "state.json": 2
   },
   "packages/link/src/io/relay/requests.js": {
     "table:board_meta": 2
@@ -696,7 +690,8 @@
   },
   "packages/store/src/io/home.js": {
     "relay-deleted.json": 1,
-    "git-sync.json": 1
+    "git-sync.json": 1,
+    "state.json": 1
   },
   "packages/store/src/io/memory.js": {
     "resources.sqlite": 1

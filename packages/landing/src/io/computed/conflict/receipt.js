@@ -1,8 +1,7 @@
-import { effectiveItemHead } from '../../../../../verify/index.js';
+import { effectiveItemHead } from '../../../../../verify/read.js';
 import { isRecordedConflictContext } from '../../../../../state/index.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { repoInfo } from '../../../../../git/index.js';
 import { recordedTrunkMerge } from '../../../../../merge/index.js';
 import { trunkMerge } from '../../../../../merge/index.js';
@@ -10,6 +9,8 @@ import { refuseRecordedHistoryOverrides } from '../../../../../merge/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const ID = /^[a-f0-9-]{36}$/u;
@@ -30,11 +31,14 @@ export function computedConflictFields(value) {
 
 const VERIFIED_OBJECTS = new WeakMap();
 
+/** Receipts whose Git checks ran in a writer preparation with no lock held; the locked check consumes the mark and skips those reads. */
+const PREPARED_FOR_WRITER = new WeakSet();
+
 /** Locate this replica's object store; private replicas may use their registered repository's immutable objects. */
 function objectStore(board) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   const common = file ? dirname(dirname(file)) : null;
-  if (common && existsSync(join(common, 'objects'))) return common;
+  if (common && fs.exists(join(common, 'objects'))) return common;
   const root = board.db.prepare("SELECT agent_path FROM agent WHERE agent_id='coordinator'").get()?.agent_path;
   try { if (root) return repoInfo(root).commonDir; } catch { /* Missing local objects are a recoverable replay refusal. */ }
   throw new Refused('MERGE_CHECK_FAILED', 'fetch the recorded submitted and trunk commits into this replica repository before resuming the move');
@@ -94,13 +98,15 @@ export function preflightComputedConflict(board, id, actor, receipt) {
 export function computedConflictProblem(board, item, actor, receipt) {
   const problem = bindingProblem(board, item, actor, receipt);
   if (problem) return problem;
-  const fields = requireComputedConflict(board, receipt);
+  // A receipt the writer's preparation already checked against Git is not read from Git again under the lock; the mark is used once [#10721].
+  const prepared = PREPARED_FOR_WRITER.delete(receipt);
+  const fields = prepared ? computedConflictFields(receipt) : requireComputedConflict(board, receipt);
   if (!isRecordedConflictContext(board, item, actor, receipt)) {
     // Checked inside the reopen write, so a reservation taken after the caller's snapshot still holds (#1356).
     // A recorded replay skips it, like the current-conflict check, so history replays unchanged.
     const held = heldReviewProblem(board, item, actor);
     if (held) return held;
-    requireCurrentConflict(board, fields);
+    if (!prepared) requireCurrentConflict(board, fields);
   }
   return null;
 }
@@ -120,11 +126,12 @@ export function conflictValue(receipt, asserted) {
 }
 
 /** Refuse a prepared record that is not the current requested item and actual sending actor. */
-export function requirePreparedComputedConflict(board, id, actor, receipt) {
+export function requirePreparedComputedConflict(board, id, actor, receipt, { forWriter = false } = {}) {
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
   const problem = item ? bindingProblem(board, item, actor, receipt) : new Refused('COORDINATOR_ONLY', 'automatic conflict evidence needs the current submitted item');
   if (problem) throw problem;
   const fields = requireComputedConflict(board, receipt);
   requireCurrentConflict(board, fields);
+  if (forWriter) PREPARED_FOR_WRITER.add(receipt);
   return fields;
 }
