@@ -22,7 +22,7 @@ export { pruneRunnerStoresYielding } from "./src/io/prune.js";
 export { pruneStaleSlots } from "./src/io/prune.js";
 export { pruneChromeTemp } from "./src/io/prune.js";
 export { runnerSettingNumber, runnerSettingOn } from "./src/io/runner-settings.js";
-export { restartOnCodeMove, servedClosure, servedModuleMoved } from "./src/io/fresh.js";
+export { restartOnCodeMove, claimTrial, servedClosure, servedModuleMoved } from "./src/io/fresh.js";
 export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spawnOnSocket } from "./src/io/handoff.js";
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerStarting, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner, wakeLocalRunner, WAKE_FILE } from './src/io/local.js';
 export { startLoopWatchdog } from './src/io/watchdog.js';

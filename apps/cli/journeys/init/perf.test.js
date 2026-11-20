@@ -1,5 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
+/** @pullboard-test-input apps/cli/tests/fixtures/cockpit/perf/run.mjs */
 /** Exercise the deterministic stress fixture and the real-Chrome performance harness [N26]. */
 import assert from 'node:assert/strict';
 import {

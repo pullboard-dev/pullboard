@@ -1,14 +1,11 @@
 /** A content-addressed blob store for big job step payloads, beside the board file [C7]. */
 import { createHash } from 'node:crypto';
-import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
+
 
 /** Payloads over this many bytes live in the blob store; job_step keeps only their hash and size. */
 export const BLOB_THRESHOLD_BYTES = 64 * 1024;
@@ -65,14 +62,14 @@ export function parseStub(text) {
 export function putBlob(dir, text) {
   const stub = stubOf(text);
   const target = join(dir, stub.blob);
-  if (existsSync(target)) return stub;
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (fs.exists(target)) return stub;
+  fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const temp = join(dir, `.${stub.blob}.${process.pid}.${Date.now()}.tmp`);
   try {
-    writeFileSync(temp, text, { mode: 0o600 });
-    chmodSync(temp, 0o600);
-    renameSync(temp, target);
-  } finally { rmSync(temp, { force: true }); }
+    fs.writeFile(temp, text, { mode: 0o600 });
+    fs.chmod(temp, 0o600);
+    fs.rename(temp, target);
+  } finally { fs.rm(temp, { force: true }); }
   return stub;
 }
 
@@ -85,7 +82,7 @@ export function putBlob(dir, text) {
  */
 export function readBlob(dir, hash) {
   if (!dir || !HASH.test(hash)) return null;
-  try { return readFileSync(join(dir, hash), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+  try { return fs.readFile(join(dir, hash), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
 }
 
 /**

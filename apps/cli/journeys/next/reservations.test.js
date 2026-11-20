@@ -4,6 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
+import { getItem } from '../../../../packages/store/index.js';
+import { merged } from '../../../../packages/store/index.js';
+import { release } from '../../../../packages/store/index.js';
 import { reserveItem } from '../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
 import { main } from '../../tests/fixtures/native.js';
@@ -67,4 +70,38 @@ test('cli.journeys-next-reservations.with-route-reservations-off-next-ignores-a-
   const off = await taken(t, false, 'web-7');
   assert.equal(off.result.code, 0, off.result.out + off.result.err);
   assert.equal(off.result.document.item.item_id, off.id);
+});
+
+/** An item its builder holds and the coordinator reserved for that builder, the setting as asked. */
+function reservedClaim(box, on) {
+  const id = box.add('Reserved claim');
+  box.claim(id);
+  reserveItem(box.board, id, { agentId: 'coordinator', holder: box.seats.builder.id });
+  reservations(on);
+  return id;
+}
+
+test('cli.journeys-next-reservations.release-and-land-end-a-reservation: clause 1: with route.reservations on, the holder releasing the item and the item landing each clear its reservation, so next offers the item to every seat [C7,#9162]', async t => {
+  const box = await fixture(t);
+  const id = reservedClaim(box, true);
+  release(box.board, id, box.seats.builder.id, 'Return the fixture claim', undefined, 'OTHER');
+  assert.equal(getItem(box.board, id).item_reservation_holder, null);
+  const offered = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(offered.document.item.item_id, id);
+  const landing = box.add('Reserved landing');
+  reserveItem(box.board, landing, { agentId: 'coordinator', holder: 'web-7' });
+  merged(box.board, landing, { agentId: 'coordinator', commit: 'a'.repeat(40), forced: 'Fixture landing', waiveProof: 'Fixture has no receipt' });
+  assert.equal(getItem(box.board, landing).item_reservation_holder, null);
+});
+
+test('cli.journeys-next-reservations.with-route-reservations-off-release-and-land-keep-a-reservation: clause 2: with route.reservations off, release and landing leave a reservation exactly as on main [C7,#9162]', async t => {
+  const box = await fixture(t);
+  const id = reservedClaim(box, false);
+  release(box.board, id, box.seats.builder.id, 'Return the fixture claim', undefined, 'OTHER');
+  assert.equal(getItem(box.board, id).item_reservation_holder, box.seats.builder.id);
+  const landing = box.add('Reserved landing');
+  reserveItem(box.board, landing, { agentId: 'coordinator', holder: 'web-7' });
+  merged(box.board, landing, { agentId: 'coordinator', commit: 'a'.repeat(40), forced: 'Fixture landing', waiveProof: 'Fixture has no receipt' });
+  assert.equal(getItem(box.board, landing).item_reservation_holder, 'web-7');
 });

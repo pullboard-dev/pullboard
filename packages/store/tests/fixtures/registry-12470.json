@@ -1,0 +1,28 @@
+{
+ "store.logic-board-holds-settled.withdrawn-to-rebar": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "rebarHoldReason returns re-bar text keeping the original when a reason names a withdrawn item and only landed or withdrawn items, and null for landed-only, open or no items."
+  },
+  "why": "Without this test, a hold on a withdrawn dependency could be lifted as if the work had landed (#12470).",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/store/index.js"
+  ]
+ },
+ "store.logic-board-holds-settled.withdraw-event-rebars-hold": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "liftSettledHolds on a withdraw event rewrites a hold naming a withdrawn item to re-bar text and logs it instead of lifting it, while a landed-only hold still lifts."
+  },
+  "why": "Without this test, the withdraw path could silently lift a hold whose dependency never delivered (#12470).",
+  "kind": "cell unit",
+  "inputs": [
+   "packages/store/index.js"
+  ]
+ }
+}

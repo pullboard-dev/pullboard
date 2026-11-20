@@ -248,7 +248,7 @@ const deferralOf = (plan, config, mechanical = []) => {
   const said = edits ? report + '; ' + edits : report;
   return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}),
     ...(plan.deferred ? { deferNote: (note || 'full suite deferred to the landing gate') + (edits ? '; ' + edits : '') } : {}),
-    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report: said };
+    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), ...(Array.isArray(plan.owedFiles) && plan.owedFiles.length ? { owedFiles: plan.owedFiles } : {}), report: said };
 };
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
@@ -613,6 +613,18 @@ export function proofRunnerNote(config, main, source) {
 }
 
 /**
+ * The lines submit says once its gate job is offered: the in-the-gate line, then the proof runner note. One function so a
+ * test reads their order with no child run [C7].
+ *
+ * @param {{ id: number, jobId: string, local: { started?: boolean, pid?: number|null }, config: { affectedTests?: string }, main: { commit: string, config: { affectedTests?: string } }, source: string }} parts - The offered job and what the note names.
+ * @returns {string[]}
+ */
+export function submitAckLines({ id, jobId, local, config, main, source }) {
+  return [`#${id} is in the gate as job ${jobId}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
+    + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''), proofRunnerNote(config, main, source)];
+}
+
+/**
  * Write the submit's gate job row and return at once. The candidate is pinned under refs/pullboard/gate so a runner can
  * fetch it from the trunk remote; everything else this does is reads and one board write. A companion submit's gate
  * judges its composed source, and its submit record carries the composition, so the board binds the receipts to it [P7].
@@ -700,9 +712,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // id and pin keep the fields the inline submit document carried, so a script reading .id still reads the item (#6832).
   const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(companion ? { composed: source } : {}), gateJob: job.id, queued: true, ...(delivered.activity ? { activity: delivered.activity } : {}), localRunner: local.running ? { pid: local.pid, started: local.started } : null };
   if (ctx.json) ctx.io.result(acknowledgment);
-  if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
-    + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
-  if (!ctx.json) ctx.io.say(proofRunnerNote(config, main, source));
+  if (!ctx.json) for (const line of submitAckLines({ id, jobId: job.id, local, config, main, source })) ctx.io.say(line);
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
   const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);

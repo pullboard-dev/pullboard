@@ -407,6 +407,24 @@ test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding 
   }
 });
 
+test('moves.io-selection.in-flight-never-handed-out: clause 1: nextOnce never returns an item whose gate job is offered or claimed at any head, nor one submitted and awaiting review; an item with none of those is still handed out [C7,#12128]', (t) => {
+  const { box, pick, work } = board(t, 'view');
+  const inGate = work('View work in another seat gate', 'view');
+  const free = work('View work nobody holds', 'view');
+  const otherPath = join(box.project.dir, 'view-other');
+  mkdirSync(otherPath);
+  const other = cellSeat(box.board, { lane: 'view', path: otherPath, family: 'Family Alpha' });
+  store.heartbeatSeat(box.board, other.id);
+  box.claim(inGate, other);
+  recordSubmitHandoff(box.board.db, inGate, { version: 1, id: `job-${inGate}`, agentId: other.id, commit: 'c'.repeat(40),
+    digest: store.getItem(box.board, inGate).item_frozen_digest, state: 'queued' });
+  // The builder's lease lapses while its gate job waits: the claim must not come back as an offer to another seat.
+  box.advance(2 * 3_600_000);
+  const looked = pick();
+  assert.notEqual(looked.item?.item_id, inGate, JSON.stringify(looked));
+  assert.equal(looked.item?.item_id, free, 'an item in no gate and awaiting no review is still handed out');
+});
+
 /** The seat in web with docs and api as the other lanes, run from a linked worktree as a builder seat is; a claim after a move is made in the seat's new lane. */
 function threeLanes(t) {
   const box = fixture(t, { lanes: { docs: { owns: ['docs/'] } } });

@@ -14,6 +14,7 @@ import { logEvent } from "../event/log.js";
 import { coordinatorOnly } from "../../board.js";
 import { postRigorNotices } from "../../board.js";
 import { setItem } from "../../board.js";
+import { routeReservations } from "../../board.js";
 
 /**
  * Hold an item through the unchanged coordinator transaction. With requireOwner true in the options, the hold also needs and
@@ -66,4 +67,18 @@ export function clearReservation(board, id, { agentId }) {
     logEvent(board, agentId, "clear_reservation", id, { holder: held });
     return { holder: held };
   });
+}
+
+/**
+ * End an item reservation because its holder released the item or the item landed, logging whose it was and why; a no-op with
+ * route.reservations off or when the item holds none, so those paths behave as before [C7,#9162]. It lives beside clearReservation
+ * so the status path loads no extra module [C7,#11175].
+ */
+export function endReservation(board, id, { agentId, why }) {
+  if (!routeReservations() || (board.executionEngineVersion ?? ENGINE_VERSION) < RESERVATION_ENGINE) return false;
+  const held = getItem(board, id).item_reservation_holder;
+  if (!held) return false;
+  setItem(board, id, { item_reservation_holder: null, item_reservation_by: null, item_reservation_at: null });
+  logEvent(board, agentId, "clear_reservation", id, { holder: held, why });
+  return true;
 }

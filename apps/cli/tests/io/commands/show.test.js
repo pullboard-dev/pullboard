@@ -1,19 +1,35 @@
-/** show prints the after-gate ids beside the after line only when the list is not empty [C7,#11802]. */
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
+/** show prints the after-gate ids beside the after line only when the list is not empty, and the measured minutes and rebuilds under it [C7,#11802,#12327]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { fixtureAdd } from '../../fixtures/testkit.js';
+import { Worker } from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { thinShowFacts } from '../../../src/io/show/thin.js';
 
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+const PRELOAD = fileURLToPath(new URL('../../../journeys/imports/count.js', import.meta.url));
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
 /** Files an item with the given wait flag on a fresh prerequisite and returns the text of its show. */
-async function shownAfter(flag) {
+async function shownAfter(flag, notes = []) {
   const box = helpers.project();
   const base = ['--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js'];
   const first = await box.inProcess(box.repo, 'add', 'web', 'Prerequisite', ...base, '--json');
   assert.equal(first.code, 0, first.err + first.out);
   const firstId = JSON.parse(first.out).item.item_id;
+  for (const text of notes) {
+    const noted = await box.inProcess(box.repo, 'fact', String(firstId), 'note', text.replace('#7', `#${firstId}`));
+    assert.equal(noted.code, 0, noted.err + noted.out);
+  }
   const second = await box.inProcess(box.repo, 'add', 'web', 'Waiting item', ...base, flag, String(firstId), '--json');
   assert.equal(second.code, 0, second.err + second.out);
   const shown = await box.inProcess(box.repo, 'show', String(JSON.parse(second.out).item.item_id));
@@ -29,4 +45,91 @@ test('cli.commands-show.after-gate-line: clause 2: show prints an after-gate lin
 test('cli.commands-show.no-after-gate-line: clause 2: show prints no after-gate line for an item filed with a plain --after [C7,#11802]', async () => {
   const { text } = await shownAfter('--after');
   assert.doesNotMatch(text, /after-gate/u);
+});
+
+test('cli.commands-show.after-gate-measure-line: clause 1: show prints the minutes saved and rebuilds summed from the after-gate parent notes right after the after-gate line [C7,#12327]', async () => {
+  const { text, firstId } = await shownAfter('--after-gate', ['after-gate saved: #7 12 min', 'after-gate rebuild: #7 goes back and is rebuilt']);
+  assert.match(text, new RegExp(`^after-gate #${firstId}\\nafter-gate: 12 min saved, 1 rebuilds$`, 'mu'));
+});
+
+test('cli.commands-show.no-after-gate-measure-line: clause 2: show prints no minutes line for a plain --after or for an after-gate parent with no after-gate notes [C7,#12327]', async () => {
+  assert.doesNotMatch((await shownAfter('--after')).text, /min saved/u);
+  assert.doesNotMatch((await shownAfter('--after-gate')).text, /min saved/u);
+});
+
+/** Turn read.thinCommands on or off in the fixture machine's settings file, keeping its other settings. */
+function setThin(box, on) {
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const settings = JSON.parse(readFileSync(file, 'utf8'));
+  settings.read = { thinCommands: on };
+  writeFileSync(file, JSON.stringify(settings));
+}
+
+/** The text and exit code of `pullboard show <id>` with read.thinCommands on or off. */
+async function shownThin(box, id, on) {
+  setThin(box, on);
+  const shown = await box.runLocal(box.repo, 'show', String(id));
+  return { out: shown.out, err: shown.err, code: shown.code };
+}
+
+test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off', async () => {
+  const box = helpers.project();
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show plain item');
+  assert.equal(added.code, 0, added.err);
+  assert.ok(await thinShowFacts({ cwd: box.repo, id: 1 }), 'the thin door serves this plain item');
+  const off = await shownThin(box, 1, false);
+  const on = await shownThin(box, 1, true);
+  assert.equal(off.code, 0, off.err);
+  assert.equal(on.code, off.code, on.err);
+  assert.equal(on.out, off.out);
+  assert.match(off.out, /Thin show plain item/u);
+});
+
+test('cli.commands-show.thin-null-falls-back: clause 2: [C7,#12413] with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null', async () => {
+  const box = helpers.project();
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show noted item');
+  assert.equal(added.code, 0, added.err);
+  const noted = await box.runLocal(box.repo, 'fact', '1', 'note', 'a thread entry the thin door leaves to the full path');
+  assert.equal(noted.code, 0, noted.err);
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 1 }), null, 'the thin door steps aside for an item with a thread entry');
+  const off = await shownThin(box, 1, false);
+  const on = await shownThin(box, 1, true);
+  assert.equal(on.code, off.code, on.err);
+  assert.equal(on.out, off.out);
+  assert.match(on.out, /a thread entry the thin door leaves to the full path/u);
+});
+
+/** The distinct repo files a fresh worker thread loads running `show 1` through the process entry's own composition, counted by count.js. */
+function filesLoaded(box, countFile) {
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    (async () => {
+      await import(workerData.preload);
+      const { main } = await import(workerData.main);
+      const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import(workerData.ports);
+      const sink = { isTTY: false, write: () => true };
+      return main(['show', '1'], { cwd: workerData.cwd, loadNativeBoard, gateWaitReporter, loadProcessPorts, stdout: sink, stderr: sink, stdin: process.stdin });
+    })().then((status) => parentPort.postMessage({ status }), (error) => parentPort.postMessage({ failure: String(error?.stack ?? error) }));`;
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(code, { eval: true, env: { ...box.env, PULLBOARD_OWN_CLI: '1', PULLBOARD_RESIDENT: '0', PULLBOARD_COUNT_FILE: countFile },
+      workerData: { cwd: box.repo, preload: pathToFileURL(PRELOAD).href, main: pathToFileURL(`${ROOT}apps/cli/src/io/main.js`).href, ports: pathToFileURL(`${ROOT}apps/cli/src/io/ports/process.js`).href } });
+    worker.once('message', (message) => { void worker.terminate(); resolve(message); });
+    worker.once('error', reject);
+  });
+}
+
+test('cli.commands-show.thin-never-imported-off: clause 3: [C7,#12413] with read.thinCommands off, show never imports the thin door, and with it on it does', async () => {
+  const box = helpers.project();
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show import item');
+  assert.equal(added.code, 0, added.err);
+  const seen = async (on) => {
+    setThin(box, on);
+    const files = privateFixtureFiles('show-thin-');
+    files.write('seen.txt', '');
+    const result = await filesLoaded(box, `${files.root}/seen.txt`);
+    assert.equal(result.failure, undefined, result.failure);
+    assert.equal(result.status, 0);
+    return files.read('seen.txt').toString('utf8').split('\n').filter(Boolean);
+  };
+  assert.equal((await seen(false)).some((file) => file.endsWith('apps/cli/src/io/show/thin.js')), false, 'thin.js stays unloaded with the setting off');
+  assert.equal((await seen(true)).some((file) => file.endsWith('apps/cli/src/io/show/thin.js')), true, 'thin.js loads with the setting on');
 });

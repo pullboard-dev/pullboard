@@ -45,7 +45,7 @@ import { loadMachineSettings } from ${module('packages/config/src/io/settings.js
 import { listResources } from ${module('packages/resources/index.js')};
 import { foreignNodeOptions } from ${module('packages/gate/index.js')};
 import { defaultViewPort } from ${module('packages/config/src/io/main.js')};
-import { chooseViewPort } from ${module('apps/cli/tests/fixtures/view/port.js')};
+import { chooseViewPort } from ${module('packages/gate/tests/fixtures/view-port.js')};
 // A test that drops its machine home falls back to the account home, as view-port-fixture.js does.
 delete process.env.PULLBOARD_MACHINE_HOME;
   test(${JSON.stringify(PROBES[0])}, () => {
