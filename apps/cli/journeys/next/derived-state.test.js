@@ -36,18 +36,18 @@ async function openItem(t, { review = false } = {}) {
     assert.equal(taken.code, 0, taken.out + taken.err);
     return { id: taken.document.item?.item_id ?? null, text: taken.out };
   };
-  /** Rewrite the sibling seat's family row in the swept table to the builder's, so only the table says the two seats share a family. */
+  /** Rewrite the outside seat's family row in the swept table to the builder's, so only the table says the two seats share a family. */
   const tableSaysSameFamily = () => {
     const derived = new DatabaseSync(derivedStatePath(box.file));
     try {
       const builder = derived.prepare("SELECT value FROM derived_state WHERE kind = 'seat-family' AND key = ?").get(box.seats.builder.id);
-      const changed = derived.prepare("UPDATE derived_state SET value = ? WHERE kind = 'seat-family' AND key = ?").run(builder.value, box.seats.sibling.id);
-      assert.equal(changed.changes, 1, 'the sweep holds a family row for the sibling seat');
+      const changed = derived.prepare("UPDATE derived_state SET value = ? WHERE kind = 'seat-family' AND key = ?").run(builder.value, box.seats.outside.id);
+      assert.equal(changed.changes, 1, 'the sweep holds a family row for the outside seat');
     } finally { derived.close(); }
   };
-  /** What next --verify answers the sibling seat, which review-policy family require lets review the builder's item only from another family. */
+  /** What next --verify answers the outside seat, which a require family rule lets review the builder's item only from another family and another parent session. */
   const reviewed = async () => {
-    const taken = await cli(box, box.seats.sibling.path, ['next', '--verify']);
+    const taken = await cli(box, box.seats.outside.path, ['next', '--verify']);
     return { code: taken.code, id: taken.document?.item?.item_id ?? null, text: taken.out + taken.err };
   };
   return { box, id, setting, sweep, moveMain, handed, tableSaysSameFamily, reviewed };
