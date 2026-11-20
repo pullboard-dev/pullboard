@@ -4162,10 +4162,10 @@ test/submit-guard-rename.test.js	apps/cli/journeys/submit/rename.test.js
 test/submit-handoff-cells.test.js	apps/cli/journeys/submit/handoff/cells.test.js
 test/submit-handoff-fixture.js	apps/cli/tests/fixtures/submit/handoff.js
 test/submit-handoff-main-move.test.js	apps/cli/journeys/submit/handoff/move.test.js
-test/submit-handoff-recovery.test.js	apps/cli/journeys/submit/handoff/recovery.test.js
+test/submit-handoff-recovery.test.js	apps/cli/tests/io/submit/handoff-recovery.test.js
 test/submit-handoff-worker-gone.test.js	apps/cli/journeys/submit/handoff/worker/gone.test.js
 test/submit-handoff-worker.test.js	apps/cli/journeys/submit/handoff/worker.test.js
-test/submit-handoff.test.js	apps/cli/journeys/submit/handoff.test.js
+test/submit-handoff.test.js	apps/cli/tests/io/submit/handoff.test.js
 test/submit-infra-cli.test.js	apps/cli/journeys/submit/infra.test.js
 test/submit-invariants.test.js	apps/cli/journeys/submit/invariants.test.js
 test/submit-known-main-red-item.test.js	apps/cli/journeys/submit/red.test.js
@@ -4183,7 +4183,7 @@ test/submit-preflight-order.test.js	apps/cli/journeys/submit/preflight/order.tes
 test/submit-preflight.test.js	apps/cli/journeys/submit/preflight.test.js
 test/submit-proof-reuse.test.js	apps/cli/journeys/submit/reuse.test.js
 test/submit-red-loop.test.js	apps/cli/journeys/submit/loop.test.js
-test/submit-registry-guards-cli.test.js	apps/cli/journeys/submit/guards.test.js
+test/submit-registry-guards-cli.test.js	apps/cli/tests/io/submit/guards.test.js
 test/submit-remote-gate.test.js	apps/lib/tests/io/submit/requeue/gate.test.js
 test/submit-replaces-gate.test.js	apps/cli/journeys/submit/replaces.test.js
 test/submit-size-cli.test.js	apps/cli/journeys/submit/size.test.js
@@ -4207,7 +4207,7 @@ test/team-owner-fence.test.js	apps/cli/journeys/fact/team/owner/fence.test.js
 test/team-people.test.js	apps/cli/journeys/shout/people.test.js
 test/team-person-signing.test.js	apps/cli/journeys/fact/team/signing.test.js
 test/team-private-board.test.js	apps/cli/journeys/export/team/board.test.js
-test/team-project-decisions.test.js	apps/cli/journeys/decisions/project.test.js
+test/team-project-decisions.test.js	apps/cli/tests/io/commands/decisions/project.test.js
 test/team-queue-freshness.test.js	apps/cli/journeys/queue/team/freshness.test.js
 test/team-queue-policy.test.js	apps/cli/journeys/queue/team/policy.test.js
 test/team-receipt-replay.test.js	apps/cli/journeys/fact/team/replay.test.js
