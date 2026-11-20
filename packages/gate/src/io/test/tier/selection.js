@@ -301,6 +301,7 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const kept = file => !left.includes(file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: [...new Set([...units.filter(kept), ...canary])].sort(),
     journeys: journeys.filter(file => kept(file) && !canary.includes(file)), skipped,
+    ...(confined ? { confinedRoots: [...confined.roots].sort() } : {}),
     ...(shared ? { sharedData: shared } : {}), ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
@@ -477,7 +478,9 @@ export function requireSealedSkips(root, plan, { proofFiles, check } = {}) {
   // package inside the cell still has to select or skip its unit tests (#5671).
   const confined = plan.base ? confinementOf(root, plan.base, plan.commit, changed, sealedTestCells(root, plan.commit)) : null;
   const required = after.manifest.files.filter(row => ((row.tier === 'T1' && row.packages.some(name => mustRun.has(name))) || own(row) || contract(row)) && (!confined || confinedUnit(row, confined.roots, doors))).map(row => row.file);
-  const missing = required.filter(file => !plan.units.includes(file)).sort();
+  // A gate narrowed by confinedImportSelection names the cell tests it left to landing; they are owed, not missing.
+  const owed = new Set(plan.owedFiles ?? []);
+  const missing = required.filter(file => !plan.units.includes(file) && !owed.has(file)).sort();
   if (missing.length) throw new Refused('TEST_SELECTION_INCOMPLETE', `unit tests of unsealed packages are neither selected nor skipped: ${missing.join(', ')}; select tests from the committed diff`);
   if (!proofFiles) return;
   const unrun = testTierProofFiles(plan, check).filter(file => !proofFiles.includes(file)).sort();
