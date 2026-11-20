@@ -10,6 +10,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 import { spawnSync } from 'node:child_process';
+import { deadlineRun } from '../../../fixtures/static-deadline.js';
 
 const cleanups = [];
 after(() => { for (const cleanup of cleanups.reverse()) cleanup(); });
@@ -157,4 +158,16 @@ test('gate.io-changed-scripts-static.same-count-accepted-empty-catches-and: same
       assert.match(refused.stderr + refused.stdout, /empty catch names no reason/u);
     }
   }
+});
+
+test('gate.io-changed-static.deadline-defers: clause 1: a passed deadline runs no further check and names the checks it skipped, and no deadline runs every check [C7]', () => {
+  const late = deadlineRun({ deadline: -1 });
+  assert.deepEqual(late.result, { failures: [], deferred: [...late.names, 'deadline-probe'] });
+  assert.deepEqual(late.ran, [], 'no check starts after the deadline');
+  const roomy = deadlineRun({ deadline: 1 });
+  assert.deepEqual(roomy.result, { failures: [], deferred: [] });
+  assert.deepEqual(roomy.ran, ['probe']);
+  const open = deadlineRun({});
+  assert.deepEqual(open.result, [], 'with no deadline the result is the failure list, as the gate reads it');
+  assert.deepEqual(open.ran, ['probe']);
 });

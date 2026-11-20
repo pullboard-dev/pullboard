@@ -2,6 +2,8 @@
 import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
+import { criterionSize } from '../../../../../packages/items/index.js';
+import { itemFiles } from '../../../../../packages/items/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 
@@ -10,6 +12,24 @@ export const DUPLICATE_SCORE = 0.8;
 
 /** The variable a fixture box sets so its numbered, near-identical fixture titles are not refused; the fixture environment strips every PULLBOARD_ variable otherwise, so a real board never sets it [C7]. */
 export const FIXTURE_DISTINCT_ENV = 'PULLBOARD_FIXTURE_ADD_DISTINCT';
+
+/**
+ * Whether the new bar and an open item's bar both name files and share none: the files a bar names are its scope, so
+ * disjoint files are distinct work, as with one templated item per source file. An item naming no files is not disjoint.
+ *
+ * @param {object} board - The open board.
+ * @param {object} item - The item about to be filed.
+ * @param {number} otherId - The open item it scored near.
+ * @returns {boolean}
+ */
+function namesDisjointFiles(board, item, otherId) {
+  const mine = criterionSize(item.criterion ?? '').files;
+  if (!mine.length) return false;
+  const row = board.db.prepare('SELECT item_criterion, item_brief, item_files FROM item WHERE item_id = ?').get(otherId);
+  if (!row) return false;
+  const theirs = new Set([...itemFiles(row), ...criterionSize(row.item_criterion ?? '').files]);
+  return theirs.size > 0 && !mine.some(file => theirs.has(file));
+}
 
 /**
  * Refuse a new item that likely duplicates an open one, unless `--not-duplicate-of "<id> <why>"` names it and says why it differs.
@@ -35,6 +55,8 @@ export function guardDuplicate(ctx, board, item, given) {
     near = nearestOpenItems(board, itemText(item), { sidecar: searchSidecarPath(ctx.info.root, ctx.info.commonDir), limit: 3 }).filter(row => row.score >= DUPLICATE_SCORE);
   } catch { return answer; }
   if (!near.length || answer) return answer;
+  near = near.filter(row => !namesDisjointFiles(board, item, row.id));
+  if (!near.length) return answer;
   const named = near.map(row => `#${row.id} "${row.title}" (${row.score.toFixed(2)})`).join('; ');
   throw new Refused('DUPLICATE_LIKELY', `this item reads like an open one: ${named}`,
     `attach your evidence to #${near[0].id}, or file it with --not-duplicate-of "${near[0].id} why this item differs"`);

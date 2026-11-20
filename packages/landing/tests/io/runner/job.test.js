@@ -1,6 +1,7 @@
 /** A land job stops on RUNNER_SOURCE without moving trunk, retries a landing fault, and reuses a landing trunk already holds [C7]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture } from '../../fixtures/plan.js';
@@ -69,6 +70,34 @@ test('landing.job.a-landing-whose-item-trunk-already: clause 1: a landing whose 
   assert.equal(again.outcome, 'landed');
   assert.deepEqual([again.already, again.landed, checks], [[ITEM], [], 0], 'the landed receipt is reused, no gate runs');
   assert.equal(box.tip(), landed, 'trunk stays where the first landing put it');
+});
+
+/** A proof runner that is red on its first run and green on its second, the shape of a timing flake: a TAP failure naming item.txt. */
+function flakyRunner(box) {
+  const script = join(box.dir, 'flaky-runner.mjs'), marker = join(box.dir, 'flaky-ran');
+  writeFileSync(script, [
+    "import { existsSync, writeFileSync } from 'node:fs';",
+    'const marker = process.argv[2];',
+    "if (existsSync(marker)) { console.log('TAP version 13\\nok 1 - case a\\n1..1\\n# fail 0'); process.exit(0); }",
+    "writeFileSync(marker, 'ran');",
+    "console.log(\"TAP version 13\\nnot ok 1 - case a\\n  ---\\n  location: 'item.txt:1:1'\\n  ...\\n1..1\\n# fail 1\");",
+    'process.exit(1);',
+    ''].join('\n'));
+  return { runner: `node ${script} ${marker}`, marker };
+}
+
+test('landing.job.a-land-red-that-passes-on-rerun-lands: clause 2: with payload.retryRedsOnce a proof red that passes on one rerun of the same tree lands, and without it the same red holds [C7,#11744]', async t => {
+  const held = landFixture(t), { runner: heldRunner } = flakyRunner(held);
+  const off = await runLandingJob({ ...held.payload, proof: { runner: heldRunner, files: ['item.txt'] } }, { workdir: held.workdir });
+  assert.notEqual(off.outcome, 'landed', 'off, the red returns the item');
+  assert.equal(off.rerun, undefined, 'off, the receipt names no rerun');
+  const box = landFixture(t), { runner } = flakyRunner(box);
+  const before = box.tip();
+  const on = await runLandingJob({ ...box.payload, retryRedsOnce: true, proof: { runner, files: ['item.txt'] } }, { workdir: box.workdir });
+  assert.equal(on.outcome, 'landed', on.detail ?? '');
+  assert.deepEqual(on.landed, [ITEM]);
+  assert.deepEqual(on.rerun, { files: ['item.txt'], green: true }, 'the receipt names the rerun files');
+  assert.notEqual(box.tip(), before, 'the landing moved trunk');
 });
 
 /** A bare trunk remote whose main holds a cell test registry, and two accepted item commits that each add a different record to it. */
