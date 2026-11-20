@@ -21,7 +21,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../gate/tests/fixtures/child.js';
-import { copyPackageSubset } from '../../../apps/cli/tests/fixtures/copy.js';
+import { copyPackageSubset } from '../../gate/tests/fixtures/package-copy.js';
 import { copyPackageFiles } from '../index.js';
 import { repoPath } from '../../kernel/light.js';
 import { ENGINE_VERSION } from '../../state/index.js';

@@ -1,0 +1,3 @@
+{
+  "api.io-claim-replay.restart-trial-real-claims": {"proves":{"specs":["C7"],"claim":"restartOnCodeMove runs claimTrial over trialClaims on a scratch board of the live shape (60000 gate-shard rows, 93 offered gate jobs) before the handoff: a new process whose claims are delayed 2 s each is refused and the old process keeps the socket, and an undelayed one hands over."},"why":"The drive test injects its claims, so only this case proves the guard runs the real claim path before a serve restart hands its socket over.","kind":"contract","inputs":["packages/api/tests/io/claim-replay.test.js","packages/api/src/io/claim-replay.js","packages/drive/src/io/fresh.js"]}
+}
