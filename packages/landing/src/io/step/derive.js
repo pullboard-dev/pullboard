@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
-import { runStaticChecks } from '../../../../gate/index.js';
+import { runStaticChecks } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { stageLandingDerived } from '../derive.js';
