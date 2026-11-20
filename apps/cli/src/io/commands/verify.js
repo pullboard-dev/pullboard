@@ -335,17 +335,32 @@ const PROVEN_BREAK_MIN = 40;
 /**
  * The solo low-stakes facts a verify call carries (#966): `{}` unless `enabled` is exactly true, and `{}` when the item froze no
  * parseable rows. Otherwise `{ soloLowStakes: true, rows }`, one `{ id, stakes }` per frozen row, a row without stakes read as team.
+ * With `evidence` (#11355) each row also carries `personApproved` and the call carries `checks`: a row is person-approved only when the
+ * spec approval state is readable and does not list it as agent-approved, so a row whose line an agent changed (its stakes included) reads
+ * as not approved; the one frozen check is `{ machineRun, redBefore, greenAfter }`, redBefore only from a red baseline the board measured
+ * on main for this exact check, and greenAfter and machineRun only from the check run this verify made.
  * Why: the move rule compares these rows with the item's frozen record, so the rows come from that record and never from the caller.
- * @param {{ item_frozen?: string | null }} item
+ * @param {{ item_frozen?: string | null, item_check?: string | null }} item
  * @param {unknown} enabled
- * @returns {{ soloLowStakes: true, rows: { id: string, stakes: string }[] } | {}}
+ * @param {{ approval?: { baselinePending?: boolean, baselineInvalid?: boolean, rows?: { id: string }[] }, baseline?: { result?: string } | null, check?: { checked?: boolean, state?: string } | null }} [evidence]
+ * @returns {{ soloLowStakes: true, rows: { id: string, stakes: string, personApproved?: boolean }[], checks?: { machineRun: boolean, redBefore: boolean, greenAfter: boolean }[] } | {}}
  */
-export function soloLowStakesFacts(item, enabled) {
+export function soloLowStakesFacts(item, enabled, evidence) {
   if (enabled !== true) return {};
   let record;
   try { record = JSON.parse(item?.item_frozen ?? ''); } catch { return {}; }
   if (!Array.isArray(record?.rows) || record.rows.length === 0) return {};
-  return { soloLowStakes: true, rows: record.rows.map((row) => ({ id: row.id, stakes: row.stakes ?? 'team' })) };
+  const rows = record.rows.map((row) => ({ id: row.id, stakes: row.stakes ?? 'team' }));
+  if (!evidence) return { soloLowStakes: true, rows };
+  const { approval, baseline, check } = evidence;
+  const readable = approval && approval.baselinePending !== true && approval.baselineInvalid !== true && Array.isArray(approval.rows);
+  const unconfirmed = new Set(readable ? approval.rows.map((row) => row.id) : []);
+  const machineRun = check?.checked === true;
+  return {
+    soloLowStakes: true,
+    rows: rows.map((row) => ({ ...row, personApproved: readable === true && !unconfirmed.has(row.id) })),
+    checks: item?.item_check ? [{ machineRun, redBefore: machineRun && baseline?.result === 'red', greenAfter: machineRun && check?.state === 'green' }] : [],
+  };
 }
 
 /**
@@ -389,6 +404,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let madeReviewFolder = null;
   let reviewedPace = null;
   let approvalRows = [];
+  let approvalState;
   /** Record one verdict on the open board. */
   const decide = async (board) => {
     checkMainVerifier(ctx, board, values);
@@ -671,7 +687,11 @@ export async function verifyHere(ctx, id, { second, values }) {
       }
     }
     review ??= captureVerdictReview(root, board, item, verdictTrunk(root, { trunkRef }), undefined, { events: store.events });
-    if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }));
+    if (decision === 'ACCEPT') {
+      const frozenIds = soloLowStakesFacts(item, true).rows?.map((row) => row.id) ?? [];
+      approvalState = specApprovalState(root, { board, config: ctx.config, ids: [...new Set([...itemSpecIds(item), ...frozenIds])] }, { store, verifiedPasskeyRowDecision });
+      approvalRows = itemAgentApprovals(item, approvalState);
+    }
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
     if (decision === 'ACCEPT' && check?.blockingVerdict) {
@@ -697,7 +717,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(knownMain ? { knownMainFailures: knownMain } : {}),
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
-      ...soloLowStakesFacts(item, decision === 'ACCEPT' && soloLowStakesEnabled()),
+      ...soloLowStakesFacts(item, decision === 'ACCEPT' && soloLowStakesEnabled(), { approval: approvalState, baseline: itemCheckBaseline(board, item), check }),
     }]);
   };
   const result = await withBoard(ctx, async (board) => {
