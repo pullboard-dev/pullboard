@@ -1,15 +1,11 @@
 /** A pull runner prunes old test results and dead job environment folders by age and a disk floor, each serve cycle [P7]. */
-import { lstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { randomBytes } from 'node:crypto';
-import { readdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statfsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+/** The file system every read and write in this file goes through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
 
 const GIB = 1024 ** 3;
 export const PRUNE_MAX_AGE_MS = 24 * 60 * 60_000;
@@ -23,7 +19,7 @@ const MARGIN_BYTES = 2 * GIB;
 
 /** The names in a folder, or none when it does not exist. */
 function names(directory) {
-  try { return readdirSync(directory); } catch { return []; }
+  try { return disk.list(directory); } catch { return []; }
 }
 
 /**
@@ -32,7 +28,7 @@ function names(directory) {
  */
 function* measureSteps(path) {
   let stat;
-  try { stat = lstatSync(path); } catch { return { bytes: 0, at: 0 }; }
+  try { stat = disk.lstat(path); } catch { return { bytes: 0, at: 0 }; }
   let bytes = stat.blocks * 512, at = stat.mtimeMs;
   if (stat.isDirectory()) {
     for (const name of names(path)) { yield; const inner = yield* measureSteps(join(path, name)); bytes += inner.bytes; at = Math.max(at, inner.at); }
@@ -46,7 +42,7 @@ function* measureSteps(path) {
  * @returns {{ freeBytes: number, totalBytes: number } | null}
  */
 export function volumeSpace(path) {
-  try { const s = statfsSync(path); return { freeBytes: s.bavail * s.bsize, totalBytes: s.blocks * s.bsize }; } catch { return null; }
+  try { const s = disk.statfs(path); return { freeBytes: s.bavail * s.bsize, totalBytes: s.blocks * s.bsize }; } catch { return null; }
 }
 
 /**
@@ -76,7 +72,7 @@ export function pruneChromeTemp({ dir = tmpdir(), maxAgeMs = CHROME_TEMP_MAX_AGE
     if (!CHROME_TEMP.test(name)) continue;
     const path = join(dir, name);
     if (now - touched(path) < maxAgeMs) continue;
-    try { rmSync(path, { recursive: true, force: true }); removed.push(path); } catch { /* best effort */ }
+    try { disk.rm(path, { recursive: true, force: true }); removed.push(path); } catch { /* best effort */ }
   }
   return removed;
 }
@@ -142,7 +138,7 @@ function* pruneSteps({ root, cache, live = new Set(), maxAgeMs = PRUNE_MAX_AGE_M
     if (unit.env !== undefined && live.has(unit.env)) continue;
     const old = now - unit.at >= maxAgeMs, short = free !== null && floor !== null && free < floor;
     if (!old && !short) continue;
-    try { rmSync(unit.path, { recursive: true, force: true }); } catch { continue; }
+    try { disk.rm(unit.path, { recursive: true, force: true }); } catch { continue; }
     removed.push(unit.path);
     if (free !== null) free += unit.bytes;
   }
@@ -155,8 +151,8 @@ const SLOT = /^runner-.+-\d+$/u;
 /** The newest modification time of a folder and its direct entries; a shallow read, since a slot can hold gigabytes. */
 function touched(path) {
   let at = 0;
-  try { at = lstatSync(path).mtimeMs; } catch { return 0; }
-  for (const name of names(path)) { try { at = Math.max(at, lstatSync(join(path, name)).mtimeMs); } catch { /* gone meanwhile */ } }
+  try { at = disk.lstat(path).mtimeMs; } catch { return 0; }
+  for (const name of names(path)) { try { at = Math.max(at, disk.lstat(join(path, name)).mtimeMs); } catch { /* gone meanwhile */ } }
   return at;
 }
 
@@ -177,7 +173,7 @@ export async function pruneStaleSlots({ cache, instance, graceMs = GRACE_MS, now
       if (!SLOT.test(name) || own.test(name)) continue;
       const path = join(cache, parent, name);
       if (now - touched(path) < graceMs) continue;
-      try { await rm(path, { recursive: true, force: true }); removed.push(path); } catch { /* best effort */ }
+      try { await disk.promises.rm(path, { recursive: true, force: true }); removed.push(path); } catch { /* best effort */ }
     }
   }
   return removed;
@@ -205,15 +201,15 @@ export function claimSlotPrefix({ cache, host }) {
   const prefix = `runner-${host}`, file = join(cache, 'slots', `${prefix}.pid`), mine = `${process.pid}:${randomBytes(4).toString('hex')}`;
   const none = { prefix: `${prefix}-${randomBytes(3).toString('hex')}`, release: () => {}, shared: true };
   try {
-    mkdirSync(join(cache, 'slots'), { recursive: true });
+    disk.mkdir(join(cache, 'slots'), { recursive: true });
     if (HELD.has(prefix)) return none;
     let holder = '';
-    try { holder = readFileSync(file, 'utf8'); } catch { /* no holder */ }
+    try { holder = disk.readFile(file, 'utf8'); } catch { /* no holder */ }
     const pid = Number(holder.split(':')[0]);
     if (holder && Number.isInteger(pid) && pid !== process.pid && alive(pid)) return none;
-    writeFileSync(file, mine);
-    if (readFileSync(file, 'utf8') !== mine) return none;
+    disk.writeFile(file, mine);
+    if (disk.readFile(file, 'utf8') !== mine) return none;
   } catch { return none; }
   HELD.add(prefix);
-  return { prefix, release: () => { HELD.delete(prefix); try { if (readFileSync(file, 'utf8') === mine) rmSync(file, { force: true }); } catch { /* gone */ } } };
+  return { prefix, release: () => { HELD.delete(prefix); try { if (disk.readFile(file, 'utf8') === mine) disk.rm(file, { force: true }); } catch { /* gone */ } } };
 }

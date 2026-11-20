@@ -1,12 +1,4 @@
 /** Private attribution checkpoints; only numeric summaries leave this local ledger [N2]. */
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentSessionDigest } from '../../../light.js';
 import { pruneCursors } from './cursor.js';
@@ -19,24 +11,27 @@ import { sharedAfter } from './shared/ledger.js';
 import { Refused } from '../../../../kernel/index.js';
 import { SPLIT_COUNTS } from './usage.js';
 import { unknownInputSplit } from './usage.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Serialize a short local ledger mutation; never hold this lock while awaiting a relay. */
 function change(info, work) {
   const directory = join(info.commonDir, 'pullboard');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const file = join(directory, 'cost-ledger.json');
   const lock = file + '.lock';
   let fd;
-  try { fd = openSync(lock, 'wx', 0o600); }
+  try { fd = fs.open(lock, 'wx', 0o600); }
   catch { throw new Refused('USAGE_LEDGER', 'the private usage ledger is busy or unwritable; retry a native claim, submit or release after its current writer finishes'); }
   try {
-    const state = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { active: [], totals: {} };
+    const state = fs.exists(file) ? JSON.parse(fs.readFile(file, 'utf8')) : { active: [], totals: {} };
     const result = work(state);
     const temporary = file + `.${process.pid}.tmp`;
-    writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 });
-    renameSync(temporary, file);
+    fs.writeFile(temporary, JSON.stringify(state), { mode: 0o600 });
+    fs.rename(temporary, file);
     return result;
-  } finally { closeSync(fd); unlinkSync(lock); }
+  } finally { fs.close(fd); fs.unlink(lock); }
 }
 
 /** A model's cumulative known partial values and visibly unknown totals. */

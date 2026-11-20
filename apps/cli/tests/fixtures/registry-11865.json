@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-runner.list-shows-pending-removal": {"proves":{"specs":["P7"],"claim":"runner list prints pending removal of the old service with its sudo line and the json carries pendingRemoval."},"why":"Without it a runner whose old service still waits on a sudo step reads as ready.","kind":"contract","inputs":["apps/cli/src/io/commands/runner.js","apps/cli/tests/io/commands/runner.test.js"]},
+  "cli.io-commands-runner.install-serve-pending-removal-not-ready": {"proves":{"specs":["P7"],"claim":"install-serve with pendingRemoval prints NOT READY with the sudo line and exits 1."},"why":"Without it a runner whose old service still waits on a sudo step reads as ready.","kind":"contract","inputs":["apps/cli/src/io/commands/runner.js","apps/cli/tests/io/commands/runner.test.js"]}
+}

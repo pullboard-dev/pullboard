@@ -16,8 +16,8 @@ export function readCaseStudyBaseline(file) {
 }
 
 /** Read real event and lint sources for one explicitly bounded observation. */
-export function caseStudy({ root, boardPath, from, to, baseline = null, finished = false, planRoot = root, suiteLogTable = null }) {
-  const structure = structureMetrics(root, { planRoot }), events = eventMetrics(boardPath, { from, to });
+export function caseStudy({ root, boardPath, from, to, baseline = null, finished = false, suiteLogTable = null }) {
+  const structure = structureMetrics(root), events = eventMetrics(boardPath, { from, to });
   const durations = { frozenCheck: frozenCheckMetrics(boardPath, { from, to }),
     historicalSuiteLogs: suiteLogTable ? suiteLogMetrics(suiteLogTable) : null };
   if (finished) requireFinishedStructure(structure);
@@ -31,9 +31,8 @@ export function caseStudyMarkdown(report) {
   const { observation } = report, structure = observation.structure;
   const baseline = report.baseline?.structure;
   const rows = [
-    ['Import occurrences into later cells', baseline?.importCutsLeft, structure.importCutsLeft],
     ...Object.entries(structure.lints).map(([name, count]) => [`Cell lint: ${name}`, baseline?.lints?.[name], count]),
-    ['Completed cell moves', baseline?.cells?.completed, structure.cells.completed],
+    ['Cells with a front door', baseline?.cells?.completed, structure.cells.completed],
   ];
   const earlier = report.baseline?.events, current = observation.events;
   /** Keep sample sizes beside durations so unavailable history cannot look like zero wait. */
@@ -54,8 +53,6 @@ export function caseStudyMarkdown(report) {
     + '\n\n| Event metric | Starting window | Observation window |\n| --- | ---: | ---: |\n'
     + flow.map(([name, before, after]) => `| ${name} | ${before} | ${after} |`).join('\n')
     + `\n\nStarting event window: ${report.baseline?.window?.from ?? 'unknown'} to ${report.baseline?.window?.to ?? 'unknown'}. Starting source: ${report.baseline?.source?.head ?? 'unknown'}. Observation source: ${structure.source?.head ?? 'unknown'}.\n`
-    + `\nOriginal plan commit: ${report.baseline?.planCommit ?? 'unknown'}. Observation plan commit: ${structure.planSource?.head ?? 'unknown'}; index and shard SHA256: ${structure.planSource?.contentSHA256 ?? 'unknown'}.\n`
-    + `\n\nThe starting plan and later regenerated plan retain their own source commits; planned cut totals are not substituted for measured imports left.\n\n`
     + 'Event measurements, including their populations and missing evidence:\n\n```json\n'
     + JSON.stringify({ ...observation.events, durationEvidence: observation.durations }, null, 2) + '\n```\n\n'
     + structure.qualification + '\n\n' + report.qualification + '\n';

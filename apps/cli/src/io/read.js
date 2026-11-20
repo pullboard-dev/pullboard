@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/doctrine/light.js apps/cli/src/io/item/folder/identity.js */
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
@@ -10,8 +11,6 @@ import {
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
  * imports only this pays for nothing it does not run [C7].
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import {
   isAbsolute,
   join,
@@ -51,6 +50,9 @@ import { mainMergeFor } from '../../../../packages/merge/light.js';
 /** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
 export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A comma list of spec ids from a flag.
@@ -58,13 +60,14 @@ import { sessionRoute } from './route.js';
  * @param {string | undefined} text
  * @returns {string[]}
  */
-export const idList = (text) => (text ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+/** Ids from text or from a repeated option's texts, each piece split on commas and whitespace. */
+export const idList = (text) => (Array.isArray(text) ? text : [text ?? '']).flatMap((piece) => String(piece).split(/[\s,]+/u)).filter(Boolean);
 
 /**
  * The start of a command an agent can paste anywhere: agent shells often start each command in the
  * main checkout, so every command pullboard suggests names its folder (I5).
  *
- * @param {string} root
+ * @param {string} text
  * @returns {string}
  */
 export const shellWord = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
@@ -154,7 +157,7 @@ function configHere(info) {
       throw new Refused('NO_CONFIG', `${CONFIG_FILE} is deleted here, though this checkout's last commit has it: restore it: ${cdTo(info.root)} git checkout HEAD -- ${CONFIG_FILE}`);
     }
     const mainRoot = resolve(info.commonDir, '..');
-    if (info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
+    if (info.isMain || !fs.exists(join(mainRoot, CONFIG_FILE))) throw error;
     let setup;
     try {
       setup = uncommittedSetup(mainRoot, loadConfig(mainRoot));
@@ -318,7 +321,7 @@ function declaredFamilies(root) {
 
 /** Read the exact ref bytes as well as the canonical filesystem signature; missing refs remain observable. */
 function policyRefBytes(file) {
-  try { return readFileSync(file, 'utf8'); }
+  try { return fs.readFile(file, 'utf8'); }
   catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null; throw error; }
 }
 
@@ -497,7 +500,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   // A seat joined over the served API acts as itself at the board root, which has no worktree of its own [P7].
   const seat = environmentAgent(ctx.info.root, board) ?? (ctx.io.remoteAgent ? readers.agentById(board, ctx.io.remoteAgent) : null);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -515,15 +518,17 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   }
   ctx.io.caller?.('seat', ctx.info.root);
   // The route follows the model this session declares, not only the one the seat joined with (#3678).
-  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
 }
 
 /** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
 export function editAfter(text) {
   if (text === undefined) return undefined;
-  if (text.trim() === 'none') return [];
-  const parts = text.split(',').map((part) => part.trim());
-  if (!text.trim() || parts.some((part) => !part || part === 'none')) {
+  const pieces = Array.isArray(text) ? text : [text];
+  if (pieces.length === 1 && pieces[0].trim() === 'none') return [];
+  const joined = pieces.join(',');
+  const parts = joined.split(/[\s,]+/u).filter(Boolean);
+  if (!joined.trim() || !parts.length || parts.includes('none')) {
     throw new Refused('USAGE', 'use --after <id>[,<id>...] or --after none');
   }
   return dependencyValues(parts);
@@ -544,6 +549,6 @@ export function textArg(io, values, name) {
   }
   if (path === undefined) return values[name];
   const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
+  if (!fs.exists(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return fs.readFile(file, 'utf8');
 }

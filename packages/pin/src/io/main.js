@@ -1,10 +1,7 @@
 /** Source pins: commit to tree ids, bundles keyed by tree id, and a URL seat's commits carried as one bundle [C7]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { gitExecFileSync } from '../../../git/light.js';
 import { gitSpawn } from '../../../git/light.js';
 import { gitSpawnSync } from '../../../git/light.js';
@@ -14,6 +11,8 @@ import { addWorktree } from '../../../git/index.js';
 import { Refused } from '../../../kernel/light.js';
 import { bundleName } from '../logic/names.js';
 import { isObjectId } from '../logic/names.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Run git in a repository and return trimmed stdout, or refuse with the rule that failed.
@@ -73,14 +72,14 @@ export function pinFor(repo, commit, { tooling } = {}) {
 export function bundleFor(repo, tree, folder) {
   if (!isObjectId(tree)) throw new Refused('PIN_TREE_INVALID', 'A bundle is keyed by a full tree id; resolve the commit with pinFor first.');
   const path = join(folder, bundleName(tree));
-  if (existsSync(path)) return { path, tree, reused: true };
-  mkdirSync(folder, { recursive: true });
+  if (fs.exists(path)) return { path, tree, reused: true };
+  fs.mkdir(folder, { recursive: true });
   const partial = `${path}.${process.pid}.partial`;
   try {
     git(repo, ['archive', '--format=tar', `--output=${partial}`, tree], 'PIN_BUNDLE_FAILED');
-    renameSync(partial, path);
+    fs.rename(partial, path);
   } finally {
-    rmSync(partial, { force: true });
+    fs.rm(partial, { force: true });
   }
   return { path, tree, reused: false };
 }
@@ -221,7 +220,7 @@ function addedWorktree(root, folder, head) {
  */
 export function placeRemoteItem(root, { agent, item, head }) {
   const folder = join(repoInfo(root).commonDir, 'pullboard', 'remote-items', `${agent}-item-${item}`);
-  const placed = existsSync(folder)
+  const placed = fs.exists(folder)
     ? tryGit(folder, ['checkout', '--quiet', '--force', '--detach', head]).status === 0 && tryGit(folder, ['clean', '-fdq']).status === 0
     : addedWorktree(root, folder, head);
   if (!placed) throw new Refused('COMMITS_REFUSED', `the board host could not check out ${head.slice(0, 12)} in ${folder}; remove that folder on the host and submit again`);

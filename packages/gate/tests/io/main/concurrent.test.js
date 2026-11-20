@@ -1,7 +1,7 @@
 /** Gate stages start together; the gate lasts as long as its slowest stage, and a red stage stops the rest [C7]. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runGateStages } from '../../../index.js';
+import { runGateStages } from '../../../heavy.js';
 
 /**
  * Stages on a driven clock: each records when it started and ends only when the test releases it, or when the

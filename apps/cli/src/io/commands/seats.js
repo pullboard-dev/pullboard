@@ -10,6 +10,12 @@ import { worktreeActivity } from '../../../../../packages/seats/index.js';
 import { commandTimingReport } from '../../logic/timing.js';
 import { commandTimingLines } from '../../logic/timing.js';
 
+/**
+ * Report local command timing and the current activity of each seat.
+ *
+ * @param {object} io
+ * @returns {number}
+ */
 export function run(io) {
   const ctx = context(io);
   const snapshot = withBoardRead(ctx, board => {

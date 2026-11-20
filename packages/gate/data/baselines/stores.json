@@ -95,6 +95,11 @@
       "disk": "other",
       "owner": "packages/keys/src/io/relay.js"
     },
+    "board-links": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "apps/cli/src/io/link/ports.js"
+    },
     "census": {
       "kind": "dir",
       "disk": "other",
@@ -223,6 +228,11 @@
       "kind": "dir",
       "disk": "other",
       "owner": "packages/sandbox/src/io/verify.js"
+    },
+    "screenshots": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "packages/transport/src/io/screenshots.js"
     },
     "search": {
       "kind": "dir",
@@ -452,6 +462,10 @@
         "packages/runners/src/io/module/parser/worker.js": 1
       }
     },
+    "review-lease-*.json": {
+      "kind": "json",
+      "owner": "apps/cli/src/io/next/review-lease.js"
+    },
     "setup-*.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
@@ -502,6 +516,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/github.js"
     },
+    "adapter-lint-signing.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/signing.js"
+    },
     "adapter-lint-ssh.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/ssh.js"
@@ -509,6 +527,10 @@
     "adapter-lint-timers.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/timers.js"
+    },
+    "allowed-edges.json": {
+      "kind": "repo-data",
+      "owner": "packages/codemap/src/io/cell/rule.js"
     },
     "auth.sqlite": {
       "kind": "sqlite",
@@ -870,6 +892,10 @@
     "models.json": {
       "kind": "repo-data",
       "owner": "packages/stats/src/logic/pipeline.js"
+    },
+    "new-package.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/logic/new-package.js"
     },
     "no-runtime-assumptions.json": {
       "kind": "json",
@@ -1406,6 +1432,10 @@
     "table:phone_approval": {
       "kind": "table",
       "owner": "apps/relay/src/io/store/device.js"
+    },
+    "table:program": {
+      "kind": "table",
+      "owner": "packages/jobs/src/io/store.js"
     },
     "table:registry_lock": {
       "kind": "table",

@@ -4,10 +4,10 @@
 /** Observed value controls conversion priority; missing metrics remain unknown [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { testConversionPlan } from '../../../index.js';
-import { capacitySummary } from '../../../index.js';
-import { declaredTestBoundary } from '../../../index.js';
-import { landedBatchCount } from '../../../index.js';
+import { testConversionPlan } from '../../../heavy.js';
+import { capacitySummary } from '../../../heavy.js';
+import { declaredTestBoundary } from '../../../heavy.js';
+import { landedBatchCount } from '../../../heavy.js';
 
 /** Build an input report, never a gate receipt or authority witness. */
 function report(files = []) {
