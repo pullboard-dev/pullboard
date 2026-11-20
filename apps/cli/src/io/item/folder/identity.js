@@ -1,6 +1,5 @@
 /** Validate per-item worktree identity against the registered seat and live claim [B5,C7]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { gitPath } from '../../../../../../packages/git/light.js';
 import { ITEM_MARKER_FILE } from '../../../../../../packages/items/light.js';
 import { itemFolderIdentity } from '../../../../../../packages/items/light.js';
@@ -10,12 +9,27 @@ import { repoInfo } from '../../../../../../packages/git/light.js';
 import { agentAt } from '../../../../../../packages/store/light.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
 
+const fs = fileSystemAdapter();
+
 /**
  * The seat acting from a checkout: the seat registered there, or the seat whose live-claim item folder it is.
  * Every board command run inside an item folder resolves the same seat as its checkout [B5].
  */
 export function seatAt(board, root) {
   return agentAt(board, root) ?? itemFolderIdentity(board, root)?.agent;
+}
+
+/**
+ * The seat and item an item folder's marker names when that seat is on this board, or null. A seat whose item left its hands
+ * (submitted and landed, or released) no longer resolves from the folder, and this names where it should work instead [B5].
+ */
+export function itemFolderSeatHint(board, root) {
+  try {
+    const marker = JSON.parse(fs.readFile(gitPath(root, ITEM_MARKER_FILE), 'utf8'));
+    if (marker.version !== 1 || typeof marker.seat !== 'string' || !Number.isSafeInteger(marker.item)) return null;
+    const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(marker.seat);
+    return seat ? { seat: seat.agent_path, item: marker.item } : null;
+  } catch { return null; }
 }
 
 /**
@@ -37,15 +51,15 @@ export function seatRoot(ctx, board, me) {
 export function itemFolderSeat(root) {
   const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
   let marked = true;
-  try { readFileSync(gitPath(root, ITEM_MARKER_FILE)); } catch { marked = false; }
-  if (!marked && !(match && existsSync(match[1]))) return null;
+  try { fs.readFile(gitPath(root, ITEM_MARKER_FILE)); } catch { marked = false; }
+  if (!marked && !(match && fs.exists(match[1]))) return null;
   return { seat: match?.[1] ?? null };
 }
 
 /** Name the native renewal for a missing-marker hook without granting checkout authority. */
 export function itemFolderRenewalRefusal(board, root) {
   try {
-    try { readFileSync(gitPath(root, ITEM_MARKER_FILE)); return null; }
+    try { fs.readFile(gitPath(root, ITEM_MARKER_FILE)); return null; }
     catch (error) { if (error.code !== 'ENOENT') return null; }
     const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
     if (!match) return null;

@@ -165,3 +165,48 @@ export function specOrder(ids, spec) {
     .sort((left, right) => left.at - right.at || left.index - right.index)
     .map((entry) => entry.id);
 }
+
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/gu;
+
+/**
+ * The lines of a message that quote a configured person: the name as a whole word, any case, followed within 30
+ * characters by a colon and an opening quote, or by said/says/wrote/told/asked/replied/ruled and a quote. A plain
+ * mention or a dated ruling citation without quoted words passes, and an empty names list checks nothing [C7,#11300].
+ *
+ * @param {string} text
+ * @param {string[]} names - commits.quotedNames.
+ * @returns {string[]} One refusal per offending line, naming the line and the next step.
+ */
+export function quotedPersonProblems(text, names) {
+  const wanted = (names ?? []).map(name => String(name).trim()).filter(Boolean);
+  if (!wanted.length) return [];
+  const alternation = wanted.map(name => name.replace(REGEX_SPECIALS, '\\$&')).join('|');
+  const speaker = `\\b(?:${alternation})\\b`;
+  const patterns = [
+    new RegExp(`${speaker}[^\\n]{0,30}:\\s*["“]`, 'iu'),
+    new RegExp(`${speaker}(?:,[^\\n"]{0,24})?\\s+(?:said|says|wrote|asked|told|replied|ruled)\\b[^\\n]{0,40}["“]`, 'iu'),
+  ];
+  const problems = [];
+  String(text).split('\n').forEach((line, index) => {
+    if (patterns.some(pattern => pattern.test(line))) {
+      problems.push(`line ${index + 1} quotes a configured person; state the rule itself or cite its item or spec id`);
+    }
+  });
+  return problems;
+}
+
+/** Path stems (before the extension) of the files that hold the quote patterns on purpose: the format, its cases and the privacy words case; their added lines are never checked [C7,#11301]. */
+const QUOTE_PATTERN_STEMS = ['packages/commits/src/logic/message', 'packages/commits/tests/logic/message', 'packages/sandbox/tests/privacy/words'];
+
+/**
+ * The refusals for staged added lines that quote a configured person, one per line, naming file and line. Only the
+ * added lines passed in are read, so an older line holding a quote passes; an empty names list checks nothing [C7,#11301].
+ *
+ * @param {{ path: string, line: number, text: string }[]} added - Rows from the staged diff's added lines.
+ * @param {string[]} names - commits.quotedNames.
+ * @returns {string[]}
+ */
+export function quotedAddedLineProblems(added, names) {
+  return added.filter(row => !QUOTE_PATTERN_STEMS.some(stem => row.path.startsWith(`${stem}.`)) && quotedPersonProblems(row.text, names).length)
+    .map(row => `${row.path}:${row.line} quotes a configured person; state the rule itself or cite its item or spec id`);
+}

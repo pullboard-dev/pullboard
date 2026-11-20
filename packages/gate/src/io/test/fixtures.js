@@ -17,7 +17,7 @@ import { walk } from '../scan.js';
 
 const CEILINGS_URL = new URL('../../../data/tests/test-fixtures.json', import.meta.url);
 const TEST_SOURCE = /(?:^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/tests\/).*\.[cm]?js$|\.(?:test|spec)\.[cm]?js$)/u;
-const KIT = /^(?:apps\/cli\/tests\/fixtures\/kit\/|packages\/gate\/tests\/fixtures\/testkit\.js$|packages\/board\/tests\/fixtures\/board\.js$)|^packages\/store\/tests\/fixtures\/cell\.js$/u; // the kit itself holds the one raw seam [V32]
+const KIT = /^(?:apps\/cli\/tests\/fixtures\/kit\/|packages\/gate\/tests\/fixtures\/testkit\.js$|packages\/board\/tests\/fixtures\/board\.js$)|^packages\/(?:store\/tests\/fixtures\/cell|git\/tests\/fixtures\/child)\.js$/u; // the kit itself holds the one raw seam [V32]
 const GIT_CALLEE = /(?<![\w$.])(?:git|tryGit|runFixtureGit|execFileSync|spawnSync)\s*\(\s*(?:[^,()]*,\s*)?\[?\s*(['"`])init\1/gu;
 const RAW_CALL = /(?:((?:[\w$]+\s*\.\s*)*[\w$]*run[\w$]*)\s*\(\s*([^,()]+),\s*|\[\s*(?:BIN|bin|CLI)\s*,\s*)(['"`])(add|join)\3/gu;
 const MODEL = /(['"`])--model\1\s*,\s*['"`]|\bPULLBOARD_MODEL\s*(?:\?\?=|\|\|=|=|:)\s*['"`]|\bmodel\s*:\s*['"`][^'"`]/gu;

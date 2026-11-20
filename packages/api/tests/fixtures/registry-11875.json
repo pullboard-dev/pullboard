@@ -1,0 +1,4 @@
+{
+  "api.jobs.claims-gate-aged-minutes-setting": {"proves":{"specs":["C7"],"claim":"With gate.gateAgedMinutes 2 set in machine settings, over the claim action a gate job offered 3 minutes before the claim is handed to a runner holding a test job ahead of fresh shards."},"why":"Without this test the claim action ignores the setting and a gate job waits the fixed 5 minutes behind a shard backlog.","kind":"contract","inputs":["packages/api/src/io/jobs.js","packages/api/src/io/main.js"]},
+  "api.jobs.claims-gate-aged-minutes-unset": {"proves":{"specs":["C7"],"claim":"With gate.gateAgedMinutes unset the same 3-minute-old gate job stays behind the shards over the claim action."},"why":"Without this test a changed default would move every gate job ahead of shards unnoticed.","kind":"contract","inputs":["packages/api/src/io/jobs.js","packages/api/src/io/main.js"]}
+}

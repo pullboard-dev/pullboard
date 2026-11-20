@@ -1,0 +1,4 @@
+{
+  "moves.add-item.needs-floor": {"proves":{"specs":["C7"],"claim":"clause 1: the addItem descriptor minimumEngine returns at least NEEDS_ENGINE when args[0].needs is set and the same value as today when it is not."},"why":"Older replicas must not flatten an item needs field, so a move that carries it floors at the needs engine.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/addItem.js","packages/moves/tests/logic/moves/addItem.test.js"]},
+  "moves.edit-item.needs-floor": {"proves":{"specs":["C7"],"claim":"clause 2: the editItem descriptor minimumEngine returns at least NEEDS_ENGINE when args[1].needs is set and the same value as today when it is not."},"why":"Older replicas must not flatten an item needs field, so a move that carries it floors at the needs engine.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/editItem.js","packages/moves/tests/logic/moves/editItem.test.js"]}
+}

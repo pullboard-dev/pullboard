@@ -242,7 +242,7 @@ test('gate.io-static-operations.case-6740-clause-2-write-state-file: #6740 claus
 test('gate.io-static-operations.case-6740-clause-2-the-baseline-records: #6740 clause 2: the baseline records every private write-then-rename as a known violation, and the list can only shrink [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
   assert.deepEqual(baseline['write-state-file'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['write-state-file']);
-  assert.equal(baseline['write-state-file'].length, 92, 'measured: 89 private helpers at claim, 5 added and 2 removed on main since (publishCacheEntry in codemap, #9883 removes it), the bar said 59');
+  assert.equal(baseline['write-state-file'].length, 80, 'measured: 89 private helpers at claim, 5 added and 6 removed on main since (publishCacheEntry in codemap, #9883 removes it; setup.js, prune.js, compaction.js and diagnostics.js now write through the fs adapter and no longer match the write-then-rename scan), cleanup.js writes owner-only through the adapter open/write/close and no longer matches the scan, activity inbox.js and observations.js rename through the adapter and no longer match the scan, init/finish.js, memo.js and the pinned tool build.js no longer match the scan, cap.js loses its write helpers (#11330), inventory.js renames through the fs adapter and no longer matches the scan, the bar said 59');
   const grown = { ...baseline, 'write-state-file': [...baseline['write-state-file'], 'packages/demo/src/io/save.js'] };
   assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /write-state-file gains a second entry point/u);
   const { 'write-state-file': recorded, ...before } = baseline;

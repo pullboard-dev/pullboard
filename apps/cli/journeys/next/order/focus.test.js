@@ -36,7 +36,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { submitGatePlan } from '../../../../../packages/gate/index.js';
+import { submitGatePlan } from '../../../../../packages/gate/heavy.js';
 import { join } from 'node:path';
 
 test('cli.journeys-next-order-focus.line-order-sends-a-send-back: line order sends a send-back home first and gives the scarcest review first [N2,B13,H16]', t => {

@@ -53,3 +53,13 @@ test('gate.io-edges-order.an-upward-entry-named-in-the: clause 3: an upward entr
   const root = new URL('../../../../../', import.meta.url).pathname;
   assert.deepEqual(upwardAllowedEdges(root), []);
 });
+
+test('gate.io-edges-order.upward-reads-the-passed-rule: clause 1: a passed rule sets cell order and the grandfathered list in place of the plan [C7]', () => {
+  const root = fixture(['low->high']);
+  assert.deepEqual(upwardAllowedEdges(root, { cellOrder: ['low', 'high'] }).map(row => row.edge), ['low->high']);
+  assert.deepEqual(upwardAllowedEdges(root, { cellOrder: ['high', 'low'] }), []);
+  assert.deepEqual(upwardAllowedEdges(root, { cellOrder: ['low', 'high'], upwardEdgesGrandfathered: ['low->high'] }), []);
+  assert.equal(upwardAllowedEdges(root).length, 1);
+  assert.equal(upward(root).length, 1);
+  assert.equal(cellsEdgeProblems(root, { ...CEILINGS, rule: { cellOrder: ['high', 'low'] } }).filter(problem => /points up the cell order/u.test(problem.text)).length, 0);
+});

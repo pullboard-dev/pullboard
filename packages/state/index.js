@@ -219,10 +219,15 @@ export const REVIEW_RELEASE_REASON_ENGINE = engineNumber('REVIEW_RELEASE_REASON_
 export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
 export const REVIEW_RELEASE_TWICE_ENGINE = engineNumber('REVIEW_RELEASE_TWICE_ENGINE');
 export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
+export const BLOCK_ENGINE = engineNumber('BLOCK_ENGINE');
+export const MERGED_AT_ENGINE = engineNumber('MERGED_AT_ENGINE');
 export const WITHDRAW_AS_MET_ENGINE = engineNumber('WITHDRAW_AS_MET_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
+export const NEEDS_ENGINE = engineNumber('NEEDS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');
 export const RELEASE_UNTOUCHED_REROUTE_ENGINE = engineNumber('RELEASE_UNTOUCHED_REROUTE_ENGINE');
 export const ADVISOR_ROLE_ENGINE = engineNumber('ADVISOR_ROLE_ENGINE');
 export const HEALTH_QUIET_ENGINE = engineNumber('HEALTH_QUIET_ENGINE');
+export const HEALTH_EPISODE_ENGINE = engineNumber('HEALTH_EPISODE_ENGINE');
+export const BOARD_RELEASE_CODES_ENGINE = engineNumber('BOARD_RELEASE_CODES_ENGINE');

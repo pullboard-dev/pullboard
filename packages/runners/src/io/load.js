@@ -1,6 +1,6 @@
 /** Actual executor samples shared by local gate and registered worker receipts [C7]. */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { hostname } from 'node:os';
@@ -11,7 +11,7 @@ import { platform } from 'node:os';
  * Cumulative disk counters since boot, summed over every whole disk, or null when this host exposes none.
  * macOS has no iowait counter, so it reports only the time requests took; Linux also reads the CPU jiffies.
  */
-export function readDiskCounters(os = platform(), run = spawnSync, read = file => readFileSync(file, 'utf8')) {
+export function readDiskCounters(os = platform(), run = spawnSync, read = file => fileSystemAdapter().readFile(file)) {
   try {
     if (os === 'darwin') return parseIoreg(String(run('ioreg', ['-rc', 'IOBlockStorageDriver', '-w0'], { encoding: 'utf8', timeout: 2000 }).stdout ?? ''));
     if (os === 'linux') return parseProc(read('/proc/diskstats'), read('/proc/stat'));
@@ -76,7 +76,7 @@ export function parseMeminfoSwap(text) {
 }
 
 /** Swap used and total in MB on this host, or null when it exposes none. */
-export function readSwapUsage(os = platform(), run = spawnSync, read = file => readFileSync(file, 'utf8')) {
+export function readSwapUsage(os = platform(), run = spawnSync, read = file => fileSystemAdapter().readFile(file)) {
   try {
     if (os === 'darwin') return parseSwapusage(String(run('sysctl', ['-n', 'vm.swapusage'], { encoding: 'utf8', timeout: 2000 }).stdout ?? ''));
     if (os === 'linux') return parseMeminfoSwap(read('/proc/meminfo'));

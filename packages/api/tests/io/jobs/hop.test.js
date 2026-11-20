@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 import { jobView } from '../../../../jobs/index.js';
 import { readGateHop } from '../../../../store/index.js';
@@ -79,13 +79,9 @@ test('api.jobs-hop.claim-holding-stale-epoch-refused: clause 2: a claim holding 
   assert.equal(renewJob(db, { job: owner.job, runner: 'r2', token: owner.token, now: 5000 + LEASE + 2, leaseMs: LEASE, hop: gateClaimHop(true) }).renewed, true);
 });
 
-test('api.jobs-hop.while-runner-holds-hop-live: clause 2: while one runner holds the hop live, a claim of the item\'s other gate job is refused HOP_FENCED naming it [C7,#8352]', t => {
+test('api.jobs-hop.while-runner-holds-hop-live: clause 2: while one runner holds the hop live, a claim skips the item\'s other gate job and takes no lease on it [C7,#8352,#12147]', t => {
   const db = board(t, ['gate:7:a', 'gate:7:b']);
   claim(db, 'r1', 5000);
-  assert.throws(() => claim(db, 'r2', 5001), error => {
-    assert.equal(error.code, 'HOP_FENCED');
-    assert.match(error.message, /driven by r1/u);
-    return true;
-  });
-  assert.equal(jobView(db, 'gate:7:b').leaseOwner ?? null, null, 'the refused claim took no lease');
+  assert.equal(claim(db, 'r2', 5001), null, 'the held gate job is skipped, not refused');
+  assert.equal(jobView(db, 'gate:7:b').leaseOwner ?? null, null, 'the skipping claim took no lease');
 });

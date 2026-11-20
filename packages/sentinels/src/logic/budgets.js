@@ -125,7 +125,7 @@ const SURFACE_FILE = Object.freeze({
   'checkout-lease': 'packages/seats/src/io/agent/session.js',
   'checkout-writer': 'packages/seats/src/io/agent/session.js',
   'runner-unavailable': 'packages/resources/src/io/recovery.js',
-  'handoff-queue': 'packages/resources/src/io/handoff/worker/cap.js',
+  'handoff-queue': 'packages/sentinels/src/io/surfaces.js',
   'board-write': 'packages/store/src/io/board/write/lock.js',
   'resource-write': 'packages/resources/src/io/write/queue.js',
   gate: 'apps/cli/src/io/submit/pull.js',
@@ -162,6 +162,16 @@ export function waitItemFields(draft, by) {
 }
 
 /**
+ * The board-write lines of a wait item: the recorded writes over budget that overlap the marker's age, or the plain
+ * statement that none did. Why: a marker is published before the writer waits for SQLite, so its age alone does not
+ * say who held; the recorded writes do, and no overlap means the contender only waited.
+ */
+function recordedHoldLines(holds) {
+  if (!holds.length) return ['Recorded holds: none over budget overlap this marker, so it waited and held nothing long; find who held the lock before it.'];
+  return ['Recorded holds:', ...holds.map(hold => `- command ${hold.command}, seat ${hold.seat}${hold.item ? `, item #${hold.item}` : ''}, heldMs ${hold.heldMs}, phase ${hold.phase}, move ${hold.move}, step ${hold.step ?? 'none'}`)];
+}
+
+/**
  * The item a builder fixes the cause from: who held, who waited, how long, and where the evidence lies. It is routed
  * mid, so it carries what add requires of a cold build: a Files: section, a Test: line, and a check, which is the
  * wait audit itself for this one key, red while the wait is over budget. At most three numbered clauses.
@@ -172,16 +182,18 @@ export function waitItemDraft(row) {
     ? row.waiters.slice(0, 12).map(waiter => `- ${waiter.label}${waiter.pid ? ` (pid ${waiter.pid})` : ''}: waited ${sayAge(waiter.ageMs)}`).join('\n')
     : '- none recorded';
   const files = [...new Set([...holderSourceFiles(row.context), SURFACE_FILE[row.surface]].filter(Boolean))];
-  const title = `waits: ${row.surface} ${String(row.holder).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid')} held ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
+  const marker = row.surface === 'board-write';
+  const title = `waits: ${row.surface} ${String(row.holder).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid')} ${marker ? 'held or waited' : 'held'} ${sayAge(row.ageMs)} past its ${sayAge(row.budgetMs)} budget`.slice(0, 120);
   const brief = [
     `The wait audit (\`pullboard waits\`) found ${row.surface} over its ${row.budgetName} budget of ${sayAge(row.budgetMs)}.`,
     '',
-    `Holder: ${row.holder}${row.pid ? ` (pid ${row.pid})` : ''}, ${sayAge(row.ageMs)}.`,
+    `Holder: ${row.holder}${row.pid ? ` (pid ${row.pid})` : ''}, ${marker ? 'held or waited ' : ''}${sayAge(row.ageMs)}.`,
     row.context ? `Doing: ${row.context}` : null,
     row.detail ? `Detail: ${row.detail}` : null,
     `Evidence: ${row.evidence}`,
     'Waiters:',
     waiters,
+    ...(row.recordedHolds ? ['', ...recordedHoldLines(row.recordedHolds)] : []),
     '',
     'Find why this holder holds this long, and fix that cause; never raise the budget or kill on a timer instead.',
     '',

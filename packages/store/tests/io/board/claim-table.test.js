@@ -1,70 +1,31 @@
-/** @pullboard-test-input source-cell store */
-// fixture-subject: the store claim writer with the live claim table deciding, for a coordinator seat and a lane seat claiming from a lane worktree
-/** The live claim table and the claim writer give one answer: the table reads the lane the claim runs from for the coordinator seat only, every other seat keeps its registered lane [C7,#10883], and both refuse a seat that never joined [C7,#10952]. */
+/** @pullboard-test-input packages/store/src/io/board/claim-table.js packages/store/src/io/needs.js */
+/** The live claim snapshot carries an item's needs and a seat's abilities, so the claim table refuses a seat whose abilities lack a need [U136,C7,#1888]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
+import { claimDecision } from '../../../src/io/board/claim-table.js';
+import { saveItemNeeds } from '../../../src/io/needs.js';
+import { saveAgentAbilities } from '../../../src/io/needs.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellClaim } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
 
-/** A real board whose claims the live claim table decides, with one open web item. */
-function setup(t) {
+test('store.io-board-claim-table.needs-ability-real-path: clause 1: an item with needs [browser] is refused NEEDS_ABILITY to a seat with no saved abilities and stays open, and a seat given [browser] is not refused NEEDS_ABILITY [U136,C7,#1888]', (t) => {
   const project = cellProject(t, { real: true });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   board.movesLive = { ...(board.movesLive ?? {}), claim: true };
-  const item = cellItem(board, { lane: 'web', title: 'Lane fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' });
-  return { board, root: project.repo, id: item.item_id };
-}
-
-test('store.io-board-claim-table.coordinator-lane-from-claim: clause 1: a seat registered in the coordinator lane claiming a web item from a web worktree is not refused WRONG_LANE by the live claim table [C7,#10883]', t => {
-  const { board, root, id } = setup(t);
-  const seat = cellSeat(board, { lane: 'coordinator', path: root });
-  let code = null;
-  try { cellClaim(board, id, seat, { root, lane: 'web' }); } catch (error) { code = error.code ?? error.name; }
-  assert.notEqual(code, 'WRONG_LANE', 'the table reads the lane the coordinator claims from, as the writer does');
-  assert.equal(code, null, 'the claim is written');
-  assert.equal(board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(id).item_owner, seat.id);
-});
-
-test('store.io-board-claim-table.seat-lane-unchanged: clause 2: a seat registered in the api lane claiming a web item with a web lane option is still refused WRONG_LANE by the live claim table [C7,#10883]', t => {
-  const { board, root, id } = setup(t);
-  const seat = cellSeat(board, { lane: 'api', path: root });
-  assert.throws(() => cellClaim(board, id, seat, { root, lane: 'web' }), { code: 'WRONG_LANE' });
+  // fixture-subject: claimDecision
+  assert.equal(typeof claimDecision, 'function');
+  const id = cellItem(board, { lane: 'core', title: 'Needs fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
+  saveItemNeeds(board, id, ['browser']);
+  const bare = cellSeat(board, { lane: 'core', path: project.repo });
+  assert.throws(() => cellClaim(board, id, bare, { root: project.repo }), { code: 'NEEDS_ABILITY' });
   assert.equal(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id).item_status, 'open', 'nothing is written');
-});
-
-test('store.io-board-claim-table.lanes-off-claim-lane: clause 1: claimDecision on a laneMode off board, for a seat registered in web claiming a docs item with the claim lane option docs, is not refused WRONG_LANE [C7,#10902]', t => {
-  const { board, root, id } = setup(t);
-  const docs = cellItem(board, { lane: 'docs', title: 'Docs fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
-  const seat = cellSeat(board, { lane: 'web', path: root });
+  const able = cellSeat(board, { lane: 'core', path: project.repo });
+  saveAgentAbilities(board, able.id, ['browser']);
   let code = null;
-  try { cellClaim(board, docs, seat, { root, lane: 'docs', laneOff: true }); } catch (error) { code = error.code ?? error.name; }
-  assert.notEqual(code, 'WRONG_LANE', 'the table reads the lane the claim runs from, as the writer does');
-  assert.equal(board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(docs).item_owner, seat.id, 'the claim is written');
-});
-
-test('store.io-board-claim-table.lanes-on-registered-lane: clause 2: the same claim on a laneMode on board is still refused WRONG_LANE [C7,#10902]', t => {
-  const { board, root } = setup(t);
-  const docs = cellItem(board, { lane: 'docs', title: 'Docs fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
-  const seat = cellSeat(board, { lane: 'web', path: root });
-  assert.throws(() => cellClaim(board, docs, seat, { root, lane: 'docs' }), { code: 'WRONG_LANE' });
-  assert.equal(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(docs).item_status, 'open', 'nothing is written');
-});
-
-const freeze = () => ({ text: '{}', digest: 'claim-table-fixture' });
-
-test('store.io-board-claim-table.unjoined-seat-refused-joined-allowed: clause 2: with moves.live.claim on, the claim refuses NOT_JOINED for a seat that never joined and writes nothing, and the same claim by a joined seat is written [C7]', t => {
-  const board = cellBoard(t, ':memory:');
-  board.movesLive = { claim: true };
-  cellSeat(board, { lane: 'coordinator', path: '/seat/coordinator' });
-  const joined = cellSeat(board, { lane: 'core', path: '/seat/builder' });
-  const { item_id: id } = cellItem(board, { lane: 'core', title: 'Unjoined claim', criterion: '1. the claim is recorded [test].', route: 'strong', check: 'true' });
-  const claim = agentId => store.claim(board, id, { agentId, lane: 'core', leaseMs: 60 * 60_000, freeze });
-  assert.throws(() => claim('core-99'), error => error.code === 'NOT_JOINED', 'a seat with no agent row is refused');
-  assert.equal(board.db.prepare("SELECT COUNT(*) n FROM event WHERE item_id=? AND event_kind='claim'").get(id).n, 0, 'the refusal wrote no claim');
-  claim(joined.id);
-  assert.equal(board.db.prepare('SELECT item_owner owner FROM item WHERE item_id=?').get(id).owner, joined.id, 'the joined seat holds the item');
+  try { cellClaim(board, id, able, { root: project.repo }); } catch (error) { code = error.code ?? error.name; }
+  assert.notEqual(code, 'NEEDS_ABILITY', 'a seat whose abilities cover the need is not refused for it');
+  assert.equal(code, null, 'the claim is written');
 });

@@ -1,20 +1,14 @@
 /** Hash-only relay sessions and board credentials, authorized by current GitHub roles [H8, H1, H13, H14, H16, H3]. */
 import {
   createHash,
-  createPrivateKey,
-  generateKeyPairSync,
   randomBytes,
   randomUUID,
-  sign,
   timingSafeEqual,
 } from 'node:crypto';
-import {
-  chmodSync,
-  mkdirSync,
-} from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { loadSigningAdapter } from '../../../../packages/keys/index.js';
 import { computerName } from '../../../../packages/seats/index.js';
 import { repositoryName } from './github.js';
 import { approvalContext } from '../../../../packages/link/index.js';
@@ -27,11 +21,16 @@ import {
   verifyRegistration,
 } from './passkeys.js';
 import { presenceAttestation } from '../../../../packages/person/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
 /** The credential database's file name under the relay data folder; this module opens and writes it, so it owns the store. */
 export const AUTH_DATABASE_FILE = 'auth.sqlite';
 const MAX_TTL = 30 * 24 * 3600_000;
+/** The passkey stamp key's signing form: base64url DER keys and signatures, as the relay database already stores them. */
+const signing = (await loadSigningAdapter()).createSigningAdapter({ encoding: 'der' });
 
 /** Hash credentials before any database lookup or persistence. */
 function hash(value) { return createHash('sha256').update(value).digest('hex'); }
@@ -57,9 +56,9 @@ function sameHash(left, right) {
 export function createRelayAuth({ database, github, now = Date.now, sessionTTL = 7 * 24 * 3600_000, tokenTTL = 24 * 3600_000 }) {
   if (typeof database !== 'string' || !database || !github) throw new Refused('RELAY_CONFIG', 'configure an auth database and GitHub App provider');
   for (const ttl of [sessionTTL, tokenTTL]) if (!Number.isSafeInteger(ttl) || ttl <= 0 || ttl > MAX_TTL) throw new Refused('RELAY_CONFIG', 'set credential expiry between one millisecond and thirty days');
-  if (database !== ':memory:') mkdirSync(dirname(database), { recursive: true, mode: 0o700 });
+  if (database !== ':memory:') fileSystem.mkdir(dirname(database), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(database);
-  if (database !== ':memory:') chmodSync(database, 0o600);
+  if (database !== ':memory:') fileSystem.chmod(database, 0o600);
   db.exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=30000; BEGIN IMMEDIATE');
   try {
     db.exec(`
@@ -150,9 +149,8 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
     return lifecycle(() => {
       let keys = db.prepare('SELECT private_key,public_key FROM relay_person_authority WHERE slot=1').get();
       if (!keys) {
-        const pair = generateKeyPairSync('ed25519');
-        keys = { private_key: pair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64url'),
-          public_key: pair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url') };
+        const pair = signing.generateKeyPair();
+        keys = { private_key: pair.privateKey, public_key: pair.publicKey };
         db.prepare('INSERT INTO relay_person_authority(slot,private_key,public_key) VALUES(1,?,?)').run(keys.private_key, keys.public_key);
       }
       return keys;
@@ -980,8 +978,7 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
         passkey: { jwk: JSON.parse(passkey.public_key), algorithm: passkey.algorithm, counter: passkey.counter } });
       const at = now();
       const unsigned = { board, request: context.request, digest: context.digest, credential: passkey.id, at };
-      const key = createPrivateKey({ key: Buffer.from(personAuthorityKeys().private_key, 'base64url'), format: 'der', type: 'pkcs8' });
-      const stamp = { ...unsigned, signature: sign(null, presenceAttestation(unsigned), key).toString('base64url') };
+      const stamp = { ...unsigned, signature: signing.sign(personAuthorityKeys().private_key, presenceAttestation(unsigned).toString()) };
       return {
         stamp,
         /** Spend the grant once and keep the passkey's new counter, under the caller's board lock. */

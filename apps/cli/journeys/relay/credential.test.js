@@ -56,6 +56,9 @@ function credentialCases(box) {
       claim: '00000000-0000-4000-8000-00000000c0de', tokens: null, calls: null }];
     if (operation === 'takeHandoff') args = [{ agentId: actor, item: 999999 }];
     if (operation === 'approveOutside') { args = [999999, { agentId: 'person' }]; kind = 'person'; }
+    // The block moves take one options object naming the block, like every other single-argument move.
+    if (operation === 'addBlock') args = [{ agentId: actor, name: 'credential-block', ids: [999999], tier: 'mid' }];
+    if (operation === 'claimBlock') args = [{ agentId: actor, name: 'credential-block', lane: box.lane, leaseMs: 3600000 }];
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
     if (operation === 'requestCompanion') args = [{ agentId: actor, parentId: 999999, lane: box.lane,
       key: 'credential-companion', title: 'credential actor fixture' }];

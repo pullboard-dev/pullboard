@@ -284,9 +284,6 @@
   "apps/cli/journeys/export/team/board.test.js": {
     "launch": 3
   },
-  "packages/gate/tests/io/main/resource.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/mcp/main.test.js": {
     "launch": 1
   },
@@ -755,7 +752,7 @@
   "packages/landing/tests/hung.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/shout/sentinel/model.test.js": {
+  "apps/cli/tests/io/shout/sentinel-model.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
@@ -794,10 +791,10 @@
   "apps/cli/journeys/flakes/ci.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/fact/e2e/tour.test.js": {
+  "apps/cli/tests/io/commands/fact/e2e-tour.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/e2e/tour-agent-session.test.js": {
+  "apps/cli/tests/io/commands/fact/e2e-tour-agent-session.test.js": {
     "launch": 1
   },
   "packages/landing/tests/logic/failures.test.js": {
@@ -1151,7 +1148,7 @@
   "apps/cli/journeys/inbox/events-stream.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/shout/activity/polish.test.js": {
@@ -1406,7 +1403,7 @@
   "apps/relay/journeys/server/stays.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/main/cache.test.js": {
+  "apps/cli/tests/io/commands/fact/main-cache.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/verify/team/verdict.test.js": {

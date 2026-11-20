@@ -1,0 +1,4 @@
+{
+  "cli.sprint.lands-without-accept": {"proves":{"specs":["V2","M1"],"claim":"On a fresh board with pace sprint, after submit --no-next and no reviewer command, show prints merged as and list gives the item a merged commit while its status is still submitted."},"why":"Without it a sprint item could still wait for an accept, as every proof board showed before the wiring.","kind":"journey","inputs":["apps/cli/journeys/sprint/land-without-accept.test.js","apps/cli/src/io/landing/pull.js","apps/cli/src/io/landing/automatic.js","packages/api/src/io/gate/sprint-land.js"]},
+  "cli.sprint.steady-waits-for-accept": {"proves":{"specs":["V2","M1"],"claim":"On a steady board the submitted item does not land without an accept and lands after one, as before."},"why":"Sprint wiring must change nothing for steady boards.","kind":"journey","inputs":["apps/cli/journeys/sprint/land-without-accept.test.js","apps/cli/src/io/landing/pull.js","apps/cli/src/io/landing/automatic.js"]}
+}

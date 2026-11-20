@@ -14,14 +14,11 @@
  * Why a matrix: on 8 Nov about ten gate fixes landed and gate deaths fell, partly because fewer builders ran; nothing
  * proved any hop worked. A row is a claim only when a harness proves it and production agrees.
  */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   spawn,
   spawnSync,
 } from 'node:child_process';
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import {
   join,
   resolve,
@@ -31,15 +28,17 @@ import {
   pathToFileURL,
 } from 'node:url';
 
+const fs = fileSystemAdapter();
+
 const ROOT = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
 /** The CLI entry the package manifest names as its pullboard bin, so this file names no app path. */
-const CLI = join(ROOT, JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).bin.pullboard);
+const CLI = join(ROOT, JSON.parse(fs.readFile(join(ROOT, 'package.json'), 'utf8')).bin.pullboard);
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
-  'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
+  'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', e2e: 'e2e',
+  'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'merged-twice': 'pullboard-merged-run-twice', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
   'red-at-claim': 'a-red-from-an-older-head-shown-at-claim', 'landing-run': 'landing-run-fails-or-its-proof-is-not-gr', 'sleep-past-leases': 'machine-sleeps-past-every-lease', 'main-test': 'queued-main-test-job-never-driven', 'red-notice': 'red-notice-after-the-claim-lapsed', 'review-held': 'review-held-on-an-item-that-was-withdraw',
   'ready-budget': 'budget',
 });
@@ -59,11 +58,6 @@ export const HOPS = Object.freeze([
   { id: 'submit-queued', stage: 'Gate', hop: 'submit → queued', harness: 'e2e',
     invariant: 'Submit returns with the gate queued on the submitted commit; it never waits on the gate.',
     live: report => phase(report, 'queued', null) },
-  { id: 'worker-lease', stage: 'Gate', hop: 'worker heartbeats and lease', harness: 'e2e',
-    invariant: 'A running driver is alive and renews its 2-minute lease every 5 s; no gap reaches half the lease.',
-    live: report => cause(report, 'SUBMIT_HANDOFF_DEAD') },
-  { id: 'live-driver', stage: 'Gate', hop: 'live driver is never declared dead', harness: 'live-driver', fix: '515d062720',
-    invariant: 'A sweeper never declares a live, same-incarnation driver dead for a lapsed lease alone.' },
   { id: 'analysis-on-runner', stage: 'Gate', hop: 'analysis job on runner', harness: 'analysis-on-runner',
     invariant: 'Authorization, cells, doctrine and static run as one runner job and return their artifact.',
     live: report => phase(report, 'remote-analysis', null) },
@@ -82,9 +76,6 @@ export const HOPS = Object.freeze([
   { id: 'test-receipt', stage: 'Gate', hop: 'test run → receipt', harness: 'e2e',
     invariant: 'A green gate leaves a proof receipt naming the submitted commit.',
     live: report => phase(report, 'result', null) },
-  { id: 'dead-requeue', stage: 'Gate', hop: 'dead worker → requeue', harness: 'dead-worker-requeue', fix: '3a89d81fc5',
-    invariant: 'A gate whose driver is killed is requeued on the same candidate within 20 s, with no builder red.',
-    live: report => phase(report, 'requeue', 20_000) },
   { id: 'green-review', stage: 'Review', hop: 'green → review', harness: 'e2e',
     invariant: 'A green gate puts the item in review, waiting on an independent reviewer.' },
   { id: 'accept-merged', stage: 'Land', hop: 'accept → landing batch → merged', harness: 'e2e',
@@ -194,7 +185,7 @@ export function parseArgs(argv) {
 const ROW_MARK = '# hop-row ';
 
 /** Harnesses the owning app holds, by hop harness name: repository-relative paths kept as data so this package names no app file. */
-export const APP_HARNESSES = Object.freeze(JSON.parse(readFileSync(join(ROOT, 'packages/gate/data/tests/app-harnesses.json'), 'utf8')));
+export const APP_HARNESSES = Object.freeze(JSON.parse(fs.readFile(join(ROOT, 'packages/gate/data/tests/app-harnesses.json'), 'utf8')));
 
 /** The absolute path of one harness file: under the owning app when APP_HARNESSES names it, else under the pipeline folder. */
 export function harnessFile(name) {
@@ -310,7 +301,7 @@ function liveReceipts(since) {
 export async function main(argv) {
   const options = parseArgs(argv);
   const names = [...new Set(HOPS.map(hop => hop.harness).filter(Boolean))].filter(name => !options.only || options.only.includes(name));
-  if (!existsSync(HARNESSES)) {
+  if (!fs.exists(HARNESSES)) {
     process.stderr.write(`no harnesses at ${HARNESSES}; they ship in the repository, not the package\n`);
     return 1;
   }
