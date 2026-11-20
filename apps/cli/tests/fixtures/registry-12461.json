@@ -1,0 +1,15 @@
+{
+  "cli.journeys-speed-release-median.profile-by-git-call": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: the same five in-process releases record the wall ms of every git child they start through child_process and print the ten largest by git argv and repo caller."
+    },
+    "why": "Without it, the release median profile cannot say which git call to cut, only that child spawns dominate.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/speed/release-median.test.js"
+    ]
+  }
+}
