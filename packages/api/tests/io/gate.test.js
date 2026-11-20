@@ -266,7 +266,7 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
   assert.deepEqual(reasons, { 'web/a.test.js': 'changed', 'web/b.test.js': 'red', 'web/c.test.js': 'none' });
 });
 
-test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
+test('api.io-gate.shard-offer-ledger-absent-without-rows: clause 1: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
 });
 

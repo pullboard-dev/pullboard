@@ -514,7 +514,7 @@ test('api.io-refusal.hop-held-leaves-lease: clause 1: a claim reaching a gate jo
   assert.equal(claim('r2', 5002), null, 'with nothing else open, the claim answers no job rather than a refusal');
 });
 
-test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job claim with the hop on makes the same 33 board statements as before the hop check moved [C7]', (t) => {
+test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job claim with the hop on makes the 33 board statements it made before the hop check moved, plus the one expedite read [C7]', (t) => {
   const db = hopBoard(t, 'pullboard-jobs-hop-reads-');
   let statements = 0;
   const counted = new Proxy(db, { get(target, key) {
@@ -525,7 +525,7 @@ test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job cl
   } });
   const taken = claimJob(counted, { runner: 'r1', now: 5000, hop: gateClaimHop(true) });
   assert.equal(taken.job, 'gate:7:a');
-  assert.equal(statements, 33, 'the success path prepares and runs the same statements as on main');
+  assert.equal(statements, 34, 'the success path prepares and runs the 33 statements of before the hop check moved, plus the one expedited-set read a gate claim makes (#12295)');
 });
 
 test('api.io-renew-batch.one-call-extends-all-held: clause 1: one renew call over the job route extends every job the runner holds and answers each job\'s new lease; a job it no longer holds is named refused without failing the rest [C7]', async (t) => {
