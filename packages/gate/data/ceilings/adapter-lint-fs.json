@@ -1,12 +1,6 @@
 {
   "version": 1,
   "files": {
-    "apps/cli/src/io/commands/import.js": 1,
-    "apps/cli/src/io/commands/index.js": 1,
-    "apps/cli/src/io/commands/next.js": 1,
-    "apps/cli/src/io/commands/patch.js": 5,
-    "apps/cli/src/io/commands/red.js": 1,
-    "apps/cli/src/io/commands/release.js": 1,
     "apps/cli/src/io/landing/checkout.js": 1,
     "apps/cli/src/io/memo.js": 8,
     "apps/cli/src/io/next/monitor.js": 1,
