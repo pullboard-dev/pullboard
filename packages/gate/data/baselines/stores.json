@@ -510,6 +510,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/timers.js"
     },
+    "allowed-edges.json": {
+      "kind": "repo-data",
+      "owner": "packages/codemap/src/io/cell/rule.js"
+    },
     "auth.sqlite": {
       "kind": "sqlite",
       "owner": "apps/relay/src/io/auth.js"
