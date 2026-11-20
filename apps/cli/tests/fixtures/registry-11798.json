@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-next-wait.wakes-on-offer": {"proves":{"specs":["C7"],"claim":"A waiting next returns the offered item within 1 s of an item becoming takeable for its seat."},"why":"Without it, a wait that skips selection on unrelated board writes could also sleep through a real offer.","kind":"cell unit","inputs":["apps/cli/src/io/commands/next.js"]}
+}
