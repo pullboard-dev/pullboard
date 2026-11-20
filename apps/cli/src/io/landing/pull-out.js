@@ -2,7 +2,7 @@
 
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
-import { tryGit } from '../../../../../packages/git/index.js';
+import { fetchTrunk } from '../../../../../packages/landing/index.js';
 import { landingRemote } from '../../../../../packages/landing/index.js';
 import { fenceHop } from '../../../../../packages/landing/index.js';
 import { pushTrunkThroughFence } from '../../../../../packages/landing/index.js';
@@ -49,7 +49,8 @@ export async function pullOutPulling(ctx, ids) {
   return withBoard(ctx, board => {
     const pulling = ids.filter(item => pullingLanding(board, item));
     // The revert is built on the remote trunk tip, which a runner land job may have pushed after this checkout last fetched.
-    if (pulling.length) tryGit(root, ['fetch', '-q', remote, branch]);
+    // Through the land job's own trunk fetch; a failed fetch leaves each pull-out to refuse PULL_OUT_TRUNK below, logged and run again by the wake.
+    if (pulling.length) { try { fetchTrunk(root, remote, `refs/heads/${branch}`); } catch { /* the pull-out names the missing trunk */ } }
     return pulling.map(item => {
       try { return { item, ...runPullOutJob(board, { root, remote, branch, item, fenced: fencedHopEnabled() }, { fenceHop: hookless(fenceHop), pushTrunkThroughFence: hookless(pushTrunkThroughFence) }) }; }
       catch (error) {
