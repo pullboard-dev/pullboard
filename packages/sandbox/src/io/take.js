@@ -28,6 +28,7 @@ import {
 } from '../../../kernel/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { pendingFromJobRow } from '../../../config/index.js';
+import { routeReservations } from '../../../config/index.js';
 import { laneNames } from '../../../seats/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
@@ -64,6 +65,7 @@ function selected(ctx, board, values, services) {
     assignedIds: omitted, workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
     reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
+    ...(routeReservations() ? { reservations: true } : {}),
     ...(ctx.config.laneMode === 'off' && !ctx.info.isMain ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}),
   }));
 }
