@@ -405,6 +405,9 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const upstream = hosted ? hostUpstream(root, policy.config) : null;
     const shardGate = policy.config.landing?.shardProof === true ? landingShardGate() : null;
     const badges = badgeDocuments?.(board) ?? [];
+    // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
+    // The read depends only on the ledger and policy, and under the lock its full test_result scan held every board writer 10-190 s [C7,#12533].
+    const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
     return (queue ? work => work() : work => lock(board, work))(() => {
       // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
       const fresh = ids ? new Set() : openLandingItems(board.db);
@@ -415,8 +418,6 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
       const size = ids ? free.length : Math.min(free.length, batchCap(board, { adaptive: adaptiveBatchEnabled() }));
       const jobs = [];
-      // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
-      const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
       // With landing.parallelGates on, each entry carries its changed files and the tests among them, so the start group is the disjoint ones [C7,#9836].
       const planned = parallel ? free.map(entry => {
         const changed = files.get(entry.id);
