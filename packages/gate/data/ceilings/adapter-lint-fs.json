@@ -1,12 +1,6 @@
 {
   "version": 1,
   "files": {
-    "apps/cli/src/io/beater.js": 4,
-    "apps/cli/src/io/blueprint.js": 1,
-    "apps/cli/src/io/cells/cache.js": 9,
-    "apps/cli/src/io/cli-main/live-cwd.js": 1,
-    "apps/cli/src/io/cli-main/session.js": 1,
-    "apps/cli/src/io/commands/blueprint.js": 1,
     "apps/cli/src/io/commands/import.js": 1,
     "apps/cli/src/io/commands/index.js": 1,
     "apps/cli/src/io/commands/next.js": 1,
