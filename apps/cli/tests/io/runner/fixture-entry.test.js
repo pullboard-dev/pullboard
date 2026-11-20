@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-cell apps/cli */
+/** @pullboard-test-input apps/cli/tests/fixtures/runner/** */
 /** The local-start and local-stop runner fixtures take the CLI entry path from the caller and build none themselves [C7,#8203]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
