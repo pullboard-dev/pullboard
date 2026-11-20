@@ -1411,6 +1411,10 @@
       "kind": "table",
       "owner": "apps/relay/src/io/store/device.js"
     },
+    "table:program": {
+      "kind": "table",
+      "owner": "packages/jobs/src/io/store.js"
+    },
     "table:registry_lock": {
       "kind": "table",
       "owner": "packages/seats/src/io/projects.js"
