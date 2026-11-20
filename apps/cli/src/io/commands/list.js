@@ -43,7 +43,7 @@ export async function run(io, { first, values }) {
   const filtered = fieldIndex ? (await import('../../../../../packages/items/light.js')).filterByField(routed, values.field, fieldIndex) : routed;
   if (values.json) io.result({ items: filtered, needsRescope });
   else if (!filtered.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
-  else filtered.forEach((item) => io.say(itemLine(item, (id) => agentDisplayName(agents, ctx.config, id), merging.has(item.item_id), foreign.get(item.item_id))));
+  else filtered.forEach((item) => io.say(itemLine(item, (id) => agentDisplayName(agents, ctx.config, id), merging.has(item.item_id), foreign.get(item.item_id), ctx.clock.now())));
   // Items next is holding back from a lane and route after a release, each with its reason and age (#3742).
   if (!values.json) for (const entry of needsRescope) io.say(`needs re-scope: #${entry.id} is not offered to ${entry.lane} at the ${entry.route} route; ${entry.reasons.join('; ')}`);
   return 0;
