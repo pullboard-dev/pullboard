@@ -138,11 +138,12 @@ export async function run(io, args) {
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
     requireAfterNeeded(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check },
       { on: itemsBarRulesAtAdd(), after: change.after ?? before.item_after, self: id, items: () => store.listItems(board, { all: true }) });
-    if (itemsBarRulesAtAdd() && change.after !== undefined) requireChainDepth(change.after, chainDepthOf(store.listItems(board, { all: true })), id);
     requireBarInLane(ctx, me, { lane: before.item_lane, criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsBarRulesAtAdd());
     requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
     await requireCellTestFixture(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check, brief: before.item_brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || Boolean(asPerson));
   }
+  // A changed --after list is measured on its own: the chain rule applies whether or not the bar changed.
+  if (itemsBarRulesAtAdd() && change.after !== undefined) requireChainDepth(change.after, chainDepthOf(store.listItems(board, { all: true })), id);
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
     change.correction = true;
