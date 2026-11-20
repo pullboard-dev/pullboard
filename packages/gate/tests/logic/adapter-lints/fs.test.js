@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell gate */
 /** The file-system lint names a direct node:fs import outside the kernel and holds today's offenders at a ceiling [C7,#9449]. */
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../fixtures/child.js';
