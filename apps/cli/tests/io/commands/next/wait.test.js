@@ -64,9 +64,9 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   // The waiting seat has recorded its idle answer once it is resting on the board.
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   while (!withFixtureBoard(board, open => open.db.prepare("SELECT 1 AS found FROM event WHERE event_kind = 'next-idle'").get())) await yieldEventLoop();
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
-  assert.equal(added.code, 0, `${added.out}\n${added.err}`);
-  const item = JSON.parse(added.out).item;
+  const added = fixtureAdd(box.run, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
+  assert.equal(added.status ?? added.code, 0, `${added.out ?? added.stdout}\n${added.err ?? added.stderr}`);
+  const item = JSON.parse(added.out ?? added.stdout).item;
   const filedAt = Date.now();
   t.diagnostic(`item ${item.item_id} status ${item.item_status} filed ${(filedAt - began) / 1000} s after the wait began`);
   const result = await waiting;
