@@ -37,7 +37,7 @@ function prepared(board, run) {
 }
 
 /** Item 7 submitted (frozen at `pace`; steady freezes none) with one land job for it offered against its commit and claimed by a runner. */
-function submittedLanding(t, pace, options = {}) {
+function submittedLanding(t, pace, options = {}, status = 'submitted') {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
@@ -46,8 +46,8 @@ function submittedLanding(t, pace, options = {}) {
   const builder = cellSeat(board, { lane: 'core', path: `${repo.root}/seat` }).id;
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
   board.db.exec('INSERT INTO temp.moving VALUES (1)');
-  board.db.prepare(`UPDATE item SET item_status='submitted', item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=? WHERE item_id=7`)
-    .run(commit, builder, JSON.stringify(pace === 'steady' ? {} : { pace }), 'd'.repeat(64), builder);
+  board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=? WHERE item_id=7`)
+    .run(status, commit, builder, JSON.stringify(pace === 'steady' ? {} : { pace }), 'd'.repeat(64), builder);
   board.db.exec('DELETE FROM temp.moving');
   const job = offerLandingJob(board.db, { items: [{ id: 7, commit, ref: 'refs/pullboard/land/7', ...(pace === 'sprint' ? { pace } : {}) }], expect: commit, config: CONFIG, ...(pace === 'sprint' ? { sprint: SPRINT } : {}) });
   const lease = claimJob(board.db, { runner: 'r-land', capabilities: [], now: 2 });
@@ -93,8 +93,7 @@ test('api.gate.exact-tree-record.refuses-without-green: clause 1: with landing.e
 
 test('api.gate.exact-tree-record.steady-unchanged: clause 2: a land receipt with only steady items writes merged and main-moved only, with the same board calls whether landing.exactTreeCheck is on or off [V38,#12179]', t => {
   const runs = [false, true].map(check => {
-    const landing = submittedLanding(t, 'steady', { exactTreeCheck: check });
-    landing.board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = 7").run();
+    const landing = submittedLanding(t, 'steady', { exactTreeCheck: check }, 'verified');
     const { texts, value } = prepared(landing.board, () => landing.post(LANDED));
     assert.deepEqual(value.applied?.merged, [7], `check ${check}: the steady item is merged`);
     assert.deepEqual(landing.events('landing_batch'), [], `check ${check}: no landing batch is written`);
