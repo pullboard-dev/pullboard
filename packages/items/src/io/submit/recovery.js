@@ -174,16 +174,29 @@ export function sweepToolTrees({ temp = scratchRoot(), now = Date.now(), maxAgeM
 }
 
 /**
+ * The scratch-space problem under the tool-tree floor as a value: no sweep, no folder removed, no refusal.
+ * Why: health needs the same floor reading the compare path refuses on, without the sweep's side effects.
+ *
+ * @param {{ temp?: string, minFree?: number, statfs?: (path: string) => { bavail: number, bsize: number } }} [options] - The scratch folder, the floor in bytes and the statfs port.
+ * @returns {{ code: 'TOOL_TREE_DISK_LOW', freeMb: number, minFreeMb: number, temp: string } | null} The problem, or null at or above the floor or when the volume cannot be read.
+ */
+export function toolTreeRoomProblem({ temp = scratchRoot(), minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES), statfs = statfsSync } = {}) {
+  let free;
+  try { const stat = statfs(temp); free = stat.bavail * stat.bsize; } catch { return null; }
+  if (!(free < minFree)) return null;
+  return { code: 'TOOL_TREE_DISK_LOW', freeMb: Math.floor(free / 1024 ** 2), minFreeMb: Math.floor(minFree / 1024 ** 2), temp };
+}
+
+/**
  * Refuse to start another tool-tree copy when the temp volume is nearly full, after one sweep.
  *
  * @param {{ temp?: string, commonDirs?: string[], minFree?: number }} [options] - The repositories whose queued requests own tools.
  */
 export function assertToolTreeRoom({ temp = scratchRoot(), commonDirs = [], minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
   sweepToolTrees({ temp, commonDirs });
-  let free;
-  try { const stat = statfsSync(temp); free = stat.bavail * stat.bsize; } catch { return; }
-  if (free < minFree) {
-    throw new Refused('TOOL_TREE_DISK_LOW', `only ${Math.floor(free / 1024 ** 2)} MB free in ${temp}; the sweep removed every unowned pullboard-handoff-tools-* and pullboard-compare-tools-* older than 60 minutes, so free space or retry once running jobs finish`);
+  const problem = toolTreeRoomProblem({ temp, minFree });
+  if (problem) {
+    throw new Refused(problem.code, `only ${problem.freeMb} MB free in ${problem.temp}; the sweep removed every unowned pullboard-handoff-tools-* and pullboard-compare-tools-* older than 60 minutes, so free space or retry once running jobs finish`);
   }
 }
 
