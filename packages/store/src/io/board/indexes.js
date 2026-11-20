@@ -69,6 +69,21 @@ function missingOwnerStatusIndex(db) {
 }
 
 /**
+ * The status seeks the item lists read: the unfinished scope (open, claimed, submitted) by status, and the verified items not yet merged by id [C7,#12581].
+ * Why: item_status NOT IN ('verified','withdrawn') scanned every item the board ever held, 14 MB of criterion text, on each next.
+ * Why additive, not in SCHEMA: SCHEMA feeds the digest, so a line there read as drift on every existing board (#11000).
+ */
+const STATUS_INDEX = 'item_status_id';
+const UNMERGED_INDEX = 'item_verified_unmerged';
+const STATUS_SQL = `CREATE INDEX IF NOT EXISTS ${STATUS_INDEX} ON item (item_status, item_id);
+  CREATE INDEX IF NOT EXISTS ${UNMERGED_INDEX} ON item (item_id) WHERE item_status='verified' AND COALESCE(item_merged_commit,'')=''`;
+
+/** True when either item-list index is not installed yet. */
+function missingStatusIndexes(db) {
+  return [STATUS_INDEX, UNMERGED_INDEX].some(name => !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(name));
+}
+
+/**
  * The reservation columns #9181 put into SCHEMA and ADDED_COLUMNS without a SCHEMA_VERSION bump, so every board stamped before it read as drifted (#11172).
  * Why additive, not in SCHEMA: SCHEMA and ADDED_COLUMNS feed the digest, and repairDrift repairs no column. Each is nullable, so no row is rewritten.
  */
@@ -103,7 +118,7 @@ function missingLedgerCommitIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
+  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingStatusIndexes(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -112,6 +127,7 @@ export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
+  db.exec(STATUS_SQL);
   ensureJobTables(db);
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
@@ -126,7 +142,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return missingAdditiveColumns(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingStatusIndexes(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
 }
 
 /**
@@ -139,6 +155,7 @@ export function ensureAdditiveSchema(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
+  db.exec(STATUS_SQL);
   db.exec(JOB_SCHEMA_SQL);
   db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);
