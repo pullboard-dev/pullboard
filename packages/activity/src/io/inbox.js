@@ -1,11 +1,6 @@
 /** Local delivery state and real Git observations for the existing inbox [R2,N26]. */
 import { randomUUID } from 'node:crypto';
-import {
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { gitPath } from '../../../git/index.js';
 import { checkoutHead } from '../../../git/index.js';
 import { gitExecFileSync } from '../../../git/index.js';
@@ -14,12 +9,21 @@ import { worktreeStatus } from '../../../git/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
 import { parseSpec } from '../../../spec/index.js';
 
+/** Create a file only this user can read, failing when it exists, as writeFileSync with mode 0600 and flag wx did. */
+function writePrivateNew(file, data) {
+  const bytes = Buffer.from(data);
+  const fd = fileSystemAdapter().open(file, 'wx', 0o600);
+  try {
+    for (let at = 0; at < bytes.length;) at += fileSystemAdapter().write(fd, bytes, at);
+  } finally { fileSystemAdapter().close(fd); }
+}
+
 /** Damaged or foreign local cursors replay activity instead of discarding unseen obligations. */
 export function readActivityCursor(root, agent, board) {
   const file = gitPath(root, 'pullboard-activity.json');
   const session = agentSessionDigest();
   let saved = {};
-  try { saved = JSON.parse(readFileSync(file, 'utf8')); } catch { /* First delivery or damaged local state replays safely. */ }
+  try { saved = JSON.parse(fileSystemAdapter().readFile(file)); } catch { /* First delivery or damaged local state replays safely. */ }
   const valid = saved?.version === 1 && saved.agent === agent && saved.board === board
     && [saved.after, saved.newsAfter].every(value => Number.isSafeInteger(value) && value >= 0);
   return { file, agent, board, session, after: valid ? saved.after : 0, newsAfter: valid ? saved.newsAfter : 0,
@@ -30,12 +34,12 @@ export function readActivityCursor(root, agent, board) {
 export function saveActivityCursor(state, cursor) {
   const temporary = `${state.file}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, JSON.stringify({ version: 1, agent: state.agent, board: state.board, session: state.session,
-      after: cursor, newsAfter: state.sessionStart ? cursor : state.newsAfter }) + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, state.file);
+    writePrivateNew(temporary, JSON.stringify({ version: 1, agent: state.agent, board: state.board, session: state.session,
+      after: cursor, newsAfter: state.sessionStart ? cursor : state.newsAfter }) + '\n');
+    fileSystemAdapter().rename(temporary, state.file);
     return true;
   } catch {
-    try { rmSync(temporary); } catch { /* Only this invocation's own temporary file is removed. */ }
+    try { fileSystemAdapter().rm(temporary); } catch { /* Only this invocation's own temporary file is removed. */ }
     return false;
   }
 }

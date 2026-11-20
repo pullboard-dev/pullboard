@@ -76,3 +76,8 @@ test('config.io-compat.optional-handoff-setting-is-retained-and: optional handof
   assert.equal(configFromSource(JSON.stringify({ submit: { handoff: true } })).submit.handoff, true);
   assert.equal(configFromSource(JSON.stringify({ submit: { handoff: false } })).submit.handoff, false);
 });
+
+/** The jobs section is accepted and carried through, so the expedite cap reads a repo value instead of only its default. */
+test('config.io-compat.jobs-section: a pullboard.json with jobs.expediteMax 5 validates and the loaded config carries 5 [C7]', () => {
+  assert.equal(configFromSource(JSON.stringify({ jobs: { expediteMax: 5 } })).jobs.expediteMax, 5);
+});
