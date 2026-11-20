@@ -6,5 +6,6 @@
   "apps/cli/tests/fixtures/runner/agent-host.js": "packages/gate/tests/fixtures/runner/agent-host.js",
   "apps/cli/tests/fixtures/chrome.js": "packages/gate/tests/fixtures/chrome.js",
   "apps/cli/tests/fixtures/chrome/args.js": "packages/gate/tests/fixtures/chrome/args.js",
-  "apps/cli/tests/fixtures/chrome/shutdown.js": "packages/gate/tests/fixtures/chrome/shutdown.js"
+  "apps/cli/tests/fixtures/chrome/shutdown.js": "packages/gate/tests/fixtures/chrome/shutdown.js",
+  "apps/cli/tests/fixtures/copy.js": "packages/gate/tests/fixtures/package-copy.js"
 }

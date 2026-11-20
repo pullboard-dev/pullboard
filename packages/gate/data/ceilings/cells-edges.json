@@ -772,10 +772,6 @@
       "cells": 1,
       "deep": 0
     },
-    "apps/cli/tests/fixtures/copy.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "apps/cli/tests/fixtures/e2e.js": {
       "cells": 1,
       "deep": 0
@@ -1973,6 +1969,10 @@
       "deep": 0
     },
     "packages/gate/tests/fixtures/p95.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/package-copy.js": {
       "cells": 1,
       "deep": 0
     },
