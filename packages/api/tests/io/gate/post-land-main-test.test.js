@@ -51,9 +51,13 @@ function landingBoard(t) {
 /** Item `id` at the board's commit: a submitted sprint item with a green screen on that commit, or a verified steady one. */
 function readyItem({ board, commit, builderSeat }, id, pace) {
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(id, STAMP, STAMP);
+  if (pace !== 'sprint') {
+    board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+      VALUES (?, 'core-2', 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, ?)`).run(id, commit, 'd'.repeat(64), commit, STAMP);
+  }
   board.db.exec('INSERT INTO temp.moving VALUES (1)');
-  board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=? WHERE item_id=?`)
-    .run(pace === 'sprint' ? 'submitted' : 'verified', commit, builderSeat, JSON.stringify(pace === 'sprint' ? { pace } : {}), 'd'.repeat(64), builderSeat, id);
+  board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=?, item_verified_by=?, item_verdict=? WHERE item_id=?`)
+    .run(pace === 'sprint' ? 'submitted' : 'verified', commit, builderSeat, JSON.stringify(pace === 'sprint' ? { pace } : {}), 'd'.repeat(64), builderSeat, pace === 'sprint' ? null : 'core-2', pace === 'sprint' ? null : 'ACCEPT', id);
   board.db.exec('DELETE FROM temp.moving');
   if (pace !== 'sprint') return;
   const screen = `screen:${commit}:-@${commit}:${id}`;
