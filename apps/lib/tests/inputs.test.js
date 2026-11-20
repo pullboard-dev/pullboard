@@ -19,7 +19,7 @@ const READERS = {
   'apps/lib/tests/env.test.js': ['packages/gate/src/io/run/tests.js'],
   'apps/lib/tests/cells/producer.test.js': ['apps/lib/src/io/main/audit.js'],
   'apps/lib/tests/no/cli.test.js': ['apps/cli/index.js', 'packages/codemap/src/io/cell/scripts/lints.js', 'packages/doctrine/src/io/fast.js', 'packages/gate/src/io/**'],
-  'apps/lib/tests/durable/daemons.test.js': ['packages/gate/data/baselines/test-waits-baseline.json', 'packages/gate/src/io/changed/scripts/static.js', 'packages/gate/src/logic/load/bearing.js', 'packages/resources/src/io/handoff/worker/cap.js'],
+  'apps/lib/tests/durable/daemons.test.js': ['packages/gate/data/baselines/test-waits-baseline.json', 'packages/gate/src/io/changed/scripts/static.js', 'packages/gate/src/logic/load/bearing.js', 'packages/resources/src/io/liveness.js'],
   'apps/lib/tests/durable/land.test.js': ['apps/cli/src/io/commands/merged.js', 'apps/cli/src/io/commands/land.js'],
   'apps/lib/tests/durable/inventory.test.js': ['apps/cli/src/io/submit/remote.js', 'packages/gate/src/io/main/audit/nudge.js'],
 };

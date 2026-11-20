@@ -8,8 +8,15 @@ import {
   replayHistory,
   replayObservations,
 } from './replay/history.js';
+import { replayWindow } from './window.js';
+import { tuneCycleDue } from './tune/cycle.js';
+import { chooseTuning } from './tune/choose.js';
+import { revertTuning } from './tune/choose.js';
+import { tuneFixes } from './tune/fixes.js';
 
 const MINUTE = 60_000;
+const TUNE_WINDOW_MS = 4 * 60 * MINUTE;
+const STAGE_NAMES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
 const RANGES = { wipPerReviewer: [1.5, 3, false], landingBatchSize: [1, 8, true], landingCadenceMinutes: [5, 30, true] };
 
 /** Accept only hypothetical replay limits, never writing machine or board settings. */
@@ -146,4 +153,58 @@ export function replayFlow(events, inputPolicy) {
       'Landing batches contain ready items only; the next batch waits for prior completion and its start-to-start cadence.',
       'Predicted queue times are not timings measured by running an alternate live policy.',
       'Incomplete or abandoned attempts remain unmeasured, never zero-duration work.'] } };
+}
+
+/** One window's constraint stage in the shape revertTuning compares. */
+const constraintWindow = (window, stage) => ({ overTargetMinutes: window.stages[stage].overTargetMinutes, landed: window.landedItems });
+
+/**
+ * Replay a history with the line tuner closing cycles as it goes, beside the same replay with no tuner [C7].
+ * A change made at time t keeps every row landed at or before t and takes later rows from a fresh replay with the
+ * changed settings, so tuned rows after a change are predicted, never measured. Pure: no board, no clock beyond event times.
+ */
+export function replayTuned(events, policy) {
+  const untuned = replayFlow(events, policy);
+  const definitions = Object.fromEntries(Object.entries(RANGES).map(([key, [min, max]]) => [key, { min, max }]));
+  const order = untuned.replay.policy.order;
+  let settings = { ...untuned.replay.policy.settings };
+  let composed = untuned.replay.items;
+  const changes = [];
+  const arrivals = composed.map(item => Date.parse(item.arrivalAt));
+  let lastChangeAt = arrivals.length ? Math.min(...arrivals) : 0, landedSinceChange = 0, cursor = -Infinity, pending = null;
+  for (;;) {
+    const times = composed.map(item => Date.parse(item.landedAt)).filter(at => at > cursor);
+    if (!times.length) break;
+    const now = Math.min(...times);
+    landedSinceChange += composed.filter(item => Date.parse(item.landedAt) === now).length;
+    cursor = now;
+    const due = tuneCycleDue({ landedSinceChange, lastChangeAt, oldestWait: null }, now);
+    if (!due.due) continue;
+    const latest = replayWindow(composed, now - TUNE_WINDOW_MS, now), earlier = replayWindow(composed, now - 2 * TUNE_WINDOW_MS, now - TUNE_WINDOW_MS);
+    let next = null;
+    if (pending && revertTuning(pending, pending.before, constraintWindow(latest, pending.stage)) === 'revert') {
+      next = { kind: 'revert', stage: pending.stage, key: pending.key, from: pending.to, to: pending.from };
+      pending = null;
+    } else {
+      const choice = chooseTuning([earlier, latest], tuneFixes(settings, definitions));
+      if (choice.kind === 'setting') {
+        next = { kind: 'setting', stage: choice.stage, key: choice.key, from: choice.from, to: choice.to };
+        pending = { ...next, before: constraintWindow(latest, choice.stage) };
+      }
+    }
+    if (!next) continue;
+    settings = { ...settings, [next.key]: next.to };
+    changes.push({ at: new Date(now).toISOString(), reason: due.reason, ...next });
+    const kept = composed.filter(item => Date.parse(item.landedAt) <= now), keptIds = new Set(kept.map(item => item.id));
+    composed = kept.concat(replayFlow(events, { order, settings }).replay.items.filter(item => !keptIds.has(item.id)));
+    lastChangeAt = now;
+    landedSinceChange = 0;
+  }
+  if (!changes.length) return { tuned: untuned, untuned, changes };
+  const stages = Object.fromEntries(STAGE_NAMES.map(stage => [stage, quartiles(composed.map(item => item.stages[stage]))]));
+  const landingOrder = [...composed].sort((a, b) => Date.parse(a.landedAt) - Date.parse(b.landedAt) || a.id - b.id).map(item => item.id);
+  return { tuned: { history: untuned.history, replay: { ...untuned.replay, mode: 'predicted', policy: { order, settings }, items: composed, landingOrder, stages,
+    assumptions: [...untuned.replay.assumptions,
+      'Tuned rows landed after a change are predicted by a fresh replay with the changed settings, not measured.',
+      'Breach cycles are not modelled: the oldest wait is unknown to replay, so only landing and time cycles close.'] } }, untuned, changes };
 }

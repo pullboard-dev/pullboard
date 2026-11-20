@@ -1,0 +1,3 @@
+{
+  "gate.io-test-fixtures.git-child-is-kit": {"proves":{"specs":["C7"],"claim":"The fixture scan returns no tempdir site for the git cell's child fixture path and still reports one for any other path."},"why":"The child fixture holds the one raw mkdtempSync like the store cell fixture; widening the kit exemption to exactly that path keeps every other file covered.","kind":"cell unit","inputs":["packages/gate/src/io/test/fixtures.js"]}
+}

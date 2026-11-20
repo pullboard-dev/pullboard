@@ -92,7 +92,7 @@ export function requireRegistryRecord(tracked, named, isTest) {
     if (at < 0 || !isTest(path) || path.slice(at).startsWith('/tests/registry')) continue;
     const cell = path.slice(0, at);
     if (!tracked.some(file => file.startsWith(`${cell}/tests/registry`) && isTest(file))) continue;
-    if (named.some(other => other.startsWith(`${cell}/tests/fixtures/registry`) && other.endsWith('.json'))) continue;
+    if (named.some(other => (other.startsWith(`${cell}/tests/fixtures/registry`) || other === `${cell}/tests/registry.json`) && other.endsWith('.json'))) continue;
     const record = `${cell}/tests/fixtures/registry.json`;
     throw new Refused('REGISTRY_TEST_ID', `the bar names ${path}, a test in a strict-registry cell, but not its registry record ${record}`,
       `name ${record} in the bar and title each test <cell id>.<area>.<name>: clause N: ..., not a bare clause N title`);
