@@ -38,6 +38,7 @@ export function fixture(t, { sandbox = 'owned' } = {}) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export async function submitGatePlan(root, config, options) { ${mark('selection')} return { proofFiles: ['test/a.test.js'], check: options.check }; }
