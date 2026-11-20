@@ -170,7 +170,7 @@ export function sweepToolTrees({ temp = scratchRoot(), now = Date.now(), maxAgeM
  * @param {{ temp?: string, minFree?: number, statfs?: (path: string) => { bavail: number, bsize: number } }} [options] - The scratch folder, the floor in bytes and the statfs port.
  * @returns {{ code: 'TOOL_TREE_DISK_LOW', freeMb: number, minFreeMb: number, temp: string } | null} The problem, or null at or above the floor or when the volume cannot be read.
  */
-export function toolTreeRoomProblem({ temp = scratchRoot(), minFree = Number(environmentAdapter().get('PULLBOARD_TOOLS_MIN_FREE_BYTES') ?? TOOL_TREE_MIN_FREE_BYTES), statfs = statfsSync } = {}) {
+export function toolTreeRoomProblem({ temp = scratchRoot(), minFree = Number(environmentAdapter().get('PULLBOARD_TOOLS_MIN_FREE_BYTES') ?? TOOL_TREE_MIN_FREE_BYTES), statfs = (path) => fs.statfs(path) } = {}) {
   let free;
   try { const stat = statfs(temp); free = stat.bavail * stat.bsize; } catch { return null; }
   if (!(free < minFree)) return null;
