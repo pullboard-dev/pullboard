@@ -1,6 +1,7 @@
 /** One item's timeline: stage rows with deltas, buckets that add up to the wall time, and stretches nothing explains [C7,#12143]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { fleetSummary } from '../../src/logic/timeline.js';
 import { timelineOf } from '../../src/logic/timeline.js';
 import { TIMELINE_BUCKETS } from '../../src/logic/timeline.js';
 import { TIMELINE_STAGES } from '../../src/logic/timeline.js';
@@ -12,8 +13,8 @@ const SEC = 1000;
 const MIN = 60 * SEC;
 
 /** A board event at an offset from T0. */
-function event(id, offset, kind, detail = {}, by = 'core-1') {
-  return { id, at: new Date(T0 + offset).toISOString(), by, kind, item: 7, detail: JSON.stringify(detail) };
+function event(id, offset, kind, detail = {}, by = 'core-1', item = 7) {
+  return { id, at: new Date(T0 + offset).toISOString(), by, kind, item, detail: JSON.stringify(detail) };
 }
 /** A gate or landing job with its steps, as the job tables hold them. */
 function job(id, kind, created, steps) {
@@ -73,4 +74,44 @@ test('stats.timeline.unaccounted: clause 1: a stretch over 60 s with no stage or
   assert.equal(held.waits.HELD, 300 * SEC);
   assert.equal(held.longest_gap.reason, 'HELD');
   assert.equal(held.buckets.building + held.waits.HELD, 330 * SEC);
+});
+
+/** Three item timelines: item 1 landed with no gate job, item 2 landed after one gate, item 3 waited 5 min for a claim and has not landed. */
+function fleet() {
+  const gate = job('gate:2', 'gate', 20 * MIN, [['claimed', 21 * MIN], ['green', 25 * MIN]]);
+  return [
+    timelineOf({ events: [event(1, 0, 'add', {}, 'c', 1), event(2, 20 * SEC, 'claim', {}, 'c', 1), event(3, 10 * MIN, 'submit', {}, 'c', 1), event(4, 30 * MIN, 'merged', {}, 'c', 1)] }),
+    timelineOf({ events: [event(5, 0, 'add', {}, 'c', 2), event(6, 20 * SEC, 'claim', {}, 'c', 2), event(7, 20 * MIN, 'submit', {}, 'c', 2), event(8, 40 * MIN, 'merged', {}, 'c', 2)], jobs: [gate.job], steps: gate.steps, item: 2 }),
+    timelineOf({ events: [event(9, 0, 'add', {}, 'c', 3), event(10, 5 * MIN, 'claim', {}, 'c', 3), event(11, 6 * MIN, 'submit', {}, 'c', 3)] }),
+  ];
+}
+/** The shares of every bucket, wait reason and UNACCOUNTED, added. */
+const shareTotal = share => Object.values(share.buckets).reduce((sum, value) => sum + value, 0) + Object.values(share.waits).reduce((sum, value) => sum + value, 0) + share.UNACCOUNTED;
+
+test('stats.timeline.fleet-summary: clause 1: fleetSummary returns per-stage median and p90, shares that sum to 100, gates per landed item and the slowest items in order each with its biggest gap and reason [C7,#12145]', () => {
+  const summary = fleetSummary(fleet());
+  assert.equal(summary.items, 3);
+  assert.equal(summary.landed, 2);
+  assert.equal(summary.gates_per_landed, 0.5);
+  assert.deepEqual(summary.stages.filed, { count: 3, median_ms: 20 * SEC, p90_ms: 5 * MIN });
+  assert.ok(Math.abs(shareTotal(summary.share) - 100) < 1e-9);
+  assert.equal(summary.total_ms, 76 * MIN);
+  assert.ok(Math.abs(summary.share.UNACCOUNTED - (5 / 76) * 100) < 1e-9);
+  assert.deepEqual(summary.slowest.map(entry => entry.item), [2, 1, 3]);
+  assert.deepEqual(summary.slowest.map(entry => [entry.biggest_gap.ms, entry.biggest_gap.reason]), [[15 * MIN, 'waiting for review'], [20 * MIN, 'waiting for runner'], [5 * MIN, UNACCOUNTED]]);
+});
+
+test('stats.timeline.fleet-overlay: clause 1: an api_stall row inside an unaccounted stretch labels the overlap API_BUSY and leaves the rest UNACCOUNTED [C7,#12145]', () => {
+  const [, , waited] = fleet();
+  const stall = (end, ms) => ({ kind: 'api_stall', at: new Date(T0 + end).toISOString(), ms });
+  const stalled = fleetSummary([waited], [stall(5 * MIN, 3 * MIN), stall(5 * MIN, MIN)]);
+  assert.equal(stalled.share.waits.API_BUSY, 50, 'two stalls inside one another count once: 3 of 6 minutes');
+  assert.ok(Math.abs(stalled.share.UNACCOUNTED - (120 / 360) * 100) < 1e-9);
+  assert.equal(stalled.unaccounted_ms, 2 * MIN);
+  assert.equal(stalled.slowest[0].biggest_gap.reason, 'API_BUSY');
+  assert.ok(Math.abs(shareTotal(stalled.share) - 100) < 1e-9);
+  const outside = fleetSummary([waited], [stall(8 * MIN, MIN)]);
+  assert.equal(outside.share.waits.API_BUSY, 0);
+  assert.equal(outside.unaccounted_ms, 5 * MIN);
+  assert.equal(outside.slowest[0].biggest_gap.reason, UNACCOUNTED);
 });

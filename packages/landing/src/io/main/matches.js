@@ -6,7 +6,7 @@ import { realpathSync } from 'node:fs';
 import { accountedFailures } from '../land.js';
 import { junitFailures } from '../../logic/junit-failures.js';
 import { junitFailureSignature } from '../../logic/junit-signature.js';
-import { failureSignature } from '../../../../gate/index.js';
+import { failureSignature } from '../../../../gate/heavy.js';
 import { classifyMainRed } from '../../../../receipt/index.js';
 import { comparisonStatus } from '../../../../receipt/index.js';
 /** The signed-result check the board's pull route verifies with; this file already reaches the receipt cell, so the CLI adds no edge to it [C7,#8765]. */

@@ -40,6 +40,8 @@ const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 export const SERVICE_ENTRY = 'apps/cli/src/io/runner/service.js';
 /** The launchd label, so a reinstall replaces the one service and --remove finds it. */
 export const SERVICE_LABEL = 'dev.pullboard.runner-serve';
+/** The per-run ceiling a runner's serve gets when its record sets none: the old daemon's 40 minutes [#11871]. */
+const DEFAULT_RUN_CEILING_MS = 2_400_000;
 // Budget: the service and what it imports through the drive and landing front doors is about 8 MB; double that is a runaway closure.
 const SERVICE_BYTES = 16 * 1024 ** 2;
 // Budget: one ssh writes a few files and asks launchd to load them; a minute covers a slow login shell and retries.
@@ -338,7 +340,8 @@ export async function runnerServiceInstaller() {
     `  <key>Label</key><string>${xml(plan.label)}</string>`,
     ...(daemon && uid !== 0 ? [`  <key>UserName</key><string>${xml(user)}</string>`] : []),
     '  <key>ProgramArguments</key>', '  <array>', ...args.map(arg => `    <string>${xml(arg)}</string>`), '  </array>',
-    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string></dict>`,
+    // The serve's job count and per-run ceiling: without PULLBOARD_RUNNER_JOBS serveSlots() falls to 3 and a minis' gate jobs go unclaimed [#11871].
+    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string>${[['PULLBOARD_RUNNER_JOBS', plan.jobs], ['PULLBOARD_RUNNER_RUN_CEILING_MS', plan.ceilingMs]].filter(([, value]) => Number.isFinite(value)).map(([name, value]) => `<key>${name}</key><string>${value}</string>`).join('')}</dict>`,
     `  <key>WorkingDirectory</key><string>${xml(dir)}</string>`,
     '  <key>RunAtLoad</key><true/>', '  <key>KeepAlive</key><true/>', '  <key>ThrottleInterval</key><integer>10</integer>',
     `  <key>StandardOutPath</key><string>${xml(log)}</string>`, `  <key>StandardErrorPath</key><string>${xml(log)}</string>`,
@@ -423,7 +426,8 @@ export async function installRunnerService(runner, { board, key, remove = false,
     const target = serviceBoard(board);
     const chosen = key ?? target.key;
     if (!chosen) throw new Refused('BOARD_KEY_REQUIRED', 'the runner needs the board key: pass --key, or use the URL pullboard serve printed with its ?k=', 'pullboard runner install-serve <ssh-host> --board <url> --key <board-key>');
-    Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles() });
+    Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles(),
+      jobs: runner.slots, ceilingMs: runner.ceilingMs ?? DEFAULT_RUN_CEILING_MS });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
   const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
