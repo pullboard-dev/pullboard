@@ -282,10 +282,10 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
   const changedFiles = new Set(actual ?? []);
-  const shared = !global && !confined ? sharedDataReaders(actual, after, file => sourceGit(root, ['show', `${commit}:${file}`], true)) : null;
+  const shared = !global ? sharedDataReaders(actual, after, file => sourceGit(root, ['show', `${commit}:${file}`], true)) : null;
   const sharedUnits = shared ? new Set([...shared.declared, ...shared.scan]) : null;
   const doorChanged = row => global || row.doors?.some(door => changedFiles.has(door));
-  const selects = row => row.tier === 'T2' ? doorChanged(row) : confined ? confinedUnit(row, confined.roots, doors) : shared ? (row.tier === 'T1' && sharedUnits.has(row.file)) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
+  const selects = row => row.tier === 'T2' ? doorChanged(row) : shared ? (row.tier === 'T1' && sharedUnits.has(row.file)) : confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
   const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003). The one exception
   // is a test that reads a listing file the change carried: that file is its input, so it stays selected (#4633).
