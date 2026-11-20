@@ -1348,6 +1348,17 @@ catalogCase('[A1,C7] rules replays the event log through the catalog', ['init', 
   assert.equal(report.judged, report.agreed + report.disagreementCount, 'every judged event agrees or is listed');
 }, ['init', 'rules']);
 
+catalogCase('[A1,C7] block, expedite and rulings report through real CLI JSON', ['init'], async () => {
+  const box = await project();
+  const ids = [];
+  for (const title of ['Block item one', 'Block item two']) ids.push((await json(box, box.repo, 'add', ['coordinator', title, '--specs', 'G1', '--criterion', `${title} is verified`, '--check', 'true'])).id);
+  await uncataloguedRootJSON(box, box.repo, 'block', ['add', 'catalog-block', ...ids.map(String), '--tier', 'mid']);
+  assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'block', ['list'])).blocks.map(block => block.name), ['catalog-block']);
+  const expedited = await uncataloguedRootJSON(box, box.repo, 'expedite', [String(ids[0]), '--reason', 'catalog fixture expedite']);
+  assert.deepEqual({ id: expedited.id, expedited: expedited.expedited }, { id: ids[0], expedited: true });
+  assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'rulings', ['value'])).rulings, [], 'a board with no answers holds no rulings');
+}, ['block', 'expedite', 'init', 'rulings']);
+
 catalogCase('[A1,C7] compact reports a dry run through the catalog', ['compact', 'init'], async () => {
   const box = await project();
   const report = await json(box, box.repo, 'compact', ['--dry-run']);
@@ -1457,6 +1468,7 @@ const CATALOG_GROUPS = {
     '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
     '[A1,C7,#8842] route suggests light items through the catalog',
     '[A1,C7] rules replays the event log through the catalog',
+    '[A1,C7] block, expedite and rulings report through real CLI JSON',
   ],
   'commands-b': [
     '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
