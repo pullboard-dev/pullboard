@@ -15,8 +15,7 @@ import { probeRunnerJob } from '../health.js';
 import { watchSource } from './observe.js';
 import { jobPath } from '../../logic/path.js';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchRoot } from '../../../../config/index.js';
@@ -31,8 +30,8 @@ function controllerEnvironment() {
   const env = environmentAdapter().all();
   const folder = join(scratchRoot(), 'pullboard-controller-compile-cache');
   try {
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    const state = statSync(folder);
+    fileSystemAdapter().mkdir(folder, { recursive: true, mode: 0o700 });
+    const state = fileSystemAdapter().stat(folder);
     if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return { ...env, PATH: jobPath(env.PATH) };
   } catch { return { ...env, PATH: jobPath(env.PATH) }; }
   return { ...env, PATH: jobPath(env.PATH), NODE_COMPILE_CACHE: folder };

@@ -1,0 +1,4 @@
+{
+  "api.io-gate.settled-green-and-item-red": {"proves":{"specs":["C7"],"claim":"A gate job settled green, and one settled red on the item's own case, each append one gate_settled event naming the job, its outcome and the class item."},"why":"Without this test the board never records when a gate settled or how, so the timeline reader and settle-latency measurements have nothing to read.","kind":"contract","inputs":["packages/api/src/io/gate.js"]},
+  "api.io-gate.settled-once-per-job": {"proves":{"specs":["C7"],"claim":"A gate job that settles through the shard path, is seen again by the waiting-gate pass, or has its receipt applied twice still has exactly one gate_settled event."},"why":"Without this test each re-seen settle adds another event, and settle counts and latencies read from the events are wrong.","kind":"contract","inputs":["packages/api/src/io/gate.js"]}
+}

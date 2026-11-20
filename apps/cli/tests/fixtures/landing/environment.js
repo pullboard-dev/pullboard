@@ -23,8 +23,8 @@ import {
   receiptBody,
   receiptFields,
   receiptStore,
-} from '../../../../../packages/gate/index.js';
-import { gateRuns } from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
+import { gateRuns } from '../../../../../packages/gate/heavy.js';
 
 /** Read the private board through its public store without rewriting historical receipts. */
 function boardRead(box, action, clock) {

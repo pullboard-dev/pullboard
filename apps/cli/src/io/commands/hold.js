@@ -12,13 +12,30 @@ import {
 import {
   actOn,
   idArg,
+  context,
   ordered,
   personMode,
+  withBoardRead,
 } from '../entry.js';
+
+/** `pullboard hold --list --owner <value>`: one line per open held item recorded with that owner, oldest deadline first; a plain read, nothing is written. */
+function listHolds(io, { first, second, rest, values }) {
+  if (first || second || rest.length || values.off || values.until !== undefined || values.deadline !== undefined) {
+    throw new Refused('USAGE', 'pullboard hold --list [--owner <seat|lane|person>] takes no item and no other option');
+  }
+  const holds = withBoardRead(context(io), (board) => store.listItems(board).filter((item) => item.item_hold_reason)
+    .flatMap((item) => { const record = store.itemHoldOwner(board, item.item_id); return record && (values.owner === undefined || record.owner === values.owner) ? [{ id: item.item_id, deadline: record.deadline, reason: item.item_hold_reason }] : []; }))
+    .sort((a, b) => Date.parse(a.deadline) - Date.parse(b.deadline) || a.id - b.id);
+  io.result?.({ owner: values.owner, holds });
+  if (!holds.length) io.say(`no ${values.owner ?? 'owned'} holds`);
+  for (const hold of holds) io.say(`#${hold.id} ${hold.deadline} ${String(hold.reason).split('\n')[0]}`);
+  return 0;
+}
 
 /** Run `pullboard hold` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (values.off && (values.until !== undefined || values.owner !== undefined || values.deadline !== undefined)) throw new Refused('USAGE', '--off cannot be combined with --until, --owner or --deadline');
+  if (values.list) return listHolds(io, { first, second, rest, values });
   let released = null;
   const code = await actOn(io, async (ctx, board, me) => {
   const itemTarget = /^#?\d+$/u.test(first ?? '');

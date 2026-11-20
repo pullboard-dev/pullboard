@@ -12,7 +12,7 @@ export {
  * A raise site that knows more (an item id, a commit, a path) says so in its message or passes its
  * own step to Refused; this table is the step a refusal falls back to when it does neither, so no
  * refusal ends without one. Each step is a command or an action that gets past the rule, never a
- * step that leads straight back to the same refusal. apps/cli/journeys/submit/steps.test.js checks that
+ * step that leads straight back to the same refusal. apps/cli/tests/io/submit/steps.test.js checks that
  * every code raised in src/ has a row here.
  */
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -51,12 +51,14 @@ export function refuseNextIdle(io, reasons, displayed, { minutes, verify, laneWo
   io.err(`pullboard: [NOTHING_FREE] ${scope}${displayed.join('; ')}${repair}`);
   return 1;
 }
-import { existsSync } from 'node:fs';
 import {
   basename,
   dirname,
   join,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Give a separate agent session one pasteable startup line, without claiming or verifying for it [V1,B26]. */
 export function reviewerStartup(root, config, id) {
@@ -71,7 +73,7 @@ export function reviewerStartup(root, config, id) {
     ? join(root, '.claude', 'worktrees', `reviewer-${number}`)
     : join(dirname(root), `${basename(root)}-reviewer-${number}`);
   let number = 1;
-  while (existsSync(location(number))) number++;
+  while (fs.exists(location(number))) number++;
   const path = location(number);
   const command = `cd ${quote(root)} && mkdir -p ${quote(dirname(path))} && git worktree add --detach ${quote(path)} HEAD && cd ${quote(path)} && pullboard join ${lane} --model "<model name>" --family "<vendor family>" && pullboard next --verify${id ? ' ' + id : ''}`;
   return `Use a different agent session; the reviewer must not be the builder and must declare a different vendor family. Run: ${command}`;
