@@ -40,6 +40,7 @@ import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
 import { noteSubmitSession } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { recordSubmitOffered } from './offered.js';
 import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
@@ -663,7 +664,13 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) }));
+  const job = withBoard(ctx, board => {
+    const reopened = openJob(board.db, { kind: 'gate', item: id, candidate: source });
+    const offered = offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) });
+    // The submit's own instant is recorded only for a job this call offered; a retried submit that gets the open job writes nothing [C7].
+    if (!reopened) recordSubmitOffered(board, { item: id, by: me.id, commit, job: offered.id, main: main.commit });
+    return offered;
+  });
   mark('pins-and-offer');
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
