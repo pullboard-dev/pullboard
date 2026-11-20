@@ -1352,7 +1352,7 @@ catalogCase('[A1,C7,#12157] mark, timeline, update and link give their catalog s
   assert.equal(typeof (await json(box, box.repo, 'timeline', ['1'])).summary.total_ms, 'number');
   assertRequiredShape(await new Promise((done) => runUpdate({ say: () => {}, result: (value) => done({ version: 1, ...value }) }, [], { latest: () => '1.2.3', scriptPath: () => '/home/u/prefix/lib/node_modules/pullboard/apps/cli/pullboard.js', env: () => ({ npm_config_prefix: '/home/u/prefix', PWD: '/home/u' }), package: () => ({ name: 'pullboard', version: '1.2.3' }) })), shapeFor('update').required, 'update');
   const sign = (name) => { const side = signedBoard(t, name); return { ...side, signer: { by: side.by, key: side.key } }; };
-  const { linkId: link, parent, child, disclosure } = await linkBoards(sign('catalog-parent'), sign('catalog-child')); assertRequiredShape({ link, parent, child, disclosure }, shapeFor('link').required, 'link');
+  const { linkId: link, parent, child, disclosure } = await linkBoards(sign('catalog-parent'), sign('catalog-child')); assertRequiredShape({ version: 1, link, parent, child, disclosure }, shapeFor('link').required, 'link');
 }, ['add', 'init', 'link', 'mark', 'timeline', 'update']);
 catalogCase('[A1,C7] rules replays the event log through the catalog', ['init', 'rules'], async () => {
   const box = await project();
