@@ -68,7 +68,7 @@
       "id": "<hand-off id>",
       "created": "packages/jobs/src/io/shadow.js:shadowSubmitHandoff",
       "serves": "item claimed by the hand-off's seat at its commit and frozen digest, until the gate's green turns into the submit",
-      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
+      "states": ["queued", "captured", "running", "collected", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
       "terminal": ["green", "submitted", "red", "incomplete", "ownership-wait", "ended", "withdrawn", "done"],
       "lease": "none in production since f226542983; legacy handoff-drive rows carried a 2-minute lease (LEASE_MS)",
       "transitions": [
