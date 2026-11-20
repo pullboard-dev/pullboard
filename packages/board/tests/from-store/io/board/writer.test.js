@@ -8,17 +8,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import * as store from '../../../index.js';
-import { commitMove } from '../../../index.js';
-import { connectBoardWriter } from '../../../index.js';
-import { createBoardWriter } from '../../../index.js';
-import { serveBoardWriter } from '../../../index.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
-import { submitFixture } from '../../fixtures/submit.js';
-import { temporaryRepository } from '../../fixtures/submit.js';
+import * as store from '../../../../../store/index.js';
+import { commitMove } from '../../../../../store/index.js';
+import { connectBoardWriter } from '../../../../../store/index.js';
+import { createBoardWriter } from '../../../../../store/index.js';
+import { serveBoardWriter } from '../../../../../store/index.js';
+import { ENGINE_VERSION } from '../../../../../state/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { submitFixture } from '../../../../../store/tests/fixtures/submit.js';
+import { temporaryRepository } from '../../../../../store/tests/fixtures/submit.js';
 
 /** A real SQLite board file with a move table, a writer applying moves to it, and a socket serving that writer. */
 async function fixture(t) {
@@ -40,7 +40,7 @@ async function fixture(t) {
   return { dir, socketDir, file, db, write, writer, socket, rows: () => db.prepare('SELECT seat, note FROM move ORDER BY n').all().map(row => ({ ...row })) };
 }
 
-test('store.io-board-writer.a-writer-applies-a-move-at: clause 1: a writer applies a move at its snapshot version or answers changed, retry, in arrival order [H24]', async t => {
+test('board.writer.a-writer-applies-a-move-at: clause 1: a writer applies a move at its snapshot version or answers changed, retry, in arrival order [H24]', async t => {
   const f = await fixture(t);
   const seat = await connectBoardWriter(f.socket);
   t.after(() => seat.close());
@@ -56,7 +56,7 @@ test('store.io-board-writer.a-writer-applies-a-move-at: clause 1: a writer appli
   assert.deepEqual(f.rows().map(row => row.note), ['first', 'retried'], 'only applied moves are written, in order');
 });
 
-test('store.io-board-writer.while-one-command-computes-with-no: clause 2: while one command computes with no lock held, twenty seats commit and none waits on it [H24]', async t => {
+test('board.writer.while-one-command-computes-with-no: clause 2: while one command computes with no lock held, twenty seats commit and none waits on it [H24]', async t => {
   const f = await fixture(t);
   const slow = await connectBoardWriter(f.socket);
   t.after(() => slow.close());
@@ -82,7 +82,7 @@ test('store.io-board-writer.while-one-command-computes-with-no: clause 2: while 
   assert.equal(f.rows().length, 21);
 });
 
-test('store.io-board-writer.with-no-writer-running-a-command: clause 3: with no writer running a command writes the board directly, so the board never depends on the writer [H24]', async t => {
+test('board.writer.with-no-writer-running-a-command: clause 3: with no writer running a command writes the board directly, so the board never depends on the writer [H24]', async t => {
   const f = await fixture(t);
   const absent = join(f.socketDir, 'nobody-listening.sock');
   const answer = await commitMove({ socket: absent, request: { snapshot: 0, touches: ['item:1'], move: { seat: 'direct', note: 'no writer' } }, direct: f.write });
@@ -94,7 +94,7 @@ test('store.io-board-writer.with-no-writer-running-a-command: clause 3: with no 
   assert.equal(viaWriter.direct, undefined);
 });
 
-test('store.io-board-writer.a-socket-path-too-long-for: a socket path too long for the system is refused rather than cut into another writer\'s socket [H24]', async t => {
+test('board.writer.a-socket-path-too-long-for: a socket path too long for the system is refused rather than cut into another writer\'s socket [H24]', async t => {
   const f = await fixture(t);
   const long = join(f.dir, 'x'.repeat(120), 'writer.sock');
   assert.throws(() => connectBoardWriter(long), { code: 'BOARD_WRITER_SOCKET' });
@@ -156,7 +156,7 @@ function gateRunEvents(f, id = f.receipt.id) {
   return f.board.db.prepare("SELECT event_id FROM event WHERE event_kind='gate-run' AND json_extract(event_detail,'$.run.id')=?").all(id);
 }
 
-test('store.io-board-writer.gate-run-binding-before-lock: clause 1: the reads recordGateRun does before its writes run in its PREPARATIONS entry with no write transaction open [C7,#10715]', t => {
+test('board.writer.gate-run-binding-before-lock: clause 1: the reads recordGateRun does before its writes run in its PREPARATIONS entry with no write transaction open [C7,#10715]', t => {
   const f = gateRunFixture(t);
   const seen = watchLookups(f);
   // A run recorded with an engine version set skips the receipt binding, so its lookups are the write path's own.
@@ -174,7 +174,7 @@ test('store.io-board-writer.gate-run-binding-before-lock: clause 1: the reads re
   assert.throws(() => store.writeBoardCommand(f.board, 'recordGateRun', [{ agentId: f.seat.id, receipt: { ...f.receipt, id: crypto.randomUUID() }, lane: 'core' }], f.seat.id), { code: 'GATE_RUN_UNBOUND' });
 });
 
-test('store.io-board-writer.gate-run-reprepares-when-stale: clause 2: a recordGateRun whose board changed between preparation and the writer re-prepares and still records the run once [C7,#10715]', t => {
+test('board.writer.gate-run-reprepares-when-stale: clause 2: a recordGateRun whose board changed between preparation and the writer re-prepares and still records the run once [C7,#10715]', t => {
   const f = gateRunFixture(t);
   let poked = false;
   const seen = watchLookups(f, state => {
@@ -221,7 +221,7 @@ function reopenEvents(f) {
   return f.board.db.prepare("SELECT event_id FROM event WHERE event_kind='reopen' AND item_id=?").all(f.id);
 }
 
-test('store.io-board-writer.reopen-reads-before-lock: clause 1: the reads reopen does before its writes run in its PREPARATIONS entry with no write transaction open [C7,#10721]', t => {
+test('board.writer.reopen-reads-before-lock: clause 1: the reads reopen does before its writes run in its PREPARATIONS entry with no write transaction open [C7,#10721]', t => {
   const f = reopenFixture(t);
   const result = f.reopen();
   assert.equal(result.id, f.id);
@@ -230,7 +230,7 @@ test('store.io-board-writer.reopen-reads-before-lock: clause 1: the reads reopen
   assert.equal(reopenEvents(f).length, 1);
 });
 
-test('store.io-board-writer.reopen-reprepares-when-stale: clause 2: a reopen whose board changed between preparation and the writer re-prepares and still reopens the item once [C7,#10721]', t => {
+test('board.writer.reopen-reprepares-when-stale: clause 2: a reopen whose board changed between preparation and the writer re-prepares and still reopens the item once [C7,#10721]', t => {
   let poked = false;
   const f = reopenFixture(t, probe => {
     if (poked) return;
