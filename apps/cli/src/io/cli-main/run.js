@@ -292,7 +292,7 @@ async function runMain(argv, streams) {
     auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
       && !parsed.values['dry-run'] && parsed.values.waive === undefined)
       || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined)
-      || (sweep && (await import('../../../../../packages/gate/index.js')).mainMovedSinceAudit(io.cwd)));
+      || (sweep && (await import('../../../../../packages/gate/heavy.js')).mainMovedSinceAudit(io.cwd)));
     advanceAfterCommand = code === 0 && !parsed.values['dry-run'] && (auditAfterCommand
       || parsed.positionals[0] === 'merged' || parsed.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run');
     if (code === 0) {
@@ -344,7 +344,7 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (io.nudgeMainAudit ?? (await import('../../../../../packages/gate/index.js')).nudgeMainAudit)(io.cwd, new URL('../landing/audit.js', import.meta.url)); }
+      try { await (io.nudgeMainAudit ?? (await import('../../../../../packages/gate/heavy.js')).nudgeMainAudit)(io.cwd, new URL('../landing/audit.js', import.meta.url)); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard sentinel run to retry'); }
     }
   }

@@ -6,6 +6,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../../../../../packages/store/index.js';
 import { reviewReleaseReasonsRequired } from '../../../../../packages/config/index.js';
 import { releaseStaleItemRevision } from '../../../../../packages/config/index.js';
+import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
@@ -43,6 +44,45 @@ async function releaseOnSessionEnd(io) {
   });
 }
 
+/** How long past its lease a dead seat's claim must be before a coordinator stale release compares only its own item's events [C7,#12005]. */
+export const DEAD_SEAT_LAPSE_MS = 120 * 60_000;
+/** A seat with a heartbeat or a board event this recent is live. */
+const LIVE_SEAT_MS = 2 * 60_000;
+
+/**
+ * Whether an observed claim is a dead seat's: its lease lapsed more than DEAD_SEAT_LAPSE_MS before the observation, and its
+ * holder has neither a heartbeat nor a board event in the last two minutes [C7,#12005].
+ * Why: the stale capture takes minutes on a busy board while other seats write events, so the board-wide revision check
+ * refused every dead seat's claim; the claim's own revision still refuses a holder that comes back.
+ *
+ * @param {any} board
+ * @param {{ actor?: string, leaseUntil?: string, heartbeatAt?: string|null }} row The captured claim row.
+ * @param {string} observedAt The observation instant.
+ * @returns {boolean}
+ */
+export function deadSeatClaim(board, row, observedAt) {
+  const at = Date.parse(observedAt ?? ''), lease = Date.parse(row?.leaseUntil ?? '');
+  if (!Number.isFinite(at) || !Number.isFinite(lease) || at - lease <= DEAD_SEAT_LAPSE_MS) return false;
+  const latest = board.db.prepare('SELECT MAX(event_at) AS at FROM event WHERE event_by=?').get(row.actor)?.at;
+  return ![row.heartbeatAt, latest].some(value => {
+    const seen = Date.parse(value ?? '');
+    return Number.isFinite(seen) && at - seen < LIVE_SEAT_MS;
+  });
+}
+
+/**
+ * The captured observation a coordinator --stale release carries; an itemRevision scopes its revision check to the item.
+ *
+ * @param {object} row The captured claim row.
+ * @param {{ observedAt: string, observedRevision: number }} snapshot The stale-state capture.
+ * @param {number|undefined} itemRevision The item's own revision read before the capture, or undefined for the board-wide check.
+ * @param {object} health The project's health settings.
+ */
+export function staleObservation(row, snapshot, itemRevision, health) {
+  return { leaseLapse: true, staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision,
+    ...(itemRevision === undefined ? {} : { itemRevision }), health };
+}
+
 /** Run `pullboard release` and return its exit code. */
 export async function run(io, args) {
   const { first, values } = args;
@@ -59,8 +99,9 @@ export async function run(io, args) {
     const problem = releaseReasonProblem(reasonCode, args[2]);
     if (problem) throw problem;
     staleReleaseNote(args[2]);
-    // Behind release.staleItemRevision (off by default): the item's own revision, read before the observation so any later event on it still refuses (#10598).
-    const itemRevision = releaseStaleItemRevision() ? board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=?').get(args[0]).id : undefined;
+    // The item's own revision, read before the observation so any later event on it still refuses (#10598). It is used with
+    // release.staleItemRevision on, or for a dead seat's claim lapsed past DEAD_SEAT_LAPSE_MS (#12005).
+    const itemRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=?').get(args[0]).id;
     const { prepareStaleObservation } = await import('../../../../../packages/health/index.js');
     const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
@@ -68,7 +109,8 @@ export async function run(io, args) {
     // The holder's folder is gone: capture its path so the release needs no stale interval (#3223).
     const seatPath = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
     const observed = seatPath && !existsSync(seatPath) ? { ...row, seatFolderMissing: seatPath } : row;
-    args.push({ leaseLapse: true, staleClaim: observed, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, ...(itemRevision === undefined ? {} : { itemRevision }), health: ctx.config.health ?? {} }, reasonCode);
+    const scoped = releaseStaleItemRevision() || deadSeatClaim(board, observed, snapshot.observedAt);
+    args.push(staleObservation(observed, snapshot, scoped ? itemRevision : undefined, ctx.config.health ?? {}), reasonCode);
   } else {
     refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
     const item = store.getItem(board, args[0]);
@@ -86,6 +128,11 @@ export async function run(io, args) {
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
   const review = await ordered(ctx, board, 'release', args);
+  // With gate.endStaleJobs on, a released item's offered gate job and open shards end: a free item has no candidate that can land [C7,#12036].
+  if (!review && endStaleJobsEnabled()) {
+    const { endStaleGateJobs, queueFor } = await import('../../../../../packages/api/index.js');
+    endStaleGateJobs(queueFor(board, me.id, { file: ctx.file })?.runs?.db ?? board.db, { item: idArg(first), enabled: true, reason: 'the item was released' });
+  }
   cleanItemFolders(ctx, board, me);
   if (!review && ctx.config.worktreeMaintenance?.enabled === true) {
     const { cleanupMaintenanceLifecycle } = await import('../worktree/maintenance/command.js');

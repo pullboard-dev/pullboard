@@ -89,6 +89,14 @@ test('cli.io-read.item-line-prints-foreign-state: itemLine with a foreign states
   assert.match(itemLine({ ...WAITING, item_after: [3] }, id => id, false, new Map([['host#41', { status: 'verified' }]])), /after #3$/u, 'a local wait prints as before');
 });
 
+test('cli.io-read.item-line-prints-foreign-age: clause 1: itemLine prints after host#41 (verified on host, 2 min ago) for a state received two minutes before the injected now, and no age for a state with no receivedAt [C7,#11044,#11367]', () => {
+  const now = new Date('2026-11-19T10:02:00.000Z');
+  const received = new Map([['host#41', { status: 'verified', receivedAt: '2026-11-19T10:00:00.000Z' }]]);
+  assert.match(itemLine(WAITING, id => id, false, received, now), /after host#41 \(verified on host, 2 min ago\)$/u);
+  assert.match(itemLine(WAITING, id => id, false, new Map([['host#41', { status: 'verified' }]]), now), /after host#41 \(verified on host\)$/u, 'no receivedAt prints no age');
+  assert.match(itemLine(WAITING, id => id, false, received), /after host#41 \(verified on host\)$/u, 'no clock prints no age');
+});
+
 test('cli.io-read.show-prints-foreign-state: pullboard show on an item filed with --after host#41 prints that wait with its state on its first line [C7,#11044,#11050]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
