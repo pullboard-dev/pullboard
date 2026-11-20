@@ -5,11 +5,20 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
-import { cli } from '../../tests/fixtures/next/take.js';
+import { main } from '../../tests/fixtures/native.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 
 /** The release events an item recorded, with their detail parsed. */
 const releases = (box, id) => box.board.db.prepare("SELECT event_detail d FROM event WHERE item_id=? AND event_kind='release'").all(id).map(row => JSON.parse(row.d));
+
+/** One plain-text CLI call, so the printed next: instruction lines are what the seat reads. */
+async function cli(box, cwd, args) {
+  let out = '', err = '';
+  const code = await main(args, { cwd, clock: box.clock,
+    stdout: { isTTY: false, write: part => { out += part; } },
+    stderr: { write: part => { err += part; } } });
+  return { code, out, err };
+}
 
 /** The loop: next, commit, next --done, then next --stuck on the second item; every call's text is kept. */
 async function runLoop(t) {
@@ -40,9 +49,9 @@ test('cli.journeys-next-loop.two-items-one-voice: clause 1: a seat that only run
   assert.equal(release.reasonCode, 'BLOCKED');
   assert.equal(release.reason, 'waits on the schema');
   for (const ran of calls) {
-    const instruction = ran.document?.next;
-    assert.equal(typeof instruction, 'string', `a next instruction in: ${ran.out.slice(0, 200)}${ran.err.slice(0, 200)}`);
-    assert.equal(instruction.match(/pullboard [a-z]+/gu).length, 1, `the instruction names one command: ${instruction}`);
+    const lines = `${ran.out}\n${ran.err}`.split('\n').filter(line => line.startsWith('next: '));
+    assert.ok(lines.length > 0, `an instruction line in: ${ran.out.slice(0, 200)}${ran.err.slice(0, 200)}`);
+    assert.equal(lines.at(-1).match(/pullboard [a-z]+/gu).length, 1, `the last instruction names one command: ${lines.at(-1)}`);
   }
 });
 
