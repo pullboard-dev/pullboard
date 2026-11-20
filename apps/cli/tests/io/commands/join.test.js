@@ -11,6 +11,9 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { joinFixtureSeat } from '../../fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../fixtures/testkit.js';
+import { FIXTURE_MODEL_EARLIER } from '../../fixtures/testkit.js';
+import { fileFixtureItem } from '../../fixtures/testkit.js';
 import { freshSeat } from '../../fixtures/join-seat.js';
 import { withoutRoute } from '../../fixtures/join-seat.js';
 
@@ -82,4 +85,35 @@ test('cli.join.abilities-flag: clause 1: join --abilities browser,gui names both
   assert.match(refused.stderr, /USAGE/u);
   assert.match(refused.stderr, /browser/u);
   assert.match(refused.stderr, /gui/u);
+});
+
+test('cli.io-commands-join.existing-seat-moves: clause 1: join in a joined seat with another lane and the same model moves it, in --json and in the say line [C7,#12022]', async () => {
+  const seat = freshSeat(box, 'mover');
+  const first = await joinFixtureSeat(box, seat, 'web', { model: FIXTURE_MODEL });
+  assert.equal(first.code, 0, first.err);
+  const moved = await runCliInProcess(['join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong', '--json'], { cwd: seat, env: box.env });
+  assert.equal(moved.status, 0, moved.stderr);
+  const result = JSON.parse(moved.stdout);
+  assert.equal(result.lane, 'api');
+  assert.equal(result.moved, true);
+  assert.equal(result.from, 'web');
+  const text = await runCliInProcess(['join', 'web', '--model', FIXTURE_MODEL, '--route', 'strong'], { cwd: seat, env: box.env });
+  assert.equal(text.status, 0, text.stderr);
+  assert.match(text.stdout, /moved .* from api to web/u);
+});
+
+test('cli.io-commands-join.move-refusal-reaches-builder: clause 2: a LANE_HELD refusal is printed with its next line and a non-zero exit, and a different model still refuses ALREADY_JOINED [C7,#12022]', async () => {
+  const seat = freshSeat(box, 'holder');
+  const first = await joinFixtureSeat(box, seat, 'web', { model: FIXTURE_MODEL });
+  assert.equal(first.code, 0, first.err);
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Held page', criterion: 'the held page exists', args: ['--specs', 'G1'] });
+  const claimed = await runCliInProcess(['claim', '--json'], { cwd: seat, env: box.env });
+  assert.equal(claimed.status, 0, claimed.stderr);
+  const held = await runCliInProcess(['join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong'], { cwd: seat, env: box.env });
+  assert.notEqual(held.status, 0);
+  assert.match(held.stderr, /LANE_HELD/u);
+  assert.match(held.stderr, /next:/u);
+  const other = await runCliInProcess(['join', 'api', '--model', FIXTURE_MODEL_EARLIER, '--route', 'strong'], { cwd: seat, env: box.env });
+  assert.notEqual(other.status, 0);
+  assert.match(other.stderr, /ALREADY_JOINED/u);
 });
