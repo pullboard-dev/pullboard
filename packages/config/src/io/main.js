@@ -522,7 +522,7 @@ export function configProblems(config, root) {
     problems.push('"slices.composeLanding" is true or false');
   }
   if (notPlain(config.review)
-    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
+    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders', 'requireProvenBreak'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
     problems.push('"review.starveMinutes" is a positive number of minutes');
   }
@@ -531,6 +531,9 @@ export function configProblems(config, root) {
   }
   if (!['sprint', 'steady', 'strict'].includes(config.pace)) {
     problems.push('"pace" is "sprint", "steady" (default: land after a green gate and an accept) or "strict"');
+  }
+  if (config.review?.requireProvenBreak !== undefined && typeof config.review.requireProvenBreak !== 'boolean') {
+    problems.push('"review.requireProvenBreak" is true or false; unset means on for strict pace and off for steady and sprint');
   }
   if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
     problems.push('"review.excludeEarlierHolders" is true or false');
@@ -597,6 +600,21 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
     throw new Refused('BAD_CONFIG', `${DOCTRINE_FILE} and ${LEGACY_DOCTRINE_FILE} both define the repo doctrine; restore one doctrine file: merge their rules into ${DOCTRINE_FILE} and remove ${LEGACY_DOCTRINE_FILE}`);
   }
   return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
+}
+
+/**
+ * Whether an accept must state a proven break at the item's pace.
+ * Unset means on for strict and off for steady and sprint; an explicit true or false wins for every pace [C7].
+ *
+ * @param {any} config the loaded configuration
+ * @param {string} pace the item's frozen pace
+ * @returns {boolean}
+ */
+export function provenBreakRequired(config, pace) {
+  const set = config?.review?.requireProvenBreak;
+  if (set === undefined) return pace === 'strict';
+  if (typeof set !== 'boolean') throw new Refused('BAD_CONFIG', '"review.requireProvenBreak" is true or false; unset means on for strict pace and off for steady and sprint');
+  return set;
 }
 
 /** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
