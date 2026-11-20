@@ -52,6 +52,7 @@ export function listBlocks(board) {
 /**
  * Claim every open member of a named block for one seat in one transaction, or none of them [C7,#2202].
  * Why: each member takes the ordinary claim and the same lease, so one clock reading serves the whole block; members keep their own criteria and verdicts.
+ * Members are item-folder claims sized to the whole block (ten live claims at most), so the one-top-level-claim rule does not stop the second member.
  * A member another seat holds refuses BLOCK_CLAIMED naming it before anything is written, and a seat whose route is below the tier refuses BLOCK_TIER.
  *
  * @param {any} board
@@ -80,7 +81,7 @@ export function claimBlock(board, { agentId, name, ...options }) {
       for (const id of block.ids) {
         const member = board.db.prepare("SELECT item_status FROM item WHERE item_id = ?").get(id);
         if (member?.item_status !== "open") continue;
-        claim(board, id, { ...options, agentId });
+        claim(board, id, { itemFolder: true, perSeat: 10, ...options, agentId });
         claimed.push(id);
       }
       return { name, claimed, leaseUntil: new Date(instant.getTime() + options.leaseMs).toISOString() };
