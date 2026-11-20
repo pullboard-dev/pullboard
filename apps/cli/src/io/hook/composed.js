@@ -13,6 +13,7 @@ import {
 import { scratchFolder } from '../../../../../packages/config/index.js';
 import { TEST_FILE } from '../../../../../packages/codemap/light.js';
 import { gitSpawnSync } from '../../../../../packages/git/light.js';
+import { appendTrace } from '../trace.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -134,7 +135,13 @@ export async function runComposedHook(entry, args, { cwd, env }) {
     directories.push(directory);
     return composeHookTree(root, { indexFile, patches, env, directory });
   };
-  const blocked = refusal => { process.stderr.write(`pullboard pre-commit: blocked\n  - ${refusal}\n`); return 1; };
+  const startedAt = Date.now();
+  // A block here ends the commit before the hook's own process runs, so it records its own trace line with a stable code.
+  const blocked = refusal => {
+    process.stderr.write(`pullboard pre-commit: blocked\n  - ${refusal}\n`);
+    appendTrace({ argv: ['pre-commit'], cwd, startedAt, status: 1, refusal: { code: 'HOOK_PRE_COMMIT_BLOCKED', message: refusal }, env });
+    return 1;
+  };
   try {
     let composed = compose();
     if ('refusal' in composed) return blocked(composed.refusal);

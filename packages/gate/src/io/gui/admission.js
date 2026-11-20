@@ -5,6 +5,7 @@ import { explicitCheckFiles } from '../browser/admission.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { git } from '../../../../git/index.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 const fs = fileSystemAdapter();
 
 /** Only an explicit file annotation requests a GUI; --headless does not establish this capability. */
@@ -101,7 +102,7 @@ function committedTestsNeedGui(root, entries, files) {
 }
 
 /** Classify an explicit check from its exact committed tree when supplied, otherwise its live checkout. */
-export async function checkNeedsGui(root, command, { commit, env = process.env } = {}) {
+export async function checkNeedsGui(root, command, { commit, env = environmentAdapter().all() } = {}) {
   const files = await explicitCheckFiles(root, command, { commit, env });
   if (commit !== undefined) {
     const entries = committedGuiFiles(root, commit);

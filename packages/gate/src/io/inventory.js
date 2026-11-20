@@ -39,6 +39,7 @@ import {
 } from '../../../codemap/index.js';
 import { withImportParseCache } from './imports.js';
 import { foreignNodeOptions } from './test/isolation.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -114,7 +115,7 @@ function pinnedCheckerFingerprintFromGit(root, commit) {
 
 /** Only known owned preloads may share canonical parser observations across machines. */
 function preloadFingerprint() {
-  if (foreignNodeOptions(process.env.NODE_OPTIONS)) throw new Error('foreign Node preload prevents accepted cells inventory reuse');
+  if (foreignNodeOptions(environmentAdapter().get('NODE_OPTIONS'))) throw new Error('foreign Node preload prevents accepted cells inventory reuse');
   return createHash('sha256').update('pullboard-known-owned-preloads-v1').digest('hex');
 }
 

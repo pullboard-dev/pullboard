@@ -77,6 +77,10 @@ import {
   atomic,
   logEvent,
 } from "./event/log.js";
+import { afterGateIds } from './item/after-gate.js';
+import { afterGateBase } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
+import { writeBoardMeta } from './meta.js';
 
 /**
  * Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves.
@@ -199,7 +203,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         if (foreign) return new Refused('BLOCKED', `#${id} waits on ${itemDependencies.dependencyLabel(foreign)} (${foreign.status} on its own board); refresh that board before claiming`);
         for (const dependency of itemDependencies.localDependencyIds(found)) {
           const before = itemById(board, dependency);
-          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')) {
+          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')
+            && !(afterGateIds(board, id).includes(dependency) && gateGreenParent(board, dependency))) {
             return new Refused(
               'BLOCKED',
               `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
@@ -439,8 +444,15 @@ function admissionUsedSince(board, since, admissionId) {
 }
 
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
-/** Every guard of the claim move, each with no check: the peer's holder was verified before the lease moves. */
-const peerChecks = () => Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null]));
+/**
+ * The checks a block peer's renew passes: the holder check in renewBlockPeers (item exists, this seat owns it, the claim is live) covers most guards of the claim move, so those stay null.
+ * The pending-correction guard is the one it does not cover: a coordinator correction to a held peer's bar must be refrozen before its lease extends, as for any renewal.
+ * Why not the rest: a held item's lane and route cannot be edited, and its bar, route and dependencies change only through that same pending correction.
+ */
+const peerChecks = (board, peer) => ({
+  ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
+  correctionRefrozen: () => pendingRefreezeProblem(board, peer),
+});
 
 /**
  * Renew every other member the seat holds through a block that names item `id`, to the same lease, each with its own renew event, so a stalled block lapses and is returned as one [C7,#2202].
@@ -455,8 +467,8 @@ function renewBlockPeers(board, id, agentId, leaseUntil, moveItem) {
   for (const member of peers) {
     const held = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(member);
     if (!held || held.item_owner !== agentId || !isHeld(board, held)) continue;
-    // A peer is already held by this seat, so each guard of the claim move is named with no extra check; moveItem writes the lease under its own temp.moving token [C7].
-    moveItem(board, member, 'claim', { checks: peerChecks(), set: () => ({ item_lease_until: leaseUntil }) });
+    // A peer is already held by this seat, so only the pending-correction guard needs a real check; moveItem writes the lease under its own temp.moving token [C7].
+    moveItem(board, member, 'claim', { checks: peerChecks(board, member), set: () => ({ item_lease_until: leaseUntil }) });
     logEvent(board, agentId, 'renew', member, { leaseUntil, digest: held.item_frozen_digest, block: true });
   }
 }
@@ -502,6 +514,9 @@ function commitClaim(board, id, prepared, binding, ports) {
       board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(key, JSON.stringify({ item: id, agent: agentId }));
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
+    // A claim that took a gate-green after-gate parent builds on that parent's submitted head: record it for the builder.
+    const afterGateBaseRecord = !renewed ? afterGateBase(board, id) : null;
+    if (afterGateBaseRecord) writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
     if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
     else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
@@ -528,7 +543,7 @@ function commitClaim(board, id, prepared, binding, ports) {
     if (renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCK_ENGINE) renewBlockPeers(board, id, agentId, leaseUntil, moveItem);
     recordPendingOutcome(outcome);
     if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
-    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
+    return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}), ...(afterGateBaseRecord ? { afterGateBase: afterGateBaseRecord } : {}) };
   });
 }
 

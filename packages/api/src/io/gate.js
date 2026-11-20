@@ -1,6 +1,5 @@
 /**
- * A posted runner job receipt applied to the board: a gate's receipt becomes its item's gate result (green submits it for
- * review, red hands it back to its builder), and a landing's receipt marks its items merged at the pushed commit [P7].
+ * A posted runner job receipt applied to the board: a gate's receipt becomes its item's gate result (green to review, red to its builder), a landing's marks its items merged [P7].
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
@@ -9,6 +8,7 @@ import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
 import { missingReceiptPart } from './gate/where.js';
+import { recordGateSettled } from './gate/settled.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
@@ -426,9 +426,10 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null, mainRed = null;
   try {
-    // A red whose every failing case main already fails settles green, naming those files in a note [C7,#12215].
+    // A red whose every failing case main already fails settles green, naming those files in a note; a file the item's own diff touches stays red [C7,#12215,#12216].
+    const touched = new Set(offeredRequest(board.db, parent)?.submit?.files ?? []);
     const compared = retry || combined.status === 0 ? null : compareGateWithMain(board, combinedReceipt(gateReceipt, parts, { signatures: true }), offeredGate(board.db, parent)?.main, ports.compareWithMain ?? null);
-    if (compared?.cases.length && compared.cases.every(row => row.onMain === true)) { mainRed = [...new Set(compared.cases.map(row => row.file))]; combined = combinedReceipt(gateReceipt, parts, { ...signatures, mainRed: new Set(parts.map(part => part.job)) }); } else if (retry) {
+    if (compared?.cases.length && compared.cases.every(row => row.onMain === true) && !compared.cases.some(row => touched.has(row.file))) { mainRed = [...new Set(compared.cases.map(row => row.file))]; combined = combinedReceipt(gateReceipt, parts, { ...signatures, mainRed: new Set(parts.map(part => part.job)) }); } else if (retry) {
       // A green retry replaces the red shards it reran; a red one leaves the original red as it was.
       const posted = postedReceipt(board.db, retry.job_id);
       const shardGate = posted?.receipt?.gate ?? {};
@@ -817,7 +818,7 @@ function submitOvertaken(board, id, options) {
  */
 export function applyGateReceipt(board, posted, ports = {}) {
   // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
-  const applied = withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  const applied = recordGateSettled(board, posted?.job, withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports)), posted?.receipt);
   // A settled gate carries the timing profiles its runner kept, as the inline submit's gate does [C7,#9615].
   const gate = applied.outcome === 'stale' || applied.outcome === 'not-gate' ? null : pulledProfilePaths(posted?.receipt);
   return gate ? { ...applied, gate } : applied;

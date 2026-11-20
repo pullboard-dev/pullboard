@@ -1,18 +1,6 @@
 /** @pullboard-module-loads ** */
 // Custom reporters are user-selected: ** covers every committed module, not a finite reporter list.
 /** Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim. */
-import { appendFileSync } from 'node:fs';
-import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
@@ -69,6 +57,8 @@ import { environmentAdapter } from '../../../env/index.js';
 // The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
 import { testRunPhaseClock } from './test/run/phases.js';
 import { storeName } from './store-names.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 const environment = environmentAdapter(); for (const name of removeGitRepositorySelectors(environment.all(), text => process.stderr.write(text))) environment.delete(name);
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -192,15 +182,15 @@ function shellWord(value) {
 function testEnvironment(sandbox, gateMarkers = {}) {
   const home = join(sandbox, 'home');
   const shims = join(sandbox, 'bin');
-  mkdirSync(home, { recursive: true });
-  mkdirSync(shims, { recursive: true });
+  fs.mkdir(home, { recursive: true });
+  fs.mkdir(shims, { recursive: true });
   const refusal = join(shims, 'pullboard');
-  writeFileSync(refusal, '#!/bin/sh\nprintf "pullboard is not installed; current test: %s\\n" "${PULLBOARD_TEST_FILE:-unknown}" >&2\nexit 1\n');
-  chmodSync(refusal, 0o755);
+  fs.writeFile(refusal, '#!/bin/sh\nprintf "pullboard is not installed; current test: %s\\n" "${PULLBOARD_TEST_FILE:-unknown}" >&2\nexit 1\n');
+  fs.chmod(refusal, 0o755);
   const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0];
   const git = join(shims, 'git');
-  writeFileSync(git, `#!/bin/sh\nexec ${shellWord(realGit)} -c user.useConfigOnly=true "$@"\n`);
-  chmodSync(git, 0o755);
+  fs.writeFile(git, `#!/bin/sh\nexec ${shellWord(realGit)} -c user.useConfigOnly=true "$@"\n`);
+  fs.chmod(git, 0o755);
 
   const env = environment.all();
   for (const key of Object.keys(env)) {
@@ -469,7 +459,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
         const parent = byPid.get(process.pid);
         const spawned = byPid.get(child.pid);
         if (parent && spawned && spawned.pgid !== parent.pgid) {
-          appendFileSync(startsPath, `${JSON.stringify({ type: 'child', attempt, parentPid: process.pid,
+          fs.appendFile(startsPath, `${JSON.stringify({ type: 'child', attempt, parentPid: process.pid,
             pid: spawned.pid, pgid: spawned.pgid, started: spawned.started })}\n`);
         }
       } catch (error) {
@@ -478,7 +468,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
         const code = String(error?.code ?? 'snapshot-error').replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 80);
         const reason = String(error?.message ?? error).replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 256);
         try {
-          appendFileSync(startsPath, `${JSON.stringify({ type: 'child-snapshot-unavailable', attempt,
+          fs.appendFile(startsPath, `${JSON.stringify({ type: 'child-snapshot-unavailable', attempt,
             file, parentPid: process.pid, pid: child.pid, code, reason })}\n`);
         } catch {
           process.stderr.write(`run-tests: cleanup for ${basename(file)} UNVERIFIED: ${code}: ${reason}; no unverified process was signaled\n`);
@@ -502,17 +492,17 @@ function watchLandingChildCustody(startsPath, attempt) {
   const pollAcks = () => {
     if (!pending.size && announcementFailureDeadline === null) return;
     try {
-      for (const name of readdirSync(directory)) {
+      for (const name of fs.list(directory)) {
         if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
         const recordPath = join(directory, name);
-        if (!existsSync(`${recordPath}.ack`)) continue;
-        const record = JSON.parse(readFileSync(recordPath, 'utf8'));
-        const ack = JSON.parse(readFileSync(`${recordPath}.ack`, 'utf8'));
+        if (!fs.exists(`${recordPath}.ack`)) continue;
+        const record = JSON.parse(fs.readFile(recordPath, 'utf8'));
+        const ack = JSON.parse(fs.readFile(`${recordPath}.ack`, 'utf8'));
         if (record.attempt !== attempt || record.parentPid !== process.pid
             || ack.attempt !== attempt || ack.parentPid !== process.pid || ack.pid !== record.pid
             || !['bound', 'drained', 'unverified'].includes(ack.status)) continue;
         pending.delete(recordPath);
-        renameSync(`${recordPath}.ack`, `${recordPath}.acked`);
+        fs.rename(`${recordPath}.ack`, `${recordPath}.acked`);
       }
     } catch { /* An unreadable acknowledgement retains worker custody. */ }
     const now = Date.now();
@@ -522,7 +512,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         pending.delete(recordPath);
         try {
           const marker = `${recordPath}.expired`;
-          if (!existsSync(marker)) writeFileSync(marker, JSON.stringify({ attempt, parentPid: process.pid,
+          if (!fs.exists(marker)) fs.writeFile(marker, JSON.stringify({ attempt, parentPid: process.pid,
             expiredAt: new Date(now).toISOString() }), { mode: 0o600, flag: 'wx' });
         } catch { /* Parent-side cleanup reports uncertainty from the original child receipt. */ }
       }
@@ -545,8 +535,8 @@ function watchLandingChildCustody(startsPath, attempt) {
         spawnArgs: Array.isArray(child.spawnargs) ? child.spawnargs : [] };
       try {
         const temporary = `${recordPath}.tmp`;
-        writeFileSync(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
-        renameSync(temporary, recordPath);
+        fs.writeFile(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
+        fs.rename(temporary, recordPath);
         pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
         if (!poll) poll = setInterval(pollAcks, 25); // budget: the child writes ack files into a directory and no file event is reliable across the child exit, so a 25 ms poll stays
       } catch (error) {
@@ -557,13 +547,13 @@ function watchLandingChildCustody(startsPath, attempt) {
         try {
           const failed = `${recordPath}.failure.json`;
           const temporary = `${failed}.${randomUUID()}.tmp`;
-          writeFileSync(temporary, JSON.stringify({ type: 'child-announcement-failed', attempt,
+          fs.writeFile(temporary, JSON.stringify({ type: 'child-announcement-failed', attempt,
             file: record.file, parentPid: process.pid, pid: child.pid, code, reason }), { mode: 0o600, flag: 'wx' });
-          renameSync(temporary, failed);
+          fs.rename(temporary, failed);
           failurePublished = true;
         } catch { /* The worker still releases on its bounded timer; no process is signaled by guess. */ }
         try {
-          appendFileSync(startsPath, `${JSON.stringify({ type: 'child-announcement-unavailable', attempt,
+          fs.appendFile(startsPath, `${JSON.stringify({ type: 'child-announcement-unavailable', attempt,
             file: record.file, parentPid: process.pid, pid: child.pid, code, reason })}\n`);
           failurePublished = true;
         } catch { /* Worker stderr is the last bounded diagnostic fallback. */ }
@@ -582,17 +572,17 @@ function sameProcessIdentity(candidate, captured) {
 /** Publish an acknowledgement only after the parent has bound a child identity or observed a previously bound exit. */
 function writeChildAcknowledgement(recordPath, receipt, identity, status) {
   const acknowledgement = `${recordPath}.ack`;
-  if (existsSync(acknowledgement) || existsSync(`${recordPath}.acked`)) return;
+  if (fs.exists(acknowledgement) || fs.exists(`${recordPath}.acked`)) return;
   const temporary = `${acknowledgement}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ attempt: receipt.attempt, parentPid: receipt.parentPid,
+  fs.writeFile(temporary, JSON.stringify({ attempt: receipt.attempt, parentPid: receipt.parentPid,
     pid: receipt.pid, status, identity }), { mode: 0o600, flag: 'wx' });
-  try { renameSync(temporary, acknowledgement); }
-  catch (error) { rmSync(temporary, { force: true }); if (error.code !== 'EEXIST') throw error; }
+  try { fs.rename(temporary, acknowledgement); }
+  catch (error) { fs.rm(temporary, { force: true }); if (error.code !== 'EEXIST') throw error; }
 }
 
 /** Read only complete append-only worker journal rows while workers may be writing. */
 function landingWorkerReceipts(path) {
-  const contents = readFileSync(path, 'utf8');
+  const contents = fs.readFile(path, 'utf8');
   const complete = contents.endsWith('\n') ? contents : contents.slice(0, contents.lastIndexOf('\n') + 1);
   return complete.split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
 }
@@ -712,7 +702,6 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
   const { PassThrough } = await import('node:stream');
-  const { createWriteStream } = await import('node:fs');
   const { pathToFileURL } = await import('node:url');
   const { options, env: testEnv } = await landingTestOptions(args, env, concurrency);
   delete testEnv[LANDING_WAIVERS_ENV];
@@ -725,7 +714,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   }
   const attempt = randomUUID();
   const workerStartsPath = join(testEnv.TMPDIR ?? tmpdir(), `landing-worker-starts-${attempt}.jsonl`);
-  writeFileSync(workerStartsPath, '', { mode: 0o600 });
+  fs.writeFile(workerStartsPath, '', { mode: 0o600 });
   testEnv[LANDING_WORKER_STARTS_ENV] = workerStartsPath;
   testEnv[LANDING_ATTEMPT_ENV] = attempt;
   watchLandingChildSpawns(workerStartsPath, attempt);
@@ -763,7 +752,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const input = new PassThrough({ objectMode: true });
     const output = input.compose(reporter);
     const destination = entry.destination === 'stdout' ? process.stdout
-      : entry.destination === 'stderr' ? process.stderr : createWriteStream(resolve(entry.destination));
+      : entry.destination === 'stderr' ? process.stderr : fs.createWriteStream(resolve(entry.destination));
     const readableEnd = new Promise(resolveEnd => {
       output.once('end', resolveEnd);
       output.once('close', resolveEnd);
@@ -846,7 +835,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       // Bind an announcement once. A later process reusing this PID can never replace it.
       pendingWorkerBindings.set(key, candidate);
       workerRoots.push(candidate);
-      appendFileSync(workerStartsPath, `${JSON.stringify({ type: 'worker-bound', attempt, file: receipt.file,
+      fs.appendFile(workerStartsPath, `${JSON.stringify({ type: 'worker-bound', attempt, file: receipt.file,
         pid: candidate.pid, parentPid: process.pid, pgid: candidate.pgid, started: candidate.started })}\n`);
     }
     const workerByPid = new Map(workerRoots.map(root => [root.pid, root]));
@@ -858,12 +847,12 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       cleanupUnverifiedFiles.add(receipt.file);
       lastCleanupSnapshotError = { code: receipt.code, message: receipt.reason };
     }
-    for (const name of readdirSync(dirname(workerStartsPath))) {
+    for (const name of fs.list(dirname(workerStartsPath))) {
       const prefix = `${basename(workerStartsPath)}.child.${attempt}.`;
       if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
       const recordPath = join(dirname(workerStartsPath), name);
       let receipt;
-      try { receipt = JSON.parse(readFileSync(recordPath, 'utf8')); }
+      try { receipt = JSON.parse(fs.readFile(recordPath, 'utf8')); }
       catch { continue; }
       if (receipt.type === 'child-announcement-failed' && receipt.attempt === attempt
           && selectedFileSet.has(receipt.file)) {
@@ -909,11 +898,11 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   };
   const markPendingChildrenUnverified = () => {
     const prefix = `${basename(workerStartsPath)}.child.${attempt}.`;
-    for (const name of readdirSync(dirname(workerStartsPath))) {
+    for (const name of fs.list(dirname(workerStartsPath))) {
       if (!name.startsWith(prefix) || !name.endsWith('.json')) continue;
       const recordPath = join(dirname(workerStartsPath), name);
       let receipt;
-      try { receipt = JSON.parse(readFileSync(recordPath, 'utf8')); }
+      try { receipt = JSON.parse(fs.readFile(recordPath, 'utf8')); }
       catch { continue; }
       if (receipt.type === 'child-announcement-failed' && receipt.attempt === attempt
           && selectedFileSet.has(receipt.file)) {
@@ -925,7 +914,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
       const key = `${receipt.attempt}:${receipt.parentPid}:${receipt.pid}:${name}`;
       if (pendingChildBindings.has(key)) continue;
       cleanupUnverifiedFiles.add(receipt.file);
-      if (!existsSync(`${recordPath}.expired`)) writeChildAcknowledgement(recordPath, receipt, null, 'unverified');
+      if (!fs.exists(`${recordPath}.expired`)) writeChildAcknowledgement(recordPath, receipt, null, 'unverified');
       unverifiedChildBindings.add(key);
     }
   };
@@ -1150,10 +1139,10 @@ function namesOnlyTestFiles(args) {
   const files = explicitTestFiles(args);
   if (!files.length) return false;
   try {
-    const root = realpathSync(process.cwd());
+    const root = fs.realpath(process.cwd());
     return files.every(file => {
       const path = resolve(root, file);
-      return lstatSync(path).isFile() && realpathSync(path).startsWith(root + sep);
+      return fs.lstat(path).isFile() && fs.realpath(path).startsWith(root + sep);
     });
   } catch { return false; }
 }
@@ -1226,7 +1215,7 @@ async function main(args) {
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
         // The CLI records the receipt in its own process, so this entry never imports the native board.
-        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).bin.pullboard), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
+        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), JSON.parse(fs.readFile(join(process.cwd(), 'package.json'), 'utf8')).bin.pullboard), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
       }
     }
@@ -1281,7 +1270,7 @@ async function main(args) {
   const shardLabel = process.env[LANDING_SHARD_ENV];
   const run = async (gateMarkers) => {
     const setupAt = performance.now();
-    const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-test-run-'));
+    const sandbox = fs.mkdtemp(join(tmpdir(), 'pullboard-test-run-'));
     // A shard of a sharded landing reports each file's wall time back to its orchestrator.
     const fileTimes = shardLabel ? join(sandbox, 'landing-file-times.jsonl') : '';
     // Observe leftovers around the whole execution, including failed cases; never remove clones.
@@ -1434,7 +1423,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
     process.once('exit', (code) => {
       // The file's own time, not its wait for a token (#1046), and its exit code, the file's own verdict (#8303).
-      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
+      try { fs.appendFile(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }
@@ -1447,11 +1436,11 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     cleanupWatchdog = installTestWatchdog();
     const file = resolve(process.argv[1]);
     let identityAvailable = false;
-    appendFileSync(startsPath, `${JSON.stringify({ type: 'worker-pending', attempt, file,
+    fs.appendFile(startsPath, `${JSON.stringify({ type: 'worker-pending', attempt, file,
       pid: process.pid, parentPid: process.ppid })}\n`);
     try {
       const identity = await landingWorkerIdentity(process.pid);
-      appendFileSync(startsPath, `${JSON.stringify({ type: 'worker', attempt, file,
+      fs.appendFile(startsPath, `${JSON.stringify({ type: 'worker', attempt, file,
         pid: identity.pid, pgid: identity.pgid, started: identity.started })}\n`);
       identityAvailable = true;
     } catch (error) {
@@ -1459,7 +1448,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
       const code = error.cause?.code ?? error.code ?? 'snapshot-error';
       const reason = String(error.cause?.message ?? error.message ?? error)
         .replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 512);
-      appendFileSync(startsPath, `${JSON.stringify({ type: 'worker-identity-unavailable', attempt, file,
+      fs.appendFile(startsPath, `${JSON.stringify({ type: 'worker-identity-unavailable', attempt, file,
         pid: process.pid, parentPid: process.ppid, code, reason })}\n`);
       process.stderr.write(`run-tests: worker identity unavailable (${code}): ${reason}\n`);
     }
