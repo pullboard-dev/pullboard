@@ -84,3 +84,18 @@ test('gate.logic-adapter-lints-env.listed-file-without-ceiling-reports-nothing: 
   const rows = envLintRows(root, { enabled: true });
   assert.ok(rows.length > 0 && rows.every(row => row.startsWith('apps/cli/src/io/submit/other.js:')), 'only the unlisted file is reported');
 });
+
+const GATE_PRELOAD = 'packages/gate/src/io/preload.js';
+
+test('gate.logic-adapter-lints-env.generated-preload-is-exempt: clause 1: the gate preload is exempt by exact path, a sibling file is not, and its six reads report nothing [C7,#11497]', () => {
+  assert.equal(coveredByEnvLint(GATE_PRELOAD), false);
+  assert.equal(coveredByEnvLint('packages/gate/src/io/inventory.js'), true);
+  const text = ['A', 'B', 'C', 'D', 'E', 'F'].map(name => `process.env.${name};\n`).join('');
+  assert.deepEqual(envFindings({ [GATE_PRELOAD]: text }), []);
+  assert.equal(envFindings({ 'packages/gate/src/io/inventory.js': text }).length, 6);
+});
+
+test('gate.logic-adapter-lints-env.real-tree-generated-preload: clause 3: the lint over this checkout with the setting on returns no row naming the gate preload [C7,#11497]', () => {
+  const rows = envLintRows(join(import.meta.dirname, '..', '..', '..', '..', '..'), { enabled: true });
+  assert.deepEqual(rows.filter(row => row.startsWith(`${GATE_PRELOAD}:`)), []);
+});

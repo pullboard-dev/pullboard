@@ -1,18 +1,9 @@
 /** Candidate refs fall under the existing per-repository source-cache lease, never object GC [C7]. */
-import { constants } from 'node:fs';
-import { cpSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { appendFileSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export const SOURCE_CACHE_CANDIDATES = 300;
 const PIN = 'source-cache-pin.json';
@@ -28,7 +19,7 @@ export function pinSourceCacheJob(directory, spec) {
   if (!/^[a-f0-9]{64}$/u.test(spec.repoId) || !roots.length || roots.some(root => !SHA.test(root))) {
     throw new Error('source cache job pin has invalid roots');
   }
-  writeFileSync(join(directory, PIN), JSON.stringify({ version: 1, repoId: spec.repoId, roots }) + '\n', { mode: 0o600, flag: 'wx' });
+  fs.writeFile(join(directory, PIN), JSON.stringify({ version: 1, repoId: spec.repoId, roots }) + '\n', { mode: 0o600, flag: 'wx' });
   return roots;
 }
 
@@ -38,18 +29,18 @@ function jobPins(runnerRoot, repoId) {
   let unknown = false;
   const jobs = join(runnerRoot, 'jobs');
   try {
-    for (const entry of readdirSync(jobs, { withFileTypes: true })) {
+    for (const entry of fs.list(jobs, { withFileTypes: true })) {
       if (!entry.isDirectory()) { unknown = true; continue; }
       const file = join(jobs, entry.name, PIN);
       try {
-        if (!lstatSync(file).isFile() || statSync(file).size > 4096) throw new Error('unknown job pin');
-        const pin = JSON.parse(readFileSync(file, 'utf8'));
+        if (!fs.lstat(file).isFile() || fs.stat(file).size > 4096) throw new Error('unknown job pin');
+        const pin = JSON.parse(fs.readFile(file, 'utf8'));
         if (pin.version !== 1 || !/^[a-f0-9]{64}$/u.test(pin.repoId) || !Array.isArray(pin.roots)
           || !pin.roots.length || pin.roots.length > 4 || pin.roots.some(root => !SHA.test(root))) throw new Error('unknown job pin');
         if (pin.repoId === repoId) for (const root of pin.roots) roots.add(root);
       } catch (error) {
         // Missing legacy metadata does not name a root. Removing its cache ref only causes normal refetch.
-        if (!existsSync(join(jobs, entry.name))) continue;
+        if (!fs.exists(join(jobs, entry.name))) continue;
         unknown = true;
       }
     }
@@ -60,9 +51,9 @@ function jobPins(runnerRoot, repoId) {
 /** Load only actual observed-use ordinals; absent legacy records retain explicitly labelled bootstrap ordering. */
 function readUses(cache) {
   const file = join(cache, INDEX);
-  if (!existsSync(file)) return { version: 1, next: 0, bootstrapOrder: BOOTSTRAP, uses: [] };
-  if (!lstatSync(file).isFile() || statSync(file).size > 16 * 1024 ** 2) throw new Error('source cache use index is invalid');
-  const index = JSON.parse(readFileSync(file, 'utf8'));
+  if (!fs.exists(file)) return { version: 1, next: 0, bootstrapOrder: BOOTSTRAP, uses: [] };
+  if (!fs.lstat(file).isFile() || fs.stat(file).size > 16 * 1024 ** 2) throw new Error('source cache use index is invalid');
+  const index = JSON.parse(fs.readFile(file, 'utf8'));
   if (index.version !== 1 || index.bootstrapOrder !== BOOTSTRAP || !Number.isSafeInteger(index.next) || index.next < 0
     || !Array.isArray(index.uses) || index.uses.some(row => !Array.isArray(row) || row.length !== 2 || !REF.test(row[0])
       || !Number.isSafeInteger(row[1]) || row[1] <= 0 || row[1] > index.next)
@@ -74,9 +65,9 @@ function readUses(cache) {
 function writeUses(cache, index) {
   const file = join(cache, INDEX), temporary = `${file}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, JSON.stringify(index) + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
+    fs.writeFile(temporary, JSON.stringify(index) + '\n', { mode: 0o600, flag: 'wx' });
+    fs.rename(temporary, file);
+  } finally { fs.rm(temporary, { force: true }); }
 }
 
 /** Validate every retained candidate/published object before any ref deletion or inventory announcement. */
@@ -141,7 +132,7 @@ export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease
     protected: protectedRefs.length, overage: Math.max(0, candidates.length - remove.length - limit),
     unknownPins: pins.unknown, bootstrapOrder: BOOTSTRAP };
   if (result.pruned.length || result.overage || result.unknownPins) {
-    appendFileSync(join(cache, 'pullboard-pruned-refs.jsonl'), JSON.stringify({ ordinal: index.next, ...result }) + '\n', { mode: 0o600 });
+    fs.appendFile(join(cache, 'pullboard-pruned-refs.jsonl'), JSON.stringify({ ordinal: index.next, ...result }) + '\n', { mode: 0o600 });
     log(result);
   }
   return result;
@@ -150,20 +141,20 @@ export async function pruneSourceCache({ cache, runnerRoot, repoId, roots, lease
 /** Restore only an ancestor's private pre-command checkout while the repository-cache lease is held. */
 export async function restoreSourceTree({ directory, root, commit, history, lease, git, env }) {
   if (typeof lease?.release !== 'function') throw new Error('source tree reuse requires its repository-cache lease');
-  if (!existsSync(directory)) return null;
-  if (!lstatSync(directory).isDirectory()) throw new Error('source tree cache is not a private directory');
+  if (!fs.exists(directory)) return null;
+  if (!fs.lstat(directory).isDirectory()) throw new Error('source tree cache is not a private directory');
   const metadata = join(directory, '.git', 'pullboard-source-snapshot.json');
-  if (!lstatSync(metadata).isFile() || statSync(metadata).size > 1024) throw new Error('source tree metadata is invalid');
-  const value = JSON.parse(readFileSync(metadata, 'utf8'));
+  if (!fs.lstat(metadata).isFile() || fs.stat(metadata).size > 1024) throw new Error('source tree metadata is invalid');
+  const value = JSON.parse(fs.readFile(metadata, 'utf8'));
   if (value.version !== 1 || !SHA.test(value.commit) || !SHA.test(value.tree) || value.commit.length !== commit.length) {
     throw new Error('source tree metadata is invalid');
   }
   if (!history.has(value.commit)) return null;
   // No hard links or alternates: a command may write any file in its own private repository.
-  cpSync(directory, root, { recursive: true, force: false, errorOnExist: true, mode: constants.COPYFILE_FICLONE, verbatimSymlinks: true });
+  fs.cp(directory, root, { recursive: true, force: false, errorOnExist: true, mode: fs.constants.COPYFILE_FICLONE, verbatimSymlinks: true });
   const actual = (await git(root, ['rev-parse', 'HEAD', 'HEAD^{tree}'], env)).split(/\r?\n/u);
   if (actual.length !== 2 || actual[0] !== value.commit || actual[1] !== value.tree
-    || existsSync(join(root, '.git', 'objects', 'info', 'alternates'))
+    || fs.exists(join(root, '.git', 'objects', 'info', 'alternates'))
     || await git(root, ['status', '--porcelain=v1', '--untracked-files=all'], env)) {
     throw new Error('source tree cache does not match its clean committed base');
   }
@@ -175,20 +166,20 @@ export function rememberSourceTree({ directory, root, commit, tree, lease }) {
   if (typeof lease?.release !== 'function' || !SHA.test(commit) || !SHA.test(tree)) {
     throw new Error('source tree publication requires its repository-cache lease and exact source');
   }
-  const staging = mkdtempSync(directory + '.staging-');
+  const staging = fs.mkdtemp(directory + '.staging-');
   const staged = join(staging, 'checkout');
   const old = directory + '.old-' + randomUUID();
   let replaced = false;
   let published = false;
   try {
-    cpSync(root, staged, { recursive: true, mode: constants.COPYFILE_FICLONE, verbatimSymlinks: true });
-    writeFileSync(join(staged, '.git', 'pullboard-source-snapshot.json'), JSON.stringify({ version: 1, commit, tree }) + '\n', { mode: 0o600 });
-    if (existsSync(directory)) { renameSync(directory, old); replaced = true; }
-    try { renameSync(staged, directory); published = true; }
-    catch (error) { if (replaced) renameSync(old, directory); throw error; }
+    fs.cp(root, staged, { recursive: true, mode: fs.constants.COPYFILE_FICLONE, verbatimSymlinks: true });
+    fs.writeFile(join(staged, '.git', 'pullboard-source-snapshot.json'), JSON.stringify({ version: 1, commit, tree }) + '\n', { mode: 0o600 });
+    if (fs.exists(directory)) { fs.rename(directory, old); replaced = true; }
+    try { fs.rename(staged, directory); published = true; }
+    catch (error) { if (replaced) fs.rename(old, directory); throw error; }
   } finally {
-    rmSync(staging, { recursive: true, force: true });
-    if (published) rmSync(old, { recursive: true, force: true });
+    fs.rm(staging, { recursive: true, force: true });
+    if (published) fs.rm(old, { recursive: true, force: true });
   }
 }
 

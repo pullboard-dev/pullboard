@@ -1,6 +1,13 @@
 /** @pullboard-module-loads packages/git/src/io/review-folder.js */
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { announcePorts } from '../link/ports.js';
+import { boardLinkPorts } from '../link/ports.js';
+import { listProjects } from '../../../../../packages/seats/index.js';
+import { announceVerdict } from '../../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
@@ -283,6 +290,15 @@ function sameVerdictNote(recorded, given) {
   return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
 }
 
+/** Tell each linked parent board that waits on this item its new state; a failed delivery stays queued and never undoes the verdict [E32,B24,#11039]. */
+async function announceVerdictState(ctx, board, id) {
+  const open = (root) => ctx.nativeBoard.openBoard(boardFilePath(join(root, '.git')), ctx.clock, { isMain: false, gitRoot: root });
+  const ports = announcePorts({ board, root: ctx.info.root }, { projects: listProjects(), openBoard: open, closeBoard, portsFor: boardLinkPorts,
+    readKey: (boardId) => readBoardKey(boardId, { legacyKeychain: false }) });
+  try { await announceVerdict(board, id, ports); }
+  finally { ports.close(); }
+}
+
 /**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
@@ -305,6 +321,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let accepted = null;
   let acceptedLandingCommit = null;
   let landedVerdict = false;
+  let reviewedPace = null;
   let approvalRows = [];
   /** Record one verdict on the open board. */
   const decide = async (board) => {
@@ -326,6 +343,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
+    reviewedPace = store.itemPace(item);
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
@@ -597,6 +615,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
+    if (verdict.decision === 'ACCEPT' || verdict.decision === 'REJECT') await announceVerdictState(ctx, board, id);
     if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
       acceptedLandingCommit = store.checkedLandingCommit(board, accepted);
@@ -620,6 +639,8 @@ export async function verifyHere(ctx, id, { second, values }) {
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${result.decision === 'ACCEPT' && checklistNote ? '; review evidence proved it' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
+  // A reject of landed sprint work leaves it pulling: its pull-out reverts the landing now; a steady or strict reject reads nothing more [M2,R3,#12181].
+  if (result.decision === 'REJECT' && reviewedPace === 'sprint') await (await import('../landing/pull-out.js')).pullOutPulling(ctx, [id]);
   if (accepted) {
     let automatic = true;
     try { automatic = await landAfterAcceptance(ctx); }

@@ -34,6 +34,8 @@ import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { startReceiptScreen } from './gate/screen-start.js';
+import { applyPostLandReceipt } from './gate/post-land-main-test.js';
+import { postLandJob } from './gate/post-land-main-test.js';
 import { queuePostLandMainTest } from './gate/post-land-main-test.js';
 import { sprintLandable } from './gate/sprint-land.js';
 import { applyMainTestReceipt } from './recheck.js';
@@ -334,7 +336,11 @@ export function offerProofShards(board, { job, receipt, offered }) {
   const ids = buckets.map(({ files: part, timing }, index) => {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
     // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
-    const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
+    const hits = store.ledgerHits(board.db, part, { budget: 16_000 });
+    // Why each file without a hit has none, for the shard's reader only: the runner takes contexts and files, so reasons change nothing it runs.
+    const hit = new Set((hits?.files ?? []).map(([file]) => file));
+    const reasons = store.ledgerMissReasons(board.db, part.filter(file => !hit.has(file)));
+    const ledger = hits || Object.values(reasons).some(reason => reason !== 'none') ? { ...(hits ?? {}), reasons } : null;
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
         input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, ...(timing ? { checkTiming: true } : {}), shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
@@ -1249,10 +1255,8 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted, ports);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
-  if (kind === 'test') {
-    const accept = settleQueuedAccept(board, posted);
-    return accept.applied ? accept : applyTestReceipt(board, posted);
-  }
+  if (kind === 'test' && postLandJob(posted.job)) return applyPostLandReceipt(board, posted, ports);
+  if (kind === 'test') { const accept = settleQueuedAccept(board, posted); return accept.applied ? accept : applyTestReceipt(board, posted); }
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
