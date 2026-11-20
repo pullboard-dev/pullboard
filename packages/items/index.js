@@ -16,6 +16,8 @@ export { itemAuthors, retainedVerifierIdentityProblem, itemAuthorProblem } from 
 export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/logic/decision/queue.js';
 export { dependencyValues, foreignDependencies, dependencyLabel, hasForeignDependencies, dependencyReferences, localDependencyIds, parseDependency, validateNativeDependencies } from './src/logic/dependencies.js';
 export { setItem } from './src/logic/fields.js';
+/** The stop rules, imported on demand so a command that never asks for returned work loads no module more [C7,#11255]. */
+export const loadStopRules = () => import('./src/logic/stop-reason.js');
 export { contentionScores, orderByContention, conflictRates, quietFiles } from './src/logic/contention.js';
 export { largestDisjointWave } from './src/logic/wave.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
