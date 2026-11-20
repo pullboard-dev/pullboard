@@ -1,6 +1,7 @@
 /** Shared spec project fixtures for the split spec journey files. */
 import { runCliInProcess } from '../process.js';
 import { journeyCall } from '../e2e.js';
+import { stopFixtureLocalRunners } from '../runner/local-stop.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../child.js';
 import { runFixtureChild } from '../child.js';
@@ -59,7 +60,6 @@ export async function specBoxInProcess(t, options = {}) {
 /** Everything a box needs before `init` runs: the folder, the shim, the environment, the commands and the repository. */
 function prepareBox(t, { separateGitDir = false } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, '.bin');
   mkdirSync(bin);
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${resolve(import.meta.dirname, '../../../pullboard.js')}" "$@"\n`);
@@ -74,7 +74,12 @@ function prepareBox(t, { separateGitDir = false } = {}) {
     PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: `${root}-home`,
     PULLBOARD_MACHINE_HOME: `${root}-home`,
   };
-  t.after(() => rmSync(`${root}-home`, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })); // A late compile-cache write is retried, never ENOTEMPTY [C7]
+  // Stop the box's local runner first, then remove home and root together; a late compile-cache write is retried, never ENOTEMPTY [C7]
+  t.after(() => {
+    stopFixtureLocalRunners([`${root}-home`]);
+    rmSync(`${root}-home`, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
   delete env.PULLBOARD_RELAY_TOKEN;
   // These isolated signoff fixtures model the same person terminal as the suite runner.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];

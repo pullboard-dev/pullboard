@@ -1,0 +1,3 @@
+{
+  "gate.logic-adapter-lints-fs.generated-probe-script-is-exempt": {"proves":{"specs":["C7"],"claim":"the fs lint exempts the runner probe by its exact path, where the node:fs import sits inside a script text the runner runs, and still flags a same-named file elsewhere"},"why":"The probe cannot import the file-system adapter into a script that runs on another machine; without the exact-path exemption its row could not leave the ceiling, and a loose match would hide real offenders.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/fs.js"]}
+}

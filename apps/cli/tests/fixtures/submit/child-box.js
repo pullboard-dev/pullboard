@@ -6,8 +6,8 @@ import { builderRepo } from './gate.js';
 import { put } from './gate.js';
 import { commitAll } from './gate.js';
 import { SPEC } from './gate.js';
-import { coordinatorLocal } from '../../../journeys/submit/gate/local.js';
-import { runLocal } from '../../../journeys/submit/gate/local.js';
+import { coordinatorLocal } from './local.js';
+import { runLocal } from './local.js';
 
 /** Build a claimed submit fixture whose changed source selects a nested child-process test; deniedFile names the path a Python-style denial reports. */
 export async function childFailureSubmitBox(t, testSource, { deniedFile = null } = {}) {

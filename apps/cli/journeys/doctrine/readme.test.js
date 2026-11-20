@@ -174,13 +174,10 @@ test('current docs pages and shipped skills use DOCTRINE.md, reserving PRACTICE.
 
   const files = [...markdownFiles('docs'), ...markdownFiles('skills')].sort();
   assert.ok(files.includes('docs/rfcs/0001-standard-doctrine.md'));
-  const specProof = readFileSync(join(ROOT, 'docs/proof/spec.md'), 'utf8');
-  assert.match(specProof, /this repo's `DOCTRINE\.md`\. This audit's S6 proof row records the earlier root `PRACTICE\.md`; other repos that still have only `PRACTICE\.md` keep it as a compatibility fallback/u, 'the proof table labels the old filename as historical while preserving its fallback for other repos');
   for (const file of files) {
     const text = readFileSync(join(ROOT, file), 'utf8');
     for (const [index, line] of text.split('\n').entries()) {
       if (!line.includes('PRACTICE.md')) continue;
-      if (file === 'docs/proof/spec.md' && line.startsWith('| S')) continue; // historical proof rows follow the page's legacy-fallback introduction
       assert.match(line, /legacy|fallback|histor|at the time/i, `${file}:${index + 1} labels PRACTICE.md as legacy, fallback or history`);
     }
   }
@@ -403,6 +400,15 @@ test('the README starts setup with your agent [I1]', () => {
   assert.ok(setup.includes(figureMarkup('docs/img/agent-start.svg', "Starting with an agent. You ask your agent to install Pullboard and set it up for what you're building. It runs the install and pullboard init, commits the setup, then walks you through your requirements and questions in the view it opens for you.")), 'the figure describes the complete agent path');
   assert.ok(setup.indexOf('You can also run it yourself.') > promptAt, 'running setup yourself is the second path');
   assert.ok(setup.includes('`init` writes your spec, doctrine and agent instructions, and installs the hooks and the board. Commit what it wrote, then open Claude Code in the repo and say what to build. That agent becomes your coordinator.'), 'the manual explanation remains unchanged');
+});
+
+test('the README upgrade note names the repairs doctor reports after an upgrade from 0.9.3 [I1,I11]', () => {
+  const note = README.split(/\r?\n/u).find((line) => line.startsWith('Upgrading from 0.9.3?'));
+  assert.ok(note, 'the README has an upgrade note');
+  assert.ok(note.includes('`pullboard inbox`'), 'the note names inbox, which repairs the changed board triggers');
+  assert.ok(note.includes('`pullboard init`'), 'the note names init, which rewrites the hooks');
+  assert.ok(note.includes('`.githooks`'), 'the note says to commit the rewritten hooks');
+  assert.ok(note.indexOf('`pullboard inbox`') < note.indexOf('`pullboard init`'), 'inbox comes before init');
 });
 
 test('README is concise and skimmable without removing its instructions or figures [I10,I12]', () => {

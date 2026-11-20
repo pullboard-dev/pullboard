@@ -1,0 +1,4 @@
+{
+  "cli.logic-help-flag-meanings.criterion-names-tags": {"proves":{"specs":["C7"],"claim":"the add --criterion help meaning names the four evidence tags and says each numbered clause ends with exactly one"},"why":"Without it a new person learns the tag rule only from refusals.","kind":"cell unit","inputs":["apps/cli/tests/logic/help/flag-meanings.test.js","apps/cli/src/logic/help/flag-meanings.js"]},
+  "cli.logic-help-flag-meanings.criterion-names-number-rule": {"proves":{"specs":["C7"],"claim":"the add --criterion help meaning says a measurement clause needs a number"},"why":"Without it a new person learns the number rule only from refusals.","kind":"cell unit","inputs":["apps/cli/tests/logic/help/flag-meanings.test.js","apps/cli/src/logic/help/flag-meanings.js"]}
+}

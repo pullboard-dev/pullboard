@@ -42,7 +42,8 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   if (!value || value.version !== 1 || typeof value.full !== 'boolean'
     || typeof value.deferred !== 'boolean' || typeof value.reason !== 'string'
     || value.reason.length > 8192 || !Array.isArray(value.files) || value.files.some(file => !projectFile(file))
-    || value.deferredFiles !== undefined && (!value.deferred || !Array.isArray(value.deferredFiles) || value.deferredFiles.some(file => !projectFile(file)))) {
+    || value.deferredFiles !== undefined && (!value.deferred || !Array.isArray(value.deferredFiles) || value.deferredFiles.some(file => !projectFile(file)))
+    || value.owedFiles !== undefined && (!Array.isArray(value.owedFiles) || value.owedFiles.some(file => !projectFile(file)))) {
     throw new Refused('SUBMISSION_PROOF', 'a submission proof needs its version, selected project files, full-fallback reason and deferred flag; rerun submit with the current CLI');
   }
   const known = value.knownMainFailures;
@@ -66,6 +67,7 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   }
   return { version: 1, files: [...new Set(value.files)].sort(), full: value.full,
     deferred: value.deferred, reason: value.reason, ...(value.deferredFiles ? { deferredFiles: [...new Set(value.deferredFiles)].sort() } : {}),
+    ...(value.owedFiles?.length ? { owedFiles: [...new Set(value.owedFiles)].sort() } : {}),
     ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran, receipt, firstError, stable, stableData }) => ({ file, name, signature,
       ...failureDetails({ firstError, stable, stableData }, engine), ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}),
       ...(receipt !== undefined && engine >= KNOWN_MAIN_RECEIPT_ENGINE ? { receipt } : {}) })) } } : {}),

@@ -1,0 +1,17 @@
+{
+  "cli.landing-pull.payload-sprint-plan": {
+    "proves": {
+      "specs": [
+        "V2",
+        "M1"
+      ],
+      "claim": "A pulled land job for a sprint item carries payload.sprint built from the config at the landing base, and a landing of steady items only carries none."
+    },
+    "why": "The runner has no host config, so the static check, the affected-tests command and the test-file pattern must ride on the payload.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "apps/cli/tests/fixtures/landing/offer.js"
+    ]
+  }
+}

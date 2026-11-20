@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { cellInventory } from '../../../../codemap/index.js';
 import { mappedPath } from '../../../../codemap/index.js';
 import { readPathMap } from '../../../../codemap/index.js';
-import { commonJsIn } from '../../../index.js';
-import { importsIn } from '../../../index.js';
+import { commonJsIn } from '../../../heavy.js';
+import { importsIn } from '../../../heavy.js';
 import { readPlan } from '../../../../codemap/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));

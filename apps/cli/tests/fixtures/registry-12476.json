@@ -1,0 +1,3 @@
+{
+  "cli.logic-status-render.stalled-line-30m": {"proves":{"specs":["C7"],"claim":"The stalled line statusLines prints for a stalled claim says it is released automatically at 30m, matching the 30-minute idle release."},"why":"Without it, status could tell a builder the claim lives 10 minutes longer than the release rule allows.","kind":"cell unit","inputs":["apps/cli/tests/logic/status/render.test.js","apps/cli/src/logic/status/render.js"]}
+}

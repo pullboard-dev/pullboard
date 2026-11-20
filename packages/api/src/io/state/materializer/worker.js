@@ -18,6 +18,7 @@ import { deserialize } from 'node:v8';
 import { serialize } from 'node:v8';
 import { parentPort } from 'node:worker_threads';
 import { workerData } from 'node:worker_threads';
+import { environmentAdapter } from '../../../../../env/index.js';
 
 // Node 22 announces that node:sqlite is experimental; the request thread drops that notice, and so does this one,
 // before the board modules load: why they are imported below rather than hoisted.
@@ -76,7 +77,7 @@ function scanCode() {
 /** Where the cached stamp is kept: the pin cell's keyed results in the first project's state-cache folder, none when no project is known. */
 function stampPlace() {
   const root = (workerData.projects ?? [])[0]?.root;
-  try { return { folder: process.env.PULLBOARD_STATE_CACHE_DIR || (root ? snapshots.snapshotPlace({ id: '', root }).folder : null), id: `code-stamp\0${CODE_ROOT}` }; } catch { return { folder: null }; }
+  try { return { folder: environmentAdapter().get('PULLBOARD_STATE_CACHE_DIR') || (root ? snapshots.snapshotPlace({ id: '', root }).folder : null), id: `code-stamp\0${CODE_ROOT}` }; } catch { return { folder: null }; }
 }
 
 /** Whether every folder, file and extra a cached stamp was built from still has the size and modification time it recorded. */
@@ -130,7 +131,7 @@ const saved = new Map();
 /** Where one board's snapshot lives: its folder, the board's cache id that names it, and the key a saved one must match. */
 function snapshotFile(board) {
   const { cacheId, folder } = snapshots.snapshotPlace(board);
-  return { cacheId, key: `${cacheId}\0${code}`, folder: process.env.PULLBOARD_STATE_CACHE_DIR || folder };
+  return { cacheId, key: `${cacheId}\0${code}`, folder: environmentAdapter().get('PULLBOARD_STATE_CACHE_DIR') || folder };
 }
 
 /** The record fields a read of any variant needs, so a snapshot of other code is served only when it has them all. */
@@ -189,7 +190,7 @@ function errorFields(error) {
 function prewarm() {
   const folders = new Set();
   for (const project of projects) {
-    try { folders.add(process.env.PULLBOARD_STATE_CACHE_DIR || snapshots.snapshotPlace({ id: '', root: project.root }).folder); } catch { /* An unreadable project has no snapshot. */ }
+    try { folders.add(environmentAdapter().get('PULLBOARD_STATE_CACHE_DIR') || snapshots.snapshotPlace({ id: '', root: project.root }).folder); } catch { /* An unreadable project has no snapshot. */ }
   }
   for (const folder of folders) {
     for (const bytes of store?.saved(folder) ?? []) {

@@ -5,6 +5,7 @@
  */
 import { resolve } from 'node:path';
 import { commandOutput } from '../../../../../packages/config/browser.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { CHECKOUT_LEASES } from './session.js';
 import { CHECKOUT_BOARD_ONLY } from './session.js';
@@ -35,7 +36,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
 
 /** Commands that write the board whatever their arguments. */
 const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
-  'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
+  'next', 'claim', 'hold', 'expedite', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
 
 /** The commands that never create a scratch folder, so they never resolve the scratch root. */
 const NO_SCRATCH = new Set(['list', 'show', 'whoami', 'status', 'inbox', 'roadmap', 'hook commit-msg']);
@@ -147,7 +148,7 @@ const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'rel
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
-    nextActions: streams.nextActions ?? (process.env.PULLBOARD_TEXT_NEXT !== '0'),
+    nextActions: streams.nextActions ?? (environmentAdapter().get('PULLBOARD_TEXT_NEXT') !== '0'),
     loadRefusal: async () => (await import('../../logic/step/words.js')).refusalDocument,
   });
   if (streams.traceRecord) {
@@ -166,6 +167,8 @@ async function runMain(argv, streams) {
   io.checkpointPublisher = streams.checkpointPublisher;
   io.relayOrdering = streams.relayOrdering;
   io.checkpointInBackground = streams.checkpointInBackground;
+  /** The github door's key reader, loaded at its first call so a command that never reads keys pays for no github module [C7,#12428]. */
+  io.githubKeys = async login => (await import('../../../../../packages/github/index.js')).githubKeys(login);
   io.scheduleCheckpoint = streams.scheduleCheckpoint;
   io.requestCheckpointCheck = streams.requestCheckpointCheck;
   io.checkpointWorker = streams.checkpointWorker;
@@ -187,7 +190,7 @@ async function runMain(argv, streams) {
   // In-process tests replace the detached audit launch; production always starts apps/cli/src/io/landing/audit.js.
   io.nudgeMainAudit = streams.nudgeMainAudit;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, githubKeys: io.githubKeys, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;
@@ -292,7 +295,7 @@ async function runMain(argv, streams) {
     auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
       && !parsed.values['dry-run'] && parsed.values.waive === undefined)
       || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined)
-      || (sweep && (await import('../../../../../packages/gate/index.js')).mainMovedSinceAudit(io.cwd)));
+      || (sweep && (await import('../../../../../packages/gate/heavy.js')).mainMovedSinceAudit(io.cwd)));
     advanceAfterCommand = code === 0 && !parsed.values['dry-run'] && (auditAfterCommand
       || parsed.positionals[0] === 'merged' || parsed.positionals[0] === 'sentinel' && parsed.positionals[1] === 'run');
     if (code === 0) {
@@ -319,7 +322,7 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     // A runner job's processes die with the job, so no timer is scheduled and the scheduler is never loaded [C7].
-    if (maintenanceAfterCommand && !process.env.PULLBOARD_RUNNER_JOB) {
+    if (maintenanceAfterCommand && !environmentAdapter().get('PULLBOARD_RUNNER_JOB')) {
       try { await (await import('../worktree/maintenance/scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err((await import('../worktree/maintenance/diagnostics.js')).maintenanceTimerWarning(error)); }
     }
@@ -344,14 +347,14 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (io.nudgeMainAudit ?? (await import('../../../../../packages/gate/index.js')).nudgeMainAudit)(io.cwd, new URL('../landing/audit.js', import.meta.url)); }
+      try { await (io.nudgeMainAudit ?? (await import('../../../../../packages/gate/heavy.js')).nudgeMainAudit)(io.cwd, new URL('../landing/audit.js', import.meta.url)); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard sentinel run to retry'); }
     }
   }
 }
 
 // This marker is emitted once when the actual CLI entrypoint finishes evaluating.
-if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
-  && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
+if (environmentAdapter().get('PULLBOARD_STARTUP_TRACE_ENTRY')
+  && resolve(process.argv[1] ?? '') === resolve(environmentAdapter().get('PULLBOARD_STARTUP_TRACE_ENTRY'))) {
   traceServeStartup('cli-module-load-complete');
 }

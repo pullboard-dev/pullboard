@@ -1,16 +1,11 @@
 /** Compile cell-analysis source only; no module linking or evaluation is permitted [C7,P3]. */
-import { lstatSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { watch } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import vm from 'node:vm';
+
+const fs = fileSystemAdapter();
 
 const [directory, parentText, mode, sequenceText, budgetText] = process.argv.slice(2);
 const parent = Number(parentText), MAX_BYTES = 2 ** 26;
@@ -37,24 +32,24 @@ function compile(source) {
 function scan() {
   const id = sequence + 1, file = join(directory, `request-${id}.json`);
   let stat;
-  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return; return stop(); }
+  try { stat = fs.lstat(file); } catch (error) { if (error.code === 'ENOENT') return; return stop(); }
   try {
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_BYTES) return stop();
-    const request = JSON.parse(readFileSync(file, 'utf8'));
+    const request = JSON.parse(fs.readFile(file, 'utf8'));
     if (request?.version !== 1 || request.id !== id || !Array.isArray(request.sources)
       || request.sources.some(source => typeof source !== 'string')) return stop();
     const output = JSON.stringify({ version: 1, id, results: request.sources.map(compile) });
     if (Buffer.byteLength(output) > MAX_BYTES) return stop();
     const temporary = join(directory, `reply-${id}.tmp`);
-    writeFileSync(temporary, output, { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, join(directory, `reply-${id}.json`));
+    fs.writeFile(temporary, output, { flag: 'wx', mode: 0o600 });
+    fs.rename(temporary, join(directory, `reply-${id}.json`));
     sequence = id;
     sourceBytes += request.sources.reduce((sum, source) => sum + Buffer.byteLength(source), 0);
     modules += request.sources.length;
     if (sourceBytes >= SOURCE_BUDGET || modules >= MODULE_BUDGET) {
       const rotation = join(directory, 'rotation.tmp');
-      writeFileSync(rotation, JSON.stringify({ version: 1, pid: process.pid, sequence }), { mode: 0o600 });
-      renameSync(rotation, join(directory, 'rotation.json'));
+      fs.writeFile(rotation, JSON.stringify({ version: 1, pid: process.pid, sequence }), { mode: 0o600 });
+      fs.rename(rotation, join(directory, 'rotation.json'));
       watcher?.close();
       if (timer) clearInterval(timer);
       process.exit(0);
@@ -75,38 +70,38 @@ function supervise() {
     if (timer) clearInterval(timer);
     try {
       const temporary = join(directory, 'exit.tmp');
-      writeFileSync(temporary, JSON.stringify({ version: 1, code, signal, ...(error ? { error } : {}) }), { mode: 0o600 });
-      renameSync(temporary, join(directory, 'exit.json'));
+      fs.writeFile(temporary, JSON.stringify({ version: 1, code, signal, ...(error ? { error } : {}) }), { mode: 0o600 });
+      fs.rename(temporary, join(directory, 'exit.json'));
     } catch { /* The owning caller may already have removed its completed transport. */ }
   }
   /** Terminate only the compiler spawned by this supervisor. */
   const terminate = () => { terminating = true; child?.kill('SIGKILL'); };
   /** Continue the next request in a fresh compiler only after the owned worker's clean rotation. */
   function launch() {
-    const log = openSync(join(directory, 'stderr.log'), 'a', 0o600);
+    const log = fs.open(join(directory, 'stderr.log'), 'a', 0o600);
     try {
       child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
         fileURLToPath(import.meta.url), directory, String(process.pid), '--compile', String(sequence)],
         { stdio: ['ignore', 'ignore', log] });
-    } finally { closeSync(log); }
+    } finally { fs.close(log); }
     const current = child;
     const identity = join(directory, 'compiler.tmp');
-    writeFileSync(identity, JSON.stringify({ version: 1, pid: child.pid, supervisor: process.pid }), { mode: 0o600 });
-    renameSync(identity, join(directory, 'compiler.json'));
+    fs.writeFile(identity, JSON.stringify({ version: 1, pid: child.pid, supervisor: process.pid }), { mode: 0o600 });
+    fs.rename(identity, join(directory, 'compiler.json'));
     child.once('error', error => finish(null, null, error.message));
     child.once('close', (code, signal) => {
       if (finished) return;
       if (!terminating && code === 0 && signal === null) {
         try {
-          const rotation = JSON.parse(readFileSync(join(directory, 'rotation.json'), 'utf8'));
+          const rotation = JSON.parse(fs.readFile(join(directory, 'rotation.json'), 'utf8'));
           if (rotation?.version === 1 && rotation.pid === current.pid
             && Number.isSafeInteger(rotation.sequence) && rotation.sequence > sequence) {
             sequence = rotation.sequence;
-            rmSync(join(directory, 'rotation.json'));
+            fs.rm(join(directory, 'rotation.json'));
             if (++rotations >= SUPERVISOR_BUDGET) {
               const temporary = join(directory, 'supervisor-rotation.tmp');
-              writeFileSync(temporary, JSON.stringify({ version: 1, pid: process.pid, sequence }), { mode: 0o600 });
-              renameSync(temporary, join(directory, 'supervisor-rotation.json'));
+              fs.writeFile(temporary, JSON.stringify({ version: 1, pid: process.pid, sequence }), { mode: 0o600 });
+              fs.rename(temporary, join(directory, 'supervisor-rotation.json'));
               finished = true;
               if (timer) clearInterval(timer);
               process.exit(0);
@@ -130,7 +125,7 @@ if (!directory || !Number.isSafeInteger(parent) || parent <= 0 || process.ppid !
   || !Number.isSafeInteger(sequence) || sequence < 0) stop();
 if (mode === '--supervise') supervise();
 else try {
-  watcher = watch(directory, scan);
+  watcher = fs.watch(directory, scan);
   watcher.on('error', stop);
   // Budget: check parent custody once a second while this private worker is otherwise idle.
   timer = setInterval(() => { checkParent(); scan(); }, 1_000);

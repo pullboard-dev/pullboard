@@ -1,0 +1,15 @@
+{
+  "view.logic-cockpit-compat.cells": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: compatCells turns conformance rows into cells of works, partial, breaks, unavailable or unknown with the run id, grouped by stage in CONFORMANCE_STAGES order."
+    },
+    "why": "Without it the compatibility page could show cells with no run behind them or in the wrong stage order.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/logic/cockpit/compat.test.js"
+    ]
+  }
+}
