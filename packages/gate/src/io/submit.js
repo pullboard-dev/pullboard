@@ -97,7 +97,7 @@ export function submitGateConfig(config, accepted) {
   return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
     registryGuards: accepted.registryGuards,
-    ...(accepted.submitInvariants.length || accepted.registryGuards.length ? { affectedTests: accepted.affectedTests } : {}) };
+    ...(accepted.affectedTests?.trim() ? { affectedTests: accepted.affectedTests } : {}) };
 }
 
 /**
