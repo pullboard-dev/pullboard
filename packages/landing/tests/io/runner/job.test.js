@@ -188,3 +188,27 @@ test('landing.runner-sprint-exact.steady-unchanged: clause 3: a job whose items 
     assert.deepEqual(receipt.phases.map(row => row.phase), plain.phases.map(row => row.phase));
   }
 });
+
+test('landing.io-runner-job.receipt-merged-at: clause 1: a landed receipt maps each landed item id to the committer time in ms of its merge commit [C7,#12156]', async t => {
+  const box = landFixture(t);
+  const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => ({ ok: true }) });
+  assert.equal(receipt.outcome, 'landed', JSON.stringify(receipt.detail));
+  assert.deepEqual(Object.keys(receipt.mergedAt), [String(ITEM)]);
+  const committed = Number(box.rev('show', '-s', '--format=%ct', receipt.merges[ITEM])) * 1000;
+  assert.equal(receipt.mergedAt[ITEM], committed);
+  assert.ok(Number.isInteger(committed) && committed > 0, 'a real committer time in ms');
+});
+
+test('landing.io-runner-job.receipt-merged-at-unchanged: clause 2: every other receipt field is what it was without mergedAt [C7,#12156]', async t => {
+  const box = landFixture(t);
+  const before = box.tip();
+  const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => ({ ok: true }) });
+  const { mergedAt, ...rest } = receipt;
+  assert.ok(mergedAt, 'the field is present');
+  assert.equal(rest.outcome, 'landed');
+  assert.equal(rest.trunk, box.tip());
+  assert.notEqual(rest.trunk, before);
+  assert.deepEqual(rest.landed, [ITEM]);
+  assert.deepEqual(Object.keys(rest.merges), [String(ITEM)]);
+  assert.equal(rest.merges[ITEM], rest.trunk, 'a lone item merges at the tip');
+});
