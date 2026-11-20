@@ -10,8 +10,8 @@ const AT = Date.parse('2026-11-16T12:00:00.000Z');
 const STAMP = new Date(AT).toISOString();
 const LEASE = new Date(AT + 3_600_000).toISOString();
 
-/** A board where core-1 holds claimed item 2 while the older item 1 sits free in the same lane; `reservedTo` names the holder of item 2's reservation. */
-function inversion(t, reservedTo) {
+/** A board where core-1 holds claimed item 2 while the older item 1 sits free in the same lane; `reservedTo` names the holder of item 2's reservation and `holdReason` the reason the coordinator held it. */
+function inversion(t, reservedTo, holdReason = null) {
   const board = fixtureBoard(t, { clock: { now: () => new Date(AT) } });
   const sql = board.db;
   sql.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run('core-1', 'core', '/seat/core-1', 'strong', STAMP);
@@ -22,6 +22,7 @@ function inversion(t, reservedTo) {
   sql.exec('INSERT INTO temp.moving VALUES (1)');
   sql.prepare("UPDATE item SET item_status='claimed', item_owner='core-1', item_lease_until=?, item_frozen_digest=? WHERE item_id=2").run(LEASE, 'd'.repeat(64));
   if (reservedTo) sql.prepare('UPDATE item SET item_reservation_holder=?, item_reservation_by=?, item_reservation_at=? WHERE item_id=2').run(reservedTo, 'coordinator', STAMP);
+  if (holdReason) sql.prepare('UPDATE item SET item_hold_reason=?, item_hold_by=?, item_hold_at=? WHERE item_id=2').run(holdReason, 'coordinator', STAMP);
   sql.exec('DELETE FROM temp.moving');
   logEvent(board, 'core-1', 'claim', 2, { leaseUntil: LEASE });
   return board;
@@ -42,4 +43,15 @@ test('health.io-main.reserved-claim-no-release-advice: clause 1: with health.adv
 test('health.io-main.reserved-claim-setting-off: clause 2: with the setting off or unset, the reserved claim yields the RANK_INVERSION finding as before [C7,#11704]', t => {
   assert.equal(inversions(inversion(t, 'core-1'), { health: { adviceThroughNext: false } }).length, 1);
   assert.equal(inversions(inversion(t, 'core-1'), undefined).length, 1);
+});
+
+test('health.io-main.held-claim-no-release-advice: clause 1: with health.adviceThroughNext on, a claim whose item has a hold reason beside a free higher-ranked item yields no RANK_INVERSION finding, and the same board without a hold reason still yields one [C7,#1479]', t => {
+  const on = { health: { adviceThroughNext: true } };
+  assert.equal(inversions(inversion(t, null, 'coordinator hold'), on).length, 0);
+  assert.equal(inversions(inversion(t, null), on).length, 1);
+});
+
+test('health.io-main.held-claim-setting-off: clause 2: with health.adviceThroughNext off or unset, the held claim still yields the RANK_INVERSION finding [C7,#1479]', t => {
+  assert.equal(inversions(inversion(t, null, 'coordinator hold'), { health: { adviceThroughNext: false } }).length, 1);
+  assert.equal(inversions(inversion(t, null, 'coordinator hold'), undefined).length, 1);
 });

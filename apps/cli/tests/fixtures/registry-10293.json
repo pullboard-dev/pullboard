@@ -1,0 +1,28 @@
+{
+  "cli.io-list-thin.startup-row-holds": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The real list with list.thinRead on holds the list thin startup row, judged by child CPU time."
+    },
+    "why": "Without it, the list thin startup row would be measured only inside the shared read-startup file and a loaded run there could hide or blame it.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/list/thin.test.js"
+    ]
+  },
+  "cli.io-commands-read-startup.the-version-show-status-and-list-rows-hold": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The version, show, status and list rows hold their startup rows."
+    },
+    "why": "Without it, the four rows that stay in read-startup.test.js would go unmeasured once list thin moved out.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/read-startup.test.js"
+    ]
+  }
+}

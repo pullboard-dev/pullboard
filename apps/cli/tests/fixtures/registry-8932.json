@@ -1,0 +1,3 @@
+{
+  "cli.journeys-verify-review-folder-dirty.first-review": {"proves":{"specs":["C7"],"claim":"With verify.reviewFolder on and the seat checkout at the submitted commit holding a modified tracked file and an untracked file, verify accept records the verdict from checks run in the review folder, leaving both seat files byte-identical."},"why":"Without it, a dirty seat at the submitted commit keeps root on the seat and the verdict is refused DIRTY or UNTRACKED instead of being recorded from the clean review folder.","kind":"journey","inputs":["apps/cli/journeys/verify/review-folder-dirty.test.js"]}
+}

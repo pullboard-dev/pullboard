@@ -2,6 +2,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { statusLines } from '../../../src/logic/status/render.js';
+import { staffingLines } from '../../../../../packages/stats/light.js';
+import { staffingSeats } from '../../../../../packages/stats/light.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
+import { main } from '../../fixtures/native.js';
 
 const format = {
   capacityLines: (forecast) => [`forecast ${forecast.weeks} weeks`],
@@ -11,6 +16,7 @@ const format = {
   runnerDeadlineLine: (run) => `deadline ${run.deadline}`,
   submitInvariantLine: (proposal) => `invariant ${proposal}`,
   diskLines: (disk) => [`disk ${disk.used}`],
+  staffingLines: (seats) => `staffing ${seats.builders}/${seats.reviewers}`,
 };
 
 /** A summary with every section filled. */
@@ -73,7 +79,7 @@ test('cli.logic-status-render.a-summary-with-every-section-filled-renders-the-re
     'past half limit: claim-2 open; inactivity unproven (evidence unknown); blocker classification unknown; shown at shortest possible half-limit',
     'needs re-scope: #12 is not offered to core at the light route; too wide; no test; edit, refreeze or re-route it',
     'waiting: #3 (core-2) waits on #8, #9 to land; the claim is released and the item returns when it lands',
-    'stalled: #4 (core-3) idle 22m with no commit, file change, running check or item move; released automatically at 40m',
+    'stalled: #4 (core-3) idle 22m with no commit, file change, running check or item move; released automatically at 30m',
     'gate job job-1 (#13): dispatcher is gone',
     'gate job job-2: no worker',
     'runner r1 is idle',
@@ -121,4 +127,45 @@ test('cli.logic-status-render.all-shows-gone-seats: clause 1: the all option lis
   const rows = (all) => statusLines(summary(), options({ all })).filter((line) => line.startsWith('core-9'));
   assert.deepEqual(rows(false), []);
   assert.deepEqual(rows(true), ['core-9: gone (no local heartbeat)']);
+});
+
+test('cli.logic-status-render.staffing-line: clause 1: statusLines prints the staffing line from format.staffingLines(summary.staffing) directly after the capacity lines [C7,#11836]', () => {
+  const lines = statusLines({ ...summary(), staffing: { builders: 6, reviewers: 1, ratio: 8 } }, options());
+  assert.equal(lines[lines.indexOf('forecast 4 weeks') + 1], 'staffing 6/1');
+  assert.equal(lines.filter((line) => line.startsWith('staffing ')).length, 1);
+  assert.equal(statusLines(summary(), options()).some((line) => line.startsWith('staffing ')), false, 'a summary without staffing prints no staffing line');
+});
+
+test('cli.logic-status-render.staffing-input: clause 2: with 6 ready items, no max-useful figure and the default ratio, the line reads "Staffing: 6 builders, 1 reviewer (8:1)" [C7,#11836]', () => {
+  const seats = staffingSeats({ ready: 6, maxUseful: null });
+  assert.equal(staffingLines(seats), 'Staffing: 6 builders, 1 reviewer (8:1)');
+  assert.equal(statusLines({ ...summary(), staffing: seats }, options({ format: { ...format, staffingLines } })).includes('Staffing: 6 builders, 1 reviewer (8:1)'), true);
+});
+
+test('cli.logic-status-render.real-status: clause 3: the real status command on a scratch board prints the staffing line from its ready items and puts staffing in the summary [C7,#11836]', async (t) => {
+  const box = await fixture(t);
+  for (const title of ['First ready item', 'Second ready item']) box.add(title);
+  const json = await cli(box, box.root, ['status']);
+  assert.equal(json.code, 0, json.out + json.err);
+  const { staffing, capacity, usefulBuilders } = json.document;
+  assert.deepEqual(staffing, staffingSeats({ ready: capacity.readyItems, maxUseful: usefulBuilders?.max ?? null }));
+  assert.ok(staffing.builders > 0, 'the scratch board has ready items to staff');
+  let out = '';
+  const code = await main(['status'], { cwd: box.root, clock: box.clock, stdout: { isTTY: false, write: (part) => { out += part; } }, stderr: { write: () => {} } });
+  assert.equal(code, 0, out);
+  assert.ok(out.split('\n').includes(staffingLines(staffing)), `status prints ${staffingLines(staffing)}`);
+});
+
+test('cli.logic-status-render.ready-buffer-line: clause 1: statusLines prints one ready buffer line per route with the ratio to one decimal, and "no builders" for a route with none [C7,#12475]', () => {
+  const capacity = { liveAgents: 2, idleAgents: 1, readyItems: 14, readyByRoute: { mid: 12, strong: 2 }, buildersByRoute: { mid: 8, strong: 0 } };
+  const lines = statusLines({ ...summary(), capacity }, options());
+  assert.deepEqual(lines.filter((line) => line.startsWith('ready buffer: ')), ['ready buffer: mid 12 ready, 8 builders = 1.5x', 'ready buffer: strong 2 ready, no builders']);
+  assert.equal(statusLines(summary(), options()).some((line) => line.startsWith('ready buffer: ')), false, 'a summary without readyByRoute prints no ready buffer line');
+});
+
+test('cli.logic-status-render.stalled-line-30m: clause 1: the stalled line printed for a claim with health stalled ends "released automatically at 30m", not 40m [C7,#12476]', () => {
+  const staleState = { holds: [], claims: [], reviews: [], claimHealth: [{ id: 4, actor: 'core-3', health: 'stalled', idleMs: 1_320_000 }] };
+  const lines = statusLines({ ...summary(), staleState }, options()).filter((line) => line.startsWith('stalled: '));
+  assert.deepEqual(lines, ['stalled: #4 (core-3) idle 22m with no commit, file change, running check or item move; released automatically at 30m']);
+  assert.equal(lines[0].includes('40m'), false);
 });
