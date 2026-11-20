@@ -22,7 +22,7 @@ import {
 import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { watchSpecPress } from '../../../tests/fixtures/cockpit/spec-watch.js';
 
-test('the spec decision wait names its state on timeout [N26]', { timeout: 60_000 }, async (t) => {
+test('cli.journeys-spec-cockpit-pointer.the-spec-decision-wait-names-its: the spec decision wait names its state on timeout [N26]', { timeout: 60_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec wait diagnostics.');
 
@@ -66,7 +66,7 @@ test('the spec decision wait names its state on timeout [N26]', { timeout: 60_00
   }
 });
 
-test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { timeout: 120_000 }, async (t) => { // budget: Chrome startup plus the actual three-second state poll and cleanup under CPU throttling.
+test('cli.journeys-spec-cockpit-pointer.the-spec-decline-opens-its-reason: the Spec decline opens its reason form under a 6× CPU throttle [N26]', { timeout: 120_000 }, async (t) => { // budget: Chrome startup plus the actual three-second state poll and cleanup under CPU throttling.
   const executable = chromeExecutable();
   assert.ok(executable, 'the required Spec interaction test needs real Chrome');
   const spec = '# Decline under load\n\n## G · Goals\n- G1 [draft, must] Keep the reviewed result visible. | gate: web test\n';
@@ -143,7 +143,7 @@ test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { 
 });
 
 /** The decline dialog's submit button keeps its place while the dialog is open, with an approval note in the list above it. */
-test('the decline dialog never moves under the pointer [B26,N26]', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-spec-cockpit-pointer.the-decline-dialog-never-moves-under: the decline dialog never moves under the pointer [B26,N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to check the decline dialog.');
 

@@ -4,10 +4,10 @@ import {
   withBoardRead,
 } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { gateHealthLines } from '../../../../../packages/gate/index.js';
-import { gateHealthReport } from '../../../../../packages/gate/index.js';
-import { runnerTimeLines } from '../../../../../packages/gate/index.js';
-import { runnerTimeReport } from '../../../../../packages/gate/index.js';
+import { gateHealthLines } from '../../../../../packages/gate/heavy.js';
+import { gateHealthReport } from '../../../../../packages/gate/heavy.js';
+import { runnerTimeLines } from '../../../../../packages/gate/heavy.js';
+import { runnerTimeReport } from '../../../../../packages/gate/heavy.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { landingHealthLines } from '../../../../../packages/landing/index.js';
 import { landingHealthReport } from '../../../../../packages/landing/index.js';

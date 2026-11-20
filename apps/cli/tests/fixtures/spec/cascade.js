@@ -41,5 +41,5 @@ export async function cascadeBox(t) {
   box.git(box.repo, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'docs: serves chain');
   const verifier = box.seat('cascade-verifier', 'web', VERIFIER);
   return { box, author: author.agent, verifier, fact, first, third,
-    verify: (id, decision) => box.runAsLocal(VERIFIER, verifier.root, 'spec', 'verify', id, decision, '--reason', 'the wording is wrong', '--json') };
+    verify: (id, decision, reason = 'the wording is wrong') => box.runAsLocal(VERIFIER, verifier.root, 'spec', 'verify', id, decision, '--reason', reason, '--json') };
 }

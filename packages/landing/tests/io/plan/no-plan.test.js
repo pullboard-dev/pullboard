@@ -15,7 +15,7 @@ import { requireLandingPlanCheck } from '../../../index.js';
 import { scanLanding } from '../../../src/io/scan.js';
 
 /** Names a landing source must not carry; plan.js is matched only as a whole file name, so parallel-plan.js is not a cells plan module. */
-const PLAN_NAMES = /cells-plan|cells\.json|(?:^|[/'"])plan\.js|placeLanding|landingPlacementProblems|addedPlacementProblems/u;
+const PLAN_NAMES = /cells-plan|cells\.json|(?:^|[/'"])plan\.js|placeLanding|landingPlacementProblems|addedPlacement\w*/u;
 
 const IO = fileURLToPath(new URL('../../../src/io', import.meta.url));
 

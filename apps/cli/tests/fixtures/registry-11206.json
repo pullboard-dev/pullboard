@@ -1,0 +1,4 @@
+{
+  "cli.add.needs-flag": {"proves": {"specs": ["C7"], "claim": "add --needs browser,gui stores both and show --json reports item_needs; add --needs gpu is refused USAGE naming browser and gui."}, "why": "Without it an item cannot say which abilities its builder needs, so it reaches an agent that cannot build it.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/add.js", "apps/cli/src/io/cli-main/options.js", "apps/cli/tests/io/commands/add.test.js"]},
+  "cli.edit.needs-flag": {"proves": {"specs": ["C7"], "claim": "edit --needs gui replaces the needs list and edit --needs \"\" clears it to []."}, "why": "Without it a wrong needs list on a filed item cannot be corrected.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/edit.js", "apps/cli/tests/io/commands/edit.test.js"]}
+}
