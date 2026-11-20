@@ -1112,7 +1112,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         if (claimed.claim) ledger.add(claimed.claim.kind);
         return claimed;
       });
-    } catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
+    } catch (error) {
+      if (error.code === 'RUNNER_STOPPED') break;
+      if (!(error instanceof Refused)) { failure = error; break; }
+      // A refused claim call is a wait like an unreachable board: said, backed off, tried again; only the signal ends the serve.
+      say(`claim refused: [${error.code}] ${error.message}; retrying in ${delay} ms`);
+      waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
+      continue;
+    }
     if (!answer) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([nap(idleMs), ...active]); continue;
