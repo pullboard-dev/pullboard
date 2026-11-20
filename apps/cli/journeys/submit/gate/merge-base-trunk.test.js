@@ -3,7 +3,7 @@
  * Claim-head reads, trunk merge-base reads and branch changes made before the claim: one slice of the submit gate proof, split from gate.test.js to stay under the runner time budget [V4,C7,V16].
  */
 import assert from 'node:assert/strict';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { coordinatorLocal } from './local.js';
 import { runLocal } from './local.js';
 import { submitSettled } from './local.js';
