@@ -23,6 +23,12 @@ export function pullOutJobId(item, mergedCommit) {
  * Why no fetch here: the runner's checkout entry point is the one place that fetches; the lander's checkout already tracks trunk.
  */
 function remoteTrunk(root, remote, branch) {
+  // No trunk remote: the board host's own repository is trunk, so its branch tip is the trunk the revert builds on.
+  if (!remote) {
+    const local = tryGit(root, ['rev-parse', '--verify', '-q', `refs/heads/${branch.replace(/^refs\/heads\//u, '')}^{commit}`]).stdout;
+    if (!local) throw new Refused('PULL_OUT_TRUNK', `${branch} names nothing in this repository`, 'check out the trunk branch in the board host checkout, then run the pull-out again');
+    return local;
+  }
   const tip = tryGit(root, ['ls-remote', remote, branch]).stdout.split(/\s+/u)[0];
   if (!tip || tryGit(root, ['cat-file', '-e', `${tip}^{commit}`]).status !== 0) {
     throw new Refused('PULL_OUT_TRUNK', `${branch} on ${remote} names ${tip ? tip.slice(0, 12) : 'nothing'}, which this checkout does not hold`, 'fetch the trunk into the lander\'s checkout, then run the pull-out again');
@@ -39,7 +45,7 @@ function remoteTrunk(root, remote, branch) {
  * Why the push is a port: publish.js is the one move-trunk entry point, and importing it here would pull the gate and CLI into this file's reach.
  *
  * @param {any} board - The open board; its db holds the job rows unless `jobs` names the runs file.
- * @param {{ root: string, remote: string, branch: string, item: number, agentId?: string, fenced?: boolean,
+ * @param {{ root: string, remote: string | null, branch: string, item: number, agentId?: string, fenced?: boolean,
  *   jobs?: import('node:sqlite').DatabaseSync, now?: () => number }} options - root: a checkout of the repository; fenced: gate.fencedHop.
  * @param {{ fenceHop: Function, pushTrunkThroughFence: Function }} ports - publish.js's fenceHop and pushTrunkThroughFence, passed in by the lander.
  * @returns {{ state: 'skipped' } | { state: 'blocked', job: string, conflicts: string[], trunk: string } | { state: 'pulled', job: string, revert: string, trunk: string }}
@@ -59,10 +65,12 @@ export function runPullOutJob(board, { root, remote, branch, item, agentId = 'co
     return { state: 'blocked', job: id, conflicts: reverted.conflicts, trunk };
   }
   writeStep(jobs, id, 'reverted', { revert: reverted.commit, trunk }, { now: now() });
-  const hops = carryLandingHops(board.db, [{ id: item }], { enabled: fenced });
-  requireCarriedHops(board.db, hops);
+  // With no remote there is no fence to move: the host's own trunk takes the revert as a fast-forward, the way its local runner lands into it.
+  const hops = remote ? carryLandingHops(board.db, [{ id: item }], { enabled: fenced }) : [];
+  if (remote) requireCarriedHops(board.db, hops);
   for (const hop of hops) fenceHop(root, { remote, ...hop });
-  const pushed = pushTrunkThroughFence(root, { remote, branch, base: trunk, tip: reverted.commit, hops });
+  const pushed = remote ? pushTrunkThroughFence(root, { remote, branch, base: trunk, tip: reverted.commit, hops })
+    : tryGit(root, ['merge', '--ff-only', '--quiet', reverted.commit]);
   if (pushed.status !== 0) {
     throw new Refused('PULL_OUT_PUSH', `the revert ${reverted.commit.slice(0, 12)} for #${item} could not be pushed to ${branch}: ${(pushed.stderr || pushed.stdout).split('\n')[0]}`,
       'trunk moved or the remote refused; run the pull-out again to revert on the new tip');
