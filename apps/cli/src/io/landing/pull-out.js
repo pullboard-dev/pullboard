@@ -16,16 +16,18 @@ import { primaryCheckoutRoot } from '../worktree.js';
 const NO_HOOKS = Object.freeze({ GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: '/dev/null' });
 
 /**
- * pushTrunkThroughFence with the checkout's hooks off for that push only.
- * Why: the pull-out pushes from the board host's main checkout while it holds the board, and that checkout's pre-push hook opens
- * the board and runs the gate, so the push waited on its own lock until the reject command timed out [M2,R3,#12181].
+ * A push port (fenceHop or pushTrunkThroughFence) with the checkout's hooks off for that call only.
+ * Why: the pull-out pushes its fence and its revert from the board host's main checkout while it holds the board, and that checkout's
+ * pre-push hook opens the board and runs the gate, so the push waited on its own lock until the reject command timed out [M2,R3,#12181].
  */
-function hookless(root, options) {
-  const environment = environmentAdapter();
-  const before = Object.fromEntries(Object.keys(NO_HOOKS).map(name => [name, environment.get(name)]));
-  for (const [name, value] of Object.entries(NO_HOOKS)) environment.set(name, value);
-  try { return pushTrunkThroughFence(root, options); }
-  finally { for (const [name, value] of Object.entries(before)) value === undefined ? environment.delete(name) : environment.set(name, value); }
+function hookless(push) {
+  return (root, options) => {
+    const environment = environmentAdapter();
+    const before = Object.fromEntries(Object.keys(NO_HOOKS).map(name => [name, environment.get(name)]));
+    for (const [name, value] of Object.entries(NO_HOOKS)) environment.set(name, value);
+    try { return push(root, options); }
+    finally { for (const [name, value] of Object.entries(before)) value === undefined ? environment.delete(name) : environment.set(name, value); }
+  };
 }
 
 /**
@@ -49,7 +51,7 @@ export async function pullOutPulling(ctx, ids) {
     // The revert is built on the remote trunk tip, which a runner land job may have pushed after this checkout last fetched.
     if (pulling.length) tryGit(root, ['fetch', '-q', remote, branch]);
     return pulling.map(item => {
-      try { return { item, ...runPullOutJob(board, { root, remote, branch, item, fenced: fencedHopEnabled() }, { fenceHop, pushTrunkThroughFence: hookless }) }; }
+      try { return { item, ...runPullOutJob(board, { root, remote, branch, item, fenced: fencedHopEnabled() }, { fenceHop: hookless(fenceHop), pushTrunkThroughFence: hookless(pushTrunkThroughFence) }) }; }
       catch (error) {
         ctx.io.err?.(`pull-out of #${item} not done: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; the landing wake runs it again`);
         return { item, state: 'failed', error: String(error?.code ?? error?.name ?? 'Error') };
