@@ -36,8 +36,6 @@
     "packages/git/src/io/enter.js": 1,
     "packages/git/src/io/main.js": 12,
     "packages/git/src/io/trunk/guard.js": 1,
-    "packages/jobs/src/io/inbox-marks.js": 1,
-    "packages/jobs/src/io/launch.js": 2,
     "packages/merge/src/io/auto.js": 2,
     "packages/person/src/io/main.js": 3,
     "packages/person/src/io/signing/cli.js": 1,
