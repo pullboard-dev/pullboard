@@ -7,12 +7,19 @@
  * Why here: main-test was a controller-dispatch kind; under pull nothing ran it and every row stayed queued (#6063).
  */
 import { tryGit } from '../../../git/index.js';
+import { plainTrunkRef } from '../../../git/index.js';
+import { repoInfo } from '../../../git/index.js';
+import { resolveCommit } from '../../../git/index.js';
+import { trunkRevisionReader } from '../../../git/index.js';
 import { atomically } from '../../../jobs/index.js';
+import { createJob } from '../../../jobs/index.js';
+import { readPayload } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { pinQueuedJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../kernel/index.js';
+import { CONFIG_FILE } from '../../../kernel/browser.js';
 
 /** The job kind the receipt cell's MAIN_TEST_JOB names; spelled here so the board API adds no edge to it. */
 export const MAIN_TEST_KIND = 'main-test';
@@ -30,6 +37,14 @@ const SCAN_COMMITS = 2000;
 const CASES = 20;
 /** The most UTF-16 units of one case name a main-test receipt keeps; the gate compares a longer case by this prefix. */
 export const MAIN_CASE_NAME_UNITS = 120;
+// Budget: a file is seeded when its failures appeared in the gates of at least this many distinct items.
+const WIDE_ITEMS = 10;
+// Budget: the failures counted are those of gates created in this window (24 h).
+const WIDE_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Budget: one seeding reads at most this many red gate and shard jobs, newest first, so it stays a small write.
+const WIDE_SCAN_JOBS = 6000;
+// Budget: one seeding queues at most this many files.
+const WIDE_FILES = 50;
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
 
@@ -196,4 +211,82 @@ export function applyMainTestReceipt(board, { job, receipt }, { now = Date.now()
   // The cache is a convenience copy of the receipt above: a writer that fails leaves the receipt recorded.
   try { if (receipt.commit) recorder?.(board.gitRoot, { main: receipt.commit, file: at.file, verdict, job, at: now, ...(inputKey ? { inputKey } : {}) }); } catch { /* re-measured later */ }
   return { applied: true, outcome: 'recorded', verdict };
+}
+
+/** The main each board root's wide failures were last seeded for; keyed by root path, never by db handle, so every open of one board root shares it. */
+const seededAt = new Map();
+
+/** The test files a posted gate or shard receipt names as failed: its red phases' failing cases and failed-file footers. */
+function redFiles(receipt) {
+  const files = new Set();
+  for (const phase of Array.isArray(receipt?.gate?.phases) ? receipt.gate.phases : []) {
+    if (phase?.status === 0) continue;
+    for (const row of Array.isArray(phase?.failures) ? phase.failures : []) if (typeof row?.file === 'string') files.add(row.file);
+    for (const file of Array.isArray(phase?.failedFiles) ? phase.failedFiles : []) if (typeof file === 'string') files.add(file);
+  }
+  return files;
+}
+
+/**
+ * When accepted main advances, queue one main-test row (the row shape a gate's lookup queues) for each test file whose
+ * failures appeared in the gates of WIDE_ITEMS or more distinct items in the last 24 h and that has no main-test job at
+ * main's tree yet, so a gate red only there finds main's receipt coming instead of an unknown [C7,P7,#12035].
+ * Why: nothing queued these ahead of the gates, so every wide-failing file cost each item a red or unknown first.
+ * Nothing about the comparison loosens: a case is main-owned only on the same name and diagnostic signature.
+ *
+ * @param {any} board - The open board, gitRoot set to the board host's repository.
+ * @param {{ main: string | null, now?: number }} options - main: accepted main's commit; the same main seeds once.
+ * @returns {string[]} the main-test jobs queued now
+ */
+export function seedWideMainTests(board, { main, now = Date.now() }) {
+  const { db } = board;
+  if (!board.gitRoot || !SHA.test(String(main)) || seededAt.get(board.gitRoot) === main) return [];
+  seededAt.set(board.gitRoot, main);
+  const tree = tryGit(board.gitRoot, ['rev-parse', `${main}^{tree}`]);
+  const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]);
+  let command = null;
+  try { command = shown.status === 0 ? JSON.parse(shown.stdout)?.affectedTests : null; } catch { command = null; }
+  if (tree.status !== 0 || !/^[0-9a-f]{40,64}$/u.test(tree.stdout) || typeof command !== 'string' || !command.trim()) return [];
+  // Red gates and shards of the window: an inline receipt that passed is skipped in SQL; a blob stub has no status and is read.
+  const rows = db.prepare(`SELECT job.job_item AS item, step.job_step_payload AS payload FROM job
+    JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'receipt'
+      AND step.job_step_seq = (SELECT MAX(job_step_seq) FROM job_step WHERE job_step_job = job.job_id AND job_step_name = 'receipt')
+    WHERE job.job_kind IN ('gate', 'gate-shard') AND job.job_item IS NOT NULL AND job.job_created >= ?
+      AND COALESCE(json_extract(step.job_step_payload, '$.receipt.status'), 1) <> 0
+    ORDER BY job.job_created DESC LIMIT ?`).all(now - WIDE_WINDOW_MS, WIDE_SCAN_JOBS);
+  const items = new Map();
+  for (const { item, payload } of rows) {
+    let posted = null;
+    try { posted = readPayload(db, payload)?.receipt; } catch { posted = null; }
+    for (const file of redFiles(posted)) {
+      if (!RELATIVE_FILE.test(file)) continue;
+      if (!items.has(file)) items.set(file, new Set());
+      items.get(file).add(item);
+    }
+  }
+  const queued = [];
+  const wide = [...items].filter(([, who]) => who.size >= WIDE_ITEMS).sort((a, b) => b[1].size - a[1].size || (a[0] < b[0] ? -1 : 1)).slice(0, WIDE_FILES);
+  for (const [file] of wide) {
+    const id = `${MAIN_TEST_KIND}:${tree.stdout}:${file}:${command}`;
+    // Any main-test job at this tree and file, queued, offered or answered, already stands for it.
+    if (db.prepare('SELECT 1 FROM job WHERE job_id = ?').get(id)) continue;
+    atomically(db, () => {
+      createJob(db, { id, kind: MAIN_TEST_KIND, base: tree.stdout, now });
+      writeStep(db, id, 'queued', { tree: tree.stdout, file, command }, { now });
+    });
+    queued.push(id);
+  }
+  return queued;
+}
+
+/** Accepted main's commit, read from trunk's ref files first and from Git when they name none; null without a repository. */
+function acceptedMain(root) {
+  if (!root) return null;
+  const read = trunkRevisionReader(repoInfo(root))();
+  return SHA.test(String(read)) ? read : resolveCommit(root, plainTrunkRef(root));
+}
+
+/** The claim path's seeding: wide failures for accepted main, once per board root and main sha; a refusal never fails the claim. */
+export function seedWideMainTestsAtMain(board, { now }) {
+  try { return seedWideMainTests(board, { main: acceptedMain(board.gitRoot), now }); } catch (error) { if (!error?.code) throw error; return []; }
 }
