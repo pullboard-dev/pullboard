@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** The view fixture retries one disconnected read and never repeats a move [N26]. */
@@ -16,7 +17,7 @@ import {
   startView,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('view fixture retries one disconnected read with its cause and never repeats a move [N26]', async () => {
+test('cli.journeys-shout-journeys-fixture-transport.view-fixture-retries-one-disconnected-read: view fixture retries one disconnected read with its cause and never repeats a move [N26]', async () => {
   const box = machine();
   project(box, 'transport');
   const view = await startView(box);

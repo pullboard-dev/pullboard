@@ -1,18 +1,24 @@
 import { createHash } from 'node:crypto';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { checkoutHead } from '../../../git/index.js';
 import { gitExecFileSync } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
 
+const fs = fileSystemAdapter();
+
 /**
  * Freeze a Git worktree's content; failure is unknown, never evidence of no work. The status is the command's shared
  * one, and its untracked entries are the same set ls-files --others --exclude-standard lists, so the digest is unchanged.
+ * A caller that already knows the claim's own snapshot passes it as options.claimSnapshot: with none (null, or no digest)
+ * there is nothing to compare against, so the answer is null at once and no Git child runs. With no options it is unchanged.
+ *
+ * @param {string} root
+ * @param {{ claimSnapshot?: { digest?: string } | null }} [options]
  */
-export function claimWorktreeSnapshot(root) {
+export function claimWorktreeSnapshot(root, options) {
+  if (options && 'claimSnapshot' in options && !options.claimSnapshot?.digest) return null;
   try {
     const git = args => gitExecFileSync(args, { cwd: root, timeout: 5000 });
     const head = checkoutHead(root) ?? git(['rev-parse', '--verify', 'HEAD']).toString().trim();
@@ -28,10 +34,10 @@ export function claimWorktreeSnapshot(root) {
     const untracked = listed.sort();
     for (const file of untracked) {
       const path = join(root, file);
-      const stat = lstatSync(path);
+      const stat = fs.lstat(path);
       add(file);
       add(String(stat.mode));
-      add(stat.isSymbolicLink() ? readlinkSync(path) : readFileSync(path));
+      add(stat.isSymbolicLink() ? fs.readlink(path) : fs.readFile(path, null));
     }
     return { head, digest: hash.digest('hex') };
   } catch { return null; }

@@ -1,6 +1,7 @@
 /** The landing merged table run over the live board: the store's merged writer reads its refusal and the events of a merge from it [C7,#8268]. */
 import { runMergedTable } from '../../logic/board/landing/lease.js';
 import { strictFullSuiteOn } from '../../logic/board/landing/lease.js';
+import { itemPace } from './sprint-pace.js';
 
 /**
  * Decide a merge with the landing merged table, over the item as it stands before the move writes anything.
@@ -9,17 +10,12 @@ import { strictFullSuiteOn } from '../../logic/board/landing/lease.js';
  *
  * @param {{ id: number, status: string, mergedCommit?: string | null }} item - The item row before the move.
  * @param {{ agentId: string, commit: string, forced?: string }} call
- * @param {{ pace?: string, item?: object, base?: string, io?: object }} [strict] - A strict item's frozen pace and the facts its merge reads, from strictFacts; absent for steady and sprint, whose merge is decided as before.
+ * @param {{ pace?: string, item?: object, base?: string, io?: object }} [strict] - The pace facts from strictFacts: a strict item's frozen pace and the facts its merge reads, a sprint item's pace alone, nothing for steady.
  * @returns {{ refused?: { code: string, message: string, next?: string }, events?: object[] } | null}
  */
 export function mergedDecision(item, call, strict = {}) {
   const move = { id: item.id, actor: call.agentId, commit: call.commit, ...(call.forced === undefined ? {} : { forced: call.forced }) };
   try { return runMergedTable(structuredClone({ ...strict, item: { id: item.id, status: item.status, mergedCommit: item.mergedCommit ?? null, ...strict.item } }), move); } catch { return null; }
-}
-
-/** The pace frozen into the item's bar, as the moves cell's itemPace reads it: only strict matters to the merged writer (a copy, as reopen.js keeps one, because the moves cell imports the store). */
-function frozenPace(row) {
-  try { return JSON.parse(row?.item_frozen ?? 'null')?.pace === 'strict' ? 'strict' : 'steady'; } catch { return 'steady'; }
 }
 
 /** SQL reading one field of an event's detail, empty when the detail is not JSON. */
@@ -32,17 +28,21 @@ function suiteReceipt(board, group) {
 }
 
 /**
- * What the merged table reads for a strict item under landing.strictFullSuite: its pace, its commit, frozen digest and group (its lane), the setting, and the group's newest full-suite receipt.
- * Returns an empty object for a steady or sprint item, and for a strict one with the setting off, so those merge exactly as before; the setting is not even read for a steady item.
+ * What the merged table reads for the item's frozen pace. A sprint item gets its pace alone, so the table decides it by the sprint rows (row submitted lands submitted work).
+ * A strict item under landing.strictFullSuite gets its pace, its commit, frozen digest and group (its lane), the setting, and the group's newest full-suite receipt.
+ * Returns an empty object for a steady item, and for a strict one with the setting off, so those merge exactly as before; the setting is not even read for a steady or sprint item.
+ * The pace is read from the row already loaded, so no pace adds a board read.
  * Why the receipt's own base: the base a suite ran on is what select checked it against before the push, and the store reads no trunk head here; a receipt that names none never counts.
  * With no receipt the table's strict-full-suite row refuses LAND_SUITE_PENDING and writes nothing.
  *
  * @param {any} board
  * @param {{ item_frozen?: string | null, item_frozen_digest?: string | null, item_commit?: string | null, item_lane?: string | null }} row - The item row before the move.
- * @returns {{ pace?: 'strict', item?: object, base?: string, io?: { strictFullSuite: true, suite: object | null } }}
+ * @returns {{ pace?: 'sprint' | 'strict', item?: object, base?: string, io?: { strictFullSuite: true, suite: object | null } }}
  */
 export function strictFacts(board, row) {
-  if (frozenPace(row) !== 'strict' || !strictFullSuiteOn()) return {};
+  const pace = itemPace(row);
+  if (pace === 'sprint') return { pace: 'sprint' };
+  if (pace !== 'strict' || !strictFullSuiteOn()) return {};
   const suite = suiteReceipt(board, row.item_lane);
   return { pace: 'strict', base: suite?.base, item: { pace: 'strict', commit: row.item_commit ?? undefined, digest: row.item_frozen_digest ?? undefined, claimDigest: row.item_frozen_digest ?? undefined, group: row.item_lane ?? undefined }, io: { strictFullSuite: true, suite } };
 }

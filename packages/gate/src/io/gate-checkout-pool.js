@@ -1,13 +1,5 @@
 /** The coordinator gate's kept checkouts: moved to each candidate, so a gate writes only the files that differ [C7]. */
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -15,6 +7,8 @@ import { resolve } from 'node:path';
 import { addWorktree } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** A kept checkout's folder name: a random id, so no two gates ever pick the same new name. */
 const SLOT = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
@@ -63,7 +57,7 @@ export function exactGateCheckout(git, commonDir, root, commit) {
   if (!identity.ok) return false;
   const [actualCommon, top, head] = identity.out.split('\n');
   try {
-    if (!sameCommonDir(realpathSync(actualCommon), realpathSync(commonDir)) || realpathSync(top) !== realpathSync(root)) return false;
+    if (!sameCommonDir(fs.realpath(actualCommon), fs.realpath(commonDir)) || fs.realpath(top) !== fs.realpath(root)) return false;
   } catch { return false; }
   if (commit && head !== commit) return false;
   const status = inside(git, root, ['status', '--porcelain=v1', '--untracked-files=all', '--ignored=matching']);
@@ -79,7 +73,7 @@ export function exactGateCheckout(git, commonDir, root, commit) {
  */
 export function discardGateCheckout(git, commonDir, root) {
   common(git, commonDir, ['worktree', 'remove', '--force', '--force', root]);
-  rmSync(root, { recursive: true, force: true });
+  fs.rm(root, { recursive: true, force: true });
 }
 
 /** Re-point Git's registration at the folder a checkout was moved to. */
@@ -90,10 +84,10 @@ function repair(git, commonDir, root) {
 /** The idle kept checkouts, most recently used first. */
 function idleSlots(pool) {
   let names;
-  try { names = readdirSync(pool); } catch { return []; }
+  try { names = fs.list(pool); } catch { return []; }
   const slots = [];
   for (const name of names.filter(entry => SLOT.test(entry))) {
-    try { slots.push({ path: join(pool, name), usedAt: statSync(join(pool, name)).mtimeMs }); } catch { /* borrowed meanwhile */ }
+    try { slots.push({ path: join(pool, name), usedAt: fs.stat(join(pool, name)).mtimeMs }); } catch { /* borrowed meanwhile */ }
   }
   return slots.sort((a, b) => b.usedAt - a.usedAt);
 }
@@ -119,9 +113,9 @@ function changedFiles(git, root, from, to) {
  *   the commit it moved from, and how many tracked files the move wrote or deleted (null for a new checkout).
  */
 export function borrowGateCheckout({ git, commonDir, pool, root, commit }) {
-  if (!isAbsolute(root) || existsSync(root)) throw new Error('a gate checkout needs an empty absolute place');
+  if (!isAbsolute(root) || fs.exists(root)) throw new Error('a gate checkout needs an empty absolute place');
   for (const slot of idleSlots(pool)) {
-    try { renameSync(slot.path, root); } catch { continue; } // another gate claimed it first
+    try { fs.rename(slot.path, root); } catch { continue; } // another gate claimed it first
     if (repair(git, commonDir, root) && exactGateCheckout(git, commonDir, root)) {
       const from = inside(git, root, ['rev-parse', 'HEAD']).out;
       if (inside(git, root, ['checkout', '-q', '--detach', commit]).ok && exactGateCheckout(git, commonDir, root, commit)) {
@@ -144,17 +138,17 @@ export function borrowGateCheckout({ git, commonDir, pool, root, commit }) {
  * @returns {boolean} Whether the checkout was kept for the next gate.
  */
 export function returnGateCheckout({ git, commonDir, pool, root, commit, now = Date.now() }) {
-  if (!existsSync(root)) return false;
+  if (!fs.exists(root)) return false;
   let kept = false;
   if (exactGateCheckout(git, commonDir, root, commit)) {
-    mkdirSync(pool, { recursive: true, mode: 0o700 });
+    fs.mkdir(pool, { recursive: true, mode: 0o700 });
     const slot = join(pool, randomUUID());
     try {
-      renameSync(root, slot);
+      fs.rename(root, slot);
       kept = repair(git, commonDir, slot);
-      if (kept) utimesSync(slot, new Date(now), new Date(now));
+      if (kept) fs.utimes(slot, new Date(now), new Date(now));
       else discardGateCheckout(git, commonDir, slot);
-    } catch { discardGateCheckout(git, commonDir, existsSync(slot) ? slot : root); kept = false; }
+    } catch { discardGateCheckout(git, commonDir, fs.exists(slot) ? slot : root); kept = false; }
   } else discardGateCheckout(git, commonDir, root);
   trimGateCheckouts(git, commonDir, pool, now);
   return kept;
@@ -173,7 +167,7 @@ export function trimGateCheckouts(git, commonDir, pool, now = Date.now()) {
   for (const slot of idleSlots(pool)) {
     if (now - slot.usedAt < GATE_CHECKOUT_IDLE_MS) continue;
     const claimed = resolve(pool, `.discard-${randomUUID()}`);
-    try { renameSync(slot.path, claimed); } catch { continue; }
+    try { fs.rename(slot.path, claimed); } catch { continue; }
     repair(git, commonDir, claimed);
     discardGateCheckout(git, commonDir, claimed);
   }

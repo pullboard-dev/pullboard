@@ -1,5 +1,4 @@
 /** Validated coordinator run facts and immutable source interpretation live only in local proof projections [S1,R2,C7]. */
-import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../../git/index.js';
 import { receiptFields } from '../../../logic/proof/provenance.js';
@@ -7,6 +6,9 @@ import {
   committedRuleCoverage,
   proofCoverageFingerprint,
 } from './coverage.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Use the registered coordinator's repository only when it owns this exact board file. */
 function sourceRoot(board) {
@@ -14,7 +16,7 @@ function sourceRoot(board) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!root || !file) return null;
   try {
-    return realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) === realpathSync(file) ? root : null;
+    return fs.realpath(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) === fs.realpath(file) ? root : null;
   } catch { return null; }
 }
 

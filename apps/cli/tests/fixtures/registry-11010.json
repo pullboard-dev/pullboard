@@ -1,0 +1,17 @@
+{
+  "cli.journeys-verify-sealed-no-check.reruns-when-proof-file-moves": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an item with no frozen check, submitted on a green gate, has verify --accept re-run its tiers once main moves by a file its proof ran, and the not-reused line names that file."
+    },
+    "why": "Without it a moved proof file could still be accepted on sealed receipts that no longer cover it.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/verify/sealed-no-check.test.js",
+      "apps/cli/src/io/commands/verify.js",
+      "packages/verify/src/io/verdict/trunk.js"
+    ]
+  }
+}

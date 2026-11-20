@@ -1,0 +1,26 @@
+{
+  "api.io-gate.settle-throttle-window": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "boardJobQueueCall in pull mode runs settleDoneShardGates on a board's first claim, skips it for a claim less than SETTLE_WINDOW_MS later, and runs it again once the window has passed."
+    },
+    "why": "Without this test the settle walk could run on every pull claim again and cost the serve process about half a second of CPU per request, or never run again and strand a gate whose last apply was lost.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/settled.js"
+    ]
+  },
+  "api.io-gate.settle-on-receipt": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A receipt posted through boardJobQueueCall reopens the settle window, so the next pull claim settles a gate that became eligible inside the window of an earlier settle."
+    },
+    "why": "Without this test a throttled settle could hold a finished gate for a whole window after the receipt that finished it.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate.js",
+      "packages/api/src/io/gate/settled.js"
+    ]
+  }
+}

@@ -13,6 +13,7 @@ import { pushRecordTimingEnabled } from '../../../../../packages/config/index.js
 import { pushRefuseUnshardedEnabled } from '../../../../../packages/config/index.js';
 import { pushRerunFailedShardOnceEnabled } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
@@ -52,7 +53,7 @@ const POLL_MS = 1_000;
  * @param {Record<string, string|undefined>} [env]
  * @returns {number} Milliseconds.
  */
-export function pushShardLimitMs(config, env = process.env) {
+export function pushShardLimitMs(config, env = environmentAdapter().all()) {
   const minutes = config?.pushGate?.shardMinutes ?? DEFAULT_SHARD_MINUTES;
   const raw = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
   const runner = raw === undefined || raw === '' ? 0 : Number(raw);
@@ -163,7 +164,7 @@ export function pushGateReport(files, times, config, runners) {
  * @param {Record<string, string|undefined>} [env]
  * @returns {number} Milliseconds.
  */
-export function pushPlanLimitMs(shards, config, env = process.env) {
+export function pushPlanLimitMs(shards, config, env = environmentAdapter().all()) {
   return Math.max(pushShardLimitMs(config, env), ...shards.map(shard => shard.weight));
 }
 
@@ -189,8 +190,8 @@ export function pushShardSkipReason({ pull, clean, untracked: loose, files, name
 async function pushShardFacts(root, config) {
   const pull = runnerDispatchMode() === 'pull', clean = isClean(root), loose = untracked(root).length;
   if (!pull || !clean || loose) return { pull, clean, untracked: loose, files: 0, nameable: true };
-  const { trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
-  const files = trackedDefaultTestFiles(root, process.env);
+  const { trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/heavy.js');
+  const files = trackedDefaultTestFiles(root, environmentAdapter().all());
   return { pull, clean, untracked: loose, files: files.length, nameable: files.length < 2 || Boolean(valueGateCommand(root, config.gate, files)) };
 }
 
@@ -206,8 +207,8 @@ async function pushShardFacts(root, config) {
  */
 export async function pushShardPlan(root, config, { runners, history } = {}) {
   if (runnerDispatchMode() !== 'pull' || !isClean(root) || untracked(root).length) return null;
-  const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
-  const files = trackedDefaultTestFiles(root, process.env);
+  const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/heavy.js');
+  const files = trackedDefaultTestFiles(root, environmentAdapter().all());
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
   const times = readFileTimes(root);
   const planned = planPushShards(files, times, pushMaxShards(files, times, config, runners, history));
@@ -447,7 +448,7 @@ export async function pushShardGate(ctx, { say, wait, pollMs, now = Date.now, re
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
   if (combined.status === 0) {
-    const { stampGreen } = await import('../../../../../packages/gate/index.js');
+    const { stampGreen } = await import('../../../../../packages/gate/heavy.js');
     stampGreen(root, tryGit(root, ['rev-parse', `${plan.source}^{tree}`]).stdout.trim());
     return { isGreen: true, problem: null, jobs };
   }

@@ -1,14 +1,12 @@
 /** Observe macOS Chrome clone growth without deleting or attributing directories [C7]. */
 import { nativeUserDirectory } from './directory.js';
 import {
-  lstatSync,
-  readdirSync,
-  realpathSync,
-} from 'node:fs';
-import {
   dirname,
   join,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Locate only the current account's native Chrome clone namespaces. */
 export function chromeCloneDirectories() {
@@ -24,12 +22,12 @@ export function chromeCloneSnapshot() {
   for (const directory of chromeCloneDirectories()) {
     let names;
     let canonical;
-    try { names = readdirSync(directory); canonical = realpathSync(directory); }
+    try { names = fs.list(directory); canonical = fs.realpath(directory); }
     catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     for (const name of names.filter(name => /^code_sign_clone\.[A-Za-z0-9._-]{6}$/u.test(name))) {
       try {
         const path = join(directory, name);
-        const stat = lstatSync(path);
+        const stat = fs.lstat(path);
         if (stat.isDirectory() && !stat.isSymbolicLink()) result.push(`${join(canonical, name)}:${stat.dev}:${stat.ino}`);
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }

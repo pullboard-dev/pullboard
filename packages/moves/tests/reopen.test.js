@@ -176,13 +176,13 @@ function legacySnapshot(snapshot) {
  * Drop the derived fields an archived client never computed.
  *
  * Why: c85ddac55a added item_stage and the readiness engine added item_readiness_command to current item reads, and #9181 added the
- * three item_reservation columns; clients before them return the same row without them.
+ * three item_reservation columns; item_needs is the engine-gated field lookup.js adds; clients before them return the same row without them.
  * @param {any} row
  * @returns {any}
  */
 function withoutStage(row) {
   const { item_stage: _stage, item_readiness_command: _readiness, item_reservation_holder: _holder, item_reservation_by: _by,
-    item_reservation_at: _at, ...rest } = row;
+    item_reservation_at: _at, item_needs: _needs, ...rest } = row;
   return rest;
 }
 

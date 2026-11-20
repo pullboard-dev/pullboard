@@ -9,6 +9,8 @@ import { viewSessionCookie } from "./serve-session.js";
 import { NO_LINK_CSS } from "./no-link.js";
 import { NO_LINK_STYLESHEET } from "./no-link.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
+import { conformanceRows } from "../../../../packages/gate/index.js";
+import { compatCells } from "../logic/cockpit/compat.js";
 import { milestoneForecast } from "../../../../packages/roadmap/index.js";
 import { machineRead } from "./pipeline/machine.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
@@ -325,11 +327,14 @@ function sandboxRefusedListen(error, port) {
   return error.code === 'EPERM' || (error.code === 'EACCES' && (port === 0 || port >= 1024));
 }
 
+/** The environment this view runs in, read once: the sandbox hint and the toolchain probe of the compatibility cells share it. */
+const HOST_ENV = process.env;
+
 /**
  * The step that lets a sandboxed view listen, for the agent tool this command runs under. Each
  * named step is one that tool documents; any other tool gets the general step and the terminal.
  */
-function sandboxListenStep(env = process.env) {
+function sandboxListenStep(env = HOST_ENV) {
   const terminal = 'or start pullboard view from a normal terminal';
   if (env.CLAUDECODE) return `allow local network for Claude Code: set sandbox.network.allowLocalBinding to true in .claude/settings.json, ${terminal}`;
   if (env.CODEX_SANDBOX !== undefined || env.CODEX_SANDBOX_NETWORK_DISABLED !== undefined) {
@@ -379,7 +384,7 @@ const credentialMatches = (given, expected) => given.length === expected.length 
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, statePorts, machineName = viewMachineName, projects } = {}) {
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false, clock, statePorts, machineName = viewMachineName, projects } = {}) {
   requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
@@ -661,6 +666,16 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
       if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
+      // One item's timeline, read only, for the item page's strip: the very document `pullboard timeline <id> --json` prints, run through the CLI the view is given.
+      const timelineRoute = req.method === 'GET' ? /^\/item-timeline\/(\d+)$/u.exec(url.pathname) : null;
+      if (timelineRoute) {
+        let output = '';
+        const status = await runCommand(['timeline', timelineRoute[1], '--json'], { cwd: projectRoot ?? process.cwd(), ...(clock ? { clock } : {}), stdout: { isTTY: false, write: (text) => { output += text; } }, stderr: { write: () => {} }, onEvent: () => {} });
+        if (status) return json(res, 404, { error: `no timeline for #${timelineRoute[1]}` });
+        return reply(res, 200, 'application/json; charset=utf-8', output);
+      }
+      // The compatibility cells, read only: the recorded conformance runs of this project's root as page cells.
+      if (req.method === 'GET' && url.pathname === '/compat-cells') return json(res, 200, compatCells(conformanceRows({ root: projectRoot ?? process.cwd(), pathValue: HOST_ENV.PATH ?? '' })));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {
