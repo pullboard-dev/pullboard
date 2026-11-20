@@ -1,0 +1,3 @@
+{
+  "cli.journeys-speed-profile.submit-marks-name-each-phase": {"proves":{"specs":["C7"],"claim":"With PULLBOARD_SUBMIT_MARKS=1 a submit on a large board prints an authorization mark per step, the preflight/static mark and the queueing marks on stderr, and with it unset prints no submit-mark line."},"why":"Without it, the submit phase marks that name where a slow submit spends its time could vanish unnoticed.","kind":"journey","inputs":["apps/cli/journeys/speed/profile.test.js"]}
+}
