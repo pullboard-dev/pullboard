@@ -545,6 +545,11 @@ export function reviewStarveShout() {
   return loadMachineSettings().review?.starveShout === true;
 }
 
+/** Whether a builder's next skips reviews while a seat in lane review is alive (#11946): off by default; only an exact `true` turns it on. */
+export function reviewBuilderOffers() {
+  return loadMachineSettings().review?.builderOffers === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;

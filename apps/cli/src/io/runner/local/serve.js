@@ -46,11 +46,13 @@ async function serveLocal(io) {
   const say = line => process.stdout.write(`${new Date().toISOString()} ${line}\n`);
   const stop = new AbortController();
   const stopped = () => stop.abort();
+  // The wake watcher's mark: one runner-woke-on-offer line in the runner log each time a touch ends an idle wait early [#12240].
+  const mark = step => { if (step === 'wake') say('runner-woke-on-offer'); };
   process.once('SIGINT', stopped); process.once('SIGTERM', stopped);
   try {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
-      wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), home: localRunnerHome(), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
+      wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), wakeMark: mark, home: localRunnerHome(), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
       admit: ({ running, held }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running, held }) });
     if (!served.served) throw new Refused(served.code, `a local runner of this home already runs${served.pid === null ? '' : ` (pid ${served.pid})`}`, served.next);
     return 0;
