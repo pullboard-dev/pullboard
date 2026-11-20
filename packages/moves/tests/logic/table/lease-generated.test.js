@@ -44,6 +44,7 @@ function scenario(seed) {
   const move = { name, token: token(n), branch: g.int(8) === 0 ? 'other' : 'trunk', pid: g.int(8) === 0 ? 9 : 100 + n, label: 'coordinator',
     lineage: g.int(6) === 0 ? 'x' : own ? own.lineage : s.lineage, generation: (s.lease?.generation ?? 0) + (g.int(6) === 0 ? 1 : 0), guardianPid: g.pick([5, 70 + n, 0]) };
   if (g.int(30) === 0) move.token = 'short';
+  if (name === 'batch') Object.assign(move, { batch: g.pick(['batch-a', 'batch-b']), ...(g.int(2) === 0 ? { allowance: 2 } : {}) });
   return { s, move };
 }
 
