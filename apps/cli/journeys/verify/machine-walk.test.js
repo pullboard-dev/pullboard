@@ -539,6 +539,8 @@ test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy 
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
+      // Claim writes its events through the same rigor counter, so the drafting entry is reached from claim too.
+      'MOON_PHASE is raised by claim but not declared there',
       'MOON_PHASE is raised by release but not declared there',
       'MOON_PHASE is raised by reopen but not declared there',
       // Submit starts the companion objection window, which reads the same rigor sources (#2540).
