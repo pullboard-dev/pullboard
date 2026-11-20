@@ -183,3 +183,31 @@ export function ledgerMainReds(db, files, main, contexts, { command = 'proof' } 
   return [...new Set(files)].filter(file => FILE.test(String(file))).flatMap(file => select.all(file, main, command)
     .map(({ inputKey, context }) => [file, inputKey, contexts.includes(context) ? contexts.indexOf(context) : contexts.push(context) - 1]));
 }
+
+const GATE_FAILS = `SELECT test_result_file AS file, test_result_receipt AS receipt, test_result_command AS command, test_result_at AS at
+  FROM test_result WHERE test_result_status = 'fail' AND test_result_receipt LIKE 'gate:%' AND test_result_at >= ? ORDER BY test_result_id`;
+
+/**
+ * The gate fail rows since a time, each with the item the gate was for, that item's files, and the runner time the
+ * gate shard took. Why: the board already holds these facts, and a test file that fails gates of many unrelated
+ * items is the cost the costly-tests report names [C7]. A receipt whose job lacks a claimed or receipt step has ms null.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ since?: number }} [options]
+ * @returns {Array<{ file: string, item: number, itemFiles: string[], command: string, at: number, ms: number | null }>}
+ */
+export function gateFailRows(db, { since = 0 } = {}) {
+  if (missingLedgerTable(db)) return [];
+  const files = db.prepare('SELECT item_files AS files FROM item WHERE item_id = ?');
+  const step = db.prepare('SELECT job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name = ? ORDER BY job_step_id DESC LIMIT 1');
+  const rows = [];
+  for (const row of db.prepare(GATE_FAILS).all(Number(since) || 0)) {
+    const item = Number(/^gate:(\d+)(?::|$)/u.exec(row.receipt)?.[1]);
+    if (!Number.isInteger(item)) continue;
+    const start = step.get(row.receipt, 'claimed')?.at;
+    const end = step.get(row.receipt, 'receipt')?.at;
+    rows.push({ file: row.file, item, itemFiles: (files.get(item)?.files ?? '').split('\n').filter(Boolean), command: row.command, at: row.at,
+      ms: start === undefined || end === undefined ? null : Math.max(0, end - start) });
+  }
+  return rows;
+}

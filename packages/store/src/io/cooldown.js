@@ -1,5 +1,7 @@
-import { existsSync } from 'node:fs';
 import { listAgents } from './board/query.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The release cooldown for next (#2587): a seat that released a build item is not offered it again for
@@ -154,7 +156,7 @@ function rescopeExpired(detail, row, seat, clock) {
   }
   if (detail.reasonCode !== 'ROUTED_ELSEWHERE') return false;
   const beat = Date.parse(seat?.heartbeatAt ?? '');
-  return !seat || !seat.agent_path || !existsSync(seat.agent_path) || !(clock - beat < RESCOPE_SESSION_MINUTES * 60_000);
+  return !seat || !seat.agent_path || !fs.exists(seat.agent_path) || !(clock - beat < RESCOPE_SESSION_MINUTES * 60_000);
 }
 
 /** The items to leave out of one seat's next: those released for re-scope for its own lane and route and not yet expired. */

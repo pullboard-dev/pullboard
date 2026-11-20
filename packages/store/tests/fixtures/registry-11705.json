@@ -1,0 +1,4 @@
+{
+  "store.logic-board-receipts.builder-advice-not-shouted": {"proves":{"specs":["C7"],"claim":"with adviceThroughNext true deliverHealthNotices logs every finding but shouts none for a builder-owned finding, while coordinator-owned findings shout as before."},"why":"Without this test, builder advice would keep arriving as separate shouts next to the same advice in next.","kind":"cell unit","inputs":["packages/store/src/logic/board/receipts.js"]},
+  "store.logic-board-receipts.builder-advice-replay": {"proves":{"specs":["C7"],"claim":"with adviceThroughNext false or absent, and for a finding recorded before the setting, the shouts are exactly those of main."},"why":"A replica or an earlier scan must replay with its original shouts, so the setting changes only new scans that froze it.","kind":"cell unit","inputs":["packages/store/src/logic/board/receipts.js"]}
+}

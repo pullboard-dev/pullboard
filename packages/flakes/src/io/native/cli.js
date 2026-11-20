@@ -1,5 +1,5 @@
 import { receiptRecorder } from "./receipts.js";
-import { recordRun } from "../../../../gate/index.js";
+import { recordRun } from "../../../../gate/heavy.js";
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
 import { readFileSync } from 'node:fs';
 import { COORDINATOR } from "../../../../config/index.js";
@@ -9,13 +9,13 @@ import {
   mainPolicy,
   policyAt,
 } from "../../../../sandbox/index.js";
-import { pinRunMain } from "../../../../gate/index.js";
+import { pinRunMain } from "../../../../gate/heavy.js";
 import {
   readGateReceipt,
   receiptStore,
-} from "../../../../gate/index.js";
-import { runProfiledShellAsync } from "../../../../gate/index.js";
-import { runFrozenProof } from "../../../../gate/index.js";
+} from "../../../../gate/heavy.js";
+import { runProfiledShellAsync } from "../../../../gate/heavy.js";
+import { runFrozenProof } from "../../../../gate/heavy.js";
 import { recordNativeProof } from "../../../../verify/index.js";
 import { proofRunReceipt } from "../../../../store/index.js";
 import { quarantineVerdictSnapshot } from "../quarantine.js";

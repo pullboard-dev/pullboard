@@ -1,14 +1,10 @@
 /** The spool behind inbox.batchedMarks: queued delivery marks outlive the command that read the inbox [C7,#8942]. */
-import { appendFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The spool file beside the board: one JSON line per queued mark or delivery. */
 export const spoolFile = boardFile => join(dirname(boardFile), 'pullboard-inbox-marks.jsonl');
@@ -26,7 +22,7 @@ export const spoolFile = boardFile => join(dirname(boardFile), 'pullboard-inbox-
 export function spoolInboxMarks(boardFile, entries) {
   if (!entries.length) return;
   const line = entry => JSON.stringify(Array.isArray(entry) ? { agent: entry[0], mark: entry[1] } : { agent: entry.agent, delivery: entry.delivery });
-  appendFileSync(spoolFile(boardFile), entries.map(line).join('\n') + '\n', { mode: 0o600 });
+  fs.appendFile(spoolFile(boardFile), entries.map(line).join('\n') + '\n', { mode: 0o600 });
 }
 
 /**
@@ -45,12 +41,12 @@ export function spoolInboxMarks(boardFile, entries) {
 export function drainInboxMarks(boardFile, { enqueue, flush, recordDelivery }) {
   const spool = spoolFile(boardFile);
   const dir = dirname(spool), prefix = `${basename(spool)}.work-`;
-  if (existsSync(spool)) { try { renameSync(spool, join(dir, `${prefix}${process.pid}`)); } catch { /* Another worker took it. */ } }
-  const taken = readdirSync(dir).filter(name => name.startsWith(prefix)).sort().map(name => join(dir, name));
+  if (fs.exists(spool)) { try { fs.rename(spool, join(dir, `${prefix}${process.pid}`)); } catch { /* Another worker took it. */ } }
+  const taken = fs.list(dir).filter(name => name.startsWith(prefix)).sort().map(name => join(dir, name));
   const deliveries = new Map();
   for (const file of taken) {
     const lines = [];
-    for (const line of readFileSync(file, 'utf8').split('\n')) {
+    for (const line of fs.readFile(file, 'utf8').split('\n')) {
       let entry;
       try { entry = JSON.parse(line); } catch { continue; }
       if (typeof entry?.agent !== 'string') continue;
@@ -62,8 +58,8 @@ export function drainInboxMarks(boardFile, { enqueue, flush, recordDelivery }) {
   const written = flush();
   for (const [file, lines] of deliveries) {
     if (recordDelivery) for (const { agent, delivery } of lines) recordDelivery(agent, delivery);
-    if (recordDelivery || !lines.length) rmSync(file, { force: true });
-    else writeFileSync(file, lines.map(entry => JSON.stringify(entry)).join('\n') + '\n', { mode: 0o600 });
+    if (recordDelivery || !lines.length) fs.rm(file, { force: true });
+    else fs.writeFile(file, lines.map(entry => JSON.stringify(entry)).join('\n') + '\n', { mode: 0o600 });
   }
   return written;
 }
