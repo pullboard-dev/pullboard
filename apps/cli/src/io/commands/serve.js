@@ -64,6 +64,7 @@ import { provideComparisonStart } from '../../../../../packages/api/index.js';
 import { provideLandingStart } from '../../../../../packages/api/index.js';
 import { provideScreenStart } from '../../../../../packages/api/index.js';
 import { providePostLandMainTest } from '../../../../../packages/api/index.js';
+import { providePostLandPullOut } from '../../../../../packages/api/index.js';
 import { runScreenJob } from '../../../../../packages/drive/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/heavy.js';
 import { countTrialGate } from '../../../../../packages/gate/heavy.js';
@@ -159,6 +160,7 @@ export async function serveHere(io, values) {
   provideLandingStart(startReceiptLanding);
   provideScreenStart(startReceiptScreen);
   providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
+  providePostLandPullOut(startPostLandPullOut);
   traceServeStartup('serve-listen-start');
   // serve.pullRoute (off by default): runners that dial out pull jobs through this API's /pull/ routes [C7,#8765].
   const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
@@ -227,6 +229,16 @@ function startPulledComparison(request) {
 }
 
 /**
+ * Run the pull-out of the sprint items a red main-wide test receipt reopened: revert each landing on the trunk and record it pulled.
+ * Why: the reopen writes pull_out, and only a land job offer started the landing wake, so the work stayed on main [M2,R3,#12184].
+ * @param {{ root: string, items: number[] }} request
+ */
+export async function startPostLandPullOut({ root, items }) {
+  const [{ wakeIo }, { pullOutPulling }] = await Promise.all([import('../landing/automatic.js'), import('../landing/pull-out.js')]);
+  return pullOutPulling(context(wakeIo(root)), items);
+}
+
+/**
  * Offer the land job for an item a gate receipt left accepted, as `verify accept` offers it, from the board host's main
  * checkout. Why: a carried merge-only accept runs no verify command, so without this its item waited accepted with no
  * land job (#7948). The lander loads with the first such receipt.
@@ -276,6 +288,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideLandingStart(startReceiptLanding);
   provideScreenStart(startReceiptScreen);
   providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
+  providePostLandPullOut(startPostLandPullOut);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -321,6 +334,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
   provideLandingStart(startReceiptLanding);
   provideScreenStart(startReceiptScreen);
   providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
+  providePostLandPullOut(startPostLandPullOut);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');
