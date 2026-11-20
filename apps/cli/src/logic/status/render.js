@@ -37,6 +37,10 @@ export function statusLines(summary, options) {
   for (const warning of summary.runnerUtilization.warnings) lines.push(warning);
   lines.push(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);
   lines.push(`capacity: ${summary.capacity.liveAgents} live, ${summary.capacity.idleAgents} idle, ${summary.capacity.readyItems} ready item${summary.capacity.readyItems === 1 ? '' : 's'}`);
+  for (const [route, ready] of Object.entries(summary.capacity.readyByRoute ?? {})) {
+    const builders = summary.capacity.buildersByRoute?.[route] ?? 0;
+    lines.push(`ready buffer: ${route} ${ready} ready, ${builders > 0 ? `${builders} builders = ${(ready / builders).toFixed(1)}x` : 'no builders'}`);
+  }
   for (const seat of summary.agents.filter(seat => all || seat.presence !== 'gone')) lines.push(`${seat.agent_id}: ${seat.presence}${seat.heartbeatAt ? ` (heartbeat ${seat.heartbeatAt})` : ' (no local heartbeat)'}`);
   if (summary.memoryHeld === null) lines.push('local memory hold status unavailable; pullboard resources shows the queue');
   else for (const run of summary.memoryHeld) lines.push(`local memory holds ${run.agent}${run.item ? ` #${run.item}` : ''}${run.kind ? ` (${run.kind})` : ''}${run.repo ? ` in ${run.repo}` : ''}`);

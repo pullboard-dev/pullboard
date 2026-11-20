@@ -224,3 +224,30 @@ test('health.capture.waiters-same-answer: clause 1: the once-per-pass waited set
   assert.deepEqual([...waited].sort(), ['105', '15', '25', '5']);
   for (let id = 1; id <= 120; id += 1) assert.equal(waited.has(String(id)), dependencyWaiters(board, id).length > 0, `#${id}`);
 });
+
+/** A real board: one seat claimed `claimedAgo` minutes ago on a one-minute lease, heartbeating now, and a helper seat to run the capture. */
+function idleFixture(t, claimedAgo) {
+  const files = privateFixtureFiles('pullboard-capture-idle-30-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  let now = Date.now() - claimedAgo * MINUTE;
+  const board = fixtureBoard(t, { clock: { now: () => new Date(now) } });
+  register(board, { lane: 'coordinator', path: join(files.root, 'coordinator') });
+  mkdirSync(join(files.root, 'seat'));
+  const holder = register(board, { lane: 'core', path: join(files.root, 'seat'), route: 'strong' });
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Work', criterion: 'Work' });
+  claim(board, id, { agentId: holder, lane: 'core', leaseMs: MINUTE, freeze: () => ({ text: 'Work', digest: 'bar' }) });
+  const helper = register(board, { lane: 'core', path: join(files.root, 'helper'), route: 'strong' });
+  now = Date.now();
+  logEvent(board, holder, 'heartbeat', id, {});
+  const rows = () => (captureLapsedClaims({ clock: { now: () => new Date(now) }, config: {} }, board, helper)?.claims ?? []);
+  return { id, rows };
+}
+
+test('health.io-stale-state-capture.idle-30-releases: clause 2: a claim whose seat heartbeats but made no non-renewal move or commit for 31 minutes is captured as an idle release with a handoff, and none at 29 minutes [C7,#12468,clause 2]', t => {
+  const old = idleFixture(t, 31);
+  const released = old.rows();
+  assert.deepEqual(released.map(row => [row.id, row.idle]), [[old.id, 'release']], 'idle for 31 minutes: released');
+  assert.ok(released[0].handoff, 'the release row carries a handoff');
+  const young = idleFixture(t, 29);
+  assert.deepEqual(young.rows(), [], 'idle for 29 minutes: no row');
+});

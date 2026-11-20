@@ -20,10 +20,6 @@ import { agentSessionDigest } from '../../../../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next/monitor.js';
-import { mainRedReviewItems } from '../../../../../packages/landing/index.js';
-import { mainRedReworkItems } from '../../../../../packages/landing/index.js';
-import { passingMainRedItems } from '../../../../../packages/landing/index.js';
-import { computedReturnArgs } from '../../../../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
@@ -96,6 +92,10 @@ function builderWithLiveReviewSeat(board, me) {
 }
 
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
+const mainRedReviewItems = (...args) => requireModule('../../../../../packages/landing/index.js').mainRedReviewItems(...args);
+const mainRedReworkItems = (...args) => requireModule('../../../../../packages/landing/index.js').mainRedReworkItems(...args);
+const passingMainRedItems = (...args) => requireModule('../../../../../packages/landing/index.js').passingMainRedItems(...args);
+const computedReturnArgs = (...args) => requireModule('../../../../../packages/landing/index.js').computedReturnArgs(...args);
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
 const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/health/index.js').shoutStarvedReviews(...args);
 
