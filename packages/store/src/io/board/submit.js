@@ -16,6 +16,8 @@ import { clauseInspectionProblem } from '../../../../state/index.js';
 import { clauseInspectionSummary } from '../../../../state/index.js';
 import { clauseReceiptNotes } from '../../../../state/index.js';
 import { gateClauseTickNotes } from '../../../../state/index.js';
+import { clauseTicks } from '../../../../state/index.js';
+import { criterionClauses } from '../../../../state/index.js';
 import { testCaseTitles } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
@@ -342,6 +344,64 @@ function committedTitleCases(board, commit, files) {
     .flatMap(file => { const shown = tryGit(board.gitRoot, ['show', `${commit}:${file}`]); return shown.status === 0 ? testCaseTitles(file, shown.stdout) : []; });
 }
 
+/** A run id (UUID) holds hex groups a sha reader would take for commits, so it is cut from a tick before its shas are read. */
+const RUN_ID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gu;
+const CITED_SHA = /\b[0-9a-f]{7,40}\b/gu;
+/** The stable ID that opens a case title, such as `store.io-board-submit.some-case:`. */
+const CASE_ID = /^([a-z][a-z0-9]*(?:\.[a-z0-9][a-z0-9-]*)+):/u;
+
+/**
+ * One note per [test] clause (declared or undeclared) the holder has not ticked at `head` whose latest tick by an earlier
+ * author names gate-run test files that a green gate passed at `head` and that hold the same content at a commit the tick
+ * cites. The note names the gate run, the head, the earlier author and the cited commit, so the thread keeps which run
+ * proved the clause and which tick mapped it to its files. [command], [measurement], [reasoning] and [screenshot] clauses
+ * never carry. Why: a rework seat merges main and resubmits, the earlier holder's ticks cite older heads, a sharded gate's
+ * combined proof keeps no per-case outcomes, and accept refused CLAUSE_UNTICKED on a green gate (#9176, #11858) [C7].
+ *
+ * @param {object} board - The open board; board.gitRoot holds the cited commits.
+ * @param {object} item - The submitted item.
+ * @param {object[]} thread - The item's thread, oldest first.
+ * @param {{ gateFiles: Set<string>, outcomes?: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string }} run - Files the green gate ran, its per-case outcomes and the head it proved.
+ * @returns {string[]} Note texts for the item's thread.
+ */
+export function carriedClauseTickNotes(board, item, thread, { gateFiles, outcomes = [], head }) {
+  if (!board.gitRoot || !/^[0-9a-f]{7,64}$/u.test(String(head ?? ''))) return [];
+  const rows = Array.isArray(outcomes) ? outcomes.filter(row => row && typeof row.file === 'string' && typeof row.name === 'string') : [];
+  const criterion = item.item_criterion;
+  const held = clauseTicks(thread, item.item_owner, { criterion, head });
+  const latest = new Map();
+  for (const entry of thread) if (entry.type === 'fact' && entry.kind === 'note' && entry.by && entry.by !== item.item_owner) { latest.delete(entry.by); latest.set(entry.by, true); }
+  const authors = [...latest.keys()].reverse().map(author => ({ author, ticks: clauseTicks(thread, author, { criterion }) }));
+  const shown = new Map();
+  const content = (sha, file) => {
+    const key = `${sha}:${file}`;
+    if (!shown.has(key)) { const read = tryGit(board.gitRoot, ['show', key]); shown.set(key, read.status === 0 ? String(read.stdout) : null); }
+    return shown.get(key);
+  };
+  const notes = [];
+  for (const clause of criterionClauses(criterion)) {
+    if (held.has(clause.number) || (clause.kind !== null && clause.kind !== 'test')) continue;
+    for (const { author, ticks } of authors) {
+      const tick = ticks.get(clause.number);
+      if (tick?.kind !== 'test') continue;
+      const named = new Set([...gateFiles].filter(file => file && tick.evidence.includes(file)));
+      const cases = rows.filter(row => gateFiles.has(row.file) && tick.evidence.includes(CASE_ID.exec(row.name)?.[1] ?? '\0'));
+      for (const row of cases) named.add(row.file);
+      if (!named.size) continue;
+      const ran = rows.filter(row => named.has(row.file));
+      if (ran.some(row => !row.skipped && !row.passed) || cases.some(row => row.skipped || !row.passed)) continue;
+      if ([...named].some(file => ran.some(row => row.file === file) && !ran.some(row => row.file === file && row.passed && !row.skipped))) continue;
+      const cited = String(tick.evidence).toLowerCase().replace(RUN_ID, ' ').match(CITED_SHA) ?? [];
+      const sha = cited.find(one => [...named].every(file => { const before = content(one, file); return before !== null && before === content(head, file); }));
+      if (!sha) continue;
+      const files = [...named].sort().join(' ');
+      notes.push(`clause ${clause.number} [test]: gate run of ${files} green at ${String(head).slice(0, 12)}, carried from ${author}'s tick at ${sha.slice(0, 12)}; ${files} unchanged since ${sha.slice(0, 12)}`);
+      break;
+    }
+  }
+  return notes;
+}
+
 /**
  * The clause checklist notes a settled submission earns, as the inline submit appended them: a green gate's tick note
  * for each [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary. Why here: the
@@ -354,6 +414,7 @@ function committedTitleCases(board, commit, files) {
  */
 export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks = false, titleTicks = false }, append) {
   if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head, folderTicks, titleTicks })) append(text);
+  if (green) for (const text of carriedClauseTickNotes(board, getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head })) append(text);
   // The fail-before, pass-after receipt, stored once: the gate's green head rows against the recorded runs of the base commit [C7].
   const base = getItem(board, id).item_claim_head;
   if (green) for (const text of clauseReceiptNotes(getItem(board, id), itemThread(board, id), { gateFiles, baseRows: recordedBaseRows(board, base), outcomes, head, baseCommit: base })) append(text);
