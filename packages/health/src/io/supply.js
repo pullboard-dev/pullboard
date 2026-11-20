@@ -17,7 +17,7 @@
 export function noReviewerSupplyFindings(board, items, seats, now, finding, submittedAt, verify) {
   const out = [];
   for (const item of items) {
-    if (item.item_status !== 'submitted' || item.item_review_by) continue;
+    if (item.item_status !== 'submitted' || verify.reviewHolder(board, item)) continue;
     const others = seats.filter(seat => seat.agent_id !== item.item_built_by && seat.agent_lane !== 'coordinator');
     const limited = others.filter(seat => verify.limitProblem(board, item, seat.agent_id));
     if (!limited.length || limited.length !== others.length) continue;
