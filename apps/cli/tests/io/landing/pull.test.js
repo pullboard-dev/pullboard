@@ -17,6 +17,7 @@ import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
 import { offerOverConflict } from '../../fixtures/landing/conflict-offer.js';
 import { offerWithLog } from '../../fixtures/landing/offer.js';
+import * as store from '../../../../../packages/store/index.js';
 import { fixtureBoard } from '../../fixtures/board.js';
 import { temporaryDirectory } from '../../fixtures/board.js';
 
@@ -115,6 +116,32 @@ test('cli.io-landing-pull.offer-unchanged-outside-lock: clause 2: the offered jo
   assert.deepEqual(raced.result.items, [1], 'only #1 is left to this offer');
 });
 
+/** A verdict row the sweep stores for a plain stale verdict: the file a main change touched and the commit that changed it. */
+const staleRow = main => ({ code: 'STALE_VERDICT', file: 'a.js', commit: main });
+
+test('cli.io-landing-pull.table-staleness-reopens: clause 1: with health.derivedState on and a table current for main, an item the table marks stale goes back to its lane and a fresh one is offered, though git alone finds both fresh [C7,#3010]', async t => {
+  const { board, jobs, result } = await offerWithLog(t, { derived: { verdicts: { 1: staleRow('1'.repeat(40)) } } });
+  assert.equal(store.getItem(board, 1).item_status, 'open', 'the stale one returned to its lane');
+  assert.equal(store.getItem(board, 2).item_status, 'verified');
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2]], 'only the fresh one is offered');
+  assert.deepEqual(result.items, [2]);
+});
+
+test('cli.io-landing-pull.table-not-current-computes: clause 2: with a table swept at an older main, or with the setting off, freshness is computed as on main and both items are offered [C7,#3010]', async t => {
+  for (const derived of [{ swept: 'older', verdicts: { 1: staleRow('1'.repeat(40)) } }, { setting: false, verdicts: { 1: staleRow('1'.repeat(40)) } }]) {
+    const { board, jobs } = await offerWithLog(t, { derived });
+    assert.equal(store.getItem(board, 1).item_status, 'verified', JSON.stringify(derived));
+    assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[1], [2]], JSON.stringify(derived));
+  }
+});
+
+test('cli.io-landing-pull.table-wired-into-offer: clause 3: production wiring: offerPulledLanding hands the table verdicts to withoutStaleVerdicts, so a current table offers the same items with fewer git starts before the lock than the setting off [C7,#3010]', async t => {
+  const off = await offerWithLog(t, { derived: { setting: false } });
+  const on = await offerWithLog(t, { derived: {} });
+  assert.deepEqual(on.jobs.map(job => job.items.map(entry => entry.id)), off.jobs.map(job => job.items.map(entry => entry.id)));
+  assert.ok(on.beforeLock < off.beforeLock, `git starts before the lock: ${on.beforeLock} with the table, ${off.beforeLock} without`);
+});
+
 test('cli.io-landing-pull.step-aside-head-goes-behind: clause 1: offerPulledLanding offers an accepted item with 2 infrastructure failures behind the next accepted item [C7,#3118]', async t => {
   const { jobs, result } = await offerWithLog(t, { lapses: { 1: 2 } });
   assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2], [1]], 'the head with two failures goes behind #2');
@@ -210,4 +237,18 @@ test('cli.landing-pull.items-carry-pace: clause 1: a landing offered for one ite
   const paceOf = id => jobs.flatMap(job => job.items).find(entry => entry.id === id)?.pace;
   assert.equal(paceOf(1), 'sprint');
   assert.equal(paceOf(2), 'steady');
+});
+
+test('cli.landing-pull.payload-sprint-plan: clause 1: a landing offered for a sprint item carries payload.sprint { static, testCommand, testFiles } built from the configured static check and affected-tests command, and a landing of steady items only carries no sprint key [V2,M1,#12229]', async t => {
+  const config = { staticChecks: 'npm run static', affectedTests: 'node --test' };
+  const sprint = (await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, config })).jobs.map(job => job.sprint).find(Boolean);
+  assert.deepEqual(sprint.static, ['sh', '-c', 'npm run static']);
+  assert.equal(sprint.testCommand.slice(0, 2).join(' '), 'sh -c');
+  assert.match(sprint.testCommand[2], /node --test "\$@"$/u);
+  assert.match('packages/demo/tests/ok.test.js', new RegExp(sprint.testFiles, 'u'));
+  const bare = (await offerWithLog(t, { paces: { 1: 'sprint' } })).jobs.map(job => job.sprint).find(Boolean);
+  assert.equal(bare.static, null);
+  assert.deepEqual(bare.testCommand, ['false']);
+  const steady = await offerWithLog(t, { paces: { 1: 'steady', 2: 'steady' }, config });
+  assert.equal(steady.jobs.some(job => 'sprint' in job), false);
 });

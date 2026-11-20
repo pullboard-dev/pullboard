@@ -1,0 +1,16 @@
+{
+  "cli.io-commands-verify.isolated-flag": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "verdictIsolation is true when the check ran in the board-made review folder, or when a runner receipt at the submitted commit backs it, and false otherwise."
+    },
+    "why": "Without it, a verdict could not say whether its check ran in the reviewer's own checkout or in an isolated copy of the commit.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/verify.js",
+      "apps/cli/tests/io/commands/verify.test.js"
+    ]
+  }
+}

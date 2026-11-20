@@ -16,7 +16,7 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../../../../packages/runners/index.js';
-import { awaitNestedRun } from '../../../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../../../packages/gate/heavy.js';
 import {
   runFixtureChild,
   runFixtureChildAsync,
@@ -91,12 +91,12 @@ async function producer(box, checks) {
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gate/index.js';
+import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gate/heavy.js';
 import {runnerExecutionServices} from './.tooling/packages/runners/index.js';
 import {landingExecutionServices} from './.tooling/packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
-import {isStampedGreen} from './.tooling/packages/gate/index.js';
-import {releaseReceiptBody,releaseParticipationDigest,releaseTiming} from './.tooling/packages/gate/index.js';
+import {isStampedGreen} from './.tooling/packages/gate/heavy.js';
+import {releaseReceiptBody,releaseParticipationDigest,releaseTiming} from './.tooling/packages/gate/heavy.js';
 import {closeBoard} from './.tooling/packages/store/index.js';
 import {openBoard} from './.tooling/apps/lib/index.js';
 const root=process.cwd();

@@ -1,11 +1,11 @@
-import { REJECT_OPEN_ENGINE } from '../../../../../state/light.js';
-import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
-import { READINESS_ENGINE } from '../../../../../state/light.js';
-import { NEEDS_ENGINE } from '../../../../../state/light.js';
-import { LEASE_LAPSE_ENGINE } from "../../../../../state/light.js";
-import { CHECK_TIMING_ENGINE } from "../../../../../state/light.js";
-import { ENGINE_VERSION } from "../../../../../state/light.js";
-import { REJECTED_WORK_RETURN_ENGINE } from "../../../../../state/light.js";
+import { REJECT_OPEN_ENGINE } from '../../../../../state/browser.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../../../state/browser.js';
+import { READINESS_ENGINE } from '../../../../../state/browser.js';
+import { NEEDS_ENGINE } from '../../../../../state/browser.js';
+import { LEASE_LAPSE_ENGINE } from "../../../../../state/browser.js";
+import { CHECK_TIMING_ENGINE } from "../../../../../state/browser.js";
+import { ENGINE_VERSION } from "../../../../../state/browser.js";
+import { REJECTED_WORK_RETURN_ENGINE } from "../../../../../state/browser.js";
 /** Pure per-item reads without loading the query facade [C7,H16,B13]. */
 import { Refused } from "../../../../../kernel/light.js";
 /**

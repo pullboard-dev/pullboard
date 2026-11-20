@@ -6,6 +6,7 @@ import { logEvent } from "./event/log.js";
 import { Refused } from "../../../../kernel/index.js";
 import { coordinatorOnly } from "../board.js";
 import { setItem } from "../board.js";
+import { endReservation } from "./hold/item.js";
 import { closeItemAsks } from "./decision/answer.js";
 import { withdraw } from "./withdraw.js";
 import { endItemGateJobs } from "../../../../jobs/index.js";
@@ -72,6 +73,8 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
     // A strict item with a counting full-suite receipt lands and publishes in the one transaction: the table's published event follows the merged one [M2,#9327].
     for (const event of decided?.events?.filter(each => each.kind === 'published') ?? []) logEvent(board, agentId, 'published', id, event.detail);
     closeItemAsks(board, id, { agentId, reason: 'landed' });
+    // route.reservations: a reservation ends when its item lands [C7,#9162].
+    endReservation(board, id, { agentId, why: 'item landed' });
     if (composeLanding === true) {
       const slices = board.db.prepare("SELECT item_id FROM item WHERE item_parent_id = ? AND item_status = 'submitted' AND EXISTS (SELECT 1 FROM board_meta WHERE meta_key = 'item-slice:' || item_id) ORDER BY item_id").all(id);
       for (const slice of slices) withdraw(board, slice.item_id, { agentId, reason: `landed with parent #${id} at ${commit.slice(0, 12)}` });
