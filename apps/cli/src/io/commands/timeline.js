@@ -48,17 +48,18 @@ export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   if (!fleet) {
     const id = Number(first);
-    const timeline = withBoardRead(ctx, board => readItemTimeline(board, id));
+    const timeline = withBoardRead(ctx, board => readItemTimeline(board, id, { now: ctx.clock.now().getTime() }));
     if (!timeline.rows.length) throw refusal('NO_SUCH_ITEM', `no events for #${id}; check the item number with pullboard show`);
     io.result?.({ version: TIMELINE_VERSION, item: id, rows: timeline.rows, summary: timeline.summary, unmapped: timeline.unmapped });
     for (const line of itemLines(timeline)) io.say(line);
     return 0;
   }
   const window = values.since === undefined || values.since === true ? '3h' : values.since;
-  const since = sinceCutoff(window);
+  const now = ctx.clock.now().getTime();
+  const since = sinceCutoff(window, now);
   if (since === null) throw refusal('USAGE', `--since takes a number and s, m, h or d, like 3h; ${USAGE}`);
   const summary = withBoardRead(ctx, board => {
-    const read = readFleetTimelines(board, { since });
+    const read = readFleetTimelines(board, { since, now });
     return fleetSummary(read.timelines, read.fleetRows);
   });
   io.result?.({ version: TIMELINE_VERSION, since: window, summary });
