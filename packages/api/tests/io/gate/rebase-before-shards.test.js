@@ -18,7 +18,7 @@ import { offeredStep } from '../../../src/io/gate.js';
  * A claimed item whose gate job a runner holds, over a repository whose candidate and trunk both moved on from the claim base.
  * With `trunkHasCandidate`, the trunk head is the candidate itself, so there is nothing to rebuild.
  */
-function gateAt(t, { trunkHasCandidate }) {
+function gateAt(t, { trunkHasCandidate, conflict = false }) {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
@@ -31,10 +31,12 @@ function gateAt(t, { trunkHasCandidate }) {
   git(repo.root, ['config', 'user.email', 'gate@example.invalid']);
   git(repo.root, ['checkout', '-q', '-b', 'candidate', base]);
   repo.put('candidate-only.txt', 'candidate\n');
+  if (conflict) { repo.put('b-shared.txt', 'candidate\n'); repo.put('a-shared.txt', 'candidate\n'); }
   const candidate = repo.commitAll();
   const tree = headTree(repo.root);
   git(repo.root, ['checkout', '-q', '-b', 'trunk', trunkHasCandidate ? candidate : base]);
   if (!trunkHasCandidate) repo.put('trunk-only.txt', 'trunk\n');
+  if (conflict) { repo.put('b-shared.txt', 'trunk\n'); repo.put('a-shared.txt', 'trunk\n'); }
   const trunk = trunkHasCandidate ? candidate : repo.commitAll();
   const job = `gate:${item.item_id}:rebase`;
   offerJob(board.db, { id: job, kind: 'gate', needs: [], item: item.item_id, candidate, base, now: 1,
@@ -79,4 +81,19 @@ test('api.gate.rebase-before-shards.current-unchanged: clause 2: when the trunk 
   const posted = bare.post({ port: false });
   assert.equal(posted.applied.outcome, 'sharded', JSON.stringify(posted.applied));
   for (const row of shardRows(bare.board, bare.job)) assert.equal(row.candidate, bare.candidate, 'with no trunk port nothing is rebuilt');
+});
+
+test('api.gate.rebase-before-shards.conflict-returns: clause 1: when rebuildOnTrunk reports conflicts for the gate candidate, the receipt offers no shard, the item returns to its builder with a fact naming each conflicting file, and the gate job offers nothing further [C7,#12411]', t => {
+  const { board, job, candidate, trunk, post } = gateAt(t, { trunkHasCandidate: false, conflict: true });
+  const item = board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(job).job_item;
+  const posted = post();
+  assert.equal(posted.applied.outcome, 'conflict', JSON.stringify(posted.applied));
+  assert.deepEqual(posted.applied.conflicts, ['a-shared.txt', 'b-shared.txt']);
+  assert.equal(shardRows(board, job).length, 0, 'no shard job was offered');
+  const note = board.db.prepare("SELECT event_detail FROM event WHERE item_id = ? AND event_kind = 'fact'").all(item).map(row => JSON.parse(row.event_detail).text ?? '').find(text => text.includes('could not merge'));
+  assert.ok(note, 'the item carries a fact about the conflict');
+  assert.ok(note.includes('a-shared.txt') && note.includes('b-shared.txt'), note);
+  assert.ok(note.includes(candidate.slice(0, 12)) && note.includes(trunk.slice(0, 12)), note);
+  assert.ok(note.includes('merge current main, resolve the conflict, commit and resubmit'), note);
+  assert.equal(store.getItem(board, item).item_status, 'claimed', 'the item stays with its builder');
 });

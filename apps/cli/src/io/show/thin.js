@@ -3,7 +3,8 @@
  * light store and verdict reader alone, never the board barrel. Any item whose show also reads a receipt, a refusal, the
  * thread, typed fields, related links, an after-gate list, a submit or a foreign wait steps aside for the full path,
  * which keeps those heavy sections [C7,#12412].
- * Nothing calls this yet; the next slice wires it.
+ * `reads` lets the show command hand in readers for the progress, machine, independence and cost facts, so this door imports
+ * no cell for them; #12413 wires it.
  */
 import { trunkRef } from '../../../../../packages/sandbox/light.js';
 import * as store from '../../../../../packages/store/light.js';
@@ -26,10 +27,10 @@ function hasRows(board, table, column, id) {
  * The facts `pullboard show <id>` would print for a plain item, or null when the full path must run it: no readable
  * board, a drifted board, an unknown item, or an item carrying any heavy section.
  *
- * @param {{ cwd: string, id: number, clock?: any, conflictReader?: () => Promise<Function>, open?: Function }} request - conflictReader loads the merge index's mechanical conflict reader; open is the board opener, the store's read opener unless a test hands in another.
- * @returns {Promise<{ item: any, agents: any[], history: any[] } | null>}
+ * @param {{ cwd: string, id: number, clock?: any, conflictReader?: () => Promise<Function>, open?: Function, reads?: { progress: Function, machine: Function, independence: Function, cost: Function } }} request - conflictReader loads the merge index's mechanical conflict reader; open is the board opener, the store's read opener unless a test hands in another.
+ * @returns {Promise<{ item: any, agents: any[], history: any[], progress?: any, machine?: any, independence?: any, cost?: any } | null>}
  */
-export async function thinShowFacts({ cwd, id, clock = store.systemClock, conflictReader, open = store.openBoardForRead }) {
+export async function thinShowFacts({ cwd, id, clock = store.systemClock, conflictReader, open = store.openBoardForRead, reads }) {
   // With health.derivedState on the full path reads the derived-state table for verdict freshness, so the thin door steps aside [C7,#11373].
   if (derivedStateEnabled()) return null;
   const info = repoInfo(cwd);
@@ -56,7 +57,10 @@ export async function thinShowFacts({ cwd, id, clock = store.systemClock, confli
     if (meta('item_check_timing')?.meta_value === 'true') item.item_check_timing = true;
     const landingPhases = meta('landing_phases');
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
-    return { item, agents: store.listAgents(board), history };
+    const facts = { item, agents: store.listAgents(board), history };
+    // The caller's readers run on the open board and the projected item, inside this try, so a refusal steps aside like any other.
+    if (reads) for (const key of ['progress', 'machine', 'independence', 'cost']) facts[key] = reads[key](board, item);
+    return facts;
   } catch (error) {
     if (error instanceof store.ReadNeedsWrite || store.writeRefused(error) || store.schemaMissing(error)) return null;
     throw error;
