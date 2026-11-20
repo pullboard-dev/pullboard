@@ -4,7 +4,7 @@ import {
   posix,
   resolve,
 } from 'node:path';
-import { importsIn } from '../../index.js';
+import { importsIn } from '../../heavy.js';
 
 const LAUNCHERS = new Set(['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/chrome/args.js', 'apps/cli/tests/fixtures/cockpit/harness.js']);
 
