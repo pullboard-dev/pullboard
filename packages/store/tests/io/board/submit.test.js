@@ -84,7 +84,7 @@ function afterGateFixture(t, base) {
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'mid' });
   const file = name => `test/${name}.test.js`;
   const built = (title, name) => {
-    const id = store.addItem(board, { by: 'coordinator', lane: 'core', title, criterion: `1. ${file(name)} passes [test]`, specIds: ['C7'], route: 'mid', brief: `Files: src/${name}.js\nTest: ${file(name)} passes` });
+    const id = store.addItem(board, { by: 'coordinator', lane: 'core', title, criterion: `1. ${file(name)} passes [test]`, specIds: ['C7'], route: 'mid', check: 'true', brief: `Files: src/${name}.js\nTest: ${file(name)} passes` });
     store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: 3_600_000, freeze: () => ({ text: '{}', digest: `after-gate-${name}` }) });
     store.logEvent(board, builder, 'proof-run', id, { receipt: { id: `run-${name}`, kind: 'submit', item: id, commit: COMMIT, tree: TREE, green: true, exitCode: 0,
       testRuntimes: [{ file: file(name) }], testOutcomes: [{ file: file(name), name: 'passes', passed: true, skipped: false }] } });
