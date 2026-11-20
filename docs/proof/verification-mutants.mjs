@@ -24,7 +24,7 @@ const MOVED_TREE = ['apps/cli/journeys/runner/moved.pull.test.js', 'a pulled gat
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
-  ['V1', 'the builder may verify its own work', [['packages/store/src/io/board.js', 'notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),', 'notBuilder: () => null,']], ['apps/cli/journeys/resume/board.test.js', 'the builder never verifies its own work'], 'red'],
+  ['V1', 'the builder may verify its own work', [['packages/store/src/io/board.js', 'notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem, soloLowStakes }),', 'notBuilder: () => null,']], ['apps/cli/journeys/resume/board.test.js', 'the builder never verifies its own work'], 'red'],
   ['V2', 'every claim refreezes the criterion', [['packages/store/src/io/board/claim.js', '        if (found.item_frozen_digest !== null && !adopts && !refreshes) return null;\n', '']], ['apps/cli/journeys/resume/board.test.js', 'the first claim freezes the criterion'], 'red'],
   ['V2', 'the freeze leaves out the title', [['packages/spec/src/io/main.js', 'JSON.stringify({ title: item.item_title, criterion:', 'JSON.stringify({ criterion:']], ['apps/cli/journeys/spec/main.test.js', 'the frozen criterion covers title'], 'red'],
   ['V2', 'the freeze leaves out the cited row text', [['packages/spec/src/io/main.js', 'return { id, text: row.text, gate: row.gate,', 'return { id, gate: row.gate,']], ['apps/cli/journeys/spec/main.test.js', 'the frozen criterion covers title'], 'red'],

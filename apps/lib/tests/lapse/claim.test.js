@@ -1,4 +1,4 @@
-/** A claim on a coordinator-pinned item with no real work for 30 minutes lapses to open; other claims keep 40 [C7]. */
+/** A claim with no real work for 30 minutes lapses to open, pinned or not; none lapses at 29 [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -98,15 +98,17 @@ test('lib.lapse-claim.a-claim-on-a-pinned-item: a claim on a pinned item idle fo
   assert.equal(store.getItem(f.board, a).item_owner, f.second, 'another seat takes the lapsed item');
 });
 
-test('lib.lapse-claim.an-unpinned-claim-idle-for-30: an unpinned claim idle for 30 minutes keeps its seat until 40 [C7]', t => {
+test('lib.lapse-claim.an-unpinned-claim-idle-for-30: an unpinned claim idle for 30 minutes lapses to open, the same 30 as every claim [C7]', t => {
   const f = fixture(t);
   const a = f.add();
   f.claim(a, f.first);
   f.touch(f.first, 'work.txt');
-  f.advance(30);
+  f.advance(29);
   f.maintain();
-  assert.equal(store.getItem(f.board, a).item_status, 'claimed', 'only pinned items use the shorter interval');
-  f.advance(10);
+  assert.equal(store.getItem(f.board, a).item_status, 'claimed', 'under 30 idle minutes the unpinned claim stays');
+  f.advance(1);
   f.maintain();
-  assert.equal(store.getItem(f.board, a).item_status, 'open');
+  const lapsed = store.getItem(f.board, a);
+  assert.equal(lapsed.item_status, 'open', 'thirty idle minutes return an unpinned item to the queue too');
+  assert.equal(lapsed.item_owner, null);
 });

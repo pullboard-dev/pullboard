@@ -1,0 +1,15 @@
+{
+  "view.io-serve.compat-cells": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: GET /compat-cells answers the compat cells of the root runs file as JSON, read only."
+    },
+    "why": "Without it the page would have no feed of recorded conformance runs.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/serve.test.js"
+    ]
+  }
+}

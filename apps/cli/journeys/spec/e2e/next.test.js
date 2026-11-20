@@ -5,6 +5,7 @@
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../tests/fixtures/child.js';
+import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -56,7 +57,6 @@ test('cli.journeys-spec-e2e-next.verify-runs-at-the-submitted-commit: verify run
   assert.match(unsaid.err, /MAIN_IS_COORDINATOR\] this is the main checkout, so this verdict would be the coordinator's/);
   assert.match(unsaid.err, new RegExp(`Agent worktrees: web-1 \\(fixture-model\\) at ${box.web}`));
   assert.match((await box.runIn(box.web, 'verify', '1', 'accept', '--as', 'coordinator')).err, /USAGE.*only in the main checkout/);
-  assert.match((await box.runIn(box.repo, 'verify', '1', 'accept', '--as', 'coordinator')).err, /NOT_AT_COMMIT/);
   box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('The page renders.', 'The page renders a heading.'));
   assert.equal((await box.runIn(box.repo, 'spec', 'approve', 'G1')).code, 0);
@@ -71,9 +71,13 @@ test('cli.journeys-spec-e2e-next.verify-runs-at-the-submitted-commit: verify run
   assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
   assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(resubmitted.out))).gate.green, true);
   const submittedHead = JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_commit;
-  box.git(box.repo, 'switch', '--detach', submittedHead);
+  // verify.reviewFolder (on by default): the checks run in a detached folder at the submitted commit, so the checkout that is not at it stays where it is [C7].
+  const mainHead = box.git(box.repo, 'rev-parse', 'HEAD').trim();
+  assert.notEqual(mainHead, submittedHead);
   assert.match((await box.runIn(box.repo, 'verify', '1', 'accept', '--as', 'coordinator')).err, /PROOF_REQUIRED/);
   assert.match((await box.runIn(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed the heading; the page test failed')).out, /verified #1: CRITERION_MET/);
+  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD').trim(), mainHead, 'the seat checkout is untouched by the verdict');
+  assert.equal(existsSync(join(box.repo, '.git', 'pullboard-review-folders')), true, 'the checks ran in a review folder');
   const show = (await box.runIn(box.repo, 'show', '1')).out;
   assert.match(show, /G1: The page renders a heading\./);
   assert.match(show, /ACCEPT CRITERION_MET by coordinator/);
@@ -133,7 +137,10 @@ test('cli.journeys-spec-e2e-next.next-verify-can-reserve-a-named: next --verify 
   const named = await box.runIn(reviewers[0], 'next', '--verify', String(second));
   assert.equal(named.code, 0, named.err);
   assert.match(named.out, new RegExp(`next to verify: #${second} Second review, built by web-1`));
-  assert.match(named.out, new RegExp(`check out exactly that commit, here: cd ${reviewers[0]} && git switch --detach [0-9a-f]{40}`));
+  // verify.reviewFolder (on by default): next --verify names a detached folder at the submitted commit and leaves this checkout alone [C7].
+  const folderLine = named.out.match(/review folder at that commit: (\S+) \(read it there; this checkout is untouched\)/);
+  assert.ok(folderLine, named.out);
+  assert.equal(box.git(folderLine[1], 'rev-parse', 'HEAD').trim(), box.git(box.repo, 'rev-parse', 'HEAD').trim());
   const namedJson = await box.runIn(reviewers[0], 'next', '--verify', String(second), '--json');
   assert.equal(namedJson.code, 0, namedJson.err);
   const result = JSON.parse(namedJson.out);

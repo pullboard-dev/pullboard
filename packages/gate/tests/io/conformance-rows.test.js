@@ -18,9 +18,9 @@ test('gate.io-conformance-rows.rows-from-runs-file: clause 1: conformanceRows re
   files.write('bin/cargo', '#!/bin/sh\n');
   files.write('bin/node', '#!/bin/sh\n');
   files.write('bin/go', 'not executable\n');
-  chmodSync(join(files.root, 'bin', 'cargo'), 0o755);
-  chmodSync(join(files.root, 'bin', 'node'), 0o755);
-  chmodSync(join(files.root, 'bin', 'go'), 0o644);
+  chmodSync(join(files.root, 'bin/cargo'), 0o755);
+  chmodSync(join(files.root, 'bin/node'), 0o755);
+  chmodSync(join(files.root, 'bin/go'), 0o644);
   const rows = conformanceRows({ root: files.root, pathValue: join(files.root, 'bin') });
   assert.equal(rows.length, 9 * CONFORMANCE_STAGES.length);
   assert.deepEqual(rows.find(row => row.language === 'node' && row.stage === 'claim'), { language: 'node', stage: 'claim', outcome: 'works', run: 'run-new' });
@@ -33,7 +33,7 @@ test('gate.io-conformance-rows.rows-from-runs-file: clause 1: conformanceRows re
 test('gate.io-conformance-rows.no-file-and-bad-file: clause 2: with no runs file every row is unknown or unavailable and nothing throws, and a runs file that is not a JSON list is refused naming the file [C7]', () => {
   const files = privateFixtureFiles('pullboard-fixture-conformance-rows-');
   files.write('bin/node', '#!/bin/sh\n');
-  chmodSync(join(files.root, 'bin', 'node'), 0o755);
+  chmodSync(join(files.root, 'bin/node'), 0o755);
   const rows = conformanceRows({ root: files.root, pathValue: join(files.root, 'bin') });
   assert.ok(rows.every(row => ['unknown', 'unavailable'].includes(row.outcome) && row.run === null));
   assert.equal(rows.find(row => row.language === 'node' && row.stage === 'claim').outcome, 'unknown');
