@@ -11,7 +11,7 @@ import { makeMergeBoard } from '../../tests/fixtures/land/merge-board.js';
 /** Item ids the selection offers, in the order it offers them. */
 const ready = (board, root, base, options = {}) => candidates(board, root, base, 8, options).ready.map(item => item.item_id);
 
-test('clause 1: after the head fails twice on infrastructure the next accepted item lands, and the head keeps its accept and lands after it [C7,#3118]', t => {
+test('cli.journeys-land-step-aside.next-accepted-item-lands-after-head-fails-twice: after the head fails twice on infrastructure the next accepted item lands, and the head keeps its accept and lands after it [C7,#3118]', t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const { boardFixture, accepted } = makeMergeBoard(e2e);
