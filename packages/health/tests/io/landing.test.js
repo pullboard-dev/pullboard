@@ -33,16 +33,23 @@ function fixture(t) {
 test('health.landing.refused-shouts-escalates: a refused batch shouts its item and code, then escalates after fifteen unanswered minutes [B3,R3,A6,C7]', t => {
   const box = fixture(t);
   const revision = box.board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n;
-  recordHealthFindings(box.board, { agentId: 'coordinator', observedRevision: revision,
-    findings: [{ key: 'existing', cause: 'EXISTING', item: null, subject: 'another issue', title: 'waiting',
-      since: box.batch.updatedAt, why: 'another cause', next: 'continue its repair', owner: { who: 'coordinator' } }] });
-  assert.ok(box.publish());
-  const coordinator = box.board.db.prepare("SELECT * FROM shout WHERE shout_to='coordinator' ORDER BY shout_id DESC").all();
-  assert.ok(coordinator.some(row => row.shout_text.includes('#' + box.item) && row.shout_text.includes('COMMIT_HEADER_LONG')));
+  const existing = { key: 'existing', cause: 'EXISTING', item: null, subject: 'another issue', title: 'waiting',
+    since: box.batch.updatedAt, why: 'another cause', next: 'continue its repair', owner: { who: 'coordinator' } };
+  recordHealthFindings(box.board, { agentId: 'coordinator', observedRevision: revision, findings: [existing] });
+  const observation = box.publish();
+  assert.ok(observation);
+  assert.ok(observation.findings.some(row => row.title.includes('COMMIT_HEADER_LONG') && row.subject === '#' + box.item), 'the finding names its item and code');
+  const digests = () => box.board.db.prepare("SELECT * FROM shout WHERE shout_to='coordinator' AND shout_text LIKE 'Digest:%' ORDER BY shout_id DESC").all();
+  assert.deepEqual(digests(), [], 'a routine finding is buffered inside the digest window, not shouted at once');
   assert.equal(box.publish(), null, 'an unchanged finding is not shouted twice');
+  box.advance(10);
+  recordHealthFindings(box.board, { agentId: 'coordinator', observedRevision: box.board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n,
+    findings: [...landingFailureFindings(box.board), existing] });
+  assert.ok(digests().some(row => row.shout_text.includes('#' + box.item)), 'the coordinator digest line names the refused item once the window has passed');
+  assert.equal(digests().length, 1, 'one digest line, not one per finding');
   const active = JSON.parse(box.board.db.prepare("SELECT event_detail FROM event WHERE event_kind='health-scan' ORDER BY event_id DESC LIMIT 1").get().event_detail).active;
   assert.ok(active.some(row => row.key === 'existing'), 'a landing notice never clears unrelated health');
-  box.advance(14);
+  box.advance(4);
   assert.equal(landingFailureFindings(box.board)[0].owner.who, 'coordinator');
   box.advance(1);
   box.publish();
