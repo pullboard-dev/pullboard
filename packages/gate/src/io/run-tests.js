@@ -699,12 +699,12 @@ async function drainLandingWorkerDescendants(ownedDescendants, refreshOwnedDesce
 
 /** Run a landing check with execution-ordered failure detection and native runner reporters. */
 async function runLandingTests(args, env, concurrency, fullScope = false) {
-  const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
-  const collectionId = process.env[COLLECTION_ID_ENV];
-  const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
+  const collectAll = environment.get(LANDING_COLLECT_ALL_ENV) === '1';
+  const collectionId = environment.get(COLLECTION_ID_ENV);
+  const collectionShard = environment.get(LANDING_SHARD_ENV) ?? null;
   const { landingFailureReport, landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await services.landing();
   const retainedFailure = landingFailureReport();
-  const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
+  const waivers = landingWaiverProjection(environment.get(LANDING_WAIVERS_ENV));
   let testOutcomes = null;
   const waivedFiles = new Map();
   const hungFiles = new Set();
@@ -737,7 +737,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     options.reporters.push({ reporter: env.PULLBOARD_AUDIT_COVERAGE_REPORTER, destination: 'stdout' });
   }
   const reporterEntries = options.reporters;
-  if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
+  if (environment.get('PULLBOARD_TEST_ACTIONS')) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
   reporterEntries.push(...(await import('./test/progress.js')).sideReporters(testEnv)); // selection count and per-file progress (#5823)
   delete options.reporters;
   const loadedReporters = [];
@@ -968,10 +968,10 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   // owned descendant, detached ones included, is drained or named before this process exits.
   let stoppedByLanding = false;
   const stopShard = () => { stoppedByLanding = true; abortLandingRun(); };
-  if (process.env[LANDING_SHARD_ENV]) process.on('SIGTERM', stopShard);
-  const originalEnv = { ...process.env };
-  for (const key of Object.keys(process.env)) delete process.env[key];
-  Object.assign(process.env, testEnv, { [LANDING_RUN_ENV]: '0' });
+  if (environment.get(LANDING_SHARD_ENV)) process.on('SIGTERM', stopShard);
+  const originalEnv = environment.all();
+  for (const key of Object.keys(environment.all())) environment.delete(key);
+  for (const [key, value] of Object.entries({ ...testEnv, [LANDING_RUN_ENV]: '0' })) environment.set(key, value);
   try {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
