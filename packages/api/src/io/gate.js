@@ -44,6 +44,7 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
+import { seedWideMainTestsAtMain } from './recheck.js';
 import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
@@ -1150,10 +1151,12 @@ export function provideMainComparison(lookup) {
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, seedWideMainTests: seedWide = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
+    // With gate.seedWideMainTests on, wide-failing files get main's receipt queued once per board root and main sha (#12094).
+    if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
     settleDoneShardGates(board, ports, { now: options.now });
