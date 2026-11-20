@@ -86,6 +86,7 @@ const BEFORE = {
   'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
   'gate.retryNewRedsOnce': false,
+  'gate.seedWideMainTests': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300000,
@@ -609,4 +610,10 @@ test('config.io-settings-machine-defaults.health-advice-through-next: clause 1: 
   assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: false } }), false);
   assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: true } }), true);
   await assert.rejects(adviceThroughNextWith({ health: { adviceThroughNext: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /health\.adviceThroughNext/u.test(error.message));
+});
+
+test('config.io-settings-machine-defaults.seed-wide-main-default-off: clause 1: gate.seedWideMainTests is a described machine setting, boolean, default off, listed in BEFORE, and false with nothing set [C7,#12119]', () => {
+  assert.equal(BEFORE['gate.seedWideMainTests'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.seedWideMainTests'], false);
+  assert.equal(typeof SETTING_DESCRIPTIONS['gate.seedWideMainTests'].description, 'string');
 });

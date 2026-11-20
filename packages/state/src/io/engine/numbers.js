@@ -7,14 +7,7 @@
  * items can never take the same number and none waits on a stale one; a landed number never changes, so moves
  * recorded under it replay as they were written.
  */
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  mkdirSync,
-  lstatSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import {
   ENGINE_CANDIDATE,
@@ -45,8 +38,8 @@ export const UNASSIGNED_IMPORT = "import { unassignedEngine } from './engine-nex
  * @returns {{ file: string, name: string, number: number | null }[]} By file name; `number` is null until it lands.
  */
 export function readEngineLeaves(directory) {
-  return discovered(readdirSync(directory), ENGINE_CANDIDATE, ENGINE_FILE, 'feature engine').map((file) => {
-    const lines = readFileSync(join(directory, file), 'utf8').split('\n').filter((line) => /^export const /u.test(line));
+  return discovered(fileSystemAdapter().list(directory), ENGINE_CANDIDATE, ENGINE_FILE, 'feature engine').map((file) => {
+    const lines = fileSystemAdapter().readFile(join(directory, file), 'utf8').split('\n').filter((line) => /^export const /u.test(line));
     const match = lines.length === 1 ? ENGINE_LINE.exec(lines[0]) : null;
     if (!match) throw new Error(`${file} must declare exactly one line \`export const NAME_ENGINE = <number>;\`, or \`= unassignedEngine();\` until it lands, so ENGINE_VERSION can read it`);
     return { file, name: match[1], number: match[2] === undefined ? null : Number(match[2]) };
@@ -72,10 +65,10 @@ export function nextEngineNumber(leaves) {
  */
 export function assignEngineNumbers(root) {
   const directory = join(root, ENGINE_FOLDER);
-  if (!existsSync(directory)) return { files: [], assigned: [] };
+  if (!fileSystemAdapter().exists(directory)) return { files: [], assigned: [] };
   // Only a leaf that imports the placeholder is Pullboard's to number; any other file there is never read as a leaf.
-  const texts = readdirSync(directory).filter((file) => ENGINE_CANDIDATE.test(file)).sort()
-    .map((file) => ({ file, text: readFileSync(join(directory, file), 'utf8') }));
+  const texts = fileSystemAdapter().list(directory).filter((file) => ENGINE_CANDIDATE.test(file)).sort()
+    .map((file) => ({ file, text: fileSystemAdapter().readFile(join(directory, file), 'utf8') }));
   const leaves = texts.map(({ file, text }) => {
     const lines = text.split('\n').filter((line) => /^export const /u.test(line));
     const match = lines.length === 1 ? ENGINE_LINE.exec(lines[0]) : null;
@@ -92,15 +85,15 @@ export function assignEngineNumbers(root) {
   for (const leaf of unlanded) {
     next += 1;
     const path = join(directory, leaf.file);
-    const before = readFileSync(path, 'utf8');
+    const before = fileSystemAdapter().readFile(path, 'utf8');
     const text = before.split('\n').filter((line) => line !== UNASSIGNED_IMPORT).join('\n')
       .replace(/^(export const [A-Z][A-Z0-9_]*_ENGINE = )unassignedEngine\(\);$/mu, `$1${next};`);
-    writeFileSync(path, text);
+    fileSystemAdapter().writeFile(path, text);
     leaf.number = next;
     let history;
     try { history = appendRegistryHistory(root, leaf, leaves); } catch (error) {
       // A refused source or existing record must leave the placeholder available for an ordinary retry.
-      writeFileSync(path, before);
+      fileSystemAdapter().writeFile(path, before);
       leaf.number = null;
       throw error;
     }
@@ -108,12 +101,12 @@ export function assignEngineNumbers(root) {
     assigned.push({ name: leaf.name, number: next });
   }
   const table = join(root, ENGINE_TABLE);
-  if (existsSync(table)) { writeFileSync(table, engineTableSource(leaves)); files.push(ENGINE_TABLE); }
+  if (fileSystemAdapter().exists(table)) { fileSystemAdapter().writeFile(table, engineTableSource(leaves)); files.push(ENGINE_TABLE); }
   const formats = join(root, 'docs', 'formats.md');
-  if (existsSync(formats)) {
-    const text = readFileSync(formats, 'utf8');
+  if (fileSystemAdapter().exists(formats)) {
+    const text = fileSystemAdapter().readFile(formats, 'utf8');
     const updated = text.replace(/^(\| `move engine` \| `)\d+(` \|)/mu, `$1${next}$2`);
-    if (updated !== text) { writeFileSync(formats, updated); files.push('docs/formats.md'); }
+    if (updated !== text) { fileSystemAdapter().writeFile(formats, updated); files.push('docs/formats.md'); }
   }
   return { files, assigned };
 }
@@ -151,23 +144,23 @@ const MOVE_FOLDERS = Object.freeze(['src/moves', 'packages/moves/src/logic/moves
 function appendRegistryHistory(root, engine, leaves) {
   const directory = join(root, HISTORY_FOLDER);
   // A 0.9.3 board keeps its record under src/move-history: it is read there, and every new snapshot is written to the new folder [C7].
-  if (!existsSync(join(directory, 'legacy.json')) && !existsSync(join(root, OLD_HISTORY_FOLDER, 'legacy.json'))) return [];
-  const legacy = existsSync(join(directory, 'legacy.json')) ? directory : join(root, OLD_HISTORY_FOLDER);
-  mkdirSync(directory, { recursive: true });
-  const folders = MOVE_FOLDERS.map(folder => join(root, folder)).filter(path => existsSync(path));
+  if (!fileSystemAdapter().exists(join(directory, 'legacy.json')) && !fileSystemAdapter().exists(join(root, OLD_HISTORY_FOLDER, 'legacy.json'))) return [];
+  const legacy = fileSystemAdapter().exists(join(directory, 'legacy.json')) ? directory : join(root, OLD_HISTORY_FOLDER);
+  fileSystemAdapter().mkdir(directory, { recursive: true });
+  const folders = MOVE_FOLDERS.map(folder => join(root, folder)).filter(path => fileSystemAdapter().exists(path));
   // The root src/ folder is gone since the layout freeze; only the history folder and the move folders must be real [V32].
-  if (!folders.length || ![directory, ...folders].every(path => lstatSync(path).isDirectory())
-      || !lstatSync(join(legacy, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
+  if (!folders.length || ![directory, ...folders].every(path => fileSystemAdapter().lstat(path).isDirectory())
+      || !fileSystemAdapter().lstat(join(legacy, 'legacy.json')).isFile()) throw new Error('registry history requires regular source directories and a regular legacy record');
   // A packaged body replaces its src/moves shim of the same name, so the record is the same with or without the shims.
   const sources = new Map();
-  for (const moves of folders) for (const file of discovered(readdirSync(moves), /\.js$/u, /^[\w-]+\.js$/u, 'move')) {
-    if (!lstatSync(join(moves, file)).isFile()) throw new Error(`${file} must be a regular move declaration, never a source symlink`);
+  for (const moves of folders) for (const file of discovered(fileSystemAdapter().list(moves), /\.js$/u, /^[\w-]+\.js$/u, 'move')) {
+    if (!fileSystemAdapter().lstat(join(moves, file)).isFile()) throw new Error(`${file} must be a regular move declaration, never a source symlink`);
     sources.set(file, join(moves, file));
   }
-  const declarations = Object.fromEntries([...sources.keys()].sort().map(file => [file, readFileSync(sources.get(file), 'utf8')]));
+  const declarations = Object.fromEntries([...sources.keys()].sort().map(file => [file, fileSystemAdapter().readFile(sources.get(file), 'utf8')]));
   const record = { version: 1, engine: engine.number, name: engine.name,
     engines: leaves.filter(leaf => leaf.number !== null).map(({ file, name, number }) => ({ file, name, number })), declarations };
   const relative = `${HISTORY_FOLDER}/${storeName(engine.number)}`;
-  writeFileSync(join(root, relative), `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx' });
+  fileSystemAdapter().writeFile(join(root, relative), `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx' });
   return [relative];
 }

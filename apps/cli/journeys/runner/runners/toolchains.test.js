@@ -1,7 +1,7 @@
 /** A job is enqueued only to a runner that records every toolchain the machine requires, and a blank setting filters nothing [C7,#3969]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { gateRunnerLoadPolicy } from '../../../../../packages/gate/index.js';
+import { gateRunnerLoadPolicy } from '../../../../../packages/gate/heavy.js';
 import { pickTieredRunner } from '../../../../../packages/resources/src/io/runner/pick.js';
 
 const NOW = Date.parse('2026-11-16T12:00:00Z');

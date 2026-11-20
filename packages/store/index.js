@@ -14,7 +14,7 @@ export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/b
 export { archiveOldEvents, ARCHIVE_AFTER_DAYS } from './src/io/board/event/archive.js';
 export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
 export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
-export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
+export { LEDGER_SCHEMA_SQL, gateFailRows, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
 export { declareItemField, setItemField, itemFields, fieldIndex, FIELD_TYPES } from './src/io/board/item/fields.js';
@@ -23,7 +23,7 @@ export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
 export { boardLinkEnvelope, boardLinkEnvelopeDigest, boardLinkDeliveryReceipt, createBoardLinkCapability } from './src/io/board/link/envelope.js';
 export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, resendPendingBoardStates, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
-export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
+export { createSshBoardLinkAuthority, boardHasSigner } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
