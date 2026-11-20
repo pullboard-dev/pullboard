@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../env/index.js';
 import { relayFetch } from '../../../person/index.js';
 import { operationIntent } from '../../../state/index.js';
 import { orderedMoveCommand } from '../logic/relay/order.js';
@@ -111,8 +112,15 @@ import { relaySnapshotRequest } from '../../../pages/index.js';
 import { relayStorage } from '../../../pages/index.js';
 import { relayStorageLine } from '../../../pages/index.js';
 export { relayOrigin, relayStorageLine };
-import { readCommonDir } from './relay/common-dir.js';
 import { loadLink } from './relay/link.js';
+import { deletedLink as deletedLinkOf } from './relay/link.js';
+import { deletedLinkFile as deletedLinkFileOf } from './relay/link.js';
+import { deletedRecovery as deletedRecoveryOf } from './relay/link.js';
+import { linkFile as linkFileOf } from './relay/link.js';
+import { localRecords as localRecordsOf } from './relay/link.js';
+import { relayLinked as relayLinkedOf } from './relay/link.js';
+import { relayMachineContext as relayMachineContextOf } from './relay/link.js';
+import { relayRecovered as relayRecoveredOf } from './relay/link.js';
 import { saveLink } from './relay/link.js';
 import { STATE_FILES } from './relay/link.js';
 import { revokeRelayPersonSession } from './relay/device.js';
@@ -163,33 +171,20 @@ export async function assertRehomeSourceItemOrdered(root, itemId, io) {
   const file = linkFile(root);
   await locked(file, async () => requireAuthoritativeRehomeItem(file, loadLink(file), itemId, io), io);
 }
-/** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
-function linkFile(root) { return relayFiles(quickCommonDir(root)).link; }
+/** The cells the moved link-state reads need, handed to relay/link.js so it imports none of them [C7,#12003]. */
+function linkPorts() {
+  return { repoInfo, relayFiles, boardFilePath: store.boardFilePath, codeIsFromMain, closeBoard: store.closeBoard, engineReceipt,
+    withProjectGitTimeout, Refused };
+}
 
-/** The shared git directory, read straight from `.git` when possible and from git otherwise [C7]. */
-function quickCommonDir(root) { return readCommonDir(root) ?? repoInfo(root).commonDir; }
+/** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
+function linkFile(root) { return linkFileOf(root, linkPorts()); }
 
 /** Locate the credential-free reason an independently deleted copy no longer syncs. */
-function deletedLinkFile(root) { return relayFiles(repoInfo(root).commonDir).deleted; }
+function deletedLinkFile(root) { return deletedLinkFileOf(root, linkPorts()); }
 
 /** Read only a private, bounded deletion marker; it never supplies credentials or an outbound destination. */
-function deletedLink(root) {
-  const file = deletedLinkFile(root);
-  if (!fs.exists(file)) return null;
-  const stat = fs.lstat(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 4096) throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status');
-  let value;
-  try { value = JSON.parse(fs.readFile(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status'); }
-  if (value?.version !== 1 || !/^[0-9a-f]{32}$/u.test(value.board ?? '') || typeof value.url !== 'string') throw new Refused('RELAY_STORAGE', 'restore the supported deleted-copy notice before reading relay status');
-  relayOrigin(value.url);
-  const recovered = value.recovered;
-  if (recovered !== undefined && (!recovered || !/^[A-Za-z0-9_-]{1,80}$/u.test(recovered.id ?? '')
-      || !/^[0-9a-f]{64}$/u.test(recovered.intent ?? '')
-      || (recovered.commandIntent !== undefined && !/^[0-9a-f]{64}$/u.test(recovered.commandIntent)))) {
-    throw new Refused('RELAY_STORAGE', 'restore the private interrupted-move receipt pointer before retrying');
-  }
-  return value;
-}
+function deletedLink(root) { return deletedLinkOf(root, linkPorts()); }
 
 /** Accept deletion only from the configured versioned relay for this credential's own board. */
 function confirmedDeletion(state, error) {
@@ -236,17 +231,7 @@ function retainDeletedMove(root, state, io) {
 }
 
 /** Resolve the private pointer only through the exact durable native receipt, never a remote key. */
-function deletedRecovery(root, io) {
-  const marker = deletedLink(root);
-  if (!marker?.recovered) return null;
-  const receipt = localRecords(io.openBoard, root, board => engineReceipt(board, marker.recovered.id));
-  let move;
-  try { move = receipt && JSON.parse(receipt.move); } catch { /* Refuse a corrupt receipt below. */ }
-  if (!move || move.id !== marker.recovered.id || !receipt.outcome) {
-    throw new Refused('RELAY_STORAGE', 'restore the interrupted native receipt before retrying its command');
-  }
-  return { marker, receipt, move };
-}
+function deletedRecovery(root, io) { return deletedRecoveryOf(root, io, linkPorts()); }
 
 /** Consume only the reported receipt, preserving the truthful deleted-copy notice. */
 function clearDeletedRecovery(root, marker) {
@@ -297,7 +282,7 @@ export async function request(state, path, options = {}, io) {
 async function rawRequest(state, path, { method = 'GET', body, allowMissing = false, initialBaseline = false, signal } = {}, io) {
   signal ??= io?.relaySignal;
   io?.onRelayRequest?.({ method, path });
-  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : process.env.PULLBOARD_RELAY_TOKEN;
+  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : environmentAdapter().get('PULLBOARD_RELAY_TOKEN');
   const readToken = method === 'GET' && /^\/api\/v[12]\/boards\//u.test(path) ? supplied : undefined;
   if (readToken !== undefined && !/^pa_[A-Za-z0-9_-]{43}$/.test(readToken)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token without including it in command arguments');
   const token = readToken ?? state.token;
@@ -358,11 +343,7 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
 }
 
 /** Read durable local event rows; their ids are the crash-safe outbox after the saved cursor. */
-export function localRecords(openBoard, root, work) {
-  const info = repoInfo(root);
-  const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain(), gitRoot: root });
-  try { return work(board); } finally { store.closeBoard(board); }
-}
+export function localRecords(openBoard, root, work) { return localRecordsOf(openBoard, root, work, linkPorts()); }
 
 /** Fingerprint native board contents so async recovery can refuse concurrent local writes. */
 function nativeBoardDigest(board) {
@@ -616,7 +597,7 @@ async function flushMirror(root, file, state, io) {
 }
 
 /** A saved link is the opt-in boundary; unlinked callers neither read keys nor contact the relay. */
-export function relayLinked(root) { return Boolean(loadLink(linkFile(root))); }
+export function relayLinked(root) { return relayLinkedOf(root, linkPorts()); }
 
 /** Read validated View eligibility without decoding snapshots, opening a board or contacting the relay. */
 export function relayLinkAvailability(root) {
@@ -840,7 +821,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     moves.add(state.board);
     let requestedMove;
     try {
-      const requiresAcknowledgment = process.env.PULLBOARD_RELAY_TOKEN !== undefined || state.environment || io.relayCanary;
+      const requiresAcknowledgment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || state.environment || io.relayCanary;
       let ordered;
       const queue = guarded.queue;
       try { ordered = await ensureOrdered(root, file, state, io); }
@@ -1136,10 +1117,7 @@ export async function relayCommandReceiptReported(root, moveId, io) {
 }
 
 /** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
-export function relayRecovered(root, { includePending = false } = {}, io) {
-  const state = loadLink(linkFile(root));
-  return state ? state.recovered?.move ?? (includePending ? state.pending?.move : null) ?? null : deletedRecovery(root, io)?.move ?? null;
-}
+export function relayRecovered(root, { includePending = false } = {}, io) { return relayRecoveredOf(root, { includePending }, io, linkPorts()); }
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
 export async function relayRecover(root, skip, io) {
@@ -1471,7 +1449,7 @@ export async function deliverDeviceWraps(root, io) {
 }
 
 /** Expose board-scoped machine context only to the native setup/approval adapter. */
-export function relayMachineContext(root) { return withProjectGitTimeout(root, () => loadLink(linkFile(root))); }
+export function relayMachineContext(root) { return relayMachineContextOf(root, linkPorts()); }
 
 /** Require one exact phone approval before revoking and removing a device from the trusted roster. */
 export async function relayRevokeDevice(root, deviceId, io) {

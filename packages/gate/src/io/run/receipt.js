@@ -5,7 +5,6 @@
  * never enters a commit. This module reads and checks receipts; nothing here writes one. Only the gate's private
  * writer in gate.js does, right after its child exits, so no caller can hand it a result to record.
  */
-import { readFileSync } from 'node:fs';
 import {
   dirname,
   join,
@@ -65,7 +64,7 @@ export function receiptBody(receipt) {
 export function readGateReceipt(store, id) {
   if (!store || !ID.test(id ?? '')) return null;
   try {
-    const text = readFileSync(join(store, storeName(id)), 'utf8');
+    const text = fs.readFile(join(store, storeName(id)), 'utf8');
     const receipt = receiptFields(JSON.parse(text));
     return receipt && receiptBody(receipt) === text && receipt.id === id ? receipt : null;
   } catch { return null; }
@@ -88,6 +87,8 @@ export function receiptBinds(store, receipt) {
 export { COLLECTION_ID_ENV } from '../../logic/collection/env.js';
 import { COLLECTION_ID_ENV } from '../../logic/collection/env.js';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 export { COLLECTION_REPORT_PREFIX, formatCollectionReport, parseCollectionReports } from '../../logic/collection/report.js';
 
 /** A release explicitly requests every registered executor; ordinary landings keep their policy. */

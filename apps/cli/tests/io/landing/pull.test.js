@@ -15,7 +15,9 @@ import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js'
 import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
+import { offerOverConflict } from '../../fixtures/landing/conflict-offer.js';
 import { offerWithLog } from '../../fixtures/landing/offer.js';
+import * as store from '../../../../../packages/store/index.js';
 import { fixtureBoard } from '../../fixtures/board.js';
 import { temporaryDirectory } from '../../fixtures/board.js';
 
@@ -114,6 +116,80 @@ test('cli.io-landing-pull.offer-unchanged-outside-lock: clause 2: the offered jo
   assert.deepEqual(raced.result.items, [1], 'only #1 is left to this offer');
 });
 
+/** A verdict row the sweep stores for a plain stale verdict: the file a main change touched and the commit that changed it. */
+const staleRow = main => ({ code: 'STALE_VERDICT', file: 'a.js', commit: main });
+
+test('cli.io-landing-pull.table-staleness-reopens: clause 1: with health.derivedState on and a table current for main, an item the table marks stale goes back to its lane and a fresh one is offered, though git alone finds both fresh [C7,#3010]', async t => {
+  const { board, jobs, result } = await offerWithLog(t, { derived: { verdicts: { 1: staleRow('1'.repeat(40)) } } });
+  assert.equal(store.getItem(board, 1).item_status, 'open', 'the stale one returned to its lane');
+  assert.equal(store.getItem(board, 2).item_status, 'verified');
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2]], 'only the fresh one is offered');
+  assert.deepEqual(result.items, [2]);
+});
+
+test('cli.io-landing-pull.table-not-current-computes: clause 2: with a table swept at an older main, or with the setting off, freshness is computed as on main and both items are offered [C7,#3010]', async t => {
+  for (const derived of [{ swept: 'older', verdicts: { 1: staleRow('1'.repeat(40)) } }, { setting: false, verdicts: { 1: staleRow('1'.repeat(40)) } }]) {
+    const { board, jobs } = await offerWithLog(t, { derived });
+    assert.equal(store.getItem(board, 1).item_status, 'verified', JSON.stringify(derived));
+    assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[1], [2]], JSON.stringify(derived));
+  }
+});
+
+test('cli.io-landing-pull.table-wired-into-offer: clause 3: production wiring: offerPulledLanding hands the table verdicts to withoutStaleVerdicts, so a current table offers the same items with fewer git starts before the lock than the setting off [C7,#3010]', async t => {
+  const off = await offerWithLog(t, { derived: { setting: false } });
+  const on = await offerWithLog(t, { derived: {} });
+  assert.deepEqual(on.jobs.map(job => job.items.map(entry => entry.id)), off.jobs.map(job => job.items.map(entry => entry.id)));
+  assert.ok(on.beforeLock < off.beforeLock, `git starts before the lock: ${on.beforeLock} with the table, ${off.beforeLock} without`);
+});
+
+test('cli.io-landing-pull.step-aside-head-goes-behind: clause 1: offerPulledLanding offers an accepted item with 2 infrastructure failures behind the next accepted item [C7,#3118]', async t => {
+  const { jobs, result } = await offerWithLog(t, { lapses: { 1: 2 } });
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2], [1]], 'the head with two failures goes behind #2');
+  assert.deepEqual(result.items, [2, 1]);
+});
+
+test('cli.io-landing-pull.step-aside-one-failure-keeps-order: clause 2: one infrastructure failure keeps the accept-order place, and named ids keep the order named [C7,#3118]', async t => {
+  const one = await offerWithLog(t, { lapses: { 1: 1 } });
+  assert.deepEqual(one.jobs.map(job => job.items.map(entry => entry.id)), [[1], [2]], 'one failure keeps the place');
+  const none = await offerWithLog(t, { lapses: {} });
+  assert.deepEqual(none.result.items, [1, 2]);
+});
+
+test('cli.io-landing-pull.step-aside-on-the-real-pull-path: clause 3: the step-aside cases drive offerPulledLanding on the real pull path, which reads store.stepAsideCount, not candidates() [C7,#3118]', async t => {
+  // A count past 2 also goes behind; the order comes from the offer's written jobs, so the pull path itself applied the rule.
+  const { jobs } = await offerWithLog(t, { lapses: { 1: 3 } });
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2], [1]]);
+});
+
+test('cli.io-landing-pull.step-aside-says-why: clause 1: offerPulledLanding says one line naming the stepped-aside head and its infrastructure-failure count [C7,#3118]', async t => {
+  const { said } = await offerWithLog(t, { lapses: { 1: 2 } });
+  assert.deepEqual(said.filter(line => /steps aside/u.test(line)), ['#1 steps aside: 2 infrastructure failures, offered behind the next accepted item']);
+  const quiet = await offerWithLog(t, { lapses: { 1: 1 } });
+  assert.deepEqual(quiet.said.filter(line => /steps aside/u.test(line)), [], 'one failure is not a step aside, so nothing is said');
+});
+
+test('cli.io-landing-pull.own-red-head-stays-held: clause 2: a head held after a red on its own tests is not offered and not counted as stepped aside [C7,#3118]', async t => {
+  const { jobs, result, said } = await offerWithLog(t, { held: [1] });
+  assert.deepEqual(result.items, [2], 'the held head is not offered');
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2]]);
+  assert.deepEqual(said.filter(line => /steps aside/u.test(line)), []);
+});
+
+test('cli.io-landing-pull.mechanical-only-conflict-stays-verified: clause 1: a mechanical-only conflict keeps the accepted item verified and the offer takes it [C7,#3064]', async t => {
+  const { result, said, item } = await offerOverConflict(t, mechanicalOnlyConflictRepo());
+  assert.equal(item.item_status, 'verified', said.join('\n'));
+  assert.deepEqual(result?.items, [item.item_id]);
+  assert.doesNotMatch(said.join('\n'), /STALE_VERDICT/u);
+});
+
+test('cli.io-landing-pull.real-conflict-reopens-naming-file: clause 2: a real conflict still reopens the accepted item naming the file [C7,#3064]', async t => {
+  const repo = realConflictRepo();
+  const { result, said, item } = await offerOverConflict(t, repo);
+  assert.equal(item.item_status, 'open');
+  assert.match(said.join('\n'), new RegExp(`STALE_VERDICT #${item.item_id} reopened to its lane: ${repo.file.replace('.', '\\.')}`, 'u'));
+  assert.deepEqual(result?.items ?? [], []);
+});
+
 const SWEPT = 'a'.repeat(40);
 const MOVED = 'b'.repeat(40);
 
@@ -154,4 +230,25 @@ test('cli.io-landing-pull.accept-order-production-wiring: clause 3: the offer re
   assert.match(offerPulledLanding.toString(), /await acceptOrderOf\(root, board,/);
   assert.doesNotMatch(offerPulledLanding.toString(), /GROUP BY/);
   assert.match(acceptOrderOf.toString(), /readDerivedState\(board, \{ mainCommit: main, enabled: true \}\)/);
+});
+
+test('cli.landing-pull.items-carry-pace: clause 1: a landing offered for one item frozen at sprint and one at steady carries each item pace in its job payload [V2,M1,#12227]', async t => {
+  const { jobs } = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' } });
+  const paceOf = id => jobs.flatMap(job => job.items).find(entry => entry.id === id)?.pace;
+  assert.equal(paceOf(1), 'sprint');
+  assert.equal(paceOf(2), 'steady');
+});
+
+test('cli.landing-pull.payload-sprint-plan: clause 1: a landing offered for a sprint item carries payload.sprint { static, testCommand, testFiles } built from the configured static check and affected-tests command, and a landing of steady items only carries no sprint key [V2,M1,#12229]', async t => {
+  const config = { staticChecks: 'npm run static', affectedTests: 'node --test' };
+  const sprint = (await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, config })).jobs.map(job => job.sprint).find(Boolean);
+  assert.deepEqual(sprint.static, ['sh', '-c', 'npm run static']);
+  assert.equal(sprint.testCommand.slice(0, 2).join(' '), 'sh -c');
+  assert.match(sprint.testCommand[2], /node --test "\$@"$/u);
+  assert.match('packages/demo/tests/ok.test.js', new RegExp(sprint.testFiles, 'u'));
+  const bare = (await offerWithLog(t, { paces: { 1: 'sprint' } })).jobs.map(job => job.sprint).find(Boolean);
+  assert.equal(bare.static, null);
+  assert.deepEqual(bare.testCommand, ['false']);
+  const steady = await offerWithLog(t, { paces: { 1: 'steady', 2: 'steady' }, config });
+  assert.equal(steady.jobs.some(job => 'sprint' in job), false);
 });

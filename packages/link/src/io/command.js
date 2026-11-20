@@ -1,6 +1,7 @@
 /** Opt-in credential-free command phases let private child watchdogs explain a stalled operation [A7,C7]. */
 import { performance } from 'node:perf_hooks';
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 const fs = fileSystemAdapter();
 
@@ -13,7 +14,7 @@ function noPhase() {}
 
 /** Begin one known operation; its id lets nested or concurrent operations finish independently. */
 export function beginCommandPhase(phase) {
-  const file = process.env.PULLBOARD_COMMAND_PHASE_FILE;
+  const file = environmentAdapter().get('PULLBOARD_COMMAND_PHASE_FILE');
   if (!file || !PHASES.has(phase)) return noPhase;
   const id = ++sequence;
   let ended = false;

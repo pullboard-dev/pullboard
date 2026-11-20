@@ -1,0 +1,3 @@
+{
+  "cli.journeys-relay-push.an-alert-reaches-a-closed-paired-view-as": {"proves":{"specs":["C7","H5"],"claim":"A canary alert sealed on the board machine reaches a closed paired phone as a relay push wake-up whose bytes hold only the kind and the sealed blob, never the alert text."},"why":"Without it a regression that sends alert text through the relay, or never wakes the phone, would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/relay/push.test.js"]}
+}

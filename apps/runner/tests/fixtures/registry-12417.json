@@ -1,0 +1,3 @@
+{
+  "runner.io-worker-receipt.screenshots-in-body": {"proves":{"specs":["C7"],"claim":"receipt puts fields.screenshots into the body of the result line and leaves the key out when the list is absent or empty."},"why":"Without it the job screenshots could drop out of the signed receipt body with no test naming what it proved.","kind":"cell unit","inputs":["apps/runner/tests/io/worker/receipt.test.js"]}
+}

@@ -1,7 +1,7 @@
 /** The pure new-test rule names every unregistered added test and every added journey with no golden user path [C7,U148,#9400]. @pullboard-test-input source-cell packages/gate */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { unregisteredNewTests } from '../../index.js';
+import { unregisteredNewTests } from '../../heavy.js';
 
 const records = { 'spec.sig.ok': {} };
 const golden = [{ file: 'apps/cli/journeys/init/gate.test.js' }];

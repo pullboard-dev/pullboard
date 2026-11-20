@@ -1,5 +1,16 @@
+/** @pullboard-module-loads packages/git/src/io/review-folder.js packages/git/src/io/review-folder-deps.js */
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { announcePorts } from '../link/ports.js';
+import { boardLinkPorts } from '../link/ports.js';
+import { listProjects } from '../../../../../packages/seats/index.js';
+import { announceVerdict } from '../../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
-import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
+import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { sharedToolsTarget } from '../toolsnapshot.js';
@@ -7,18 +18,19 @@ import { toolsSnapshot } from '../toolsnapshot.js';
 import { runPulledComparison } from '../test/pull.js';
 import { queueAccept } from '../test/accept.js';
 import { queuesAccept } from '../test/accept.js';
-import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
+import { generateTestTiersAt } from '../../../../../packages/gate/heavy.js';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
-import { committedTestOutcomes } from '../../../../../packages/gate/index.js';
-import { submitGateConfig } from '../../../../../packages/gate/index.js';
-import { submitGatePlan } from '../../../../../packages/gate/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+import { committedTestOutcomes } from '../../../../../packages/gate/heavy.js';
+import { submitGateConfig } from '../../../../../packages/gate/heavy.js';
+import { submitGatePlan } from '../../../../../packages/gate/heavy.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
-import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { sealedFallbackMain } from '../../../../../packages/verify/index.js';
+import { namedProofTests } from '../submit.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
-import { selectTestTiers } from '../../../../../packages/gate/index.js';
+import { selectTestTiers } from '../../../../../packages/gate/heavy.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { changedHunks } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -27,13 +39,16 @@ import { renderVerificationComparison } from '../../../../../packages/verify/ind
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
 import { mainRunnerSource } from '../../../../../packages/landing/index.js';
 import { reviewMainPolicy } from '../../../../../packages/sandbox/index.js';
-import { testTierProofFiles } from '../../../../../packages/gate/index.js';
-import { testTierCommand } from '../../../../../packages/gate/index.js';
-import { testTierReport } from '../../../../../packages/gate/index.js';
-import { reviewCitations } from '../../../../../packages/gate/index.js';
-import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
+import { testTierProofFiles } from '../../../../../packages/gate/heavy.js';
+import { testTierCommand } from '../../../../../packages/gate/heavy.js';
+import { testTierReport } from '../../../../../packages/gate/heavy.js';
+import { reviewCitations } from '../../../../../packages/gate/heavy.js';
+import { citedReceiptsNote } from '../../../../../packages/gate/heavy.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewWait } from '../verify/wait.js';
+import { sameWorkHeads } from '../verify/merge-ticks.js';
+import { sliceVerdictFacts } from '../submit/slice-paths.js';
+import { sliceVerdictProblem } from '../../logic/slice-paths.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
@@ -47,7 +62,7 @@ import {
   retainTestOutput,
   renderTestSummary,
   withTestOutput,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import { checkAtCommit } from '../../../../runner/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
@@ -55,7 +70,7 @@ import { compareMainFailures } from '../../../../../packages/landing/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { committedItemAuthors } from '../../../../../packages/verify/index.js';
 import { earlierHolderProblem } from '../../../../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../../../../packages/sandbox/index.js';
@@ -69,6 +84,7 @@ import { reviewPacketRerun } from '../../../../../packages/verify/index.js';
 import { twoTierReviews } from '../../../../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../../../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../../../../packages/items/index.js';
+import { composeSliceReview } from '../verify/slices.js';
 import { outsideVerdict } from '../../../../../packages/items/index.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
@@ -82,12 +98,12 @@ import {
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   refuseSandboxBlocked,
   timingDigest,
   withGateSlot,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   contains,
   git,
@@ -167,7 +183,6 @@ import {
 } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { retryReviewCommit } from '../../../../../packages/verify/index.js';
-import { readFileSync } from 'node:fs';
 import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
@@ -176,7 +191,14 @@ import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
+import { provenBreakRequired } from '../../../../../packages/config/index.js';
+import { itemPace } from '../../../../../packages/moves/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
+import { soloLowStakesEnabled } from '../../../../../packages/config/index.js';
+
+const fs = fileSystemAdapter();
+/** Loads the review folder module at the call, so cold paths through this command never pay for it. */
+const requireModule = createRequire(import.meta.url);
 
 /** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
 export function trunkMovedOverlapText(paths, hunks = []) {
@@ -205,7 +227,7 @@ export async function knownMainCheck(root, check, { main, item, items, mainRedIt
   };
   let failures = null;
   try {
-    const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : check.output;
+    const output = check.outputPath ? fs.readFile(check.outputPath, 'utf8') : check.output;
     const run = { ...check, isGreen: false, output,
       stages: [{ status: check.exitCode, output }] };
     failures = failureSignatures(run, root);
@@ -275,6 +297,73 @@ function sameVerdictNote(recorded, given) {
 }
 
 /**
+ * Whether a verdict's check ran isolated from the reviewer's own checkout [C7,#1112].
+ * Why: a verdict that ran in a seat's working tree can pass on files the commit does not hold; a verdict that ran in the board-made review folder at the submitted commit, or that comes from a runner receipt at that commit, cannot.
+ *
+ * @param {{ folder?: string|null, reviewFolder?: string|null, commit?: string|null, receipt?: { commit?: string|null }|null }} facts - The folder the check ran in, the board-made review folder (if one was made at the submitted commit), the submitted commit, and the runner receipt the verdict rests on (if any).
+ * @returns {boolean} True for a check run in the review folder, or one proven by a receipt at the submitted commit; false otherwise.
+ */
+export function verdictIsolation({ folder, reviewFolder, commit, receipt } = {}) {
+  if (typeof reviewFolder === 'string' && reviewFolder !== '' && folder === reviewFolder) return true;
+  return typeof commit === 'string' && commit !== '' && receipt?.commit === commit;
+}
+
+/**
+ * Refuse a folder whose dependencies link outside it, before a check runs there [C7,#1112].
+ * Why: a symlinked dependency makes the check read code that is not the commit under review.
+ *
+ * @param {string} folder - The folder the frozen check runs in.
+ * @returns {void}
+ */
+export function refuseLinkedDependencies(folder) {
+  const linked = requireModule('../../../../../packages/git/src/io/review-folder-deps.js').linkedDependencies(folder);
+  if (linked.length) throw new Refused('DEPS_OUTSIDE_TREE', `node_modules links outside the review folder: ${linked.join(', ')}; reinstall them inside it (npm ci) and verify again`);
+}
+
+/** Tell each linked parent board that waits on this item its new state; a failed delivery stays queued and never undoes the verdict [E32,B24,#11039]. */
+async function announceVerdictState(ctx, board, id) {
+  const open = (root) => ctx.nativeBoard.openBoard(boardFilePath(join(root, '.git')), ctx.clock, { isMain: false, gitRoot: root });
+  const ports = announcePorts({ board, root: ctx.info.root }, { projects: listProjects(), openBoard: open, closeBoard, portsFor: boardLinkPorts,
+    readKey: (boardId) => readBoardKey(boardId, { legacyKeychain: false }) });
+  try { await announceVerdict(board, id, ports); }
+  finally { ports.close(); }
+}
+
+/** The shortest statement of a broken thing that names a file, command or case and the failure it showed. */
+const PROVEN_BREAK_MIN = 40;
+
+/**
+ * The solo low-stakes facts a verify call carries (#966): `{}` unless `enabled` is exactly true, and `{}` when the item froze no
+ * parseable rows. Otherwise `{ soloLowStakes: true, rows }`, one `{ id, stakes }` per frozen row, a row without stakes read as team.
+ * Why: the move rule compares these rows with the item's frozen record, so the rows come from that record and never from the caller.
+ * @param {{ item_frozen?: string | null }} item
+ * @param {unknown} enabled
+ * @returns {{ soloLowStakes: true, rows: { id: string, stakes: string }[] } | {}}
+ */
+export function soloLowStakesFacts(item, enabled) {
+  if (enabled !== true) return {};
+  let record;
+  try { record = JSON.parse(item?.item_frozen ?? ''); } catch { return {}; }
+  if (!Array.isArray(record?.rows) || record.rows.length === 0) return {};
+  return { soloLowStakes: true, rows: record.rows.map((row) => ({ id: row.id, stakes: row.stakes ?? 'team' })) };
+}
+
+/**
+ * The reviewer's stated break for an accept: required on a strict item, kept when given on any other.
+ *
+ * @param {boolean} required whether the item's pace needs a proven break
+ * @param {unknown} broke the --broke text, if any
+ * @returns {string}
+ */
+export function provenBreakStatement(required, broke) {
+  const text = typeof broke === 'string' ? broke.trim() : '';
+  if (required && text.length < PROVEN_BREAK_MIN) {
+    throw new Refused('PROVEN_BREAK_REQUIRED', `a strict item's accept states what the reviewer broke: add --broke "<the file, command or case you broke and the failure it showed>" (at least ${PROVEN_BREAK_MIN} characters); nothing was recorded`);
+  }
+  return text;
+}
+
+/**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
  *
@@ -288,7 +377,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   if (!decision) throw new Refused('USAGE', VERIFY_WORDS.usage);
   const runnerAdmission = decision === 'ACCEPT' ? gateRunnerAdmission() : {};
   const implies = parseImplies(values.implies);
-  const { root } = ctx.info;
+  let { root } = ctx.info;
   let verificationProfile = null;
   let verificationOutput = null;
   let verificationQuarantine = null;
@@ -296,6 +385,9 @@ export async function verifyHere(ctx, id, { second, values }) {
   let accepted = null;
   let acceptedLandingCommit = null;
   let landedVerdict = false;
+  let provenBreak = '';
+  let madeReviewFolder = null;
+  let reviewedPace = null;
   let approvalRows = [];
   /** Record one verdict on the open board. */
   const decide = async (board) => {
@@ -317,6 +409,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
+    reviewedPace = store.itemPace(item);
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
@@ -342,6 +435,15 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
+    // With slices.composeLanding on, a slice is accepted only through its parent and a parent only once its slices are in [C7].
+    const composedProblem = sliceVerdictProblem({ decision, ...sliceVerdictFacts(board, item.item_id), composeLanding: ctx.config.slices?.composeLanding });
+    if (composedProblem) {
+      throw new Refused(composedProblem, composedProblem === 'SLICE_REVIEWED_WITH_PARENT'
+        ? `item #${id} is a slice: its parent's ACCEPT covers it; reject it alone, or accept the parent`
+        : `item #${id} has slices that are not submitted yet; accept it once they are`);
+    }
+    // review.requireProvenBreak (strict pace by default): an accept states what the reviewer broke, before anything is recorded [C7].
+    if (decision === 'ACCEPT') provenBreak = provenBreakStatement(provenBreakRequired(ctx.config, itemPace(item)), values.broke);
     if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
     // Refuse a bad --read before composition, gate admission or any test run: it is pure input, and a full proof that
     // ends in USAGE wastes minutes and leaves nothing recorded (#3085).
@@ -353,11 +455,17 @@ export async function verifyHere(ctx, id, { second, values }) {
     // An item with no test check is verified only against its review checklist: the board refuses a line that names
     // no file, link or quoted passage before any accept, and the reviewer judges only what the lines show (#996).
     const thread = decision === 'ACCEPT' ? store.itemThread(board, id) : [];
-    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread); if (problem) throw problem; }
-    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread) : null;
+    // A tick at an earlier head counts when only a merge of main separates it from the submitted head (#11163).
+    const tickHeads = decision === 'ACCEPT' ? { head: item.item_commit, sameWorkHeads: sameWorkHeads(root, item, thread) } : undefined;
+    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread, tickHeads); if (problem) throw problem; }
+    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread, tickHeads) : null;
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+    // verify.reviewFolder (on by default): a seat checkout not at the submitted commit, or one holding a modified or untracked file, is left alone, and the checks run in the detached review folder instead [C7,#8931].
+    if (!fromPacket && ctx.config.verify?.reviewFolder !== false && (!contains(root, commit, headCommit(root) ?? '') || !isClean(root) || untracked(root).length)) {
+      root = madeReviewFolder = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
+    }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
     if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
     const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
@@ -384,7 +492,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         return await queueAccept(ctx, board, { item: id, me, commit, main: reviewMainPolicy(root).commit, check: frozenCheck(item), digest });
       }
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
-      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
+      // slices.composeLanding (off by default): a parent with slice children is reviewed as the parent composed with its slices [C7,#2397].
+      const sliceReview = ctx.config.slices?.composeLanding === true && !reReview ? composeSliceReview(root, board, item) : null;
+      let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : sliceReview?.slices.length ? sliceReview.commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
       const composeNow = () => {
         const current = requireTrunkMerge(root, checkedCommit);
@@ -433,23 +543,37 @@ export async function verifyHere(ctx, id, { second, values }) {
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
         // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
-        const sealedMain = reused.ids || !frozenCheck(item) || reReview || companionDigest || item.item_effective_head ? null : submittedPolicyCommit(store.events(board, { itemId: id }));
+        const sealedMain = sealedFallbackMain(store.events(board, { itemId: id }), { reused, reReview, companionDigest, effectiveHead: item.item_effective_head });
+        let sealedReuse = false;
         if (sealedMain) {
           let moveNote = '';
           try {
             const overlap = sealedMoveOverlap(root, { from: sealedMain, to: trunk.commit, commit, check: frozenCheck(item) });
             if (overlap) moveNote = `main moved since submit and reaches ${overlap}`;
           } catch (error) { moveNote = `main move since submit cannot be judged (${error.message.split('\n')[0]})`; }
+          let sealedPlan;
+          if (!moveNote) {
+            try {
+              const sealedConfig = submitGateConfig(policyAt(root, commit).config, policyAt(root, sealedMain).config);
+              const plan = submitGatePlan(root, sealedConfig, { base: item.item_claim_head, trunk: sealedMain, commit, check: frozenCheck(item), crossRunTests: namedProofTests(root, item, commit) });
+              sealedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
+            } catch { /* A plan that cannot be reproduced grants no reuse. */ }
+          }
           const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
-            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true });
-          if (sealed?.ids) reused = sealed;
-          else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
+            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true, expectedPlan: sealedPlan });
+          if (sealed?.ids) { reused = sealed; sealedReuse = true; }
+          else {
+            const recorded = (() => { try { const row = store.events(board, { itemId: id }).findLast(event => event.event_kind === 'submit'); const { files, full, deferred } = JSON.parse(row.event_detail).submissionProof ?? {}; return { files, full, deferred }; } catch { return null; } })();
+            const planNote = sealed?.reason === 'submit selection changed' ? ` (recorded ${JSON.stringify(recorded)}, rebuilt ${JSON.stringify(sealedPlan && { files: sealedPlan.files, full: sealedPlan.full, deferred: sealedPlan.deferred })})` : '';
+            reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}${planNote}` };
+          }
         }
-        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
+        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement || sealedReuse)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
+          refuseLinkedDependencies(root);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
             commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
             onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
@@ -473,6 +597,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           }
         } else {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
+          refuseLinkedDependencies(root);
           check = checkAtCommit(root, checkedItem);
         }
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
@@ -561,6 +686,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
       digest,
+      isolated: verdictIsolation({ folder: root, reviewFolder: madeReviewFolder, commit, receipt: fromPacket || check?.reused ? { commit } : null }),
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
       sourceAdvanceHead: item.item_effective_head ?? null,
@@ -571,10 +697,13 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(knownMain ? { knownMainFailures: knownMain } : {}),
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
+      ...soloLowStakesFacts(item, decision === 'ACCEPT' && soloLowStakesEnabled()),
     }]);
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
+    if (provenBreak && verdict.decision === 'ACCEPT') await ordered(ctx, board, 'appendFact', [id, { agentId: whoAmI(ctx, board).id, kind: 'note', text: `proven break: ${provenBreak}` }]);
+    if (verdict.decision === 'ACCEPT' || verdict.decision === 'REJECT') await announceVerdictState(ctx, board, id);
     if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
       acceptedLandingCommit = store.checkedLandingCommit(board, accepted);
@@ -598,6 +727,8 @@ export async function verifyHere(ctx, id, { second, values }) {
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${result.decision === 'ACCEPT' && checklistNote ? '; review evidence proved it' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
+  // A reject of landed sprint work leaves it pulling: its pull-out reverts the landing now; a steady or strict reject reads nothing more [M2,R3,#12181].
+  if (result.decision === 'REJECT' && reviewedPace === 'sprint') await (await import('../landing/pull-out.js')).pullOutPulling(ctx, [id]);
   if (accepted) {
     let automatic = true;
     try { automatic = await landAfterAcceptance(ctx); }
@@ -655,8 +786,9 @@ export async function run(io, args) {
     const item = withBoardRead(ctx, board => store.getItem(board, id));
     const policy = reviewMainPolicy(ctx.info.root);
     const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
-    if (process.env.PULLBOARD_COMPARE_SOURCE && (process.env.PULLBOARD_COMPARE_SOURCE !== item.item_commit
-      || process.env.PULLBOARD_COMPARE_DIGEST !== item.item_frozen_digest)) {
+    const compare = environmentAdapter();
+    if (compare.get('PULLBOARD_COMPARE_SOURCE') && (compare.get('PULLBOARD_COMPARE_SOURCE') !== item.item_commit
+      || compare.get('PULLBOARD_COMPARE_DIGEST') !== item.item_frozen_digest)) {
       io.result?.({ item: id, status: 'superseded' }); return 0;
     }
     let compared;
@@ -682,7 +814,8 @@ export async function run(io, args) {
           // Outcomes count only for regular test files at the run's own commit; anything else leaves the side unaccounted.
           const testOutcomes = committedTestOutcomes(root, source.head, ran.outcomes, tryGit);
           const profile = { id: runId, job: ran.job, runner: ran.runner, green: ran.green, ...(testOutcomes ? { testOutcomes } : {}) };
-          writeFileSync(profileFile, JSON.stringify(profile) + '\n', { mode: 0o600 });
+          const profileFd = fs.open(profileFile, 'w', 0o600);
+          try { fs.write(profileFd, JSON.stringify(profile) + '\n'); } finally { fs.close(profileFd); }
           return { id: runId, isGreen: ran.green, executionRunner: ran.runner, profile, ...(testOutcomes ? { testOutcomes } : {}) };
         },
       });

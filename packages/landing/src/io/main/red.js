@@ -1,8 +1,8 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { environmentAdapter } from '../../../../env/index.js';
-import { testClosures } from '../../../../gate/index.js';
+import { testClosures } from '../../../../gate/heavy.js';
 import { testActionKeys } from '../../../../gate/index.js';
-import { selectAffectedTests } from '../../../../gate/index.js';
+import { selectAffectedTests } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { checkoutCommonDir } from '../../../../git/index.js';
@@ -10,15 +10,6 @@ import { commandFact } from '../../../../git/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import {
-  lstatSync,
-  mkdirSync,
-  realpathSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import {
   dirname,
   join,
@@ -28,17 +19,15 @@ import {
 } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import {
-  withGateSlot,
-} from '../../../../gate/index.js';
-import { runMainComparison } from '../../../../gate/index.js';
-import { whileGateRuns } from '../../../../gate/index.js';
-import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { withGateSlot } from '../../../../gate/heavy.js';
+import { runMainComparison } from '../../../../gate/heavy.js';
+import { whileGateRuns } from '../../../../gate/heavy.js';
+import { runProfiledShellAsync } from '../../../../gate/heavy.js';
 import {
   readGateReceipt,
   receiptBody,
   receiptStore,
-} from '../../../../gate/index.js';
+} from '../../../../gate/heavy.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
@@ -64,15 +53,18 @@ import {
 } from './matches.js';
 import { completeGate } from '../completion.js';
 import { linkKnownMainReworks } from '../../../../store/index.js';
-import { testsNeedBrowser } from '../../../../gate/index.js';
-import { testsNeedGui } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/heavy.js';
+import { testsNeedGui } from '../../../../gate/heavy.js';
 import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { loadMachineSettings } from '../../../../config/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
-import { recentReceipts } from '../../../../gate/index.js';
+import { recentReceipts } from '../../../../gate/heavy.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The environment this file reads, through the one adapter [C7]. */
 const environment = environmentAdapter();
@@ -131,9 +123,9 @@ export function cacheFile(root) {
 /** Read only well-formed, machine-local cached outcomes; malformed data is treated as a miss. */
 export function readCache(file) {
   try {
-    const stat = lstatSync(file);
+    const stat = fs.lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0 || stat.size > 4 * 1024 * 1024) return { version: CACHE_VERSION, entries: {} };
-    const value = JSON.parse(readFileSync(file, 'utf8'));
+    const value = JSON.parse(fs.readFile(file, 'utf8'));
     if (value.version !== CACHE_VERSION || !value.entries || typeof value.entries !== 'object' || Array.isArray(value.entries)) return { version: CACHE_VERSION, entries: {} };
     const entries = {};
     for (const [commit, files] of Object.entries(value.entries)) {
@@ -160,13 +152,13 @@ export function readCache(file) {
 /** Atomically persist a focused result without writing anything to board state or the worktree. */
 function writeCache(file, value) {
   const directory = join(file, '..');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, file);
+    fs.writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    fs.rename(temporary, file);
   } finally {
-    rmSync(temporary, { force: true });
+    fs.rm(temporary, { force: true });
   }
 }
 
@@ -186,8 +178,8 @@ function gitCall(cwd, args, env) {
  */
 export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
   // The real temp path: a runner reports realpath locations (macOS /private/var), which must resolve inside the checkout.
-  const directory = join(realpathSync(scratchRoot()), `pullboard-main-red-${randomUUID()}`);
-  mkdirSync(directory, { mode: 0o700 });
+  const directory = join(fs.realpath(scratchRoot()), `pullboard-main-red-${randomUUID()}`);
+  fs.mkdir(directory, { mode: 0o700 });
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
   try {
@@ -204,7 +196,7 @@ export async function withMainCheckout(root, commit, run, { onMainBranch = false
     }
     return await run(checkout);
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -227,12 +219,12 @@ export function mainRunnerSource(root, commit, trunkCommit = commit) {
 export function committedNeedsGui(root, commit, path) {
   const blob = gitCall(root, ['show', `${commit}:${path}`], cleanGitEnvironment());
   if (blob.status !== 0) return false;
-  const directory = realpathSync(scratchFolder('pullboard-main-gui-'));
+  const directory = fs.realpath(scratchFolder('pullboard-main-gui-'));
   try {
-    mkdirSync(dirname(join(directory, path)), { recursive: true });
-    writeFileSync(join(directory, path), blob.stdout);
+    fs.mkdir(dirname(join(directory, path)), { recursive: true });
+    fs.writeFile(join(directory, path), blob.stdout);
     return testsNeedGui(directory, [path]);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }
 
 /** Hold the repo cache only for synchronous metadata access, never a checkout or a proof run. */
@@ -251,11 +243,11 @@ function retainComparisonReceipt(root, checkout, id) {
   const store = receiptStore(root);
   if (!receipt || receipt.kind !== 'main-red' || !store) return null;
   const body = receiptBody(receipt);
-  mkdirSync(store, { recursive: true, mode: 0o700 });
+  fs.mkdir(store, { recursive: true, mode: 0o700 });
   const file = join(store, storeName(id));
-  try { writeFileSync(file, body, { flag: 'wx', mode: 0o600 }); }
+  try { fs.writeFile(file, body, { flag: 'wx', mode: 0o600 }); }
   catch (error) {
-    if (error.code !== 'EEXIST' || readFileSync(file, 'utf8') !== body) return null;
+    if (error.code !== 'EEXIST' || fs.readFile(file, 'utf8') !== body) return null;
   }
   return id;
 }
@@ -382,11 +374,10 @@ function storeOutcome(cache, keys, path, outcome) {
  * commit and file; later submits reuse completed results rather than rerunning the same file.
  * A frozen-check comparison pinned to an actual executor and runtime always executes without that generic cache.
  *
- * @param {string} root
- * @param {object} profile
- * @param {(state:object)=>void} [onWait]
- * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{env?: Record<string,string>, commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
+ * The arguments are, in order: root (string), profile (object), onWait (optional callback taking a state object),
+ * output (optional string, the failed phase's unchanged reporter output), and options (optional object: env, commit, detailed,
+ * fresh, allowCancelled, onMeasuredReceipt, onStart, runnerAdmission, execution).
+ * @param {...*} args - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
  * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
  * env, when given, is process.env for the whole comparison; absent, process.env is used and nothing changes.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}

@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
-import { phaseLedger } from '../../../../index.js';
+import { phaseLedger } from '../../../../heavy.js';
 import { planTestActions } from '../../../../index.js';
 import { testActionKeys } from '../../../../index.js';
 
