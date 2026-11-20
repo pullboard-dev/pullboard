@@ -12,6 +12,10 @@ import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
 import { FIXTURE_MODEL } from '../../fixtures/cell.js';
 import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
+import { recordSubmitHandoff } from '../../../../jobs/index.js';
+import { setAfterGate } from '../../../src/io/board/item/after-gate.js';
+import { fixture as dispatchFixture } from '../../fixtures/dispatch.js';
+import { getItem } from '../../../index.js';
 
 const FUTURE = '2999-01-01T00:00:00.000Z';
 const PAST = '2000-01-01T00:00:00.000Z';
@@ -282,4 +286,53 @@ test('store.io-board-next.needs-ability-idle-skip: clause 2: with observeIdle th
   const idle = nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain], observeIdle: true });
   assert.equal(idle.item, null);
   assert.deepEqual(idle.skips.filter(row => row.item === ids.browser), [{ item: ids.browser, code: 'NEEDS_ABILITY' }]);
+});
+
+/** A dispatch board whose builder seat submits parents; each parent records its gate in the given state at its own head or at `jobHead`. */
+function gateBoard(t) {
+  const box = dispatchFixture(t);
+  let n = 0;
+  const parentWith = (job, jobHead) => {
+    const parent = box.add(`Parent ${n += 1}`);
+    box.submit(parent);
+    const head = getItem(box.board, parent).item_commit;
+    recordSubmitHandoff(box.board.db, parent, { id: `fixture-${parent}`, commit: jobHead ?? head, agentId: box.seats.builder.id, ...job });
+    return parent;
+  };
+  /** A dependent on its own file, waiting on `parent` through the after-gate list, or plain --after when `plain`. */
+  const dependent = (parent, { plain = false } = {}) => {
+    const child = box.add(`Dependent ${n += 1}`, { brief: `Files: web/dependent-${n}.js\nTest: next offers the dependent only behind a gate-green parent.`, ...(plain ? { after: [parent] } : {}) });
+    if (!plain) setAfterGate(box.board, child, [parent]);
+    return child;
+  };
+  /** What next offers this agent when every other dependent is omitted. */
+  const offered = (child, all) => nextFor(box.board, { agentId: box.seats.actor.id, lane: 'web', omitIds: all.filter(id => id !== child) });
+  return { box, parentWith, dependent, offered };
+}
+
+test('store.io-board-next.after-gate-green-parent-offered: clause 1: next offers an open dependent whose after-gate parent is submitted with a green gate at its head, and offers nothing while that gate is queued, running or red [C7,#11805]', t => {
+  const { parentWith, dependent, offered } = gateBoard(t);
+  const green = dependent(parentWith({ state: 'green' }));
+  const queued = dependent(parentWith({ state: 'queued' }));
+  const running = dependent(parentWith({ state: 'running' }));
+  const red = dependent(parentWith({ state: 'red', error: { code: 'TEST_FAILURE' } }));
+  const all = [green, queued, running, red];
+  assert.equal(offered(green, all).item?.item_id, green, 'a green gate at the parent head releases the dependent');
+  for (const child of [queued, running, red]) {
+    const answer = offered(child, all);
+    assert.equal(answer.item, null, `#${child} stays held: ${answer.reasons.join(' | ')}`);
+    assert.ok(answer.reasons.some(line => line.startsWith(`#${child} waits on`)), answer.reasons.join(' | '));
+  }
+});
+
+test('store.io-board-next.plain-after-submitted-parent-skipped: clause 2: a dependent behind a plain --after parent that is only submitted is still skipped DEPENDENCY, as is one behind a green gate recorded at another head [C7,#11805]', t => {
+  const { parentWith, dependent, offered } = gateBoard(t);
+  const plain = dependent(parentWith({ state: 'green' }), { plain: true });
+  const stale = dependent(parentWith({ state: 'green' }, 'b'.repeat(40)));
+  const all = [plain, stale];
+  for (const child of all) {
+    const answer = offered(child, all);
+    assert.equal(answer.item, null, answer.reasons.join(' | '));
+    assert.ok(answer.reasons.some(line => line.startsWith(`#${child} waits on`)), answer.reasons.join(' | '));
+  }
 });
