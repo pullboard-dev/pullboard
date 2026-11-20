@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-tail.tail-lines-match-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "tailLines returns the submitted-by, checked-main-merge, infra note, under-review, merged-as and withdrawn lines exactly as show printed them for an open, a submitted, a verified and a withdrawn item."
+    },
+    "why": "Without it, moving these lines out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/tail.js"
+    ]
+  }
+}

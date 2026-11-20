@@ -1,5 +1,4 @@
 /** Read current local-memory queue holds without opening or migrating the resource database [C7]. */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
@@ -7,12 +6,15 @@ import {
   machineSettingsFile,
 } from "../../../resources/light.js";
 import { readMachineSettingsFile } from "../../../queue/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** An unset floor keeps status on its existing lightweight path; old pools have no per-run holds. */
 export function memoryHeldRuns() {
   if (readMachineSettingsFile(machineSettingsFile())?.gate?.memoryFloorMB === undefined) return [];
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   let db;
   try {
     db = new DatabaseSync(file, { readOnly: true });

@@ -1,0 +1,3 @@
+{
+  "cli.logic-help-work.level-listed-route-not": {"proves":{"specs":["C7"],"claim":"Help for add, edit, join and worktree prints a --level line and no --route line."},"why":"Without it, one of the four commands could drop --level or bring back the retired --route name unnoticed.","kind":"cell unit","inputs":["apps/cli/src/logic/help.js","apps/cli/src/logic/help/declarations.js","apps/cli/tests/logic/help/work.test.js"]}
+}

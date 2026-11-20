@@ -3,19 +3,15 @@ import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The file a comparison worker records its pid in; the restart plan reads the same name [C7]. */
 export const COMPARISON_WORKER_RECORD = 'worker.json';
@@ -35,21 +31,21 @@ export async function launchComparisonWorker({ origin, commonDir, toolRoot, entr
   const directory = join(commonDir, 'pullboard', 'review-comparisons', job);
   const target = plan && snapshotModule ? plan(toolRoot) : null;
   // The commit is pinned now, before the builder can change branches; the worker builds from it, not the working tree.
-  const deferred = target !== null && !existsSync(target.tools);
+  const deferred = target !== null && !fs.exists(target.tools);
   const tools = deferred ? target.tools : snapshot(toolRoot, job, commonDir);
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const request = join(directory, 'request.json');
-  writeFileSync(request, JSON.stringify({ origin, tools, entry, item, source, digest,
+  fs.writeFile(request, JSON.stringify({ origin, tools, entry, item, source, digest,
     ...deferred ? { commonDir, toolRoot, toolsCommit: target.commit, snapshotModule } : {} }) + '\n', { mode: 0o600 });
   const script = fileURLToPath(import.meta.url);
-  const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
+  const log = fs.open(join(directory, 'worker.log'), 'a', 0o600);
   try {
     const worker = spawnWorker(process.execPath, deferred ? [script, request, '--prepare'] : [join(tools, relative(toolRoot, script)), request],
       { cwd: origin, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
     await once(worker, 'spawn');
-    writeFileSync(join(directory, COMPARISON_WORKER_RECORD), JSON.stringify({ pid: worker.pid, source, digest }) + '\n', { mode: 0o600 });
+    fs.writeFile(join(directory, COMPARISON_WORKER_RECORD), JSON.stringify({ pid: worker.pid, source, digest }) + '\n', { mode: 0o600 });
     worker.unref();
-  } finally { closeSync(log); }
+  } finally { fs.close(log); }
   return { job };
 }
 
@@ -78,14 +74,14 @@ async function runChild(args, options) {
  * @returns {Promise<void>}
  */
 export async function prepareComparison(requestFile, { runTools = runChild } = {}) {
-  const request = JSON.parse(readFileSync(requestFile, 'utf8'));
+  const request = JSON.parse(fs.readFile(requestFile, 'utf8'));
   // The build runs in a child that imports the snapshot module, so this file's import graph stays literal.
   const args = [request.toolRoot, basename(dirname(requestFile)), request.commonDir, { rebuild: { tools: request.tools, commit: request.toolsCommit } }];
   const built = await runChild(['--input-type=module', '-e',
     `import { toolsSnapshot } from ${JSON.stringify(request.snapshotModule)}; process.stdout.write(toolsSnapshot(...${JSON.stringify(args)}));`],
   { cwd: request.origin, stdio: ['ignore', 'pipe', 'pipe'] });
   if (built.status !== 0 || built.stdout !== request.tools) {
-    writeFileSync(join(dirname(requestFile), 'result.json'), JSON.stringify({ code: 1, output: '', error: `tools snapshot failed: ${built.stderr}` }) + '\n', { mode: 0o600 });
+    fs.writeFile(join(dirname(requestFile), 'result.json'), JSON.stringify({ code: 1, output: '', error: `tools snapshot failed: ${built.stderr}` }) + '\n', { mode: 0o600 });
     process.exitCode = 1;
     return;
   }
@@ -96,17 +92,27 @@ export async function prepareComparison(requestFile, { runTools = runChild } = {
 
 /** Invoke the ordinary diagnostic with source filters; the shared tools snapshot stays for the sweep to retire [C7]. */
 function work(requestFile) {
-  const request = JSON.parse(readFileSync(requestFile, 'utf8'));
+  const request = JSON.parse(fs.readFile(requestFile, 'utf8'));
   const tools = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-  if (!basename(tools).startsWith('pullboard-handoff-tools-') || realpathSync(tools) !== realpathSync(request.tools)) throw new Error('comparison worker needs its own pinned tools');
+  if (!basename(tools).startsWith('pullboard-handoff-tools-') || fs.realpath(tools) !== fs.realpath(request.tools)) throw new Error('comparison worker needs its own pinned tools');
   const result = spawnSync(process.execPath, [join(tools, request.entry), 'verify', String(request.item), '--compare', '--json'],
     { cwd: request.origin, env: { ...process.env, PULLBOARD_COMPARE_SOURCE: request.source, PULLBOARD_COMPARE_DIGEST: request.digest },
       encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 30 * 60_000 }); // budget: whole background diagnostic ceiling, including runner admission.
-  writeFileSync(join(dirname(requestFile), 'result.json'), JSON.stringify({ code: result.status, output: result.stdout, error: result.error?.message ?? result.stderr }) + '\n', { mode: 0o600 });
+  fs.writeFile(join(dirname(requestFile), 'result.json'), JSON.stringify({ code: result.status, output: result.stdout, error: result.error?.message ?? result.stderr }) + '\n', { mode: 0o600 });
   process.exitCode = result.status ?? 1;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Whether this module is the process entry. argv[1] keeps the path as typed while import.meta.url is the real path, so a
+ * worker started from a tools folder under a symlinked temp root (/var -> /private/var on macOS) compares real paths;
+ * a plain path comparison exited 0 there having run nothing, and every comparison went unavailable as a dead worker [C7].
+ */
+function startedAsEntry() {
+  try { return Boolean(process.argv[1]) && fs.realpath(resolve(process.argv[1])) === fs.realpath(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+}
+
+if (startedAsEntry()) {
   // No top-level await: a CommonJS require of this module's graph would refuse it.
   if (process.argv[3] === '--prepare') prepareComparison(process.argv[2]).catch(error => { console.error(error); process.exitCode = 1; });
   else work(process.argv[2]);

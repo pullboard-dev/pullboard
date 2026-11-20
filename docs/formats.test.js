@@ -255,7 +255,7 @@ test('clause 1: [A5] the grammar table on the spec page describes values the par
   assert.equal(parsed.sections[0].name, 'Sample section');
   assert.deepEqual(parsed.rows[0], {
     id: 'A1', status: 'approved', tier: 'must', text: 'Requirement text.', gate: 'node test',
-    serves: ['B2', 'C3'], signers: ['co@example.invalid', 'AB'], unknown: ['custom: preserved'], section: 'Sample section', line: 4,
+    serves: ['B2', 'C3'], signers: ['co@example.invalid', 'AB'], unknown: ['custom: preserved'], stakes: 'team', section: 'Sample section', line: 4,
   });
   assert.deepEqual(listedValues('<!-- parser-fields:start -->', '<!-- parser-fields:end -->'), Object.keys(parsed.rows[0]));
   assert.match(specPage, /\| gate: <command> \| serves: <ID, ID> \| signers: <principal, principal>/);

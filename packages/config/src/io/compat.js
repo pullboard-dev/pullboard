@@ -20,6 +20,7 @@ function schema(base) {
     withdraw: fields(['review', 'refuseLanded']),
     release: fields(['liftTwiceHold']),
     claims: { ...shape(base.claims), ...fields(['perSeat', 'fileLease', 'fileLeaseHubs']) },
+    jobs: fields(['expediteMax']),
     queue: fields(['contention', 'contentionThreshold']),
     inbox: { tokenBudget: null, keepUntilActed: null, escalateAfterMinutes: null, batchedMarks: null },
     publish: fields(['pullRequest']),
@@ -28,7 +29,7 @@ function schema(base) {
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt', 'landedReviews', 'queueAccept', 'reviewFolder', 'requireRowRewrite']) },
     resume: fields(['adoptOrphans']),
-    ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
+    ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'confinedImportSelection', 'landingShards', 'positiveControl',
       'affectedTests', 'affectedSuites', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health', 'specBoards', 'generated', 'laneMode', 'tiers']),
     tiers: Object.fromEntries(['routine', 'standard', 'escalation'].map(name => [name, fields(['endpoint', 'model'])])),
 

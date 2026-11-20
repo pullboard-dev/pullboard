@@ -1,0 +1,11 @@
+{
+ "order": 3,
+ "name": "clock",
+ "kind": "package",
+ "root": "packages/clock",
+ "frontDoor": "packages/clock/index.js",
+ "paths": [],
+ "reexports": [],
+ "imports": [],
+ "cuts": []
+}

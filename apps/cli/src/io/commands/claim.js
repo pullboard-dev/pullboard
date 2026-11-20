@@ -14,9 +14,7 @@ import {
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
-import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
-import { requireNoCoordinatorPath } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { claimFolderRefusal } from '../item/folder.js';
 import { claimedFolderProblem } from '../item/folder.js';
@@ -47,8 +45,6 @@ export async function run(io, { first }) {
   const filed = getItem(board, id);
   // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
   if (filed && !outsideBuildProblem(board, filed)) await refuseClaimMissingPaths(ctx, board, id);
-  if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
-    check: filed.item_check, brief: filed.item_brief }, { present: onTrunk(ctx.info.root) });
   // A folder problem refuses here, before the move; another seat's live claim is left for the move to refuse (#5766).
   const heldElsewhere = filed && filed.item_owner !== me.id && isHeld(board, filed);
   if (filed && filed.item_lane === me.lane && !heldElsewhere) {
@@ -58,10 +54,12 @@ export async function run(io, { first }) {
   // With claim.refuseOffMainHead on, a new claim in a folder whose HEAD is not on main refuses before the move [C7,#9104].
   const offMain = filed && !(filed.item_owner === me.id && isHeld(board, filed)) ? offMainHeadRefusal(ctx.info.root, { trunk: trunkBranch(ctx.info.root) }) : null;
   if (offMain) throw offMain;
+  // laneMode off: any lane's item is on this seat's route, and the claim is made in that item's lane, as next does [C7,#8906].
+  const laneOff = ctx.config.laneMode === 'off' && !ctx.info.isMain && filed !== undefined && filed !== null;
   let result;
   for (;;) {
     try {
-      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, itemFolder: true, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
+      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: laneOff ? filed.item_lane : me.lane, laneOff, leaseMs: ctx.config.leaseMs, itemFolder: true, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
       break;
     } catch (error) {
       if (!(error instanceof MainSpecMerged)) throw await wrongLaneGuidance(ctx, board, me, id, error);

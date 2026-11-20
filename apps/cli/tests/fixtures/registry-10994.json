@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-whoami.clause-1-whoami-shows-advisor": {"proves":{"specs":["C7"],"claim":"whoami for a seat joined with --role advisor prints the lane then a comma and advisor, carries role advisor in --json, and a seat without a role prints the old line with no role key."},"why":"Without it, an advisor seat could not be told from a builder by whoami.","kind":"journey","inputs":["apps/cli/src/io/commands/whoami.js","apps/cli/src/io/read.js","apps/cli/tests/io/commands/whoami.test.js"]}
+}

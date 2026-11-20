@@ -98,3 +98,19 @@ test('cli.journeys-next-labels.with-next-labelbounds-off-the-pin: clause 2: with
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${pinned}:`, 'u'));
 });
+
+test('cli.journeys-next-labels.pullboard-labels-lists-the-automatic-labels: clause 1: pullboard labels --json on a board with no labels config lists the automatic labels lane:<name>, level:<value>, review:strict and quick-win for items that carry them [C7,#1519]', async t => {
+  const box = await fixture(t);
+  box.add('A quick web item', { brief: 'Files: web/quick.js', expectedBuildMinutes: 5 });
+  box.add('A slow docs item', { lane: 'docs', brief: 'Files: docs/slow.js', expectedBuildMinutes: 25 });
+  box.add('A strict review item', { brief: 'Files: web/strict.js', reviewFamily: 'anthropic' });
+  const listed = await cli(box, box.seats.actor.path, ['labels']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  const names = listed.document.labels.map(row => row.label);
+  assert.ok(names.includes('lane:web'), `lane:web is listed with no config: ${names}`);
+  assert.ok(names.includes('quick-win'), `quick-win is listed with no config: ${names}`);
+  assert.ok(names.includes('review:strict'), `review:strict is listed with no config: ${names}`);
+  assert.ok(names.some(name => name.startsWith('level:')), `a level:<value> label is listed with no config: ${names}`);
+  assert.ok(names.every(name => /^(?:lane:|level:|review:strict$|broken-main$|quick-win$)/u.test(name)), `only automatic labels appear: ${names}`);
+  assert.deepEqual(listed.document.unmet, [], 'no declared minimum, so none is unmet');
+});

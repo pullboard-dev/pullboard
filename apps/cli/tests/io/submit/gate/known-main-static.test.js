@@ -60,6 +60,7 @@ function fixture(t, red) {
   put('package.json', '{"type":"module"}\n');
   put('bin/mark.js', MARK);
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', GATE);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');

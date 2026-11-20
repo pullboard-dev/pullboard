@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { prepareEngineMove } from '../../../../src/io/engine.js';
 
-/** A board whose seal port records its call; the move table's engine floor is below this engine so the move is built. */
+/** A board whose seal port records its call and whose store has the recapture writer (prepareEngineMove refuses NO_STORE_WRITER without one); the move table's engine floor is below this engine so the move is built. */
 function boardWith(seal) {
-  return { enginePorts: { store: {}, registry: {}, operations: ['recaptureSubmitHandoff'], minimumOperationEngine: () => 1, sealSubmitHandoffQueue: seal } };
+  return { enginePorts: { store: { recaptureSubmitHandoff() {} }, registry: {}, operations: ['recaptureSubmitHandoff'], minimumOperationEngine: () => 1, sealSubmitHandoffQueue: seal } };
 }
 
 test('state.io-engine-move-handoff.recapture-seals-its-captured-main: clause 1: prepareEngineMove seals a recapture\'s options through ports.sealSubmitHandoffQueue, so the prepared move\'s args[1] is the sealed value [C7,#9818]', () => {

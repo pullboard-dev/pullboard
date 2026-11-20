@@ -6,6 +6,16 @@ import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { sweepClaims } from "../../../health/index.js";
 import { sweepLapsedClaims } from "../../../health/index.js";
+import { sweepDerivedAtMain } from "../../../health/index.js";
+import { verdictProjector } from "../../../verify/index.js";
+import { verdictTrunk } from "../../../verify/index.js";
+import { events } from "../../../store/index.js";
+import { listItems } from "../../../store/index.js";
+import { gateAtHead } from "../../../store/index.js";
+import { acceptedVerdict } from "../../../store/index.js";
+import { verdictReviewProblem } from "../../../store/index.js";
+import { derivedStateEnabled } from "../../../config/index.js";
+import { hunkFreshnessEnabled } from "../../../config/index.js";
 import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
 import { atomic } from "../../../store/index.js";
 import { checkpointBoard } from "../../../store/index.js";
@@ -50,12 +60,28 @@ export function resumeSentinels({ ctx, withBoard }) {
   });
 }
 
+/**
+ * Re-sweep the derived-state table when main has moved since its last sweep, with health.derivedState on [C7,#3010].
+ * Why: the one-minute pass reads board rows and one ref only, so the table follows main within 60 s; the sweep itself skips a main it already holds.
+ * The readers are the store item and gate readers and the verify cell verdict projector, the ones next and show use. The derived option replaces
+ * the setting, the main reader and the sweep, so a test needs no Git.
+ */
+export function sweepDerivedWhenMainMoved(ctx, board, { trunkRef, derived = {} } = {}) {
+  const { enabled = derivedStateEnabled, mainCommit = verdictTrunk, sweep = sweepDerivedAtMain } = derived;
+  if (!enabled()) return null;
+  let main;
+  try { main = mainCommit(ctx.info.root, { trunkRef }); } catch { return null; }
+  const projector = verdictProjector(ctx.info.root, board, { main }, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() });
+  return sweep(board, { mainCommit: main, enabled: true, readers: { listItems, verdictState: item => projector.state(item), gateAtHead } });
+}
+
 /** Scan health, then run due approved watches on pinned trunk unless the observer requests health only. */
-async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, healthOnly = false, lapsedOnly = false }) {
+async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, trunkRef, derived, healthOnly = false, lapsedOnly = false }) {
   if (lapsedOnly) {
     // The one-minute lapsed pass: expire lapsed claims and stop, so it stays cheap beside the ten-minute scan [C7,#8923].
     return withBoard(ctx, async board => {
       await sweepLapsedClaims(ctx, board, whoAmI(ctx, board).id, ordered);
+      sweepDerivedWhenMainMoved(ctx, board, { trunkRef, derived });
       ctx.io.say('Lapsed claims swept.');
       return 0;
     });
@@ -115,9 +141,9 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
  * Keep command parsing separate from the CLI's process and server setup. `stalledGateDrives(db, now)` is the drive
  * cell's detector for gate drives that renew their lease with no step; the health scan shouts each as Stuck.
  */
-export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck }) {
+export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, trunkRef, derived }) {
   const [verb, name, ...extra] = words;
-  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, healthOnly: Boolean(values['health-only']), lapsedOnly: Boolean(values['lapsed-only']) });
+  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, trunkRef, derived, healthOnly: Boolean(values['health-only']), lapsedOnly: Boolean(values['lapsed-only']) });
   if (extra.length || !['propose', 'approve', 'decline'].includes(verb) || !name) {
     throw new Refused('USAGE', 'use pullboard sentinel run, sentinel propose <name> --check "<command>" --every 10m --owner <seat or lane>, sentinel approve <name>, sentinel decline <name> --reason "<why>", or pullboard sentinels');
   }

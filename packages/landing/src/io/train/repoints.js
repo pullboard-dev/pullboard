@@ -1,5 +1,5 @@
 /** Plan and apply exact check repairs for test files split by a native train landing [C7,H16]. */
-import { isDefaultTestFile } from '../../../../gate/index.js';
+import { isDefaultTestFile } from '../../../../gate/heavy.js';
 import { listItems } from '../../../../store/index.js';
 import { getItem } from '../../../../store/index.js';
 import { COORDINATOR } from '../../../../config/index.js';

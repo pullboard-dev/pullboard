@@ -1,0 +1,3 @@
+{
+  "view.io-cost-overview-budget.the-cost-overview-shows-the-budget-warning": {"proves":{"specs":["N26"],"claim":"The Cost overview draws one budget line with a warn or stop class naming spend, limit and the daily word, and draws nothing when the budget is absent."},"why":"Without it the Cost tab could stop warning when spend passes the ceiling and nobody would see it.","kind":"cell unit","inputs":["apps/view/tests/io/cost/overview/budget.test.js"]}
+}

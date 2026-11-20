@@ -4,6 +4,7 @@ import { MILESTONE_LIMIT_ENGINE } from "../../../state/light.js";
 import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../state/index.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../state/light.js";
 import { MILESTONE_MODE_ENGINE } from "../../../state/light.js";
+import { MILESTONE_BUMP_ENGINE } from "../../../state/light.js";
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
  * board_meta value, with automatic placement and reasoned coordinator or person overrides (N26,B35).
@@ -247,6 +248,21 @@ function enforceMilestoneLimit(board, milestone, items, itemById, plainAdd = fal
 }
 
 /**
+ * A rollover release past its limit passes its lowest unstarted item (the last open one in its order) to the next unshipped release
+ * with room, keeping the add; null leaves the refusal as it was: an earlier engine, explicit mode, nothing unstarted or no room [N26].
+ */
+function bumpForRollover(board, entries, index, nextItems, itemById) {
+  const current = entries[index];
+  if (engineOf(board) < MILESTONE_BUMP_ENGINE || (current.mode ?? 'rollover') !== 'rollover' || current.limit == null || nextItems.length <= current.limit) return null;
+  const ranked = [...(current.order ?? []), ...current.items.filter(id => !(current.order ?? []).includes(id))];
+  const id = ranked.filter(member => current.items.includes(member) && typeof member === 'number' && itemById(board, member)?.item_status === 'open').pop();
+  if (id === undefined) return null;
+  const into = entries.findIndex((entry, at) => at > index && !entry.shipped);
+  if (into < 0 || (entries[into].limit != null && entries[into].items.length >= entries[into].limit)) return null;
+  return { id, into };
+}
+
+/**
  * Edit membership atomically. A swap removes and adds in one receiver transaction, checked against
  * the final count; historical add/remove moves retain their recorded meaning [N26,H16].
  */
@@ -272,12 +288,18 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     const removed = [...removals, ...swaps];
     if (removed.some(id => !current.items.includes(id))) throw new Refused('MILESTONE_ITEMS', 'one or more ids are not in this milestone; read pullboard roadmap and retry');
     if (additions.some(id => current.items.includes(id))) throw new Refused('MILESTONE_ITEMS', 'a milestone cannot list the same item twice; remove duplicate ids and retry');
-    const nextItems = swaps.length
+    let nextItems = swaps.length
       ? current.items.map(id => id === swaps[0] ? additions[0] : id)
       : [...current.items.filter(id => !removed.includes(id)), ...additions];
     // The person's signed add may grow a milestone past its limit; an agent or the coordinator may not [N26,H16].
     const personGrows = asPerson && swaps.length === 0 && engineOf(board) >= MILESTONE_PERSON_LIMIT_ENGINE;
-    if (additions.length && !personGrows) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
+    const bump = additions.length && !personGrows && swaps.length === 0 ? bumpForRollover(board, entries, index, nextItems, itemById) : null;
+    if (additions.length && !personGrows && !bump) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
+    if (bump) {
+      nextItems = nextItems.filter(id => id !== bump.id);
+      const target = entries[bump.into];
+      entries[bump.into] = { ...target, items: [bump.id, ...target.items], ...(target.order ? { order: [bump.id, ...target.order] } : {}) };
+    }
     entries[index] = { ...current, items: nextItems,
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= MILESTONE_RANK_ENGINE && current.order
         ? { order: current.order.map(id => swaps.includes(id) ? additions[0] : id).filter(id => nextItems.includes(id)) } : {}) };
@@ -288,6 +310,7 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     saveMilestones(board, entries);
     logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}), ...(why ? { reason: why } : {}), ...(personGrows ? { asPerson: true } : {}) });
     for (const id of placed) logEvent(board, agentId, 'milestone_placed', id, { milestone: name, rule: 'override', reason: why, note: `placed in ${name} by override: ${why}` });
+    if (bump) logEvent(board, agentId, 'milestone_moved', bump.id, { from: name, to: entries[bump.into].name, note: `bumped from ${name} to ${entries[bump.into].name}: ${name} was full and rolls its lowest unstarted item over` });
     return nextItems;
   });
 }

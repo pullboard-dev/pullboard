@@ -5,14 +5,15 @@
  * Why: remote analysis was 19% of a green gate and reran on every resubmit.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { tryGit } from '../../../../git/index.js';
 import { machineHome } from '../../../../resources/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { storeName } from '../store-names.js';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 /** The environment variable that hands a static command the changed paths, as a JSON list; a command that ignores it runs whole. */
 export const STATIC_SCOPE_ENV = 'PULLBOARD_STATIC_SCOPE';
@@ -99,7 +100,7 @@ function memoFile(key, home) {
 export function readAnalysisMemo(key, { home } = {}) {
   if (!key) return null;
   try {
-    const kept = JSON.parse(readFileSync(memoFile(key, home), 'utf8'));
+    const kept = JSON.parse(fs.readFile(memoFile(key, home), 'utf8'));
     return kept.version === 1 && kept.key === key ? kept : null;
   } catch { return null; }
 }
@@ -116,15 +117,15 @@ export function writeAnalysisMemo(key, result, { home } = {}) {
   const kept = { version: 1, key, at: new Date().toISOString(), result };
   try {
     const file = memoFile(key, home), temporary = `${file}.${process.pid}.tmp`;
-    mkdirSync(join(file, '..'), { recursive: true });
-    writeFileSync(temporary, JSON.stringify(kept));
-    renameSync(temporary, file);
+    fs.mkdir(join(file, '..'), { recursive: true });
+    fs.writeFile(temporary, JSON.stringify(kept));
+    fs.rename(temporary, file);
   } catch { return null; }
   return kept;
 }
 
 /** The changed paths a static command was handed in its environment, or null for a whole-tree run. */
-export function staticScopeFromEnv(env = process.env) {
+export function staticScopeFromEnv(env = environmentAdapter().all()) {
   try {
     const files = JSON.parse(env[STATIC_SCOPE_ENV] ?? 'null');
     return Array.isArray(files) && files.every(file => typeof file === 'string') ? files : null;
