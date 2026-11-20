@@ -1097,7 +1097,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         const admitted = admit({ running: active.size, held: ledger.list() });
         if (!admitted) return null;
         const except = Array.isArray(admitted?.except) && admitted.except.length ? { except: admitted.except } : {};
-        const claimed = await reliably({ action: 'claim', runner: id, capabilities, ...except, jobs: slots, cores, ram: totalmem() });
+        const claimed = await reliably({ action: 'claim', runner: id, place: { host, root: cache }, capabilities, ...except, jobs: slots, cores, ram: totalmem() });
         if (claimed.claim) ledger.add(claimed.claim.kind);
         return claimed;
       });
