@@ -1,7 +1,8 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
-import { testClosures } from '../../../../gate/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
+import { testClosures } from '../../../../gate/heavy.js';
 import { testActionKeys } from '../../../../gate/index.js';
-import { selectAffectedTests } from '../../../../gate/index.js';
+import { selectAffectedTests } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { checkoutCommonDir } from '../../../../git/index.js';
@@ -27,17 +28,15 @@ import {
 } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import {
-  withGateSlot,
-} from '../../../../gate/index.js';
-import { runMainComparison } from '../../../../gate/index.js';
-import { whileGateRuns } from '../../../../gate/index.js';
-import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { withGateSlot } from '../../../../gate/heavy.js';
+import { runMainComparison } from '../../../../gate/heavy.js';
+import { whileGateRuns } from '../../../../gate/heavy.js';
+import { runProfiledShellAsync } from '../../../../gate/heavy.js';
 import {
   readGateReceipt,
   receiptBody,
   receiptStore,
-} from '../../../../gate/index.js';
+} from '../../../../gate/heavy.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
@@ -63,15 +62,18 @@ import {
 } from './matches.js';
 import { completeGate } from '../completion.js';
 import { linkKnownMainReworks } from '../../../../store/index.js';
-import { testsNeedBrowser } from '../../../../gate/index.js';
-import { testsNeedGui } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/heavy.js';
+import { testsNeedGui } from '../../../../gate/heavy.js';
 import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { loadMachineSettings } from '../../../../config/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
-import { recentReceipts } from '../../../../gate/index.js';
+import { recentReceipts } from '../../../../gate/heavy.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 import { storeName } from '../store-names.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 // Version 2 drops results cached while comparisons ran in a checkout without accepted main (#2950).
@@ -235,7 +237,7 @@ export function committedNeedsGui(root, commit, path) {
 async function withComparisonCache(root, onWait, action) {
   const lease = await takeResource({
     name: 'main-red-cache', capacity: 1, scope: 'repo', root,
-    agent: process.env.PULLBOARD_AGENT ?? `pid-${process.pid}`, onWait,
+    agent: environment.get('PULLBOARD_AGENT') ?? `pid-${process.pid}`, onWait,
   });
   try { return action(); }
   finally { lease.release(); }
@@ -482,7 +484,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
     if (rerun(path) || !key) return measureFileUnlocked(path);
     const flight = await takeResource({
       name: `main-red-flight-${createHash('sha256').update(String(key)).digest('hex').slice(0, 32)}`, capacity: 1, scope: 'repo', root,
-      agent: process.env.PULLBOARD_AGENT ?? `pid-${process.pid}`, onWait,
+      agent: environment.get('PULLBOARD_AGENT') ?? `pid-${process.pid}`, onWait,
     });
     try { return await measureFileUnlocked(path); }
     finally { flight.release(); }
@@ -529,7 +531,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
           ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
-      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', item: 'main', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
+      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: environment.get('PULLBOARD_AGENT'), kind: 'main-red', item: 'main', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
       /** Measure the file on this machine in a temporary checkout, or (`remote`) on a runner straight from the object store. */
       const inCheckout = async remote => {
         // A run on this machine needs main's files: a clean temporary checkout, with the slot taken there as before.
@@ -876,7 +878,7 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
 export async function runCheckOnRunner(checkout, command, { kind, item = '', admission = gateRunnerAdmission(), onWait } = {}) {
   return withGateSlot(checkout, lease => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }), {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
-    diagnostic: true, kind, item, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
+    diagnostic: true, kind, item, agent: environment.get('PULLBOARD_AGENT'), onWait, ...admission, runnerOnly: true, remote: true,
   });
 }
 

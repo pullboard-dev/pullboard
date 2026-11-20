@@ -33,8 +33,8 @@ import {
   detectLanguages,
   detectTestGlobs,
   settingCommand,
-} from '../../../../packages/gate/index.js';
-export { detectGate } from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
+export { detectGate } from '../../../../packages/gate/heavy.js';
 import {
   gitPath,
   tryGit,

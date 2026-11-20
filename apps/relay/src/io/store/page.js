@@ -4,12 +4,6 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  closeSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -20,6 +14,8 @@ import {
   PAGE_FANOUT,
   pageReference,
 } from '../../../../../packages/pages/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const UPLOAD_MS = 3_600_000;
 const READ_MS = 900_000;
@@ -42,12 +38,12 @@ function principalKey(principal) {
 export function createRelayPages({ directory, boardId, now = Date.now, database, transaction }) {
   if (typeof directory !== 'string' || !/^[0-9a-f]{32}$/u.test(boardId ?? '') || typeof now !== 'function') throw new Refused('RELAY_CONFIG', 'Configure private page storage for a persistent board id.');
   const root = resolve(directory);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(root);
+  fs.mkdir(root, { recursive: true, mode: 0o700 });
+  const parent = fs.lstat(root);
   if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw new Refused('RELAY_STORAGE', 'Keep relay page storage in a private directory.');
   const file = join(root, boardId + '.journal.sqlite');
-  try { closeSync(openSync(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const entry = lstatSync(file);
+  try { fs.close(fs.open(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const entry = fs.lstat(file);
   if (!entry.isFile() || entry.isSymbolicLink() || entry.mode & 0o077) throw new Refused('RELAY_STORAGE', 'Keep relay page databases as private regular files.');
   const ownsDatabase = database === undefined;
   const db = database ?? new DatabaseSync(file);

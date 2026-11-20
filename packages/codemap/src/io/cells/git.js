@@ -7,11 +7,7 @@ import {
 } from '../../../../git/index.js';
 import { machineHome } from '../../../../resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {
-  mkdirSync,
-  realpathSync,
-  statSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { createHash } from 'node:crypto';
 import {
   join,
@@ -25,6 +21,7 @@ import { cellSourceSnapshot } from '../../../index.js';
 export { withCellSourceSnapshots } from '../../../index.js';
 
 const objectScopes = new AsyncLocalStorage();
+const fs = fileSystemAdapter();
 
 /** Resolve virtual source roots to the repository that owns their Git objects. */
 function repository(root) { return cellSourceSnapshot(root)?.repoRoot ?? root; }
@@ -47,12 +44,12 @@ export async function withCellGitObjects(root, work) {
   const actual = resolve(repository(root));
   const existing = objectScopes.getStore();
   if (existing?.repository === actual) return work();
-  const alternate = realpathSync(realGit(actual, ['rev-parse', '--path-format=absolute', '--git-path', 'objects'], { env: gitChildEnv(actual) }));
-  if (!statSync(alternate).isDirectory()) throw new Error('cells source object directory is unavailable');
+  const alternate = fs.realpath(realGit(actual, ['rev-parse', '--path-format=absolute', '--git-path', 'objects'], { env: gitChildEnv(actual) }));
+  if (!fs.stat(alternate).isDirectory()) throw new Error('cells source object directory is unavailable');
   const key = createHash('sha256').update(alternate).digest('hex');
   const directory = join(machineHome(), 'cells-cache', 'objects', key);
-  mkdirSync(join(directory, 'info'), { recursive: true, mode: 0o700 });
-  mkdirSync(join(directory, 'pack'), { recursive: true, mode: 0o700 });
+  fs.mkdir(join(directory, 'info'), { recursive: true, mode: 0o700 });
+  fs.mkdir(join(directory, 'pack'), { recursive: true, mode: 0o700 });
   return objectScopes.run({ repository: actual, directory, alternate }, work);
 }
 

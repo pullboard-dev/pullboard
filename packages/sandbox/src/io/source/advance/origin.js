@@ -21,9 +21,6 @@ import {
   sourceAdvanceReviewEpisode,
 } from '../../../../../verify/index.js';
 import {
-  realpathSync,
-} from 'node:fs';
-import {
   join,
 } from 'node:path';
 import {
@@ -80,6 +77,9 @@ import {
 import {
   outsideSource,
 } from '../../../../../items/index.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const PREPARED = new Map();
 const BASES = new WeakSet();
@@ -95,8 +95,8 @@ function requireNativeRoot(board, root) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
     const info = repoInfo(root);
-    if (registered && file && info.isMain && realpathSync(root) === realpathSync(registered)
-      && realpathSync(join(info.commonDir,'pullboard','board.sqlite')) === realpathSync(file)) return;
+    if (registered && file && info.isMain && fs.realpath(root) === fs.realpath(registered)
+      && fs.realpath(join(info.commonDir,'pullboard','board.sqlite')) === fs.realpath(file)) return;
   } catch { /* Missing or foreign custody cannot become native source authority. */ }
   throw new Refused('COORDINATOR_ONLY', "automatic source advancement requires this board's registered native main checkout");
 }
