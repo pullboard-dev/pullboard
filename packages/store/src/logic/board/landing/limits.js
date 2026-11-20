@@ -1,4 +1,5 @@
 /** The landing's pure limits, fault codes and repeat-hold prefix, below the landing cell so the move tables and the landing share one source [C7,#8249]. */
+import { TRANSIENT_CODES } from '../../../../../kernel/light.js';
 
 /** How many landing batches in a row may end red for one item at one commit before it returns to its builder. */
 export const LANDING_RED_LIMIT = 3;
@@ -15,4 +16,4 @@ export const REPEATED_LANDING_HOLD = 'landing-repeat-v1:';
  * They are retried and never park an item.
  * Why here: the repeat guard (core) and the landing steps (shell) must judge the same codes [C7,#3693].
  */
-export const LANDING_FAULT_CODES = Object.freeze(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'LAND_RUNNER_FAULT', 'POLICY_SNAPSHOT_STALE']);
+export const LANDING_FAULT_CODES = Object.freeze([...TRANSIENT_CODES]);

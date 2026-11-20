@@ -108,7 +108,7 @@ export function parseJsdoc(text) {
   const first = (desc.match(/^.*?[.!?](?=\s|$)/) || [desc])[0].slice(0, 200);
   const params = []; let returns = null; const throws = [];
   // a type may hold nested braces: {{ a: number }}; take a balanced {...}
-  const tagRe = /@(param|arg|argument|returns?|throws)\b\s*/g; let m;
+  const tagRe = /^[ \t]*@(param|arg|argument|returns?|throws)\b\s*/gm; let m;
   while ((m = tagRe.exec(body))) {
     let k = m.index + m[0].length; let type = null;
     if (body[k] === '{') { let d = 0; let e = k; for (; e < body.length; e++) { if (body[e] === '{') d++; else if (body[e] === '}') { d--; if (d === 0) break; } } type = body.slice(k + 1, e).replace(/\s+/g, ' ').trim(); k = e + 1; }
@@ -305,6 +305,11 @@ const EFFECT_KINDS = ['git', 'spawn', 'fs-read', 'fs-write', 'network', 'board-w
 /** Quote regex syntax in an identifier before matching it as source text. */
 const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 
+const TEST_ROOTS = ['test', 'tests', '__tests__'];
+/** Whether a repository path is a test file: a .test file under test/, packages/ or apps/, or a .test or .spec file in a tests or __tests__ folder, so Jest layouts count [#11849]. */
+const isTestPath = path => /\.(?:test|spec)\.m?js$/u.test(path)
+  && (/(?:^|\/)(?:tests|__tests__)\//u.test(path) || /^test\//u.test(path) || (/\.test\.m?js$/u.test(path) && /^(?:packages|apps)\//u.test(path)));
+
 /** List JavaScript modules below one source directory in a stable repository order. */
 function listJavaScript(root, directory) {
   const absolute = join(root, directory);
@@ -327,7 +332,7 @@ function requireSourcePin(root, commit) {
     || gitText(root, ['rev-parse', 'main']) !== commit) {
     throw new Error('the primary source checkout is not at the requested main commit');
   }
-  if (gitText(root, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching', '--', 'src', 'bin', 'packages', 'apps', 'test'])) {
+  if (gitText(root, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching', '--', 'src', 'bin', 'packages', 'apps', ...TEST_ROOTS])) {
     throw new Error('mapped source or test/ differs from the committed main source');
   }
 }
@@ -335,11 +340,11 @@ function requireSourcePin(root, commit) {
 /** Read committed modes and object IDs once; NUL records preserve unusual input path names. */
 function committedInputs(root, commit) {
   const inputs = new Map();
-  for (const record of gitText(root, ['ls-tree', '-r', '-z', commit, '--', 'src', 'bin', 'packages', 'apps', 'test']).split('\0')) {
+  for (const record of gitText(root, ['ls-tree', '-r', '-z', commit, '--', 'src', 'bin', 'packages', 'apps', ...TEST_ROOTS]).split('\0')) {
     if (!record) continue;
     const separator = record.indexOf('\t');
     const path = record.slice(separator + 1);
-    if (!/^(?:src|bin|packages|apps)\/.*\.m?js$/u.test(path) && !/^test\/.*\.test\.m?js$/u.test(path)) continue;
+    if (!/^(?:src|bin|packages|apps)\/.*\.m?js$/u.test(path) && !(/^(?:test|tests|__tests__)\//u.test(path) && isTestPath(path))) continue;
     const metadata = record.slice(0, separator).split(' ');
     if (separator < 0 || metadata.length !== 3 || metadata[1] !== 'blob'
       || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(metadata[2])) {
@@ -422,8 +427,9 @@ export function buildCodeMap(root, mainCommit) {
   if (!/^[\da-f]{40,64}$/u.test(commit)) throw new Error('a full main commit is required to stamp the map');
   requireSourcePin(sourceRoot, commit);
   const packageFiles = ['packages', 'apps'].flatMap(directory => listJavaScript(sourceRoot, directory));
-  const files = [...listJavaScript(sourceRoot, 'src'), ...listJavaScript(sourceRoot, 'bin'), ...packageFiles.filter(path => !/\.test\.m?js$/u.test(path))].sort();
-  const testPaths = [...listJavaScript(sourceRoot, 'test'), ...packageFiles].filter(path => /\.test\.m?js$/u.test(path)).sort();
+  const sourceFiles = [...listJavaScript(sourceRoot, 'src'), ...listJavaScript(sourceRoot, 'bin'), ...packageFiles];
+  const files = sourceFiles.filter(path => !isTestPath(path)).sort();
+  const testPaths = [...new Set([...TEST_ROOTS.flatMap(directory => listJavaScript(sourceRoot, directory)), ...sourceFiles].filter(isTestPath))].sort();
   const inputs = committedInputs(sourceRoot, commit);
   if (JSON.stringify([...inputs.keys()].sort()) !== JSON.stringify([...files, ...testPaths].sort())) {
     throw new Error('the scanned input paths differ from the committed main source');
@@ -628,7 +634,8 @@ export function renderModuleCard(map, modulePath) {
   if (!module) return null;
   const exported = module.functions.filter(fn => fn.exported);
   const privateFns = module.functions.filter(fn => !fn.exported);
-  return [`## ${module.path} (${module.loc} lines, ${exported.length} exported functions)`,
+  const classes = (module.values ?? []).filter(value => value.exported && value.isClass);
+  return [`## ${module.path} (${module.loc} lines, ${exported.length} exported functions${classes.length ? `, ${classes.length} exported ${classes.length === 1 ? 'class' : 'classes'}: ${classes.map(value => value.name).join(', ')}` : ''})`,
     `main: ${map.mainCommit}`, module.job ?? '(no module comment)',
     `observed imports: ${module.dependencies.join(', ') || '-'}${module.external.length ? ` | ${module.external.join(', ')}` : ''}`,
     `observed importers: ${module.importedBy.join(', ') || 'not detected'}`,
