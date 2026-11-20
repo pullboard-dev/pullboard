@@ -46,6 +46,7 @@ function fixture(t, { claim = 'branch' } = {}) {
   put(trunk, 'pullboard.json', JSON.stringify({ lanes: { core: { owns: ['src/'] }, docs: { owns: ['docs/'] } } }) + '\n');
   put(trunk, 'package.json', '{"type":"module"}\n');
   put(trunk, 'packages/items/index.js', `export function requireSubmitComposition() {}\nexport { fetchMissingCommits } from ${JSON.stringify(ITEMS)};\n`);
+  put(trunk, 'packages/gate/heavy.js', "export * from './index.js';\n");
   put(trunk, 'packages/gate/index.js', 'export async function submitGatePlan() { return { proofFiles: [] }; }\n');
   put(trunk, 'packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put(trunk, 'bin/cells-submit-checks.js', 'export async function requireSubmitCells() { return {}; }\n');

@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** The view fixture retries one disconnected read and never repeats a move [N26]. */

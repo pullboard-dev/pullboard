@@ -45,7 +45,7 @@ export { reopenAuthority } from './src/logic/reopen/authority.js';
 export { conflictNoteFiles, legacyConflictNote, reopenConflictEvidence, conflictCause, reopenCauseCorrection } from './src/logic/reopen/cause.js';
 export { correctedNoVerdictReopen } from './src/logic/reopen/history.js';
 export { readResumeSources } from './src/io/sources.js';
-export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/logic/resume.js';
+export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst, pendingApplyIds, pendingApplyLine, applyFirst } from './src/logic/resume.js';
 export { requireSubmitComposition, composeAfterProof, trunkMoveFact } from './src/logic/submit/composition.js';
 export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitInvariantLine, validateLandingBatch, preserveInvariantEvidence, validateLandingRevision } from './src/logic/submit/invariants.js';
 export { fetchMissingCommits, requirePlannedSource, submitPreflight } from './src/logic/submit/preflight.js';

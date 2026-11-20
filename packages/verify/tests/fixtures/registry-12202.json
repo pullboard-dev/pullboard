@@ -1,0 +1,3 @@
+{
+  "verify.logic-advance.read-door-exports-effective-item-head": {"proves":{"specs":["C7"],"claim":"packages/verify/read.js exports the same effectiveItemHead as packages/verify/index.js, with the same result on an item whose head advanced and one that did not."},"why":"A read caller reached the state machine through the index door only to read an item's effective head.","kind":"cell unit","inputs":["packages/verify/tests/logic/advance.test.js","packages/verify/read.js"]}
+}

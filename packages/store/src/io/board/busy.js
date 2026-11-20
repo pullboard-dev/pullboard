@@ -1,4 +1,5 @@
 import { boardWriteHolderText } from "./write/lock.js";
+import { environmentAdapter } from "../../../../env/index.js";
 import { discardBoardWriteMarker } from "./write/lock.js";
 import { prepareBoardWriteIdentity } from "./write/lock.js";
 import { prepareBoardWriteMarker } from "./write/lock.js";
@@ -6,8 +7,9 @@ import { beginBoardWrite } from "./write/lock.js";
 import { finishBoardWrite } from "./write/lock.js";
 /** Translate SQLite lock contention without coupling error reporting to the full board store [C7]. */
 import { Refused } from "../../../../kernel/index.js";
-import { writeSync } from 'node:fs';
 import { BOARD_BUSY_TIMEOUT_MS } from "./schema/source.js";
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Recognize SQLite's busy code, including extended busy result codes. */
 function isBusy(error) {
@@ -48,7 +50,7 @@ const DEFAULT_QUEUE_MS = 0;
 
 /** Read the bound per call so a caller or test can set PULLBOARD_BOARD_QUEUE_MS=0 to refuse at SQLite's timeout. */
 function queueMs() {
-  const raw = process.env.PULLBOARD_BOARD_QUEUE_MS;
+  const raw = environmentAdapter().get('PULLBOARD_BOARD_QUEUE_MS');
   const value = raw === undefined || raw === '' ? DEFAULT_QUEUE_MS : Number(raw);
   return Number.isFinite(value) && value >= 0 ? value : DEFAULT_QUEUE_MS;
 }
@@ -79,7 +81,7 @@ export function beginImmediateQueued(db, startedAt, marker = null) {
         }
         if (!announced && Date.now() - startedAt >= BOARD_BUSY_TIMEOUT_MS) {
           announced = true;
-          try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round(bound / 1000)}s)${boardWriteHolderText(db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file || ':memory:')}\n`); }
+          try { fileSystem.write(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round(bound / 1000)}s)${boardWriteHolderText(db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file || ':memory:')}\n`); }
           catch { /* Diagnostics cannot turn a queued write into a refusal. */ }
         }
         // SQLITE_LOCKED has no busy handler; yield without spinning when it returns immediately.

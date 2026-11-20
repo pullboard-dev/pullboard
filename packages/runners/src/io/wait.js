@@ -1,14 +1,16 @@
 /** Bounded runner admission and read-only overdue queue status [C7,Q1,Q2]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../resources/light.js';
 import { Refused } from '../../../kernel/light.js';
 
+const fs = fileSystemAdapter();
+
 /** Read current overdue runs without creating or migrating the resource pool. */
 export function runnerDeadlineRuns() {
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   let db;
   try {
     db = new DatabaseSync(file, { readOnly: true });

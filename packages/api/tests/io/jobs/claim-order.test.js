@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { addItem } from '../../../../store/index.js';
+import { logEvent } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';
 
@@ -85,4 +87,24 @@ test('api.jobs-claim-order.fresh-gate-job-and-landing: clause 2: a gate job offe
   offerJob(db, { id: 'land:1:x', kind: 'land', now: 300_000 });
   assert.equal(claim(370_000), 'land:1:x', 'a landing job outranks the aged gate job');
   assert.equal(claim(370_001), 'gate:7');
+});
+
+test('api.jobs-claim-order.expedited-item-shards-first: clause 1: an expedited item gets its gate shards before an aged test job and the older shards of another item, and once it leaves the expedited set its leftover shards queue by age again [C7,#11813]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-claim-order-expedited-');
+  const board = cellBoard(t, join(root, 'board.sqlite'));
+  const { db } = board;
+  const one = addItem(board, { by: 'coordinator', lane: 'core', title: 'Ordinary item', route: 'strong' });
+  const two = addItem(board, { by: 'coordinator', lane: 'core', title: 'Expedited item', route: 'strong' });
+  for (let i = 1; i <= 40; i++) offerJob(db, { id: `gate:${one}:shard:${i}`, kind: 'gate-shard', item: one, now: 1000 + i });
+  offerJob(db, { id: 'test:held', kind: 'test', now: 2000 });
+  const claim = (now) => claimJob(db, { runner: 'r1', now, leaseMs: 900000 })?.job;
+  assert.equal(claim(5000), 'test:held');
+  offerJob(db, { id: 'test:aged', kind: 'test', now: 6000 });
+  for (let i = 1; i <= 3; i++) offerJob(db, { id: `gate:${two}:shard:${i}`, kind: 'gate-shard', item: two, now: 7000 + i });
+  logEvent(board, 'coordinator', 'expedite', two, { reason: 'blocks the lander' });
+  assert.equal(claim(126_000), `gate:${two}:shard:1`, 'the expedited item goes first');
+  assert.equal(claim(126_001), `gate:${two}:shard:2`);
+  logEvent(board, 'coordinator', 'run_applied', two, { job: `gate:${two}:x` });
+  assert.equal(claim(126_002), 'test:aged', 'the aged test job follows once the item leaves the expedited set');
+  assert.equal(claim(126_003), `gate:${one}:shard:1`, 'the other item queues by age again');
 });

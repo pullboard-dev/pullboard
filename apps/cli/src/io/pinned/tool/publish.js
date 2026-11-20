@@ -1,8 +1,4 @@
 /** Promote only native full landing evidence; this module never creates or repairs proof receipts. */
-import {
-  readdirSync,
-  statSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { tryGit } from '../../../../../../packages/git/index.js';
@@ -19,6 +15,9 @@ import {
   toolBuildPolicy,
 } from './build.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Require origin-bound green full-suite evidence for an exact accepted ancestor, not a Submit/check receipt. */
 export function gatedToolBuild(location, commit, receiptId, { now = Date.now() } = {}) {
@@ -48,11 +47,11 @@ export function gatedToolBuild(location, commit, receiptId, { now = Date.now() }
 export function newestEligibleToolBuild(location, { now = Date.now() } = {}) {
   const store = receiptStore(location.root);
   let names;
-  try { names = readdirSync(store); } catch { return null; }
+  try { names = fs.list(store); } catch { return null; }
   // Native gate files are written once. Visit recent writes first instead of issuing Git queries
   // for every historical proof receipt on a busy board.
   const ordered = names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).map(name => {
-    try { return { name, mtime: statSync(join(store, name)).mtimeMs }; } catch { return { name, mtime: 0 }; }
+    try { return { name, mtime: fs.stat(join(store, name)).mtimeMs }; } catch { return { name, mtime: 0 }; }
   }).sort((a, b) => b.mtime - a.mtime);
   let newest = null;
   for (const { name } of ordered) {

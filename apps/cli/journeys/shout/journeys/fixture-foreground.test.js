@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** The cockpit helper starts its view in the foreground [C7,N26]. */
