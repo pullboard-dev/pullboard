@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { shimImportProblems } from '../../../../packages/codemap/index.js';
 import { stagedShimImportProblems } from '../../../../packages/codemap/index.js';
-import { importsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixturePolicy } from '../../tests/fixtures/testkit.js';

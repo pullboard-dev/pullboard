@@ -6,6 +6,8 @@ import { pendingSubmitHandoff } from '../submit/handoff/records.js';
 import { lightDiagnosisProblem } from '../../logic/item/diagnosis.js';
 import { firstRefusal } from '../../logic/board/item/lookup.js';
 import { seatGone } from '../presence.js';
+import { afterGateIds } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
 import { itemById } from './query.js';
 import { laneHold } from './query.js';
 
@@ -30,7 +32,7 @@ const afterOf = (row) => String(row?.item_after ?? '').split(',').filter(Boolean
 function itemView(board, row) {
   const outside = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`outside_source:${row.item_id}`)?.meta_value ?? '';
   return { id: row.item_id, status: row.item_status, owner: row.item_owner, leaseUntil: row.item_lease_until, lane: row.item_lane, route: row.item_route,
-    after: afterOf(row), parentId: row.item_parent_id, holdReason: row.item_hold_reason ?? null, frozenDigest: row.item_frozen_digest ?? null,
+    after: afterOf(row), afterGate: afterGateIds(board, row.item_id), parentId: row.item_parent_id, holdReason: row.item_hold_reason ?? null, frozenDigest: row.item_frozen_digest ?? null,
     expectedMinutes: row.item_expected_build_minutes ?? null,
     builtBy: row.item_built_by ?? null, verdict: row.item_verdict ?? null, outside: outside.includes('pull-request') ? 'pull-request' : null,
     gateInFlight: Boolean(pendingSubmitHandoff(board, row)), diagnosed: lightDiagnosisProblem(board, row, 'light') === null, returnedRework: false };
@@ -56,7 +58,7 @@ export function claimDecision(board, id, { options, plan, takeoverReady }) {
   const deps = {};
   for (const dep of [...afterOf(row), ...waits]) {
     const found = itemById(board, dep);
-    if (found?.item_id !== undefined) deps[dep] = { status: found.item_status, lane: found.item_lane, merged: Boolean(found.item_merged_commit), leaseUntil: found.item_lease_until, gateInFlight: Boolean(pendingSubmitHandoff(board, found)) };
+    if (found?.item_id !== undefined) deps[dep] = { status: found.item_status, lane: found.item_lane, merged: Boolean(found.item_merged_commit), leaseUntil: found.item_lease_until, gateInFlight: Boolean(pendingSubmitHandoff(board, found)), gateGreen: gateGreenParent(board, dep) };
   }
   // The writer's own instant, so the table's leaseUntil adds leaseMs to the same moment the writer did (a second clock read differs by milliseconds).
   const now = (plan.instant ?? board.clock.now()).toISOString();

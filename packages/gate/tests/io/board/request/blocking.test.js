@@ -118,7 +118,7 @@ test('gate.io-board-request-blocking.t-6755-clause-1-a-known-violation: #6755 cl
 
 test('gate.io-board-request-blocking.the-known-set-holds-the-current: clause 2: the known set holds the current Atomics.wait and readdirSync sites by file and function [C7]', () => {
   assert.ok('packages/store/src/io/board/busy.js#beginImmediateQueued' in KNOWN_REQUEST_BLOCKERS);
-  for (const owner of ['apps/relay/src/io/retention.js#backupFiles', 'packages/keys/src/io/relay.js#scrubLegacyPersonSessions', 'packages/link/src/io/relay/lock.js#locked', 'packages/link/src/io/relay/machine.js#readRelayMachine', 'packages/store/src/io/board/write/lock.js#boardWriteHolderText']) {
+  for (const owner of ['packages/store/src/io/board/write/lock.js#boardWriteHolderText']) {
     assert.ok(owner in KNOWN_REQUEST_BLOCKERS, owner);
   }
   const rows = apiRequestIoProblems(sources, { known: {} }).map(row => row.call);

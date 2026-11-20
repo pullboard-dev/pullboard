@@ -1,11 +1,9 @@
 /** Optimistic preparation is bound to one connection's actual SQLite contents [B2,C7]. */
-import { closeSync } from 'node:fs';
-import { constants } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
 import { Refused } from "../../../../../kernel/index.js";
 import { boardWritesLog } from '../hold/log.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The tail of the machine's write log read to name a writer; a refusal never reads more. */
 const WRITE_LOG_TAIL_BYTES = 64 * 1024;
@@ -105,12 +103,12 @@ export function observedWriterRecords(error) {
 function loggedWritesSince(at) {
   let fd;
   try {
-    fd = openSync(boardWritesLog(), constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd);
+    fd = fs.open(boardWritesLog(), fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstat(fd);
     if (!stat.isFile()) return [];
     const start = Math.max(0, stat.size - WRITE_LOG_TAIL_BYTES);
     const buffer = Buffer.alloc(stat.size - start);
-    const count = readSync(fd, buffer, 0, buffer.length, start);
+    const count = fs.read(fd, buffer, 0, buffer.length, start);
     const lines = buffer.subarray(0, count).toString('utf8').split('\n');
     if (start) lines.shift();
     const rows = [];
@@ -124,6 +122,6 @@ function loggedWritesSince(at) {
     return rows;
   } catch { return []; /* No log is the normal case for a fresh machine. */ }
   finally {
-    if (fd !== undefined) try { closeSync(fd); } catch { /* Advisory read cleanup. */ }
+    if (fd !== undefined) try { fs.close(fd); } catch { /* Advisory read cleanup. */ }
   }
 }

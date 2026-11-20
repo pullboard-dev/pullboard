@@ -1,12 +1,5 @@
 /** Sweep dead runner job folders, trim repos and cache to a budget, and keep an absolute amount of disk free; a live job is never touched [C7]. */
 import { spawnSync } from 'node:child_process';
-import { lstatSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readlinkSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statfsSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -17,6 +10,9 @@ import { processCensus } from './custody.js';
 import { acquireResourceApi } from './worker/environment.js';
 import { DatabaseSync } from 'node:sqlite';
 import { maintainTestResults } from './results.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const GIB = 1024 ** 3;
 export const DEFAULT_REPOS_BUDGET = 15 * GIB;
@@ -31,7 +27,7 @@ const PIN = 'source-cache-pin.json';
 
 /** Read free and total bytes of the filesystem holding a path; null when it cannot be observed. */
 export function diskSpace(path) {
-  try { const stat = statfsSync(path); return { free: stat.bavail * stat.bsize, total: stat.blocks * stat.bsize }; }
+  try { const stat = fs.statfs(path); return { free: stat.bavail * stat.bsize, total: stat.blocks * stat.bsize }; }
   catch { return null; }
 }
 
@@ -39,11 +35,11 @@ export function diskSpace(path) {
 export function treeBytes(path, deadline = Infinity) {
   let total = 0;
   let stat;
-  try { stat = lstatSync(path); } catch { return 0; }
+  try { stat = fs.lstat(path); } catch { return 0; }
   total += stat.blocks * 512;
   if (!stat.isDirectory() || Date.now() > deadline) return total;
   let names = [];
-  try { names = readdirSync(path); } catch { return total; }
+  try { names = fs.list(path); } catch { return total; }
   for (const name of names) total += treeBytes(join(path, name), deadline);
   return total;
 }
@@ -51,9 +47,9 @@ export function treeBytes(path, deadline = Infinity) {
 /** Newest modification time anywhere in a path's top two levels, used as its last use. */
 function lastUse(path) {
   let newest = 0;
-  try { newest = lstatSync(path).mtimeMs; } catch { return 0; }
+  try { newest = fs.lstat(path).mtimeMs; } catch { return 0; }
   try {
-    for (const name of readdirSync(path)) newest = Math.max(newest, lstatSync(join(path, name)).mtimeMs);
+    for (const name of fs.list(path)) newest = Math.max(newest, fs.lstat(join(path, name)).mtimeMs);
   } catch { /* A plain file or unreadable directory keeps its own time. */ }
   return newest;
 }
@@ -64,9 +60,9 @@ function folderHolders(jobs) {
   const held = new Set();
   if (process.platform === 'linux') {
     let pids;
-    try { pids = readdirSync('/proc').filter(name => /^[1-9]\d*$/u.test(name)); } catch { return null; }
+    try { pids = fs.list('/proc').filter(name => /^[1-9]\d*$/u.test(name)); } catch { return null; }
     for (const pid of pids) {
-      try { const name = inside(readlinkSync(`/proc/${pid}/cwd`)); if (name) held.add(name); }
+      try { const name = inside(fs.readlink(`/proc/${pid}/cwd`)); if (name) held.add(name); }
       catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) return null; }
     }
     return held;
@@ -90,10 +86,10 @@ function folderHolders(jobs) {
 export function jobFolderLive(jobs, name, { census, held, now }) {
   const directory = join(jobs, name);
   let stat;
-  try { stat = lstatSync(directory); } catch { return false; }
+  try { stat = fs.lstat(directory); } catch { return false; }
   if (!stat.isDirectory() || held.has(name)) return true;
   let owner;
-  try { owner = JSON.parse(readFileSync(join(directory, 'worker-owner.json'), 'utf8')); }
+  try { owner = JSON.parse(fs.readFile(join(directory, 'worker-owner.json'), 'utf8')); }
   catch (error) {
     if (error.code !== 'ENOENT') return true;
     // No owner record proves no process is dead, so only a terminal result or 24 quiet hours releases the folder [#3734].
@@ -111,12 +107,12 @@ export function jobFolderLive(jobs, name, { census, held, now }) {
 
 /** Record that a job delivered its result, so the sweep may remove its folder even if the worker dies [#3734]. */
 export function writeTerminalResult(directory) {
-  writeFileSync(join(directory, TERMINAL_RESULT), '{}\n', { mode: 0o600 });
+  { const terminal = fs.open(join(directory, TERMINAL_RESULT), 'w', 0o600); try { fs.write(terminal, '{}\n'); } finally { fs.close(terminal); } }
 }
 
 /** Whether a job folder holds a terminal result, written once its worker delivered the job's result. */
 function hasTerminalResult(directory) {
-  try { return lstatSync(join(directory, TERMINAL_RESULT)).isFile(); } catch { return false; }
+  try { return fs.lstat(join(directory, TERMINAL_RESULT)).isFile(); } catch { return false; }
 }
 
 /**
@@ -135,15 +131,15 @@ function ownerGone(directory, owner, census, now) {
 /** Newest modification time in a bounded walk of a folder, so deep activity under a job counts as use. */
 function newestWrite(directory, budget = { left: 20_000 }, depth = 0) {
   let newest = 0;
-  try { newest = lstatSync(directory).mtimeMs; } catch { return 0; }
+  try { newest = fs.lstat(directory).mtimeMs; } catch { return 0; }
   if (depth > 6) return newest;
   let entries = [];
-  try { entries = readdirSync(directory, { withFileTypes: true }); } catch { return newest; }
+  try { entries = fs.list(directory, { withFileTypes: true }); } catch { return newest; }
   for (const entry of entries) {
     if (--budget.left < 0) return Date.now();
     const path = join(directory, entry.name);
     if (entry.isDirectory() && !entry.isSymbolicLink()) newest = Math.max(newest, newestWrite(path, budget, depth + 1));
-    else { try { newest = Math.max(newest, lstatSync(path).mtimeMs); } catch { /* Gone while walking. */ } }
+    else { try { newest = Math.max(newest, fs.lstat(path).mtimeMs); } catch { /* Gone while walking. */ } }
   }
   return newest;
 }
@@ -153,7 +149,7 @@ function leasedJobs(machineHome) {
   const file = join(machineHome, 'resources.sqlite');
   let db;
   try {
-    lstatSync(file);
+    fs.lstat(file);
     db = new DatabaseSync(file, { readOnly: true });
     return db.prepare("SELECT agent FROM holder WHERE name='gate' AND agent LIKE 'pullboard-ssh-%'").all()
       .map(row => row.agent.slice('pullboard-ssh-'.length));
@@ -165,10 +161,10 @@ function leasedJobs(machineHome) {
 function pinnedRepos(jobs) {
   const repos = new Set();
   let names;
-  try { names = readdirSync(jobs); } catch (error) { return error.code === 'ENOENT' ? repos : null; }
+  try { names = fs.list(jobs); } catch (error) { return error.code === 'ENOENT' ? repos : null; }
   for (const name of names) {
     try {
-      const pin = JSON.parse(readFileSync(join(jobs, name, PIN), 'utf8'));
+      const pin = JSON.parse(fs.readFile(join(jobs, name, PIN), 'utf8'));
       if (!/^[a-f0-9]{64}$/u.test(pin.repoId)) return null;
       repos.add(pin.repoId);
     } catch (error) { if (error.code !== 'ENOENT') return null; }
@@ -180,14 +176,14 @@ function pinnedRepos(jobs) {
 function storeUnits(root, pinned, anyLive, deadline) {
   const units = [];
   const add = (kind, key, paths) => {
-    const existing = paths.filter(path => { try { lstatSync(path); return true; } catch { return false; } });
+    const existing = paths.filter(path => { try { fs.lstat(path); return true; } catch { return false; } });
     if (!existing.length) return;
     units.push({ kind, key, paths: existing, bytes: existing.reduce((sum, path) => sum + treeBytes(path, deadline), 0),
       used: Math.max(...existing.map(lastUse)), protected: kind === 'repos' ? pinned.has(key) : key !== 'npm' && anyLive });
   };
   const groups = new Map();
   try {
-    for (const name of readdirSync(join(root, 'repos'))) {
+    for (const name of fs.list(join(root, 'repos'))) {
       if (name.startsWith('.repo-')) continue;
       const key = name.split('.')[0];
       groups.set(key, [...(groups.get(key) ?? []), join(root, 'repos', name)]);
@@ -195,7 +191,7 @@ function storeUnits(root, pinned, anyLive, deadline) {
   } catch { /* No repos directory means nothing to trim. */ }
   for (const [key, paths] of groups) add('repos', key, paths);
   try {
-    for (const name of readdirSync(join(root, 'cache'))) if (name !== 'resource-pool') add('cache', name, [join(root, 'cache', name)]);
+    for (const name of fs.list(join(root, 'cache'))) if (name !== 'resource-pool') add('cache', name, [join(root, 'cache', name)]);
   } catch { /* No cache directory means nothing to trim. */ }
   return units;
 }
@@ -219,7 +215,7 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
   const leases = machineHome ? leasedJobs(machineHome) : null;
   if (!observed || !held || !leases) { report.skipped = 'custody unavailable'; report.freeBytes = freeNow(); return report; }
   let names = [];
-  try { names = readdirSync(jobs); } catch { /* No jobs directory means no dead folders. */ }
+  try { names = fs.list(jobs); } catch { /* No jobs directory means no dead folders. */ }
   const live = [];
   for (const name of names) {
     if (leases.some(id => name.startsWith(id + '-')) || jobFolderLive(jobs, name, { census: observed, held, now })) { live.push(name); report.keptJobs.push(name); continue; }
@@ -228,7 +224,7 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
     if (!currentLeases || !currentCensus || !currentHeld || currentLeases.some(id => name.startsWith(id + '-')) || jobFolderLive(jobs, name, { census: currentCensus, held: currentHeld, now: Date.now() })) { report.keptJobs.push(name); continue; }
     const abandoned = !hasTerminalResult(join(jobs, name));
     try {
-      rmSync(join(jobs, name), { recursive: true, force: true }); report.removedJobs.push(name);
+      fs.rm(join(jobs, name), { recursive: true, force: true }); report.removedJobs.push(name);
       if (abandoned) { report.abandonedJobs.push(name); process.stderr.write(`PULLBOARD_RUNNER_JOB_ABANDONED job=${name}\n`); }
     }
     catch { report.keptJobs.push(name); }
@@ -259,7 +255,7 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
           agent: `pullboard-ssh-sweep-${process.pid}`, kind: 'dependency-cache',
           onWait: () => { onLeaseWait(unit.key); if (Date.now() >= deadline) throw new Error('sweep deadline'); } }, join(root, 'cache', 'resource-pool'));
       }
-      for (const path of unit.paths) rmSync(path, { recursive: true, force: true });
+      for (const path of unit.paths) fs.rm(path, { recursive: true, force: true });
       sizes[unit.kind] -= unit.bytes;
       report.trimmed.push(`${unit.kind}/${unit.key}`);
     } catch { /* Keep anything whose lease or deletion cannot be proved safe. */ }
@@ -282,7 +278,7 @@ function envBytes(name, fallback) {
  */
 export function diskFloorBytes(machineHome) {
   try {
-    const megabytes = JSON.parse(readFileSync(join(machineHome, 'settings.json'), 'utf8')).gate?.diskFloorMB;
+    const megabytes = JSON.parse(fs.readFile(join(machineHome, 'settings.json'), 'utf8')).gate?.diskFloorMB;
     return Number.isSafeInteger(megabytes) && megabytes >= 0 ? megabytes * 1024 ** 2 : DEFAULT_MIN_FREE_BYTES;
   } catch { return DEFAULT_MIN_FREE_BYTES; }
 }
