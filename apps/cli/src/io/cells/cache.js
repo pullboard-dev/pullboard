@@ -1,9 +1,6 @@
 import { validateAcceptedInventory } from '../../../../../packages/codemap/index.js';
 /** Cache immutable base inventories on the machine and incrementally inspect a candidate [C7,D3]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { serialize } from 'node:v8';
 import { deserialize } from 'node:v8';
@@ -19,7 +16,9 @@ import { cellGit as git } from '../../../../../packages/codemap/index.js';
 import { cellsCacheDirectory } from '../../../../../packages/codemap/index.js';
 import { publishCacheEntry } from '../../../../../packages/codemap/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { temporaryCellEdges } from '../../../../../packages/codemap/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A cache is never evidence for a moved or dirty immutable source. */
 function unchanged(checkout, commit) {
@@ -67,7 +66,7 @@ export function inventoryCacheFile(key, commit) {
 
 /** Mark a cache entry used now, so pruning keeps the bases that gates still read. */
 function touch(file) {
-  try { const now = new Date(); utimesSync(file, now, now); } catch { /* Use order is advisory. */ }
+  try { const now = new Date(); fs.utimes(file, now, now); } catch { /* Use order is advisory. */ }
 }
 
 /**
@@ -129,7 +128,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
   /** Read the cached inventory of one commit under this checker; a missing, damaged or foreign entry is never evidence. */
   function read(file, commit) {
     try {
-      const data = deserialize(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }));
+      const data = deserialize(gunzipSync(fs.readFile(file, null), { maxOutputLength: 256 * 1024 * 1024 }));
       if (data.version !== 2 || data.commit !== commit || data.checker !== checker || !Buffer.isBuffer(data.payload)
         || data.digest !== createHash('sha256').update(data.payload).digest('hex')) throw new Error('invalid inventory cache');
       const inventory = deserialize(data.payload);
@@ -149,7 +148,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
     catch { return null; }
     for (const ancestor of ancestors) {
       const file = inventoryCacheFile(key, ancestor);
-      const cached = existsSync(file) ? read(file, ancestor) : null;
+      const cached = fs.exists(file) ? read(file, ancestor) : null;
       if (!cached) continue;
       let changed;
       try { changed = git(checkout, ['diff', '--no-renames', '--name-only', '-z', ancestor, commit]).split('\0').filter(Boolean); }
@@ -166,10 +165,10 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
     onMode(fallback ? 'candidate-full-fallback' : 'candidate-incremental', cause);
     return fallback ? cellInventory(checkout, parsers) : updateCellInventory(checkout, parsers, prior, changed);
   }
-  /** A completed main report shares its immutable source while expiring temporary authority is read now. */
+  /** A completed main report is served exactly as stored for its immutable source. */
   function report(checkout, commit) {
     if (!strict || !artifact?.available || git(checkout, ['rev-parse', `${commit}^{tree}`]).trim() !== artifact.descriptor.tree) return null;
-    return currentInventoryReport(artifact.report, artifact.inventory);
+    return artifact.report;
   }
   return { base, candidate, report };
 }
@@ -197,7 +196,7 @@ export function observationCache(root, key, eligible = () => false) {
   const file = checker ? join(directory, `${checker}.json.gz`) : null;
   let values = new Map();
   if (file && eligible()) try {
-    const data = JSON.parse(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }).toString('utf8'));
+    const data = JSON.parse(gunzipSync(fs.readFile(file, null), { maxOutputLength: 256 * 1024 * 1024 }).toString('utf8'));
     if (data.version !== 2 || data.checker !== checker || data.digest !== receiptDigest(data.payload)) throw new Error('invalid observations');
     const loaded = deserialize(Buffer.from(data.payload, 'base64'));
     if (!(loaded instanceof Map) || loaded.size > 32768 || [...loaded].some(([id, row]) => typeof id !== 'string'
@@ -229,26 +228,6 @@ export function observationCache(root, key, eligible = () => false) {
 export function inventoryPending(message, commit) {
   return Object.assign(new Error(`accepted cells inventory is not ready: ${message}; the background main inventory producer must complete before retry`),
     { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, inventoryCommit: commit });
-}
-
-/** Refresh only date-dependent temporary edges; immutable source/report findings stay cached. */
-function currentInventoryReport(report, inventory) {
-  const temporary = temporaryCellEdges(inventory.files);
-  const metrics = Object.fromEntries(Object.entries(report.metrics).map(([name, value]) => [name, { ...value,
-    findings: value.findings.filter(row => name === 'shims' ? !row.key.startsWith('temporary:')
-      : name !== 'unknown' || !row.key.startsWith('packages/codemap/data/plan/temporary-edges.json:')) }]));
-  const unknown = report.unknown.filter(row => row.file !== 'packages/codemap/data/plan/temporary-edges.json');
-  for (const row of temporary.edges) metrics.shims.findings.push({ key: `temporary:${row.importer}->${row.target}`, count: 1,
-    detail: `contract #${row.contractItem}; expires ${row.expires} UTC` });
-  for (const reason of temporary.problems) {
-    unknown.push({ file: 'packages/codemap/data/plan/temporary-edges.json', reason });
-    metrics.unknown.findings.push({ key: `packages/codemap/data/plan/temporary-edges.json::${reason}`, count: 1, detail: reason });
-  }
-  for (const value of Object.values(metrics)) {
-    value.findings.sort((a, b) => a.key.localeCompare(b.key));
-    value.count = value.findings.reduce((sum, row) => sum + row.count, 0);
-  }
-  return { ...report, metrics, unknown };
 }
 
 /** Verify one bounded streamed bundle against the exact descriptors bound by the native check command. */

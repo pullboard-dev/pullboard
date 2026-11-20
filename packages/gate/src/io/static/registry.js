@@ -5,17 +5,16 @@
  * `{ cliCell, cliIndex, cliHelp, relayDeploy, specCheck }`, each a repo-relative path except `specCheck`, the node arguments
  * of the spec check. A class that needs an app path and gets none reports that as its failure rather than passing silently.
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { mainCommit } from '../../../../codemap/index.js';
+import { readCellRule } from '../../../../codemap/index.js';
 import { styleSources } from '../../../../codemap/index.js';
-import { importStyleViolations } from '../../../index.js';
+import { importStyleViolations } from '../../../heavy.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
@@ -29,7 +28,13 @@ import { clockLintRows } from '../adapter-lints/clock.js';
 import { adapterLintEnvEnabled } from '../../../../config/index.js';
 import { envLintRows } from '../adapter-lints/env.js';
 import { adapterLintFsEnabled } from '../../../../config/index.js';
+import { adapterLintSigningEnabled } from '../../../../config/index.js';
+import { adapterLintSshEnabled } from '../../../../config/index.js';
+import { adapterLintGithubEnabled } from '../../../../config/index.js';
 import { fsLintRows } from '../adapter-lints/fs.js';
+import { signingLintRows } from '../adapter-lints/signing.js';
+import { sshLintRows } from '../adapter-lints/ssh.js';
+import { githubLintRows } from '../adapter-lints/github.js';
 import { idiomSpreadEnabled } from '../../../../config/index.js';
 import { IDIOM_CEILING_FILE } from '../adapter-lints/idiom-spread.js';
 import { idiomSpreadRows } from '../adapter-lints/idiom-spread.js';
@@ -67,8 +72,8 @@ import {
   readMissingPathBaseline,
 } from '../paths/lint.js';
 import { STATIC_CHECKS } from './check/registry.js';
-import { cliReachRows } from '../../../index.js';
-import { keylessRows } from '../../../index.js';
+import { cliReachRows } from '../../../heavy.js';
+import { keylessRows } from '../../../heavy.js';
 import { repoPath } from '../../../../kernel/light.js';
 import { runChildren } from './children.js';
 import { parallelCap } from './children.js';
@@ -77,6 +82,9 @@ import { fileCache } from './cache.js';
 import { toolingKey } from './cache.js';
 import { cellRows } from './cache.js';
 import { cellScopedKey } from './cache.js';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 /** The per-file CLI launch ceilings, as a repo-relative path [C7]. */
 export const CLI_LAUNCHES_FILE = 'packages/gate/data/baselines/cli-launches.json';
@@ -110,14 +118,14 @@ function cachedMissingPaths(root, context) {
   const cache = context.cache('missing-paths', 1), topsKeys = new WeakMap();
   const findingsOf = (at, file, source, tops) => {
     if (!topsKeys.has(tops)) topsKeys.set(tops, blobOid([...tops].sort().join(',')));
-    const probesHold = entry => entry.probes.every(([path, found]) => existsSync(resolve(at, path)) === found);
+    const probesHold = entry => entry.probes.every(([path, found]) => fs.exists(resolve(at, path)) === found);
     return cache.get(file, `${blobOid(source)}:${topsKeys.get(tops)}`, () => {
       const probes = [];
-      const rows = fileFindings(at, file, source, tops, abs => { const found = existsSync(abs); probes.push([relative(at, abs), found]); return found; });
+      const rows = fileFindings(at, file, source, tops, abs => { const found = fs.exists(abs); probes.push([relative(at, abs), found]); return found; });
       return { rows, probes };
     }, probesHold).rows;
   };
-  const files = context.changed ? context.changed.filter(path => SOURCE(path) && existsSync(resolve(root, path))).sort() : undefined;
+  const files = context.changed ? context.changed.filter(path => SOURCE(path) && fs.exists(resolve(root, path))).sort() : undefined;
   return missingPathGrowth(missingPathFindings(root, { findingsOf, files }), readMissingPathBaseline(root));
 }
 
@@ -165,7 +173,7 @@ function bundleChild(root) {
  * @returns {{rows: string[], line: string}} The failure (if any) and the report line.
  */
 function workerBundleReport(root, finished = null) {
-  const recorded = JSON.parse(readFileSync(join(root, 'packages/gate/data/ceilings/worker-bundle.json'), 'utf8')).bytes;
+  const recorded = JSON.parse(fs.readFile(join(root, 'packages/gate/data/ceilings/worker-bundle.json'), 'utf8')).bytes;
   const child = finished ?? (({ args, options }) => spawnSync(process.execPath, args, { ...options, encoding: 'utf8' }))(bundleChild(root));
   const lines = (child.stderr ?? '').trim().split('\n');
   const step = lines.filter(line => line.startsWith('step: ')).at(-1)?.slice(6) ?? 'start the measuring process';
@@ -179,7 +187,7 @@ function workerBundleReport(root, finished = null) {
 
 /** Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564]. */
 function bundleScope(root, sources, context) {
-  return cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });
+  return cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => fs.readFile(join(root, file), 'utf8') });
 }
 
 /**
@@ -188,9 +196,9 @@ function bundleScope(root, sources, context) {
  * `STATIC_CHECKS` this is the only place a static class is named (#3233).
  */
 export const STATIC_TREE_CHECKS = Object.freeze([
-  { name: 'test-waits', jsonInputs: ['test-waits-baseline'], reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
+  { name: 'test-waits', jsonInputs: ['test-waits-baseline'], reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(fs.readFile(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  { name: 'cli-launches', jsonInputs: ['cli-launches'], reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
+  { name: 'cli-launches', jsonInputs: ['cli-launches'], reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(fs.readFile(join(root, CLI_LAUNCHES_FILE), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A new package test may not import the CLI app's child fixture outside the named exceptions; judged against where the branch met main [#8435].
   { name: 'cli-child-import', jsonInputs: ['cli-child-importers'], reads: TEST, run: (root, sources, context = MEMORY) => cliChildImportProblems(root, { only: context.changed })
@@ -206,8 +214,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'relay-boundary', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const folder = context.apps?.relayDeploy;
     if (!folder) return noApps('relay-boundary');
-    const relay = readdirSync(join(root, folder), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
-      .map(entry => ({ file: `${folder}/${entry.name}`, source: readFileSync(repoPath(root, `${folder}/${entry.name}`), 'utf8') }));
+    const relay = fs.list(join(root, folder), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name))
+      .map(entry => ({ file: `${folder}/${entry.name}`, source: fs.readFile(repoPath(root, `${folder}/${entry.name}`), 'utf8') }));
     // The check judges each file alone, so its rows are kept by blob [5567].
     const cache = context.cache('relay-boundary', 1);
     return [...treeSources(root, sources), ...relay].filter(row => !context.changed || context.changed.includes(row.file)).flatMap(row => cache.get(row.file, blobOid(row.source), () => relayBoundaryProblems([row]))).map(row => `${row.file}:${row.line}: ${row.text}`);
@@ -229,7 +237,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'cells-edges', jsonInputs: ['cells-edges'], reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('file-edges', 1), text = new Map(treeSources(root, sources).map(row => [row.file, row.source]));
     return cellsEdgeProblems(root, {
-      read: file => text.get(file) ?? readFileSync(join(root, file), 'utf8'),
+      rule: readCellRule(root),
+      read: file => text.get(file) ?? fs.readFile(join(root, file), 'utf8'),
       edgesOf: (file, source) => cache.get(file, blobOid(source), () => fileEdges(file, source)),
     }).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
@@ -270,12 +279,18 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   } },
   // Direct node:fs imports outside the kernel; each file's count may only fall, and off (gate.adapterLintFs) it reports nothing (#9449).
   { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
+  // Direct GitHub API references outside the GitHub adapter; each file's count may only fall, and off (gate.adapterLintGithub) it reports nothing (#11278).
+  { name: 'adapter-lint-github', reads: SOURCE, run: (root, sources, context = MEMORY) => githubLintRows(root, { enabled: context.adapterLintGithub ?? adapterLintGithubEnabled() }) },
+  // Direct node:crypto key and signature calls outside the signing adapter; each file's count may only fall, and off (gate.adapterLintSigning) it reports nothing (#11270).
+  { name: 'adapter-lint-signing', reads: SOURCE, run: (root, sources, context = MEMORY) => signingLintRows(root, { enabled: context.adapterLintSigning ?? adapterLintSigningEnabled() }) },
+  // Direct ssh spawns outside the SSH runner adapter; each file's count may only fall, and off (gate.adapterLintSsh) it reports nothing (#11374).
+  { name: 'adapter-lint-ssh', reads: SOURCE, run: (root, sources, context = MEMORY) => sshLintRows(root, { enabled: context.adapterLintSsh ?? adapterLintSshEnabled() }) },
   // A statement shape copied into 3 or more files, and named idioms past their ceiling; off (gate.idiomSpread) it reports nothing (#9521).
   { name: 'idiom-spread', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const enabled = context.idiomSpread ?? idiomSpreadEnabled();
     if (enabled !== true) return [];
     let ceilings = '{}';
-    try { ceilings = readFileSync(join(root, IDIOM_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no named idiom is held. */ }
+    try { ceilings = fs.readFile(join(root, IDIOM_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no named idiom is held. */ }
     return idiomSpreadRows(treeSources(root, sources), { enabled, ceilings });
   } },
   // A view timer over 1 s that hides, removes or re-renders, held at a per-file ceiling that only falls; off (gate.viewTimerLayout) it reports nothing (#9523).
@@ -283,7 +298,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const enabled = context.viewTimerLayout ?? viewTimerLayoutEnabled();
     if (enabled !== true) return [];
     let ceilings = '{}';
-    try { ceilings = readFileSync(join(root, VIEW_TIMER_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no site is held. */ }
+    try { ceilings = fs.readFile(join(root, VIEW_TIMER_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no site is held. */ }
     return viewTimerLayoutRows(treeSources(root, sources), { enabled, ceilings });
   } },
   // A test that pins an engine number, an exact file or case count, a file hash or a frozen JSON snapshot, off the approved-text allowlist; off (gate.literalPins) it reports nothing (#9385).
@@ -291,7 +306,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const enabled = context.literalPins ?? literalPinsEnabled();
     if (enabled !== true) return [];
     let allowlist = '{}';
-    try { allowlist = readFileSync(join(root, LITERAL_PIN_ALLOWLIST_FILE), 'utf8'); } catch { /* No allowlist file: no pin is approved. */ }
+    try { allowlist = fs.readFile(join(root, LITERAL_PIN_ALLOWLIST_FILE), 'utf8'); } catch { /* No allowlist file: no pin is approved. */ }
     return literalPinRows(treeSources(root, sources), { enabled, allowlist });
   } },
   // child: what the async entry starts early, or nothing when the answer is kept.
@@ -303,7 +318,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   } },
   // The worker may import only from a reviewed list of units; cell-scoped like the bundle, since the closure is the runners cell's [#8461].
   { name: 'worker-imports', jsonInputs: ['worker-imports'], reads: SOURCE, run: (root, sources, context = MEMORY) => {
-    const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => readFileSync(join(root, file), 'utf8') });
+    const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => fs.readFile(join(root, file), 'utf8') });
     return context.cache('worker-imports', 1).get('worker-imports', scope, () => workerImportProblems(root));
   } },
   { name: 'adapter-lint-env', reads: SOURCE, run: (root, sources, context = MEMORY) => envLintRows(root, { enabled: context.adapterLintEnv ?? adapterLintEnvEnabled() }) },
@@ -312,7 +327,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const { declared, actual } = proseCommandSets(root, context.apps.cliIndex, context.children?.get('prose-commands'));
     if (JSON.stringify(declared) === JSON.stringify(actual)) return [];
     const helpFile = context.apps.cliHelp;
-    const line = readFileSync(join(root, helpFile), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
+    const line = fs.readFile(join(root, helpFile), 'utf8').split('\n').findIndex(row => row.includes('export const PULLBOARD_COMMANDS')) + 1;
     return [`${helpFile}:${Math.max(1, line)}: prose command declaration differs from the CLI help catalog`];
   } },
   { name: 'wall-clock-budgets', reads: TEST, child: root => ({ args: ['packages/gate/tests/fixtures/budgets.js'], options: { cwd: root } }), run: (root, sources, context = MEMORY) => {

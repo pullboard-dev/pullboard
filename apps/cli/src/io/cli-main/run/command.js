@@ -3,6 +3,34 @@ import { COMMANDS } from '../../commands/index.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
 import { parseCommandArgs } from '../options.js';
 
+/** The seat commands that say a seat's returned rejections first when next.returnedFirst is on [C7,#2220]. */
+const RETURNED_FIRST_COMMANDS = new Set(['next', 'claim', 'submit', 'show', 'fact']);
+
+/**
+ * Say one line per open item this seat built that a verifier rejected, before the command's own lines.
+ * Why: a rejected builder reads the reason at once instead of finding it by hand; everything loads lazily so the setting off adds no module to a cold command [C7,#2220].
+ * A seat that cannot be identified or a board that cannot be read says nothing: the echo never refuses the command it precedes.
+ *
+ * @param {any} io
+ * @returns {Promise<void>}
+ */
+async function sayReturnedFirst(io) {
+  const { nextReturnedFirst } = await import('../../../../../../packages/config/index.js');
+  if (!nextReturnedFirst()) return;
+  try {
+    const { context } = await import('../../read.js');
+    const { whoAmI } = await import('../../join.js');
+    const { withBoardRead } = await import('../../board/read.js');
+    const { returnedEchoLines } = await import('../../next/returned.js');
+    const ctx = context(io);
+    const lines = await withBoardRead(ctx, (board, store) => {
+      const verdictFor = id => store.verdictsFor(board, id).filter(verdict => verdict.verdict_decision === 'REJECT').at(-1);
+      return returnedEchoLines(store.listItems(board), verdictFor, whoAmI(ctx, board).id);
+    });
+    for (const line of lines) io.say(line);
+  } catch { /* no joined seat or no readable board: nothing was returned to say */ }
+}
+
 /**
  * Run one command. Returns the exit code: 0 done, 1 refused, 2 usage.
  *
@@ -48,6 +76,7 @@ export async function runCommand(argv, io) {
       await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
     }
+    if (RETURNED_FIRST_COMMANDS.has(command)) await sayReturnedFirst(io);
     return await commandModule.run(io, args);
   } catch (error) {
     error = (await import('../../../../../../packages/state/index.js')).recordedMoveRefusal(io, error);

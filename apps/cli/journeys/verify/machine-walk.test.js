@@ -53,7 +53,10 @@ const ENTRY_POINTS = [
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
 // The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
-const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js'];
+// The same services hand the gate its cell checks (requireSubmitCells), which read the cell plan and raise its refusals.
+const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js', '../apps/cli/src/io/cells-submit-checks.js'];
+// next and status load the drive cell with await import only when a gate job lapsed (#11941), which the walk does not follow; its reclaim pass still raises the drive refusals.
+const LAZY_RAISER_FILES = ['../packages/drive/src/io/reclaim.js'];
 // The move tables raise the lease refusals from data the walk does not follow; these files raise them as code, and the audit worker raises STALE_MAIN_RED on withdraw.
 const TABLE_RAISER_FILES = ['../packages/store/src/logic/board/landing/lease.js', '../packages/landing/src/io/worker.js', '../packages/landing/src/io/resource.js', '../packages/gate/src/io/main/audit/worker.js'];
 const NON_MOVE_ENTRY_POINTS = [
@@ -84,6 +87,8 @@ const CAUGHT = {
   '../packages/verify/src/logic/review/reachability.js#unreviewableStrict': ['../packages/verify/src/logic/review/eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
+  // linkFor reads each link record inside its own catch and skips an invalid one.
+  '../packages/items/src/logic/cross/repo.js#linkFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
@@ -115,7 +120,7 @@ const CAUGHT = {
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported']);
+const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported', '../packages/link/src/io/relay/link.js#relayLinked', '../packages/link/src/io/relay/link.js#relayRecovered', '../packages/link/src/io/relay/link.js#relayMachineContext', '../packages/link/src/io/relay/link.js#environmentAgent']);
 // This independently ordered bootstrap happens before the requested move; its refusals remain audited above.
 const SETUP_EDGES = { '../apps/cli/src/io/claim.js#ordered': ['../packages/store/index.js#recordSpecApprovalBaseline'] };
 
@@ -145,6 +150,11 @@ function lazyCallees(file, body, source) {
       const [original, local = original] = part.split(/\s*:\s*/);
       if (new RegExp(String.raw`(?<![\w.])${local}\(`).test(body)) callees.push(`${under(specifier)}#${original}`);
     }
+  }
+  // A memoized loader, `const store = () => (cache ??= load('./x.js'))`, then `store().name(...)`: the board opener loads the store barrel this way on its first write open.
+  const memo = String.raw`^const (\w+) = \(\) => \(\w+ \?\?= (?:${[...loaders].join('|')})\(\s*['"](\.{1,2}\/[^'"]+\.js)['"]\s*\)\);$`;
+  for (const [, wrapper, specifier] of source.matchAll(new RegExp(memo, 'gm'))) {
+    for (const [, name] of body.matchAll(new RegExp(String.raw`(?<![\w.])${wrapper}\(\)\.(\w+)\(`, 'g'))) callees.push(`${under(specifier)}#${name}`);
   }
   return callees;
 }
@@ -342,12 +352,14 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...LAZY_RAISER_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   // A code a move's own entry reaches is raised by the code, whichever file holds the entry (the pulled submit gate's table replay, for one).
   for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
   // The lease table names its refusals as data (code: 'X') and the table engine raises them; the walk reads only thrown Refused codes.
   for (const [, code] of read('../packages/moves/src/logic/table/lease.table.js').matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
+  // The claim table names its exit-key guard's refusal as data, guard('exit-key', 'exitKey', 'EXIT_USAGE', ...), and the table engine raises it inside the write.
+  for (const [, code] of read('../packages/moves/src/logic/table/claim.table.js').matchAll(/guard\('exit-key', '\w+', '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -407,6 +419,8 @@ function statusWriters(read) {
       if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
     }
     for (const match of source.matchAll(/(?:\[\s*)?(['"`]?)item_status\1(?:\s*\])?\s*:|\b(?:update|replace\s+into|insert\s+or\s+replace\s+into)\s+(?:main\.)?item\b/gi)) {
+      // A JSDoc line (` * @param {{ item_status: string }}`) describes a row's type and never writes one.
+      if (/^\s*\*/u.test(source.slice(source.lastIndexOf('\n', match.index) + 1, match.index))) continue;
       if (!spans.some(([start, end]) => match.index >= start && match.index < end)) {
         const before = source.slice(0, match.index);
         const owner = [...functionsIn(source).entries()].find(([, body]) => source.indexOf(body) <= match.index && match.index < source.indexOf(body) + body.length);
@@ -490,13 +504,14 @@ test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-declaration: clause 
 });
 
 test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
-  for (const [file, pattern] of [
-    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
-    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
+  // The strict accept path records its proven-break fact through the board link record reader (8836e3032a), so a refusal planted in boardLinkRecord reaches accept and reject uncaught.
+  for (const [file, pattern, expected] of [
+    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m, ['MOON_PHASE is raised by accept and reject but not declared there']],
+    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m, []],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
-    assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
+    assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), expected, 'only the exact foreign evidence reader is caught as unavailable; the record reader is audited where another move reaches it');
   }
   const inForeignCaller = editedSource('../packages/items/src/logic/cross/repo.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
@@ -524,6 +539,8 @@ test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy 
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
+      // Claim writes its events through the same rigor counter, so the drafting entry is reached from claim too.
+      'MOON_PHASE is raised by claim but not declared there',
       'MOON_PHASE is raised by release but not declared there',
       'MOON_PHASE is raised by reopen but not declared there',
       // Submit starts the companion objection window, which reads the same rigor sources (#2540).

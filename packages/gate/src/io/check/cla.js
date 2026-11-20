@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /** Check that every commit author on a pull request agreed to CLA.md by listing or by one PR comment [C7]. */
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export const SENTENCE = 'I have read CLA.md and I agree to it.';
 const SIGNATURES = '.github/cla-signatures.json';
@@ -18,7 +17,7 @@ const send = fetch;
  * A missing file means nobody has signed and nobody is exempt, so the check fails closed.
  */
 export function readSignatures(path = resolve(SIGNATURES)) {
-  const data = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+  const data = fs.exists(path) ? JSON.parse(fs.readFile(path, 'utf8')) : {};
   return { exempt: data.exempt ?? [], signatures: data.signatures ?? [] };
 }
 
@@ -87,7 +86,7 @@ export function appendSignatures(path, newSigners, claText, now = new Date().toI
     if (have.has(login.toLowerCase())) continue;
     file.signatures.push({ login, id: comment.user_id ?? null, comment_url: comment.url, agreed_at: comment.created_at ?? now, cla_sha256: sha });
   }
-  writeFileSync(path, JSON.stringify(file, null, 2) + '\n');
+  fs.writeFile(path, JSON.stringify(file, null, 2) + '\n');
   return file;
 }
 
@@ -105,12 +104,12 @@ async function pages(url, headers) {
 }
 
 /** Load the pull request's commits and comments from the event, or from a fixture file for tests. */
-async function loadPullRequest() {
-  if (process.env.CLA_PR_FILE) return { ...JSON.parse(readFileSync(process.env.CLA_PR_FILE, 'utf8')), live: false };
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+async function loadPullRequest(environment = environmentAdapter()) {
+  if (environment.get('CLA_PR_FILE')) return { ...JSON.parse(fs.readFile(environment.get('CLA_PR_FILE'), 'utf8')), live: false };
+  const event = JSON.parse(fs.readFile(environment.get('GITHUB_EVENT_PATH'), 'utf8'));
   const number = event.pull_request?.number ?? event.issue?.number;
-  const api = `${process.env.GITHUB_API_URL ?? 'https://api.github.com'}/repos/${process.env.GITHUB_REPOSITORY}`;
-  const headers = { accept: 'application/vnd.github+json', authorization: `Bearer ${process.env.GITHUB_TOKEN}` };
+  const api = `${environment.get('GITHUB_API_URL', 'https://api.github.com')}/repos/${environment.get('GITHUB_REPOSITORY')}`;
+  const headers = { accept: 'application/vnd.github+json', authorization: `Bearer ${environment.get('GITHUB_TOKEN')}` };
   const commits = (await pages(`${api}/pulls/${number}/commits`, headers)).map((c) => ({ sha: c.sha, login: c.author?.login ?? null, id: c.author?.id ?? null, message: c.commit?.message ?? '', parents: c.parents ?? [] }));
   const comments = (await pages(`${api}/issues/${number}/comments`, headers)).map((c) => ({ id: c.id, user_id: c.user?.id, login: c.user?.login, body: c.body, url: c.html_url, created_at: c.created_at }));
   let head = event.pull_request?.head?.sha;
@@ -130,9 +129,9 @@ async function postStatus(pr, ok, description) {
 }
 
 /** Run the check, print every problem, and set the exit code. */
-async function main() {
-  const pr = await loadPullRequest();
-  const result = evaluate(pr, readSignatures(process.env.CLA_SIGNATURES_FILE ?? resolve(SIGNATURES)));
+async function main(environment = environmentAdapter()) {
+  const pr = await loadPullRequest(environment);
+  const result = evaluate(pr, readSignatures(environment.get('CLA_SIGNATURES_FILE') ?? resolve(SIGNATURES)));
   if (result.problems.length) {
     process.stderr.write(result.problems.join('\n') + '\n');
     process.exitCode = 1;

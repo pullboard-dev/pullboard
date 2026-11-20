@@ -1,7 +1,4 @@
 /** Helpers for `pullboard resume`: next steps, merge groups, decisions and release notes. Split from src/cli.js, which re-exports it [C7]. */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
@@ -12,6 +9,9 @@ import { VERSION } from '../logic/help.js';
 import { requireTrunkMerge } from '../../../../packages/sandbox/index.js';
 import { staleVerdictRefusal } from '../../../../packages/verify/index.js';
 import { releaseHeadlinesBetween } from '../../../../packages/config/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The next step for an agent holding a claim: build it and submit. */
 export const buildNext = (card) => `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;
@@ -127,16 +127,16 @@ export function coordinatorDecisionSections(board, ctx) {
 export function resumeReleaseNotes(info) {
   const record = join(info.gitDir, 'pullboard-checkout', 'resume-version');
   let previous = '';
-  try { previous = readFileSync(record, 'utf8').trim(); } catch { /* First resume in this checkout. */ }
+  try { previous = fs.readFile(record, 'utf8').trim(); } catch { /* First resume in this checkout. */ }
   if (!/^\d+\.\d+\.\d+$/u.test(previous)) {
-    mkdirSync(dirname(record), { recursive: true });
-    writeFileSync(record, `${VERSION}\n`);
+    fs.mkdir(dirname(record), { recursive: true });
+    fs.writeFile(record, `${VERSION}\n`);
     return null;
   }
   if (previous === VERSION) return null;
   const releases = releaseHeadlinesBetween(previous, VERSION);
-  mkdirSync(dirname(record), { recursive: true });
-  writeFileSync(record, `${VERSION}\n`);
+  fs.mkdir(dirname(record), { recursive: true });
+  fs.writeFile(record, `${VERSION}\n`);
   return releases.length ? { releases: releases.slice(0, 3), omitted: Math.max(0, releases.length - 3), notes: 'CHANGELOG.md' } : null;
 }
 

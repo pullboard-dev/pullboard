@@ -58,12 +58,20 @@ test('store.gate-shard-claim.settled-or-deadline-frees: clause 2: once the gate 
   const settled = claimedWithShards(t, Array(32).fill('done'));
   settle(settled.box.board, 'gate:1');
   assert.equal(itemWorkInFlight(settled.box.board, getItem(settled.box.board, settled.id)), false, 'a settled gate holds nothing');
-  const late = claimedWithShards(t, ['done', 'offered']);
+  const late = claimedWithShards(t, ['done', 'done']);
   late.box.advance(2 * 3_600_000 - 60_000);
   assert.equal(itemWorkInFlight(late.box.board, getItem(late.box.board, late.id)), true, 'inside the deadline an unsettled gate still holds');
   late.box.advance(60_000);
-  assert.equal(itemWorkInFlight(late.box.board, getItem(late.box.board, late.id)), false, 'at the 2 hour deadline it no longer holds');
+  assert.equal(itemWorkInFlight(late.box.board, getItem(late.box.board, late.id)), false, 'at the 2 hour deadline a gate with no live shard job no longer holds');
   const older = claimedWithShards(t, Array(4).fill('done'));
   job(older.box.board, { id: 'gate:2', kind: 'gate', item: older.id, step: 'done', at: older.box.clock.now().getTime() + 100 });
   assert.equal(itemWorkInFlight(older.box.board, getItem(older.box.board, older.id)), false, 'an older gate job\'s unsettled shards do not count');
+});
+
+test('store.gate-shard-claim.live-shard-holds-past-deadline: a gate with a live shard job still holds the claim past the 2 hour deadline [C7,#11923]', t => {
+  const live = claimedWithShards(t, ['done', 'offered']);
+  live.box.advance(2 * 3_600_000 + 60_000);
+  assert.equal(itemWorkInFlight(live.box.board, getItem(live.box.board, live.id)), true, 'an offered shard holds the claim past 2 hours');
+  live.box.advance(3 * 3_600_000);
+  assert.equal(itemWorkInFlight(live.box.board, getItem(live.box.board, live.id)), true, 'a live shard job holds with no time bound');
 });

@@ -1,5 +1,6 @@
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
 import { READINESS_ENGINE } from '../../../../state/light.js';
+import { NEEDS_ENGINE } from '../../../../state/light.js';
 import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/light.js";
 import { REFERENCE_ENGINE } from "../../../../state/light.js";
@@ -24,7 +25,7 @@ function existingEngine(args, board, at) {
 
 /** Preserve every historical floor while preventing older replicas from flattening foreign references. */
 function minimumEngine(args, board, at) {
-  return Math.max(args[0]?.expectedBuildMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, args[0]?.readinessCommand !== undefined ? READINESS_ENGINE : 1, args[0]?.checkTiming !== undefined ? CHECK_TIMING_ENGINE : 1, (args[0]?.sensitive !== undefined || (args[0]?.reviewFamily !== undefined && args[0]?.reviewFamily === null)) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[0]?.referenceAuthors !== undefined || args[0]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
+  return Math.max(args[0]?.expectedBuildMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, args[0]?.readinessCommand !== undefined ? READINESS_ENGINE : 1, args[0]?.needs !== undefined ? NEEDS_ENGINE : 1, args[0]?.checkTiming !== undefined ? CHECK_TIMING_ENGINE : 1, (args[0]?.sensitive !== undefined || (args[0]?.reviewFamily !== undefined && args[0]?.reviewFamily === null)) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[0]?.referenceAuthors !== undefined || args[0]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
     existingEngine(args, board, at), hasForeignDependencies(args[0]?.after) ? CROSS_REPO_DEPENDENCY_ENGINE : 1,
     args[0]?.reviewFamily !== undefined ? AUTOMATIC_DISPATCH_ENGINE : 1);
 }
@@ -42,5 +43,7 @@ export default Object.freeze({ operation: "addItem", order: 8, engine: 1,
   "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
   "BAD_CHECK_BASELINE": "the coordinator sets the check again: pullboard edit <id> --check \"<command>\"",
   "CHECK_RUNS_PULLBOARD_TEST": "run the files directly: node packages/gate/src/io/run/tests.js <files>",
-  "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator --kind question \"please set a check on #<id>\""
+  "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator --kind question \"please set a check on #<id>\"",
+  "ACCEPTED_RECORD_UNKNOWN": "accept the record again with pullboard contribute accept <file>, then add with the hash it prints",
+  "ACCEPTED_RECORD_NO_TITLE": "name the title: pullboard add <lane> \"<title>\" --from-record <hash>"
 }) });

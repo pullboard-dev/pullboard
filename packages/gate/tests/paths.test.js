@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { privateFixtureFiles } from './fixtures/child.js';
-import { redGateScope } from '../index.js';
-import { renderTestSummary } from '../index.js';
-import { testOutputSummary } from '../index.js';
-import { timingDigest } from '../index.js';
+import { redGateScope } from '../heavy.js';
+import { renderTestSummary } from '../heavy.js';
+import { testOutputSummary } from '../heavy.js';
+import { timingDigest } from '../heavy.js';
 
 const A = 'packages/alpha/tests/gate.test.js';
 const B = 'packages/beta/tests/gate.test.js';

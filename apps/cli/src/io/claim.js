@@ -1,5 +1,6 @@
 /** @pullboard-module-loads packages/health/src/io/stale/state/capture.js packages/moves/index.js */
 import { seatAt } from './item/folder/identity.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
 import {
   submitHandoffActor,
@@ -53,12 +54,13 @@ import { ensureSpecApprovalCoordinator } from '../../../../packages/spec/index.j
 import { initialSpecApprovalBaseline } from '../../../../packages/spec/index.js';
 import { refuseClaimProvesNothing } from '../../../../packages/verify/index.js';
 import { refuseClaimMissingPaths } from './item/bar.js';
+import { refuseClaimCrossOwnership } from './item/bar.js';
 import { firstRefusalArgs } from '../../../../packages/items/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { relayOperation } from '../../../../packages/link/index.js';
 import { relayRecovered } from '../../../../packages/link/index.js';
-import { coordinatorFile } from './spec.js';
+import { coordinatorFile } from './coordinator-file.js';
 import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
@@ -137,6 +139,16 @@ export async function maintainLapsedBeforeWrite(ctx, board, operation, args, act
   } finally { LAPSE_MAINTENANCE.delete(board); }
 }
 
+/**
+ * Run one board move through the writer, after the signed-move, spec-approval and first-refusal checks have shaped its arguments.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {string} operation
+ * @param {Array} args
+ * @param {object} [options]
+ * @returns {Promise<*>}
+ */
 export async function ordered(ctx, board, operation, args, { prepareInWriter } = {}) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
@@ -270,7 +282,7 @@ function dropsLegacyPolicyPin(board, id, agentId) {
   return !(item.item_status === 'claimed' && item.item_owner === agentId && store.isHeld(board, item));
 }
 
-/** Order a claim on every route (claim, next, run) only after a check green on main is not held and the bar's paths exist [V4,C7]. */
+/** Order a claim on every route (claim, next, run) only after a check green on main is not held, the bar's paths exist and its files are its lane's [V4,C7]. */
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   await refuseClaimMissingPaths(ctx, board, args[0]);
@@ -281,6 +293,8 @@ export async function claimOrdered(ctx, board, args) {
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
+  // One ownership answer for every seat and route: main's lanes, judged by the files the item changes [C7,#11857].
+  refuseClaimCrossOwnership(ctx, board, args[0], args[1].agentId, accepted);
   const perSeat = seatCapOf(accepted);
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);
@@ -298,7 +312,7 @@ export async function claimOrdered(ctx, board, args) {
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
-  const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
+  const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules: sealExitCheckpoints(ctx.config, exitRules), exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),

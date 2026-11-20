@@ -1,0 +1,32 @@
+{
+  "store.io-board-health.digest-buffer-persists-and-flushes": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "applyHealthFindings keeps the digest buffer and each reader's last flush in the health-scan event, so three routine findings for one seat over two scans 10 minutes apart get one digest shout naming all three."
+    },
+    "why": "Without this test, a regression where applyHealthFindings keeps the digest buffer and each reader's last flush in the health-scan event, so three routine findings for one seat over two scans 10 minutes apart get one digest shout naming all three would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/health.test.js",
+      "packages/store/src/io/board/health.js",
+      "packages/store/src/logic/board/receipts.js"
+    ]
+  },
+  "store.io-board-health.digest-immediate-and-old-engine": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an UNLANDED_HELD finding is shouted in the same scan, and below HEALTH_EPISODE_ENGINE a scan shouts exactly as before."
+    },
+    "why": "Without this test, a regression where an UNLANDED_HELD finding is shouted in the same scan, and below HEALTH_EPISODE_ENGINE a scan shouts exactly as before would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/health.test.js",
+      "packages/store/src/io/board/health.js",
+      "packages/store/src/logic/board/receipts.js"
+    ]
+  }
+}

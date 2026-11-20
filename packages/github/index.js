@@ -10,3 +10,6 @@ export * from "./src/io/pr/verification.js";
 export * from "./src/logic/private.js";
 export * from "./src/io/publish.js";
 export * from "./src/io/adapter/request.js";
+export * from "./src/io/adapter/npm.js";
+export * from "./src/io/adapter/keys.js";
+export * from "./src/io/cla.js";

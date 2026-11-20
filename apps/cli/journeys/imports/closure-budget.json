@@ -1,7 +1,7 @@
 {
   "whoami": 227,
   "runner-home whoami": 227,
-  "show 1": 569,
+  "show 1": 530,
   "list": 265,
   "status": 1331,
   "next": 1520,
@@ -11,5 +11,6 @@
   "hook post-commit": 1,
   "claim 1": 1050,
   "release 1 --reason OTHER --note x": 1052,
-  "add web Measure-again --criterion x": 1574
+  "add web Measure-again --criterion x": 1574,
+  "verify 1 accept --note x": 1688
 }

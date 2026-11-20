@@ -1,16 +1,14 @@
 /** Collect private command output through pipes; dependency files are never size-limited [V18,V2]. */
 import { spawn } from 'node:child_process';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 import {
   captureTestRuntimes,
   executionEnvironment,
 } from '../../../../../../packages/sandbox/index.js';
-import {
-  createWriteStream,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 
-const { command, timeout, pidFile, logPath } = JSON.parse(readFileSync(0, 'utf8'));
+const disk = fileSystemAdapter();
+const { command, timeout, pidFile, logPath } = JSON.parse(disk.readFile(0, 'utf8'));
 const LIMIT = 8 * 1024 * 1024;
 const HALF = LIMIT / 2;
 let head = Buffer.alloc(0);
@@ -19,7 +17,7 @@ let bytes = 0;
 let timedOut = false;
 let error = null;
 let logError = null;
-const log = createWriteStream(logPath, { flags: 'wx', mode: 0o600 });
+const log = disk.createWriteStream(logPath, { flags: 'wx', mode: 0o600 });
 log.on('error', cause => {
   logError = { code: cause.code ?? 'CHECK_LOG' };
   // A failed log must not leave either pipe paused forever waiting for a drain that cannot happen.
@@ -41,9 +39,12 @@ function capture(chunk) {
   }
 }
 
-const runtimes = captureTestRuntimes(process.env);
+const runtimes = captureTestRuntimes(environmentAdapter().all());
 const child = spawn('sh', ['-c', `(\n${command}\n) 2>&1`], { detached: true, env: runtimes.env, stdio: ['ignore', 'pipe', 'pipe'] });
-if (child.pid) writeFileSync(pidFile, String(child.pid), { mode: 0o600 });
+if (child.pid) {
+  const pid = disk.open(pidFile, 'w', 0o600);
+  try { disk.write(pid, String(child.pid)); } finally { disk.close(pid); }
+}
 
 /** Stop the command's entire process group, including background descendants that retain pipes. */
 function stop() {

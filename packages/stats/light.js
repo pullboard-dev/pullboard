@@ -39,7 +39,7 @@ export { pipelineStats } from './src/logic/pipeline.js';
 export { proofStats, proofAgentIds, isProofAgent } from './src/io/main.js';
 export { readCapacity, capacityAtRead } from './src/io/capacity.js';
 export { readMaxUsefulBuilders } from './src/io/useful.js';
-export { usefulBuilderLines } from './src/logic/capacity/useful.js';
+export { usefulBuilderLines, staffingSeats, staffingLines } from './src/logic/capacity/useful.js';
 export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage, coordinatorUsage } from './src/io/cost.js';
 export { recordUsageBatch } from './src/io/cost/batch.js';
 export { recordSharedUsage } from './src/io/cost/shared.js';

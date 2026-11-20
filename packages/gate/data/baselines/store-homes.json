@@ -175,9 +175,6 @@
   "packages/commits/src/io/signoff.js": {
     "pullboard.json": 1
   },
-  "packages/commits/src/logic/change/row/plan.js": {
-    "cells.json": 2
-  },
   "packages/config/src/io/git/sync.js": {
     "git-sync.json": 1
   },
@@ -447,11 +444,6 @@
     "refusal.json": 2,
     "request.json": 1,
     "board.sqlite": 1
-  },
-  "packages/resources/src/io/handoff/worker/cap.js": {
-    "request.json": 1,
-    "submission.json": 1,
-    "refusal.json": 1
   },
   "packages/resources/src/io/heartbeat/blocked.js": {
     "table:holder": 1

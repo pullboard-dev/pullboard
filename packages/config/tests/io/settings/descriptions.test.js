@@ -10,3 +10,15 @@ test('config.settings-descriptions.level-live-only-row: clause 1: the descriptio
   assert.equal(row.label, 'Live seats only');
   assert.equal(describeSetting('line.route.liveOnly'), null);
 });
+
+test('config.settings-descriptions.items-bar-rules-at-add-row: clause 3: the descriptions list items.barRulesAtAdd as an on/off row [C7,#11738]', () => {
+  const row = describeSetting('items.barRulesAtAdd');
+  assert.ok(row, 'items.barRulesAtAdd has a description row');
+  assert.equal(row.label, 'Refuse a bar that breaks a bar path rule at add');
+});
+
+test('config.settings-descriptions.route-reservations-row: clause 3: the descriptions list route.reservations as an on/off row [C7,#9177]', () => {
+  const row = describeSetting('route.reservations');
+  assert.ok(row, 'route.reservations has a description row');
+  assert.equal(row.label, 'Route reservations');
+});

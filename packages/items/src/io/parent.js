@@ -1,13 +1,9 @@
 /** Stable parent identities recorded at join, from an explicit declaration or this runtime's own session metadata [V1,B3]. */
-import {
-  closeSync,
-  openSync,
-  readSync,
-  readdirSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
+import { environmentAdapter } from "../../../env/index.js";
 import { createHash } from 'node:crypto';
 import { AGENT_SESSION_IDS } from "../../../kernel/index.js";
 import { PARENT_SESSION_ENGINE } from "../../../state/light.js";
@@ -23,6 +19,8 @@ import {
   saveAgentSession,
 } from "../../../seats/index.js";
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** Accept an opaque identity, never a path, whitespace, credential or arbitrary session metadata. */
 export function parentIdentity(value) {
@@ -87,9 +85,9 @@ export function saveJoinedSession(board, id, { parent, session, parentDigest, se
 function ownSessionMetadata(file, session) {
   let descriptor;
   try {
-    descriptor = openSync(file, 'r');
+    descriptor = fs.open(file, 'r');
     const buffer = Buffer.alloc(256 * 1024);
-    const count = readSync(descriptor, buffer, 0, buffer.length, 0);
+    const count = fs.read(descriptor, buffer, 0, buffer.length, 0);
     const text = buffer.subarray(0, count).toString('utf8');
     const end = text.indexOf('\n');
     if (end < 0) return null;
@@ -97,11 +95,11 @@ function ownSessionMetadata(file, session) {
     if (record.type !== 'session_meta' || ![record.payload?.id, record.payload?.session_id].includes(session)) return null;
     return record.payload;
   } catch { return null; }
-  finally { if (descriptor !== undefined) closeSync(descriptor); }
+  finally { if (descriptor !== undefined) fs.close(descriptor); }
 }
 
 /** Keep the runtime's own identity; discover a parent only in its matching Codex metadata record. */
-export function runtimeSessionIdentity(environment = process.env, home = homedir()) {
+export function runtimeSessionIdentity(environment = environmentAdapter().all(), home = homedir()) {
   const key = AGENT_SESSION_IDS.find(name => Boolean(environment[name]));
   if (!key) return null;
   let session;
@@ -111,7 +109,7 @@ export function runtimeSessionIdentity(environment = process.env, home = homedir
   if (key === 'CLAUDE_CODE_SESSION_ID') return own;
   const sessions = join(environment.CODEX_HOME || join(home, '.codex'), 'sessions');
   let entries;
-  try { entries = readdirSync(sessions, { recursive: true, withFileTypes: true }); }
+  try { entries = fs.list(sessions, { recursive: true, withFileTypes: true }); }
   catch { return own; }
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(`-${storeName(session, '.jsonl')}`)) continue;
@@ -125,11 +123,11 @@ export function runtimeSessionIdentity(environment = process.env, home = homedir
 }
 
 /** Read this runtime's parent, keeping a primary session's missing parent visible as unknown. */
-export function runtimeParentSession(environment = process.env, home = homedir()) {
+export function runtimeParentSession(environment = environmentAdapter().all(), home = homedir()) {
   return runtimeSessionIdentity(environment, home)?.parent ?? null;
 }
 
 /** An explicit declaration and the runtime record use exactly the same canonical identity. */
-export function joinParentSession(declared, environment = process.env) {
+export function joinParentSession(declared, environment = environmentAdapter().all()) {
   return declared === undefined ? runtimeParentSession(environment) : parentIdentity(declared);
 }

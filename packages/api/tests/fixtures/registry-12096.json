@@ -1,0 +1,4 @@
+{
+  "api.io-claim-replay.trial-claims": {"proves":{"specs":["C7"],"claim":"trialClaims runs 20 pull claims on a copy of the board database, each rolled back, and returns the p95 and the process CPU milliseconds they used while the board file stays byte for byte unchanged."},"why":"Without this test a trial that measures a code change's claim cost can write to the board or report no CPU figure, and a slow change is judged blind.","kind":"contract","inputs":["packages/api/src/io/claim-replay.js","packages/api/src/io/gate.js"]},
+  "api.io-claim-replay.trial-claims-line": {"proves":{"specs":["C7"],"claim":"trialLine over a scratch board trial returns one line carrying the p95 and the CPU milliseconds for 20 claims."},"why":"Without this test the trial's printed line can drift from the figures a handover decision reads.","kind":"contract","inputs":["packages/api/src/io/claim-replay.js"]}
+}

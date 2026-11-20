@@ -1,0 +1,3 @@
+{
+  "store.io-board-item-after-gate-report.claim-recorded": {"proves":{"specs":["C7"],"claim":"Claiming a dependent whose after-gate parent is gate-green records one note fact naming the parent id, the parent head and the claim time; a plain --after claim and a renewed claim record none."},"why":"The dependent's thread shows which parent head its build started from, so a later review can compare it with what landed (#12325).","kind":"cell unit","inputs":["packages/store/src/io/board/item/after-gate-report.js","packages/store/tests/io/board/item/after-gate-report.test.js"]}
+}

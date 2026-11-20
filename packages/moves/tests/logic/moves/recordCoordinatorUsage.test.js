@@ -5,7 +5,7 @@ import { COORDINATOR_USAGE_ENGINE } from '../../../../state/index.js';
 import { applyRelayMove } from '../../../../state/index.js';
 import { prepareEngineMove } from '../../../../state/index.js';
 import { MOVE_REGISTRY } from '../../../index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 

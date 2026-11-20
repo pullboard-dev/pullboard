@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** With read.thinCommands on, pullboard whoami prints what it printed before and loads fewer than 300 modules [C7,#9811]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

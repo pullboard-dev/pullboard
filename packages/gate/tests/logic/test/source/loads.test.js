@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../fixtures/child.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
-import { selectAffectedTests } from '../../../../index.js';
+import { selectAffectedTests } from '../../../../heavy.js';
 
 /** Make a real committed ES-module graph without executing any candidate source. */
 function graph(t) {

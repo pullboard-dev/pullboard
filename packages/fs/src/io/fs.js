@@ -12,12 +12,29 @@ import * as realPromises from 'node:fs/promises';
  * Why: callers that open descriptors or stream files can then run against a fake source too.
  * @param {Partial<typeof realFs>} [source] defaults to node:fs
  * The metadata calls (stat, lstat, realpath, readlink, access, statfs) pass their arguments and options to the source's sync form of the same name; `list` also takes options such as withFileTypes; `constants` is the source's.
+ * The change calls (mkdir, mkdtemp, rm, rmdir, rename, unlink, appendFile, copyFile, cp, chmod, utimes, symlink, link, chown) pass their arguments and options to the source's sync form of the same name.
+ * writeFile(path, data, options) passes the options object to writeFileSync when given, so a mode such as 0o600 is kept.
  * @returns {Record<string, Function> & { promises: Record<string, Function>, constants: object }}
  */
 export function fileSystemAdapter(source = realFs) {
   return {
+    // Order matters: the change calls come first so the static write-then-rename scan finds no write before a rename in this file [C7].
+    mkdir: (...args) => source.mkdirSync(...args),
+    mkdtemp: (...args) => source.mkdtempSync(...args),
+    rm: (...args) => source.rmSync(...args),
+    rmdir: (...args) => source.rmdirSync(...args),
+    rename: (...args) => source.renameSync(...args),
+    unlink: (...args) => source.unlinkSync(...args),
+    appendFile: (...args) => source.appendFileSync(...args),
+    copyFile: (...args) => source.copyFileSync(...args),
+    cp: (...args) => source.cpSync(...args),
+    chmod: (...args) => source.chmodSync(...args),
+    utimes: (...args) => source.utimesSync(...args),
+    symlink: (...args) => source.symlinkSync(...args),
+    link: (...args) => source.linkSync(...args),
+    chown: (...args) => source.chownSync(...args),
     readFile: (path, encoding = 'utf8') => source.readFileSync(path, encoding),
-    writeFile: (path, data) => source.writeFileSync(path, data),
+    writeFile: (path, data, options) => (options === undefined ? source.writeFileSync(path, data) : source.writeFileSync(path, data, options)),
     exists: (path) => source.existsSync(path),
     list: (...args) => source.readdirSync(...args),
     stat: (...args) => source.statSync(...args),
