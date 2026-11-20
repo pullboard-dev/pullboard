@@ -7,6 +7,7 @@ import { claimBlock } from "../../../index.js";
 import { getItem } from "../../../index.js";
 import { listBlocks } from "../../../index.js";
 import { addItem } from "../../../index.js";
+import { logEvent } from "../../../index.js";
 import { BLOCK_ENGINE } from "../../../../state/light.js";
 import { cellBoard } from "../../fixtures/cell.js";
 import { cellProject } from "../../fixtures/cell.js";
@@ -86,6 +87,50 @@ test("store.blocks.claim-refusals: clause 2: an unknown name refuses NO_BLOCK, a
   claim(board, ids[1], { agentId: rival.id, lane: "web", leaseMs: HOUR, freeze: FREEZE });
   assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }), error => error.code === "BLOCK_CLAIMED" && error.message.includes(`#${ids[1]}`));
   assert.equal(getItem(board, ids[0]).item_owner, null, "the refused block claimed no member");
+});
+
+test("store.blocks.renew-as-one: clause 1: renewing one member a seat holds through a block renews the lease of every member it holds through that block [C7,#2202]", t => {
+  const { board, ids } = twoItems(t);
+  addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
+  const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
+  claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE });
+  const before = getItem(board, ids[1]).item_lease_until;
+  const renewed = claim(board, ids[0], { agentId: seat.id, lane: "web", leaseMs: 2 * HOUR, freeze: FREEZE });
+  assert.equal(renewed.renewed, true);
+  const rows = ids.map(id => getItem(board, id));
+  assert.ok(rows[1].item_lease_until > before, "the second member's lease moved with the first's");
+  assert.equal(rows[0].item_lease_until, rows[1].item_lease_until);
+  assert.equal(rows[1].item_lease_until, renewed.leaseUntil);
+  const events = board.db.prepare("SELECT item_id FROM event WHERE event_kind = 'renew' AND event_by = ?").all(seat.id).map(row => row.item_id).sort();
+  assert.deepEqual(events, [...ids].sort(), "each member has its own renew event");
+});
+
+test("store.blocks.renew-peer-correction-refused: clause 1: renewing one member of a block while a held peer has a pending criterion correction is refused PENDING_REFREEZE, and neither member's lease nor renew events move [C7,#2202]", t => {
+  const { board, ids } = twoItems(t);
+  addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
+  const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
+  claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE });
+  const leases = ids.map(id => getItem(board, id).item_lease_until);
+  const renewEvents = () => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'renew'").get().n;
+  logEvent(board, "coordinator", "edit", ids[1], { criterion: "a corrected bar", pendingRefreeze: ["criterion"] });
+  const before = renewEvents();
+  assert.throws(() => claim(board, ids[0], { agentId: seat.id, lane: "web", leaseMs: 2 * HOUR, freeze: FREEZE }), error => error.code === "PENDING_REFREEZE");
+  assert.deepEqual(ids.map(id => getItem(board, id).item_lease_until), leases, "no member's lease moved");
+  assert.equal(renewEvents(), before, "no renew event was written");
+});
+
+test("store.blocks.renew-non-member-unchanged: clause 2: a renew of a claim that is not held through a block renews only that item, exactly as today [C7,#2202]", t => {
+  const { board, ids } = twoItems(t);
+  const first = cellSeat(board, { lane: "web", path: "/solo-seat-a", route: "strong" });
+  const second = cellSeat(board, { lane: "web", path: "/solo-seat-b", route: "strong" });
+  claim(board, ids[0], { agentId: first.id, lane: "web", leaseMs: HOUR, freeze: FREEZE });
+  claim(board, ids[1], { agentId: second.id, lane: "web", leaseMs: HOUR, freeze: FREEZE });
+  const other = getItem(board, ids[1]).item_lease_until;
+  const renewed = claim(board, ids[0], { agentId: first.id, lane: "web", leaseMs: 2 * HOUR, freeze: FREEZE });
+  assert.equal(renewed.renewed, true);
+  assert.equal(getItem(board, ids[1]).item_lease_until, other, "the other item's lease did not move");
+  const events = board.db.prepare("SELECT item_id FROM event WHERE event_kind = 'renew'").all().map(row => row.item_id);
+  assert.deepEqual(events, [ids[0]], "only the renewed item has a renew event");
 });
 
 test("store.blocks.claim-all-or-none: clause 1: a member whose bar cannot freeze refuses before any member is written, and a member whose write fails under the lock rolls back the earlier members, so a block claim takes every member or none [C7]", t => {

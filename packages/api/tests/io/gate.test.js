@@ -2,10 +2,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { realGitAdapter } from '../../../git/index.js';
+import { withGitContractAdapter } from '../../../git/index.js';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { headTree } from '../../../git/index.js';
+import * as store from '../../../store/index.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
@@ -176,6 +184,64 @@ test('api.gate.no-timing-plan-unchanged: clause 3: a plan with no timing field o
   assert.equal(landShards(t, { cores: 8, files: TIMED }).answer.sharded, false, 'a land plan within its cores and no timing file is not split');
 });
 
+const SHARD_FILES = ['web/a.test.js', 'web/b.test.js'];
+const SHARD_GREEN = head => ({ version: 1, status: 0, gate: { source: head, green: true, phases: [{ role: 'proof', status: 0 }] } });
+const SIGNED = ['a'.repeat(64)];
+const SHARD_RED = (head, failures, signed = true) => ({ version: 1, status: 1, gate: { source: head, green: false, phases: [{ role: 'proof', status: 1, failures, ...(signed ? { failureSignatures: SIGNED } : {}), tail: 'not ok' }] } });
+/** The main-receipt lookup of a board whose main has a receipt for every file the red names; a signed case reads as one main fails the same way, an unsigned one as new. */
+const mainFails = () => ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'item', own: [], receipt: null, job: null })) });
+
+/** A claimed item whose gate offered two shards; shard one posts `red`, shard two posts green, through the receipt dispatch. The last answer is `last`. */
+function twoShardGate(t, { red, options, files = [] }) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  cellClaim(board, item.item_id, seat, { root: repo.root });
+  const held = store.getItem(board, item.item_id);
+  const head = repo.commit;
+  const parent = `gate:${item.item_id}:main-red`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files } } });
+  const lease = claimJob(board.db, { runner: 'r-gate', capabilities: [], now: 2 });
+  const gate = { version: 1, source: head, green: false, environment: { node: process.version, platform: process.platform, arch: process.arch }, phases: [{ role: 'check', status: 0 }],
+    analysis: { proofFiles: SHARD_FILES, proofCommand: 'node --test' }, proofPlan: { runner: 'node --test', cores: 1, files: SHARD_FILES } };
+  const sharded = boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-gate', token: lease.token, receipt: { status: 0, gate } }, { mode: 'pull', now: 3, ...options });
+  assert.equal(sharded.applied.outcome, 'sharded', JSON.stringify(sharded.applied));
+  let last = null;
+  sharded.applied.shards.forEach((shard, index) => {
+    const at = 10 * (index + 1);
+    const claimed = claimJob(board.db, { runner: `r-${at}`, capabilities: [], now: at });
+    last = boardJobQueueCall(board, { action: 'receipt', job: shard, runner: `r-${at}`, token: claimed.token, receipt: index === 0 ? red(head) : SHARD_GREEN(head) }, { mode: 'pull', now: at + 1, ...options }).applied;
+  });
+  return { board, item, last };
+}
+
+test('api.io-gate.shard-main-red-settles-green: clause 1: a gate whose only red shard fails only in a file main fails settles green and notes the file as main-red [C7,#12215]', t => {
+  const f = twoShardGate(t, { red: head => SHARD_RED(head, [{ file: 'web/a.test.js', name: 'loads under load' }]), options: { compareWithMain: mainFails() } });
+  assert.equal(f.last.outcome, 'review', JSON.stringify(f.last));
+  const notes = store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? ''));
+  assert.equal(notes.length, 1, 'one note fact');
+  assert.match(notes[0].event_detail, /web\/a\.test\.js/u);
+});
+
+test('api.io-gate.shard-red-outside-main-stays-red: clause 2: a red shard with a case main does not fail, or with no comparison answer, settles red and notes no main-red [C7,#12215]', t => {
+  const failures = [{ file: 'web/a.test.js', name: 'loads under load' }];
+  const fresh = twoShardGate(t, { red: head => SHARD_RED(head, failures, false), options: { compareWithMain: mainFails() } });
+  assert.equal(fresh.last.outcome, 'red', JSON.stringify(fresh.last));
+  const none = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: {} });
+  assert.equal(none.last.outcome, 'red', JSON.stringify(none.last));
+  for (const f of [fresh, none]) assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0);
+});
+
+test('api.io-gate.shard-red-in-item-diff-stays-red: clause 1: a red shard whose failing file main also fails but the item diff touches settles red and appends no main-red note [C7,#12216]', t => {
+  const failures = [{ file: 'web/a.test.js', name: 'loads under load' }];
+  const f = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: { compareWithMain: mainFails() }, files: ['web/a.test.js'] });
+  assert.equal(f.last.outcome, 'red', JSON.stringify(f.last));
+  assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0, 'no main-red note');
+});
+
 const KEY = '1'.repeat(64);
 const CONTEXT = 'e'.repeat(64);
 const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: 'proof', context: CONTEXT, status });
@@ -198,4 +264,25 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
 
 test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+test('api.io-gate.seed-claim-path-no-git: clause 1: with gate.seedWideMainTests on and main unmoved, a pull claim through boardJobQueueCall spawns no git process, and the main sha is computed once per main move [C7,P7]', t => {
+  const project = cellProject(t, { real: true, config: { affectedTests: 'node --test' } });
+  const board = { db: cellBoard(t, ':memory:').db, gitRoot: project.repo };
+  const spawned = [];
+  const counting = Object.fromEntries(['spawnSync', 'execFileSync', 'spawn'].map(name => [name, (args, options) => { spawned.push(args.join(' ')); return realGitAdapter[name](args, options); }]));
+  const claim = () => withGitContractAdapter(counting, () => boardJobQueueCall(board, { action: 'claim', runner: 'r-seed', capabilities: [] }, { mode: 'pull', now: 10 * 3_600_000, seedWideMainTests: true }));
+  claim();
+  spawned.length = 0;
+  claim();
+  claim();
+  assert.deepEqual(spawned, [], 'claims at an unmoved main spawn no git process');
+  writeFileSync(join(project.repo, 'moved.txt'), 'moved');
+  project.git(project.repo, 'add', '-A');
+  project.git(project.repo, 'commit', '-qm', 'chore: move main');
+  claim();
+  assert.ok(spawned.length >= 1 && spawned.length <= 2, `one main move computes its sha once: ${spawned.join(' | ')}`);
+  spawned.length = 0;
+  claim();
+  assert.deepEqual(spawned, [], 'the next claim at the moved main spawns none');
 });
