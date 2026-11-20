@@ -1,6 +1,7 @@
 import { reviewPatchAuthors } from '../../io/review/composition.js';
 import { seatFamily } from '../../../../items/index.js';
 import { committedItemAuthors } from '../../io/review/independence.js';
+import { insertVerdict } from '../../io/review/independence.js';
 import { twoTierReviews } from '../../io/review/independence.js';
 /** Immutable verdict assurance distinguishes recorded parent independence from procedural review [V1,B3]. */
 import { ENGINE_VERSION } from '../../../../state/index.js';
@@ -23,13 +24,10 @@ export { verdictAssurance } from './reviews.js';
 /** Insert the immutable native verdict and, under engine 90, its assurance in the same board transaction. */
 export function recordVerdict(board, item, { agentId, decision, reason, note, digest, head }) {
   const family = seatFamily(board, agentId);
-  const inserted = board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
-    verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,
-    digest, head, family, board.clock.now().toISOString());
+  const inserted = insertVerdict(board, item, { agentId, decision, reason, note, digest, head, family });
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PARENT_SESSION_ENGINE) return null;
   const assurance = reviewAssurance(board, item, agentId);
   board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)')
-    .run(`verdict_assurance:${inserted.lastInsertRowid}`, assurance);
+    .run(`verdict_assurance:${inserted}`, assurance);
   return assurance;
 }

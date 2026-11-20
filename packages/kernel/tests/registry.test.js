@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { boardLinkRecord } from '../index.js';
+import { discloseBoardState } from '../index.js';
 
 /** The kernel cell sits below config in plan order, so its test cannot read tests.registryStrict; this cell is fully registered, so it is always strict (as the queue cell's registry test is) [C7,#9920]. */
 const STRICT = true;
@@ -62,4 +64,23 @@ test('kernel.registry.complete: clause 1: [C7,U148] every registered test has a 
     assert.ok(KINDS.includes(record.kind), `${id}: kind is one of ${KINDS.join(', ')}`);
     assert.ok(Array.isArray(record.inputs) && record.inputs.length > 0, `${id}: declares its inputs`);
   }
+});
+
+const BOARD_A = 'a'.repeat(32);
+const BOARD_B = 'b'.repeat(32);
+const LANDED_ROWS = [{ board: BOARD_B, id: 7, state: 'landed' }];
+const LINK_V1 = { version: 1, linkId: 'link-1', parent: { boardId: BOARD_A, organization: 'acme', handle: 'api' }, child: { boardId: BOARD_B, organization: 'acme', handle: 'web' }, generation: 1, disclosure: 'states', approvals: [], revocation: null };
+
+test('kernel.registry.link-v2-landed: clause 1: [E32] a version 2 announcement accepts the state landed', () => {
+  assert.deepEqual(discloseBoardState('states', LANDED_ROWS, 2), LANDED_ROWS);
+});
+
+test('kernel.registry.link-v1-landed: clause 2: [E32] a version 1 announcement with landed is refused BOARD_LINK_FORMAT', () => {
+  assert.throws(() => discloseBoardState('states', LANDED_ROWS, 1), { code: 'BOARD_LINK_FORMAT' });
+  assert.throws(() => discloseBoardState('states', LANDED_ROWS), { code: 'BOARD_LINK_FORMAT' });
+});
+
+test('kernel.registry.link-v1-reader: clause 3: [E32] a v1 reader refuses a v2 record with a message naming the upgrade', () => {
+  assert.equal(boardLinkRecord(LINK_V1).version, 1);
+  assert.throws(() => boardLinkRecord({ ...LINK_V1, version: 2 }), (error) => error.code === 'BOARD_LINK_FORMAT' && /upgrade Pullboard/u.test(error.message));
 });

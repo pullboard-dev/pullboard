@@ -144,3 +144,17 @@ export function readDerivedState(board, { mainCommit, enabled }) {
     };
   } catch { return null; } finally { derived.close(); }
 }
+
+/**
+ * Sweep the derived table at a main commit only when it is not already current there [C7,#3010].
+ * Why: a main move must refresh the table without rewriting it on every pass, so a caller asks once per pass and a table already swept at this commit costs one read.
+ * The caller reads health.derivedState and hands in the board's three readers, so this file loads no other cell.
+ *
+ * @param {any} board - An open file-backed board.
+ * @param {{ mainCommit: string, enabled: boolean, readers: { listItems: (board: any) => any[], verdictState: (item: any) => any, gateAtHead: (board: any, item: any) => string | null } }} options - The main commit, the health.derivedState setting and the readers sweepDerivedState takes.
+ * @returns {{ file: string, counts: Record<string, number> } | null} The sweep's counts, or null when the table was already current, the setting is off or the board is not a file.
+ */
+export function sweepDerivedAtMain(board, { mainCommit, enabled, readers }) {
+  if (enabled !== true || !mainCommit || readDerivedState(board, { mainCommit, enabled }) !== null) return null;
+  return sweepDerivedState(board, { mainCommit, enabled, ...readers });
+}

@@ -1,0 +1,17 @@
+{
+  "store.io-board-item-after-gate-report.verify-and-rebuild-recorded": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Verifying an after-gate parent records one note naming each claimed dependent and its whole minutes from its after-gate claim to the verify, and sending a dependent back records one rebuild note naming it on the parent."
+    },
+    "why": "Without it the minutes the after-gate flow saves, and the rebuilds it costs, never reach the parent's thread.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/item/after-gate-report.js",
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/item/after-gate.js"
+    ]
+  }
+}

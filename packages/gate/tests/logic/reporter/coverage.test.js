@@ -14,7 +14,7 @@ import { barTestPath } from '../../../../verify/index.js';
 import { barCoverageForPolicy } from '../../../../verify/index.js';
 import { requireSubmitComposition } from '../../../../items/index.js';
 import { nativeBarActor } from '../../../../verify/index.js';
-import { baselineTestEvidence } from '../../../index.js';
+import { baselineTestEvidence } from '../../../heavy.js';
 import { configFromSource } from '../../../../config/index.js';
 import { runFixtureChild } from '../../fixtures/child.js';
 

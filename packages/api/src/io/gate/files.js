@@ -98,7 +98,8 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
   if (files.some(file => !rows.has(file))) return null;
   const compared = files.map(file => {
     const row = rows.get(file);
-    return { file, result: ['red', 'green'].includes(row.result) ? row.result : null, receipt: row.receipt ?? null, job: row.job ?? null };
+    const result = ['red', 'green'].includes(row.result) ? row.result : null;
+    return { file, result, receipt: row.receipt ?? null, job: row.job ?? null, absentOnMain: result === null && tryGit(board.gitRoot, ['cat-file', '-e', `${main}:${file}`]).status !== 0 };
   });
   return { main, files: compared, jobs: [...new Set(compared.map(row => row.job).filter(Boolean))] };
 }
@@ -124,7 +125,7 @@ export function ledgerInputKeys(phases) {
 /**
  * The gate fact's lines for a file comparison, worded as the inline gate's refusal words them: why main was not
  * checked, or the files main also fails (with the open rework that owns them, through the provided wording) and each
- * file main's receipt is still missing for. A file green on main is the change's own red and adds no line, as before.
+ * file main's receipt is still missing for. A file green on main is the change's own red and adds no line, as before. A file absent from main can never get a main receipt, so its line says the red is the item's own.
  *
  * @param {any} board
  * @param {NonNullable<ReturnType<typeof compareFilesWithMain>>} compared
@@ -136,5 +137,7 @@ export function fileMainLines(board, compared) {
   const red = compared.files.filter(row => row.result === 'red').map(row => row.file);
   const said = mainRedLines(board, compared.main, red);
   return [...(red.length ? [`also red on main: ${red.join(', ')}`] : []), ...said.filter(line => !line.startsWith('also red on main')),
-    ...compared.files.filter(row => row.result === null).map(row => `main receipt missing: ${row.file}`)];
+    ...compared.files.filter(row => row.result === null).map(row => row.absentOnMain
+      ? `not on main: ${row.file} is new in this item; the red is the item's own, fix the test or the code, do not resubmit unchanged`
+      : `main receipt missing: ${row.file}${row.job ? `; main-test job ${row.job} records it; next: wait for that job, do not resubmit` : ''}`)];
 }

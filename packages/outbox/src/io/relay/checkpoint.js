@@ -7,16 +7,17 @@
  * so moves took minutes and failed RELAY_BUSY. A burst of moves now coalesces into one upload, and the relay lock
  * keeps one upload in flight; moves during an upload are covered by the next one.
  */
+import { environmentAdapter } from '../../../../env/index.js';
 import { spawn } from 'node:child_process';
-import {
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   dirname,
   join,
 } from 'node:path';
+const fileSystem = fileSystemAdapter();
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /** Set to 0 to publish the checkpoint inside the command, as before #1014; the test runner sets it, like the view. */
 export const CHECKPOINT_BACKGROUND_ENV = 'PULLBOARD_RELAY_CHECKPOINT_BACKGROUND';
@@ -31,7 +32,7 @@ export const CHECKPOINT_QUIET_MS = 1_000;
  * @param {NodeJS.ProcessEnv} env
  * @returns {boolean}
  */
-export function checkpointInBackground(env = process.env) {
+export function checkpointInBackground(env = environment.all()) {
   return env[CHECKPOINT_BACKGROUND_ENV] !== '0';
 }
 
@@ -41,7 +42,7 @@ export function checkpointInBackground(env = process.env) {
  * @param {NodeJS.ProcessEnv} env
  * @returns {number}
  */
-export function checkpointQuietMs(env = process.env) {
+export function checkpointQuietMs(env = environment.all()) {
   const value = Number(env[CHECKPOINT_QUIET_ENV]);
   return Number.isSafeInteger(value) && value >= 0 ? value : CHECKPOINT_QUIET_MS;
 }
@@ -74,8 +75,8 @@ const CLAIM_STALE_MS = 600_000;
  */
 export function publisherHolding(pidFile) {
   try {
-    if (Date.now() - statSync(pidFile).mtimeMs > CLAIM_STALE_MS) return 0;
-    const holder = Number(readFileSync(pidFile, 'utf8'));
+    if (Date.now() - fileSystem.stat(pidFile).mtimeMs > CLAIM_STALE_MS) return 0;
+    const holder = Number(fileSystem.readFile(pidFile, 'utf8'));
     return alive(holder) ? holder : 0;
   } catch { return 0; }
 }
@@ -115,8 +116,8 @@ function notePublisher(root, file, marker, checkpointWorker) {
   if (typeof checkpointWorker !== 'string' || !checkpointWorker) throw new TypeError('checkpoint scheduling requires its process worker path');
   const files = checkpointFiles(file);
   const { pid } = files;
-  writeFileSync(files[marker], `${Date.now()}\n`, { mode: 0o600 });
+  fileSystem.writeFile(files[marker], `${Date.now()}\n`, { mode: 0o600 });
   if (publisherHolding(pid)) return;
-  const child = spawn(process.execPath, [checkpointWorker, root, file], { cwd: root, detached: true, stdio: 'ignore', env: process.env });
+  const child = spawn(process.execPath, [checkpointWorker, root, file], { cwd: root, detached: true, stdio: 'ignore', env: environment.all() });
   child.unref();
 }

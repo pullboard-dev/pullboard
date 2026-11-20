@@ -1,8 +1,11 @@
 /** Observe native test worker output before Node buffers reporter events [C7,V10]. */
 import { channel } from 'node:diagnostics_channel';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { DefaultSerializer } from 'node:v8';
+import { environmentAdapter } from '../../../env/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Separate raw stdout from Node's length-framed test protocol, including split headers. */
 export function rawOutputObserver(notify) {
@@ -30,8 +33,8 @@ export function rawOutputObserver(notify) {
 }
 
 /** Only the native test parent observes its own Node workers; each marker is keyed by worker PID. */
-export function observeLegacyWorkers(directory) {
-  if (!directory || process.env.NODE_TEST_CONTEXT === 'child-v8' || !process.execArgv.includes('--test')) return;
+export function observeLegacyWorkers(directory, environment = environmentAdapter()) {
+  if (!directory || environment.get('NODE_TEST_CONTEXT') === 'child-v8' || !process.execArgv.includes('--test')) return;
   channel('child_process').subscribe(({ process: child }) => {
     child.once('spawn', () => {
       if (child.spawnfile !== process.execPath || !Number.isSafeInteger(child.pid)
@@ -42,7 +45,7 @@ export function observeLegacyWorkers(directory) {
         const now = Date.now();
         if (now - last < 250) return;
         last = now;
-        try { writeFileSync(marker, ''); } catch { /* Supervision remains conservative when a marker cannot be written. */ }
+        try { fs.writeFile(marker, ''); } catch { /* Supervision remains conservative when a marker cannot be written. */ }
       };
       child.stdout?.on('data', rawOutputObserver(output));
       child.stderr?.on('data', output);
@@ -50,5 +53,5 @@ export function observeLegacyWorkers(directory) {
   });
 }
 
-observeLegacyWorkers(process.env.PULLBOARD_LEGACY_WATCHDOG_DIR);
+observeLegacyWorkers(environmentAdapter().get('PULLBOARD_LEGACY_WATCHDOG_DIR'));
 

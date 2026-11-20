@@ -1,5 +1,4 @@
 /** Config light door [C7,D3]. */
-export { gitSyncMarkerLinked } from './src/io/git/sync.js';
 export {
   CONFIG_FILE,
   COORDINATOR,
@@ -14,6 +13,7 @@ export { maintenanceDurations } from './src/logic/maintenance.js';
 export {
   boardRemote,
   browserFreeChecksEnabled,
+  derivedStateEnabled,
   healthDiskFloorGb,
   hunkFreshnessEnabled,
   listThinRead,
@@ -23,5 +23,6 @@ export {
   reofferInfraEndEnabled,
   retireIdleSeatHours,
   submitProofOnly,
+  typedFieldsEnabled,
   validateRunner,
 } from './src/logic/settings.js';

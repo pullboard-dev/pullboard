@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { answerDecision } from "../../../../index.js";
 import { claim } from "../../../../index.js";
+import { rulingsByCause } from "../../../../index.js";
 import { shout } from "../../../../index.js";
 import { TYPED_REQUEST_CAUSES } from "../../../../src/io/requests.js";
 import { fixtureBoard } from "../../../../../board/tests/fixtures/board.js";
@@ -43,4 +44,37 @@ test("store.io-board-decision-answer.cause-outside-the-list-is-refused: clause 2
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM shout WHERE shout_answers = ?").get(ask).n, 0);
   answerDecision(board, ask, { agentId: "coordinator", text: "Local", lanes: LANES });
   assert.equal(Object.hasOwn(answerDetail(board, ask), "cause"), false, "an answer given no cause records no cause key");
+});
+
+/** Ask one more decision on the board of openDecision and answer it with the given text and cause; returns the answer's shout id. */
+function ruled({ board }, text, cause) {
+  const builder = board.db.prepare("SELECT agent_id FROM agent WHERE agent_lane = ?").get("web").agent_id;
+  const item = board.db.prepare("SELECT item_id FROM item").get().item_id;
+  const ask = shout(board, { from: builder, to: "coordinator", item, text: `Which way for ${text}?`, decision: true, options: ["Local", "Shared"], lanes: LANES });
+  return answerDecision(board, ask, { agentId: "coordinator", text, lanes: LANES, ...(cause === undefined ? {} : { cause }) });
+}
+
+test("store.io-board-decision-answer.every-ruling-under-a-cause-newest-first: clause 1: rulingsByCause returns the answers recorded with cause design-choice, newest first, each with its shout id, text, answerer and time [C7,#1444]", (t) => {
+  const seat = openDecision(t);
+  const first = ruled(seat, "Shared one", "design-choice");
+  ruled(seat, "Other cause", "tool-defect");
+  ruled(seat, "No cause");
+  const last = ruled(seat, "Shared two", "design-choice");
+  const found = rulingsByCause(seat.board, "design-choice");
+  assert.deepEqual(found.map((row) => row.shout), [last, first]);
+  assert.deepEqual(found.map((row) => row.text), ["Shared two", "Shared one"]);
+  assert.deepEqual(found.map((row) => row.answerer), ["coordinator", "coordinator"]);
+  assert.ok(found.every((row) => typeof row.at === "string" && row.at.length > 0), "each ruling carries its time");
+});
+
+test("store.io-board-decision-answer.rulings-cause-outside-the-list-is-refused: clause 2: a cause outside TYPED_REQUEST_CAUSES is refused RULING_CAUSE and a valid cause with no answers returns an empty list [C7,#1444]", (t) => {
+  const seat = openDecision(t);
+  assert.throws(() => rulingsByCause(seat.board, "not-a-cause"), { code: "RULING_CAUSE" });
+  assert.deepEqual(rulingsByCause(seat.board, "person-authority"), []);
+});
+
+test("store.io-board-decision-answer.rulings-lookup-is-exported-from-the-front-door: clause 3: rulingsByCause is exported from packages/store/index.js and is the function defined in answer.js [C7,#1444]", async () => {
+  const defined = await import("../../../../src/io/board/decision/answer.js");
+  assert.equal(typeof rulingsByCause, "function");
+  assert.equal(rulingsByCause, defined.rulingsByCause);
 });
