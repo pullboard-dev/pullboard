@@ -10,13 +10,16 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { storeName } from '../store-names.js';
+import { environmentAdapter } from '../../../../env/index.js';
+
+const environment = environmentAdapter();
 
 const fs = fileSystemAdapter();
 const KEEP = 60;
 
 /** Run git quietly in a directory; null when it fails, so an odd checkout simply misses the cache. */
 function git(root, args) {
-  const run = gitSpawnSync(args, { cwd: root, encoding: 'buffer', maxBuffer: 1 << 28, env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_OPTIONAL_LOCKS: '0' } });
+  const run = gitSpawnSync(args, { cwd: root, encoding: 'buffer', maxBuffer: 1 << 28, env: { ...Object.fromEntries(Object.entries(environment.all()).filter(([key]) => !key.startsWith('GIT_'))), GIT_OPTIONAL_LOCKS: '0' } });
   return run.status === 0 ? run.stdout : null;
 }
 

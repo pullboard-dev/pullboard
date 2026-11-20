@@ -1,0 +1,3 @@
+{
+  "store.io-light-door.exports-relay-reads": {"proves":{"specs":["C7"],"claim":"packages/store/light.js exports readReceivedBoardState and relayMachineDirectory, each the same function the index exports."},"why":"Without this test status could not read relay state through the light door and its static closure kept reaching the full store index.","kind":"cell unit","inputs":["packages/store/light.js","packages/store/tests/io/light-door.test.js"]}
+}
