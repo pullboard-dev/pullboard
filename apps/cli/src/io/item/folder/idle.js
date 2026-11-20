@@ -1,7 +1,9 @@
 /** Whether another seat's item folder is clean and unused, so a claim may adopt it though that seat's session is live [C7,#3720]. */
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
+
+const fs = fileSystemAdapter();
 
 /**
  * Whether any process has `folder` or a directory under it as its working directory.
@@ -14,7 +16,7 @@ import { spawnSync } from 'node:child_process';
  */
 export function processInside(folder) {
   let real;
-  try { real = realpathSync(folder); } catch { return true; }
+  try { real = fs.realpath(folder); } catch { return true; }
   const listed = spawnSync('lsof', ['-w', '-d', 'cwd', '-Fn'], { encoding: 'utf8', timeout: 15_000, maxBuffer: 16 * 1024 * 1024 });
   // Unknown is not busy: a missing lsof (ENOENT) or empty output says nothing about the folder, and a real listing is never empty.
   if (listed.error?.code === 'ENOENT' || (!listed.error && !listed.stdout)) return false;

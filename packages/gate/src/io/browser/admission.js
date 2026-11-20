@@ -3,15 +3,7 @@
  * `// pullboard: browser` [C7]. Nothing here parses imports or guesses from source; a frozen check is parsed
  * only to name the explicit test files it runs, and an opaque command keeps browser capacity.
  */
-import {
-  accessSync,
-  constants,
-} from 'node:fs';
-import {
-  lstat,
-  readFile,
-  realpath,
-} from 'node:fs/promises';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   relative,
   resolve,
@@ -25,6 +17,12 @@ import { literalShellWords } from '../../../../kernel/index.js';
 import { foreignNodeOptions } from '../test/isolation.js';
 import { environmentAdapter } from '../../../../env/index.js';
 import { declaresBrowser } from '../../logic/declaration.js';
+
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
+/** The promise forms of lstat and realpath over the adapter's sync calls: the adapter has no promise form of either, and a throw inside an async function rejects the same way [C7]. */
+const lstat = async path => disk.lstat(path);
+const realpath = async path => disk.realpath(path);
 
 const TEST_RUNNER = 'apps/cli/src/io/run/tests.js';
 /** Fixed source-only entry points belong to this tool's repository, never to a project's labels. */
@@ -80,7 +78,7 @@ export function resolveExecutable(command, pathValue = environmentAdapter().get(
   for (const directory of (pathValue ?? '').split(process.platform === 'win32' ? ';' : ':')) {
     for (const suffix of suffixes) {
       const candidate = resolve(directory || '.', command + suffix);
-      try { accessSync(candidate, constants.X_OK); return candidate; } catch { /* continue through PATH */ }
+      try { disk.access(candidate, disk.constants.X_OK); return candidate; } catch { /* continue through PATH */ }
     }
   }
   return null;
@@ -364,7 +362,7 @@ async function testSource(root, file, committed) {
   const absolute = resolve(root, path);
   const info = await lstat(absolute).catch(() => null);
   if (!info?.isFile() || info.isSymbolicLink() || !await staysInside(root, absolute).catch(() => false)) return null;
-  return readFile(absolute, 'utf8').catch(() => null);
+  return disk.promises.readFile(absolute, 'utf8').catch(() => null);
 }
 
 /**
