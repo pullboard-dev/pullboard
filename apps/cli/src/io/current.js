@@ -6,18 +6,15 @@
  */
 import { spawnSync } from 'node:child_process';
 import { gitLocation } from './resident/client.js';
-import {
-  accessSync,
-  constants,
-  realpathSync,
-  statSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import {
   basename,
   dirname,
   join,
   sep,
 } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 /** Run Git for this check only, never steered by a hook's GIT_DIR or GIT_INDEX_FILE. */
 function git(cwd, args) {
@@ -28,7 +25,7 @@ function git(cwd, args) {
 
 /** Resolve a path through symlinks, or null when it is gone. */
 function real(path) {
-  try { return realpathSync(path); } catch { return null; }
+  try { return fs.realpath(path); } catch { return null; }
 }
 
 /**
@@ -42,10 +39,13 @@ function real(path) {
  */
 export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   if (env.PULLBOARD_OWN_CLI === '1') return null;
+  // A serve replacement holds its predecessor's socket on descriptor 3 and an IPC channel (PULLBOARD_SERVE_FD, drive's SERVE_FD_ENV):
+  // the handover passes only descriptors 0-2, so main's entry would listen on a non-socket and fail ENOTTY [C7,#12301].
+  if (env.PULLBOARD_SERVE_FD !== undefined) return null;
   const own = real(dirname(dirname(dirname(entry)))), here = real(cwd); // apps/cli/pullboard.js sits three levels below the root [V32]
   if (!own || !here) return null;
   let marker;
-  try { marker = statSync(join(own, '.git')); } catch { return null; }
+  try { marker = fs.stat(join(own, '.git')); } catch { return null; }
   if (!marker.isFile()) return null;
   if (here !== own && !here.startsWith(own + sep) && !sameRepository(own, here)) return null;
   // Git's own files name the checkout and its Git directories; Git is asked only when they cannot (#6170).
@@ -59,7 +59,7 @@ export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   const mainRoot = dirname(commonDir);
   const target = join(mainRoot, 'apps/cli/pullboard.js');
   if (real(mainRoot) === own) return null;
-  try { accessSync(target, constants.R_OK); } catch { return { why: `${target} is missing or unreadable` }; }
+  try { fs.access(target, fs.constants.R_OK); } catch { return { why: `${target} is missing or unreadable` }; }
   const ancestry = git(own, ['merge-base', '--is-ancestor', 'main-worktree/HEAD', 'HEAD']);
   if (ancestry.status === 0) return null;
   return ancestry.status === 1 ? { target } : { why: 'git could not compare this worktree with main' };

@@ -108,6 +108,9 @@ import { passDecision } from "./board/decision/pass.js";
 import { answerDecision } from "./board/decision/answer.js";
 import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
+import { appendMark } from "./board/mark.js";
+import { expediteItem } from "./board/expedite.js";
+import { expeditedItems } from "./board/expedite.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
 import { gateAtHead } from "./board/next.js";
@@ -115,6 +118,10 @@ import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
+import { clearReservation } from "./board/hold/item.js";
+import { addBlock } from "./board/blocks.js";
+import { claimBlock } from "./board/blocks.js";
+import { listBlocks } from "./board/blocks.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -155,6 +162,9 @@ export {
   unverifiedSubmissions,
 } from "./board/read/shouts.js";
 export { lineSettings } from "../../../state/light.js";
+/** The engine numbers blocks.js reads through this file, so the new module adds no cross-cell import of state [C7,#11280]. */
+export { BLOCK_ENGINE } from "../../../state/light.js";
+export { ENGINE_VERSION };
 export { setLineSetting } from "./board/settings.js";
 
 export {
@@ -184,7 +194,7 @@ export { landingLeaseMove, landingLeaseState } from "../logic/board/landing/leas
 export { boardBusyError } from "./board/access.js";
 export { schemaMissing, writeRefused } from "./board/migrate.js";
 export { itemFiles };
-export { ROUTES, canTake };
+export { ROUTES, canTake, routeOf };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
@@ -499,6 +509,9 @@ export {
   answerDecision,
   closeFinishedAsks,
   appendFact,
+  appendMark,
+  expediteItem,
+  expeditedItems,
   buildOrder,
   nextFor,
   gateAtHead,
@@ -506,6 +519,10 @@ export {
   releaseLane,
   holdItem,
   reserveItem,
+  clearReservation,
+  addBlock,
+  claimBlock,
+  listBlocks,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,

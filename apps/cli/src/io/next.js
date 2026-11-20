@@ -11,6 +11,7 @@ import { idArg } from './context.js';
 import { withBoard } from './context.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
+import { leasedOrdered } from './next/review-lease.js';
 import { openItemFolder } from './item/folder.js';
 import { liveFolderRefusal } from './item/folder.js';
 import { claimOrdered } from './claim.js';
@@ -38,23 +39,49 @@ export function displayedWait(reason, agents, config) {
 let derivedReaders = null;
 
 /**
- * The gate-at-head reader the moves cell hands to next's pick: with health.derivedState on and the table current for main, an item the table names answers its reason;
- * with the setting off, a table swept at another commit, or main unresolvable, null, so pick computes the gate as before [C7,#8945].
+ * The derived-state table when it is current for main, or null: with health.derivedState off, a table swept at another commit, or main unresolvable [C7,#8945].
+ *
+ * @param {string} root
+ * @param {any} board
+ * @returns {any | null}
+ */
+function currentDerivedTable(root, board) {
+  if (!derivedReaders || !derivedStateEnabled()) return null;
+  let main;
+  try { main = derivedReaders.verdictTrunk(root, { trunkRef: derivedReaders.trunkRef }); } catch { return null; }
+  return derivedReaders.readDerivedState(board, { mainCommit: main, enabled: true });
+}
+
+/**
+ * The gate-at-head reader the moves cell hands to next's pick: with the table current for main, an item it names answers its reason;
+ * otherwise null, so pick computes the gate as before [C7,#8945].
  *
  * @param {string} root
  * @param {any} board
  * @returns {((entry: any) => string | undefined) | null}
  */
 function derivedGateAtHead(root, board) {
-  if (!derivedReaders || !derivedStateEnabled()) return null;
-  let main;
-  try { main = derivedReaders.verdictTrunk(root, { trunkRef: derivedReaders.trunkRef }); } catch { return null; }
-  const table = derivedReaders.readDerivedState(board, { mainCommit: main, enabled: true });
+  const table = currentDerivedTable(root, board);
   return table ? entry => table.gateAtHead.get(String(entry.item_id)) : null;
 }
 
-export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
-  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
+/**
+ * The seat-family answer the moves cell hands to next's pick: with the table current for main, the map of seat id to family it holds;
+ * otherwise null, so next computes every family as before [C7,#3010].
+ *
+ * @param {string} root
+ * @param {any} board
+ * @returns {Map<string, string> | null}
+ */
+function derivedSeatFamily(root, board) {
+  return currentDerivedTable(root, board)?.seatFamilies ?? null;
+}
+
+/** The returned-work rules from the queue and items cells, imported only when next.returnedFirst asks, so show and status never load them through this file [C7,#11255]. */
+const loadReturnedRules = async () => ({ ...(await (await import('../../../../packages/queue/index.js')).loadReturnedFirst()), ...(await (await import('../../../../packages/items/index.js')).loadStopRules()) });
+
+export const nextPorts = Object.freeze({ derivedGateAtHead, derivedSeatFamily, withBoardRead, withBoard, whoAmI, idArg, ordered: leasedOrdered(ordered, ctx => ctx.file), claimOrdered, currentReworkRoutingPolicy,
+  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax, loadReturnedRules });
 
 /**
  * One loop of `next` through the moves cell: claim the next free item, or reserve the next review (V15).

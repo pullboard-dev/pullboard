@@ -1,0 +1,3 @@
+{
+  "store.blocks.renew-as-one": {"proves":{"specs":["C7"],"claim":"Renewing one member a seat holds through a block renews the lease of every member it holds through that block, each with its own renew event, so a stalled block lapses as one."},"why":"A block is one unit of work for one seat, so its members stay alive and lapse together.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]}
+}

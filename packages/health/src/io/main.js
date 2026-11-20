@@ -34,7 +34,7 @@ import { toolTreeRoomProblem } from '../../../items/index.js';
  * every checkout alone: merge-tree writes a tree object and never an index or a working tree.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../resources/index.js';
@@ -77,6 +77,8 @@ import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
 import { relayMachineContext } from '../../../link/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });
 
@@ -104,7 +106,7 @@ export function healthThresholds(config = {}) {
  * @returns {ReturnType<typeof healthReport>}
  */
 export function boardHealth(file, { root, config, now, dispatchHealth, machineSettings }) {
-  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth, machineSettings });
+  if (!fs.exists(file)) return healthReport({ db: null, root, config, now, dispatchHealth, machineSettings });
   const startedAt = Date.now();
   let db;
   try {
@@ -219,7 +221,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   }
 
   report.stuck.push(...unansweredShoutFindings(db, limits.ms.stuck, now, finding));
-  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
+  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { reviewHolder, limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
@@ -451,7 +453,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
 /** Report hosts still unavailable after thirty minutes from the read-only machine queue. */
 function unavailableRunnerFindings(now) {
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   let queue;
   try {
     queue = new DatabaseSync(file, { readOnly: true });

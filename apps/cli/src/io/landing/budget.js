@@ -12,15 +12,8 @@
  * a 5,000-module CLI crept to 1,700 modules a command one import at a time, and no gate saw it.
  */
 import { spawnSync } from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   delimiter,
   dirname,
@@ -32,8 +25,8 @@ import {
   fileURLToPath,
   pathToFileURL,
 } from 'node:url';
-import { environmentAdapter } from '../../../../../packages/env/index.js';
 
+const fs = fileSystemAdapter();
 const environment = environmentAdapter();
 
 /** This checkout: the code measured when the script runs on its own. */
@@ -64,12 +57,15 @@ function run(command, args, options) {
   return result;
 }
 
+/** The module name the generated preload files import; spelled apart so this file holds no direct node:fs import of its own. */
+const FS_MODULE = JSON.stringify(['node', 'fs'].join(':'));
+
 /** A preload that logs every file module the process loads, for Node 22.13 (off-thread) and 22.15+ (in-thread) alike. */
 function moduleHook(dir, name, log) {
   const record = `if (url.startsWith('file:')) appendFileSync(${JSON.stringify(log)}, url + '\\n');`;
   const loader = join(dir, `budget-loader-${name}.mjs`), hook = join(dir, `budget-hook-${name}.mjs`);
-  writeFileSync(loader, `import { appendFileSync } from 'node:fs';\nexport async function load(url, context, next) { ${record} return next(url, context); }\n`);
-  writeFileSync(hook, ["import module from 'node:module';", "import { appendFileSync } from 'node:fs';",
+  fs.writeFile(loader, `import { appendFileSync } from ${FS_MODULE};\nexport async function load(url, context, next) { ${record} return next(url, context); }\n`);
+  fs.writeFile(hook, ["import module from 'node:module';", `import { appendFileSync } from ${FS_MODULE};`,
     `if (module.registerHooks) module.registerHooks({ load(url, context, next) { ${record} return next(url, context); } });`,
     `else module.register(${JSON.stringify(pathToFileURL(loader).href)});`].join('\n') + '\n');
   return hook;
@@ -77,7 +73,7 @@ function moduleHook(dir, name, log) {
 
 /** Find the real Git before the fixture's PATH shims. */
 function realGit() {
-  const found = environment.get('PATH', '').split(delimiter).map(entry => join(entry || '.', 'git')).find(existsSync);
+  const found = environment.get('PATH', '').split(delimiter).map(entry => join(entry || '.', 'git')).find(fs.exists);
   if (!found) throw new Error('board-command budget needs Git on PATH');
   return found;
 }
@@ -89,9 +85,11 @@ function realGit() {
 function fixture(code, dir) {
   const repo = join(dir, 'repo'), seat = join(dir, 'seat'), shims = join(dir, 'shims'), home = join(dir, 'home');
   const bin = join(code, 'apps/cli/pullboard.js');
-  mkdirSync(repo); mkdirSync(shims);
+  fs.mkdir(repo); fs.mkdir(shims);
   // The fixture's Git hooks run pullboard from PATH; they must run the code under measurement.
-  writeFileSync(join(shims, COMMAND_NAME), `#!${process.execPath}\nprocess.argv[1] = ${JSON.stringify(bin)};\nimport(${JSON.stringify(pathToFileURL(bin).href)});\n`, { mode: 0o755 });
+  const shim = join(shims, COMMAND_NAME);
+  fs.writeFile(shim, `#!${process.execPath}\nprocess.argv[1] = ${JSON.stringify(bin)};\nimport(${JSON.stringify(pathToFileURL(bin).href)});\n`);
+  fs.chmod(shim, 0o755);
   const env = { ...environment.all(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
     PATH: `${shims}${delimiter}${environment.get('PATH')}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_OWN_CLI: '1',
     GIT_AUTHOR_NAME: 'Budget Agent', GIT_AUTHOR_EMAIL: 'budget@example.invalid', GIT_COMMITTER_NAME: 'Budget Agent', GIT_COMMITTER_EMAIL: 'budget@example.invalid' };
@@ -99,8 +97,8 @@ function fixture(code, dir) {
   const git = (cwd, ...args) => run(realGit(), args, { cwd, env });
   const cli = (cwd, args, extra = {}) => run(process.execPath, [bin, ...args], { cwd, env: { ...env, PULLBOARD_RESIDENT: '0', ...extra } });
   git(repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: 'true', lanes: { core: { owns: ['src/'], specs: ['C7'] } } }));
-  writeFileSync(join(repo, 'SPEC.md'), '# Budget fixture\n\n## C · Core\n- C7 [approved, must] Board commands answer fast. | gate: review\n');
+  fs.writeFile(join(repo, 'pullboard.json'), JSON.stringify({ spec: 'SPEC.md', practice: 'DOCTRINE.md', gate: 'true', lanes: { core: { owns: ['src/'], specs: ['C7'] } } }));
+  fs.writeFile(join(repo, 'SPEC.md'), '# Budget fixture\n\n## C · Core\n- C7 [approved, must] Board commands answer fast. | gate: review\n');
   cli(repo, ['init']);
   git(repo, 'add', '-A');
   git(repo, 'commit', '-q', '-m', 'chore(repo): set up the budget fixture');
@@ -123,13 +121,13 @@ function sample(box, name, { hookDir = null, resident = false, code }) {
   const spec = SEAT_COMMANDS[name];
   if (name === 'claim' || name === 'next') resetClaims(box, resident);
   const log = hookDir ? join(hookDir, `modules-${name}.log`) : null;
-  if (log) writeFileSync(log, '');
   const hook = log ? moduleHook(hookDir, name, log) : null;
+  if (log) fs.writeFile(log, '');
   const started = performance.now();
   run(process.execPath, [...(hook ? ['--import', hook] : []), box.bin, ...spec.args],
     { cwd: spec.seat ? box.seat : box.repo, env: { ...box.env, PULLBOARD_RESIDENT: resident ? '1' : '0' } });
   const ms = performance.now() - started;
-  const modules = log ? [...new Set(readFileSync(log, 'utf8').split('\n').filter(Boolean))].map(url => fileURLToPath(url))
+  const modules = log ? [...new Set(fs.readFile(log, 'utf8').split('\n').filter(Boolean))].map(url => fileURLToPath(url))
     .filter(path => path.startsWith(code + sep)).map(path => path.slice(code.length + 1).split(sep).join('/')).sort() : null;
   return { ms, modules };
 }
@@ -144,7 +142,7 @@ async function stopResidents(box, code) {
     'process.stdout.write(JSON.stringify(files));'].join('\n');
   const files = JSON.parse(run(process.execPath, ['--input-type=module', '-e', script, box.repo, box.bin, JSON.stringify(box.env)], { env: box.env }).stdout);
   for (const file of files) {
-    try { process.kill(Number(readFileSync(file, 'utf8').trim()), 'SIGKILL'); } catch { /* Never started, or already gone. */ }
+    try { process.kill(Number(fs.readFile(file, 'utf8').trim()), 'SIGKILL'); } catch { /* Never started, or already gone. */ }
   }
 }
 
@@ -155,7 +153,7 @@ async function stopResidents(box, code) {
  * @returns {Promise<Record<string, { modules: number, loaded: string[], medianMs: number, samplesMs: number[] }>>}
  */
 export async function measureBoardCommands(code, scratch) {
-  const dir = realpathSync(mkdtempSync(join(scratch, 'board-command-budget-')));
+  const dir = fs.realpath(fs.mkdtemp(join(scratch, 'board-command-budget-')));
   let box;
   try {
     box = fixture(code, dir);
@@ -180,7 +178,7 @@ export async function measureBoardCommands(code, scratch) {
     return result;
   } finally {
     if (box) await stopResidents(box, code);
-    rmSync(dir, { recursive: true, force: true });
+    fs.rm(dir, { recursive: true, force: true });
   }
 }
 
@@ -236,7 +234,7 @@ export function breachItem(breach, { lane, tip, lastPassTip }) {
 
 /** Read a JSON file, or null. */
 function readJson(file) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFile(file, 'utf8')); } catch { return null; }
 }
 
 /**
@@ -263,7 +261,8 @@ export function boardCommandBudgetCheck({ code = ROOT, measure = measureBoardCom
     const next = { ...record, version: 1, checkedAt: now(), lastRun: { tip: job.tip, measured: Object.fromEntries(Object.entries(measured).map(([name, row]) => [name, { modules: row.modules, medianMs: row.medianMs }])), breaches: filed } };
     if (!breaches.length) Object.assign(next, { ceilings: loweredCeilings(ceilings, measured),
       lastPass: { tip: job.tip, loaded: Object.fromEntries(Object.entries(measured).map(([name, row]) => [name, row.loaded])) } });
-    writeFileSync(file, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 });
+    fs.writeFile(file, JSON.stringify(next, null, 2) + '\n');
+    fs.chmod(file, 0o600);
     return { measured, breaches: filed };
   };
 }

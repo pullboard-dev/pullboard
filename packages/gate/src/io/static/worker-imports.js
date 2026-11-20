@@ -1,8 +1,11 @@
 /** The runner worker may import only from a reviewed list of packages; reach outside it is refused [C7]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 export const WORKER_IMPORTS_FILE = 'packages/gate/data/baselines/worker-imports.json';
 const MEASURE_TIMEOUT_MS = 60_000;
@@ -30,7 +33,7 @@ export function workerClosureUnits(root) {
  * @returns {string[]} One row per unit outside the list; one row when the closure cannot be read.
  */
 export function workerImportProblems(root, { read = workerClosureUnits } = {}) {
-  const allowed = new Set(JSON.parse(readFileSync(join(root, WORKER_IMPORTS_FILE), 'utf8')).units);
+  const allowed = new Set(JSON.parse(fs.readFile(join(root, WORKER_IMPORTS_FILE), 'utf8')).units);
   const closure = read(root);
   if (closure.error) return [`${WORKER_IMPORTS_FILE}:1: the runner worker's imports could not be read: ${closure.error}`];
   return closure.units.filter(unit => !allowed.has(unit))

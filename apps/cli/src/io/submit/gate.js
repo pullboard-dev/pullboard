@@ -9,14 +9,9 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { trunkRemote } from '../../../../../packages/config/index.js';
 import { moveAcross } from '../../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runnerPhaseFields } from '../../../../../packages/gate/heavy.js';
 import { replayChangedTables } from '../../../../../packages/gate/heavy.js';
@@ -28,8 +23,10 @@ import { gitPath } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { privateCheckEnvelope } from '../../../../runner/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import * as fixtureMemos from '../memo.js';
 
+const fs = fileSystemAdapter();
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
 
@@ -251,7 +248,7 @@ try {
   if (selected('selection')) await part('selection', async () => {
     result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
     if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
-      { allowBrowserFreeChecks: input.browserFreeChecks, onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
+      { allowBrowserFreeChecks: input.browserFreeChecks, needs: input.needs ?? [], onBrowserFallback: decision => result.notes.push('browser admission: ' + decision.file + ': ' + decision.reason) }));
   });
   if (doctrineRun) result.doctrine = await part('doctrine', async () => {
     const held = await doctrineRun;
@@ -315,7 +312,7 @@ function toolingCrash(result, receipt, phase, { runner, source, tree }) {
     || receipt?.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0 || typeof phase.code !== 'number' || phase.code === 0
     || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024) return null;
   let raw;
-  try { raw = readFileSync(result.rawOutputPath); } catch { return null; }
+  try { raw = fs.readFile(result.rawOutputPath, null); } catch { return null; }
   if (raw.length !== phase.length || createHash('sha256').update(raw).digest('hex') !== phase.sha256) return null;
   const text = `${raw.toString('utf8')}\n${String(result.stderr ?? '')}`;
   if (text.split(/\r?\n/u).some(line => line.startsWith(RESULT))) return null;
@@ -345,8 +342,8 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
     policyCommit: main, trunk: { ref: trunkRef(root), commit: trunkCommit } });
   const parent = artifactDirectory ? join(artifactDirectory, stage) : gitPath(root, `pullboard-${stage}-output`);
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
-  const directory = mkdtempSync(join(parent, 'remote-'));
+  fs.mkdir(parent, { recursive: true, mode: 0o700 });
+  const directory = fs.mkdtemp(join(parent, 'remote-'));
   const result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
     runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs, browser: lease.browser, checkedSource, privateCheck: policy,
     ...(analysisArtifact ? { analysisArtifact: { file: analysisArtifact.file, bytes: analysisArtifact.bytes.length, sha256: analysisArtifact.digest, context: policy.sha256 } } : {}),
@@ -356,19 +353,19 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   const kept = keepRunnerStderr(directory, result);
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
-  writeFileSync(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
+  fs.writeFile(join(directory, 'observation.json'), JSON.stringify({ version: 1, stage, policyCommit: main, checkedSource,
     toolingSource: { kind: 'pinned-main', commit: main }, privateCheckSha256: policy.sha256, runner: result.executionRunner ?? null, executionSource: result.executionSource ?? null,
     executionAdmission: result.executionAdmission ?? null, privateCheck: receipt ?? null }) + '\n', { mode: 0o600 });
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
     || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
-    || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
+    || phase.length < 0 || phase.length > 64 * 1024 * 1024 || fs.stat(result.rawOutputPath).size !== phase.length) {
     const crash = toolingCrash(result, receipt, phase, { runner: lease.runner.host, source, tree: checkedSource.tree });
     if (crash) throw new Refused('RUNNER_TOOLING_CRASH', `the pinned ${stage} tooling crashed on the runner with ${crash.error}${crash.frame ? ` at ${crash.frame}` : ''}; the same main will crash again, so shout the coordinator with this line; kept in ${directory}${stderrNote(kept)}`);
     throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory}${stderrNote(kept)} and submit again`);
   }
-  const bytes = readFileSync(result.rawOutputPath);
+  const bytes = fs.readFile(result.rawOutputPath, null);
   if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
     throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} output does not match its authenticated receipt; read ${directory} and submit again`);
   }
@@ -408,7 +405,7 @@ export function analysisResultFile(artifactDirectory, { main, source, parts, too
 function readAnalysisResult(file, keys, cuts) {
   const { main, source, tooling = runningToolingId() } = keys;
   try {
-    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    const saved = JSON.parse(fs.readFile(file, 'utf8'));
     const value = saved?.value;
     if (saved?.version !== 1 || saved.main !== main || saved.source !== source || saved.tooling !== tooling || saved.cuts !== cuts
       || !value || value.main !== main || value.source !== source || value.refusal || value.infra || value.refused
@@ -440,7 +437,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const cutRows = readCutItems();
   const doctrine = request.doctrine ?? null;
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
-  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
+  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '', ...(request.needs?.length ? { needs: request.needs } : {}),
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
     inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, ...(loadMachineSettings().gate?.knownMainStatic === true ? { knownMainStatic: true } : {}), crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization, trunkRemote: request.trunkRemote ?? trunkRemote(root) ?? '' } : {}) };
   let step;
@@ -466,9 +463,9 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   // A part that refused is never recorded: its next attempt runs it fresh.
   if (resultFile && !Object.values(value.outcomes ?? {}).some(outcome => outcome?.refused)) {
     try {
-      mkdirSync(dirname(resultFile), { recursive: true, mode: 0o700 });
+      fs.mkdir(dirname(resultFile), { recursive: true, mode: 0o700 });
       const pending = `${resultFile}.${process.pid}.tmp`;
-      writeFileSync(pending, JSON.stringify({ version: 1, main, source, tooling: request.tooling ?? runningToolingId(), cuts: cutKey, value, directory, sha256, runner: lease.runner.host }) + '\n', { mode: 0o600 });
+      fs.writeFile(pending, JSON.stringify({ version: 1, main, source, tooling: request.tooling ?? runningToolingId(), cuts: cutKey, value, directory, sha256, runner: lease.runner.host }) + '\n', { mode: 0o600 });
       moveAcross(pending, resultFile);
     } catch { /* a result that cannot be recorded only means the next attempt runs the part again */ }
   }
@@ -576,7 +573,7 @@ export function doctrineExecutionPhases(observations, attempts) {
 export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
   if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
   const parent = artifactDirectory ? join(artifactDirectory, 'doctrine') : gitPath(root, 'pullboard-doctrine-output');
-  mkdirSync(parent, { recursive: true, mode: 0o700 });
+  fs.mkdir(parent, { recursive: true, mode: 0o700 });
   const observations = [];
   let attempts = 0;
   lease.tracker?.mark('runAt');
@@ -585,7 +582,7 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
     async runCheck(commit, command, timeoutMs) {
       attempts++;
       const started = performance.now();
-      const directory = mkdtempSync(join(parent, 'rule-'));
+      const directory = fs.mkdtemp(join(parent, 'rule-'));
       const shell = `(\n${command}\n) 2>&1`;
       const checkedSource = { commit, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim() };
       const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
@@ -596,7 +593,7 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
           runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs, browser: lease.browser, checkedSource, privateCheck: policy,
           metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log'), signal: lease.signal });
       } catch (error) {
-        writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
+        fs.writeFile(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
           code: error?.code ?? error?.name ?? 'unknown', rawOutputPath: join(directory, 'raw.log') }) + '\n', { mode: 0o600 });
         throw error;
       }
@@ -607,7 +604,7 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
         runner: result.executionRunner ?? null, environment: result.environment ?? null,
         executionAdmission: result.executionAdmission ?? null, executionPhases: result.executionPhases ?? null,
         privateCheck: receipt ?? null, rawOutputPath: result.rawOutputPath ?? null, rawOutputSha256: result.rawOutputSha256 ?? null };
-      writeFileSync(join(directory, 'observation.json'), JSON.stringify(observed) + '\n', { mode: 0o600 });
+      fs.writeFile(join(directory, 'observation.json'), JSON.stringify(observed) + '\n', { mode: 0o600 });
       observations.push(observed);
       if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== checkedSource.commit
         || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256) {
@@ -619,8 +616,8 @@ export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory)
           : phase.signal ? `was killed by ${phase.signal}` : ![0, 1].includes(phase.code) ? `exited ${phase.code}` : '';
       if (broken) return { problems: [], broken, seconds };
       if (phase.offset !== 0 || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024
-        || statSync(result.rawOutputPath).size !== phase.length) return { problems: [], broken: 'exceeded the complete bounded check output', seconds };
-      const bytes = readFileSync(result.rawOutputPath);
+        || fs.stat(result.rawOutputPath).size !== phase.length) return { problems: [], broken: 'exceeded the complete bounded check output', seconds };
+      const bytes = fs.readFile(result.rawOutputPath, null);
       if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
         throw new Refused('RUNNER_RESULT_INVALID', 'doctrine check bytes do not match the authenticated phase; inspect the retained observation before retrying');
       }

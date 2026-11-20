@@ -1,5 +1,8 @@
-import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The checkout a command should run in when its working directory has been removed.
@@ -14,8 +17,8 @@ import { dirname } from 'node:path';
  */
 export function survivingDirectory(gone) {
   const seat = /^(.+)-item-[1-9][0-9]*$/u.exec(gone)?.[1];
-  if (seat && existsSync(seat)) return seat;
-  for (let dir = dirname(gone); dir !== dirname(dir); dir = dirname(dir)) if (existsSync(dir)) return dir;
+  if (seat && fs.exists(seat)) return seat;
+  for (let dir = dirname(gone); dir !== dirname(dir); dir = dirname(dir)) if (fs.exists(dir)) return dir;
   return null;
 }
 
@@ -26,12 +29,12 @@ export function survivingDirectory(gone) {
  * @param {{ cwd: () => string, env: Record<string, string|undefined>, chdir: (dir: string) => void }} [process_] - The process's own view, replaceable in tests.
  * @returns {string} A directory that exists.
  */
-export function liveCwd(given, process_ = { cwd: () => process.cwd(), env: process.env, chdir: dir => process.chdir(dir) }) {
+export function liveCwd(given, process_ = { cwd: () => process.cwd(), env: environmentAdapter().all(), chdir: dir => process.chdir(dir) }) {
   let wanted = given;
   if (wanted === undefined) {
     try { return process_.cwd(); } catch { wanted = process_.env.PWD; }
   }
-  if (wanted === undefined || existsSync(wanted)) return wanted ?? process_.cwd();
+  if (wanted === undefined || fs.exists(wanted)) return wanted ?? process_.cwd();
   const alive = survivingDirectory(wanted);
   if (alive === null) return wanted;
   if (given === undefined) process_.chdir(alive);

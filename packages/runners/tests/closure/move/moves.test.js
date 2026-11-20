@@ -1,4 +1,5 @@
 /** @pullboard-test-input packages/state/data/history/legacy.json */
+/** @pullboard-test-input packages/state/data/history/*.json */
 /** Engine history and the move closure read the moves cell, so deleting src/moves changes neither [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -13,8 +14,8 @@ import { test } from 'node:test';
 import { copyPackageFiles } from '../../../index.js';
 import { packageFiles } from '../../../index.js';
 import { assignEngineNumbers } from '../../../../state/index.js';
-import { importsIn } from '../../../../gate/index.js';
-import { commonJsIn } from '../../../../gate/index.js';
+import { importsIn } from '../../../../gate/heavy.js';
+import { commonJsIn } from '../../../../gate/heavy.js';
 import { moveDeclarationFiles } from '../../../../codemap/index.js';
 
 /** Build a tree whose move bodies live in the moves cell, with or without the src/moves shims. */
