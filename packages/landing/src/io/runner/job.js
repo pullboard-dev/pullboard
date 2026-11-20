@@ -551,6 +551,20 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       if (found.red.length && ((!separate && payload.perItem === false) || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
     }
+    // Sprint (payload.sprint with an item at pace sprint): the merged tree is proved after the per-item and job checks and before the push; a red proof pushes nothing and ends as a red check does [C7,#12230].
+    // Steady items never reach this branch, so it adds no step, no import and no receipt key; the modules load only here.
+    if (payload.sprint && pending.some(entry => entry.pace === 'sprint')) {
+      const { runnerSprintPorts } = await import('./sprint.js');
+      const { sprintProof } = await import('../exact.js');
+      const proved = must(root, ['rev-parse', 'HEAD']);
+      const proof = await sprintProof({ tree: must(root, ['rev-parse', 'HEAD^{tree}']) }, runnerSprintPorts(root, { base, tip: proved, sprint: payload.sprint, check: commandCheck }));
+      receipt.exactTree = { tree: proof.tree, pin: proof.pin, cells: proof.cells, result: proof.result };
+      if (proof.result !== 'green') {
+        const where = proof.failed === 'static' ? 'the static check' : `cell ${proof.failed}${proof.file ? ` (file ${proof.file})` : ''}`;
+        for (const entry of pending) giveBack(entry.id, 'red', `the Sprint proof is red on tree ${proof.tree} in ${where}; trunk was not moved${proof.output ? `: ${String(proof.output).slice(-300)}` : ''}`);
+        return done('red');
+      }
+    }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushStart = Date.now();
