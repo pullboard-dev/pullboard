@@ -11,7 +11,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
-} from './gate/local.js';
+} from '../../tests/fixtures/submit/local.js';
 
 test('cli.journeys-submit-frozen-check.submits-without-pullboard-check: clause 3: an item whose coordinator check is unticked is submitted without the builder running pullboard check [C7,#11844]', { timeout: 240_000 }, async (t) => {
   let box = privateRepo(t);
