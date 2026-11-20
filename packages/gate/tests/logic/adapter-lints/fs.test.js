@@ -56,6 +56,12 @@ test('gate.logic-adapter-lints-fs.with-the-setting-off-which-is: clause 2: with 
   assert.deepEqual(fsLintRows(root, { enabled: 'yes' }), []);
 });
 
+test('gate.logic-adapter-lints-fs.generated-probe-script-is-exempt: clause 2: the runner probe, whose node:fs import sits in a script text sent to the runner, is exempt by exact path and a same-named file elsewhere is not [C7,#11632]', () => {
+  const text = "const script = `const fs=require('node:fs');`;\n";
+  const root = repo({ 'packages/runners/src/io/probe.js': text, 'packages/runners/src/io/package/install.js': text, 'packages/other/src/io/probe.js': text });
+  assert.deepEqual(fsLintRows(root, { enabled: true }).map(row => row.split(':')[0]), ['packages/other/src/io/probe.js']);
+});
+
 test('gate.logic-adapter-lints-fs.watchdog-source-is-exempt: clause 1: the watchdog worker program text is not covered, a sibling file is, and its require reports nothing with no ceiling entry [C7,#11600]', () => {
   const path = 'packages/gate/src/io/run-tests-watchdog-source.js';
   const text = "const { writeSync } = require('node:fs');\n";
