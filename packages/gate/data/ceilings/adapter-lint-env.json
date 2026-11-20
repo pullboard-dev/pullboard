@@ -2,8 +2,6 @@
   "version": 1,
   "files": {
     "apps/cli/src/io/commands/verify.js": 3,
-    "apps/cli/src/io/commands/view.js": 6,
-    "apps/cli/src/io/commands/worktree.js": 1,
     "apps/cli/src/io/hook/push.js": 4,
     "apps/cli/src/io/hook/thin.js": 1,
     "apps/cli/src/io/init.js": 2,
