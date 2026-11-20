@@ -66,7 +66,7 @@ test('view.item.timeline-strip-route: clause 2: the read-only route on a real fi
   };
   const secret = ['strip', 'route', 'key', '0123456789'].join('-');
   const unused = () => { throw new Error('not used by the timeline route'); };
-  const view = await serveView({ secret, projectRoot: project.repo, clock, runCommand, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: unused, openBoardForRead: unused } });
+  const view = await serveView({ secret, projectRoot: project.repo, projects: () => [{ root: project.repo, name: 'Strip fixture' }], clock, runCommand, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: unused, openBoardForRead: unused } });
   t.after(() => view.close());
   const answer = await fetch(`http://127.0.0.1:${view.port}/item-timeline/${id}`, { headers: { 'x-pullboard-key': secret } });
   assert.equal(answer.status, 200);
