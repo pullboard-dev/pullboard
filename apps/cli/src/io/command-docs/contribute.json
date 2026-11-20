@@ -1,6 +1,6 @@
 {
   "name": "contribute",
-  "help": "  pullboard contribute check <file> [shape]  print every failure of a contribution record file with its rule, fix and skill command; exits 1 when any\n  pullboard contribute check --issue <N> <shape>  the same check on the body of GitHub issue N\n",
+  "help": "  pullboard contribute check <file> [shape]  print every failure of a contribution record file with its rule, fix and skill command; exits 1 when any\n  pullboard contribute accept <file> [shape]  check the record the same way and, when the parser accepts it, save it under its hash and print the hash; a refused record prints the same failures, saves nothing and exits 1\n  pullboard contribute check --issue <N> <shape>  the same check on the body of GitHub issue N\n",
   "required": {
     "file": "string",
     "shape": "string",

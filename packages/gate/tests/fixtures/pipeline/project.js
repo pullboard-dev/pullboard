@@ -5,7 +5,7 @@
  * Why its own module: the end-to-end harness and the repro harnesses all need the same queued-gate project, and none
  * may touch the main checkout, so the project is built once here inside an e2e sandbox the kit watches.
  */
-/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/store/index.js packages/drive/index.js */
+/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/store/index.js */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,7 +37,7 @@ export function json(result) {
 }
 
 /**
- * The project builder for one Pullboard tree: its CLI, fixtures, board and drive cell all come from `root`.
+ * The project builder for one Pullboard tree: its CLI, fixtures, board all come from `root`.
  * Why a root: the stale-tooling repro runs a whole project from a scratch copy of Pullboard whose HEAD it can move.
  *
  * @param {string} root - A Pullboard source tree.
@@ -49,7 +49,6 @@ export async function projectKit(root) {
   const { fixtureAdd, createFixtureWorktree, fixtureCommittedPolicy, fixtureMachineSettings } = await load('packages/gate/tests/fixtures/testkit.js');
   const { withFixtureBoard } = await load('packages/board/tests/fixtures/board.js');
   const store = await load('packages/store/index.js');
-  const drive = await load('packages/drive/index.js');
 
   /**
    * Build the project. Its gate check holds while the candidate's web/snapshot.txt says "hold" and the release file
@@ -58,7 +57,7 @@ export async function projectKit(root) {
    * @param {{ handoffWorkers?: number, resident?: boolean }} [options] - `handoffWorkers` sets the machine's worker cap;
    *   `resident` lets commands use the resident board process, as an agent's commands do, retiring it 3 s after the
    *   last command so it never outlives the harness.
-   * @returns {object} The e2e box plus boardFile, release, started, item(), state(), driver(), seat() and candidate().
+   * @returns {object} The e2e box plus boardFile, release, started, item(), state(), seat() and candidate().
    */
   function handoffProject({ handoffWorkers, resident = false } = {}) {
     const helpers = createE2eHelpers();
@@ -96,8 +95,6 @@ export async function projectKit(root) {
     };
     /** Read the item and its current submit hand-off from the board, writing nothing. */
     const state = id => onBoard(board => ({ item: store.getItem(board, id), job: store.submitHandoff(board, id) }));
-    /** The gate's driver record for a hand-off job, as the dispatcher wrote it. */
-    const driver = job => onBoard(board => drive.readGateDrive(board.db, job));
     /** Another builder worktree joined to the web lane; returns its path. */
     const seat = () => {
       const made = createFixtureWorktree(box, box.repo, 'web');
@@ -109,7 +106,7 @@ export async function projectKit(root) {
       const done = helpers.commitFile(box, cwd, 'web/snapshot.txt', `${text}\n`, `feat(web): ${text} candidate [G1]`);
       assert.equal(done.status, 0, done.stderr);
     };
-    return { ...box, helpers, boardFile, release, started, item, state, driver, seat, candidate };
+    return { ...box, helpers, boardFile, release, started, item, state, seat, candidate };
   }
   return { handoffProject };
 }

@@ -8,6 +8,8 @@ import { contributionSecrets } from '../../../../../packages/commits/index.js';
 import { contributionSecretRefusal } from '../../../../../packages/commits/index.js';
 import { contributionFix } from '../../../../../packages/commits/index.js';
 import { parseContributionRecord } from '../../../../../packages/commits/index.js';
+import { saveAcceptedRecord } from '../../../../../packages/commits/index.js';
+import { acceptedRecordsDir } from '../../../../../packages/commits/index.js';
 import { githubPullClient as defaultClient } from './add.js';
 import { githubRepository as defaultRepository } from './add.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -89,7 +91,8 @@ function failure(error, file, offset) {
  */
 export function run(io, { first, second, rest, values }, { githubPullClient = defaultClient, githubRepository = defaultRepository } = {}) {
   const issue = values?.issue;
-  if (first !== 'check' || (!second && !issue)) throw new Refused('USAGE', 'use pullboard contribute check <file>', 'pullboard contribute check <file> [shape]');
+  if ((first !== 'check' && first !== 'accept') || (!second && !issue)) throw new Refused('USAGE', 'use pullboard contribute check <file> or pullboard contribute accept <file>', 'pullboard contribute check <file> [shape]');
+  if (first === 'accept' && issue) throw new Refused('USAGE', 'accept reads a record file, not an issue', 'pullboard contribute accept <file> [shape]');
   let text;
   let label = second;
   let given = rest?.[0];
@@ -104,11 +107,11 @@ export function run(io, { first, second, rest, values }, { githubPullClient = de
     const path = isAbsolute(second) ? second : join(io.cwd, second);
     try { text = fs.readFile(path, 'utf8'); } catch { throw new Refused('NO_FILE', `cannot read ${second}`, 'pass the path of the record file'); }
   }
-  return check(io, text, label, given);
+  return check(io, text, label, given, first === 'accept');
 }
 
-/** Check one record text under its label and print the result; shared by the file and issue forms so both print the same failures. */
-function check(io, text, label, given) {
+/** Check one record text under its label and print the result; shared by the file and issue forms so both print the same failures. With accept, a record with no failures is also saved under its hash and the hash printed; a failing record saves nothing. */
+function check(io, text, label, given, accept = false) {
   const shape = recordShape(text, given);
   const { block, offset } = recordBlock(text);
   const failures = [];
@@ -126,7 +129,11 @@ function check(io, text, label, given) {
   const summary = summaryOf(text).length;
   io.say(`summary ${summary} of ${MAX_SUMMARY_CHARS} characters`);
   io.result?.({ file: label, shape, ok: failures.length === 0, summary: { length: summary, max: MAX_SUMMARY_CHARS }, failures });
-  if (!failures.length) { io.say(`${label}: a ${shape} record the parser accepts`); return 0; }
+  if (!failures.length) {
+    io.say(`${label}: a ${shape} record the parser accepts`);
+    if (accept) io.say(`saved ${saveAcceptedRecord(acceptedRecordsDir(join(io.cwd, '.git', 'pullboard')), block, shape)}`);
+    return 0;
+  }
   for (const item of failures) io.say(`${item.where}: ${item.code}; rule: ${item.rule}; fix: ${item.fix}; skill: ${item.command}`);
   io.say(`${failures.length} failure${failures.length === 1 ? '' : 's'} in ${label}`);
   return 1;
