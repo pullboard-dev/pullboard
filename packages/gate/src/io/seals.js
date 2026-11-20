@@ -1,9 +1,6 @@
 /** Each package's verdict is sealed to a content hash, and a change unseals exactly the packages whose hash it changes (RFC 0006 A1, A2) [C7,CD44]. */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-} from 'node:fs';
 import {
   dirname,
   join,
@@ -17,6 +14,8 @@ import { Refused } from '../../../kernel/index.js';
 import { importsIn } from '../../../codemap/index.js';
 import { ownerOf } from './test/tiers.js';
 import { cellOwners } from './test/tiers.js';
+
+const fs = fileSystemAdapter();
 
 const MODULE = /\.[cm]?js$/u;
 // The committed cell plan and its shards declare which cell owns each legacy path.
@@ -87,7 +86,7 @@ export function packageHashesAt(root, revs) {
   return trees.map(tree => {
     let imports = {};
     try { imports = JSON.parse(texts.get(tree.get('package.json')) ?? '{}').imports ?? {}; } catch { /* no import map */ }
-    // Cells are read from this revision's committed plan, so a declared cell owns its legacy paths here.
+    // A file under a package or app folder is owned by that folder root; no plan is read.
     const declared = cellOwners({ get: path => (tree.has(path) ? Buffer.from(texts.get(tree.get(path)) ?? '') : undefined) });
     const owners = new Map(), owner = file => {
       if (!owners.has(file)) owners.set(file, ownerOf(file, tree, declared));
@@ -153,7 +152,7 @@ export function sealStoreFile(root) {
 
 /** Open the seal store, creating its one table on first use. */
 function openSeals(file) {
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec('PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS package_seal(package TEXT NOT NULL, hash TEXT NOT NULL, receipts TEXT NOT NULL, tests TEXT NOT NULL, sealed_at TEXT NOT NULL, PRIMARY KEY(package, hash))');
   return db;
@@ -200,7 +199,7 @@ export function sealOf(file, name, hash) {
  * @param {string} file
  */
 export function sealsExist(file) {
-  if (!existsSync(file)) return false;
+  if (!fs.exists(file)) return false;
   const db = openSeals(file);
   try { return Boolean(db.prepare('SELECT 1 FROM package_seal LIMIT 1').get()); } finally { db.close(); }
 }

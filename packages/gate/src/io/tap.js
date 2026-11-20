@@ -2,18 +2,18 @@
  * Read which committed tests a Node TAP run names [C7,D1]. Both the flake diagnostics and the gate's own run receipt
  * use it, so a failing test has one identity everywhere: its committed file and its structured name.
  */
-import {
-  realpathSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   isAbsolute,
   relative,
 } from 'node:path';
 import { tryGit } from '../../../git/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Resolve live aliases; deleted private checks already carry their physical execution root. */
 function physicalPath(path) {
-  try { return realpathSync(path); }
+  try { return fs.realpath(path); }
   catch { return path; }
 }
 

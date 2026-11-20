@@ -1,0 +1,3 @@
+{
+  "store.logic-reasons.ineligible-empty-note-refused": {"proves":{"specs":["C7"],"claim":"releaseReasonProblem refuses INELIGIBLE with an empty or blank note and names the note to give, while INELIGIBLE with a note and other codes without one are unchanged."},"why":"An INELIGIBLE release with no note leaves the next builder and the re-bar nothing to act on.","kind":"cell unit","inputs":["packages/store/src/logic/reasons.js"]}
+}
