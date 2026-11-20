@@ -1308,7 +1308,7 @@ catalogCase('[A1,B26] slice creates a frozen child of a claimed item through rea
 }, ['add', 'check', 'claim', 'init', 'slice']);
 
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', ['init'], () =>
-  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['gate-health', 'init', 'push-receipts', 'shadow-batch', 'test-value', 'waits']);
+  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['add', 'block', 'expedite', 'gate-health', 'init', 'push-receipts', 'rulings', 'shadow-batch', 'test-value', 'waits']);
 
 catalogCase('[A1,C7] red explain reports absent evidence through the catalog', ['init', 'red'], async () => {
   const box = await project();
