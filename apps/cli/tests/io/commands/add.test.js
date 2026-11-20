@@ -8,6 +8,9 @@ import { test } from 'node:test';
 import { requireTestMirror } from '../../../src/io/item/bar.js';
 import { after } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { onBoard } from '../../fixtures/land/board.js';
+import { fixtureMachineSettings } from '../../fixtures/testkit.js';
+import * as store from '../../../../../packages/store/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -89,4 +92,37 @@ test('cli.io-commands-add.edit-and-worktree-json-carry-level: clause 2: edit --j
   const tree = JSON.parse(made.out);
   assert.ok(tree.route, 'route is kept');
   assert.equal(tree.level, tree.route);
+});
+
+/** The baseline pending on an item whose check was just set, read from the board. */
+const baselineOf = (box, id) => onBoard(box, board => store.getItem(board, id).item_check_baseline);
+
+test('cli.io-commands-add.strict-baseline-on: clause 1: with claim.checkCeiling on, add --check writes a pending baseline carrying strict true [C7,#1273]', async () => {
+  const box = helpers.project();
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { claim: { checkCeiling: true } });
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Strict', '--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const baseline = baselineOf(box, JSON.parse(added.out).item.item_id);
+  assert.equal(baseline.strict, true);
+});
+
+test('cli.io-commands-add.strict-baseline-off: clause 1: with claim.checkCeiling off, the pending baseline of add --check has no strict field [C7,#1273]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Plain', '--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const baseline = baselineOf(box, JSON.parse(added.out).item.item_id);
+  assert.equal('strict' in baseline, false);
+});
+
+test('cli.add.needs-flag: clause 1: add --needs browser,gui stores both and show --json reports item_needs, and add --needs gpu is refused USAGE naming browser and gui [C7,#11206]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Needs both', '--specs', 'G1', '--needs', 'browser,gui', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const shown = await box.inProcess(box.repo, 'show', id, '--json');
+  assert.deepEqual(JSON.parse(shown.out).item_needs, ['browser', 'gui']);
+  const refused = await box.inProcess(box.repo, 'add', 'web', 'Needs a gpu', '--specs', 'G1', '--needs', 'gpu', '--json');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.err + refused.out, /USAGE/u);
+  assert.match(refused.err + refused.out, /browser and gui/u);
 });

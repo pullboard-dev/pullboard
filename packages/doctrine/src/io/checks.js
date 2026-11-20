@@ -1,5 +1,4 @@
 import { spawnCaptured } from '../../../sandbox/index.js';
-import { withPathMapMoves } from './paths.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
@@ -435,7 +434,7 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
   const changed = diff.split('\0').filter(Boolean);
   const candidateTree = (gitOut(root, ['rev-parse', `${commit}^{tree}`]) ?? '').trim();
   const canFingerprint = cleanTree(root) === candidateTree;
-  const origins = withPathMapMoves(renamedOrigins(root, base, commit), root, base, commit, changed); // Git's renames and the cells path map's moves.
+  const origins = renamedOrigins(root, base, commit); // Git's renames.
   const results = [];
   const refusals = [];
   const uncounted = [];

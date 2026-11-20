@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runSubmitGateWithRunnerPlan } from '../../../../src/io/submit/gate.js';
 import { submitTableReplay } from '../../../../src/io/submit/gate.js';
-import { runSubmitGate } from '../../../../../../packages/gate/index.js';
+import { runSubmitGate } from '../../../../../../packages/gate/heavy.js';
 import { emptyRepo } from '../../../fixtures/blueprint.js';
 import { fixtureMachineSettings } from '../../../fixtures/testkit.js';
 

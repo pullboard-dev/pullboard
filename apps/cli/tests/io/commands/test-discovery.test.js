@@ -29,9 +29,9 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { importsIn } from '../../../../../packages/gate/index.js';
+import { importsIn } from '../../../../../packages/gate/heavy.js';
 import { commandDocs } from '../../../src/io/docs.js';
-import { readTestOutcomes } from '../../../../../packages/gate/index.js';
+import { readTestOutcomes } from '../../../../../packages/gate/heavy.js';
 
 /** Copy the runner and its transitive local imports without evaluating their code. */
 function copyRunnerImports(sourceRoot, root) {
