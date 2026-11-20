@@ -13,6 +13,15 @@ const fs = fileSystemAdapter();
 /** The beater's cadence: four beats inside the two-minute seat-gone limit, so one missed beat never costs a claim. */
 export const BEATER_EVERY_MS = 30_000;
 
+/** How long a seat may make no board event and no file change in its folder before its beater stops: the stale capture's seat-gone idle setting, 30 minutes. */
+export const BEATER_QUIET_MS = 30 * 60_000;
+
+/** Presence is not progress: the events a seat's own beats and renewals write never count as its work. */
+const PRESENCE_EVENTS = ['claim', 'renew', 'heartbeat', 'claim_stalled'];
+
+/** The most entries one folder walk reads, so a huge folder never stalls a beat. */
+const WALK_LIMIT = 4000;
+
 /**
  * Processes that only carry a command for the agent: a shell, or a wrapper that runs one command and exits.
  * Why: the CLI's own parent is the shell the agent opened for this one command, and it exits with the command.
@@ -49,7 +58,7 @@ export function agentSession({ env = environmentAdapter(), ppid = process.ppid, 
   const named = Number(env.get('PULLBOARD_AGENT_PID'));
   if (Number.isSafeInteger(named) && named > 1) {
     const row = table?.get(named);
-    return table && !row ? null : { pid: named, start: row?.start ?? null };
+    return table && !row ? null : { pid: named, start: row?.start ?? null, named: true };
   }
   if (!table) return null;
   const seen = new Set();
@@ -74,11 +83,58 @@ export function agentAlive({ pid, start }, { run = execFileSync, signal = proces
   return Boolean(row) && !row[1].startsWith('Z') && (!start || row[2] === start);
 }
 
+/**
+ * The newest modification time, in ms, of any file under `dir`, or null when none can be read. Git's own folder and
+ * installed packages are skipped, and the walk stops at WALK_LIMIT entries.
+ */
+export function folderActivity(dir, { list = (path) => fs.list(path, { withFileTypes: true }), stat = (path) => fs.stat(path) } = {}) {
+  let newest = null;
+  let seen = 0;
+  const pending = [dir];
+  while (pending.length && seen < WALK_LIMIT) {
+    const here = pending.pop();
+    let entries;
+    try { entries = list(here); } catch { continue; }
+    for (const entry of entries) {
+      if (++seen > WALK_LIMIT) break;
+      if (entry.name === '.git' || entry.name === 'node_modules') continue;
+      const path = join(here, entry.name);
+      if (entry.isDirectory()) { pending.push(path); continue; }
+      try { const at = stat(path).mtimeMs; if (newest === null || at > newest) newest = at; } catch { /* gone since the listing */ }
+    }
+  }
+  return newest;
+}
+
+/** The seat's latest board event that is real work, in ms, or null; a board that cannot be read this tick says null. */
+async function seatEventAt(board, seat) {
+  let opened, store;
+  try {
+    store = await import('../../../../packages/store/index.js');
+    opened = store.openBoardForRead(board);
+    const at = opened?.db.prepare(`SELECT event_at FROM event WHERE event_by=? AND event_kind NOT IN (${PRESENCE_EVENTS.map(() => '?').join(',')}) ORDER BY event_id DESC LIMIT 1`).get(seat, ...PRESENCE_EVENTS)?.event_at;
+    return at ? Date.parse(at) : null;
+  } catch { return null; }
+  finally { try { if (opened) store.closeBoard(opened); } catch { /* already closed */ } }
+}
+
 /** The lock file naming the beater that keeps `seat` alive, beside the board's private seat files. */
 function beaterLock(board, seat) { return join(dirname(board), 'beaters', `${storeName(encodeURIComponent(seat))}`); }
 
 /** The recorded beater for `seat`, or null. */
 function readLock(lock) { try { return JSON.parse(fs.readFile(lock, 'utf8')); } catch { return null; } }
+
+/** Whether a beater lock beside `lock`, not this seat's own, names a live beater watching the same agent process. */
+function otherBeaterWatches(lock, agent, alive) {
+  let names;
+  try { names = fs.list(dirname(lock)); } catch { return false; }
+  return names.some((name) => {
+    const path = join(dirname(lock), name);
+    if (path === lock) return false;
+    const other = readLock(path);
+    return other?.agent?.pid === agent.pid && other.agent.start === agent.start && Number.isSafeInteger(other.pid) && alive({ pid: other.pid, start: null });
+  });
+}
 
 /**
  * Start the detached beater for `seat` on the board file `board`, bound to the agent session behind this CLI call; it
@@ -98,8 +154,10 @@ export async function startClaimBeater(cwd, { seat, board }, { env = environment
     if (held?.agent?.pid === agent.pid && held.agent.start === agent.start && alive({ pid: held.pid, start: null })) {
       return { started: false, reason: 'running', pid: held.pid };
     }
+    // Another seat's live beater already watching this ancestor means the ancestor outlives the worker: the new beater is recorded as shared and the quiet-seat rule governs it.
+    const shared = !agent.named && otherBeaterWatches(lock, agent, alive);
     const entry = fileURLToPath(new URL('./beater/run.js', import.meta.url));
-    const args = [JSON.stringify({ cwd, seat, board, lock, agent, everyMs: Number(env.get('PULLBOARD_BEATER_MS')) || BEATER_EVERY_MS })];
+    const args = [JSON.stringify({ cwd, seat, board, lock, agent, shared, everyMs: Number(env.get('PULLBOARD_BEATER_MS')) || BEATER_EVERY_MS })];
     // The beater drops the lock only while it names the beater, so recording it after the launch is safe.
     fs.mkdir(dirname(lock), { recursive: true });
     // The drive cell loads here, once a beater really starts, so a claim with no agent session never pays for it [C7].
@@ -107,8 +165,8 @@ export async function startClaimBeater(cwd, { seat, board }, { env = environment
     if (!pid) return { started: false, reason: 'launch failed' };
     // The adapter's file write takes no mode, so the lock opens by descriptor to stay private to its owner.
     const descriptor = fs.open(lock, 'w', 0o600);
-    try { fs.write(descriptor, JSON.stringify({ version: 1, pid, agent, seat }) + '\n'); } finally { fs.close(descriptor); }
-    return { started: true, pid, agent };
+    try { fs.write(descriptor, JSON.stringify({ version: 1, pid, agent, seat, shared }) + '\n'); } finally { fs.close(descriptor); }
+    return { started: true, pid, agent, shared };
   } catch (error) { return { started: false, reason: error?.message ?? String(error) }; }
 }
 
@@ -119,7 +177,16 @@ export async function startClaimBeater(cwd, { seat, board }, { env = environment
  * A `remote` binding ({ url, token, agent, seatKey? }, a seat joined by board.url) beats the board host through
  * sendRemoteHeartbeat instead of a local board, and stops once the host refuses a beat or the lock names another beater [P7,B3].
  */
-export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null }, { alive = agentAlive, pid = process.pid, send = null, ...options } = {}) {
+export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null, quietMs = BEATER_QUIET_MS }, { alive: agentUp = agentAlive, pid = process.pid, send = null, now = Date.now, lastEvent = seatEventAt, lastFileChange = folderActivity, wait = null, ...options } = {}) {
+  // The seat is quiet when it made no board event and changed no file in its folder for quietMs, whatever the watched pid does [B3].
+  let lastWork = now();
+  const refresh = async () => {
+    const found = [await lastEvent(board, seat), lastFileChange(cwd)].filter((at) => Number.isFinite(at));
+    lastWork = Math.max(lastWork, ...found);
+  };
+  const alive = (watched) => agentUp(watched) && now() - lastWork < quietMs;
+  const pause = async (ms) => { await refresh(); await (wait ?? ((span) => new Promise((done) => setTimeout(done, span))))(ms); };
+  options = { ...options, wait: pause };
   try {
     const { keepClaimsAlive } = await import('../../../../packages/gate/heavy.js');
     if (remote?.url) {
