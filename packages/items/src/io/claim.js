@@ -1,7 +1,5 @@
 /** Validate per-item worktree identity against the registered seat and live claim, below the cli so items never import apps/cli [B5,C7]. */
-import { readFileSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -10,6 +8,8 @@ import { repoInfo } from '../../../git/light.js';
 import { sameCommonDir } from '../../../git/light.js';
 import { tryGit } from '../../../git/light.js';
 import { Refused } from '../../../kernel/light.js';
+
+const fs = fileSystemAdapter();
 
 /** The registered seat identity and routing attributes used by an item folder. */
 function agentRow(board, id) {
@@ -25,7 +25,7 @@ export const ITEM_MARKER_FILE = 'pullboard-item.json';
 
 /** Marker is private to this worktree's Git metadata, never part of the project. */
 export function writeItemMarker(path, seat, item) {
-  writeFileSync(gitPath(path, ITEM_MARKER_FILE), JSON.stringify({ version: 1, seat, item }) + '\n', { mode: 0o600 });
+  fs.writeFile(gitPath(path, ITEM_MARKER_FILE), JSON.stringify({ version: 1, seat, item }) + '\n', { mode: 0o600 });
 }
 
 /**
@@ -37,7 +37,7 @@ export function itemFolderIdentity(board, root) {
   try {
     let marker;
     let missing = false;
-    try { marker = JSON.parse(readFileSync(gitPath(root, 'pullboard-item.json'), 'utf8')); }
+    try { marker = JSON.parse(fs.readFile(gitPath(root, 'pullboard-item.json'), 'utf8')); }
     catch (error) {
       if (error.code !== 'ENOENT') return null;
       const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
@@ -66,7 +66,7 @@ export function claimedItemRoot(board, item) {
   const agent = agentRow(board, item.item_owner);
   if (!agent) return null;
   const path = itemFolderPath(agent.agent_path, item.item_id);
-  try { lstatSync(path); }
+  try { fs.lstat(path); }
   catch (error) { if (error.code === 'ENOENT') return agent.agent_path; throw error; }
   const identity = itemFolderIdentity(board, path);
   if (identity?.agent.agent_id !== agent.agent_id || identity.item !== item.item_id) {

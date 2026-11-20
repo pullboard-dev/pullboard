@@ -1,23 +1,23 @@
 /** Read per-file runtimes from gate receipts and decide the two-minute cap for a candidate's files [C7]. */
-import { readdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileRuntimeCapReport } from '../../logic/cap.js';
 import { fileRuntimeCapFailure } from '../../logic/cap.js';
 import { readTestValueTimings } from '../test/value/timing.js';
 import { receiptStore } from '../run/receipt.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** The newest measured wall time per file across every receipt sidecar in a gate receipt store. */
 export function receiptFileRuntimes(store) {
   const newest = new Map();
   let names = [];
-  try { names = readdirSync(join(store, 'test-value')); } catch { return {}; }
+  try { names = fs.list(join(store, 'test-value')); } catch { return {}; }
   for (const name of names) {
     const id = name.replace(/\.json$/u, '');
     const timings = readTestValueTimings(store, id);
     if (!timings) continue;
     let at = 0;
-    try { at = statSync(join(store, 'test-value', name)).mtimeMs; } catch { continue; }
+    try { at = fs.stat(join(store, 'test-value', name)).mtimeMs; } catch { continue; }
     for (const row of timings.files) {
       const seen = newest.get(row.file);
       if (!seen || at >= seen.at) newest.set(row.file, { at, durationMs: row.durationMs });

@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { boardWriteSnapshot } from './write/preparation.js';
 import { builderFamilyProblem } from '../builder/family.js';
 import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../state/light.js';
@@ -74,6 +74,11 @@ import { FLOW_SIZE_ENGINE } from "../../../../state/light.js";
 import { submissionSize } from "../../../../state/light.js";
 import { moveItem } from "../board.js";
 import { sealClauseInspection } from './repository.js';
+import { sendBackDependents } from './item/after-gate.js';
+import { reopen } from './reopen.js';
+import { release } from './release.js';
+
+const fs = fileSystemAdapter();
 export { sealClauseInspection };
 
 /** Seal rename evidence from exact Git objects and accepted sensitive-path policy before replication [V4,H16]. */
@@ -160,7 +165,7 @@ function inspectionReads(board, id, commit, proof, titleTicks) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
+ * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} options - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
 export function submit(board, id, options) {
@@ -281,6 +286,8 @@ export function submit(board, id, options) {
     const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
     if (miss) logEvent(board, agentId, 'file_miss', id, miss);
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
+    // A parent resubmitted at a new head sends back each dependent built on the old one [C7,#11808].
+    sendBackDependents(board, id, { head: commit }, { reopen, release, appendFact });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
       if (gateGreen !== true || companion || recordedProof?.knownMainFailures) throw new Refused('MACHINE_PROOF', 'machine acceptance needs an entirely green composed submission without companions or known reds');
@@ -368,12 +375,25 @@ export function recordedBaseRows(board, base) {
   if (!/^[a-f0-9]{40}$/u.test(base ?? '') || !boardReceiptStore) return [];
   const store = boardReceiptStore(board);
   let names = [];
-  try { names = store ? readdirSync(store) : []; } catch { return []; }
+  try { names = store ? fs.list(store) : []; } catch { return []; }
+  const listed = new Set(names);
+  const known = MAIN_RED_ROWS.get(store) ?? new Map();
+  MAIN_RED_ROWS.set(store, known);
+  for (const name of known.keys()) if (!listed.has(name)) known.delete(name);
   return names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).flatMap(name => {
-    const receipt = readGateReceipt(store, name.slice(0, -5));
-    return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
+    if (!known.has(name)) {
+      const receipt = readGateReceipt(store, name.slice(0, -5));
+      // A receipt that did not read (still being written) is not remembered, so the next call reads it again.
+      if (!receipt) return [];
+      known.set(name, receipt.kind === 'main-red' && Array.isArray(receipt.testOutcomes) ? { head: receipt.head, testOutcomes: receipt.testOutcomes } : null);
+    }
+    const row = known.get(name);
+    return row && row.head === base ? row.testOutcomes : [];
   });
 }
+
+/** What recordedBaseRows kept of each receipt file already read, by receipt store path: null for a receipt that is not main-red. A receipt file never changes once written, so each is read once per process [C7]. */
+const MAIN_RED_ROWS = new Map();
 
 /**
  * Record the machine accept for a green pulled gate receipt on a submitted, machine-eligible item; false when the receipt

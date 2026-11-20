@@ -105,7 +105,7 @@ export async function run(io, { values = {} } = {}) {
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
   problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
-  const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/index.js');
+  const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/heavy.js');
   problems.push(...toolchainProblems(languageToolchains(detectLanguages(ctx.info.root)).toolchains, loadMachineSettings().runners ?? []));
   const packageText = textAt(ctx.info.root, 'package.json');
   let packageJson = null;
@@ -127,9 +127,9 @@ export async function run(io, { values = {} } = {}) {
   if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
     message: formatSnapshotLimit(oversizedSnapshot),
     next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
-  // With the runs_store flag on, one reconciler tick settles board-and-runs disagreements and names what it settled [B2,P7].
+  // With --reconcile and the runs_store flag on, one reconciler tick settles board-and-runs disagreements and names what it settled [B2,P7].
   const incompatibleBoard = problems.some(problem => incompatible.has(problem.code));
-  const settled = !incompatibleBoard && withBoardRead(ctx, board => runsStoreOn(board.db)) ? withBoard(ctx, board => settleOnce(board, ctx.file)) : null;
+  const settled = values.reconcile && !incompatibleBoard && withBoardRead(ctx, board => runsStoreOn(board.db)) ? withBoard(ctx, board => settleOnce(board, ctx.file)) : null;
   io.result?.({ problems, agentHooks, ...(settled ? { reconciled: settled } : {}) });
   if (settled) io.say(reconcilerLine(settled));
   for (const hook of agentHooks.filter(hook => hook.configured)) io.say(`${hook.vendor} agent hooks: ${hook.events.join(', ') || 'not installed'}${hook.trust ? '; trust unverified: the Stop reminder may be off; review /hooks' : ''}`);

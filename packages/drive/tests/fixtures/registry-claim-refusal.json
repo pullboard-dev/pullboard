@@ -1,0 +1,16 @@
+{
+  "drive.io-claim-refusal.backs-off-keeps-serving": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a claim call the board refuses is said, backed off and claimed again, and the runner serve ends only when its signal aborts."
+    },
+    "why": "Without this test one refused claim call ended the whole runner serve, which restarted and drained about 55 s (19 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  }
+}

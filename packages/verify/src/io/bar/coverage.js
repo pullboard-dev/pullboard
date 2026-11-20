@@ -1,13 +1,12 @@
 /** Captured whole-file obligations share one signed, frozen project command [V2,V4]. */
 import { createHash } from 'node:crypto';
-import {
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { resolve } from 'node:path';
 import { briefFiles } from '../../../../items/index.js';
 import { git } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const HASH = /^[a-f0-9]{64}$/u;
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -75,8 +74,8 @@ export function prepareBarCoverage(root, item, policy, file) {
   if (file) {
     const path = resolve(root, file);
     try {
-      if (statSync(path).size > 262144) throw new Error('oversize');
-      supplied = JSON.parse(readFileSync(path, 'utf8'));
+      if (fs.stat(path).size > 262144) throw new Error('oversize');
+      supplied = JSON.parse(fs.readFile(path, 'utf8'));
     } catch { throw new Refused('BAR_COVERAGE', 'the coverage file must be readable JSON no larger than 256 KiB; correct --coverage-file'); }
   }
   if (required.length && !file) throw new Refused('BAR_COVERAGE', `record whole-file timing evidence for ${required.join(', ')} in --coverage-file; an unknown duration is not a slow-file exception`);

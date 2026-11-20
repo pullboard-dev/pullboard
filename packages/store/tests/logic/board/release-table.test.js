@@ -22,7 +22,7 @@ function handedBackTwice(t, engine) {
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' });
   const claim = () => store.claim(board, id, { agentId: seat, lane: 'core', leaseMs: 7200000, head: SNAPSHOT.head, autoNext: true, autoNextSnapshot: SNAPSHOT,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
-  const release = reason => store.release(board, id, seat, '', { worktreeSnapshot: { ...SNAPSHOT } }, reason);
+  const release = reason => store.release(board, id, seat, 'handed back untouched', { worktreeSnapshot: { ...SNAPSHOT } }, reason);
   claim(); release('INELIGIBLE'); claim(); release('ROUTED_ELSEWHERE');
   return store.getItem(board, id).item_route;
 }

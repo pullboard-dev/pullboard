@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { temporaryRepository } from '../../../../store/tests/fixtures/submit.js';
-import { selectAffectedTests } from '../../../index.js';
+import { selectAffectedTests } from '../../../heavy.js';
 
 const SUITES = { 'api/**': 'api/tests', 'web/**': 'web/test', 'ops/**': 'ops/test' };
 

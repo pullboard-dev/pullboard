@@ -1,4 +1,5 @@
 import { tabTitle } from "../tab.js";
+import { mergeBoards } from "../hosted.js";
 
 /** Shorten a displayed project path; keep the original root for tooltips and native actions. */
 export function compactProjectPath(root) {
@@ -11,6 +12,7 @@ export function cockpitSidebar(sections) {
   const { COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml } = sections;
   return `const compactProjectPath = ${compactProjectPath.toString()};
 const tabTitle = (${tabTitle.toString()});
+const mergeBoards = (${mergeBoards.toString()});
 /**
  * The sidebar: every project, the one shown, and what needs the person elsewhere. A switch draws only
  * this until the new board arrives, so the main column never mixes the old board with the new pick.
@@ -28,21 +30,38 @@ function renderSide() {
   const readableProjects = data.projects.filter((repo) => repo.ok);
   const unreadableProjects = data.projects.filter((repo) => !repo.ok && repo.warningCode === 'BOARD_UNAVAILABLE');
   const otherErrors = data.projects.filter((repo) => !repo.ok && repo.warningCode !== 'BOARD_UNAVAILABLE').map(repoButton).join('');
-  const groups = projectGroups(readableProjects);
-  const groupedRoots = new Set(groups.flatMap((group) => group.repos.map((repo) => repo.root)));
-  const grouped = groups.map((group) => {
-    const on = group.key === view.root;
-    const needs = group.repos.reduce((total, repo) => total + needCount(repo), 0);
-    const count = group.repos.length;
-    return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span><small>' + (needs ? '<span class="asks">' + needs + ' need you</span> · ' : '') + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
-  }).join('');
-  const loose = readableProjects.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
+  /** One list of boards as project groups, then the loose boards that belong to none. */
+  const listing = (boards) => {
+    const groups = projectGroups(boards);
+    const groupedRoots = new Set(groups.flatMap((group) => group.repos.map((repo) => repo.root)));
+    const grouped = groups.map((group) => {
+      const on = group.key === view.root;
+      const needs = group.repos.reduce((total, repo) => total + needCount(repo), 0);
+      const count = group.repos.length;
+      return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span><small>' + (needs ? '<span class="asks">' + needs + ' need you</span> · ' : '') + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
+    }).join('');
+    return grouped + boards.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
+  };
+  // With any relay board listed, boards sit under one heading per machine: this computer's own, then each relay machine.
+  const boardList = readableProjects.some((repo) => repo.source === 'relay') ? (() => {
+    const byId = new Map(readableProjects.map((repo) => [repo.id, repo]));
+    const here = readableProjects.filter((repo) => repo.source !== 'relay');
+    const relayed = new Map();
+    for (const repo of readableProjects.filter((entry) => entry.source === 'relay')) {
+      const machine = repo.machine || 'shared';
+      if (!relayed.has(machine)) relayed.set(machine, []);
+      relayed.get(machine).push({ id: repo.id, name: repo.name });
+    }
+    const merged = mergeBoards({ machine: here.find((repo) => repo.machine)?.machine || 'this computer', here: true, boards: here.map((repo) => ({ id: repo.id, name: repo.name })) },
+      [...relayed].map(([machine, boards]) => ({ machine, boards })));
+    return merged.filter((group) => group.boards.length).map((group) => '<section class="side-machine" data-machine="' + esc(group.machine) + '"><h3>' + esc(group.label) + '</h3>' + listing(group.boards.map((board) => byId.get(board.id))) + '</section>').join('');
+  })() : listing(readableProjects);
   const canForget = !snapshot && !readOnly;
   const unreadable = unreadableProjects.length ? '<details class="unreadable-projects"><summary>' + unreadableProjects.length + ' ' + (unreadableProjects.length === 1 ? 'board can' : 'boards can') + ' no longer be found</summary>'
     + (canForget ? '<button type="button" class="ghost" data-forget-unreadable>Forget all</button>' : '') + '<ul>'
     + unreadableProjects.map((repo) => '<li><span class="unreadable-copy" title="' + esc(repo.root) + '"><b>' + esc(repo.name) + '</b> <code>' + esc(compactProjectPath(repo.root)) + '</code></span>'
       + (canForget ? '<button type="button" class="ghost" data-forget-unreadable="' + esc(repo.root) + '" aria-label="Forget ' + esc(repo.name) + '">Forget</button>' : '') + '</li>').join('') + '</ul></details>' : '';
-  store.paint($('proj-list'), grouped || loose || otherErrors || unreadable ? grouped + loose + otherErrors + unreadable : '<div class="empty">None yet.</div>');
+  store.paint($('proj-list'), boardList || otherErrors || unreadable ? boardList + otherErrors + unreadable : '<div class="empty">None yet.</div>');
   const p = data.project;
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);

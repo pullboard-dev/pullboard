@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { selectAffectedTests } from '../../../index.js';
+import { selectAffectedTests } from '../../../heavy.js';
 import { selectionFanOut } from '../../../src/io/affected/fanout.js';
 
 /** A real Git repository: a chain test -> mid -> leaf, an unrelated test, a doc reader and an opaque loader test. */
