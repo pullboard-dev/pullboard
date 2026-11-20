@@ -1,4 +1,47 @@
 {
-  "moves.clear-reservation.removes-and-refuses-when-none": {"proves":{"specs":["C7"],"claim":"clause 1: clearReservation removes an item reservation set by reserveItem and refuses with a next step when none is set."},"why":"A reservation that cannot be cleared, or a clear that silently does nothing, would leave an item misrouted.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/clearReservation.test.js","packages/store/index.js","packages/state/light.js"]},
-  "moves.clear-reservation.history-shows-both": {"proves":{"specs":["C7"],"claim":"clause 2: the item history records the reservation after reserveItem and its absence after clearReservation."},"why":"Replicas replay the event history, so a clear that leaves no event would leave replicas holding the reservation.","kind":"cell unit","inputs":["packages/moves/tests/logic/moves/clearReservation.test.js","packages/store/index.js","packages/state/light.js"]}
+  "moves.clear-reservation.removes-set-reservation": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: clearReservation after reserveItem reads the reservation columns back as null."
+    },
+    "why": "A reservation that cannot be cleared would leave an item misrouted.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/tests/logic/moves/clearReservation.test.js",
+      "packages/store/index.js",
+      "packages/state/light.js"
+    ]
+  },
+  "moves.clear-reservation.no-reservation-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: clearReservation with no reservation refuses with a next step and changes nothing."
+    },
+    "why": "A silent clear on nothing would hide a wrong item id.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/tests/logic/moves/clearReservation.test.js",
+      "packages/store/index.js",
+      "packages/state/light.js"
+    ]
+  },
+  "moves.clear-reservation.older-engine-refuses": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 3: an engine below RESERVATION_ENGINE refuses clearReservation with ENGINE_VERSION."
+    },
+    "why": "An old writer must not drop a reservation that replicas replay.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/tests/logic/moves/clearReservation.test.js",
+      "packages/store/index.js",
+      "packages/state/light.js"
+    ]
+  }
 }

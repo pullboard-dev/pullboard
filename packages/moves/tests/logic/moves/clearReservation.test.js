@@ -1,4 +1,4 @@
-/** clearReservation removes an item reservation, refuses when none is set, and the event history shows both [C7,#9176]. */
+/** clearReservation removes an item reservation, refuses when none is set, and an older engine refuses it [C7,#9176]. */
 // fixture-subject: addItem (a store unit test of clearReservation over one seeded item; the board is a private cell fixture)
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -6,6 +6,7 @@ import * as store from '../../../../store/index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
+import { RESERVATION_ENGINE } from '../../../../state/light.js';
 
 const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';
 
@@ -25,23 +26,25 @@ function snapshot(board, id) {
   return { holder, by, at };
 }
 
-test('moves.clear-reservation.removes-and-refuses-when-none: clause 1: clearReservation removes an item reservation set by reserveItem and refuses with a next step when none is set [C7]', t => {
+test('moves.clear-reservation.removes-set-reservation: clause 1: clearReservation after reserveItem on one open item reads the reservation holder, actor and instant back as null [C7]', t => {
   const { board, id } = reservable(t);
   store.reserveItem(board, id, { agentId: 'coordinator', holder: 'web-1' });
   assert.equal(snapshot(board, id).holder, 'web-1');
   assert.deepEqual(store.clearReservation(board, id, { agentId: 'coordinator' }), { holder: 'web-1' });
   assert.deepEqual(snapshot(board, id), { holder: null, by: null, at: null });
-  assert.throws(() => store.clearReservation(board, id, { agentId: 'coordinator' }), error => error.code === 'USAGE' && /nothing to clear; see pullboard show/u.test(error.message));
 });
 
-test('moves.clear-reservation.history-shows-both: clause 2: the item history records the reservation after reserveItem and its absence after clearReservation [C7]', t => {
+test('moves.clear-reservation.no-reservation-refused: clause 2: clearReservation on an item with no reservation refuses with a next step and leaves the item unchanged [C7]', t => {
   const { board, id } = reservable(t);
-  const kinds = () => board.db.prepare("SELECT event_kind AS kind, event_detail AS detail FROM event WHERE item_id = ? AND event_kind IN ('reserve_item', 'clear_reservation') ORDER BY event_id").all(id);
+  const before = store.getItem(board, id);
+  assert.throws(() => store.clearReservation(board, id, { agentId: 'coordinator' }), error => error.code === 'USAGE' && /see pullboard show/u.test(error.message));
+  assert.deepEqual(store.getItem(board, id), before);
+});
+
+test('moves.clear-reservation.older-engine-refuses: clause 3: an engine below RESERVATION_ENGINE refuses clearReservation with ENGINE_VERSION [C7]', t => {
+  const { board, id } = reservable(t);
   store.reserveItem(board, id, { agentId: 'coordinator', holder: 'web-1' });
-  assert.deepEqual(kinds().map(row => row.kind), ['reserve_item']);
-  assert.equal(snapshot(board, id).by, 'coordinator');
-  store.clearReservation(board, id, { agentId: 'coordinator' });
-  assert.deepEqual(kinds().map(row => row.kind), ['reserve_item', 'clear_reservation']);
-  assert.equal(JSON.parse(kinds()[1].detail).holder, 'web-1', 'the clear event names the holder it removed');
-  assert.equal(snapshot(board, id).holder, null);
+  board.executionEngineVersion = RESERVATION_ENGINE - 1;
+  assert.throws(() => store.clearReservation(board, id, { agentId: 'coordinator' }), { code: 'ENGINE_VERSION' });
+  assert.equal(snapshot(board, id).holder, 'web-1');
 });

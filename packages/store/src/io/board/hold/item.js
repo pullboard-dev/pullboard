@@ -5,7 +5,6 @@ import { rememberHoldOwner } from "../../../logic/board/holds.js";
 import { Refused } from "../../../../../kernel/index.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { RESERVATION_ENGINE } from "../../../../../state/light.js";
-import { CLEAR_RESERVATION_ENGINE } from "../../../../../state/light.js";
 import { applyItemHold } from "../../../../../items/index.js";
 import { now } from "../query.js";
 import { getItem } from "../query.js";
@@ -57,7 +56,7 @@ export function reserveItem(board, id, { agentId, holder }) {
  */
 export function clearReservation(board, id, { agentId }) {
   coordinatorOnly(agentId, "clears an item reservation");
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < CLEAR_RESERVATION_ENGINE) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < RESERVATION_ENGINE) {
     throw new Refused("ENGINE_VERSION", "clearing a reservation requires replay-aware writers; upgrade every linked device");
   }
   return atomic(board, () => {
