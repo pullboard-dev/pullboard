@@ -1,6 +1,6 @@
 /**
  * Lanes (L1, L2) and the config they live in: the pure cases. The cases that drive hooks, claims, submits and refreezes
- * through the real CLI live in apps/cli/journeys/lanes/main.test.js.
+ * through the real CLI live in apps/cli/tests/io/commands/lanes/main.test.js.
  */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

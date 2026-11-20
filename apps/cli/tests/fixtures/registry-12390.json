@@ -9,7 +9,7 @@
     "why": "Without it, the release median would stay over its 170 ms target with no recorded slow stage for the next cut to aim at.",
     "kind": "journey",
     "inputs": [
-      "apps/cli/journeys/speed/release-median.test.js"
+      "apps/cli/tests/io/commands/release/median.test.js"
     ]
   }
 }

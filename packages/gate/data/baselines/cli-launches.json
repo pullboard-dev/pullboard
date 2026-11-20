@@ -137,7 +137,7 @@
   "packages/verify/tests/logic/advance.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/init/boundary.test.js": {
+  "apps/cli/tests/io/init/boundary.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/fact/tests/cpu-registration-closure.test.js": {
@@ -599,7 +599,7 @@
   "apps/cli/journeys/speed/profile.test.js": {
     "launch": 6
   },
-  "apps/cli/journeys/land/landing/noop.test.js": {
+  "apps/cli/tests/io/commands/land/noop.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/spec/person.test.js": {

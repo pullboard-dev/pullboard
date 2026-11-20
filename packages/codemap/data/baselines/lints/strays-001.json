@@ -45,7 +45,7 @@
     "apps/cli/journeys/inbox/feed.test.js": 1,
     "apps/cli/journeys/inbox/projects.test.js": 1,
     "apps/cli/journeys/init/api/events.test.js": 1,
-    "apps/cli/journeys/init/boundary.test.js": 1,
+    "apps/cli/tests/io/init/boundary.test.js": 1,
     "apps/cli/journeys/init/browser.test.js": 1,
     "apps/cli/journeys/init/clock.test.js": 1,
     "apps/cli/journeys/init/empty.test.js": 1,

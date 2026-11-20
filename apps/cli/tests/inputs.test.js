@@ -34,7 +34,7 @@ test('declared inputs: clause 2: the repaired readers name the exact files they 
   const named = {
     'apps/cli/tests/io/submit/cell-of-folder.test.js': 'packages/codemap/data/plan/**',
     'apps/cli/tests/io/submit/touched-cells-folder.test.js': 'packages/codemap/data/plan/**',
-    'apps/cli/journeys/init/testkit.test.js': 'packages/gate/tests/fixtures/testkit.js',
+    'apps/cli/tests/io/init/testkit.test.js': 'packages/gate/tests/fixtures/testkit.js',
     'apps/cli/journeys/settings/browser.test.js': 'apps/cli/tests/fixtures/person/trusted.js',
     'apps/cli/journeys/upgrade/previous-release.test.js': 'apps/cli/tests/fixtures/upgrade-093/**',
     'apps/cli/journeys/view/e2e.test.js': 'apps/cli/tests/fixtures/view/pty.py',

@@ -52,7 +52,7 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/ledger/history.test.js": 1,
   "packages/board/tests/from-store/logic/board/item/baseline/offer.test.js": 2,
   "packages/link/tests/logic/landing.test.js": 1,
-  "apps/cli/journeys/land/landing/noop.test.js": 1,
+  "apps/cli/tests/io/commands/land/noop.test.js": 1,
   "packages/landing/tests/io/replay.test.js": 1,
   "apps/cli/journeys/lane/lead.test.js": 1,
   "apps/cli/journeys/settings/line.test.js": 2,
