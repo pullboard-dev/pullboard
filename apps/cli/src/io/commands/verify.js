@@ -295,6 +295,18 @@ function sameVerdictNote(recorded, given) {
 }
 
 /**
+ * Whether a verdict's check ran isolated from the reviewer's own checkout [C7,#1112].
+ * Why: a verdict that ran in a seat's working tree can pass on files the commit does not hold; a verdict that ran in the board-made review folder at the submitted commit, or that comes from a runner receipt at that commit, cannot.
+ *
+ * @param {{ folder?: string|null, reviewFolder?: string|null, commit?: string|null, receipt?: { commit?: string|null }|null }} facts - The folder the check ran in, the board-made review folder (if one was made at the submitted commit), the submitted commit, and the runner receipt the verdict rests on (if any).
+ * @returns {boolean} True for a check run in the review folder, or one proven by a receipt at the submitted commit; false otherwise.
+ */
+export function verdictIsolation({ folder, reviewFolder, commit, receipt } = {}) {
+  if (typeof reviewFolder === 'string' && reviewFolder !== '' && folder === reviewFolder) return true;
+  return typeof commit === 'string' && commit !== '' && receipt?.commit === commit;
+}
+
+/**
  * Refuse a folder whose dependencies link outside it, before a check runs there [C7,#1112].
  * Why: a symlinked dependency makes the check read code that is not the commit under review.
  *
@@ -356,6 +368,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let acceptedLandingCommit = null;
   let landedVerdict = false;
   let provenBreak = '';
+  let madeReviewFolder = null;
   let reviewedPace = null;
   let approvalRows = [];
   /** Record one verdict on the open board. */
@@ -433,7 +446,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
     // verify.reviewFolder (off by default): a seat checkout not at the submitted commit is left alone, and the checks run in the detached review folder instead [C7,#8931].
     if (!fromPacket && ctx.config.verify?.reviewFolder === true && !contains(root, commit, headCommit(root) ?? '')) {
-      root = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
+      root = madeReviewFolder = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
     }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
     if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
@@ -642,6 +655,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
       digest,
+      isolated: verdictIsolation({ folder: root, reviewFolder: madeReviewFolder, commit, receipt: fromPacket || check?.reused ? { commit } : null }),
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
       sourceAdvanceHead: item.item_effective_head ?? null,
