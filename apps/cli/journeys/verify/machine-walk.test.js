@@ -358,6 +358,8 @@ function codeProblems(machine, read = fromDisk) {
   for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
   // The lease table names its refusals as data (code: 'X') and the table engine raises them; the walk reads only thrown Refused codes.
   for (const [, code] of read('../packages/moves/src/logic/table/lease.table.js').matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
+  // The claim table names its exit-key guard's refusal as data, guard('exit-key', 'exitKey', 'EXIT_USAGE', ...), and the table engine raises it inside the write.
+  for (const [, code] of read('../packages/moves/src/logic/table/claim.table.js').matchAll(/guard\('exit-key', '\w+', '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
