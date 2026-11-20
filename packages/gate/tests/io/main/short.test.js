@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { quote } from '../../fixtures/resource.js';
 import { fixture } from '../../fixtures/resource.js';
 import { probeSuite } from '../../fixtures/resource.js';
-import { withNestedGroup } from '../../../index.js';
+import { withNestedGroup } from '../../../heavy.js';
 import { launchTestRunner } from '../../fixtures/resource.js';
 import { gateRepo } from '../../fixtures/resource.js';
 import { waitFor } from '../../fixtures/resource.js';
@@ -33,20 +33,20 @@ after(reapFixtures);
 test('gate.io-main-resource.a-short-slot-is-offered-only: a short slot is offered only to a literal runner call over regular test files [C7]', async () => {
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
-  const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
-  assert.deepEqual(await explicitCheckFiles(root, named), ['packages/gate/tests/io/main/resource.test.js']);
-  assert.deepEqual(await explicitCheckFiles(root, `out=$(${named} 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - .*probe' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`), ['packages/gate/tests/io/main/resource.test.js'], 'the frozen-check capture form names its files');
+  const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/short.test.js`;
+  assert.deepEqual(await explicitCheckFiles(root, named), ['packages/gate/tests/io/main/short.test.js']);
+  assert.deepEqual(await explicitCheckFiles(root, `out=$(${named} 2>&1); printf '%s\\n' "$out"; printf '%s\\n' "$out" | grep -Eq '^[[:space:]]*ok [0-9]+ - .*probe' && printf '%s\\n' "$out" | grep -Eq '^# fail 0$'`), ['packages/gate/tests/io/main/short.test.js'], 'the frozen-check capture form names its files');
   assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} apps/cli/src/io/run/tests.js`), null, 'a whole suite is not short');
   assert.equal(await explicitCheckFiles(root, `${quote(process.execPath)} apps/cli/src/io/run/tests.js test/`), null, 'a directory is not short');
-  assert.equal(await explicitCheckFiles(root, 'npm test packages/gate/tests/io/main/resource.test.js'), null, 'an opaque runner is not short');
+  assert.equal(await explicitCheckFiles(root, 'npm test packages/gate/tests/io/main/short.test.js'), null, 'an opaque runner is not short');
   assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js packages/gate/tests/../../../test/cells.test.js'), null, 'path traversal is not a package test');
-  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js $(printf packages/gate/tests/io/main/resource.test.js)'), null, 'shell expansion is not short');
-  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js --unknown packages/gate/tests/io/main/resource.test.js'), null, 'an unknown option is not short');
+  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js $(printf packages/gate/tests/io/main/short.test.js)'), null, 'shell expansion is not short');
+  assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js --unknown packages/gate/tests/io/main/short.test.js'), null, 'an unknown option is not short');
   assert.equal(await explicitCheckFiles(root, 'node apps/cli/src/io/run/tests.js test/short-missing.test.js'), null, 'a missing file is not short');
   assert.equal(await explicitCheckFiles(root, named, { env: { ...process.env, NODE_OPTIONS: '--trace-warnings' } }), null, 'NODE_OPTIONS is not short');
   const head = runFixtureChild('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
   assert.equal(head.status, 0, head.stderr);
-  assert.deepEqual(await explicitCheckFiles(root, named, { commit: head.stdout.trim() }), ['packages/gate/tests/io/main/resource.test.js'], 'a review reads the files from the submitted tree');
+  assert.deepEqual(await explicitCheckFiles(root, named, { commit: head.stdout.trim() }), ['packages/gate/tests/io/main/short.test.js'], 'a review reads the files from the submitted tree');
 });
 
 test('gate.io-main-resource.short-slots-behave-the-same-with: short slots behave the same with gate.browserByLaunch on [C7]', async () => {
@@ -55,11 +55,11 @@ test('gate.io-main-resource.short-slots-behave-the-same-with: short slots behave
   // runner gives its children for that setting, and both name the file. A foreign NODE_OPTIONS still refuses.
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
-  const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
+  const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/short.test.js`;
   const guard = pathToFileURL(resolve(root, 'packages/gate/src/io/browser/guard.js')).href;
   const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'NODE_OPTIONS'));
-  assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['packages/gate/tests/io/main/resource.test.js'], 'with gate.browserByLaunch off');
-  assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['packages/gate/tests/io/main/resource.test.js'], 'with gate.browserByLaunch on');
+  assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['packages/gate/tests/io/main/short.test.js'], 'with gate.browserByLaunch off');
+  assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['packages/gate/tests/io/main/short.test.js'], 'with gate.browserByLaunch on');
   assert.equal(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: '--import=file:///elsewhere/unclassified.js' } }), null, 'a foreign NODE_OPTIONS is not short');
 });
 

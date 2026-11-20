@@ -699,12 +699,12 @@ async function drainLandingWorkerDescendants(ownedDescendants, refreshOwnedDesce
 
 /** Run a landing check with execution-ordered failure detection and native runner reporters. */
 async function runLandingTests(args, env, concurrency, fullScope = false) {
-  const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
-  const collectionId = process.env[COLLECTION_ID_ENV];
-  const collectionShard = process.env[LANDING_SHARD_ENV] ?? null;
+  const collectAll = environment.get(LANDING_COLLECT_ALL_ENV) === '1';
+  const collectionId = environment.get(COLLECTION_ID_ENV);
+  const collectionShard = environment.get(LANDING_SHARD_ENV) ?? null;
   const { landingFailureReport, landingWaiverProjection, landingFailureWaived, publishLandingCollection } = await services.landing();
   const retainedFailure = landingFailureReport();
-  const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
+  const waivers = landingWaiverProjection(environment.get(LANDING_WAIVERS_ENV));
   let testOutcomes = null;
   const waivedFiles = new Map();
   const hungFiles = new Set();
@@ -737,7 +737,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     options.reporters.push({ reporter: env.PULLBOARD_AUDIT_COVERAGE_REPORTER, destination: 'stdout' });
   }
   const reporterEntries = options.reporters;
-  if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
+  if (environment.get('PULLBOARD_TEST_ACTIONS')) reporterEntries.push({ reporter: fileURLToPath(new URL('./test/action/reporter.js', import.meta.url)), destination: devNull });
   reporterEntries.push(...(await import('./test/progress.js')).sideReporters(testEnv)); // selection count and per-file progress (#5823)
   delete options.reporters;
   const loadedReporters = [];
@@ -968,10 +968,10 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   // owned descendant, detached ones included, is drained or named before this process exits.
   let stoppedByLanding = false;
   const stopShard = () => { stoppedByLanding = true; abortLandingRun(); };
-  if (process.env[LANDING_SHARD_ENV]) process.on('SIGTERM', stopShard);
-  const originalEnv = { ...process.env };
-  for (const key of Object.keys(process.env)) delete process.env[key];
-  Object.assign(process.env, testEnv, { [LANDING_RUN_ENV]: '0' });
+  if (environment.get(LANDING_SHARD_ENV)) process.on('SIGTERM', stopShard);
+  const originalEnv = environment.all();
+  for (const key of Object.keys(environment.all())) environment.delete(key);
+  for (const [key, value] of Object.entries({ ...testEnv, [LANDING_RUN_ENV]: '0' })) environment.set(key, value);
   try {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
@@ -1070,14 +1070,14 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     await workerDrain;
     clearInterval(descendantMonitor);
     endReporters();
-    for (const key of Object.keys(process.env)) delete process.env[key];
-    Object.assign(process.env, originalEnv);
+    for (const key of Object.keys(environment.all())) environment.delete(key);
+    for (const [key, value] of Object.entries(originalEnv)) environment.set(key, value);
     process.off('SIGTERM', stopShard);
   }
   if (collectionId) publishLandingCollection({collectionId,collectionShard,fullScope,selectedFiles,completedFiles,stoppedByLanding,collectionCancelled,reporterError,cleanupUnverifiedReported});
   if (reporterError) throw reporterError;
   if (stoppedByLanding && !firstFailure) {
-    process.stderr.write(`\nLanding shard ${process.env[LANDING_SHARD_ENV]} stopped by the landing after another shard failed; its owned processes were drained\n`);
+    process.stderr.write(`\nLanding shard ${environment.get(LANDING_SHARD_ENV)} stopped by the landing after another shard failed; its owned processes were drained\n`);
     process.exitCode = 1;
     return { status: 1, signal: null };
   }
@@ -1146,7 +1146,7 @@ function namesOnlyTestFiles(args) {
     if (!knownNodeOption(option)) return false;
     if (!argument.includes('=')) takesValue = requiresValue;
   }
-  if (takesValue || foreignNodeOptions(process.env.NODE_OPTIONS)) return false;
+  if (takesValue || foreignNodeOptions(environment.get('NODE_OPTIONS'))) return false;
   const files = explicitTestFiles(args);
   if (!files.length) return false;
   try {
@@ -1199,7 +1199,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   selectedArgs = await longestFilesFirst(selectedArgs);
   timing.phase('selectionMs', selectionAt);
   const attemptAt = performance.now();
-  const result = process.env[LANDING_RUN_ENV] === '1'
+  const result = environment.get(LANDING_RUN_ENV) === '1'
     ? await runLandingTests(selectedArgs, env, concurrency, fullScope && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
@@ -1218,8 +1218,8 @@ async function main(args) {
   const clock = testRunPhaseClock();
   let concurrency;
   try {
-    if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
-      && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
+    if (!args.length && !environment.get('PULLBOARD_GATE_SLOT_HELD') && !environment.get('PULLBOARD_GATE_SLOT_POOL')
+      && !environment.get('PULLBOARD_GATE_SLOT_TOKEN') && !environment.get(LANDING_SHARD_ENV)) {
       const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
         import('../../index.js'), services.runners(), services.landing(),
       ]);
@@ -1319,7 +1319,7 @@ async function main(args) {
       const [{ landingShardOptions, landingFanOutFiles }, { nativeFileArguments }, { freeRunnerSlots }] = await Promise.all([
         import('./test/selection.js'), import('./test/file/dispatch.js'), import('./shards/proof.js'),
       ]);
-      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../index.js')).landingShardCount(process.cwd());
+      let count = ordinaryShards ? freeRunnerSlots() : (await import('../../heavy.js')).landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
       shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {

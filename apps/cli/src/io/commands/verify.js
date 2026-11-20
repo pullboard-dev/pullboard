@@ -188,6 +188,8 @@ import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
+import { provenBreakRequired } from '../../../../../packages/config/index.js';
+import { itemPace } from '../../../../../packages/moves/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
 const fs = fileSystemAdapter();
@@ -299,6 +301,24 @@ async function announceVerdictState(ctx, board, id) {
   finally { ports.close(); }
 }
 
+/** The shortest statement of a broken thing that names a file, command or case and the failure it showed. */
+const PROVEN_BREAK_MIN = 40;
+
+/**
+ * The reviewer's stated break for an accept: required on a strict item, kept when given on any other.
+ *
+ * @param {boolean} required whether the item's pace needs a proven break
+ * @param {unknown} broke the --broke text, if any
+ * @returns {string}
+ */
+export function provenBreakStatement(required, broke) {
+  const text = typeof broke === 'string' ? broke.trim() : '';
+  if (required && text.length < PROVEN_BREAK_MIN) {
+    throw new Refused('PROVEN_BREAK_REQUIRED', `a strict item's accept states what the reviewer broke: add --broke "<the file, command or case you broke and the failure it showed>" (at least ${PROVEN_BREAK_MIN} characters); nothing was recorded`);
+  }
+  return text;
+}
+
 /**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
@@ -321,6 +341,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let accepted = null;
   let acceptedLandingCommit = null;
   let landedVerdict = false;
+  let provenBreak = '';
   let reviewedPace = null;
   let approvalRows = [];
   /** Record one verdict on the open board. */
@@ -376,6 +397,8 @@ export async function verifyHere(ctx, id, { second, values }) {
         ? `item #${id} is a slice: its parent's ACCEPT covers it; reject it alone, or accept the parent`
         : `item #${id} has slices that are not submitted yet; accept it once they are`);
     }
+    // review.requireProvenBreak (strict pace by default): an accept states what the reviewer broke, before anything is recorded [C7].
+    if (decision === 'ACCEPT') provenBreak = provenBreakStatement(provenBreakRequired(ctx.config, itemPace(item)), values.broke);
     if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
     // Refuse a bad --read before composition, gate admission or any test run: it is pure input, and a full proof that
     // ends in USAGE wastes minutes and leaves nothing recorded (#3085).
@@ -615,6 +638,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
+    if (provenBreak && verdict.decision === 'ACCEPT') await ordered(ctx, board, 'appendFact', [id, { agentId: whoAmI(ctx, board).id, kind: 'note', text: `proven break: ${provenBreak}` }]);
     if (verdict.decision === 'ACCEPT' || verdict.decision === 'REJECT') await announceVerdictState(ctx, board, id);
     if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
