@@ -14,13 +14,13 @@ import { join } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { git } from '../../../../packages/git/index.js';
-import { runGate } from '../../../../packages/gate/index.js';
+import { runGate } from '../../../../packages/gate/heavy.js';
 import {
   boardReceiptStore,
   readGateReceipt,
   receiptBinds,
   receiptStore,
-} from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
 import {
   gateRuns,
   recordGateRun,

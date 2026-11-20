@@ -1,0 +1,16 @@
+{
+  "cli.io-cli-main-run.io-carries-github-keys": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The io object the command line builds carries io.githubKeys, which reads a member's public SSH keys through the github front door, so the relay can be handed that reader from the cli."
+    },
+    "why": "Without it, the relay has no github key reader to be handed and the next child cannot make handOverKeys read io.githubKeys.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/cli-main/run.js",
+      "apps/cli/tests/fixtures/next/take.js"
+    ]
+  }
+}

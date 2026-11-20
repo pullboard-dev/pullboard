@@ -878,6 +878,9 @@ export function runnerResourceStatus(runners) {
   } finally { db.close(); }
 }
 
+/** Try to bring back every runner marked unavailable on the machine resource file.
+ * @param {any} r the validated runner pool
+ * @param {{ file?: string }} [o] options; file overrides the machine resource file */
 export const recoverIdleRunners = async (r, o = {}) => { const db = open(o.file ?? machineResourceFile()); return recoverUnavailableRunners(db, validatedRunners(r), o).finally(() => db.close()); };
 /** Persist a configured host's authenticated GUI observation; unknown replaces stale positive capability. */
 export function recordRunnerGui(host, gui) {
