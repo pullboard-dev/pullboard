@@ -14,7 +14,7 @@ import {
 } from 'node:path';
 import { copyPackageFiles } from '../../../runners/index.js';
 import { runnerPackage } from '../../../runners/index.js';
-import { importsIn } from '../../index.js';
+import { importsIn } from '../../heavy.js';
 import { createRunnerModuleParser } from '../../../runners/index.js';
 import { runtimeUrls } from '../../../runners/index.js';
 

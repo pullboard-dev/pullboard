@@ -1,7 +1,9 @@
 /** What a pulled job's caller watches while it waits: its source folders and its item, as the controller did [C7,#5465]. */
 import { runnerItemState } from '../../../../resources/index.js';
-import { statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Watch one request's source identities and item, from the caller's own process.
@@ -18,7 +20,7 @@ export function watchSource(root, options, custody, ports = {}) {
   const itemState = ports.runnerItemState ?? runnerItemState;
   const roots = [...new Set([root, fileURLToPath(new URL('../../../../../', import.meta.url))])];
   const identities = roots.map(entry => {
-    try { const state = statSync(entry); return { root: entry, dev: state.dev, ino: state.ino }; }
+    try { const state = fs.stat(entry); return { root: entry, dev: state.dev, ino: state.ino }; }
     catch (error) { return { root: entry, error: error.code }; }
   });
   let item, cancellation = null;
@@ -38,7 +40,7 @@ export function watchSource(root, options, custody, ports = {}) {
     for (const expected of identities) {
       let reason;
       try {
-        const state = statSync(expected.root);
+        const state = fs.stat(expected.root);
         if (expected.error || !state.isDirectory() || state.dev !== expected.dev || state.ino !== expected.ino) reason = 'source identity changed';
       } catch (error) { reason = `source observation failed: ${error.code}`; }
       if (reason) return (cancellation ??= { version: 1, reason, root: expected.root });

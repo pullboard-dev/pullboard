@@ -8,8 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { submitGateAdmission } from '../../src/io/submit.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
-import { submitGateConfig } from "../../index.js";
-import { submitGatePlan } from "../../index.js";
+import { submitGateConfig } from "../../heavy.js";
+import { submitGatePlan } from "../../heavy.js";
 import { fixture } from "../../../landing/tests/fixtures/plan.js";
 import { git } from "../../../landing/tests/fixtures/plan.js";
 

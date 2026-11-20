@@ -1,0 +1,4 @@
+{
+  "cli.io-hook-commit-msg.hint-names-existing-folder-only": {"proves":{"specs":["C7"],"claim":"clause 1: seatItemFolderHints for a claimed item whose folder does not exist returns no line containing that path."},"why":"Without it a refused commit in the seat sends the builder to a folder that was never created.","kind":"cell unit","inputs":["apps/cli/src/io/hook/commit-msg.js","apps/cli/tests/io/hook/commit-msg.test.js"]},
+  "cli.io-hook-commit-msg.hint-for-missing-folder": {"proves":{"specs":["C7"],"claim":"clause 2: an item with no folder gets the line naming pullboard claim with its id, and an item whose folder exists still gets the cd line with its real path."},"why":"Without it a builder with no item folder is left with no next step, or an item with a folder loses its cd line.","kind":"cell unit","inputs":["apps/cli/src/io/hook/commit-msg.js","apps/cli/tests/io/hook/commit-msg.test.js"]}
+}

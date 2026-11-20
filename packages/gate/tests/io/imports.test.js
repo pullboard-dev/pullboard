@@ -10,9 +10,9 @@ import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { commonJsIn } from '../../index.js';
-import { importsIn } from '../../index.js';
-import { withImportParseCache } from '../../index.js';
+import { commonJsIn } from '../../heavy.js';
+import { importsIn } from '../../heavy.js';
+import { withImportParseCache } from '../../heavy.js';
 
 /** Count real parser subprocesses without substituting any successful compiler outcome. */
 function compilerCalls(t) {

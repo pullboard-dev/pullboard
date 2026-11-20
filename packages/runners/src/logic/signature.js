@@ -4,9 +4,10 @@ import { createPrivateKey } from 'node:crypto';
 import { createPublicKey } from 'node:crypto';
 import { sign } from 'node:crypto';
 import { verify } from 'node:crypto';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
 
@@ -32,12 +33,12 @@ export function runnerSigningKeyPath(machineHome, publicKey) {
 /** Read only the owner-private key matching one pinned public key; private material never enters the request. */
 export function readRunnerSigningKey(machineHome, publicKey) {
   const path = runnerSigningKeyPath(machineHome, publicKey);
-  const entry = lstatSync(path);
+  const entry = fs.lstat(path);
   if (!entry.isFile() || entry.isSymbolicLink() || (entry.mode & 0o077) !== 0
     || typeof process.getuid === 'function' && entry.uid !== process.getuid() || entry.size > 4096) {
     throw new Error('runner signing key is not an owner-only regular file');
   }
-  const key = createPrivateKey(readFileSync(path));
+  const key = createPrivateKey(fs.readFile(path, null));
   const actual = createPublicKey(key).export({ type: 'spki', format: 'der' }).toString('base64url');
   if (actual !== publicKey) throw new Error('runner signing key does not match the enrolled public key');
   return key;

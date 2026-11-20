@@ -1,25 +1,15 @@
 /** Git transport leases fence expired writers without changing the generic relay lock [H11,C7]. */
 import { randomUUID } from 'node:crypto';
 import {
-  constants,
-  closeSync,
-  existsSync,
-  fstatSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   basename,
   dirname,
   join,
 } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const LEASE_MS = 120_000;
 const WAIT_MS = 120_000;
@@ -58,8 +48,8 @@ function observation(row, now = Date.now()) {
 
 /** Read a directory's exact identity so replacing its path cannot authorize moving a new owner. */
 function directoryOwner(path) {
-  if (!existsSync(path)) return null;
-  const stat = lstatSync(path);
+  if (!fs.exists(path)) return null;
+  const stat = fs.lstat(path);
   if (!stat.isDirectory() || stat.isSymbolicLink()) return { invalid: true, dev: stat.dev, ino: stat.ino };
   const pidFile = ownerFile(join(path, 'pid'), 32);
   const tokenFile = ownerFile(join(path, 'git-token'), 128);
@@ -73,17 +63,17 @@ function directoryOwner(path) {
 function ownerFile(path, limit) {
   let fd;
   try {
-    if (!Number.isInteger(constants.O_NOFOLLOW) || constants.O_NOFOLLOW <= 0) return { unsafe: true };
-    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd);
+    if (!Number.isInteger(fs.constants.O_NOFOLLOW) || fs.constants.O_NOFOLLOW <= 0) return { unsafe: true };
+    fd = fs.open(path, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstat(fd);
     if (!stat.isFile() || stat.size > limit) return { unsafe: true };
     const bytes = Buffer.alloc(limit + 1);
-    const count = readSync(fd, bytes, 0, bytes.length, 0);
+    const count = fs.read(fd, bytes, 0, bytes.length, 0);
     if (count > limit) return { unsafe: true };
     return { value: bytes.subarray(0, count).toString('utf8').trim() };
   } catch (error) {
     return error.code === 'ENOENT' ? { missing: true } : { unsafe: true };
-  } finally { if (fd !== undefined) closeSync(fd); }
+  } finally { if (fd !== undefined) fs.close(fd); }
 }
 
 /** Compare both filesystem identity and owner bytes immediately before a directory rename. */
@@ -99,7 +89,7 @@ export function inspectGitSyncLock(markerPath) {
   catch { directory = { unsafe: true }; }
   if (directory?.unsafe || directory?.invalid) return { pid: directory.pid ?? null, command: null, startedAt: null, expiresAt: null, state: 'unknown' };
   const file = markerPath + '.lease.sqlite';
-  if (existsSync(file)) {
+  if (fs.exists(file)) {
     let db;
     try {
       db = new DatabaseSync(file, { readOnly: true });
@@ -143,23 +133,23 @@ function quarantine(markerPath, observed, reason, owner) {
   const lock = markerPath + '.lock';
   if (!sameDirectory(observed, directoryOwner(lock))) return null;
   const folder = join(dirname(markerPath), 'quarantine');
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(folder);
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
+  const parent = fs.lstat(folder);
   if (!parent.isDirectory() || parent.isSymbolicLink()) {
     throw new Refused('GIT_SYNC_LOCK_EVIDENCE', 'the Git sync quarantine parent must be a real local directory',
       'restore its local directory without deleting the existing lock evidence');
   }
   const entry = join(folder, `git-sync-${Date.now()}-${randomUUID()}`);
-  mkdirSync(entry, { mode: 0o700 });
+  fs.mkdir(entry, { mode: 0o700 });
   const name = basename(markerPath) + '.lock';
   const destination = join(entry, name);
-  renameSync(lock, destination);
+  fs.rename(lock, destination);
   const at = new Date().toISOString();
   const observedTime = owner.startedAt ?? observed.mtimeMs;
   const summary = { version: 1, at, reason, artifacts: [{ name, path: destination,
     pid: owner.pid ?? observed.pid ?? null, command: command(owner.command),
     at: Number.isFinite(observedTime) ? new Date(observedTime).toISOString() : at }] };
-  writeFileSync(join(entry, 'recovery.json'), JSON.stringify(summary) + '\n', { mode: 0o600, flag: 'wx' });
+  fs.writeFile(join(entry, 'recovery.json'), JSON.stringify(summary) + '\n', { mode: 0o600, flag: 'wx' });
   return summary;
 }
 
@@ -189,10 +179,10 @@ function acquire(db, markerPath, token, op) {
     const owner = { pid: process.pid, command: op, startedAt, expiresAt: startedAt + LEASE_MS };
     db.prepare(`INSERT OR REPLACE INTO relay_lease(name,pid,token,git_owner_version,git_started_at,git_expires_at,git_command)
       VALUES ('relay',?,?,?,?,?,?)`).run(owner.pid, token, 1, owner.startedAt, owner.expiresAt, owner.command);
-    mkdirSync(markerPath + '.lock', { mode: 0o700 });
+    fs.mkdir(markerPath + '.lock', { mode: 0o700 });
     created = directoryOwner(markerPath + '.lock');
-    writeFileSync(join(markerPath + '.lock', 'pid'), String(process.pid), { mode: 0o600, flag: 'wx' });
-    writeFileSync(join(markerPath + '.lock', 'git-token'), token, { mode: 0o600, flag: 'wx' });
+    fs.writeFile(join(markerPath + '.lock', 'pid'), String(process.pid), { mode: 0o600, flag: 'wx' });
+    fs.writeFile(join(markerPath + '.lock', 'git-token'), token, { mode: 0o600, flag: 'wx' });
     db.exec('COMMIT');
     return { owner, recovered };
   } catch (error) {
@@ -232,7 +222,7 @@ function release(db, markerPath, token) {
     const directory = directoryOwner(markerPath + '.lock');
     if (row?.token === token && directory?.pid === process.pid && directory.token === token) {
       // This is our normal completed lock, not a stale owner's evidence directory.
-      if (sameDirectory(directory, directoryOwner(markerPath + '.lock'))) rmSync(markerPath + '.lock', { recursive: true });
+      if (sameDirectory(directory, directoryOwner(markerPath + '.lock'))) fs.rm(markerPath + '.lock', { recursive: true });
     }
     db.prepare("DELETE FROM relay_lease WHERE name='relay' AND token=?").run(token);
     db.exec('COMMIT');
@@ -241,7 +231,7 @@ function release(db, markerPath, token) {
 
 /** Wait at most two minutes, then supply a fenced writer capability; no implicit heartbeat runs. */
 export async function withGitSyncLock(markerPath, work, io = {}) {
-  mkdirSync(dirname(markerPath), { recursive: true, mode: 0o700 });
+  fs.mkdir(dirname(markerPath), { recursive: true, mode: 0o700 });
   const db = openLease(markerPath);
   const token = randomUUID();
   const deadline = Date.now() + WAIT_MS;
