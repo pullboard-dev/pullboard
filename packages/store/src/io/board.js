@@ -109,6 +109,8 @@ import { answerDecision } from "./board/decision/answer.js";
 import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
 import { appendMark } from "./board/mark.js";
+import { expediteItem } from "./board/expedite.js";
+import { expeditedItems } from "./board/expedite.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
 import { gateAtHead } from "./board/next.js";
@@ -508,6 +510,8 @@ export {
   closeFinishedAsks,
   appendFact,
   appendMark,
+  expediteItem,
+  expeditedItems,
   buildOrder,
   nextFor,
   gateAtHead,

@@ -2,11 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addItem } from '../../../../index.js';
+import { completeSubmitHandoff } from '../../../../index.js';
 import { claim } from '../../../../index.js';
 import { register } from '../../../../index.js';
 import { submitHandoff } from '../../../../index.js';
 import { writeBoardCommand } from '../../../../index.js';
 import { recordSubmitHandoff } from '../../../../../jobs/index.js';
+import { BOARD_RELEASE_CODES_ENGINE } from '../../../../../state/index.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 
 const MINUTE = 60_000;
@@ -44,4 +46,34 @@ test('store.io-submit-handoff-retry.recapture-needs-queued: clause 2: a hand-off
   assert.throws(() => writeBoardCommand(board, 'recaptureSubmitHandoff', [id, { agentId: builder, job: 'job-other', main: NEWEST }], builder), { code: 'SUBMIT_HANDOFF_CHANGED' });
   assert.equal(submitHandoff(board, id).main, OLD);
   assert.equal(events(), before);
+});
+
+/** A queued gate that finishes refused with returnToBoard set, at the given engine; the item's release events come back. */
+function refusedToBoard(t, engine) {
+  const { board, builder, id } = queued(t, 'running');
+  board.executionEngineVersion = engine;
+  completeSubmitHandoff(board, id, { agentId: builder, job: 'job-1', returnToBoard: true,
+    result: { code: 1, error: { code: 'GATE_RED', message: 'the gate is red', next: 'fix it' } } });
+  const item = board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(id);
+  const releases = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='release'").all(id).map(row => JSON.parse(row.event_detail));
+  return { item, releases };
+}
+
+const REFUSED_TEXT = 'the queued gate was refused (GATE_RED); returned to the board for any free seat';
+
+test('store.handoff-retry.gate-refused-code: clause 1: at the board-release-codes engine a refused queued gate returned to the board leaves the item open with no owner and a release event coded GATE_REFUSED with the reason text unchanged [C7,#12220]', t => {
+  const { item, releases } = refusedToBoard(t, BOARD_RELEASE_CODES_ENGINE);
+  assert.equal(item.item_status, 'open');
+  assert.equal(item.item_owner, null);
+  assert.equal(releases.length, 1, JSON.stringify(releases));
+  assert.equal(releases[0].reasonCode, 'GATE_REFUSED');
+  assert.equal(releases[0].reason, REFUSED_TEXT);
+});
+
+test('store.handoff-retry.gate-refused-code-below-engine: clause 2: below the board-release-codes engine the same release still carries OTHER with the same text [C7,#12220]', t => {
+  const { item, releases } = refusedToBoard(t, BOARD_RELEASE_CODES_ENGINE - 1);
+  assert.equal(item.item_status, 'open');
+  assert.equal(releases.length, 1, JSON.stringify(releases));
+  assert.equal(releases[0].reasonCode, 'OTHER');
+  assert.equal(releases[0].reason, REFUSED_TEXT);
 });

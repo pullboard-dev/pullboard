@@ -36,7 +36,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
 
 /** Commands that write the board whatever their arguments. */
 const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
-  'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
+  'next', 'claim', 'hold', 'expedite', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
 
 /** The commands that never create a scratch folder, so they never resolve the scratch root. */
 const NO_SCRATCH = new Set(['list', 'show', 'whoami', 'status', 'inbox', 'roadmap', 'hook commit-msg']);

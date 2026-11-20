@@ -7,6 +7,8 @@ import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { reservationLine } from '../../logic/show/core.js';
+import { frozenLines } from '../../logic/show/frozen.js';
 import { threadLines } from '../../logic/show/thread.js';
 import { tailLines } from '../../logic/show/tail.js';
 import { fieldLines } from '../../logic/show/fields.js';
@@ -21,6 +23,7 @@ import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { routeReservations } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { derivedStateEnabled } from '../../../../../packages/config/index.js';
@@ -222,6 +225,8 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
   io.say(core.item);
+  const reserved = reservationLine(item, routeReservations());
+  if (reserved) io.say(reserved);
   if (afterGate.length) io.say(`after-gate ${afterGate.map(waitId => `#${waitId}`).join(',')}`);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
@@ -292,22 +297,12 @@ export async function run(io, { first, values }) {
     const detail = JSON.parse(event.event_detail);
     io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${firstLineOf(detail.note)}`);
   }
-  if (frozen) {
-    io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
-    const rulings = testHashRulings(thread, store.PERSON);
-    for (const [path, hash] of Object.entries(frozen.testHashes ?? {})) {
-      const ruled = rulings.filter(ruling => ruling.path === path);
-      io.say(`  test ${path}: sha256 ${hash}${ruled.length ? `; person ruling ${ruled.map(ruling => `${ruling.factId} accepts ${ruling.hash.slice(0, 12)}`).join(', ')}` : ''}`);
-    }
-  }
+  const bar = frozenLines(item, frozen, { rulings: frozen ? testHashRulings(thread, store.PERSON) : [], authors: testAuthors(thread),
+    reviewerFamilies: [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))],
+    testFiles: barTestFiles(item).criterion.sort(), agentName, readable: readableRigorText });
+  for (const line of bar.frozen) io.say(line);
   for (const line of mutationScoreLines(thread)) io.say(line);
-  const authors = testAuthors(thread);
-  const reviewerFamilies = [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))];
-  for (const path of barTestFiles(item).criterion.sort()) {
-    const author = authors[path];
-    io.say(`  test ${path}: author ${author ? `${agentName(author.seat)} [family ${author.family}]` : 'not recorded'}; reviewer family ${reviewerFamilies.join(', ') || 'none yet'}`);
-  }
+  for (const line of bar.authors) io.say(line);
   const tail = tailLines(item, { builderName: agentName(item.item_built_by), reviewerName: reviewer ? agentName(reviewer) : null, infra });
   for (const line of tail.before) io.say(line);
   // Earlier verdicts as one line each, so an item sent back several times stays short to read
