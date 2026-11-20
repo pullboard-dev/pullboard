@@ -110,6 +110,23 @@ export function diagnoseWanted(board, item, seatRoute) {
 }
 
 /**
+ * The submitted items a review must not be offered while slices compose into their parent: every slice (an item with an item-slice row),
+ * and each parent that still has a slice child open or claimed [C7,#11320].
+ *
+ * @param {any} board
+ * @returns {Set<number>}
+ */
+function composeLandingReview(board) {
+  const held = new Set();
+  const slices = board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item-slice:*'").all();
+  for (const { meta_key: key } of slices) held.add(Number(key.slice('item-slice:'.length)));
+  const unfinished = board.db.prepare(`SELECT DISTINCT item_parent_id AS parent FROM item WHERE item_parent_id IS NOT NULL AND item_status IN ('open', 'claimed')
+    AND EXISTS (SELECT 1 FROM board_meta WHERE meta_key = 'item-slice:' || item.item_id)`).all();
+  for (const { parent } of unfinished) held.add(parent);
+  return held;
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -122,7 +139,7 @@ export function diagnoseWanted(board, item, seatRoute) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -130,7 +147,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily, composeLanding = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -199,9 +216,16 @@ export function nextFor(board, options) {
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
   if (verify) {
-    const family = seatFamily(board, agentId);
-    const hasDifferentFamily = (entry) => familiesDiffer(board, family, builderFamilyOf(board, entry));
-    const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
+    // With a derived seat-family answer, a seat it names takes that family and a builder it names takes its answer; any other id is computed as before [C7,#11383].
+    const family = derivedSeatFamily?.(agentId) ?? seatFamily(board, agentId);
+    const builderFamily = (entry) => {
+      const derived = entry.item_built_by ? derivedSeatFamily?.(entry.item_built_by) : undefined;
+      return derived ?? builderFamilyOf(board, entry);
+    };
+    const hasDifferentFamily = (entry) => familiesDiffer(board, family, builderFamily(entry));
+    // slices.composeLanding (off unless a project turns it on): a submitted slice is never offered, and its submitted parent only once no slice child is still open or claimed [C7,#11320].
+    const composed = composeLanding ? composeLandingReview(board) : null;
+    const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id) && !composed?.has(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();

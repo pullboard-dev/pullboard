@@ -1,18 +1,18 @@
-/** @pullboard-test-input source-cell store */
+/** @pullboard-test-input source-cell packages/board */
 // fixture-subject: claimRows over a real board, with item-keyed board_meta rows for a check baseline, a bar revision, and a sign-off
 /** A prepared claim reads its item's board_meta rows by exact key, with no scan of board_meta, and the same rows as the old LIKE read [C7,#10858,#5329]; a submit admission is stale only when its own rows move [C7,#10942]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { claimRows } from '../../../src/io/board/claim.js';
-import { admitSubmit } from '../../../index.js';
-import { events } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellClaim } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import { claimRows } from '../../../../../store/index.js';
+import { admitSubmit } from '../../../../../store/index.js';
+import { events } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 /** The read claimRows made before: every board_meta key ending in :<id> or _<id>, with the two board-wide keys; the local: stats caches it also matched are derived from events, which claimRows reads by their last id. */
 function legacyMeta(board, id) {
@@ -39,7 +39,7 @@ function setup(t) {
   return { board, id, baseline };
 }
 
-test('store.io-board-claim.claimrows-reads-same-rows-as-main: clause 1: claimRows returns the same item-keyed rows as the old LIKE read for an item with a check baseline, a bar revision, and a sign-off, and item 12 beside item 112 [C7,#10858]', t => {
+test('board.claim.claimrows-reads-same-rows-as-main: clause 1: claimRows returns the same item-keyed rows as the old LIKE read for an item with a check baseline, a bar revision, and a sign-off, and item 12 beside item 112 [C7,#10858]', t => {
   const { board, id, baseline } = setup(t);
   const meta = JSON.parse(claimRows(board, id)).meta;
   const keys = meta.map(row => row.meta_key);
@@ -50,7 +50,7 @@ test('store.io-board-claim.claimrows-reads-same-rows-as-main: clause 1: claimRow
   assert.ok(!twelve.some(key => key.endsWith('112')), 'item 112 rows do not leak into item 12');
 });
 
-test('store.io-board-claim.claimrows-board-meta-reads-do-not-scan: clause 2: EXPLAIN QUERY PLAN of every board_meta read claimRows makes shows no SCAN of board_meta [C7,#10858]', t => {
+test('board.claim.claimrows-board-meta-reads-do-not-scan: clause 2: EXPLAIN QUERY PLAN of every board_meta read claimRows makes shows no SCAN of board_meta [C7,#10858]', t => {
   const { board, id } = setup(t);
   const reads = [];
   const prepare = board.db.prepare.bind(board.db);
@@ -97,7 +97,7 @@ function admissionRace(t, target) {
   return { admit, witnessed, wrote: () => written, witness };
 }
 
-test('store.io-board-claim.admission-survives-unrelated-write: clause 1: a second connection writes another item between the admission preparation and its commit; admitSubmit records the witness instead of refusing BOARD_BUSY [C7,#10942]', t => {
+test('board.claim.admission-survives-unrelated-write: clause 1: a second connection writes another item between the admission preparation and its commit; admitSubmit records the witness instead of refusing BOARD_BUSY [C7,#10942]', t => {
   const race = admissionRace(t, 'other');
   race.admit();
   assert.equal(race.wrote(), true, 'the other connection wrote the board during the admission');
@@ -106,7 +106,7 @@ test('store.io-board-claim.admission-survives-unrelated-write: clause 1: a secon
   assert.deepEqual(JSON.parse(rows[0].event_detail).submitAdmission, race.witness, 'the witness names the admitted commit and tree');
 });
 
-test('store.io-board-claim.admission-refuses-own-row-write: clause 2: the same race on the claimed item own row still refuses BOARD_BUSY and records no witness [C7,#10942]', t => {
+test('board.claim.admission-refuses-own-row-write: clause 2: the same race on the claimed item own row still refuses BOARD_BUSY and records no witness [C7,#10942]', t => {
   const race = admissionRace(t, 'claimed');
   assert.throws(() => race.admit(), error => error?.code === 'BOARD_BUSY', 'a write to the claim\'s own rows makes the admission stale');
   assert.equal(race.wrote(), true, 'the other connection wrote the claimed item');

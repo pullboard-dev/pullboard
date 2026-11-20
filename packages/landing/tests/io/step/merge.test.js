@@ -11,7 +11,7 @@ import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import * as store from '../../../../store/index.js';
 import { realGitAdapter } from '../../../../git/index.js';
 import { withGitAdapter } from '../../../../git/index.js';

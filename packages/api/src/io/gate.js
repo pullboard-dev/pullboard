@@ -355,18 +355,18 @@ function redShard(part) {
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted }) => {
+  const parts = shards.map(({ job, posted, ended = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
     return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null };
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
   const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
-  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? (part.ended ? `ended: ${part.ended}` : 'no proof phase')).slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
@@ -400,7 +400,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const signatures = { signatures: ports.settleOnMainReceipt === true };
-  const parts = shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) }));
+  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, ended: posted ? null : endedDetail(board.db, row.job_id) }; });
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null;
   try {
@@ -441,6 +441,16 @@ export function applyShardReceipt(board, { job }, ports = {}) {
       text: `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.` });
   }
   return applied;
+}
+
+/**
+ * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
+ * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
+ */
+function endedDetail(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
+  if (!row) return null;
+  try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
