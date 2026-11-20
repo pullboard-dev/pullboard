@@ -97,6 +97,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--files': ['--files <paths>', 'the files the child takes over from the parent'],
   '--force-size': ['--force-size "reason"', 'keeps a bar whole despite the size hint; records the reason as a fact'],
   '--not-duplicate-of': ['--not-duplicate-of "<id> why"', 'files an item that reads like an open one; records why it differs'],
+  'block add --tier': ['--tier <light|mid|strong>', 'the model tier the block routes to'],
   '--here': ['--here "reason"', 'files an item whose files belong to another board on this machine; records why it stays here'],
   '--confirm': 'closes a pending withdrawal; another seat than the one that asked',
   '--reject': 'declines a pending withdrawal; the item stays open',
