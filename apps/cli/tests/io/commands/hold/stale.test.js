@@ -40,14 +40,25 @@ test('cli.journeys-hold-stale.holds-liftsettled-is-a-described-setting: clause 1
   assert.match(reasonOf(f), /waiting on #/u, 'the settled hold stays');
 });
 
-test('cli.journeys-hold-stale.with-holds-liftsettled-on-a-hold: clause 2: with holds.liftSettled on, a hold whose reason names only a withdrawn item lifts on the next write after main moves [C7,#2962]', async t => {
+test('cli.journeys-hold-stale.with-holds-liftsettled-on-a-hold: clause 2: with holds.liftSettled on, a hold whose reason names only a withdrawn item is rewritten to re-bar text on the withdraw, not lifted [C7,#2962,#12470]', async t => {
   const f = await held(t, { lift: true });
   assert.match(reasonOf(f), /waiting on #/u, 'an open blocker keeps the hold');
   moveMain(f.box);
   assert.match(reasonOf(f), /waiting on #/u, 'main moving alone does not settle an open blocker');
   const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(f.blocker), '--note', 'no longer needed']);
   assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
-  assert.equal(reasonOf(f), null, 'the withdrawn blocker settled the hold');
+  assert.equal(reasonOf(f), `re-bar: waiting on #${f.blocker}`, 'a withdrawn blocker did not deliver, so the hold is rewritten to re-bar text');
+  assert.ok(store.getItem(f.box.board, f.id).item_hold_reason, 'the hold is still set');
+  const event = f.box.board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='hold_item' ORDER BY event_id DESC").get(f.id);
+  assert.equal(JSON.parse(event.event_detail).cause, 'withdrawn-dependency');
+  assert.equal(f.box.board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='unhold_item' AND event_detail LIKE '%settled%'").get(f.id), undefined, 'no lift is logged');
+});
+
+test('cli.journeys-hold-stale.with-holds-liftsettled-on-a-landed-blocker: clause 4: with holds.liftSettled on, a hold whose reason names only a landed item lifts on the next write after main moves [C7,#2962]', async t => {
+  const f = await held(t, { lift: true });
+  f.box.board.db.prepare('UPDATE item SET item_merged_commit=? WHERE item_id=?').run('c'.repeat(40), f.blocker);
+  moveMain(f.box);
+  assert.equal(reasonOf(f), null, 'the landed blocker settled the hold');
   assert.ok(f.box.board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='unhold_item' AND event_detail LIKE '%settled%'").get(f.id));
 });
 
