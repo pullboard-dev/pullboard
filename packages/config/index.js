@@ -77,6 +77,7 @@ export {
   judgeByReleaseEnabled,
   endStaleJobsEnabled,
   failFastShardsEnabled,
+  seedWideMainTestsEnabled,
   retryNewRedsOnceEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,

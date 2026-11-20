@@ -40,3 +40,24 @@ test('moves.claim-table.needs-ability-next: [C7,U136] the claim descriptor nextS
   assert.equal(typeof CLAIM_NEXT.NEEDS_ABILITY, 'string');
   assert.equal(claimMove.nextSteps.NEEDS_ABILITY, CLAIM_NEXT.NEEDS_ABILITY);
 });
+
+test('moves.claim-table.after-gate-green-parent: clause 1: [C7] a parent listed in afterGate and submitted with gateGreen true passes the dependencies guard, and gateGreen false or absent refuses BLOCKED', () => {
+  const build = (parent) => { const s = snapshot(); s.item.after = [7]; s.item.afterGate = [7]; s.items = { 7: { status: 'submitted', lane: 'core', ...parent } }; return s; };
+  assert.ok(!run(build({ gateGreen: true })).refused, 'a gate-green submitted parent passes');
+  for (const parent of [{ gateGreen: false }, {}]) {
+    const refused = run(build(parent)).refused;
+    assert.equal(refused?.code, 'BLOCKED');
+    assert.match(refused.message, /waits on #7 \(submitted/u);
+  }
+});
+
+test('moves.claim-table.plain-after-still-waits: clause 2: [C7] a parent listed only in after that is submitted still refuses BLOCKED, as today', () => {
+  const s = snapshot();
+  s.item.after = [7];
+  s.items = { 7: { status: 'submitted', lane: 'core', gateGreen: true } };
+  assert.equal(run(s).refused?.code, 'BLOCKED');
+  s.items[7].status = 'withdrawn';
+  assert.ok(!run(s).refused, 'a withdrawn parent still passes');
+  s.items[7].status = 'verified';
+  assert.ok(!run(s).refused, 'a verified parent still passes');
+});
