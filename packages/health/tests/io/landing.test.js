@@ -52,9 +52,13 @@ test('health.landing.refused-shouts-escalates: a refused batch shouts its item a
   box.advance(4);
   assert.equal(landingFailureFindings(box.board)[0].owner.who, 'coordinator');
   box.advance(1);
-  box.publish();
+  const escalation = box.publish();
+  assert.ok(escalation.findings.some(row => row.owner.who === 'person' && row.title.includes('COMMIT_HEADER_LONG') && row.subject === '#' + box.item), 'the escalated finding names its item and code');
+  box.advance(10);
+  recordHealthFindings(box.board, { agentId: 'coordinator', observedRevision: box.board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n,
+    findings: [...landingFailureFindings(box.board), existing] });
   const person = box.board.db.prepare("SELECT * FROM shout WHERE shout_to='person'").all();
-  assert.ok(person.some(row => row.shout_text.includes('#' + box.item) && row.shout_text.includes('COMMIT_HEADER_LONG')));
+  assert.ok(person.some(row => row.shout_text.startsWith('Digest:') && row.shout_text.includes('#' + box.item)), 'the person digest line names the escalated item');
 });
 
 test('health.landing.ack-coordinator-only: only an explicit coordinator acknowledgement answers a landing failure [B3,R3,A6,C7]', t => {
