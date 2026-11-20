@@ -107,7 +107,7 @@ test('cli.journeys-init-gate-makefile.init-joins-one-gate-per-detected: init joi
   const root = join(box.dir, 'mixed-languages');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'composer.json'), '{}\n');
+  writeFileSync(join(root, 'composer.json'), '{"scripts":{"test":"phpunit"}}\n');
   writeFileSync(join(root, 'mix.exs'), '# mix\n');
   writeFileSync(join(root, 'App.csproj'), '<Project/>\n');
   writeFileSync(join(root, 'CMakeLists.txt'), 'project(app)\n');
