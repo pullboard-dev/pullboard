@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
-import { runGate } from '../../../gate/index.js';
+import { runGate } from '../../../gate/heavy.js';
 import { git } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
