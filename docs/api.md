@@ -255,6 +255,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `stats review` | `version:number`, `review:object` |
 | `stats runners` | `version:number`, `runners:object` |
 | `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
+| `timeline` | `version:number`, `summary:object` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |
 | `update` | `version:number`, `current:boolean`, `from:string`, `to:string` |
 <!-- api-command-shapes:end -->

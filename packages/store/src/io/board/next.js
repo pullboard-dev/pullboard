@@ -17,6 +17,8 @@ import { seatFamily } from "../../../../verify/index.js";
 import { idleReason } from "../../../../seats/index.js";
 import { liveRouteProblem } from "../../../../seats/index.js";
 import { withLocalSeatPresence } from "../presence.js";
+import { missingNeeds } from "../../../../queue/light.js";
+import { agentAbilities } from "../needs.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { criticalPathEnabled } from "../../../../items/index.js";
 import { criticalPathOrder } from "../../../../items/index.js";
@@ -140,7 +142,7 @@ function composeLandingReview(board) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} options
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -183,17 +185,23 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  // An open item names the abilities it needs [U136,#1888]; a seat lacking one is never offered it. One read for the whole board, not one per item (#5329).
+  const abilities = new Set(agentAbilities(board, agentId));
+  const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item\\_needs:%' ESCAPE '\\'").all()
+    .map(row => [Number(row.meta_key.slice('item_needs:'.length)), JSON.parse(row.meta_value)]));
+  const lacksAbility = (entry) => entry.item_status === 'open' && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
     if (omitIds.includes(entry.item_id)) skip(entry, 'OMITTED');
     else if (!canTake(route, entry.item_route) || !routes.includes(entry.item_route)) skip(entry, 'ROUTE_FILTER');
+    else if (lacksAbility(entry)) skip(entry, 'NEEDS_ABILITY');
     else if (runnable && !entry.item_check) skip(entry, 'CHECK_REQUIRED');
     else if (verify && entry.item_built_by === agentId) skip(entry, 'SELF_VERIFY');
     else if (verify && skipIds.includes(entry.item_id)) skip(entry, 'SELF_SESSION_VERIFY');
   }
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check) && !lacksAbility(entry)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
       && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));

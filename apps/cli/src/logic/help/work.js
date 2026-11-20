@@ -16,6 +16,7 @@ export const workHelp = `Work
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--readiness "<command>"]           the command that says the item is ready to start; edit replaces it, "" clears it
+    [--needs browser,gui]               the abilities an agent needs to build it; edit replaces them, "" clears them
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
     [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
     [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
@@ -38,6 +39,7 @@ export const workHelp = `Work
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
+                [--needs browser,gui]   the abilities an agent needs to build it; "" clears them
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family
@@ -118,6 +120,7 @@ export const workHelp = `Work
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
+  pullboard next --stuck "<why>"        release the build you hold as BLOCKED with that reason, then print the next instruction
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator
