@@ -329,7 +329,7 @@ test('api.io-gate.shard-jobs-scale: clause 2: on that board of 20000 shard rows 
   for (let round = 0; round < 5; round += 1) pass();
   const times = Array.from({ length: 21 }, () => { const start = performance.now(); pass(); return performance.now() - start; }).sort((a, b) => a - b);
   const median = times[10];
-  console.log(`api.io-gate.shard-jobs-scale: settle pass over 30 candidate gates median ${median.toFixed(2)} ms, fastest ${times[0].toFixed(2)} ms, slowest ${times[20].toFixed(2)} ms`);
+  t.diagnostic(`api.io-gate.shard-jobs-scale: settle pass over 30 candidate gates median ${median.toFixed(2)} ms, fastest ${times[0].toFixed(2)} ms, slowest ${times[20].toFixed(2)} ms`);
   assert.ok(median < 5, `a settle pass over 30 candidates took ${median} ms, not under 5 ms`);
 });
 
