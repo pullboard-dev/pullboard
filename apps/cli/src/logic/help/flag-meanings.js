@@ -138,6 +138,8 @@ export const FLAG_MEANINGS = Object.freeze({
   'ledger --since': ['--since <window>', 'the window to cover, such as 2h'],
   'gate-health --since': ['--since <window>', 'the window to cover, such as 2h'],
   'trace --since': ['--since <window>', 'shows only entries in this window, such as 2h'],
+  'timeline --fleet': ['--fleet', 'the whole fleet instead of one item'],
+  'timeline --since': ['--since <window>', 'the fleet window, such as 3h'],
   'land --since': ['--since <time>', 'replays only batches recorded since this time'],
   '--work': ['--work <lane>', 'also reports when an item in this lane becomes claimable, a review waits too long, or main moves'],
   '--review-wait': ['--review-wait <minutes>', 'how long a review may wait before --work reports it; defaults to 20'],
