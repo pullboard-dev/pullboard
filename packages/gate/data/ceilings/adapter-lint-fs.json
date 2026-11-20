@@ -128,7 +128,6 @@
     "packages/outbox/src/io/relay/conflicts.js": 1,
     "packages/outbox/src/io/relay/guard.js": 1,
     "packages/outbox/src/io/relay/worker.js": 1,
-    "packages/person/src/io/signing/cli.js": 1,
     "packages/pin/src/io/cache.js": 7,
     "packages/pin/src/io/keyed.js": 7,
     "packages/pin/src/io/main.js": 4,
