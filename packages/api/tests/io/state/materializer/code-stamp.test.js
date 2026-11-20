@@ -17,6 +17,8 @@ import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js
 import { serialize } from 'node:v8';
 
 const WORKER = fileURLToPath(new URL('../../../../src/io/state/materializer/worker.js', import.meta.url));
+const ENV_FRONT_DOOR = fileURLToPath(new URL('../../../../../env/index.js', import.meta.url));
+const ENV_ADAPTER = fileURLToPath(new URL('../../../../../env/src/io/env.js', import.meta.url));
 
 /** A copy of the real worker in a small code tree whose board modules are stubs and whose snapshot store keeps each key in a file of its own. */
 function codeTree(t) {
@@ -29,6 +31,8 @@ function codeTree(t) {
     writeFileSync(join(tree.root, file), content);
   } };
   tree.write('packages/api/src/io/state/materializer/worker.js', readFileSync(WORKER));
+  tree.write('packages/env/index.js', readFileSync(ENV_FRONT_DOOR));
+  tree.write('packages/env/src/io/env.js', readFileSync(ENV_ADAPTER));
   tree.write('packages/api/src/io/main.js', `export function createStateSnapshots() {
   return { formats: 'f', snapshotPlace: () => ({ cacheId: 'c', folder: 'f' }), carry: () => ({}), restore() {}, materialize: () => ({ sequence: 1 }) };
 }\n`);

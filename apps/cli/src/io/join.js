@@ -25,16 +25,18 @@ import { itemFolderRenewalRefusal } from './item/folder/identity.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { join as joinPath } from 'node:path';
 import { sep } from 'node:path';
 import { environmentAdapter } from '../../../../packages/env/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Whether a root is one of the private worktrees publish makes under .git/pullboard/publish for its push (GitHub #25). */
 function isPublishWorktree(info) {
   try {
-    const folder = realpathSync(joinPath(info.commonDir, 'pullboard', 'publish'));
-    return realpathSync(info.root).startsWith(folder + sep);
+    const folder = fs.realpath(joinPath(info.commonDir, 'pullboard', 'publish'));
+    return fs.realpath(info.root).startsWith(folder + sep);
   } catch { return false; }
 }
 

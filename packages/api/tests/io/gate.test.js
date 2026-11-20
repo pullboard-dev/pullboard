@@ -2,15 +2,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { realGitAdapter } from '../../../git/index.js';
+import { withGitContractAdapter } from '../../../git/index.js';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { ledgerMissReasons } from '../../../store/index.js';
+import { recordTestResults } from '../../../store/index.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
 const MAIN = 'a'.repeat(40);
@@ -65,11 +71,12 @@ test('api.gate.land-red-under-separate-still-holds: clause 2: a red or hook-refu
 });
 
 /** A gate job whose receipt's proof plan splits three files two to a core, offered as shards and read back as the runner reads them: each shard's data.shard by index. */
-function shardData(t, needs) {
+function shardData(t, needs, seed) {
   const dir = cellSandbox(t).dir;
   const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
   board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  if (seed) seed(board.db);
   offerJob(board.db, { id: 'gate:s', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1,
     request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
   const proofPlan = { runner: 'node --test', cores: 2, files: ['web/a.test.js', 'web/b.test.js', 'web/c.test.js'], ...(needs ? { needs } : {}) };
@@ -171,4 +178,49 @@ test('api.gate.no-timing-plan-unchanged: clause 3: a plan with no timing field o
   const land = landShards(t, { cores: 2, files: TIMED });
   assert.deepEqual(land.shards.map(({ files, keyed }) => ({ files, keyed })), gate.shards.map(({ files, keyed }) => ({ files, keyed })));
   assert.equal(landShards(t, { cores: 8, files: TIMED }).answer.sharded, false, 'a land plan within its cores and no timing file is not split');
+});
+
+const KEY = '1'.repeat(64);
+const CONTEXT = 'e'.repeat(64);
+const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: 'proof', context: CONTEXT, status });
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer carries the ledger hit for a file with a recorded pass and a reason none, red or changed for each other file [C7,P7]', t => {
+  let reasons;
+  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [proofRow('web/a.test.js', 'pass'), proofRow('web/b.test.js', 'fail'), proofRow('web/b.test.js', 'pass', '2'.repeat(64)), proofRow('web/b.test.js', 'fail', '2'.repeat(64))] });
+    reasons = ledgerMissReasons(db, ['web/a.test.js', 'web/b.test.js', 'web/c.test.js']); };
+  const [first, second] = shardData(t, undefined, seed);
+  // Shard 1 holds a (a recorded pass: a hit) and c (no row at all); shard 2 holds b (a fail and a pass shadowed by a fail: red).
+  assert.deepEqual(first.files, ['web/a.test.js', 'web/c.test.js']);
+  assert.deepEqual(first.ledger.files, [['web/a.test.js', KEY, 0]]);
+  assert.deepEqual(first.ledger.contexts, [CONTEXT]);
+  assert.deepEqual(first.ledger.reasons, { 'web/c.test.js': 'none' });
+  assert.deepEqual(second.ledger.reasons, { 'web/b.test.js': 'red' });
+  assert.equal(second.ledger.files, undefined, 'a shard without a hit hands its runner no hit list');
+  // A file with a recorded pass that the runner still misses reads changed: its input key moved.
+  assert.deepEqual(reasons, { 'web/a.test.js': 'changed', 'web/b.test.js': 'red', 'web/c.test.js': 'none' });
+});
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
+  for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+test('api.io-gate.seed-claim-path-no-git: clause 1: with gate.seedWideMainTests on and main unmoved, a pull claim through boardJobQueueCall spawns no git process, and the main sha is computed once per main move [C7,P7]', t => {
+  const project = cellProject(t, { real: true, config: { affectedTests: 'node --test' } });
+  const board = { db: cellBoard(t, ':memory:').db, gitRoot: project.repo };
+  const spawned = [];
+  const counting = Object.fromEntries(['spawnSync', 'execFileSync', 'spawn'].map(name => [name, (args, options) => { spawned.push(args.join(' ')); return realGitAdapter[name](args, options); }]));
+  const claim = () => withGitContractAdapter(counting, () => boardJobQueueCall(board, { action: 'claim', runner: 'r-seed', capabilities: [] }, { mode: 'pull', now: 10 * 3_600_000, seedWideMainTests: true }));
+  claim();
+  spawned.length = 0;
+  claim();
+  claim();
+  assert.deepEqual(spawned, [], 'claims at an unmoved main spawn no git process');
+  writeFileSync(join(project.repo, 'moved.txt'), 'moved');
+  project.git(project.repo, 'add', '-A');
+  project.git(project.repo, 'commit', '-qm', 'chore: move main');
+  claim();
+  assert.ok(spawned.length >= 1 && spawned.length <= 2, `one main move computes its sha once: ${spawned.join(' | ')}`);
+  spawned.length = 0;
+  claim();
+  assert.deepEqual(spawned, [], 'the next claim at the moved main spawns none');
 });
