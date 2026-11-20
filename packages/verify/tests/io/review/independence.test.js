@@ -29,8 +29,8 @@ function withRelax(on, read) {
 
 /** A board with an openai builder seat, an openai reviewer seat of another session, and one submitted item (requiring family anthropic when `reviewFamily`). */
 function submittedBoard(t, reviewFamily) {
-  const project = cellProject(t);
-  const board = cellBoard(t, project.boardFile, { now: () => new Date('2026-01-01T00:00:00.000Z') });
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, { now: () => new Date('2026-01-01T00:00:00.000Z') }, { real: true });
   const builder = cellSeat(board, { lane: 'core', path: '/fixture/core-1', family: 'openai' });
   const reviewerSeat = cellSeat(board, { lane: 'core', path: '/fixture/core-2', family: 'openai' });
   const { item_id: id } = cellItem(board, { lane: 'core', title: 'Review fixture', criterion: 'prove it', ...(reviewFamily ? { reviewFamily } : {}) });
