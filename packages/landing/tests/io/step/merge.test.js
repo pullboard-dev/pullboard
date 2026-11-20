@@ -2,20 +2,19 @@
 /** Landing receipts use the earliest first-parent commit, with logarithmic ancestry probes [B3,R3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import * as store from '../../../../store/index.js';
+import { realGitAdapter } from '../../../../git/index.js';
+import { withGitAdapter } from '../../../../git/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { mergeGroup } from '../../../src/io/step/merge.js';
 import { delimiter } from 'node:path';
@@ -54,10 +53,7 @@ test('landing.merge.first-containing-commit-is-exact-across: first containing co
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-landing-attribution-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
-  const shims = join(dir, 'shims');
-  const calls = join(dir, 'ancestry-calls.log');
   mkdirSync(root);
-  mkdirSync(shims);
   const realGit = realGitPath();
   const env = { ...process.env, GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.test',
     GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.test' };
@@ -81,28 +77,21 @@ test('landing.merge.first-containing-commit-is-exact-across: first containing co
   const sourceOnMain = chain[127];
   const feature = git(realGit, root, ['rev-parse', 'refs/heads/feature']);
   const orphan = git(realGit, root, ['rev-parse', 'refs/heads/orphan']);
-  const shim = join(shims, 'git');
-  writeFileSync(shim, '#!/bin/sh\ncase "$*" in *"merge-base --is-ancestor"*) printf "probe\\n" >> "$PULLBOARD_ANCESTRY_CALLS";; esac\nexec "$PULLBOARD_REAL_GIT" "$@"\n');
-  chmodSync(shim, 0o700);
-  const oldPath = process.env.PATH;
-  const oldRealGit = process.env.PULLBOARD_REAL_GIT;
-  const oldCalls = process.env.PULLBOARD_ANCESTRY_CALLS;
-  process.env.PATH = `${shims}${delimiter}${oldPath}`;
-  process.env.PULLBOARD_REAL_GIT = realGit;
-  process.env.PULLBOARD_ANCESTRY_CALLS = calls;
-  try {
+  // Count ancestry probes through a counting Git adapter, so no PATH shim is resolved into the process-wide Git binary cache.
+  let probes = 0;
+  const counting = Object.freeze({
+    spawnSync(args, options) { if (args.includes('--is-ancestor')) probes++; return realGitAdapter.spawnSync(args, options); },
+    execFileSync(args, options) { if (args.includes('--is-ancestor')) probes++; return realGitAdapter.execFileSync(args, options); },
+    spawn: (args, options) => realGitAdapter.spawn(args, options),
+  });
+  withGitAdapter(counting, () => {
     assert.equal(firstContainingCommit(root, feature), merge, 'a secondary-parent source first appears at its mainline merge');
     assert.equal(firstContainingCommit(root, sourceOnMain), sourceOnMain, 'a source already on trunk keeps its earliest commit');
     assert.equal(firstContainingCommit(root, orphan), undefined, 'a source absent from trunk has no containing commit');
-    writeFileSync(calls, '');
+    probes = 0;
     assert.equal(firstContainingCommit(root, feature), merge);
-    const probes = readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean).length;
-    assert.ok(probes <= 12, `1024 first-parent commits use at most logarithmic probes; got ${probes}`);
-  } finally {
-    process.env.PATH = oldPath;
-    if (oldRealGit === undefined) delete process.env.PULLBOARD_REAL_GIT; else process.env.PULLBOARD_REAL_GIT = oldRealGit;
-    if (oldCalls === undefined) delete process.env.PULLBOARD_ANCESTRY_CALLS; else process.env.PULLBOARD_ANCESTRY_CALLS = oldCalls;
-  }
+  });
+  assert.ok(probes <= 12, `1024 first-parent commits use at most logarithmic probes; got ${probes}`);
 });
 
 /** A real repository with a base commit and an item commit on top; each commit's tree differs. */

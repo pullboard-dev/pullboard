@@ -1,5 +1,6 @@
 /** @pullboard-module-loads packages/health/src/io/stale/state/capture.js packages/moves/index.js */
 import { seatAt } from './item/folder/identity.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
 import {
   submitHandoffActor,
@@ -59,7 +60,7 @@ import { mainPolicy } from '../../../../packages/sandbox/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { relayOperation } from '../../../../packages/link/index.js';
 import { relayRecovered } from '../../../../packages/link/index.js';
-import { coordinatorFile } from './spec.js';
+import { coordinatorFile } from './coordinator-file.js';
 import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
@@ -301,7 +302,7 @@ export async function claimOrdered(ctx, board, args) {
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
-  const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
+  const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules: sealExitCheckpoints(ctx.config, exitRules), exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),

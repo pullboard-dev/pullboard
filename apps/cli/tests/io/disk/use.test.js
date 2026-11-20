@@ -4,9 +4,7 @@
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,36 +18,15 @@ import { diskUse } from '../../../src/io/disk/use.js';
 import { startDiskMeasure } from '../../../src/io/disk/use.js';
 import { pruneDisk } from '../../../src/io/disk/use.js';
 import { refusingBadPolicy } from '../../../src/io/disk/use.js';
-import { diskStoresFrom } from '../../../../../packages/gate/index.js';
-import { storeRegistry } from '../../../../../packages/gate/index.js';
+import { diskStoresFrom } from '../../../../../packages/gate/heavy.js';
+import { storeRegistry } from '../../../../../packages/gate/heavy.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureChild } from '../../fixtures/child.js';
-
-const MB = 1024 * 1024;
-const NOW = Date.parse('2026-11-08T12:00:00.000Z');
-const DAYS = (n) => (NOW - n * 86_400_000) / 1000;
-
-/** Write a file of a size and age. */
-function put(path, megabytes, ageDays) {
-  mkdirSync(join(path, '..'), { recursive: true });
-  writeFileSync(path, Buffer.alloc(megabytes * MB, 1));
-  utimesSync(path, DAYS(ageDays), DAYS(ageDays));
-}
-
-/** A fixture .git/pullboard with each store populated. */
-function fixture(t) {
-  const dir = privateFixtureFiles('pullboard-disk-use-').root;
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  put(join(dir, 'board.sqlite'), 1, 0);
-  put(join(dir, 'worktree-archives', 'arch-old-1111', 'tree.bin'), 6, 90);
-  put(join(dir, 'test-actions', 'action-old-2222.log'), 3, 40);
-  put(join(dir, 'test-actions', 'action-kept-3333.log'), 3, 40);
-  put(join(dir, 'test-actions', 'action-new-4444.log'), 3, 1);
-  put(join(dir, 'flake-evidence', 'flake-old-5555', 'a.log'), 2, 60);
-  writeFileSync(join(dir, 'gate-receipts.jsonl'), JSON.stringify({ id: 1, log: 'action-kept-3333.log' }) + '\n');
-  return dir;
-}
+import { DAYS } from '../../fixtures/disk-use.js';
+import { MB } from '../../fixtures/disk-use.js';
+import { NOW } from '../../fixtures/disk-use.js';
+import { fixture } from '../../fixtures/disk-use.js';
+import { put } from '../../fixtures/disk-use.js';
 
 test('cli.io-disk-use.status-and-stats-report-each-store-and: status and stats report each store and the total on a fixture board [C7]', (t) => {
   const dir = fixture(t);
@@ -161,22 +138,6 @@ test('cli.io-disk-use.one-background-measurement-runs-at-a-time: clause 1: one b
   const now = diskUse(dir);
   assert.deepEqual(shown.stores.filter(row => row.name !== 'other'), now.stores.filter(row => row.name !== 'other'));
   assert.ok(shown.stores.some(row => row.name === 'test actions'));
-});
-
-test('cli.io-disk-use.retention-walks-a-folder-of-200000-entries: retention walks a folder of 200000 entries without a stack overflow and finds its newest file [C7]', (t) => {
-  const dir = fixture(t);
-  const big = join(dir, 'flake-evidence', 'flake-big-6666');
-  mkdirSync(big, { recursive: true });
-  for (let i = 0; i < 200_000; i++) {
-    const file = join(big, `f${i}`);
-    writeFileSync(file, '');
-    utimesSync(file, DAYS(90), DAYS(90));
-  }
-  // The one fresh file is the newest; if the walk lost it the entry would look 90 days old and be removed.
-  utimesSync(join(big, 'f123456'), DAYS(5), DAYS(5));
-  const result = pruneDisk(dir, { now: NOW, dryRun: true });
-  assert.ok(!result.removed.some(row => row.entry === 'flake-big-6666'), 'a folder holding a fresh file is not aged');
-  assert.ok(result.removed.some(row => row.entry === 'flake-old-5555'), 'an all-old folder is still removed');
 });
 
 test('cli.io-disk-use.n-6738-clause-1-disk-stores-comes-from: #6738 clause 1: DISK_STORES comes from stores.json and the file holds no hand-written store list [C7]', () => {

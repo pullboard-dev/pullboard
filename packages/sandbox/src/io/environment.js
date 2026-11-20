@@ -3,14 +3,6 @@ import {
   environmentProblem,
 } from '../../../config/light.js';
 import {
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   basename,
   dirname,
   join,
@@ -20,8 +12,10 @@ import {
   fileURLToPath,
   pathToFileURL,
 } from 'node:url';
-import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Exact executor identity for gate receipts and landing policy [E27,E28]. */
 
@@ -111,7 +105,7 @@ export function testRuntimeImport(directory = process.env.PULLBOARD_RUNTIME_CAPT
   if (!directory) return null;
   const file = join(directory, 'test-runtime-preload.cjs');
   try {
-    return readFileSync(file, 'utf8') === runtimeCaptureSource(directory) ? pathToFileURL(file).href : null;
+    return fs.readFile(file, 'utf8') === runtimeCaptureSource(directory) ? pathToFileURL(file).href : null;
   } catch { return null; /* An absent or foreign recorder never becomes an import. */ }
 }
 
@@ -126,27 +120,27 @@ export function bindTestRuntime(pid, file) {
   const directory = process.env.PULLBOARD_RUNTIME_CAPTURE_DIR;
   if (!directory) return null;
   try {
-    const names = readdirSync(directory).filter(name => name.startsWith('runtime-' + pid + '-') && name.endsWith('.json'));
+    const names = fs.list(directory).filter(name => name.startsWith('runtime-' + pid + '-') && name.endsWith('.json'));
     if (names.length !== 1) return false;
     const path = join(directory, names[0]);
-    const stat = lstatSync(path);
+    const stat = fs.lstat(path);
     if (!stat.isFile() || stat.mode & 0o222) return false;
-    const own = JSON.parse(readFileSync(path, 'utf8'));
+    const own = JSON.parse(fs.readFile(path, 'utf8'));
     if (own.pid !== pid || own.file !== null || environmentProblem(own.environment)) return false;
-    const selected = relative(realpathSync(process.cwd()), join(realpathSync(dirname(file)), basename(file))).replaceAll('\\', '/');
+    const selected = relative(fs.realpath(process.cwd()), join(fs.realpath(dirname(file)), basename(file))).replaceAll('\\', '/');
     // Accepted callers may select a real test outside the checkout; never invent an in-repo path for it.
     const bound = { pid, environment: own.environment, file: selected.split('/').includes('..') ? null : selected };
     if (!testRuntimeRows([bound])) return false;
-    writeFileSync(join(directory, 'binding-' + pid + '.json'), JSON.stringify({ pid, file: bound.file }), { flag: 'wx', mode: 0o600 });
+    fs.writeFile(join(directory, 'binding-' + pid + '.json'), JSON.stringify({ pid, file: bound.file }), { flag: 'wx', mode: 0o600 });
     return true;
   } catch { return false; /* A missing child report cannot be replaced by the parent's identity. */ }
 }
 
 /** Capture actual Node children in a private run directory without changing test output or the machine pool. */
 export function captureTestRuntimes(env) {
-  const directory = mkdtempSync(join(process.env.PULLBOARD_SCRATCH || tmpdir(), 'pullboard-test-runtimes-'));
+  const directory = fs.mkdtemp(join(process.env.PULLBOARD_SCRATCH || tmpdir(), 'pullboard-test-runtimes-'));
   const preload = join(directory, 'test-runtime-preload.cjs');
-  writeFileSync(preload, runtimeCaptureSource(directory), { flag: 'wx', mode: 0o600 });
+  fs.writeFile(preload, runtimeCaptureSource(directory), { flag: 'wx', mode: 0o600 });
   let finished = false;
   return {
     env: { ...env, NODE_OPTIONS: [env.NODE_OPTIONS, '--require=' + JSON.stringify(preload)].filter(Boolean).join(' '),
@@ -156,7 +150,7 @@ export function captureTestRuntimes(env) {
       if (finished) return null;
       finished = true;
       try {
-        const entries = readdirSync(directory);
+        const entries = fs.list(directory);
         if (entries.length > 200_001) return null;
         const names = entries.filter(name => /^runtime-[0-9]+-[a-f0-9-]+\.json$/u.test(name));
         if (names.length > 100_000) return null;
@@ -165,16 +159,16 @@ export function captureTestRuntimes(env) {
         let bytes = 0;
         for (const name of names.sort()) {
           const file = join(directory, name);
-          const stat = lstatSync(file);
+          const stat = fs.lstat(file);
           bytes += stat.size;
           if (!stat.isFile() || stat.mode & 0o222 || stat.size > 8192 || bytes > 8 * 1024 * 1024) return null;
-          const row = JSON.parse(readFileSync(file, 'utf8'));
+          const row = JSON.parse(fs.readFile(file, 'utf8'));
           if (row.file !== null) return null;
           const binding = join(directory, 'binding-' + row.pid + '.json');
           try {
-            const boundStat = lstatSync(binding);
+            const boundStat = fs.lstat(binding);
             if (!boundStat.isFile() || boundStat.size > 8192) return null;
-            const bound = JSON.parse(readFileSync(binding, 'utf8'));
+            const bound = JSON.parse(fs.readFile(binding, 'utf8'));
             if (Object.keys(bound).sort().join(',') !== 'file,pid' || bound.pid !== row.pid) return null;
             row.file = bound.file;
             boundPids.add(row.pid);
@@ -188,9 +182,9 @@ export function captureTestRuntimes(env) {
         const reported = new Set(checked.map(row => row.pid));
         for (const name of entries.filter(name => /^custom-launcher-[0-9]+\.json$/u.test(name))) {
           const path = join(directory, name);
-          const stat = lstatSync(path);
+          const stat = fs.lstat(path);
           if (!stat.isFile() || stat.mode & 0o222 || stat.size > 8192) return null;
-          const custom = JSON.parse(readFileSync(path, 'utf8'));
+          const custom = JSON.parse(fs.readFile(path, 'utf8'));
           if (Object.keys(custom).join(',') !== 'pid' || !Number.isSafeInteger(custom.pid) || custom.pid < 1
             || name !== 'custom-launcher-' + custom.pid + '.json') return null;
           if (reported.has(custom.pid)) return null;
@@ -198,10 +192,10 @@ export function captureTestRuntimes(env) {
         const launchers = new Set();
         for (const name of entries.filter(name => /^child-[0-9]+-[0-9]+\.json$/u.test(name))) {
           const path = join(directory, name);
-          const stat = lstatSync(path);
+          const stat = fs.lstat(path);
           bytes += stat.size;
           if (!stat.isFile() || stat.mode & 0o222 || stat.size > 8192 || bytes > 8 * 1024 * 1024) return null;
-          const child = JSON.parse(readFileSync(path, 'utf8'));
+          const child = JSON.parse(fs.readFile(path, 'utf8'));
           if (Object.keys(child).sort().join(',') !== 'parent,pid' || !Number.isSafeInteger(child.parent) || child.parent < 1
             || !Number.isSafeInteger(child.pid) || child.pid < 1 || name !== 'child-' + child.parent + '-' + child.pid + '.json') return null;
           // An unbound launcher's own runtime cannot stand in for an unobserved custom descendant.
@@ -210,7 +204,7 @@ export function captureTestRuntimes(env) {
         }
         return testRuntimeRows(checked.filter(row => !launchers.has(row.pid)));
       } catch { return null; /* Missing or incomplete self-reports stay unknown, never become the launcher runtime. */ }
-      finally { rmSync(directory, { recursive: true, force: true }); }
+      finally { fs.rm(directory, { recursive: true, force: true }); }
     },
   };
 }

@@ -1,6 +1,5 @@
 /** A verified item whose reviewed file main has since changed, on a real repository, for the pulled-landing freshness tests [B3,C7]. */
 import * as store from '../../../store/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
@@ -8,8 +7,8 @@ import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
 
-/** A verified item reviewed against the trunk before main moved, on a real repository: main then changes `mainFile`; `shape` names the reviewed file and its three contents (base, reviewed, main's). */
-export function verifiedThenMainMoves(t, mainFile, { file = 'web/x.js', base = 'one\n', reviewed = 'reviewed change\n', changed = 'main change\n' } = {}) {
+/** A verified item reviewed against the trunk before main moved, on a real repository: main then changes `mainFile`; the calling test passes in the board opener (cellBoard from the board cell fixture); `shape` names the reviewed file and its three contents (base, reviewed, main's). */
+export function verifiedThenMainMoves(t, mainFile, cellBoard, { file = 'web/x.js', base = 'one\n', reviewed = 'reviewed change\n', changed = 'main change\n' } = {}) {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'f@example.invalid',
