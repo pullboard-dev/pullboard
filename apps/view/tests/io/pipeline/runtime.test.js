@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { pipelineRuntime } from '../../../src/io/pipeline/runtime.js';
 
 /** Let every promise the stub api has queued settle: the stubs answer in microtasks, so no clock is involved. */
-async function flush() { for (let turn = 0; turn < 200; turn++) await Promise.resolve(); }
+async function flush(done = () => false) { for (let turn = 0; turn < 20_000 && !done(); turn++) await Promise.resolve(); }
 
 /** A stand-in pane that records what is painted and the listeners it is given. */
 function pane() {
@@ -87,7 +87,7 @@ async function readWindow(t, stub, project) {
   });
   runtime.draw(project);
   assert.match(region.innerHTML, /Reading the board.s event history/u, 'it says so until the window is read');
-  await flush();
+  await flush(() => region.innerHTML === '<b>drawn</b>');
   return { models, region, runtime };
 }
 
@@ -118,7 +118,8 @@ test('view.pipeline.window-live: clause 2: the page reads through its own window
   const moved = { ...project, sequence: 2_001 };
   runtime.draw(moved);
   assert.equal(region.innerHTML, '<b>drawn</b>', 'a window that was complete once keeps drawing while the next events arrive');
-  await flush();
+  await flush(() => stub.log.at(-1)?.endsWith('after=2000&limit=50000'));
   assert.equal(stub.log.at(-1), '/api/v1/boards/b/events?after=2000&limit=50000', 'a later read starts after the last held id, not from the start of the window');
   assert.ok(first > 100, 'the first read held the window');
+  await flush(); // the later read finishes and redraws before the test ends
 });
