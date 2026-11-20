@@ -25,7 +25,7 @@ import { temporaryDirectory } from '../board.js';
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
  * a git adapter wrapper that logs each git start, and the offer's logged lock seam. Returns what the offer did.
  */
-export async function offerWithLog(t, { concurrentOffer = false, paces = {} } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, paces = {}, lapses = {} } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -60,6 +60,8 @@ export async function offerWithLog(t, { concurrentOffer = false, paces = {} } = 
     submitFixture(board, id, { agentId: `web-${number}`, commit: commits[number], tree: git('rev-parse', `${commits[number]}^{tree}`) });
     store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'accepted for the offer test', head: commits[number], digest: `digest:offer outside lock ${number}`, policy: 'any' });
   }
+  // Infrastructure failures a head item already met: item id -> lapsed landing leases counted on the board.
+  for (const [id, count] of Object.entries(lapses)) for (let lapse = 0; lapse < count; lapse += 1) store.countLeaseLapse(board, Number(id));
   // The offer reads machine settings from this private home: parallel gates on, so each entry's changed files are read.
   process.env.PULLBOARD_MACHINE_HOME = home;
   fixtureMachineSettings(home, { landing: { parallelGates: true } });
@@ -82,7 +84,7 @@ export async function offerWithLog(t, { concurrentOffer = false, paces = {} } = 
     { mainPolicy: () => policy, listItems: store.listItems, checkedLandingCommit: (_board, item) => item.item_commit, pairPrefix: () => 'prefix' },
     { local: async () => ({ running: true }), board, lock }));
   const lines = readFileSync(log, 'utf8').trim().split('\n');
-  const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
+  const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, rowid").all().map(job => {
     const offered = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job.job_id);
     return JSON.parse(offered.payload).payload;
   });
