@@ -55,6 +55,7 @@ const BEFORE = {
   'gate.endStaleJobs': false,
   'gate.excuseMainTimingReds': false,
   'gate.fencedHop': true,
+  'gate.gateAgedMinutes': 5,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
