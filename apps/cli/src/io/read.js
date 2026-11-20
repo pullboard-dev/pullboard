@@ -114,6 +114,8 @@ const requireModule = createRequire(import.meta.url);
 const doctrineLoader = () => requireModule('../../../../packages/doctrine/light.js').loadDoctrine;
 /** The item-folder identity reader, loaded only when no seat is registered at this checkout [C7,#7081]. */
 const folderIdentity = () => requireModule('./item/folder/identity.js').itemFolderIdentity;
+/** The seat an item folder's marker names, read only on the refusal path [C7,#11780]. */
+const folderSeatHint = () => requireModule('./item/folder/identity.js').itemFolderSeatHint;
 
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
@@ -510,6 +512,8 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   }
   const agent = readers.agentAt(board, ctx.info.root) ?? folderIdentity()(board, ctx.info.root)?.agent;
   if (!agent) {
+    const hint = folderSeatHint()(board, ctx.info.root);
+    if (hint) throw new Refused('NOT_JOINED', `this is item #${hint.item}'s folder and its seat no longer holds it: run next, status and shout from the seat folder, cd ${hint.seat}`);
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);

@@ -1,0 +1,3 @@
+{
+  "cli.journeys-land-step-aside.next-accepted-item-lands-after-head-fails-twice": {"proves":{"specs":["C7","#3118"],"claim":"On a board where the head fails twice on infrastructure, the next accepted item is offered first and lands, and the head keeps its accept and is still offered after it."},"why":"Without it, a head that keeps failing on infrastructure could block every accepted item behind it, or lose its accept when it steps aside.","kind":"journey","inputs":["apps/cli/journeys/land/step-aside.test.js"]}
+}

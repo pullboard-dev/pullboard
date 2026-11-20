@@ -82,9 +82,9 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
-/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+/** Whether submit.residentChecks is on (#10275): on by default; only an exact `false` turns it off. */
 export function residentChecks() {
-  return loadMachineSettings().submit?.residentChecks === true;
+  return loadMachineSettings().submit?.residentChecks !== false;
 }
 
 /** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
@@ -659,9 +659,9 @@ export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
-/** Whether route reservations are on (#9177): off by default; only an exact `true` turns it on. */
+/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
 export function routeReservations() {
-  return loadMachineSettings().route?.reservations === true;
+  return loadMachineSettings().route?.reservations !== false;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */

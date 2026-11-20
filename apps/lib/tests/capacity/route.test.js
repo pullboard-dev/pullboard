@@ -19,6 +19,9 @@ import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
 import { itemWaits } from '../../../../packages/queue/index.js';
 import { readyItems } from '../../../../packages/queue/index.js';
 
+/** The store's digest window: a reader's buffered routine findings are sent once this long has passed. */
+const DIGEST_WINDOW_MS = 10 * 60_000;
+
 /** Keep the board, Git and injected observation clock private to this case. */
 function fixture(t) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-route-capacity-')));
@@ -78,13 +81,16 @@ test('lib.capacity-route.the-coordinator-is-told-to-split-work: the coordinator 
   assert.equal(shortage.detail.free, 1);
   assert.equal(shortage.detail.idle, 2);
   box.scan();
-  const notices = store.allShouts(box.board).filter(row => row.shout_from === 'sentinel'
-    && row.shout_to === 'coordinator' && row.shout_text.includes('ROUTE_WORK_SHORTAGE'));
+  const digests = () => store.allShouts(box.board).filter(row => row.shout_from === 'sentinel'
+    && row.shout_to === 'coordinator' && row.shout_text.startsWith('Digest:') && row.shout_text.includes('mid route'));
+  assert.equal(digests().length, 0, 'a routine shortage is buffered, not sent at once');
+  // The coordinator hears buffered routine findings as one digest line once the digest window has passed [#1479].
+  box.clock.at += DIGEST_WINDOW_MS;
+  for (const agent of agents) store.shout(box.board, { from: agent, to: 'coordinator', text: 'Available now', lanes: ['core'] });
+  box.scan();
+  const notices = digests();
   assert.equal(notices.length, 1);
-  assert.match(notices[0].shout_text, /mid/u);
-  assert.match(notices[0].shout_text, /1 free/u);
-  assert.match(notices[0].shout_text, /2 idle/u);
-  assert.match(notices[0].shout_text, /split/iu);
+  assert.match(notices[0].shout_text, /\d+ routine findings/u);
   const eventCount = store.events(box.board).length;
   assert.equal(box.scan(), null, 'identical shortages do not keep shouting');
   assert.equal(store.events(box.board).length, eventCount);
