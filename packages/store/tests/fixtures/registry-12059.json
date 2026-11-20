@@ -1,0 +1,5 @@
+{
+  "store.board-ledger.fail-row-item-files-ms": {"proves": {"specs": ["C7"], "claim": "gateFailRows: a gate fail row yields its item, its files and the shard's runner ms."}, "why": "Without this test, a regression in how gateFailRows reads gate fail rows would pass unnoticed.", "kind": "cell unit", "inputs": ["packages/store/src/io/board/ledger.js"]},
+  "store.board-ledger.non-fail-rows-skipped": {"proves": {"specs": ["C7"], "claim": "gateFailRows: a pass row, a non-gate receipt and a row before since yield nothing."}, "why": "Without this test, a regression in how gateFailRows reads gate fail rows would pass unnoticed.", "kind": "cell unit", "inputs": ["packages/store/src/io/board/ledger.js"]},
+  "store.board-ledger.no-claimed-step-ms-null": {"proves": {"specs": ["C7"], "claim": "gateFailRows: a receipt job with no claimed step yields ms null."}, "why": "Without this test, a regression in how gateFailRows reads gate fail rows would pass unnoticed.", "kind": "cell unit", "inputs": ["packages/store/src/io/board/ledger.js"]}
+}
