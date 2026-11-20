@@ -31,6 +31,9 @@ import { scratchBase } from '../../../../kernel/light.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
 
 const fileSystem = fileSystemAdapter();
+import { environmentAdapter } from '../../../../env/index.js';
+
+const environment = environmentAdapter();
 
 /** Marks a use that takes the shim's whole namespace, so every name it exports must stay reachable. */
 const ALL = Symbol('all');
@@ -513,7 +516,7 @@ function claimedItem(root, lane, env) {
 }
 
 /** Persist the handoff outside the checkout and optionally record it through the normal board CLI. */
-export function writeShimHandoff(root, result, cell, { lane = 'core', directory, fileCut = false, env = process.env } = {}) {
+export function writeShimHandoff(root, result, cell, { lane = 'core', directory, fileCut = false, env = environment.all() } = {}) {
   if (!result.keptDetails?.length) return null;
   let item;
   if (fileCut) item = claimedItem(root, lane, env);
