@@ -2,9 +2,6 @@
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { realpathSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
@@ -16,12 +13,17 @@ import { Refused } from "../../../kernel/index.js";
 import { sentinels } from "./main.js";
 import { gitChildEnv } from "../../../git/index.js";
 import { mainCheckout } from "../../../git/index.js";
+import { environmentAdapter } from "../../../env/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The one file-system adapter this file reads through [C7]. */
+const fs = fileSystemAdapter();
 
 /** Prepare immutable local trunk in a private clone, leaving every live checkout untouched. */
 export async function withSentinelTrunk(root, action) {
   const trunk = mainCheckout(root);
   if (!trunk?.commit) throw new Refused('SENTINEL_TRUNK', 'commit the primary branch before running sentinels: pullboard sentinel run');
-  const directory = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-sentinel-trunk-'));
+  const directory = fs.mkdtemp(join(scratchRoot(loadMachineSettings()), 'pullboard-sentinel-trunk-'));
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {
@@ -30,7 +32,7 @@ export async function withSentinelTrunk(root, action) {
     if (!selected || selected.status !== 0) throw new Refused('SENTINEL_TRUNK', 'the trunk checkout could not be prepared; inspect the primary branch and retry pullboard sentinel run');
     return { results: await action(checkout), trunk };
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -83,7 +85,7 @@ async function drainWatch(pgid, anchor, parseProcessCensus) {
 }
 
 /** Run one owned process group in the approved directory, with a bounded hang and drained shutdown. */
-export function executeSentinel(root, row, { signal, environment = process.env, parseProcessCensus } = {}) {
+export function executeSentinel(root, row, { signal, environment = environmentAdapter().all(), parseProcessCensus } = {}) {
   return new Promise((settle, reject) => {
     if (typeof parseProcessCensus !== 'function') {
       reject(new Refused('SENTINEL_DRAIN', 'supply the process census parser from the sentinel command owner before running a watch'));
@@ -91,8 +93,8 @@ export function executeSentinel(root, row, { signal, environment = process.env, 
     }
     let directory;
     try {
-      const base = realpathSync(root);
-      directory = realpathSync(resolve(base, row.directory));
+      const base = fs.realpath(root);
+      directory = fs.realpath(resolve(base, row.directory));
       const path = relative(base, directory);
       if (path === '..' || path.startsWith('..' + sep)) throw new Refused('BAD_SENTINEL', 'the approved sentinel directory must remain inside its project');
     } catch (error) { reject(error); return; }

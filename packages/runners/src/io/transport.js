@@ -9,6 +9,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { parseProcessCensus } from '../../../kernel/light.js';
 import { liveJobSet } from './holders.js';
 import { sortHolders } from './holders.js';
@@ -316,8 +317,9 @@ export function runnerIdleReply(root, request, processCensus, orphanObserver = n
     try { jobDirectory = fs.lstat(jobs); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (jobDirectory && !jobDirectory.isDirectory()) return { ...base, reason: 'runner jobs location is not a directory' };
-    const home = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
-    const machineHome = process.env.PULLBOARD_MACHINE_HOME ?? join(home, '.pullboard');
+    const environment = environmentAdapter();
+    const home = isAbsolute(environment.get('HOME') || '') ? environment.get('HOME') : userInfo().homedir;
+    const machineHome = environment.get('PULLBOARD_MACHINE_HOME') ?? join(home, '.pullboard');
     if (!isAbsolute(machineHome)) return { ...base, reason: 'runner resource location is unknown' };
     const file = join(machineHome, 'resources.sqlite');
     let resourceFile;

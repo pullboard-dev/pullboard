@@ -1,12 +1,12 @@
-/** @pullboard-test-input apps/cli/src/io/test/pull.js packages/gate/index.js packages/drive/index.js packages/gate/tests/fixtures/child.js */
+/** @pullboard-test-input apps/cli/src/io/test/pull.js packages/gate/heavy.js packages/drive/index.js packages/gate/tests/fixtures/child.js */
 /** A red pulled run records each failing case with the file its outcome line names, and --status prints it [C7,#8852]. */
 /** @pullboard-world-pin: the pulled-run summary reads the shipped outcome frames the runner prints. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { retainTestOutput } from '../../../../packages/gate/index.js';
-import { TEST_OUTCOMES_PREFIX } from '../../../../packages/gate/index.js';
+import { retainTestOutput } from '../../../../packages/gate/heavy.js';
+import { TEST_OUTCOMES_PREFIX } from '../../../../packages/gate/heavy.js';
 import { testRunLines } from '../../../../packages/drive/index.js';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { failingOutcomes } from '../../src/io/test/pull.js';

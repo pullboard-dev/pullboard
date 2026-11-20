@@ -6,7 +6,6 @@
  */
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cliLaunchReport } from './launches.js';
@@ -39,7 +38,6 @@ export const SPLIT_REGISTRIES = Object.freeze({
   tiers: TEST_TIERS_FILE,
   roles: 'apps/view/src/logic/roles.js',
   lanes: CONFIG_FILE,
-  pathMap: 'packages/codemap/data/plan/path-map',
 });
 const TEST = /\.test\.[cm]?js$/u;
 const pretty = value => JSON.stringify(value, null, 2) + '\n';
@@ -214,11 +212,6 @@ export async function splitRegistries(root, original, siblings, { lints = measur
     rows.push({ registry: 'lanes', lanes });
     if (lanes.length) writes.set(SPLIT_REGISTRIES.lanes, pretty(config));
   }
-  const mapDirectory = join(root, SPLIT_REGISTRIES.pathMap);
-  const mapped = existsSync(mapDirectory) ? readdirSync(mapDirectory).filter(name => name.endsWith('.json'))
-    .flatMap(name => Object.entries(JSON.parse(readFileSync(join(mapDirectory, name), 'utf8'))).filter(([, to]) => to === original).map(([from]) => `${name}:${from}`)) : [];
-  if (mapped.length && !kept) throw new Refused('SPLIT_PATH_MAP', `the path map still moves ${mapped.join(', ')} to ${original}`, `keep ${original} as one sibling of the split; a path-map move needs its own declared plan row`);
-  rows.push({ registry: 'pathMap', kept: mapped.length });
   if (lints) {
     const measured = await lints(root, base);
     const plan = planLintSplit(root, files, measured);

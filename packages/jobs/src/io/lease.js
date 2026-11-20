@@ -191,6 +191,22 @@ export function pinQueuedJob(db, job, commit, { now = Date.now() } = {}) {
 export function markApplied(db, job, { now = Date.now() } = {}) {
   return db.prepare('UPDATE job SET job_applied = ?, job_updated = ? WHERE job_id = ? AND job_applied IS NULL').run(now, now, job).changes === 1;
 }
+/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
+export const SHARD_JOB_KIND = 'gate-shard';
+
+/**
+ * End the item's open gate jobs, and the gate-shard jobs of its proof, other than the one for `keep`; with no `keep` every open one ends.
+ * Why: a landed, withdrawn or resubmitted item's gate jobs and shards still held runner time (#8743, #11817, #11819).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ item: number, keep?: string | null, reason: string, now?: number }} fields
+ * @returns {string[]} The jobs ended now.
+ */
+export function endItemGateJobs(db, { item, keep = null, reason, now = Date.now() }) {
+  const open = db.prepare("SELECT job_id FROM job WHERE job_kind IN ('gate', ?) AND job_item = ? AND job_step <> 'done' AND (? IS NULL OR job_candidate <> ?)").all(SHARD_JOB_KIND, item, keep, keep);
+  return open.map(row => row.job_id).filter(id => endJob(db, id, 'withdrawn', { detail: reason }, { now }));
+}
+
 /**
  * End a job that has not finished, whoever holds its lease: a step naming why, then done. False when it is gone or already done.
  * Why: a withdrawn or abandoned job must stop even while a runner holds a live lease; that runner's next renewal then finds it done.
