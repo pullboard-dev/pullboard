@@ -179,6 +179,7 @@ const OPTIONS = {
   fields: { type: 'string' },
   history: { type: 'boolean' },
   verbose: { type: 'boolean' },
+  fleet: { type: 'boolean' },
   since: { type: 'string' },
   window: { type: 'string' },
   days: { type: 'string' },
