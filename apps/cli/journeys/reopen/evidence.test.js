@@ -51,6 +51,9 @@ test('cli.journeys-reopen-evidence.a-landing-reopen-carries-the-exact: a landing
   box.env.LAND_SUPPRESS_RED = '1';
   await commitItemLocal(box, entry, 'RED\n');
   await submitItemLocal(box, entry);
+  // The runner's receipt applies the submit at no fixed moment, and accept retries each call it answers NOT_SUBMITTED, so a fast runtime would record
+  // extra calls; wait for the status so both runtimes record the same calls [C7].
+  await waitForState(() => onBoard(box, board => board.db.prepare("SELECT 1 FROM item WHERE item_id = ? AND item_status = 'submitted'").get(entry.item)), 'the submit is applied before the accept');
   await acceptItemLocal(box, entry);
   delete box.env.LAND_SUPPRESS_RED; // the switch folder mirrors the delete to the pulled gate, so the red shows
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
