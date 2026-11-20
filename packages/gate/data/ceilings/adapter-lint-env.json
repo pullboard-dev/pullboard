@@ -20,7 +20,6 @@
     "apps/cli/src/io/submit/remote.js": 3,
     "apps/cli/src/io/sync.js": 2,
     "apps/cli/src/io/tool/build.js": 1,
-    "apps/cli/src/io/tour.js": 10,
     "apps/runner/src/io/sweep.js": 1,
     "apps/runner/src/io/worker/queue.js": 2,
     "apps/runner/src/io/worker/receipt.js": 5,
