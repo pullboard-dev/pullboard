@@ -1,0 +1,4 @@
+{
+  "api.io-renew-batch.one-call-extends-all-held": {"proves":{"specs":["C7"],"claim":"One renew call over the job route extends every job the runner holds and answers each job's new lease, and names a job it no longer holds as refused without failing the rest."},"why":"Without this test each runner goes back to one renew call per held job, and those calls load the board and slow every other call.","kind":"contract","inputs":["packages/api/src/io/jobs.js","packages/api/src/io/http.js"]},
+  "api.io-renew-batch.capped-claim-carries-wait": {"proves":{"specs":["C7"],"claim":"A claim answer for a runner whose cap holds back an open job carries a wait time, while an empty queue or a claim that takes a job carries none."},"why":"Without this test a runner at its cap polls claim every 2 s and loads the board for nothing.","kind":"contract","inputs":["packages/api/src/io/jobs.js"]}
+}
