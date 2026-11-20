@@ -476,7 +476,8 @@ export function gateJobRun() {
  *
  * @param {{ main: string, source: string, trunk: string, base: string | null, check: string, criterion: string, title: string,
  *   composition: string | null, config: object, crossRunTests: string[], cutRows: object[], produceInventory: string[],
- *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean }} pinned. checkTiming: the
+ *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean, needs?: string[] }} pinned. needs: the item's
+ *   needs list, carried only when it has one so the gate admission asks for the slots it names [U136,#11479]. checkTiming: the
  *   bar was frozen with exclusive check timing; the job carries it on its data so a runner can admit the check alone [C7,#7942].
  * @returns {{ run: string[], input: { main: string, entry: string, data: object }, commits: string[] }} commits: what a
  *   runner fetches beside the candidate, since the bootstrap archives main and the analysis reads trunk from the checkout's objects.
@@ -620,7 +621,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const frozen = frozenCheck(held);
   const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
-    criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
+    criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', ...(held.item_needs?.length ? { needs: held.item_needs } : {}), composition: requireComposition ? commit : null,
     ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),

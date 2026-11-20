@@ -736,6 +736,9 @@ export function heldKinds() {
   };
 }
 
+/** The board refusals that end one job, never the serve: the job is released and its slot claims again [C7]. */
+const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCED', 'BOARD_BUSY', 'HOP_HELD']);
+
 /**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
  * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
@@ -824,7 +827,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
   };
   /** Call the board until it answers; only the board's own refusal ends the call. */
-  const reliably = async body => {
+  const reliably = async call => {
+    // One claim key names one claim: every retry of that claim sends it again, so the board hands back the lease the first try took [C7].
+    const body = call.action === 'claim' ? { ...call, key: randomBytes(12).toString('hex') } : call;
     for (;;) {
       if (signal?.aborted) throw new Refused('RUNNER_STOPPED', 'the runner was stopped');
       try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; failures = 0; return answer; }
@@ -1068,7 +1073,13 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const slot = free.shift();
     let task, known;
     const learned = new Promise(resolve => { known = resolve; });
-    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, error => { failure ??= error; })
+    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, async error => {
+      // A refusal that belongs to this one job (its receipt, its write, its hop) hands the job back and the serve keeps its other slots running [C7].
+      if (!(error instanceof Refused) || !PER_JOB_REFUSALS.has(error.code)) { failure ??= error; return; }
+      say(`releasing ${claim.job}: [${error.code}] ${error.message}`);
+      await queueCall(endpoint, { action: 'release', job: claim.job, runner: id, token: claim.token, reason: `[${error.code}] ${error.message}` }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      jobs.push({ job: claim.job, outcome: 'released' });
+    })
       .finally(() => { ledger.drop(claim.kind); active.delete(task); free.push(slot); free.sort((a, b) => a - b); });
     active.add(task);
     task.learned = learned;
