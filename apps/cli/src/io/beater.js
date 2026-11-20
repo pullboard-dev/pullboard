@@ -119,7 +119,7 @@ export async function startClaimBeater(cwd, { seat, board }, { env = process.env
  */
 export async function runBeater({ cwd, seat, board, lock, agent, everyMs = BEATER_EVERY_MS, remote = null }, { alive = agentAlive, pid = process.pid, send = null, ...options } = {}) {
   try {
-    const { keepClaimsAlive } = await import('../../../../packages/gate/index.js');
+    const { keepClaimsAlive } = await import('../../../../packages/gate/heavy.js');
     if (remote?.url) {
       const post = send ?? (await import('./remote/moves.js')).sendRemoteHeartbeat;
       let refused = false;
