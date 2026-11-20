@@ -71,6 +71,13 @@ function sizeLine(runner, settings) {
     + (runner.fixed === true ? '; declared count overrides' : settings.gate?.measuredSlots === true ? `; offering ${offered.slots}` : '; gate.measuredSlots is off');
 }
 
+/** The swap line for a runner whose measured swap use is over half its memory, or null [C7,#10583]. */
+function swapLine(runner) {
+  const used = runner?.cpuLoad?.swapUsedMB;
+  if (!Number.isFinite(used) || !Number.isFinite(runner.memoryMB) || used <= runner.memoryMB / 2) return null;
+  return `swapping ${(used / 1024).toFixed(1)} GB of ${(runner.memoryMB / 1024).toFixed(1)} GB`;
+}
+
 /** One line naming a toolchain the runner's probe could not verify, with what was declared and what the runner answered [C7]. */
 function toolchainLine(host, problem) {
   const want = problem.declared === '' ? 'any version' : `declared ${problem.declared}`;
@@ -92,7 +99,8 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
       return { ...row, slots: offered.slots, browser: offered.browser,
         ...(runner.cores !== undefined ? { cores: runner.cores, memoryMB: runner.memoryMB, measuredAt: runner.measuredAt } : {}),
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
-        fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}) };
+        fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}),
+        ...(Number.isFinite(runner.cpuLoad?.swapUsedMB) ? { swapUsedMB: runner.cpuLoad.swapUsedMB } : {}) };
     });
     // The auto-started local runner is no registered runner, so it is named from its own state file [P7].
     const folder = localRunnerFolder();
@@ -100,7 +108,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
     io.result?.({ runners, ...(local ? { local } : {}) });
     const localLine = local ? (local.state === 'live' ? `local (pid ${local.pid}, live)` : 'local (stopped)') : null;
     if (localLine && !runners.length) { io.say(localLine); return 0; }
-    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`)].join('\n') : 'no runners registered');
+    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}${swapLine(registered.get(runner.host)) ? `\n  ${swapLine(registered.get(runner.host))}` : ''}`)].join('\n') : 'no runners registered');
     return 0;
   }
   if (first === 'status') {
