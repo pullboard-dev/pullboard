@@ -7,6 +7,7 @@ import {
 import { isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Refused } from '../../../kernel/light.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /**
  * The folder throwaway work goes under: the `scratch` machine setting, else PULLBOARD_SCRATCH, else os.tmpdir().
@@ -17,8 +18,8 @@ import { Refused } from '../../../kernel/light.js';
  * @param {Record<string, string | undefined>} [env] - Environment, defaulting to process.env.
  * @returns {string} The realpath of the named root, or os.tmpdir() when neither is set.
  */
-export function scratchRoot(settings, env = process.env) {
-  const named = settings?.scratch ?? (env.PULLBOARD_SCRATCH || undefined);
+export function scratchRoot(settings, env) {
+  const named = settings?.scratch ?? (environmentAdapter(env).get('PULLBOARD_SCRATCH') || undefined);
   if (named === undefined || named === '') return tmpdir();
   if (typeof named !== 'string' || !isAbsolute(named)) {
     throw new Refused('BAD_SCRATCH_ROOT', `scratch must be an absolute folder path, got ${JSON.stringify(named)}; run pullboard settings scratch <absolute folder>, or remove it to use ${tmpdir()}`);
