@@ -14,6 +14,7 @@ export {
   configProblems,
   doctrineFile,
   frozenCheckCeilingMs,
+  nextIdleMinutes,
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
