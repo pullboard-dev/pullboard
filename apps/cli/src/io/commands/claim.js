@@ -84,6 +84,8 @@ export async function run(io, { first }) {
     if (error.code === 'ITEM_FOLDER_UNREGISTERED') io.say(`warning: ${error.code}: ${error.message}; claim recorded`);
     else folderProblem = claimedFolderProblem(error, id);
   }
+  // The claim is recorded and its folder is ready: one seat-ready mark, appended after the claim itself; a failed mark spools and never fails the claim [C7,#12159].
+  if (itemFolder && !result.renewed) await (await import('../mark-spool.js')).recordMark(io, ctx, board, { item: id, agentId: me.id, stage: 'seat-ready', edge: 'point', at: ctx.clock.now().getTime() });
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
   io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}),
     ...(folderProblem ? { folderProblem, next: folderProblem.next } : {}) });

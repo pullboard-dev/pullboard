@@ -1,0 +1,47 @@
+{
+  "cli.claim.seat-ready-mark": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A claim through the production command appends exactly one seat-ready mark after its claim event, and a mark write forced to fail leaves the claim standing with the mark in the spool."
+    },
+    "why": "Without it, the timeline cannot tell a seat still setting up its folder from one that is building, and a busy board could fail a claim over a mark.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/claim.js",
+      "apps/cli/src/io/mark-spool.js",
+      "apps/cli/tests/io/commands/claim.test.js"
+    ]
+  },
+  "cli.claim.seat-ready-latency": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "One seat-ready mark is one append: 50 marks on a fixture board write 50 events and nothing spools, with the p95 of the append stated."
+    },
+    "why": "Without it, the cost the mark adds to a claim is a guess.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/mark-spool.js",
+      "apps/cli/tests/io/commands/claim.test.js"
+    ]
+  },
+  "cli.test.finish-marks": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "pullboard test by the seat holding the claim appends finish start and finish end with the exit code, a seat without the claim appends none, and the timeline shows the stages in order with the finish span as testing."
+    },
+    "why": "Without it, a builder's test run is invisible inside one building stretch.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/test.js",
+      "apps/cli/src/io/mark-spool.js",
+      "packages/stats/src/logic/timeline.js",
+      "apps/cli/tests/io/commands/test.test.js"
+    ]
+  }
+}
