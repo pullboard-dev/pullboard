@@ -54,8 +54,11 @@ function derivedGateAtHead(root, board) {
   return table ? entry => table.gateAtHead.get(String(entry.item_id)) : null;
 }
 
+/** The returned-work rules from the queue and items cells, imported only when next.returnedFirst asks, so show and status never load them through this file [C7,#11255]. */
+const loadReturnedRules = async () => ({ ...(await (await import('../../../../packages/queue/index.js')).loadReturnedFirst()), ...(await (await import('../../../../packages/items/index.js')).loadStopRules()) });
+
 export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered: leasedOrdered(ordered, ctx => ctx.file), claimOrdered, currentReworkRoutingPolicy,
-  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
+  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax, loadReturnedRules });
 
 /**
  * One loop of `next` through the moves cell: claim the next free item, or reserve the next review (V15).
