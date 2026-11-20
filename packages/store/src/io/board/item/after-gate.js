@@ -5,6 +5,7 @@ import { setItem } from "../../board.js";
 import { deleteBoardMeta } from "../meta.js";
 import { readBoardMeta } from "../meta.js";
 import { writeBoardMeta } from "../meta.js";
+import { listBoardMetaWithPrefix } from "../meta.js";
 import { validateItemDependencies } from "./dependencies.js";
 import { submitHandoff } from "../../submit/handoff/records.js";
 import * as itemDependencies from "../../../../../items/index.js";
@@ -72,4 +73,47 @@ export function afterGateBase(board, id) {
     if (gateGreenParent(board, parent)) return { parent, head: itemById(board, parent).item_commit };
   }
   return null;
+}
+
+/** The ids of the items whose after-gate list names this parent; a plain --after dependent has no marker and never appears. */
+export function afterGateDependents(board, parentId) {
+  return listBoardMetaWithPrefix(board.db, 'after_gate:').flatMap(({ key, value }) => {
+    let ids = [];
+    try { ids = JSON.parse(value); } catch { return []; }
+    return Array.isArray(ids) && ids.includes(parentId) ? [Number(key.slice('after_gate:'.length))] : [];
+  }).filter(Number.isInteger);
+}
+
+/**
+ * Send back each dependent built on a rejected after-gate parent [C7,#11807]. A submitted dependent is reopened, a verified one that has not landed has its
+ * acceptance withdrawn and is reopened, and a claimed one is released by its holder; each carries a note naming the parent. A dependent that already
+ * landed gets a notice fact and no reopen. A dependent the board refuses to send back gets a notice fact naming the refusal, so the parent's verdict still records.
+ * Why injected: reopen and release belong to modules the claim path, which loads this file, must not import.
+ *
+ * @param {any} board
+ * @param {number} parentId
+ * @param {{ cause?: string }} [options]
+ * @param {{ reopen: Function, release: Function, appendFact: Function }} [ports]
+ * @returns {{ id: number, action: 'reopened' | 'released' | 'notified' | 'refused' }[]}
+ */
+export function sendBackDependents(board, parentId, { cause } = {}, { reopen, release, appendFact } = {}) {
+  const note = `parent #${parentId} was rejected, so this work built on it goes back`;
+  const sent = [];
+  for (const id of afterGateDependents(board, parentId)) {
+    const item = itemById(board, id);
+    if (!item || ['open', 'withdrawn'].includes(item.item_status)) continue;
+    const tell = text => appendFact(board, id, { agentId: 'coordinator', kind: 'note', text });
+    try {
+      if (item.item_merged_commit) { tell(`${note}, but it already landed as ${item.item_merged_commit}; nothing is reopened`); sent.push({ id, action: 'notified' }); continue; }
+      if (item.item_status === 'submitted') reopen(board, id, { agentId: 'coordinator', note, ...(cause ? { cause } : {}) });
+      else if (item.item_status === 'verified') reopen(board, id, { agentId: 'coordinator', note, withdrawVerdict: true, ...(cause ? { cause } : {}) });
+      else if (item.item_status === 'claimed') release(board, id, item.item_owner, note, 'OTHER');
+      else continue;
+      sent.push({ id, action: item.item_status === 'claimed' ? 'released' : 'reopened' });
+    } catch (error) {
+      if (!error?.code) throw error;
+      tell(`${note}, but the board refused to send it back: ${error.code}`); sent.push({ id, action: 'refused' });
+    }
+  }
+  return sent;
 }
