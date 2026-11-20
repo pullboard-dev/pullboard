@@ -32,7 +32,9 @@ export async function run(io, { first, values }) {
   const thin = listThinRead() && values.field === undefined ? thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock }) : null;
   const { items, agents, merging, foreign = new Map(), needsRescope = [], fieldIndex } = thin ?? await withBoardRead(ctx, async (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
-    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project);
+    // An accept whose only conflict with main is mechanical stays fresh, as it does at landing; the merge index loads only when a row is accepted [C7,#11417].
+    const residualConflicts = rows.some(row => row.item_status === 'verified') ? (await import('../../../../../packages/merge/index.js')).mechanicalConflictFiles : null;
+    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts }).project);
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
     const fieldIndex = values.field === undefined ? undefined : (await import('../../../../../packages/store/index.js')).fieldIndex(board, { enabled: true });
     if (values.json) return { items, fieldIndex, needsRescope: store.allItemsNeedingRescope(board) };
