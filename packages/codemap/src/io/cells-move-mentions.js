@@ -1,8 +1,9 @@
 /** Tell a fixture's module references to a moved source from the reads and copies a move must repoint [C7]. */
 
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { posix } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 const CANONICAL_COPIER = 'src/package-files.js';
 const PLAN_DIRECTORY = new URL('../../data/plan/', import.meta.url);
@@ -19,9 +20,9 @@ let planned;
 export function canonicalCopierPaths() {
   if (!planned) {
     planned = new Set([CANONICAL_COPIER]);
-    for (const name of readdirSync(PLAN_DIRECTORY).filter(file => /\.json$/u.test(file))) {
+    for (const name of fs.list(PLAN_DIRECTORY).filter(file => /\.json$/u.test(file))) {
       let cell;
-      try { cell = JSON.parse(readFileSync(new URL(name, PLAN_DIRECTORY), 'utf8')); } catch { continue; }
+      try { cell = JSON.parse(fs.readFile(new URL(name, PLAN_DIRECTORY), 'utf8')); } catch { continue; }
       for (const row of Array.isArray(cell?.paths) ? cell.paths : []) {
         if (row[0] !== CANONICAL_COPIER || typeof row[1] !== 'string') continue;
         planned.add(row[1]);
@@ -39,7 +40,7 @@ export function canonicalCopierPaths() {
 function frontDoorForwardsCopier(frontDoor, body) {
   if (typeof frontDoor !== 'string' || !/^packages\/[a-z-]+\/index\.js$/u.test(frontDoor)) return false;
   let source;
-  try { source = readFileSync(new URL(frontDoor, REPOSITORY_ROOT), 'utf8'); } catch { return false; }
+  try { source = fs.readFile(new URL(frontDoor, REPOSITORY_ROOT), 'utf8'); } catch { return false; }
   const specifier = `./${posix.relative(posix.dirname(frontDoor), body)}`;
   return source.split('\n').some(line => {
     const match = /^export\s*\{([^}]*)\}\s*from\s*(["'])([^"']+)\2\s*;?\s*$/u.exec(line.trim());

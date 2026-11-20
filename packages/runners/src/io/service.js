@@ -22,12 +22,13 @@ import { homedir } from 'node:os';
 import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { posix } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
-import { runRunnerScript } from './pull/ssh.js';
+import { createSshAdapter } from './adapter/ssh.js';
 import { trunkGit } from './tooling/committed.js';
 import { pullWord } from './pull/scripts.js';
 import { localNetworkHost } from '../logic/service.js';
@@ -416,7 +417,7 @@ function recordService(host, service, file = serviceRecordFile()) {
  * @returns {Promise<object>} What the runner reported: the form, plist, folder and log, whether launchd loaded it, and
  *   the sudo line a person runs when it could not.
  */
-export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = process.env } = {}) {
+export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = environmentAdapter().all() } = {}) {
   const plan = { label: SERVICE_LABEL, root: runner.root ?? '', remove, host: runner.host };
   if (!remove) {
     const target = serviceBoard(board);
@@ -425,7 +426,7 @@ export async function installRunnerService(runner, { board, key, remove = false,
     Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles() });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
-  const run = await runRunnerScript(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
+  const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
   const line = run.stdout.toString('utf8').trim().split('\n').at(-1) ?? '';
   let reply = null;
   try { reply = JSON.parse(line); } catch { reply = null; }
