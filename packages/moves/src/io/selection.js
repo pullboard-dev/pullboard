@@ -516,8 +516,10 @@ function nextPick(ctx, board, values, ports) {
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
   const reworks = own.item ? [] : builderRework(board, items, agents, me);
+  const otherLanes = laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane);
+  // An item its own lane gave back for re-scope is left out of every move target, as it would be once the seat is there: a move to it ends with nothing to claim [C7,#12090].
   const elsewhere = own.item || laneOff || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
-    omitIds: [...selection.omitIds, ...reworks.map(entry => entry.item_id)], lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+    omitIds: [...selection.omitIds, ...reworks.map(entry => entry.item_id), ...otherLanes.flatMap(lane => store.itemsNeedingRescope(board, lane, me.route).map(row => row.id))], lanes: otherLanes });
   const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
@@ -555,7 +557,7 @@ function nextPick(ctx, board, values, ports) {
   // laneMode off: a light seat is offered an open light item from any lane, so it neither moves nor only names it [C7,#8940].
   const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
   if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) || !movable(ctx.config, items, me)
-    ? otherLaneWork(me, item, reasons, laneHolder(items, me)) : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
+    ? otherLaneWork(me, item, reasons, laneHolder(items, me)) : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: [...(reasons ?? []), `moved from ${me.lane} to ${item.item_lane}: ${me.lane} had nothing you can take`] };
   // next.lightShapedStrong: the selection already found no free light item, so a light-shaped strong item is this light seat's to take [C7,#9568].
   const shapedStrong = selection.lightShapedStrong === true && me.route === 'light' && item.item_route === 'strong' && lightShaped(item);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !shapedStrong && !store.canTake(me.route, item.item_route))

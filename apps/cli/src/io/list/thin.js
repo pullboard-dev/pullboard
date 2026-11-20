@@ -10,6 +10,7 @@ import { mainMergeFor } from '../read.js';
 import { verdictProjector } from '../read.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/light.js';
+import { derivedStateEnabled } from '../../../../../packages/config/light.js';
 
 /**
  * The rows `pullboard list` would print from `cwd`, or null when the full path must run it: no readable board, a
@@ -19,6 +20,8 @@ import { hunkFreshnessEnabled } from '../../../../../packages/config/light.js';
  * @returns {{ items: any[], needsRescope: any[], agents: any[], merging: Set<number> } | null}
  */
 export function thinListRows({ cwd, lane, all, clock = store.systemClock }) {
+  // With health.derivedState on the full path reads the derived-state table for verdict freshness, so the thin door steps aside [C7,#11373].
+  if (derivedStateEnabled()) return null;
   const info = repoInfo(cwd);
   const board = store.openBoardForRead(`${info.commonDir}/pullboard/board.sqlite`, clock);
   if (!board) return null;

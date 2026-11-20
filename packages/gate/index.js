@@ -1,6 +1,7 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
 export * from "./light.js";
 export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
+export { LISTING as TEST_CELL_LISTING } from "./src/io/test/cells.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
 export { createInstallCache } from "./src/io/scripts/pack-cache.js";
 export { createPackCache } from "./src/io/scripts/pack-cache.js";
@@ -53,7 +54,7 @@ export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds,
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";
 export { importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
-export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/logic/budgets.js";
+export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS, CLOSURE_CEILINGS } from "./src/logic/budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, releaseTiming, RELEASE_BUDGET_SECONDS, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
