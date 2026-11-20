@@ -11,6 +11,7 @@ import { idArg } from './context.js';
 import { withBoard } from './context.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
+import { leasedOrdered } from './next/review-lease.js';
 import { openItemFolder } from './item/folder.js';
 import { liveFolderRefusal } from './item/folder.js';
 import { claimOrdered } from './claim.js';
@@ -53,7 +54,7 @@ function derivedGateAtHead(root, board) {
   return table ? entry => table.gateAtHead.get(String(entry.item_id)) : null;
 }
 
-export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
+export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered: leasedOrdered(ordered, ctx => ctx.file), claimOrdered, currentReworkRoutingPolicy,
   MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
 
 /**
