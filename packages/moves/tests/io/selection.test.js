@@ -132,6 +132,51 @@ test('moves.selection.derived-gate-port-absent: clause 2: with no port, or a por
   assert.equal(pick({ ...box.ports, derivedGateAtHead: () => null }), first, 'a port returning null');
 });
 
+/** Run one default-loop pick and return the options the review offer was given, so a port's answer is seen where it reaches nextFor. */
+function offerOptions(t, box, ports) {
+  const seen = [];
+  const original = nextSelection.defaultOffer;
+  nextSelection.defaultOffer = (board, options) => { seen.push(options); return original(board, options); };
+  t.after(() => { nextSelection.defaultOffer = original; });
+  const picked = nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, ports);
+  return { seen, picked };
+}
+
+test('moves.selection.derived-seat-family-port: clause 1: with ports.derivedSeatFamily returning a map or a reader, pick passes it to nextFor as derivedSeatFamily and the answer is the port\'s [C7,#11384]', t => {
+  const box = fixture(t);
+  box.add('Work for the default loop');
+  const reader = id => (id === 'seat-x' ? 'openai' : undefined);
+  const fromReader = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => reader });
+  assert.equal(fromReader.seen.length, 1, 'the review offer ran once');
+  assert.equal(fromReader.seen[0].derivedSeatFamily, reader, 'a reader is passed as it is');
+  const families = new Map([['seat-x', 'anthropic']]);
+  const fromMap = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => families });
+  assert.equal(fromMap.seen[0].derivedSeatFamily('seat-x'), 'anthropic', 'a map answers through its entries');
+  assert.equal(fromMap.seen[0].derivedSeatFamily('seat-y'), undefined, 'an id the map does not name is unanswered');
+});
+
+test('moves.selection.derived-seat-family-port-absent: clause 2: with no port, or a port returning null, pick passes no derivedSeatFamily and returns the same item as before [C7,#11384]', t => {
+  const box = fixture(t);
+  const first = box.add('First work');
+  box.add('Second work');
+  for (const ports of [box.ports, { ...box.ports, derivedSeatFamily: () => null }]) {
+    const { seen, picked } = offerOptions(t, box, ports);
+    assert.equal('derivedSeatFamily' in seen[0], false, 'no derivedSeatFamily key reaches nextFor');
+    assert.equal(picked.item?.item_id, first);
+  }
+});
+
+test('moves.selection.derived-seat-family-beside-gate: clause 3: pick reads ports.derivedSeatFamily beside ports.derivedGateAtHead, each answering on its own [C7,#11384]', t => {
+  const box = fixture(t);
+  const gated = box.add('Gated by the derived table');
+  const free = box.add('Free work');
+  const reader = () => undefined;
+  const derivedGateAtHead = () => entry => (entry.item_id === gated ? `gate green at ${'a'.repeat(12)}` : undefined);
+  const { seen, picked } = offerOptions(t, box, { ...box.ports, derivedGateAtHead, derivedSeatFamily: () => reader });
+  assert.equal(seen[0].derivedSeatFamily, reader, 'the seat-family answer reaches nextFor');
+  assert.equal(picked.item?.item_id, free, 'the gate answer still skips the gated item');
+});
+
 /** The box's claim port, made to refuse `id` as claim refuses a bar naming paths no lane owns; every other claim goes through. */
 function refuseOwnership(box, id) {
   const through = box.ports.claimOrdered;
