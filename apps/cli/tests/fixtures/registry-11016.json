@@ -1,0 +1,5 @@
+{
+  "cli.logic-init-affected-default.single-node-language": {"proves":{"specs":["C7"],"claim":"affectedDefault returns node --test with selectionUnit file for exactly one detected node language."},"why":"Without it a fresh node repo gets no affectedTests and pullboard test <file> refuses NO_TEST_RUNNER.","kind":"cell unit","inputs":["apps/cli/src/logic/init/affected-default.js"]},
+  "cli.logic-init-affected-default.no-default-otherwise": {"proves":{"specs":["C7"],"claim":"affectedDefault returns null for two languages, a language with no affected row and an empty list."},"why":"Without it init would record a wrong per-file runner for a mixed or unsupported repo.","kind":"cell unit","inputs":["apps/cli/src/logic/init/affected-default.js"]},
+  "cli.logic-init-affected-default.keeps-a-set-value": {"proves":{"specs":["C7"],"claim":"the default fills an absent affectedTests and never overwrites a set value."},"why":"Without it init could replace a runner the person already chose.","kind":"cell unit","inputs":["apps/cli/src/logic/init/affected-default.js"]}
+}

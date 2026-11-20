@@ -1,15 +1,14 @@
 /** Check outside contributors' author-matching DCO trailers against committed policy [C1,C7]. */
 import { spawnSync } from 'node:child_process';
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { resolve } from 'node:path';
 import {
   cleanGitEnvironment,
+  git,
   refuseGrafts,
 } from "../../../git/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Read exact Git objects without inherited repository selectors or replacement objects. */
 function gitResult(root, args) {
@@ -82,8 +81,8 @@ export function pendingCommitSignoffProblem(root, message) {
   const maintainers = maintainersAt(root, commit);
   if (maintainers === null) return null; // Other repositories have no contribution policy enabled.
   const mergePath = resolve(root, gitText(root, ['rev-parse', '--git-path', 'MERGE_HEAD']).trim());
-  if (existsSync(mergePath)) {
-    const heads = readFileSync(mergePath, 'utf8').trim().split(/\s+/u);
+  if (fs.exists(mergePath)) {
+    const heads = fs.readFile(mergePath, 'utf8').trim().split(/\s+/u);
     if (!heads.length || heads.some(head => !/^[0-9a-f]{40,64}$/u.test(head))) {
       throw new Refused('BAD_CONFIG', 'Restore the merge parents before checking contributor sign-offs.');
     }
@@ -104,4 +103,34 @@ export function contributionSignoffProblem(root, { base, head }) {
   const maintainers = base === null ? null : maintainersAt(root, base);
   if (maintainers === null) return { checked: 0, problem: null, policyInactive: true };
   return rangeProblem(root, [head], base, maintainers);
+}
+
+/** A home-folder path as a git default merge subject carries it (/Users/<name>/ and /home/<name>/); only the test is kept, never the path. */
+const HOME_PATH = /(?:^|[\s"'(=:])\/(?:Users|home)\/[^\s/]+\//;
+
+/**
+ * Check every commit message in a range, merge commits included: an absolute home-folder path is refused whatever
+ * the setting (a git default merge subject names the author's folder), and a Co-Authored-By trailer is refused
+ * when `noCoAuthor` is on. The refusal names the commit and the kind of problem, never the path found (C1).
+ *
+ * @param {string} root - The worktree the commits are in.
+ * @param {string} range - The commits to read, as `<base>..<head>`.
+ * @param {{ noCoAuthor?: boolean }} [options]
+ * @returns {void}
+ */
+export function rangeMessageProblems(root, range, { noCoAuthor = false } = {}) {
+  // One message per SHA, as the machine-name check in hooks.js reads them, so no message can change where another starts.
+  const shas = git(root, ['rev-list', range]).split('\n').filter(Boolean);
+  for (const sha of shas) {
+    const message = git(root, ['log', '-1', '--format=%B', sha]);
+    const short = sha.slice(0, 12);
+    if (HOME_PATH.test(message)) {
+      throw new Refused('HOME_PATH', `commit ${short} names a home-folder path in its message; a branch may not publish one`,
+        `reword that commit's message without the path (a merge subject can drop its "of <path>" part), then try again`);
+    }
+    if (noCoAuthor && /^\s*co-authored-by\s*:/im.test(message)) {
+      throw new Refused('CO_AUTHOR', `commit ${short} carries a Co-Authored-By trailer; commits.noCoAuthor is on`,
+        `reword that commit's message without the trailer, then try again`);
+    }
+  }
 }

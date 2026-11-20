@@ -1,0 +1,3 @@
+{
+  "cli.logic-upgrade-command.command-per-install-kind": {"proves":{"specs":["C7"],"claim":"upgradeCommand gives the npm install -g, npx or npm install --save-dev command for global, npx and project, and an unknown kind a refusal naming the one manual command."},"why":"Without it, pullboard update could run the wrong upgrade for how Pullboard was installed.","kind":"cell unit","inputs":["apps/cli/src/logic/upgrade-command.js","apps/cli/tests/logic/upgrade-command.test.js"]}
+}

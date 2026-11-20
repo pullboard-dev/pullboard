@@ -8,6 +8,18 @@ export function submittedPolicyCommit(events) {
 }
 
 /**
+ * The main commit a sealed-move fallback judges from, or null when an exact reuse, re-review, companion digest or
+ * effective head already decides the verdict; it never looks at the frozen check, so an item with none still gets it [C7].
+ *
+ * @param {object[]} events - The item's board events.
+ * @param {{ reused?: { ids?: string[] } | null, reReview?: unknown, companionDigest?: unknown, effectiveHead?: unknown }} [input]
+ * @returns {string | null} The submitted policy commit, or null.
+ */
+export function sealedFallbackMain(events, { reused, reReview, companionDigest, effectiveHead } = {}) {
+  return reused?.ids || reReview || companionDigest || effectiveHead ? null : submittedPolicyCommit(events);
+}
+
+/**
  * Accept only both origin-sealed submit phases from the exact admission and source [C7,H16]. The key is the candidate
  * tree, the composed main and, when the caller names one, the tooling tree (RFC 0007 SC7): a submit that recorded other
  * tooling, or none, is never reused. With `allowDeferred` a deferred full suite does not refuse a sealed receipt (#2939).

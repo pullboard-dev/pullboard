@@ -1,9 +1,11 @@
 /** Stage the shared test registries a landing derives from what the item merge moved, so no lane hand-edits them [C7,V24]. */
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { git } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const SCRIPT = 'packages/gate/src/io/test/scripts/registries.js';
 
@@ -17,7 +19,7 @@ const SCRIPT = 'packages/gate/src/io/test/scripts/registries.js';
  * @returns {Promise<string[]>} The staged registry files.
  */
 export async function stageTestRegistries(root, base = 'HEAD^1', script = join(root, SCRIPT)) {
-  if (!existsSync(script)) return [];
+  if (!fs.exists(script)) return [];
   const { stdout } = await promisify(execFile)(process.execPath, [script, '--base', base], { cwd: root, maxBuffer: 16 * 1024 * 1024 });
   const registries = JSON.parse(stdout.trim().split('\n').at(-1));
   if (registries.length) git(root, ['add', '--', ...registries]);

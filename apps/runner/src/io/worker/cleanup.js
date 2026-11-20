@@ -1,10 +1,16 @@
 /** Report and bound the runner worker's post-run cleanup so a stuck drain fails by name [C7]. */
-import { mkdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { join } from 'node:path';
 import { processCensus } from '../custody.js';
 import { cleanupTimeoutDetails } from '../../../../../packages/runners/light.js';
+
+const fs = fileSystemAdapter();
+
+/** Write a file created owner-only, as the adapter's plain writeFile takes no mode [C7]. */
+function writePrivate(path, text) {
+  const descriptor = fs.open(path, 'w', 0o600);
+  try { fs.write(descriptor, text); } finally { fs.close(descriptor); }
+}
 
 const CLEANUP_BUDGET_MS = 30_000;
 
@@ -46,8 +52,8 @@ export function reportCleanupTimeout(S) {
   // Retain every waited-on process, naming executables without their arguments or environment.
   if (S.cleanupDirectory) {
     try {
-      mkdirSync(S.cleanupDirectory, { recursive: true, mode: 0o700 });
-      writeFileSync(join(S.cleanupDirectory, 'cleanup-timeout.json'), JSON.stringify(details) + '\n', { mode: 0o600 });
+      fs.mkdir(S.cleanupDirectory, { recursive: true, mode: 0o700 });
+      writePrivate(join(S.cleanupDirectory, 'cleanup-timeout.json'), JSON.stringify(details) + '\n');
     } catch { /* The named red result remains authoritative if diagnostic storage fails. */ }
   }
   // The result already went out: the unverified leftovers stay on the runner for the sweep, never in the gate's verdict (#2538).
@@ -70,9 +76,9 @@ export async function releaseDrainedLease(S, lease) {
           try {
             const pending = join(S.cleanupDirectory, 'release-pending.json');
             const temporary = pending + '.tmp';
-            writeFileSync(temporary,
-              JSON.stringify({ id: S.workerId, stage: 'lease release', pending: true, observedAt: new Date().toISOString() }) + '\n', { mode: 0o600 });
-            renameSync(temporary, pending);
+            writePrivate(temporary,
+              JSON.stringify({ id: S.workerId, stage: 'lease release', pending: true, observedAt: new Date().toISOString() }) + '\n');
+            fs.rename(temporary, pending);
           }
           catch { /* The live retry and named cleanup timeout remain authoritative if diagnostic storage fails. */ }
         }

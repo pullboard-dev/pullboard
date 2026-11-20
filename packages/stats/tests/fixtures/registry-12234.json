@@ -1,0 +1,4 @@
+{
+  "stats.timeline.mark-rows": {"proves":{"specs":["C7"],"claim":"timelineOf turns a mark event with edge start and a later one with edge end into smoke start and end rows at their detail.at times, with the span counted as landing."},"why":"A smoke started and ended by a mark event had no row, so its time read as unaccounted.","kind":"cell unit","inputs":["packages/stats/tests/logic/timeline.test.js","packages/stats/src/logic/timeline.js"]},
+  "stats.timeline.mark-unknown-stage": {"proves":{"specs":["C7"],"claim":"a mark event whose stage is not in TIMELINE_STAGES adds no row and does not throw."},"why":"A new or misspelled stage in a mark must not break the timeline.","kind":"cell unit","inputs":["packages/stats/tests/logic/timeline.test.js","packages/stats/src/logic/timeline.js"]}
+}

@@ -4,7 +4,7 @@
     {
       "order": 43,
       "actor": "observing agent",
-      "detail": "`active`, optional `pendingCpu`, `engine`"
+      "detail": "`active`, optional `pendingCpu`, `digest`, `engine`"
     }
   ]
 }

@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import { cachedMainFact } from '../../../../../packages/codemap/index.js';
 import { mainFactDigest } from '../../../../../packages/codemap/index.js';
 import { mainCriterionFacts } from '../../../../../packages/doctrine/index.js';
-import { foreignNodeOptions } from '../../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../../packages/gate/heavy.js';
 import { parseSpec } from '../../../../../packages/spec/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import * as store from '../../../../../packages/store/index.js';

@@ -1,13 +1,6 @@
 /** Production relay entry point for the Railway container [H5,H18]. */
 import { createServer } from 'node:http';
 import {
-  chmodSync,
-  chownSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -17,32 +10,36 @@ import { createRelayAuth } from '../../../index.js';
 import { createGitHubClient } from '../../../index.js';
 import { createRelayHandler } from '../../../index.js';
 import { health } from './health.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 const NODE_UID = 1000;
 const NODE_GID = 1000;
 
 /** Create private relay directories and hand their contents to the unprivileged service user. */
 function prepareStorage(directory) {
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const root = lstatSync(directory);
+  fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
+  const root = fileSystem.lstat(directory);
   if (!root.isDirectory() || root.isSymbolicLink()) {
     throw new Refused('RELAY_STORAGE', 'mount a private regular volume directory at PULLBOARD_RELAY_DATA and restart the service');
   }
-  chmodSync(directory, 0o700);
-  for (const name of readdirSync(directory)) {
+  fileSystem.chmod(directory, 0o700);
+  for (const name of fileSystem.list(directory)) {
     const path = join(directory, name);
-    const entry = lstatSync(path);
+    const entry = fileSystem.lstat(path);
     if (entry.isSymbolicLink()) {
       throw new Refused('RELAY_STORAGE', 'remove symlinks from the private relay volume and restart the service');
     }
     if (entry.isDirectory()) prepareStorage(path);
     else if (entry.isFile()) {
-      chmodSync(path, 0o600);
-      if (process.getuid?.() === 0) chownSync(path, NODE_UID, NODE_GID);
+      fileSystem.chmod(path, 0o600);
+      if (process.getuid?.() === 0) fileSystem.chown(path, NODE_UID, NODE_GID);
     } else throw new Refused('RELAY_STORAGE', 'keep only regular files and directories in the private relay volume');
   }
-  if (process.getuid?.() === 0) chownSync(directory, NODE_UID, NODE_GID);
+  if (process.getuid?.() === 0) fileSystem.chown(directory, NODE_UID, NODE_GID);
 }
 
 /** Drop the startup privilege after preparing Railway's root-mounted volume. */
@@ -58,19 +55,19 @@ function dropPrivileges() {
 }
 
 /** Start the authenticated opaque relay on Railway's assigned port and public origin. */
-async function startRelay() {
-  const publicOrigin = process.env.PULLBOARD_PUBLIC_ORIGIN || '';
-  const data = resolve(process.env.PULLBOARD_RELAY_DATA || '/data');
-  const port = Number(process.env.PORT || 3000);
+async function startRelay(environment = environmentAdapter()) {
+  const publicOrigin = environment.get('PULLBOARD_PUBLIC_ORIGIN') || '';
+  const data = resolve(environment.get('PULLBOARD_RELAY_DATA') || '/data');
+  const port = Number(environment.get('PORT') || 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Refused('RELAY_PORT', 'set PORT to an available TCP port from 1 to 65535 and restart the service');
   }
-  const quotaSetting = process.env.PULLBOARD_ACCOUNT_STORAGE_BYTES;
+  const quotaSetting = environment.get('PULLBOARD_ACCOUNT_STORAGE_BYTES');
   const accountStorageBytes = quotaSetting === undefined ? undefined : Number(quotaSetting);
   if (quotaSetting !== undefined && (!/^[1-9][0-9]*$/u.test(quotaSetting) || !Number.isSafeInteger(accountStorageBytes))) {
     throw new Refused('RELAY_CONFIG', 'Set PULLBOARD_ACCOUNT_STORAGE_BYTES to a positive whole-byte account quota, then restart the relay.');
   }
-  const privateKey = (process.env.GITHUB_APP_PRIVATE_KEY || '').replaceAll('\\n', '\n');
+  const privateKey = (environment.get('GITHUB_APP_PRIVATE_KEY') || '').replaceAll('\\n', '\n');
   try { prepareStorage(data); }
   catch (error) {
     if (error instanceof Refused) throw error;
@@ -83,8 +80,8 @@ async function startRelay() {
   const auth = createRelayAuth({
     database: join(data, AUTH_DATABASE_FILE),
     github: createGitHubClient({
-      clientId: process.env.GITHUB_APP_CLIENT_ID || '',
-      clientSecret: process.env.GITHUB_APP_CLIENT_SECRET || '',
+      clientId: environment.get('GITHUB_APP_CLIENT_ID') || '',
+      clientSecret: environment.get('GITHUB_APP_CLIENT_SECRET') || '',
       privateKey,
       callbackURL: callbackURL(publicOrigin),
     }),

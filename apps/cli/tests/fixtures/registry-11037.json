@@ -1,0 +1,3 @@
+{
+  "cli.journeys-relay-link-file.replayed-position-refused": {"proves":{"specs":["E32","H16"],"claim":"A replayed delivery position between two real signed boards is refused over the file transport as receiveBoardState refuses it on the relay."},"why":"Without it, a regression where a file transport let an older source position overwrite newer state between signed boards would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/relay/link-file.test.js"]}
+}

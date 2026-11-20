@@ -1,9 +1,5 @@
 /** Derive private source copies from the package's explicit shipped-file boundary [C7,P3]. */
-import { copyFileSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
@@ -74,19 +70,19 @@ export function packageFiles(root) {
 /** Walk one package's declared files from disk. */
 function listPackageFiles(source) {
   const manifestFile = join(source, 'package.json');
-  if (!lstatSync(manifestFile).isFile() || lstatSync(manifestFile).isSymbolicLink()) throw new Error('package.json must be a regular file');
-  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  if (!fileSystemAdapter().lstat(manifestFile).isFile() || fileSystemAdapter().lstat(manifestFile).isSymbolicLink()) throw new Error('package.json must be a regular file');
+  const manifest = JSON.parse(fileSystemAdapter().readFile(manifestFile, 'utf8'));
   if (!Array.isArray(manifest.files) || !manifest.files.length) throw new Error('package files must be an explicit nonempty list');
   const patterns = manifest.files.map(packagePattern);
   if (!patterns.some(({ exclude }) => !exclude)) throw new Error('package files needs at least one inclusion entry before any ! exclusion');
   const files = ['package.json'];
   /** Enumerate declared bytes only, never following a symlink or copying repository/account state. */
   function visit(directory, prefix = '') {
-    for (const name of readdirSync(directory).sort()) {
+    for (const name of fileSystemAdapter().list(directory).sort()) {
       if (name === '.git' || name === 'node_modules') continue;
       const path = prefix ? `${prefix}/${name}` : name;
       if (path === 'package.json') continue;
-      const stat = lstatSync(join(directory, name));
+      const stat = fileSystemAdapter().lstat(join(directory, name));
       if (stat.isDirectory()) {
         // Only an inclusion can add a file, so only inclusions widen the walk: a root-wide ! entry once sent it through
         // every untracked folder, such as hundreds of agent worktrees under .claude, and a removed one crashed it [5642].
@@ -159,7 +155,7 @@ function shimBodies(read, path) {
  */
 export function toolSourcePath(root, path) {
   const base = resolve(root);
-  const read = file => readFileSync(join(base, file), 'utf8');
+  const read = file => fileSystemAdapter().readFile(join(base, file), 'utf8');
   let current = copyPath(path);
   for (let hop = 0; hop < 16; hop++) {
     const text = /\.[cm]?js$/u.test(current) ? read(current) : '';
@@ -198,7 +194,7 @@ function copySelection(available, files, pathMap) {
 /** An explicit subset also carries the bodies behind any shim it names, so a moved source is never copied as a bare re-export. */
 function withShimBodies(source, available, selection) {
   const shipped = new Set(available), have = new Set(selection.map(file => file.destination)), added = [];
-  const read = file => readFileSync(join(source, file), 'utf8');
+  const read = file => fileSystemAdapter().readFile(join(source, file), 'utf8');
   for (const file of selection) {
     if (!file.follow) continue;
     for (const body of shimBodies(read, file.source)) {
@@ -231,8 +227,8 @@ export function copyPackageFiles(root, destination, { files, pathMap = new Map()
   const selection = files === undefined ? requested : withShimBodies(source, available, requested);
   for (const file of selection) {
     const output = join(target, file.destination);
-    mkdirSync(dirname(output), { recursive: true });
-    copyFileSync(join(source, file.source), output);
+    fileSystemAdapter().mkdir(dirname(output), { recursive: true });
+    fileSystemAdapter().copyFile(join(source, file.source), output);
   }
   return selection.map(file => file.destination);
 }

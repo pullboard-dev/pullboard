@@ -16,20 +16,18 @@ import { snapshotWarmCheckout } from '../../../../../packages/runners/light.js';
 import { recycleWarmCheckout } from '../../../../../packages/runners/light.js';
 import { discardWarmCheckout } from '../../../../../packages/runners/light.js';
 import { checkSourceTagNames } from '../../../../../packages/runners/light.js';
-import { chmodSync } from 'node:fs';
-import { createReadStream } from 'node:fs';
-import { createWriteStream } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+
+const fs = fileSystemAdapter();
+
+/** Write a file created owner-only, as the adapter's plain writeFile takes no mode [C7]. */
+function writePrivate(path, text) {
+  const descriptor = fs.open(path, 'w', 0o600);
+  try { fs.write(descriptor, text); } finally { fs.close(descriptor); }
+}
 
 /**
  * Start independent Git reads together and hand back their results to be taken in the original order,
@@ -51,7 +49,7 @@ const MAX_CACHE_PACKS = 8;
  */
 async function maintainSourceCache(S, cache, env) {
   try {
-    const packs = readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.pack')).length;
+    const packs = fs.list(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.pack')).length;
     if (packs <= MAX_CACHE_PACKS) return;
     await git(S, cache, ['repack', '-a', '-d', '-q'], env);
     await git(S, cache, ['commit-graph', 'write', '--reachable', '--split'], env);
@@ -89,7 +87,7 @@ export const fetchTrunk = (run, store, trunk, refs) => run(store, ['-c', 'protoc
 
 /** Receive the negotiated history pack after the worker announces the cache's candidate tips. */
 async function receivePack(S, packFile) {
-  if (!await receiveQueuedPack(S, packFile)) await pipeline(process.stdin, createWriteStream(packFile, { mode: 0o600, flags: 'wx' }));
+  if (!await receiveQueuedPack(S, packFile)) await pipeline(process.stdin, fs.createWriteStream(packFile, { mode: 0o600, flags: 'wx' }));
 }
 
 /** Receive only missing ancestry, validate the full graph, then copy the exact commit into a clean job repository. */
@@ -105,8 +103,8 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     boundary = now;
   };
   const repositories = join(runnerRoot, 'repos');
-  mkdirSync(repositories, { recursive: true, mode: 0o700 });
-  chmodSync(repositories, 0o700);
+  fs.mkdir(repositories, { recursive: true, mode: 0o700 });
+  fs.chmod(repositories, 0o700);
   const cache = join(repositories, `${spec.repoId}.git`);
   const cacheLease = await acquireResourceApi(api, {
     name: `repo-${spec.repoId}`, capacity: 1, scope: 'machine', root: runnerRoot,
@@ -141,8 +139,8 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     finally { admission?.release(); }
   };
   try {
-    if (!existsSync(cache)) {
-      const build = mkdtempSync(join(repositories, `.repo-${spec.repoId}-`));
+    if (!fs.exists(cache)) {
+      const build = fs.mkdtemp(join(repositories, `.repo-${spec.repoId}-`));
       const staged = join(build, 'cache.git');
       try {
         const initialize = async () => {
@@ -155,20 +153,20 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
             await git(S, staged, ['-c', 'protocol.version=2', 'fetch', '--no-tags', '--no-recurse-submodules', spec.origin, spec.originBase], env);
             seeded = await git(S, staged, ['cat-file', '-t', spec.originBase], env) === 'commit'
               && Number(await git(S, staged, ['rev-list', '--count', spec.originBase], env)) > 0
-              && !existsSync(join(staged, 'shallow'));
+              && !fs.exists(join(staged, 'shallow'));
             if (seeded) await git(S, staged, ['update-ref', `refs/pullboard/published/${spec.originBase}`, spec.originBase], env);
           } catch { seeded = false; }
           if (!seeded) {
-            rmSync(staged, { recursive: true, force: true });
+            fs.rm(staged, { recursive: true, force: true });
             await initialize();
           }
         }
-        renameSync(staged, cache);
-      } finally { rmSync(build, { recursive: true, force: true }); }
+        fs.rename(staged, cache);
+      } finally { fs.rm(build, { recursive: true, force: true }); }
     }
     const cacheShape = await git(S, cache, ['rev-parse', '--is-bare-repository', '--show-object-format'], env);
     if (cacheShape !== `true\n${spec.commit.length === 64 ? 'sha256' : 'sha1'}`
-      || existsSync(join(cache, 'shallow')) || existsSync(join(cache, 'objects', 'info', 'alternates'))) {
+      || fs.exists(join(cache, 'shallow')) || fs.exists(join(cache, 'objects', 'info', 'alternates'))) {
       throw new Error('source history cache has an incompatible format');
     }
     await maintainSourceCache(S, cache, env);
@@ -205,12 +203,12 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       `PULLBOARD_RUNNER_NEED ${spec.id} ${Buffer.from(JSON.stringify({ tips: uniqueTips, tagObjects: knownTagObjects })).toString('base64')}\n`,
       error => error ? rejectWrite(error) : resolveWrite()));
     await receivePack(S, packFile);
-    measured.packBytes = statSync(packFile).size;
+    measured.packBytes = fs.stat(packFile).size;
     mark('transferMs');
 
-    const priorIndexes = new Set(readdirSync(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.idx')));
-    if (statSync(packFile).size < 12 + spec.commit.length / 2) throw new Error('source history pack is incomplete');
-    await git(S, cache, ['index-pack', '--stdin'], env, createReadStream(packFile));
+    const priorIndexes = new Set(fs.list(join(cache, 'objects', 'pack')).filter(name => name.endsWith('.idx')));
+    if (fs.stat(packFile).size < 12 + spec.commit.length / 2) throw new Error('source history pack is incomplete');
+    await git(S, cache, ['index-pack', '--stdin'], env, fs.createReadStream(packFile));
     /** Objects reachable from the roots, optionally excluding what the cache's earlier tips already reach. */
     const reachable = async (exclude = []) => {
       const objects = new Set((await git(S, cache, ['rev-list', '--objects', '--stdin'], env,
@@ -220,7 +218,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       return objects;
     };
     const packDirectory = join(cache, 'objects', 'pack');
-    const newIndexes = readdirSync(packDirectory).filter(name => name.endsWith('.idx') && !priorIndexes.has(name));
+    const newIndexes = fs.list(packDirectory).filter(name => name.endsWith('.idx') && !priorIndexes.has(name));
     const lightweight = [...new Set(spec.tags.filter(tag => !tag.chain.length).map(tag => tag.object))];
     // Every read below only inspects the cache, so all start at once; each result is still checked in order.
     const [rootsRead, historyRead, recentRead, packsRead, bodiesRead, lightweightRead] = await concurrently([
@@ -316,7 +314,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
           `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
         await git(S, root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
       }
-      writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)), { mode: 0o600 });
+      writePrivate(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)));
     }
     if (spec.trustedMode) {
       const mode = spec.trustedMode;
@@ -327,7 +325,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
         `refs/pullboard/candidates/${mode.policyCommit}:refs/pullboard/trusted-policy`,
         `refs/pullboard/candidates/${mode.trunk.commit}:${mode.trunk.ref}`], env);
       await git(S, root, ['config', '--local', '--replace-all', 'pullboard.trunk', mode.trunk.ref], env);
-      writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ ...spec, trunk: mode.trunk })), { mode: 0o600 });
+      writePrivate(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ ...spec, trunk: mode.trunk })));
     }
     if (spec.tags.length) {
       const updates = spec.tags.map((tag, index) => {
@@ -358,7 +356,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       }
     }
     if (await git(S, root, ['rev-parse', '--is-shallow-repository', 'HEAD', 'HEAD^{tree}'], env) !== `false\n${spec.commit}\n${spec.tree}`
-      || existsSync(join(root, '.git', 'objects', 'info', 'alternates'))) {
+      || fs.exists(join(root, '.git', 'objects', 'info', 'alternates'))) {
       throw new Error('isolated source checkout does not contain the complete requested history');
     }
   } finally {
@@ -371,37 +369,44 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     S.sourcePreparation = null;
     try { cacheLease.release(); } catch { /* Retaining the lease on cleanup error is safer than speculative deletion. */ }
   }
-  rmSync(packFile, { force: true });
+  fs.rm(packFile, { force: true });
   return measured;
 }
 
-/** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers. */
+/** The sha256 of a tree's package-lock.json bytes, or 'none' when it has none: what the receipt stamps as the dependencies a run installed [C7,#1112]. */
+export function lockfileHash(root) {
+  const lockFile = join(root, 'package-lock.json');
+  return fs.exists(lockFile) ? createHash('sha256').update(fs.readFile(lockFile, null)).digest('hex') : 'none';
+}
+
+/** Install committed npm dependencies through an isolated content-addressed cache, refusing unknown lock managers; returns the sha256 of the lockfile bytes installed from, or 'none' when the tree has no package-lock.json [C7,#1112]. */
 export async function installDependencies(S, root, runnerRoot, env, tracker, api) {
   const packageFile = join(root, 'package.json');
-  if (!existsSync(packageFile)) return;
-  const packageText = readFileSync(packageFile, 'utf8');
+  if (!fs.exists(packageFile)) return 'none';
+  const packageText = fs.readFile(packageFile, 'utf8');
   const manifest = JSON.parse(packageText);
   const lockFile = join(root, 'package-lock.json');
-  if (existsSync(join(root, 'pnpm-lock.yaml')) || existsSync(join(root, 'yarn.lock'))) {
+  if (fs.exists(join(root, 'pnpm-lock.yaml')) || fs.exists(join(root, 'yarn.lock'))) {
     throw new Error('dependency setup requires a single committed npm lock manager');
   }
-  if (!existsSync(lockFile)) {
+  if (!fs.exists(lockFile)) {
     if (Object.keys(manifest.dependencies ?? {}).length || Object.keys(manifest.devDependencies ?? {}).length) {
       throw new Error('dependency setup requires a committed npm package-lock.json');
     }
-    return;
+    return 'none';
   }
+  const dependencies = lockfileHash(root);
   const admission = await acquireResourceApi(api, { name: 'cache-npm', capacity: 1, scope: 'machine', root: runnerRoot,
     repo: runnerRoot, agent: `pullboard-ssh-npm-${S.workerId}`, kind: 'dependency-cache',
     onWait: () => assertTransportLive(S) }, join(runnerRoot, 'cache', 'resource-pool'));
   try {
     const cacheRoot = join(runnerRoot, 'cache', 'npm');
     const contentCache = join(cacheRoot, 'content');
-    mkdirSync(contentCache, { recursive: true, mode: 0o700 });
-    chmodSync(cacheRoot, 0o700); chmodSync(contentCache, 0o700);
+    fs.mkdir(contentCache, { recursive: true, mode: 0o700 });
+    fs.chmod(cacheRoot, 0o700); fs.chmod(contentCache, 0o700);
     // node_modules is job-local because package lifecycle scripts may create sibling artifacts.
     // Reuse only npm's content-addressed download cache, never a prior job's installed tree.
-    rmSync(join(root, 'node_modules'), { recursive: true, force: true });
+    fs.rm(join(root, 'node_modules'), { recursive: true, force: true });
     const npm = spawnOwned(S, 'npm', ['ci', '--cache', contentCache], {
       cwd: root, env, stdio: ['ignore', 'ignore', 'ignore'],
     });
@@ -410,4 +415,5 @@ export async function installDependencies(S, root, runnerRoot, env, tracker, api
     await drainOwned(S, npm);
     if (result.error || result.code !== 0 || result.signal) throw new Error('committed npm dependencies could not be installed');
   } finally { admission.release(); }
+  return dependencies;
 }

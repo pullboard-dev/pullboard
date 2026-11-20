@@ -13,14 +13,6 @@ import { gitBoardDataPush } from "../logic/board.js";
 import { rootTestRefusal } from './listing.js';
 import { hostname } from 'node:os';
 import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
   relative,
   resolve,
@@ -45,11 +37,11 @@ import {
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
+import { quotedPersonProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
 import { secretsIn } from "../logic/secrets.js";
-import { planRowChange } from "../logic/change/row/plan.js";
 import { baselineRowChange } from "../logic/change/row/tier.js";
 import { tierRowChange } from "../logic/change/row/tier.js";
 import {
@@ -61,6 +53,8 @@ import {
 } from "../../../spec/index.js";
 import { approvedRowProblems } from "../../../spec/index.js";
 import { specGateMoveOnly } from "../../../spec/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit'];
 export const HOOKS_DIR = '.githooks';
@@ -167,6 +161,7 @@ export function commitMsgProblems(raw, { rules, spec, doctrine = null, claimedIt
   }
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
+  problems.push(...quotedPersonProblems(all, rules.quotedNames));
   return problems;
 }
 
@@ -228,6 +223,9 @@ export function machineNameProblems(root, range, { refuse, say, names = machineN
   }
 }
 
+// The range message scan lives in signoff.js, which the light commits door already loads, so that door can run it without this file's closure.
+export { rangeMessageProblems } from './signoff.js';
+
 /**
  * Colliding bare citations keep their SPEC.md meaning, but tell the author how to name doctrine.
  *
@@ -278,8 +276,6 @@ export function stagedPaths(root, base = null) {
 
 /** The reads one pre-commit run shares, so git is asked once per kind of fact instead of once per path (#2232). */
 let readCache = null;
-/** The cells plan folder, listed with the first read of each revision once the shim check runs. */
-const PLAN_DIRECTORY = 'packages/codemap/data/plan/';
 
 /**
  * Run a check with shared git reads: one batched tree or index listing per revision, one resolve-undo
@@ -301,12 +297,10 @@ function withSharedReads(root, paths, check) {
 const sharedReads = (root) => (readCache?.root === root ? readCache : null);
 
 /** List the records of many literal paths at one revision in a few git calls. */
-function fillRecords(root, revision, map, paths, directory = null) {
+function fillRecords(root, revision, map, paths) {
   for (const path of paths) if (!map.has(path)) map.set(path, []);
   for (let start = 0; start < paths.length || start === 0; start += 400) {
     const specs = paths.slice(start, start + 400).map((path) => `:(literal)${path}`);
-    // The cells plan and its shards are read at every revision by the shim check: list them in the same call [C7].
-    if (directory && start === 0) specs.push(directory);
     if (!specs.length) continue;
     const raw = revision === ':index'
       ? git(root, ['ls-files', '--stage', '-z', '--', ...specs])
@@ -314,8 +308,6 @@ function fillRecords(root, revision, map, paths, directory = null) {
     for (const record of raw.split('\0').filter(Boolean)) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
-      if (directory && !map.has(path)) map.set(path, []);
-      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
       const records = map.get(path);
       if (records && !records.includes(record)) records.push(record);
     }
@@ -334,9 +326,8 @@ function treeRaw(root, revision, path) {
       : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
   }
   let map = shared.maps.get(revision);
-  if (!map) { map = new Map(); map.planListed = Boolean(shared.plan); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
-  // A revision listed with the plan folder already knows every plan file it has; the rest are absent.
-  if (!map.has(path) && !(map.planListed && path.startsWith(PLAN_DIRECTORY))) fillRecords(root, revision, map, [path]);
+  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths); }
+  if (!map.has(path)) fillRecords(root, revision, map, [path]);
   const records = map.get(path) ?? [];
   return records.length ? `${records.join('\0')}\0` : '';
 }
@@ -475,7 +466,7 @@ export function addedLines(diff) {
  * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
  */
 export function recheckRange(repo, base, head, { rules } = {}) {
-  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const commitRules = rules ?? (fs.exists(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
   const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
   if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
   const findings = [];
@@ -545,7 +536,6 @@ function itemFolderOffBranch(root) {
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
-  const touchedPaths = new Set(touched), writtenPaths = new Set(written);
   const problems = blockedPaths(written, config.protect).map(
     (path) => `${path} is a blocked file (env or secrets); keep it out of git`,
   );
@@ -570,7 +560,6 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (shimImports) {
     const revisions = new Map();
-    if (readCache) readCache.plan = true;
     problems.push(...shimImports({ paths: written,
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
@@ -623,12 +612,6 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     return entry && { ...entry, bytes: importFileBlob(root, entry.oid) };
   };
   prefetchBlobs(root, checkedForeign.flatMap(path => ['HEAD', ':index'].map(revision => importFileEntry(root, revision, path)?.oid).filter(Boolean)));
-  const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
-    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownNewFile: path => !outside(path).length
-      && ((writtenPaths.has(path) && Boolean(importFileEntry(root, ':index', path)))
-        || (!touchedPaths.has(path) && Boolean(treeRaw(root, 'HEAD', path)))),
-  })]));
   const tierChanges = new Map(checkedForeign.map(path => [path, tierRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
     ownsFile: file => !outside(file).length,
@@ -649,13 +632,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   ) }));
   const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves)
     || mergeMoves.some(({ parent, moves: parentMoves }) => stagedImportOnlyChange(root, path, parentMoves, parent))
-    || planChanges.get(path).allowed || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
-  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
+    || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
+  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outside(path).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
-      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
+      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
     }));
   return problems;
 }
@@ -739,7 +722,7 @@ function committedLaneConfig(root) {
 /** Report a missing merge check at Git's effective hook path without changing files [L3,A6]. */
 export function preMergeHookProblems(root) {
   const file = gitPath(root, 'hooks/pre-merge-commit');
-  return existsSync(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
+  return fs.exists(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
 }
 
 /** Resolve Git's effective hook directory, letting Git apply core.hooksPath itself.
@@ -855,8 +838,8 @@ export function unwiredHookProblems(root) {
     const file = join(dir, hook);
     let source;
     try {
-      if ((statSync(file).mode & 0o111) === 0) return [];
-      source = readFileSync(file, 'utf8');
+      if ((fs.stat(file).mode & 0o111) === 0) return [];
+      source = fs.readFile(file, 'utf8');
     } catch { return []; }
     if (delegatesHook(source, hook)) return [];
     const path = relative(root, file);
@@ -881,7 +864,7 @@ function mainMergeHeads(root, preMergeHook) {
   try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
   try {
-    if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
+    if (fs.exists(mergeFile)) merges = fs.readFile(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {
       const names = Object.keys(process.env).filter((name) => name.startsWith('GITHEAD_'));
       if (names.some((name) => !/^GITHEAD_(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(name))) return null;
@@ -1054,7 +1037,7 @@ export function applyFixers(root, fixers) {
   const covers = (fixer, path) => (fixer.files ?? ['*']).some((pattern) => matchesPattern(pattern, path));
   const notes = [];
   for (const fixer of fixers) {
-    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && existsSync(join(root, path)));
+    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && fs.exists(join(root, path)));
     if (!files.length) continue;
     const result = spawnSync(`${fixer.run} ${files.map(shellQuote).join(' ')}`, {
       cwd: root,
@@ -1134,7 +1117,7 @@ let cachedInstallerVersion;
 
 /** Read installer metadata only when generating a hook, so importing board helpers needs no package. */
 function installerVersion() {
-  return cachedInstallerVersion ??= JSON.parse(readFileSync(new URL("../../../../package.json", import.meta.url), 'utf8')).version;
+  return cachedInstallerVersion ??= JSON.parse(fs.readFile(new URL("../../../../package.json", import.meta.url), 'utf8')).version;
 }
 
 /**
@@ -1200,11 +1183,11 @@ export function hookScript(hook, version = installerVersion()) {
  */
 export function installHooks(root, onWrite = () => {}) {
   const dir = join(root, HOOKS_DIR);
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   const notes = [];
   for (const hook of HOOKS) {
     const file = join(dir, hook);
-    const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
+    const existing = fs.exists(file) ? fs.readFile(file, 'utf8') : null;
     if (existing !== null && !existing.includes(HOOK_MARK)) {
       const isWired = existing.includes(`hook ${hook}`) && existing.includes('pullboard');
       notes.push(
@@ -1216,15 +1199,15 @@ export function installHooks(root, onWrite = () => {}) {
     }
     const script = hookScript(hook);
     if (existing === script) {
-      if ((statSync(file).mode & 0o777) !== 0o755) {
-        chmodSync(file, 0o755);
+      if ((fs.stat(file).mode & 0o777) !== 0o755) {
+        fs.chmod(file, 0o755);
         onWrite(`${HOOKS_DIR}/${hook}`);
         notes.push(`restored executable mode for ${HOOKS_DIR}/${hook}`);
       } else notes.push(`kept ${HOOKS_DIR}/${hook}`);
       continue;
     }
-    writeFileSync(file, script);
-    chmodSync(file, 0o755);
+    fs.writeFile(file, script);
+    fs.chmod(file, 0o755);
     onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }

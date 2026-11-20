@@ -1,0 +1,28 @@
+{
+  "cli.io-claim.freezer-carries-family-relax-at": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "freezer on an item with a review family, with review.relaxRequiredFamily on and verify.familyRelaxAt set, writes policy.verify.familyRelaxAt into the frozen text."
+    },
+    "why": "Without it no witness can ever fire for a required-family item, since the frozen threshold is the only authority.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  },
+  "cli.io-claim.freezer-omits-family-relax-at-when-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with the setting off, or for an item with no review family, the frozen text carries no policy.verify.familyRelaxAt."
+    },
+    "why": "Without it turning the setting off, or an ordinary item, could still change what a claim freezes.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/claim.js"
+    ]
+  }
+}
