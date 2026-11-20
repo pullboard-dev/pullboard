@@ -1,3 +1,6 @@
+import { firstUndeclaredRead } from '../inputs.js';
+import { lex } from '../../scan.js';
+
 /**
  * Narrow a confined cell's tier units to the ones the import graph reaches from the change [C7].
  *
@@ -5,7 +8,7 @@
  * edit ran 285 files in 29 shards. The repo key confinedImportSelection, read from accepted main, lets submit keep only
  * the cell tests the import graph reaches, the changed tests and the canary. The dropped files are named in `owedFiles`:
  * landing runs the whole confined cell on the exact merged tree, never on this narrowed proof (RFC 0006/0007 A3, A6;
- * RFC 0011 V37). Every doubt keeps the whole folder: a key that is off, a change outside a cell's tests folder under
+ * RFC 0011 V37). Every doubt keeps the whole folder: a key that is off, a change outside a cell's tests or journeys folder under
  * "tests" (production code reads data files by path, which the import graph cannot see), a full selection, or a throw.
  *
  * @param {{ units: string[], confinedRoots?: string[], changed?: string[] } | null} testTiers - the tier selection
@@ -16,7 +19,7 @@ export function narrowConfinedTiers(testTiers, { mode, select, canary = [], read
   if (mode !== 'tests' && mode !== 'all') return null;
   const roots = testTiers?.confinedRoots;
   if (!Array.isArray(roots) || !roots.length || !Array.isArray(testTiers.units)) return null;
-  const inFolder = file => roots.some(cell => file.startsWith(`${cell}/tests/`));
+  const inFolder = file => roots.some(cell => ownTest(cell, file));
   const changed = testTiers.changed ?? [];
   if (mode === 'tests' && (!changed.length || !changed.every(inFolder))) return null;
   let selected;
@@ -24,12 +27,16 @@ export function narrowConfinedTiers(testTiers, { mode, select, canary = [], read
   const withRecord = recordChange(changed);
   try { selected = withRecord ? select(changed.filter(file => !RECORD.test(file))) : select(); } catch { return null; }
   if (!selected || selected.full === true || !Array.isArray(selected.files)) return null;
-  const keep = new Set([...selected.files, ...changed, ...canary, ...withRecord ? recordCompanions(testTiers.units, changed, roots, read) : []]);
+  const testOnly = changed.length > 0 && changed.every(inFolder);
+  const keep = new Set([...selected.files, ...changed, ...canary, ...withRecord ? recordCompanions(testTiers.units, changed, roots, read) : [], ...testOnly ? undeclaredReaders(testTiers.units, changed, roots, read) : []]);
   const owedFiles = testTiers.units.filter(file => inFolder(file) && !keep.has(file)).sort();
   if (!owedFiles.length) return null;
   const dropped = new Set(owedFiles);
   return { ...testTiers, units: testTiers.units.filter(file => !dropped.has(file)), owedFiles };
 }
+
+/** Whether a file lies in a cell's tests or journeys folder, the two places its own test files live. */
+function ownTest(cell, file) { return file.startsWith(`${cell}/tests/`) || file.startsWith(`${cell}/journeys/`); }
 
 const RECORD = /\/tests\/fixtures\/registry[^/]*\.json$/u;
 const COMPANION = /\/tests\/(?:registry|inputs|stable)\.test\.js$/u;
@@ -55,7 +62,23 @@ function headerNames(source) {
  * stable tests, which check records and inputs by path, and every test whose header names a changed file [C7].
  */
 function recordCompanions(units, changed, roots, read) {
-  const inRoot = file => roots.some(cell => file.startsWith(`${cell}/tests/`));
+  const inRoot = file => roots.some(cell => ownTest(cell, file));
   const touched = new Set(changed);
   return units.filter(file => inRoot(file) && (COMPANION.test(file) || headerNames(read(file) ?? '').some(name => touched.has(name))));
+}
+
+/**
+ * The tests a test-only change keeps because they read a path no header names: the import graph cannot see such a read, so
+ * a test in a changed cell, or one whose undeclared read lies inside a changed cell, may depend on the edited file [C7].
+ */
+function undeclaredReaders(units, changed, roots, read) {
+  const cells = roots.filter(cell => changed.some(file => ownTest(cell, file)));
+  const inCell = file => cells.some(cell => file.startsWith(`${cell}/`));
+  return units.filter(file => {
+    const source = read(file);
+    if (source === null || source === undefined) return false;
+    let found = null;
+    try { found = firstUndeclaredRead(file, source, lex(source)); } catch { return false; }
+    return found !== null && (inCell(file) || inCell(found.read));
+  });
 }
