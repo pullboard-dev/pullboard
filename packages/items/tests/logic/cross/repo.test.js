@@ -68,3 +68,12 @@ test('items.cross-repo.open-still-blocks: clause 2: an open foreign wait still b
   const verified = setup([link()], received([{ board: CHILD, id: 7, state: 'verified' }]));
   assert.deepEqual(foreignBlockers(verified.board, ITEM, verified.ports), []);
 });
+
+test('items.logic-cross-repo.state-carries-received-at: clause 1: a foreign state passes the received time of its board state through, and has none when the state has none [E32]', () => {
+  const stamped = setup([link()], { ...received([{ board: CHILD, id: 7, state: 'open' }]), receivedAt: '2026-11-19T01:02:03.000Z' });
+  const [withTime] = foreignDependencyStates(stamped.board, ITEM, stamped.ports);
+  assert.equal(withTime.receivedAt, '2026-11-19T01:02:03.000Z');
+  const plain = setup([link()], received([{ board: CHILD, id: 7, state: 'open' }]));
+  const [without] = foreignDependencyStates(plain.board, ITEM, plain.ports);
+  assert.equal('receivedAt' in without, false);
+});
