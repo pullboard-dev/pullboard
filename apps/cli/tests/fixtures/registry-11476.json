@@ -1,0 +1,3 @@
+{
+  "cli.join.abilities-flag": {"proves":{"specs":["C7"],"claim":"join --abilities browser,gui carries both abilities into the join move and result, and an unknown ability is refused USAGE naming browser and gui"},"why":"Without it a seat cannot declare the slots it serves, so items that need one never find a seat.","kind":"contract","inputs":["apps/cli/src/io/commands/join.js","apps/cli/src/io/cli-main/options.js","apps/cli/tests/io/commands/join.test.js"]}
+}

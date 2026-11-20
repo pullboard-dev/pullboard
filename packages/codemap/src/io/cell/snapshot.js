@@ -1,13 +1,7 @@
 /** Read codemap inputs from sealed in-memory Git trees without creating checkout roots [C7,CD64]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {
-  Stats,
-  existsSync as realExistsSync,
-  lstatSync as realLstatSync,
-  readFileSync as realReadFileSync,
-  readdirSync as realReaddirSync,
-} from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   isAbsolute,
   relative,
@@ -15,6 +9,7 @@ import {
   sep,
 } from 'node:path';
 
+const fs = fileSystemAdapter();
 const snapshotsByScope = new AsyncLocalStorage();
 const DIRECTORY_MODE = 0o040000;
 const SYMLINK_MODE = 0o120000;
@@ -140,9 +135,16 @@ function virtualEntry(located) {
   throw pathError('ENOENT', name, 'no such file or directory');
 }
 
+let realStatsPrototype = null;
+/** The prototype of the file-system adapter's own Stats, read once from this file's real metadata. */
+function statsPrototype() {
+  realStatsPrototype ??= Object.getPrototypeOf(fs.lstat(fileURLToPath(import.meta.url)));
+  return realStatsPrototype;
+}
+
 /** Build Stats with authentic POSIX mode predicates and inert timestamps for a sealed Git object. */
 function virtualStats(mode, size = 0) {
-  const stats = Object.create(Stats.prototype);
+  const stats = Object.create(statsPrototype());
   const now = new Date(0);
   Object.assign(stats, {
     dev: 0, ino: 0, mode, nlink: 1, uid: 0, gid: 0, rdev: 0, size, blksize: 0, blocks: 0,
@@ -194,7 +196,7 @@ export function cellSourceSnapshot(root) {
 /** Read one regular in-memory Git blob; symlinks are never followed through a virtual checkout. */
 export function cellReadFileSync(path, options) {
   const located = locate(path);
-  if (!located) return realReadFileSync(path, options);
+  if (!located) return fs.readFile(path, options ?? null);
   const flag = typeof options === 'object' && options !== null ? options.flag : undefined;
   if (flag !== undefined && flag !== 'r' && flag !== 0) throw pathError('EROFS', located.name, 'virtual cell sources are read-only');
   const { entry, directory } = virtualEntry(located);
@@ -211,7 +213,7 @@ export function cellReadFileSync(path, options) {
 /** Report a sealed virtual path's existence without traversing a tracked symlink. */
 export function cellExistsSync(path) {
   const located = locate(path);
-  if (!located) return realExistsSync(path);
+  if (!located) return fs.exists(path);
   try { virtualEntry(located); return true; }
   catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return false; throw error; }
 }
@@ -219,7 +221,7 @@ export function cellExistsSync(path) {
 /** Return a no-follow Stats view for one sealed Git entry or inferred directory. */
 export function cellLstatSync(path) {
   const located = locate(path);
-  if (!located) return realLstatSync(path);
+  if (!located) return fs.lstat(path);
   const { entry, directory } = virtualEntry(located);
   if (directory) return virtualStats(DIRECTORY_MODE);
   const mode = modeBits(entry.mode);
@@ -230,7 +232,7 @@ export function cellLstatSync(path) {
 /** List direct children inferred from Git entries, honoring encoding and withFileTypes options. */
 export function cellReaddirSync(path, options) {
   const located = locate(path);
-  if (!located) return realReaddirSync(path, options);
+  if (!located) return fs.list(path, options);
   const { entry, directory } = virtualEntry(located);
   if (entry && (modeBits(entry.mode) & S_IFMT) !== DIRECTORY_MODE) throw pathError('ENOTDIR', located.name, 'not a directory');
   if (!directory && located.name !== '' && !entry) throw pathError('ENOTDIR', located.name, 'not a directory');
