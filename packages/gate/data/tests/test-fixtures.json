@@ -1465,7 +1465,7 @@
     "tempdir": 2,
     "raw-board": 4
   },
-  "apps/cli/journeys/submit/steps.test.js": {
+  "apps/cli/tests/io/submit/steps.test.js": {
     "model": 5
   },
   "packages/board/tests/from-store/any.test.js": {
