@@ -1,7 +1,4 @@
 /** Run the layout rules against the tracked tree and hold them to a baseline that only lowers [V32,V33]. */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +7,8 @@ import { LAYOUT_RULES } from '../logic/layout.js';
 import { layoutCounts } from '../logic/layout.js';
 import { layoutRatchet } from '../logic/layout.js';
 import { layoutViolations } from '../logic/layout.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 
 /** The baseline's path from a checkout root, for a caller that judges another tree's own copy. */
 export const LAYOUT_BASELINE = 'packages/codemap/data/baselines/layout.json';
@@ -34,7 +33,7 @@ export function layoutReport(root) {
 
 /** The accepted counts, or null when no baseline exists yet. */
 function readBaseline(file) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+  try { return JSON.parse(disk.readFile(file, 'utf8')); } catch { return null; }
 }
 
 /**
@@ -62,8 +61,8 @@ export function layoutCheck(root, { baselineFile = BASELINE } = {}) {
 export function layoutWrite(root, { baselineFile = BASELINE } = {}) {
   const old = readBaseline(baselineFile);
   const { counts } = old ? layoutCheck(root, { baselineFile }) : { counts: layoutCounts(layoutReport(root)) };
-  mkdirSync(dirname(baselineFile), { recursive: true });
-  writeFileSync(baselineFile, `${JSON.stringify({ version: 1, rules: counts }, null, 2)}\n`);
+  disk.mkdir(dirname(baselineFile), { recursive: true });
+  disk.writeFile(baselineFile, `${JSON.stringify({ version: 1, rules: counts }, null, 2)}\n`);
   return counts;
 }
 

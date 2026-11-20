@@ -1,0 +1,4 @@
+{
+  "gate.logic-adapter-lints-fs.generated-child-scripts-are-exempt": {"proves":{"specs":["C7"],"claim":"The two submit files whose node:fs imports live in generated child scripts are exempt from the fs lint by exact path, and a sibling file is not."},"why":"Without this case the exemption could widen to other files, or a regression could count generated-script imports again and block the migration ceilings.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/fs.js"]},
+  "gate.logic-adapter-lints-fs.real-tree-generated-child-scripts": {"proves":{"specs":["C7"],"claim":"The fs lint run over the real checkout names neither exempt generated-script file."},"why":"Without this case the exemption could pass its unit case yet the registered static row would still fail on the real tree.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/fs.js","packages/gate/data/ceilings/adapter-lint-fs.json"]}
+}

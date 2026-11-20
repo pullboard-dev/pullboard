@@ -1,0 +1,4 @@
+{
+  "moves.claim-table.needs-ability": {"proves":{"specs":["C7"],"claim":"clause 1: the claim table refuses NEEDS_ABILITY, naming the missing needs, when item needs hold a need the actor abilities lack, and claims as today when needs is empty or absent."},"why":"Next hands a seat only work it can do; the claim table is where a claim for work the seat cannot do is refused with its next step.","kind":"cell unit","inputs":["packages/moves/src/logic/table/claim.table.js","packages/moves/tests/logic/table/claim.table.test.js"]},
+  "moves.claim-table.needs-ability-next": {"proves":{"specs":["C7"],"claim":"the claim descriptor nextSteps and CLAIM_NEXT carry NEEDS_ABILITY with the same next step."},"why":"The table and the live command word one refusal one way.","kind":"cell unit","inputs":["packages/moves/src/logic/table/next.js","packages/moves/src/logic/moves/claim.js","packages/moves/tests/logic/table/claim.table.test.js"]}
+}

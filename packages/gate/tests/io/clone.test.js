@@ -10,9 +10,9 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { findChromeExecutable } from '../../../../apps/cli/tests/fixtures/chrome.js';
-import { launchChromeProcess } from '../../../../apps/cli/tests/fixtures/chrome.js';
-import { chromeLaunchArgs } from '../../../../apps/cli/tests/fixtures/chrome/args.js';
+import { findChromeExecutable } from '../fixtures/chrome.js';
+import { launchChromeProcess } from '../fixtures/chrome.js';
+import { chromeLaunchArgs } from '../fixtures/chrome/args.js';
 import { assertNoKilledChromeClone } from '../fixtures/clone.js';
 
 test('gate.io-clone.a-killed-test-chrome-leaves-no: a killed test Chrome leaves no code-sign clone [C7]', async () => {

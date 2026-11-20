@@ -13,7 +13,7 @@ import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
 import { Refused } from '../../../kernel/light.js';
 import { ENGINE_MOVE_STEPS } from './engine/move/steps.js';
-import { behindMessage } from '../logic/engine/behind-message.js';
+import { behindMessage } from '../logic/engine/minimum.js';
 const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 const PEOPLE_ENGINE = engineNumber('PEOPLE_ENGINE');
 
@@ -104,6 +104,8 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   const ports = enginePorts(board);
   const store = ports.store;
   if (!ports.operations.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
+  // A move whose store writer is missing would throw a fatal TypeError in relay order; refuse it before sealing or transport.
+  if (typeof store[operation] !== 'function') throw new Refused('NO_STORE_WRITER', `${operation} has no store writer on this pullboard yet; it cannot be sealed or sent`);
   // Each operation's own sealing steps live in its engine-move module [C7].
   const steps = Object.hasOwn(ENGINE_MOVE_STEPS, operation) ? ENGINE_MOVE_STEPS[operation] : {};
   if (steps.prepareArgs) args = steps.prepareArgs(board, args, { ports, store, id });

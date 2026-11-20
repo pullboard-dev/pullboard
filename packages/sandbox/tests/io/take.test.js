@@ -7,13 +7,14 @@ import { closePassingMainReds } from '../../src/io/take.js';
 import { mainRedBuildOffer } from '../../src/io/take.js';
 import { takeSelection } from '../../src/io/take.js';
 import { nextProgress } from '../../src/io/take.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { actorClaims } from '../fixtures/ports.js';
 import { counted } from '../fixtures/ports.js';
 import { fixture } from '../fixtures/ports.js';
 import { take } from '../fixtures/ports.js';
 
 test('sandbox.take.selection-and-offer-once: next --take calls its selection and review offer once each [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const first = box.add('First open item');
   box.add('Second open item');
   const counts = counted(t, takeSelection);
@@ -23,7 +24,7 @@ test('sandbox.take.selection-and-offer-once: next --take calls its selection and
 });
 
 test('sandbox.take.holding-seat-returns-claim: a holding seat returns its claim from next --take without the mandatory review offer [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const held = box.add('Already held');
   box.add('Another open item');
   box.claim(held, box.seats.actor);
@@ -34,8 +35,21 @@ test('sandbox.take.holding-seat-returns-claim: a holding seat returns its claim 
   assert.deepEqual(actorClaims(box), [held]);
 });
 
+test('sandbox.take.one-claim-per-call: clause 1: next --take on a board with five claimable items in two lanes leaves the seat holding exactly one claim, and a repeat call, as the retry after NEXT_TIMEOUT is, returns that same claim [C7]', async t => {
+  const box = fixture(t, cellBoard);
+  for (const title of ['One', 'Two', 'Three']) box.add(title);
+  for (const title of ['Four', 'Five']) box.add(title, { lane: 'docs' });
+  const first = await take(box);
+  assert.ok(first.item, JSON.stringify(first));
+  assert.equal(actorClaims(box).length, 1, 'one call claims one item');
+  const again = await take(box);
+  assert.equal(again.item.item_id, first.item.item_id, 'the repeat call returns the held claim');
+  assert.equal(again.held, true);
+  assert.deepEqual(actorClaims(box), [first.item.item_id], 'no second claim while the first is unsubmitted with a live lease');
+});
+
 test('sandbox.take.write-runs-chosen-item-guards: next --take: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const raced = box.add('Raced by a peer');
   const spare = box.add('Still free', { brief: 'Files: web/spare.js\nTest: the real board claims the spare item.' });
   // A peer claims the chosen item after the read selection and before the write's claim guards run.
@@ -86,7 +100,7 @@ test('sandbox.take.no-claim-still-times-out: clause 2: a run past the budget tha
 });
 
 test('sandbox.take.main-red-claim-worktrees-in-flight: clause 1: the claim worktrees main-red routing is handed list only in-flight items and return the claimed items\' recorded files as the whole open list does [C7,#5329]', t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   const repair = box.add('Main red repair');
   const held = box.add('Held by the builder');
   box.add('Another open item');
@@ -116,7 +130,7 @@ async function preparedBy(t, work) {
 }
 
 test('sandbox.take.closing-reads-no-list-without-main-run: clause 1: closePassingMainReds with no run recorded for main\'s commit sends the board no open-items list query [C7,#5329]', async t => {
-  const box = fixture(t);
+  const box = fixture(t, cellBoard);
   box.add('Open item one');
   box.add('Open item two');
   const listing = await preparedBy(t, () => store.listItems(box.board));
@@ -125,4 +139,25 @@ test('sandbox.take.closing-reads-no-list-without-main-run: clause 1: closePassin
   const passingMainRedItems = () => [];
   const closing = await preparedBy(t, () => closePassingMainReds(box.ctx, { ...box.services, passingMainRedItems }));
   assert.deepEqual(closing.filter(sql => listing.includes(sql)), [], `the closing read prepared a list query: ${JSON.stringify(closing)}`);
+});
+
+test('sandbox.take.claim-substeps-profile: after progress.enter claim, entering claim freezer, claim head and claim write lists each as its own profile row, the rows sum to the claim phase, and a claim step past the routing budget does not throw NEXT_TIMEOUT [N2,C7]', async t => {
+  const { clock, progress } = slowProgress(t);
+  progress.enter('claim', 7);
+  clock.at += 10;
+  progress.enter('claim freezer', 7);
+  clock.at += 30;
+  progress.enter('claim head', 7);
+  clock.at += 5;
+  progress.enter('claim write', 7);
+  clock.at += 2_000; // the routing budget (1,000 ms) runs out inside the write
+  assert.doesNotThrow(() => progress.enter('claim cover-stuck', 7), 'a claim step past the budget keeps custody and never refuses');
+  clock.at += 8;
+  const rows = new Map(progress.profile().map(row => [row.phase, row.ms]));
+  assert.equal(rows.get('claim'), 10);
+  assert.equal(rows.get('claim freezer'), 30);
+  assert.equal(rows.get('claim head'), 5);
+  assert.equal(rows.get('claim write'), 2_000);
+  assert.equal(rows.get('claim cover-stuck'), 8);
+  assert.equal([...rows].filter(([name]) => name.startsWith('claim')).reduce((sum, [, ms]) => sum + ms, 0), 2_053, 'the claim rows sum to the time the claim phase took');
 });

@@ -9,7 +9,7 @@ import { boardReleaseEngine } from '../../../index.js';
 import { readReleaseRecords } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { release } from '../../../../store/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 
 const HISTORY = JSON.parse(readFileSync(new URL('../../fixtures/table/release-history.json', import.meta.url), 'utf8'));
 const FAR = '2099-01-01T00:00:00.000Z';
@@ -71,7 +71,9 @@ function drive(board, record) {
     .map(e => stored({ kind: e.kind, by: e.by, detail: JSON.parse(e.detail) }));
 }
 
-const records = recorded().release.filter(record => !record.move.stale);
+/** An INELIGIBLE release with a blank note was recorded before the reason rule asked for one (#12127); the writer now refuses it before any table runs. */
+const noted = move => move.reason !== 'INELIGIBLE' || Boolean(move.note?.trim());
+const records = recorded().release.filter(record => !record.move.stale && noted(record.move));
 
 test('moves.release-writer.the-store-release-writer-agrees-with: clause 1: the store release writer agrees with the release table on every replayed release [C7,#8246]', t => {
   const { rules, table } = boardReleaseEngine();

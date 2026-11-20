@@ -9,10 +9,11 @@ import { createHash } from 'node:crypto';
 import { refuseEmptyBar } from '../../../config/index.js';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
-import { foreignNodeOptions } from '../../../gate/index.js';
+import { foreignNodeOptions } from '../../../gate/heavy.js';
 import { headCommit } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { criterionClauses } from '../../../state/index.js';
 import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { itemPolicy } from '../../../sandbox/index.js';
 import { mainPolicy } from '../../../sandbox/index.js';
@@ -29,6 +30,7 @@ import { barReadinessRequired } from '../../../verify/index.js';
 import { namedTestHashes } from '../../../verify/index.js';
 import { wording } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { liveCriterionSpec } from '../../../doctrine/index.js';
 import { admittedPace } from '../logic/pace.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
@@ -60,14 +62,16 @@ export function committedReader(root, commit) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function criterionFreezer({ root, isMain, config: checkoutConfig }, { captureVerifyPolicy = false, board, applyingDecisions = [], refuseEmpty = refuseEmptyBar() } = {}) {
-  const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
+  const cacheEligible = () => !foreignNodeOptions(environmentAdapter().get('NODE_OPTIONS'));
   let doctrine;
   // agentDoctrine falls back to this checkout's own doctrine only when no main facts were read.
   const reader = { info: { root, isMain }, get doctrine() { return doctrine ??= loadDoctrine(root, checkoutConfig); } };
   /** Freeze the criterion; captureVerifyPolicy now only means a refreeze, which drops a legacy policy pin. */
   return (item) => {
     // freeze.refuseEmptyBar: an empty bar can never be verified (a reviewer's clause check has nothing to read) [C7].
+    // A criterion with text but no numbered clause is as unreadable: clause inspection has no clause to tick [C7,#3521].
     if (refuseEmpty && !String(item.item_criterion ?? '').trim()) throw new Refused('BAR_EMPTY', `item #${item.item_id} has an empty criterion, so it cannot be frozen`, 'ask the coordinator to give it numbered clauses with pullboard edit <id> --criterion "1. ... [test]" --reason "..."');
+    if (refuseEmpty && !criterionClauses(item.item_criterion, { single: true }).length) throw new Refused('BAR_EMPTY', `item #${item.item_id} has a criterion with no numbered clause, so it cannot be frozen`, 'ask the coordinator to give it numbered clauses with pullboard edit <id> --criterion "1. ... [test]" --reason "..."');
     // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
     const readsMain = board && !(isMain && !headCommit(root));
     let sourcePolicy = null;

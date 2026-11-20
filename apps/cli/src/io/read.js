@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/doctrine/light.js apps/cli/src/io/item/folder/identity.js */
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
@@ -10,8 +11,6 @@ import {
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
  * imports only this pays for nothing it does not run [C7].
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import {
   isAbsolute,
   join,
@@ -51,6 +50,9 @@ import { mainMergeFor } from '../../../../packages/merge/light.js';
 /** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
 export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A comma list of spec ids from a flag.
@@ -58,13 +60,14 @@ import { sessionRoute } from './route.js';
  * @param {string | undefined} text
  * @returns {string[]}
  */
-export const idList = (text) => (text ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+/** Ids from text or from a repeated option's texts, each piece split on commas and whitespace. */
+export const idList = (text) => (Array.isArray(text) ? text : [text ?? '']).flatMap((piece) => String(piece).split(/[\s,]+/u)).filter(Boolean);
 
 /**
  * The start of a command an agent can paste anywhere: agent shells often start each command in the
  * main checkout, so every command pullboard suggests names its folder (I5).
  *
- * @param {string} root
+ * @param {string} text
  * @returns {string}
  */
 export const shellWord = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
@@ -111,6 +114,8 @@ const requireModule = createRequire(import.meta.url);
 const doctrineLoader = () => requireModule('../../../../packages/doctrine/light.js').loadDoctrine;
 /** The item-folder identity reader, loaded only when no seat is registered at this checkout [C7,#7081]. */
 const folderIdentity = () => requireModule('./item/folder/identity.js').itemFolderIdentity;
+/** The seat an item folder's marker names, read only on the refusal path [C7,#11780]. */
+const folderSeatHint = () => requireModule('./item/folder/identity.js').itemFolderSeatHint;
 
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
@@ -152,7 +157,7 @@ function configHere(info) {
       throw new Refused('NO_CONFIG', `${CONFIG_FILE} is deleted here, though this checkout's last commit has it: restore it: ${cdTo(info.root)} git checkout HEAD -- ${CONFIG_FILE}`);
     }
     const mainRoot = resolve(info.commonDir, '..');
-    if (info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
+    if (info.isMain || !fs.exists(join(mainRoot, CONFIG_FILE))) throw error;
     let setup;
     try {
       setup = uncommittedSetup(mainRoot, loadConfig(mainRoot));
@@ -187,22 +192,62 @@ export function firstLineOf(note) {
 }
 
 /**
+ * The states of an item's foreign waits, keyed repo#id, for itemLine to print; empty when it waits on none, and then
+ * the full store never loads (the light store has no foreign reader). The caller names the reader, store.foreignDependencyStates.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @param {() => Promise<(board: any, item: any) => any[]>} loadReader loads store.foreignDependencyStates from the full store
+ * @returns {Promise<Map<string, { status: string, cause?: string, receivedAt?: string }>>}
+ */
+export async function foreignStates(board, item, loadReader) {
+  if (!item.item_after || !dependencyReferences(item).some(ref => ref.kind !== 'local')) return new Map();
+  const foreignDependencyStates = await loadReader();
+  return new Map(foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, { status: ref.status, cause: ref.cause, receivedAt: ref.receivedAt }]));
+}
+
+/** How long ago a state was received, in whole units: 2 min ago, 3 h ago, 2 d ago. */
+function receivedAge(receivedAt, now) {
+  const minutes = Math.max(0, Math.round((now.getTime() - Date.parse(receivedAt)) / 60_000));
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h ago`;
+  return `${Math.round(minutes / 1440)} d ago`;
+}
+
+/** A wait's label with the state a foreign one is in: host#41 (verified on host, 2 min ago) or host#41 (unavailable: no link). */
+function foreignLabel(ref, foreign, now) {
+  const label = dependencyLabel(ref);
+  const state = ref.kind === 'local' ? undefined : foreign.get(label);
+  if (!state) return label;
+  if (state.status === 'unavailable') return `${label} (unavailable: ${state.cause})`;
+  const age = state.receivedAt && now && Number.isFinite(Date.parse(state.receivedAt)) ? `, ${receivedAge(state.receivedAt, now)}` : '';
+  return `${label} (${state.status} on ${ref.repo}${age})`;
+}
+
+/**
  * One item on one line: id, status and holder, lane, title, spec ids.
  *
  * @param {any} item
+ * @param {(id: string) => string} [name]
+ * @param {boolean} [mainMerge]
+ * @param {Map<string, { status: string, cause?: string, receivedAt?: string }>} [foreign] - Foreign waits by repo#id: a ref with an entry prints its state, the rest print as before.
+ * @param {Date} [now] - The command clock's time; a foreign state with a receivedAt prints its age against it, one without prints none.
  * @returns {string}
  */
-export function itemLine(item, name = (id) => id, mainMerge = false) {
+export function itemLine(item, name = (id) => id, mainMerge = false, foreign = new Map(), now = undefined) {
   const holder = item.item_status === 'claimed' ? ` ${name(item.item_owner)}` : '';
   const verifier = item.item_status === 'verified' && !item.item_rehome_import ? ` by ${name(item.item_verified_by)}` : '';
   const specs = item.item_spec_ids ? `  [${item.item_spec_ids}]` : '';
   const parent = item.item_parent_id ? `  under #${item.item_parent_id}` : '';
-  const after = item.item_after ? `  after ${dependencyReferences(item).map(dependencyLabel).join(',')}` : '';
+  const after = item.item_after ? `  after ${dependencyReferences(item).map(ref => foreignLabel(ref, foreign, now)).join(',')}` : '';
   const rejected = item.item_status === 'open' && item.item_verdict === 'REJECT' ? ' (rejected)' : mainMerge ? ` (${MAIN_MERGE_LABEL})` : '';
   const light = item.item_route === 'strong' ? '' : `  ${item.item_route}`;
   const staleVerdict = item.item_verdict_state ? `  ${item.item_verdict_state.code}` : '';
   const hold = item.item_hold_reason ? `  held by ${name(item.item_hold_by)}: ${item.item_hold_reason}` : '';
-  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${item.item_stage}${item.item_gate_runner === 'none' ? ', no runner' : ''})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
+  // A hand-landed item is withdrawn with a merged commit: "(landed)" read as "not on main" and held dependents back (#11113), so the line names where it is on main.
+  const handLanded = item.item_status === 'withdrawn' && item.item_stage === 'landed' && item.item_merged_commit;
+  const stage = handLanded ? `on main at ${String(item.item_merged_commit).slice(0, 12)}` : `${item.item_stage}${item.item_gate_runner === 'none' ? ', no runner' : ''}`;
+  return `#${item.item_id}  ${item.item_status}${holder}${item.item_stage && item.item_stage !== item.item_status ? ` (${stage})` : ''}${verifier}${rejected}  ${item.item_lane}  ${item.item_title}${specs}${parent}${after}${light}${hold}${staleVerdict}`;
 }
 
 /** Format a stable agent id for human-facing CLI output. */
@@ -276,7 +321,7 @@ function declaredFamilies(root) {
 
 /** Read the exact ref bytes as well as the canonical filesystem signature; missing refs remain observable. */
 function policyRefBytes(file) {
-  try { return readFileSync(file, 'utf8'); }
+  try { return fs.readFile(file, 'utf8'); }
   catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null; throw error; }
 }
 
@@ -455,7 +500,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   // A seat joined over the served API acts as itself at the board root, which has no worktree of its own [P7].
   const seat = environmentAgent(ctx.info.root, board) ?? (ctx.io.remoteAgent ? readers.agentById(board, ctx.io.remoteAgent) : null);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -467,19 +512,23 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   }
   const agent = readers.agentAt(board, ctx.info.root) ?? folderIdentity()(board, ctx.info.root)?.agent;
   if (!agent) {
+    const hint = folderSeatHint()(board, ctx.info.root);
+    if (hint) throw new Refused('NOT_JOINED', `this is item #${hint.item}'s folder and its seat no longer holds it: run next, status and shout from the seat folder, cd ${hint.seat}`);
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);
   // The route follows the model this session declares, not only the one the seat joined with (#3678).
-  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
 }
 
 /** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
 export function editAfter(text) {
   if (text === undefined) return undefined;
-  if (text.trim() === 'none') return [];
-  const parts = text.split(',').map((part) => part.trim());
-  if (!text.trim() || parts.some((part) => !part || part === 'none')) {
+  const pieces = Array.isArray(text) ? text : [text];
+  if (pieces.length === 1 && pieces[0].trim() === 'none') return [];
+  const joined = pieces.join(',');
+  const parts = joined.split(/[\s,]+/u).filter(Boolean);
+  if (!joined.trim() || !parts.length || parts.includes('none')) {
     throw new Refused('USAGE', 'use --after <id>[,<id>...] or --after none');
   }
   return dependencyValues(parts);
@@ -500,6 +549,6 @@ export function textArg(io, values, name) {
   }
   if (path === undefined) return values[name];
   const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
+  if (!fs.exists(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return fs.readFile(file, 'utf8');
 }

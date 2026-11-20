@@ -149,7 +149,8 @@
     "family": "prefer",
     "familyRelaxAt": 5,
     "folderTicks": true,
-    "titleTicks": true
+    "titleTicks": true,
+    "queueAccept": true
   },
   "check": {
     "timeout": "60m"

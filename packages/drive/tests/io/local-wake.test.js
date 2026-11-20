@@ -5,8 +5,10 @@ import { existsSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { WAKE_FILE } from '../../index.js';
+import { watchWake } from '../../src/io/wake.js';
 import { serveLocalRunner } from '../../index.js';
 import { wakeLocalRunner } from '../../index.js';
 import { testGit } from '../fixtures/git.js';
@@ -63,4 +65,24 @@ test('drive.local-wake.a-touch-with-no-local-runner-writes-nothing: clause 1: a 
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   assert.equal(wakeLocalRunner(folder), false);
   assert.equal(existsSync(join(folder, WAKE_FILE)), false);
+});
+
+test('drive.local-wake.touch-beats-timer: clause 1: with a 60000 ms nap a touch of the wake file makes mark receive touch then wake and the nap resolve before the timer; a nap that times out marks timeout [P7,C7,#12270]', async t => {
+  const folder = temporaryDirectory('pullboard-local-wake-mark-');
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const marks = [];
+  const wake = watchWake(folder, { mark: step => marks.push(step) });
+  t.after(() => wake.close());
+  const napping = wake.nap(60_000);
+  writeFileSync(join(folder, WAKE_FILE), 'touch');
+  await napping;
+  assert.deepEqual(marks.slice(0, 2), ['touch', 'wake'], 'the touch is marked first, then the early end of the nap');
+  assert.equal(marks.includes('timeout'), false, 'the 60000 ms timer did not end the nap');
+  const timedOut = [];
+  const idle = temporaryDirectory('pullboard-local-wake-timeout-');
+  t.after(() => rmSync(idle, { recursive: true, force: true }));
+  const quiet = watchWake(idle, { mark: step => timedOut.push(step) });
+  t.after(() => quiet.close());
+  await quiet.nap(1);
+  assert.deepEqual(timedOut, ['timeout']);
 });

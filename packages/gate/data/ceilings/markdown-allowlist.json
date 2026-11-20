@@ -1,5 +1,5 @@
 {
-  "enforce": false,
+  "enforce": true,
   "note": "The one list of .md files the repository may hold. Every entry has a reason. A temporary entry names the item that drops its file; the list may only shrink. Set enforce to true to refuse any other .md; it defaults off.",
   "entries": [
     { "pattern": "skills/*/SKILL.md", "reason": "a skill is the one home of an agent procedure" },
@@ -21,12 +21,6 @@
     { "pattern": "apps/cli/tests/fixtures/skills-0.8.1/*/SKILL.md", "reason": "test fixture: the 0.8.1 skill bytes the upgrade tests compare against" },
     { "pattern": "packages/gate/tests/fixtures/actions-stale-v11/README.md", "reason": "test fixture: input bytes for the stale-actions check" },
     { "pattern": "packages/gate/tests/fixtures/callers.md", "reason": "test fixture: input bytes for the callers check" },
-    { "pattern": "docs/method.md", "reason": "temporary: dropped by #5310" },
-    { "pattern": "docs/proof/*.md", "reason": "temporary: dropped by #5310" },
-    { "pattern": "docs/sentinels.md", "reason": "temporary: dropped by #5310" },
-    { "pattern": "docs/rigor.md", "reason": "temporary: dropped by #5310" },
-    { "pattern": "docs/handoff.md", "reason": "temporary: dropped by #5310" },
-    { "pattern": "docs/contributing-runbook.md", "reason": "temporary: dropped by #5310" },
     { "pattern": "docs/lifecycle.md", "reason": "temporary: dropped by #5309" },
     { "pattern": "docs/formats.md", "reason": "temporary: under review (Corey's checklist)" },
     { "pattern": "docs/api.md", "reason": "temporary: under review (Corey's checklist)" },
