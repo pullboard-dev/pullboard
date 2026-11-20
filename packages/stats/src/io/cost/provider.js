@@ -1,6 +1,8 @@
 /** Native session usage only: values unavailable from a provider stay null. */
-import { readFileSync } from 'node:fs';
 import { unknownInputSplit } from './usage.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Accept a provider's finite nonnegative count, never a string coercion. */
 function count(value) {
@@ -10,7 +12,7 @@ function count(value) {
 /** Parse a private JSONL record stream without exposing malformed content in errors. */
 function records(file, bytes) {
   try {
-    return (bytes ? bytes.toString('utf8') : readFileSync(file, 'utf8')).split('\n').flatMap((line) => {
+    return (bytes ? bytes.toString('utf8') : fs.readFile(file, 'utf8')).split('\n').flatMap((line) => {
       try { return [JSON.parse(line)]; } catch { return []; }
     });
   } catch { return null; }

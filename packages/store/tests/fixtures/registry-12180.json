@@ -1,0 +1,36 @@
+{
+  "store.io-board-sprint-verdict.landed-sprint-takes-verdict": {
+    "proves": {
+      "specs": [
+        "V2",
+        "M1"
+      ],
+      "claim": "A submitted sprint item the lander merged is offered by the review pick, and an accept on it records verified with the item still landed."
+    },
+    "why": "Without this test the store's verify writer refuses every landed item, so landed sprint work never takes its verdict.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/sprint-verdict.test.js",
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/reserve/next.js",
+      "packages/store/src/io/board/sprint-pace.js"
+    ]
+  },
+  "store.io-board-sprint-verdict.steady-strict-landed-refused": {
+    "proves": {
+      "specs": [
+        "V2",
+        "M1"
+      ],
+      "claim": "A steady or strict submitted item that already landed still refuses a verdict ALREADY_MERGED and stays submitted."
+    },
+    "why": "Sprint wiring must change nothing for steady and strict items.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/sprint-verdict.test.js",
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/reserve/next.js",
+      "packages/store/src/io/board/sprint-pace.js"
+    ]
+  }
+}

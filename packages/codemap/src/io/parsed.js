@@ -6,6 +6,7 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
 import { machineHome } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 const MAX_ROWS = 400_000;
 /** Keys per lookup query; far under SQLite's variable limit. */
@@ -14,9 +15,10 @@ const LOOKUP_BATCH = 500;
 /** The directory every checkout and runner job on this machine shares; tests isolate it with their account home and no shared cache. */
 function storeDirectory() {
   // A runner job's HOME is new each job, so its jobs share their runner's cache instead (PULLBOARD_RUNNER_SHARED_CACHE, #8233).
-  const shared = process.env.PULLBOARD_RUNNER_SHARED_CACHE;
+  const env = environmentAdapter();
+  const shared = env.get('PULLBOARD_RUNNER_SHARED_CACHE');
   if (shared && isAbsolute(shared)) return join(shared, 'parse-cache');
-  const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
+  const override = env.get('PULLBOARD_MACHINE_HOME'), accountHome = env.get('PULLBOARD_ACCOUNT_HOME');
   const home = machineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
   return join(home, 'parse-cache');
 }

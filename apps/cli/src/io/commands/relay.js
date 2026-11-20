@@ -20,7 +20,7 @@ import { originRepository } from '../../../../../packages/link/index.js';
 import { relayPersonCoordinator } from '../../../../../packages/link/index.js';
 import { updateRelayMachine } from '../../../../../packages/link/index.js';
 import { prepareBoardMembers } from '../../../../../packages/link/index.js';
-import { githubKeys } from '../../../../../packages/link/index.js';
+import { githubKeys } from '../../../../../packages/github/index.js';
 import {
   relayJoin,
   relayPair,
@@ -48,6 +48,7 @@ import {
   syncRelay,
 } from '../../../../../packages/link/index.js';
 import { outdatedSenderLine } from '../../../../../packages/link/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { replaceOutdatedSender } from '../../../../../packages/link/index.js';
 import {
   basename,
@@ -95,7 +96,7 @@ export async function run(io, { first, second, rest, values }) {
       if (stopped) io.say(`relay recovery replaced the old relay sender: ${outdatedSenderLine(stopped)}; this version's sender now sends the waiting moves`);
       let resolved;
       try {
-        requirePersonChannel('terminal', process.env, { command: 'pullboard relay recover' });
+        requirePersonChannel('terminal', environmentAdapter().all(), { command: 'pullboard relay recover' });
         resolved = await relayRecoverParked(context(io).info.root, io);
       } catch (error) {
         if (!stopped || !(error instanceof Refused) || !SENDER_ONLY_RECOVERY.has(error.code)) throw error;

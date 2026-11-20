@@ -10,6 +10,7 @@ import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
 import { commonJsWithCompiler } from '../../../../kernel/index.js';
 import { scratchBase } from '../../../../kernel/light.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /**
  * A child Node that compiles each source in its private input file as an ES module and reports, for each, whether
@@ -39,8 +40,8 @@ const PARSER = [
  */
 export function compileSources(sources, spawn = spawnSync) {
   const fresh = missing => compileFresh(missing, spawn);
-  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return fresh(sources);
-  const epoch = JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, PARSER]);
+  if (foreignNodeOptions(environmentAdapter().get('NODE_OPTIONS'), environmentAdapter().all())) return fresh(sources);
+  const epoch = JSON.stringify([process.execPath, process.versions.node, environmentAdapter().get('NODE_OPTIONS') ?? null, PARSER]);
   return storedCompilations(epoch, sources, fresh);
 }
 
@@ -86,8 +87,8 @@ function copyCompilation(row) { return { compiles: row.compiles, imports: [...ro
  * @returns {T}
  */
 export function withParseScope(work) {
-  if (process.env.NODE_OPTIONS) return work();
-  return importParseScopes.run({ directory: importParseScopes.getStore()?.directory, epochs: new Map(), bytes: 0, entries: 0, allowed: () => !process.env.NODE_OPTIONS }, work);
+  if (environmentAdapter().get('NODE_OPTIONS')) return work();
+  return importParseScopes.run({ directory: importParseScopes.getStore()?.directory, epochs: new Map(), bytes: 0, entries: 0, allowed: () => !environmentAdapter().get('NODE_OPTIONS') }, work);
 }
 
 /** Compile fresh bytes with real V8, reusing only successful subprocess results in this one scope. */
@@ -95,7 +96,7 @@ function look(sources) {
   const scope = importParseScopes.getStore();
   if (!scope || !scope.allowed()) return compileSources(sources);
   const epoch = JSON.stringify([process.execPath, process.versions.node,
-    Object.hasOwn(process.env, 'NODE_OPTIONS') ? process.env.NODE_OPTIONS : null,
+    Object.hasOwn(environmentAdapter().all(), 'NODE_OPTIONS') ? environmentAdapter().get('NODE_OPTIONS') : null,
     '--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', PARSER]);
   if (!scope.epochs.has(epoch)) {
     if (scope.epochs.size >= 8) return compileSources(sources);

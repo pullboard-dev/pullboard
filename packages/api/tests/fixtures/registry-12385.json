@@ -1,0 +1,4 @@
+{
+  "api.io-claim-replay.compare-with-main": {"proves":{"specs":["C7"],"claim":"compareClaimsWithMain returns { candidate, main, verdict } where the verdict is worse when the candidate p95 is over max(1.25 x main p95, main p95 + 50 ms) or over 1 s, and same otherwise."},"why":"Without this test a claim-path change that slows every pull claim by 50 ms has no judge before it lands.","kind":"contract","inputs":["packages/api/src/io/claim-replay.js"]},
+  "api.io-claim-replay.compare-real-path": {"proves":{"specs":["C7"],"claim":"compareClaimsWithMain over a scratch board with main against main replays claims in a child process at each code tree, prints both p95s and reports same."},"why":"The real child-process replay is what a gate would run; a stub alone would not catch a broken import or output shape.","kind":"contract","inputs":["packages/api/src/io/claim-replay.js"]}
+}

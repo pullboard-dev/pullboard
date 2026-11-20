@@ -378,7 +378,7 @@ test('cli.journeys-view-e2e.the-view-keeps-the-board-layout: the view keeps the 
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
     // Facts (the gate job note, the tier-1 shadow, a review comparison when one runs) are noted apart from the moves.
-    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact' && kind !== 'renew'), ['add', 'milestone_placed', 'claim', 'proof-run', 'submit', 'reject', 'escalate']);
+    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact' && kind !== 'renew'), ['add', 'milestone_placed', 'claim', 'submit_offered', 'proof-run', 'submit', 'gate_settled', 'reject', 'escalate']);
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);
