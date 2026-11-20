@@ -178,6 +178,15 @@ test('cli.journeys-imports-closure-budget.cold-list-maintenance-no-gate: clause 
   assert.deepEqual(loadedGate.slice(0, 5), [], `a cold list loaded ${loadedGate.length} gate modules: apps/cli/src/io/tool/build.js must not import the gate package`);
 });
 
+test('cli.journeys-imports-closure-budget.cold-commit-msg-trimmed-modules: clause 2: a cold pullboard hook commit-msg loads packages/kernel/light.js and none of the kernel logic files only that door pulls in [C7,#11944]', () => {
+  const run = commandLoads('hook commit-msg');
+  const dropped = ['light.js', 'src/logic/audit.js', 'src/logic/cause.js', 'src/logic/census.js', 'src/logic/discovery.js', 'src/logic/engine-declarations.js', 'src/logic/environment.js',
+    'src/logic/machine.js', 'src/logic/registry.js', 'src/logic/repo-paths.js', 'src/logic/scratch-base.js', 'src/logic/transient.js', 'src/logic/words.js'].map(name => `packages/kernel/${name}`);
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.ok(run.urls.size > 0, run.stderr);
+  assert.deepEqual(loadedDrops, [], `a cold hook commit-msg loaded ${loadedDrops.join(', ')}: the entry enables its compile cache after the hook shim, and the seat address files take Refused from the kernel browser door`);
+});
+
 test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a cold claim never loads apps/cli/src/io/spec.js: claim imports coordinatorFile from its own file [C7]', () => {
   const run = commandLoads('claim 1');
   const spec = new URL('apps/cli/src/io/spec.js', `file://${ROOT}`).href;
