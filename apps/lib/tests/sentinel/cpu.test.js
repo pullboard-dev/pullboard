@@ -10,6 +10,7 @@ import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/ch
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
 import { scanHealthSentinel } from '../../../../packages/sentinels/index.js';
 import { CPU_SENTINEL_ENGINE } from '../../../../packages/state/light.js';
+import { HEALTH_QUIET_ENGINE } from '../../../../packages/state/index.js';
 import { HEALTH_SHOUT_CAP } from '../../../../packages/store/index.js';
 import { applyRelayMove } from '../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../packages/state/index.js';
@@ -54,13 +55,7 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
     assert.equal(command, '/usr/sbin/lsof');
     return pids.map(pid => `p${pid}\nn${cwd}\n`).join('');
   };
-  // The cap and engine guards below need a finding the coordinator hears at once, which an AGENT_CPU process is not (it is routine, so it waits in the owning seat's digest).
-  // So the same observed processes are labelled with a cause the coordinator rules on, and the delivery queue is driven by those.
-  let coordinatorCause = false;
-  const observe = () => {
-    const found = agentCpuFindings(board.db, { platform: 'darwin', run, host });
-    return coordinatorCause && found ? found.map(finding => ({ ...finding, cause: 'REQUEST_UNANSWERED' })) : found;
-  };
+  const observe = () => agentCpuFindings(board.db, { platform: 'darwin', run, host });
   const scan = () => {
     const observation = scanHealthSentinel(file, { root, config: {}, now: clock.now(), cpu: observe });
     if (observation) store.recordHealthFindings(board, { agentId: 'coordinator', ...observation });
@@ -106,14 +101,15 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   assert.equal(notices().length, beforeHost + 1, 'alternating hosts do not repeat each other’s alert');
   assert.equal(store.allShouts(board).filter(row => row.shout_text.startsWith('Resolved:') && row.shout_text.includes('AGENT_CPU')).length, resolved, 'one host cannot resolve another host’s observation');
   host = 'cap-host'; birth = 'Mon Oct 19 15:00:00 2026'; pids = Array.from({ length: 12 }, (_, index) => 5001 + index);
-  coordinatorCause = true;
-  const urgent = () => store.allShouts(board).filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith('Stuck:') && row.shout_text.includes('REQUEST_UNANSWERED'));
+  const urgent = () => store.allShouts(board).filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith('Stuck:') && row.shout_text.includes('AGENT_CPU'));
   const named = pid => urgent().filter(row => new RegExp(`\\bpid ${pid}\\b`, 'u').test(row.shout_text)).length;
   const beforeCap = urgent().length;
   const failureCount = () => store.events(board).filter(event => event.event_kind === 'health-failure').length;
   const failuresBefore = failureCount();
+  // Below HEALTH_QUIET_ENGINE an AGENT_CPU finding still shouts to the coordinator and fills the pending queue, as on a replayed pre-digest board.
   const cappedScan = () => {
-    const count = store.allShouts(board).length; scan();
+    const count = store.allShouts(board).length;
+    board.executionEngineVersion = HEALTH_QUIET_ENGINE - 1; scan(); delete board.executionEngineVersion;
     assert.ok(store.allShouts(board).length - count <= HEALTH_SHOUT_CAP + 1, 'cap ten plus one summary remains unchanged');
   };
   cappedScan();
