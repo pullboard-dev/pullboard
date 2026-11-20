@@ -1,0 +1,4 @@
+{
+  "store.stale-apply.claim-release-codes": {"proves":{"specs":["C7"],"claim":"At the board-release-codes engine the stale sweep's idle and lapsed-claim releases carry a closed code (SEAT_GONE, BUILDER_SILENT, LEASE_LAPSED) with the prose reason unchanged."},"why":"Board-written releases are the bulk of all releases; a closed code instead of OTHER lets the board count why claims return.","kind":"cell unit","inputs":["packages/store/tests/logic/board/stale/apply.test.js"]},
+  "store.stale-apply.claim-release-codes-below-engine": {"proves":{"specs":["C7"],"claim":"Below the board-release-codes engine the same stale-sweep releases still carry OTHER, so older boards replay unchanged."},"why":"A board below the engine must replay its history exactly as before.","kind":"cell unit","inputs":["packages/store/tests/logic/board/stale/apply.test.js"]}
+}

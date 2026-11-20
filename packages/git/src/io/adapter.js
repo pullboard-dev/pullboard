@@ -112,6 +112,11 @@ export function currentGitAdapter() {
   return adapters.getStore() ?? realGitAdapter;
 }
 
+/**
+ * Refuse a Git adapter that lacks spawnSync, execFileSync or spawn.
+ *
+ * @param {object} adapter
+ */
 export function needAdapter(adapter) {
   const method = ['spawnSync', 'execFileSync', 'spawn'].find(name => typeof adapter?.[name] !== 'function');
   if (method) throw new TypeError(`Git adapter needs ${method}`);

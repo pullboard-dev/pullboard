@@ -18,12 +18,12 @@ export function changedCells(files) {
  * `barTests` records [{item, files}]; a bar file that is red (after the same one rerun) or missing ends the proof red naming the item and the file [U147].
  *
  * @param {{ tree: string }} record The batch's exact-tree record, whose tree id this proof is keyed by.
- * @param {{ changedFiles: () => string[], pin: () => string, runStatic: () => Promise<{ isGreen: boolean, output?: string }>, runCell: (cell: string) => Promise<{ isGreen: boolean, output?: string, files?: string[] }>, runBar?: () => Promise<{ isGreen: boolean, output?: string, files?: string[], refused?: boolean, item?: number, file?: string, items?: { item: number, files: string[] }[] }>, rerunFile?: (file: string) => Promise<{ isGreen: boolean }>, mainReceipt?: (file: string) => { result: string, main?: string, receiptId?: string } | null }} ports
+ * @param {{ changedFiles: () => string[] | Promise<string[]>, pin: () => string, runStatic: () => Promise<{ isGreen: boolean, output?: string }>, runCell: (cell: string) => Promise<{ isGreen: boolean, output?: string, files?: string[] }>, runBar?: () => Promise<{ isGreen: boolean, output?: string, files?: string[], refused?: boolean, item?: number, file?: string, items?: { item: number, files: string[] }[] }>, rerunFile?: (file: string) => Promise<{ isGreen: boolean }>, mainReceipt?: (file: string) => { result: string, main?: string, receiptId?: string } | null }} ports
  *   What the proof reads and runs; the caller supplies them so this file imports nothing.
  * @returns {Promise<{ tree: string, pin: string, cells: string[], result: 'green'|'red', failed?: string, output?: string, file?: string, rerun?: 'green'|'red', mainReceipt?: object|null, flakes?: { file: string, tree: string }[] }>}
  */
 export async function sprintProof(record, ports) {
-  const cells = changedCells(ports.changedFiles());
+  const cells = changedCells(await ports.changedFiles());
   const proof = { ...record, pin: ports.pin(), cells };
   const flakes = [];
   const staticRun = await ports.runStatic();
@@ -34,7 +34,7 @@ export async function sprintProof(record, ports) {
     if (!ports.rerunFile || !run.files?.length) return { ...proof, result: 'red', failed, ...extra(undefined), ...output };
     for (const file of run.files) {
       const again = await ports.rerunFile(file);
-      const receipt = ports.mainReceipt?.(file) ?? null;
+      const receipt = (await ports.mainReceipt?.(file)) ?? null;
       if (!again.isGreen || receipt?.result !== 'green') return { ...proof, result: 'red', failed, file, rerun: again.isGreen ? 'green' : 'red', mainReceipt: receipt, ...(flakes.length ? { flakes } : {}), ...extra(file), ...output };
       flakes.push({ file, tree: record.tree });
     }
