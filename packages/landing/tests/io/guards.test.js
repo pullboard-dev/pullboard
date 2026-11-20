@@ -17,7 +17,7 @@ import { landingWaivers } from '../../index.js';
 import { requireLandingModuleResolution } from '../../index.js';
 import { requireLandingSecretFree } from '../../index.js';
 import { scanLanding } from '../../src/io/scan.js';
-import { runShell } from '../../../gate/index.js';
+import { runShell } from '../../../gate/heavy.js';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
@@ -165,4 +165,14 @@ test('landing.guards.a-clean-candidate-passes-every-landing: a clean candidate p
   assert.equal(sh('rev-parse', 'HEAD'), tip, 'the guards add no commit');
   assert.equal(sh('rev-parse', 'HEAD^{tree}'), tree, 'the candidate tree is unchanged');
   assert.equal(sh('status', '--porcelain'), '', 'the guards write nothing');
+});
+
+test('landing.io-guards.rename-without-path-map: a composed landing that renames a tracked file lands without a path-map row, and a missing module target is still refused [C7]', async t => {
+  const body = Array.from({ length: 30 }, (_, line) => `export const row${line} = ${line};`).join('\n') + '\n';
+  const { root, sh, base, candidate } = secretRepo(t, { 'a.js': body, 'use.js': "import { row1 } from './a.js';\nexport const use = row1;\n" });
+  sh('mv', 'a.js', 'b.js');
+  const renamed = candidate({ 'use.js': "import { row1 } from './b.js';\nexport const use = row1;\n" });
+  await requireLandingModuleResolution(root, base, renamed);
+  const broken = candidate({ 'use.js': "import { row1 } from './gone.js';\nexport const use = row1;\n" });
+  await assert.rejects(requireLandingModuleResolution(root, base, broken), error => error.code === 'LAND_MODULE_RESOLUTION' && error.message.includes('./gone.js'));
 });
