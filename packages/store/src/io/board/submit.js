@@ -369,11 +369,24 @@ export function recordedBaseRows(board, base) {
   const store = boardReceiptStore(board);
   let names = [];
   try { names = store ? readdirSync(store) : []; } catch { return []; }
+  const listed = new Set(names);
+  const known = MAIN_RED_ROWS.get(store) ?? new Map();
+  MAIN_RED_ROWS.set(store, known);
+  for (const name of known.keys()) if (!listed.has(name)) known.delete(name);
   return names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).flatMap(name => {
-    const receipt = readGateReceipt(store, name.slice(0, -5));
-    return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
+    if (!known.has(name)) {
+      const receipt = readGateReceipt(store, name.slice(0, -5));
+      // A receipt that did not read (still being written) is not remembered, so the next call reads it again.
+      if (!receipt) return [];
+      known.set(name, receipt.kind === 'main-red' && Array.isArray(receipt.testOutcomes) ? { head: receipt.head, testOutcomes: receipt.testOutcomes } : null);
+    }
+    const row = known.get(name);
+    return row && row.head === base ? row.testOutcomes : [];
   });
 }
+
+/** What recordedBaseRows kept of each receipt file already read, by receipt store path: null for a receipt that is not main-red. A receipt file never changes once written, so each is read once per process [C7]. */
+const MAIN_RED_ROWS = new Map();
 
 /**
  * Record the machine accept for a green pulled gate receipt on a submitted, machine-eligible item; false when the receipt
