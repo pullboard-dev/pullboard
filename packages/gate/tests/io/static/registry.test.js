@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { runShell } from '../../../index.js';
+import { runShell } from '../../../heavy.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 import {
   privateFixtureFiles,

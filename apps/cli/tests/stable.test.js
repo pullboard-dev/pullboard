@@ -1,6 +1,7 @@
 /** @pullboard-test-input apps/cli/tests/** apps/cli/journeys/** */
 /** Every cli-app test, in its tests and journeys folders, carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10476,#10541]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -117,8 +118,11 @@ test('cli.stable.journey-local-duplicate-id: clause 2: [C7,U148] a test id recor
 test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the journeys add, agents, baseline, blueprint, cells, claim, companion and decisions folders has a registered cli.<area>.<slug> title ID', () => {
   const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry-10541.json'), 'utf8'));
   const journeys = join(DIR, '..', 'journeys');
+  // #12243 moved decisions/project and agents/takeover-model under tests/io/commands; their records stay in registry-10541.json.
+  const moved = ['agents/takeover-model.test.js', 'decisions/project.test.js'].map((name) => join(DIR, 'io', 'commands', name));
   for (const area of ['add', 'agents', 'baseline', 'blueprint', 'cells', 'claim', 'companion', 'decisions']) {
-    for (const file of testFiles(join(journeys, area))) {
+    const files = existsSync(join(journeys, area)) ? testFiles(join(journeys, area)) : [];
+    for (const file of [...files, ...moved.filter((path) => path.includes(`/commands/${area}/`))]) {
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
