@@ -2,16 +2,14 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import {
-  existsSync,
-  mkdirSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
 } from 'node:path';
 import { repoInfo } from '../../../../../git/index.js';
 import { Refused } from '../../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const WINDOW_MS = 600000;
 const STEPS = new Set(['sign-in', 'push', 'pull', 'unseal', 'version', 'complete']);
@@ -26,7 +24,7 @@ function healthFile(root) {
 
 /** Read one private telemetry record without creating a file for a status read. */
 function historyAt(file) {
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     const row = db.prepare('SELECT value FROM relay_health WHERE id=1').get();
@@ -120,8 +118,8 @@ export function observeRelayHealth(root, result, options = {}) {
 /** Record a transport observation when its link path is already available, without rediscovering Git. */
 export function observeRelayHealthFile(file, result, { now = Date.now(), alerts = true } = {}) {
   const sample = sampleOf(result, now);
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  try { writeFileSync(file, '', { flag: 'wx', mode: 0o600 }); }
+  fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  try { fs.writeFile(file, '', { flag: 'wx', mode: 0o600 }); }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
   const db = new DatabaseSync(file);
   try {
@@ -174,8 +172,8 @@ export function markCanaryNoticeRecorded(root, id) {
 export function claimRelayCanaryTick(root, now = Date.now()) {
   if (!Number.isFinite(now)) throw new Refused('RELAY_HEALTH', 'run the canary with a valid local clock');
   const file = healthFile(root);
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
-  try { writeFileSync(file, '', { flag: 'wx', mode: 0o600 }); }
+  fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
+  try { fs.writeFile(file, '', { flag: 'wx', mode: 0o600 }); }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
   const db = new DatabaseSync(file);
   try {
