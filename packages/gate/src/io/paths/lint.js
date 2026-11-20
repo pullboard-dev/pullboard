@@ -9,11 +9,7 @@
  * Why: most post-move reds were literal or segment-built paths that no longer existed. A ratchet records today's count per
  * file so the lint lands without blocking main; counts only fall.
  */
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   dirname,
   isAbsolute,
@@ -29,6 +25,8 @@ import {
   lineAt,
   walk,
 } from '../scan.js';
+
+const fs = fileSystemAdapter();
 
 const BASELINE = 'packages/gate/data/ceilings/missing-paths.json';
 const ANCHOR_DIR = /^(?:import\.meta\.dirname|(?:path\.)?dirname\(\s*fileURLToPath\(\s*import\.meta\.url\s*\)\s*\)|fileURLToPath\(\s*new URL\(\s*['"`]\.['"`]\s*,\s*import\.meta\.url\s*\)\s*\))$/u;
@@ -111,7 +109,7 @@ function renameMap(root, option) {
  * @param {(path: string) => boolean} [exists] - Whether a path exists; a caching caller records every probe.
  * @returns {{line: number, path: string}[]} Missing paths with their lines.
  */
-export function fileFindings(root, file, source, tops, exists = existsSync) {
+export function fileFindings(root, file, source, tops, exists = fs.exists) {
   if (!/import\.meta|REPO_ROOT|repoRoot|REPOSITORY_ROOT|repositoryRoot|\[\s*['"`](?:packages|apps|src|test|bin|relay|docs)['"`]/u.test(source)) return [];
   const { code, strings } = lex(source);
   const literal = new Map(strings.map(entry => [entry.start, entry]));
@@ -213,7 +211,7 @@ export function missingPathFindings(root, options = {}) {
   const rows = [];
   for (const file of files) {
     let source;
-    try { source = readFileSync(join(root, file), 'utf8'); } catch { continue; }
+    try { source = fs.readFile(join(root, file), 'utf8'); } catch { continue; }
     for (const row of (options.findingsOf ?? fileFindings)(root, file, source, tops)) rows.push({ file, line: row.line, path: row.path, suggest: movedTo(map, row.path) });
   }
   return rows.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line));
@@ -241,7 +239,7 @@ export function missingPathGrowth(rows, baseline) {
 
 /** The recorded per-file counts of the tree being checked. */
 export function readMissingPathBaseline(root) {
-  return JSON.parse(readFileSync(join(root, BASELINE), 'utf8'));
+  return JSON.parse(fs.readFile(join(root, BASELINE), 'utf8'));
 }
 
 /**
@@ -259,7 +257,7 @@ export function writeMissingPathBaseline(root, { initialize = false } = {}) {
   }
   const files = {};
   for (const row of rows) files[row.file] = (files[row.file] ?? 0) + 1;
-  writeFileSync(join(root, BASELINE), `${JSON.stringify({ version: 1, total: rows.length, files }, null, 2)}\n`);
+  fs.writeFile(join(root, BASELINE), `${JSON.stringify({ version: 1, total: rows.length, files }, null, 2)}\n`);
   return [];
 }
 

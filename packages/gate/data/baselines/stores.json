@@ -498,6 +498,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
+    "adapter-lint-github.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/github.js"
+    },
     "adapter-lint-ssh.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/ssh.js"
@@ -649,6 +653,10 @@
     "cli-launches.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
+    },
+    "closure-budget.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/logic/budgets.js"
     },
     "code-map.json": {
       "kind": "json",
@@ -820,7 +828,7 @@
       "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
     },
     "load-bearing.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/gate/src/logic/load/bearing.js"
     },
     "lock.sqlite": {
@@ -1157,7 +1165,7 @@
     },
     "sources.json": {
       "kind": "json",
-      "owner": "packages/codemap/src/io/cell/uses.js"
+      "owner": "packages/codemap/src/io/module/imports.js"
     },
     "starting.json": {
       "kind": "json",
