@@ -3,7 +3,7 @@ import { git } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { mainCheckout } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
-import { runStaticChecks } from '../../../../gate/index.js';
+import { runStaticChecks } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { COMPOSE_PACK } from '../compose.js';
