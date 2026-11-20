@@ -1,0 +1,4 @@
+{
+  "gate.io-conformance-rows.rows-from-runs-file": {"proves":{"specs":["C7"],"claim":"conformanceRows reads the root's runs file and returns per-stage rows: a recorded node run shows its outcome and run id, other setups unknown, and the toolchain probe counts only executables on the path value"},"why":"Without this case a regression in the conformance runs feed would pass the gate unnoticed.","kind":"cell unit","inputs":["packages/gate/tests/io/conformance-rows.test.js","packages/gate/src/io/conformance-rows.js"]},
+  "gate.io-conformance-rows.no-file-and-bad-file": {"proves":{"specs":["C7"],"claim":"with no runs file every row is unknown or unavailable and nothing throws; a runs file that is not a JSON list is refused naming the file"},"why":"Without this case a regression in the conformance runs feed would pass the gate unnoticed.","kind":"cell unit","inputs":["packages/gate/tests/io/conformance-rows.test.js","packages/gate/src/io/conformance-rows.js"]}
+}
