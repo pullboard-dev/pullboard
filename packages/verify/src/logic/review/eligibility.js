@@ -16,8 +16,18 @@ import { itemAuthors } from '../../../../items/index.js';
 import { requiredReviewFamilyProblem } from '../required.js';
 import { Refused } from '../../../../kernel/index.js';
 
-/** Return the first rule failing in the same order as the native review guards. */
-export function eligibilityProblem(board, item, agent, { policy = 'any', familyPolicy = 'off' } = {}) {
+/** The required-family refusal, or null when review.relaxRequiredFamily is on and the caller holds a relaxation witness for this item and seat [C7]. */
+export function requiredFamilyStands(problem, board, item, agentId, { relaxRequiredFamily = false, requiredFamilyWitness = null } = {}) {
+  if (!problem) return null;
+  return relaxRequiredFamily === true && requiredFamilyWitness?.(board, item, agentId) ? null : problem;
+}
+
+/**
+ * Return the first rule failing in the same order as the native review guards. With review.relaxRequiredFamily on
+ * (`relaxRequiredFamily`) and a relaxation witness for this item and seat (`requiredFamilyWitness`, read by the caller),
+ * a --review-family item no longer refuses a seat of another family; without a witness, or with the setting off, it refuses as before [C7].
+ */
+export function eligibilityProblem(board, item, agent, { policy = 'any', familyPolicy = 'off', relaxRequiredFamily = false, requiredFamilyWitness = null } = {}) {
   const identity = itemAuthorProblem(board, item, agent.agent_id, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem: strictAuthorProblem });
   if (identity) return identity;
   const earlier = earlierHolderProblem(board, item, agent.agent_id);
@@ -25,7 +35,8 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
   const required = requiredReviewFamilyProblem(board, item, agent.agent_id);
-  if (required) return required;
+  const stands = requiredFamilyStands(required, board, item, agent.agent_id, { relaxRequiredFamily, requiredFamilyWitness });
+  if (stands) return stands;
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
   const family = reviewFamilyEligibility(board, item, agent.agent_id, familyPolicy);

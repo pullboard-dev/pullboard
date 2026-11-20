@@ -10,6 +10,7 @@
 import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { workerError } from './state/materializer.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** How long a call may wait for a free worker before it is refused API_BUSY. */
 const QUEUE_MS = 1_000;
@@ -39,7 +40,7 @@ export function handlerPoolSize(cores = availableParallelism()) {
 export function startHandlerPool({ portsModule, isMain, size = handlerPoolSize(), queueMs = QUEUE_MS, callMs = CALL_MS, runnerWorkers = RUNNER_WORKERS, Refused, onFailure }) {
   // The worker takes none of this process's preloads, as the state worker does: a test runner's preload run again
   // in a thread claims the file's test slot a second time [C7].
-  const { NODE_TEST_CONTEXT: _testContext, ...env } = process.env;
+  const { NODE_TEST_CONTEXT: _testContext, ...env } = environmentAdapter().all();
   const slots = [];
   // Agent calls (moves, requests, reads) wait in `queue`; runner job calls wait in `runnerQueue`, served first.
   const queue = [];

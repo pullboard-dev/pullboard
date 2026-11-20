@@ -1,0 +1,4 @@
+{
+  "store.io-board-withdraw-jobs.board-withdraw-ends-open-jobs": {"proves":{"specs":["C7","#11819"],"claim":"the board withdraw ends the item's open gate job and gate-shard jobs when endGateJobs is on and leaves them open when it is off."},"why":"Without it, gate and shard jobs of a withdrawn item stay offered and runners spend time on them.","kind":"cell unit","inputs":["packages/store/src/io/board/withdraw.js"]},
+  "store.io-board-withdraw-jobs.hand-landing-ends-open-jobs": {"proves":{"specs":["C7","#11819"],"claim":"the hand-landing record ends the item's open gate job and gate-shard jobs when endGateJobs is on and leaves them open when it is off."},"why":"Without it, gate and shard jobs of a hand-landed item stay offered and runners spend time on them.","kind":"cell unit","inputs":["packages/store/src/io/board/merged.js","packages/store/src/io/board/withdraw.js"]}
+}

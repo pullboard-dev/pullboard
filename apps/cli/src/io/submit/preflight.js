@@ -17,10 +17,10 @@ const STATIC_CHECK_CODE = resolve(import.meta.dirname, '../../../../../packages/
 const REGISTRY = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/src/io/static/check/registry.js')).href;
 const LIST_CHILD = `const { STATIC_CHECKS } = await import(${JSON.stringify(REGISTRY)}); process.stdout.write(JSON.stringify(STATIC_CHECKS.map(check => check.name)));`;
 const CHILD = `const { changedStaticFailures } = await import(${JSON.stringify(CHANGED_STATIC)});
-const [root, name, files] = process.argv.slice(1);
-const failures = changedStaticFailures(root, JSON.parse(files), { only: [name] });
-if (failures.length) process.stderr.write(failures.join('\\n') + '\\n');
-process.exitCode = failures.length ? 1 : 0;`;
+const [root, names, files] = process.argv.slice(1);
+const found = {};
+for (const name of names.split(',')) found[name] = changedStaticFailures(root, JSON.parse(files), { only: [name] });
+process.stdout.write(JSON.stringify(found));`;
 
 /** The notices Node itself prints to a child's stderr (an experimental-feature warning with its pid), which are not findings. */
 const NODE_NOTICE = /^\(node:\d+\) |^\(Use `node /u;
@@ -28,22 +28,33 @@ const NODE_NOTICE = /^\(node:\d+\) |^\(Use `node /u;
 /** Checks that judge the whole tree whatever files changed. */
 const TREE_CHECKS = new Set(['sync-spawn-in-leases', 'no-runtime-assumptions', 'store-registry', 'layout', 'compat-toggles', 'engine-folder']);
 
+/** Cheap per-file checks that share one child, so a submit starts fewer node processes [C7]. */
+const SHARED_CHILD_CHECKS = ['import-style', 'default-export', 'empty-catch', 'inline-style', 'jsdoc'];
+
 /**
- * Run one registered check in a child process.
+ * Run registered checks in one child process, one result per check.
  *
  * @param {string} root - Checkout root.
- * @param {string} name - Registered check name.
+ * @param {string[]} names - Registered check names the child runs one after another.
  * @param {string[]} files - Root-relative changed files.
- * @returns {Promise<{ name: string, failures: string[], ms: number }>}
+ * @returns {Promise<{ name: string, failures: string[], ms: number }[]>}
  */
-function runOne(root, name, files) {
+function runGroup(root, names, files) {
   const started = performance.now();
   return new Promise(done => {
-    const child = spawn(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', CHILD, root, name, JSON.stringify(files)], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+    const child = spawn(process.execPath, ['--experimental-vm-modules', '--input-type=module', '-e', CHILD, root, names.join(','), JSON.stringify(files)], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
+    let out = '';
     let text = '';
+    child.stdout.on('data', chunk => { out += chunk; });
     child.stderr.on('data', chunk => { text += chunk; });
-    child.on('error', error => done({ name, failures: [`${name}: could not start (${error.message})`], ms: performance.now() - started }));
-    child.on('close', code => done({ name, failures: code === 0 ? [] : text.split('\n').filter(line => line && !NODE_NOTICE.test(line)), ms: performance.now() - started }));
+    const fail = failures => done(names.map((name, at) => ({ name, failures: at === 0 ? failures : [], ms: performance.now() - started })));
+    child.on('error', error => fail([`${names[0]}: could not start (${error.message})`]));
+    child.on('close', code => {
+      let found = null;
+      try { found = code === 0 ? JSON.parse(out) : null; } catch { found = null; }
+      if (!found) return fail(text.split('\n').filter(line => line && !NODE_NOTICE.test(line)).concat(code === 0 ? [] : [`${names.join(',')}: exited ${code}`]));
+      return done(names.map(name => ({ name, failures: found[name] ?? [], ms: performance.now() - started })));
+    });
   });
 }
 
@@ -80,7 +91,9 @@ export async function runPreflight(root, files, { lean = false, resident = resid
   const answered = resident ? await callResident('preflight', { root, files, skip: codeChanged ? [] : [...TREE_CHECKS] }, { cwd: root }) : null;
   if (Array.isArray(answered?.results)) return { ok: answered.results.every(row => !row.failures.length), results: answered.results, ms: performance.now() - started };
   const names = (await registeredNames(root)).filter(name => codeChanged || !TREE_CHECKS.has(name));
-  const results = await Promise.all(names.map(name => runOne(root, name, files)));
+  const shared = names.filter(name => SHARED_CHILD_CHECKS.includes(name));
+  const groups = [...(shared.length ? [shared] : []), ...names.filter(name => !SHARED_CHILD_CHECKS.includes(name)).map(name => [name])];
+  const results = (await Promise.all(groups.map(group => runGroup(root, group, files)))).flat();
   return { ok: results.every(row => !row.failures.length), results, ms: performance.now() - started };
 }
 

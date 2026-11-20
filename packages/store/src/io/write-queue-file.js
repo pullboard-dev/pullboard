@@ -8,8 +8,8 @@
  * (group commit), each write inside its own savepoint so a refused write rolls back only itself. Grouped writes must be
  * synchronous: a transaction cannot stay open across an await. Without the ports each write runs alone, as before.
  *
- * Layout in `dir`: `<id>.pending` (the write waits), `<id>.result` ({ ok, value } or { ok: false, error }), and
- * `drain.lock` (the process now draining). Records are written to a temp name and renamed, so a reader never sees half.
+ * Layout in `dir`: `pending/<id>.pending` (the write waits; its own folder, so a drain lists only pending writes however many
+ * results are stored), `<id>.result` ({ ok, value } or { ok: false, error }), and `drain.lock` (the process now draining). Records are written to a temp name and renamed, so a reader never sees half.
  */
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -53,8 +53,9 @@ function takeLock(lock) {
 const pause = ms => new Promise(done => setTimeout(done, ms));
 
 /**
+ * Open the cross-process write queue in a directory, so a caller can submit writes and read their results later.
  * @param {string} dir the queue directory shared by every process; each write's `run` receives its queue sequence number
- * @param {{ transaction?: <T>(work: () => T) => T, savepoint?: <T>(work: () => T) => T }} [ports]
+ * @param {{ transaction?: <T>(work: () => T) => T, savepoint?: <T>(work: () => T) => T }} [ports] the transaction and savepoint wrappers
  * @returns {{ submit: (write: { id: string, run: () => unknown }) => Promise<{ ok: boolean, value?: unknown, error?: { code: string, message: string } }>,
  *   result: (id: string) => { ok: boolean, value?: unknown, error?: { code: string, message: string } } | null }}
  */
@@ -62,7 +63,9 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, 'drain.lock');
   const resultFile = id => join(dir, `${id}.result`);
-  const pendingFile = id => join(dir, `${id}.pending`);
+  const pendingDir = join(dir, 'pending');
+  const pendingFile = id => join(pendingDir, `${id}.pending`);
+  mkdirSync(pendingDir, { recursive: true });
   const runs = new Map();
   let counter = 0;
 
@@ -73,8 +76,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
 
   /** Every pending write still worth running, oldest first; drops records already answered or whose owner died (its function is gone). */
   function pendingWrites() {
-    const entries = readdirSync(dir).filter(name => name.endsWith('.pending')).map(name => {
-      const record = readRecord(join(dir, name));
+    const entries = readdirSync(pendingDir).filter(name => name.endsWith('.pending')).map(name => {
+      const record = readRecord(join(pendingDir, name));
       return { id: name.slice(0, -'.pending'.length), seq: record?.seq ?? 0, pid: record?.pid };
     }).sort((a, b) => a.seq - b.seq || (a.id < b.id ? -1 : 1));
     return entries.filter(entry => {
