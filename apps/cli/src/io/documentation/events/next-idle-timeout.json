@@ -1,0 +1,10 @@
+{
+  "kind": "next-idle-timeout",
+  "entries": [
+    {
+      "order": 61,
+      "actor": "idle seat",
+      "detail": "`version`, `engine`, `lane`, `minutes`, `awaited` (a next call that gave up waiting)"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 /** Measure physical migration debt using the real inventory and the cell folders [C7,D3]. */
-import { importsIn } from '../../../packages/gate/index.js';
-import { commonJsIn } from '../../../packages/gate/index.js';
+import { importsIn } from '../../../packages/gate/heavy.js';
+import { commonJsIn } from '../../../packages/gate/heavy.js';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { cellInventory, testFile } from '../../../packages/codemap/index.js';

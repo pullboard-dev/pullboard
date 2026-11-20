@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/data/baselines/test-waits-baseline.json packages/gate/src/io/changed/scripts/static.js packages/gate/src/logic/load/bearing.js packages/resources/src/io/handoff/worker/cap.js */
+/** @pullboard-test-input packages/gate/data/baselines/test-waits-baseline.json packages/gate/src/io/changed/scripts/static.js packages/gate/src/logic/load/bearing.js packages/resources/src/io/liveness.js */
 /** No process is load-bearing: the changed-file static check refuses new daemons and state files outside the drive, transport, jobs and pin cells [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -121,6 +121,6 @@ test('lib.durable-daemons.existing-sites-sit-in-a-ceiling: clause 1: existing si
 test('lib.durable-daemons.the-repository-ceilings-list-every-existing: clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
   const root = join(import.meta.dirname, '../../../..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER,
-    LOAD_BEARING_CEILINGS, 'packages/resources/src/io/handoff/worker/cap.js', 'packages/gate/src/logic/load/bearing.js'], { cwd: root, encoding: 'utf8' });
+    LOAD_BEARING_CEILINGS, 'packages/resources/src/io/liveness.js', 'packages/gate/src/logic/load/bearing.js'], { cwd: root, encoding: 'utf8' });
   assert.doesNotMatch(`${run.stderr}`, /load-bearing/u, run.stderr);
 });

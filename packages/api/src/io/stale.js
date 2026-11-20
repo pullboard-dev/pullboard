@@ -26,7 +26,7 @@ export function endStaleGateJobs(db, { item, keep = null, enabled = false, reaso
  * The offered gate-shard jobs of item gates, read in one pass the job_step index serves: only `gate:` shard ids, so a
  * release's or a push's shards are never read as an item's gate.
  */
-const OFFERED_GATE_SHARDS = "SELECT job_id, job_item, job_candidate FROM job WHERE job_step = 'offered' AND job_kind = ? AND substr(job_id, 1, 5) = 'gate:' ORDER BY job_created, job_id";
+const OFFERED_GATE_SHARDS = "SELECT job_id, job_item, job_candidate FROM job WHERE job_step = 'offered' AND job_kind = ? AND +job_id >= 'gate:' AND +job_id < 'gate:' || char(65535) ORDER BY job_created, job_id";
 
 /**
  * End the offered (unclaimed) shards of every gate whose candidate does not contain `before`, each as withdrawn with a

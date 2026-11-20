@@ -1,0 +1,4 @@
+{
+  "store.logic-board-stats.idle-timeout-event": {"proves":{"specs":["N2"],"claim":"recordNextIdle on a joined seat with a timeout observation writes one next-idle-timeout event carrying version, engine, lane, minutes and awaited, and refuses a malformed one."},"why":"Without this test, a regression where a timed-out next left no record of the minutes waited and what it awaited would pass unnoticed.","kind":"cell unit","inputs":["packages/store/index.js"]},
+  "store.logic-board-stats.finished-once": {"proves":{"specs":["N2"],"claim":"recordNextIdle with a finished observation writes one next-finished event per seat however many times it is called, and an unjoined seat is refused NOT_JOINED."},"why":"Without this test, a regression where a seat's finish was recorded twice, or for a seat that never joined, would pass unnoticed.","kind":"cell unit","inputs":["packages/store/index.js"]}
+}

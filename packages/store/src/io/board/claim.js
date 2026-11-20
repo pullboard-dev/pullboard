@@ -450,10 +450,12 @@ function admissionUsedSince(board, since, admissionId) {
  * The pending-correction guard is the one it does not cover: a coordinator correction to a held peer's bar must be refrozen before its lease extends, as for any renewal.
  * Why not the rest: a held item's lane and route cannot be edited, and its bar, route and dependencies change only through that same pending correction.
  */
-const peerChecks = (board, peer) => ({
-  ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
-  correctionRefrozen: () => pendingRefreezeProblem(board, peer),
-});
+function peerChecks(board, peer) {
+  return {
+    ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
+    correctionRefrozen: () => pendingRefreezeProblem(board, peer),
+  };
+}
 
 /**
  * Renew every other member the seat holds through a block that names item `id`, to the same lease, each with its own renew event, so a stalled block lapses and is returned as one [C7,#2202].
