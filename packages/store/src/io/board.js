@@ -35,6 +35,7 @@ import { reviewHolder } from "./board/query.js";
 import { events } from "./board/query.js";
 import { proofReceipts } from "./receipts.js";
 import { prepareMergeOnlySubmit } from "../../../merge/index.js";
+import { mechanicalConflictFiles } from "../../../merge/index.js";
 import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
@@ -310,7 +311,7 @@ export function moveItem(board, id, verb, { checks, set = () => ({}), before = (
  */
 export const onlyCoordinator = (agentId, what) => (agentId === COORDINATOR ? null : new Refused('COORDINATOR_ONLY', `only the coordinator ${what}`));
 
-export { prepareMergeOnlySubmit };
+export { prepareMergeOnlySubmit, mechanicalConflictFiles };
 
 export { reviewHolder } from "./board/query.js";
 
