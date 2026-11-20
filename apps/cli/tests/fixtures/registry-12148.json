@@ -1,0 +1,4 @@
+{
+  "cli.journey.timeline-item": {"proves":{"specs":["C7"],"claim":"pullboard timeline <id> prints one row per stage with its delta and the bucket summary, and --json carries version 1, rows, summary and unmapped."},"why":"The item reader had no production caller until the command ran it.","kind":"journey","inputs":["apps/cli/src/io/commands/timeline.js","packages/stats/src/io/timeline.js"]},
+  "cli.journey.timeline-fleet": {"proves":{"specs":["C7"],"claim":"pullboard timeline --fleet --since 3h lists both items' stage medians and bucket shares, and --json carries version 1."},"why":"The fleet reader had no production caller until the command ran it.","kind":"journey","inputs":["apps/cli/src/io/commands/timeline.js","packages/stats/src/io/timeline.js"]}
+}

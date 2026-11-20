@@ -90,6 +90,7 @@ export async function run(io, args) {
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
+    ...(values.needs === undefined ? {} : { needs: values.needs.split(',').map(need => need.trim()).filter(Boolean) }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     route: values.route,
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),

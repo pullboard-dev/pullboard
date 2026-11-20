@@ -827,7 +827,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
   };
   /** Call the board until it answers; only the board's own refusal ends the call. */
-  const reliably = async body => {
+  const reliably = async call => {
+    // One claim key names one claim: every retry of that claim sends it again, so the board hands back the lease the first try took [C7].
+    const body = call.action === 'claim' ? { ...call, key: randomBytes(12).toString('hex') } : call;
     for (;;) {
       if (signal?.aborted) throw new Refused('RUNNER_STOPPED', 'the runner was stopped');
       try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; failures = 0; return answer; }
