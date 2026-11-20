@@ -60,7 +60,10 @@ function eventRows(events) {
     if (event.kind === 'claim' && released) stage = 're-claimed';
     if (['release', 'reject', 'reopen'].includes(event.kind)) released = true;
     const reason = event.kind === 'release' ? detail.reasonCode ?? null : event.kind === 'reject' ? detail.reason ?? null : event.kind === 'hold_item' ? 'HELD' : event.kind === 'accept' || event.kind === 'pass' ? event.kind : null;
-    rows.push(row(at, event.item, stage, edge, event.by, event.kind === 'unhold_item' ? 'HELD' : reason, detail.commit ?? null));
+    const mergedAt = event.kind === 'merged' && Number.isFinite(detail.mergedAt) && detail.mergedAt <= at ? detail.mergedAt : null;
+    // A merged event that carries the commit's own time places merged there and the board's record lag as its own recorded row; older events have none.
+    rows.push(row(mergedAt ?? at, event.item, stage, edge, event.by, event.kind === 'unhold_item' ? 'HELD' : reason, detail.commit ?? null));
+    if (mergedAt !== null && mergedAt < at) rows.push(row(at, event.item, 'recorded', 'point', event.by, null, detail.commit ?? null));
   }
   return { rows, unmapped: [...unmapped].map(([kind, count]) => ({ kind, count })).sort((a, b) => a.kind.localeCompare(b.kind)) };
 }
@@ -126,6 +129,7 @@ function stretches(rows, end) {
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
     else if (current.stage === 'merged') phase = 'merged';
+    else if (current.stage === 'recorded') phase = 'recorded';
     if (gateJob) {
       if (current.stage === 'gate-queued') gate.queued.add(current.ref);
       else if (current.stage === 'gate-running') { gate.queued.delete(current.ref); gate.running.add(current.ref); }
