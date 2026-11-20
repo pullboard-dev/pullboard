@@ -72,8 +72,8 @@ function growthCheck(check) {
 function jsdocProblems(root, files, read) {
   return files.filter(file => /\.[cm]?js$/u.test(file) && !isTestSource(file)).flatMap(file => jsdocFindings(scanSource(file, read(file) ?? '').functions
     .filter(fn => fn.exported)
-    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name ?? param.raw),
-      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name).filter(name => !name.includes('.')) } })))
+    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name),
+      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name) } })))
     .map(row => ({ path: row.file, line: 1, text: `exported function ${row.name}: ${row.problem}` })));
 }
 
