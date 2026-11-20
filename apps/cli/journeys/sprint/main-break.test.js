@@ -21,6 +21,8 @@ const CASE_MS = 150_000;
 function pacedProject(pace, mark) {
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject({ withWorktree: false });
+  // The fixture gate fails a FLAKE file in a full run only once main on origin holds it: the item's own gate is green, the run after its landing red.
+  box.env.LAND_RED_AFTER_LANDING = '1';
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
   const landing = { ...(config.landing ?? {}) };
@@ -36,7 +38,7 @@ function pacedProject(pace, mark) {
 /** File, claim, build (a change that breaks the full suite) and `submit --no-next` one item through the CLI, then wait for its gate receipt to apply. */
 async function submitOne({ box, fixtures }, mark) {
   const entry = await fixtures.itemWorktreeLocal(box, 1);
-  // FLAKE: the fixture gate passes the file alone (the item's own check) and fails it in a full run, as a main test no import links to it.
+  // FLAKE: with LAND_RED_AFTER_LANDING the file passes every run until main holds it, then fails the full run, as a main test no import links to it.
   await fixtures.commitItemLocal(box, entry, 'FLAKE\n');
   // A screen is a keyed result, never done, so the fixture's all-jobs-done settle is off and the gate is awaited below.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
@@ -71,7 +73,6 @@ function marker(t) {
   const started = Date.now();
   return label => t.diagnostic(`${((Date.now() - started) / 1000).toFixed(1)}s ${label}`);
 }
-
 
 const postLandJobs = box => boardRead(box, "SELECT job_id FROM job WHERE job_kind = 'test' AND job_id LIKE 'post-land:%'").length;
 
