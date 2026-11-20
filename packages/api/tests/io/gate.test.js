@@ -284,6 +284,53 @@ test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a ga
   assert.doesNotMatch(plan, /SCAN job/u, plan);
 });
 
+/** A board of 300 gates and 60000 gate-shard rows, 52 of the gates done and held by a claimed item (the live board's shape at filing), and the old substr query of main for the same lookups. */
+function scaleBoard(t) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  const now = Date.now();
+  const ids = Array.from({ length: 300 }, () => cellItem(board, { lane: 'web', title: 'Build a page' }).item_id);
+  const insert = board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?)');
+  ids.slice(0, 52).forEach((id, index) => cellClaim(board, id, cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${index}` }), { root: repo.root }));
+  board.db.exec('BEGIN');
+  ids.forEach((id, index) => {
+    const done = index < 52;
+    const gate = `gate:${id}:head${index}`;
+    insert.run(gate, 'gate', done ? 'done' : 'offered', id, now - 1000 + index, now);
+    for (let shard = 1; shard <= 200; shard += 1) insert.run(`${gate}:shard:${shard}`, 'gate-shard', 'offered', id, now - 1000 + index, now);
+  });
+  board.db.exec('COMMIT');
+  const gates = ids.slice(0, 52).map((id, index) => `gate:${id}:head${index}`);
+  const oldQuery = board.db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id');
+  const oldWalk = count => { for (const gate of gates.slice(0, count)) { const prefix = `${gate}:shard:`; oldQuery.all('gate-shard', prefix.length, prefix); } };
+  return { board, now, oldWalk };
+}
+
+/** The milliseconds of each of `runs` calls of `walk`, sorted. */
+const walkTimes = (runs, walk) => Array.from({ length: runs }, () => { const start = performance.now(); walk(); return performance.now() - start; }).sort((a, b) => a - b);
+const p95 = times => times[Math.ceil(times.length * 0.95) - 1];
+
+test('api.io-gate.shard-jobs-scale: clause 2: 50 walks of settleDoneShardGates over 60000 shard rows of 300 gates, 52 of them done, have a p95 under 1 s, printed beside the p95 of the old substr query on the same board [C7]', t => {
+  const { board, now, oldWalk } = scaleBoard(t);
+  assert.equal(board.db.prepare("SELECT count(*) AS n FROM job WHERE job_kind = 'gate-shard'").get().n, 60000);
+  const walk = () => assert.deepEqual(settleDoneShardGates(board, {}, { now }), []);
+  const fresh = p95(walkTimes(50, walk));
+  const old = p95(walkTimes(50, () => oldWalk(52)));
+  console.log(`api.io-gate.shard-jobs-scale: p95 of settleDoneShardGates ${fresh.toFixed(1)} ms; p95 of the old substr query over the same 52 gates ${old.toFixed(1)} ms`);
+  assert.ok(fresh < 1000, `p95 ${fresh} ms is not under 1 s`);
+});
+
+test('api.io-gate.shard-jobs-done-gates: clause 3: a settleDoneShardGates walk with all 52 done gates takes within 2x of the walk with a tenth of them, so its cost per claim does not grow with the number of done gates [C7]', t => {
+  const { board, now } = scaleBoard(t);
+  const walk = () => settleDoneShardGates(board, {}, { now });
+  const median = times => times[Math.floor(times.length / 2)];
+  const all = median(walkTimes(50, walk));
+  board.db.prepare("UPDATE job SET job_step = 'offered' WHERE job_kind = 'gate' AND job_step = 'done' AND rowid NOT IN (SELECT rowid FROM job WHERE job_kind = 'gate' AND job_step = 'done' ORDER BY job_created LIMIT 5)").run();
+  const tenth = median(walkTimes(50, walk));
+  console.log(`api.io-gate.shard-jobs-done-gates: median walk ${all.toFixed(2)} ms with 52 done gates, ${tenth.toFixed(2)} ms with 5`);
+  assert.ok(all <= tenth * 2, `52 done gates took ${all} ms against ${tenth} ms for 5`);
+});
+
 test('api.io-gate.seed-window-in-sql: clause 1: with gate.seedWideMainTests on, the 24 h window is inside the seeding SQL and its query plan searches job by an index and never scans job_step [C7,P7]', t => {
   const { db } = cellBoard(t, ':memory:');
   assert.match(WIDE_SEED_SQL, /job_created >= \?/u, 'the window bound is a parameter of the SQL, not a filter over rows read');

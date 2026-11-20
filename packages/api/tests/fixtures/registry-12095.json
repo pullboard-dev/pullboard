@@ -1,0 +1,41 @@
+{
+  "api.io-gate.shard-jobs-key-range": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "shardJobs returns exactly one gate's shard rows in order, never a sibling gate's, and its query searches the job_id key instead of scanning every job row."
+    },
+    "why": "Without this test shardJobs can slide back to a substr scan of every gate-shard row on each pull claim, so claim cost grows with the number of gates.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.io-gate.shard-jobs-scale": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On a board holding 60000 gate-shard rows over 300 gates, 52 of them done, a walk of settleDoneShardGates has a p95 under 1 s over 50 walks, printed beside the p95 of the old substr query on the same board."
+    },
+    "why": "Without this measurement a slide back to a full scan of the shard rows would only show as a slow pull claim on the live board.",
+    "kind": "measurement",
+    "inputs": [
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.io-gate.shard-jobs-done-gates": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A settleDoneShardGates walk with all 52 done gates takes within 2x of the time of a walk with a tenth of them on the same board, so its cost per claim does not grow with the number of done gates."
+    },
+    "why": "Without this measurement the per-gate shard lookup can grow with the board's row count and claim cost grows with every gate that finishes.",
+    "kind": "measurement",
+    "inputs": [
+      "packages/api/src/io/gate.js"
+    ]
+  }
+}
