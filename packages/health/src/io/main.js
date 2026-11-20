@@ -443,7 +443,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   }
 
   report.retired = [];
-  for (const fault of queueFaults(board, { items, at, retired: report.retired, gone: goneWorktrees(root) })) report.stuck.push(fault);
+  for (const fault of queueFaults(board, { items, at, retired: report.retired, gone: goneWorktrees(root), machineSettings })) report.stuck.push(fault);
 
   const overdue = releaseOverdue(db, root, at, limits.ms.release, history);
   if (overdue) found(report.stuck, overdue);
@@ -486,7 +486,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  *   the list that collects retired seats, and the worktree paths Git reports gone
  * @returns {Finding[]}
  */
-function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
+function queueFaults(board, { items, at, retired = [], gone = new Set(), machineSettings }) {
   const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold, localDependencyIds, dependencyLabel, itemFileCollisions });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
