@@ -1,0 +1,4 @@
+{
+  "store.io-board-review-family-relax-required-verdict.records-widened": {"proves":{"specs":["C7"],"claim":"a verdict given by a seat of another family under a relaxation witness records that the required family was widened."},"why":"Without this case a review that ran outside the required family would leave no trace of the widening in its verdict.","kind":"cell unit","inputs":["packages/store/src/io/board/review/family.js","packages/store/src/io/board/verify.js"]},
+  "store.io-board-review-family-relax-required-verdict.records-reason": {"proves":{"specs":["C7"],"claim":"the widened verdict record names the reason, no live eligible seat of the family for 20 minutes."},"why":"Without this case the record would say the family was widened but not why.","kind":"cell unit","inputs":["packages/store/src/io/board/review/family.js","packages/store/src/io/board/verify.js"]}
+}

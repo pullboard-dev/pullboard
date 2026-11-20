@@ -1,5 +1,4 @@
 /** One-time move of oversized job step payloads into the blob store, and the compaction that returns their space [C7]. */
-import { statfsSync } from 'node:fs';
 import { boardWriteHolderText } from './write/lock.js';
 import { BLOBS_MIGRATED_KEY } from '../../logic/board/authority.js';
 import { BLOB_THRESHOLD_BYTES } from '../../../../jobs/index.js';
@@ -7,6 +6,8 @@ import { blobDirOf } from '../../../../jobs/index.js';
 import { parseStub } from '../../../../jobs/index.js';
 import { putBlob } from '../../../../jobs/index.js';
 import { stubOf } from '../../../../jobs/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 
 /** The job kind and step whose old copies are derived data: only the newest body is kept. */
@@ -94,7 +95,7 @@ export function compactBoard(db, { minFreeBytes = COMPACT_MIN_FREE_BYTES, waitMs
   const pages = db.prepare('PRAGMA page_count').get().page_count;
   const size = pages * db.prepare('PRAGMA page_size').get().page_size;
   try {
-    const room = statfsSync(file);
+    const room = fileSystem.statfs(file);
     if (room.bavail * room.bsize < size) return { compacted: false, reason: 'not enough disk for the rewrite' };
   } catch { /* an unreadable filesystem answer leaves the decision to VACUUM itself */ }
   const wait = db.prepare('PRAGMA busy_timeout').get().timeout;

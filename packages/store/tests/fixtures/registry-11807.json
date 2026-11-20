@@ -1,0 +1,32 @@
+{
+  "store.io-board-verify.reject-sends-dependents-back": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Rejecting a parent reopens each claimed or submitted dependent that has an after-gate marker for it, with a note naming the parent, and leaves a plain --after dependent alone."
+    },
+    "why": "Without this test a rejected parent leaves work built on its rejected head open for review or still being built.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/item/after-gate.js",
+      "packages/store/src/io/board/reopen.js",
+      "packages/store/src/io/board/release.js"
+    ]
+  },
+  "store.io-board-verify.landed-dependent-gets-notice": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A dependent that already landed gets a notice fact naming the rejected parent and no reopen."
+    },
+    "why": "Without this test a landed dependent would be reopened or left with no word that its parent was rejected.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/item/after-gate.js"
+    ]
+  }
+}

@@ -25,243 +25,243 @@
     },
     {
       "order": 2,
-      "name": "git",
-      "file": "packages/codemap/data/plan/02-git.json"
+      "name": "fs",
+      "file": "packages/codemap/data/plan/02-fs.json"
     },
     {
       "order": 3,
-      "name": "codemap",
-      "file": "packages/codemap/data/plan/03-codemap.json"
+      "name": "clock",
+      "file": "packages/codemap/data/plan/03-clock.json"
     },
     {
       "order": 4,
-      "name": "queue",
-      "file": "packages/codemap/data/plan/04-queue.json"
+      "name": "env",
+      "file": "packages/codemap/data/plan/04-env.json"
     },
     {
       "order": 5,
-      "name": "jobs",
-      "file": "packages/codemap/data/plan/05-jobs.json"
+      "name": "git",
+      "file": "packages/codemap/data/plan/05-git.json"
     },
     {
       "order": 6,
-      "name": "pin",
-      "file": "packages/codemap/data/plan/06-pin.json"
+      "name": "codemap",
+      "file": "packages/codemap/data/plan/06-codemap.json"
     },
     {
       "order": 7,
-      "name": "receipt",
-      "file": "packages/codemap/data/plan/07-receipt.json"
+      "name": "queue",
+      "file": "packages/codemap/data/plan/07-queue.json"
     },
     {
       "order": 8,
-      "name": "transport",
-      "file": "packages/codemap/data/plan/08-transport.json"
+      "name": "jobs",
+      "file": "packages/codemap/data/plan/08-jobs.json"
     },
     {
       "order": 9,
-      "name": "drive",
-      "file": "packages/codemap/data/plan/09-drive.json"
+      "name": "pin",
+      "file": "packages/codemap/data/plan/09-pin.json"
     },
     {
       "order": 10,
-      "name": "land",
-      "file": "packages/codemap/data/plan/10-land.json"
+      "name": "receipt",
+      "file": "packages/codemap/data/plan/10-receipt.json"
     },
     {
       "order": 11,
-      "name": "resources",
-      "file": "packages/codemap/data/plan/11-resources.json"
+      "name": "transport",
+      "file": "packages/codemap/data/plan/11-transport.json"
     },
     {
       "order": 12,
-      "name": "config",
-      "file": "packages/codemap/data/plan/12-config.json"
+      "name": "drive",
+      "file": "packages/codemap/data/plan/12-drive.json"
     },
     {
       "order": 13,
-      "name": "mcp",
-      "file": "packages/codemap/data/plan/13-mcp.json"
+      "name": "land",
+      "file": "packages/codemap/data/plan/13-land.json"
     },
     {
       "order": 14,
-      "name": "state",
-      "file": "packages/codemap/data/plan/14-state.json"
+      "name": "resources",
+      "file": "packages/codemap/data/plan/14-resources.json"
     },
     {
       "order": 15,
-      "name": "seats",
-      "file": "packages/codemap/data/plan/15-seats.json"
+      "name": "config",
+      "file": "packages/codemap/data/plan/15-config.json"
     },
     {
       "order": 16,
-      "name": "roadmap",
-      "file": "packages/codemap/data/plan/16-roadmap.json"
+      "name": "mcp",
+      "file": "packages/codemap/data/plan/16-mcp.json"
     },
     {
       "order": 17,
-      "name": "spec",
-      "file": "packages/codemap/data/plan/17-spec.json"
+      "name": "state",
+      "file": "packages/codemap/data/plan/17-state.json"
     },
     {
       "order": 18,
-      "name": "commits",
-      "file": "packages/codemap/data/plan/18-commits.json"
+      "name": "seats",
+      "file": "packages/codemap/data/plan/18-seats.json"
     },
     {
       "order": 19,
-      "name": "items",
-      "file": "packages/codemap/data/plan/19-items.json"
+      "name": "roadmap",
+      "file": "packages/codemap/data/plan/19-roadmap.json"
     },
     {
       "order": 20,
-      "name": "stats",
-      "file": "packages/codemap/data/plan/20-stats.json"
+      "name": "spec",
+      "file": "packages/codemap/data/plan/20-spec.json"
     },
     {
       "order": 21,
-      "name": "merge",
-      "file": "packages/codemap/data/plan/21-merge.json"
+      "name": "commits",
+      "file": "packages/codemap/data/plan/21-commits.json"
     },
     {
       "order": 22,
-      "name": "verify",
-      "file": "packages/codemap/data/plan/22-verify.json"
+      "name": "items",
+      "file": "packages/codemap/data/plan/22-items.json"
     },
     {
       "order": 23,
-      "name": "store",
-      "file": "packages/codemap/data/plan/23-store.json"
+      "name": "stats",
+      "file": "packages/codemap/data/plan/23-stats.json"
     },
     {
       "order": 24,
-      "name": "sandbox",
-      "file": "packages/codemap/data/plan/24-sandbox.json"
+      "name": "merge",
+      "file": "packages/codemap/data/plan/24-merge.json"
     },
     {
       "order": 25,
-      "name": "doctrine",
-      "file": "packages/codemap/data/plan/25-doctrine.json"
+      "name": "verify",
+      "file": "packages/codemap/data/plan/25-verify.json"
     },
     {
       "order": 26,
-      "name": "person",
-      "file": "packages/codemap/data/plan/26-person.json"
+      "name": "store",
+      "file": "packages/codemap/data/plan/26-store.json"
     },
     {
       "order": 27,
-      "name": "activity",
-      "file": "packages/codemap/data/plan/27-activity.json"
+      "name": "sandbox",
+      "file": "packages/codemap/data/plan/27-sandbox.json"
     },
     {
       "order": 28,
-      "name": "pages",
-      "file": "packages/codemap/data/plan/28-pages.json"
+      "name": "doctrine",
+      "file": "packages/codemap/data/plan/28-doctrine.json"
     },
     {
       "order": 29,
-      "name": "keys",
-      "file": "packages/codemap/data/plan/29-keys.json"
+      "name": "person",
+      "file": "packages/codemap/data/plan/29-person.json"
     },
     {
       "order": 30,
-      "name": "blueprints",
-      "file": "packages/codemap/data/plan/30-blueprints.json"
+      "name": "activity",
+      "file": "packages/codemap/data/plan/30-activity.json"
     },
     {
       "order": 31,
-      "name": "link",
-      "file": "packages/codemap/data/plan/31-link.json"
+      "name": "pages",
+      "file": "packages/codemap/data/plan/31-pages.json"
     },
     {
       "order": 32,
-      "name": "api",
-      "file": "packages/codemap/data/plan/32-api.json"
+      "name": "keys",
+      "file": "packages/codemap/data/plan/32-keys.json"
     },
     {
       "order": 33,
-      "name": "outbox",
-      "file": "packages/codemap/data/plan/33-outbox.json"
+      "name": "blueprints",
+      "file": "packages/codemap/data/plan/33-blueprints.json"
     },
     {
       "order": 34,
-      "name": "gate",
-      "file": "packages/codemap/data/plan/34-gate.json"
+      "name": "link",
+      "file": "packages/codemap/data/plan/34-link.json"
     },
     {
       "order": 35,
-      "name": "runners",
-      "file": "packages/codemap/data/plan/35-runners.json"
+      "name": "api",
+      "file": "packages/codemap/data/plan/35-api.json"
     },
     {
       "order": 36,
-      "name": "landing",
-      "file": "packages/codemap/data/plan/36-landing.json"
+      "name": "outbox",
+      "file": "packages/codemap/data/plan/36-outbox.json"
     },
     {
       "order": 37,
-      "name": "sync",
-      "file": "packages/codemap/data/plan/37-sync.json"
+      "name": "gate",
+      "file": "packages/codemap/data/plan/37-gate.json"
     },
     {
       "order": 38,
-      "name": "shouts",
-      "file": "packages/codemap/data/plan/38-shouts.json"
+      "name": "runners",
+      "file": "packages/codemap/data/plan/38-runners.json"
     },
     {
       "order": 39,
-      "name": "health",
-      "file": "packages/codemap/data/plan/39-health.json"
+      "name": "landing",
+      "file": "packages/codemap/data/plan/39-landing.json"
     },
     {
       "order": 40,
-      "name": "moves",
-      "file": "packages/codemap/data/plan/40-moves.json"
+      "name": "sync",
+      "file": "packages/codemap/data/plan/40-sync.json"
     },
     {
       "order": 41,
-      "name": "sentinels",
-      "file": "packages/codemap/data/plan/41-sentinels.json"
+      "name": "shouts",
+      "file": "packages/codemap/data/plan/41-shouts.json"
     },
     {
       "order": 42,
-      "name": "rigor",
-      "file": "packages/codemap/data/plan/42-rigor.json"
+      "name": "health",
+      "file": "packages/codemap/data/plan/42-health.json"
     },
     {
       "order": 43,
-      "name": "github",
-      "file": "packages/codemap/data/plan/43-github.json"
+      "name": "moves",
+      "file": "packages/codemap/data/plan/43-moves.json"
     },
     {
       "order": 44,
-      "name": "flakes",
-      "file": "packages/codemap/data/plan/44-flakes.json"
+      "name": "sentinels",
+      "file": "packages/codemap/data/plan/44-sentinels.json"
     },
     {
       "order": 45,
-      "name": "search",
-      "file": "packages/codemap/data/plan/45-search.json"
+      "name": "rigor",
+      "file": "packages/codemap/data/plan/45-rigor.json"
     },
     {
       "order": 46,
-      "name": "board",
-      "file": "packages/codemap/data/plan/46-board.json"
+      "name": "github",
+      "file": "packages/codemap/data/plan/46-github.json"
     },
     {
       "order": 47,
-      "name": "fs",
-      "file": "packages/codemap/data/plan/47-fs.json"
+      "name": "flakes",
+      "file": "packages/codemap/data/plan/47-flakes.json"
     },
     {
       "order": 48,
-      "name": "clock",
-      "file": "packages/codemap/data/plan/48-clock.json"
+      "name": "search",
+      "file": "packages/codemap/data/plan/48-search.json"
     },
     {
       "order": 49,
-      "name": "env",
-      "file": "packages/codemap/data/plan/49-env.json"
+      "name": "board",
+      "file": "packages/codemap/data/plan/49-board.json"
     },
     {
       "order": 50,
@@ -2098,6 +2098,14 @@
         "packages/commits/src/logic/change/row/plan.js",
         "rule"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/gate-resource.test.js",
+        "packages/gate/tests/io/main/resource.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2461,17 +2469,25 @@
     "sandbox->kernel",
     "apps/cli->state",
     "apps/lib->transport",
+    "apps/lib->env",
+    "apps/runner->env",
+    "transport->env",
     "apps/cli->kernel",
     "gate->jobs",
+    "gate->env",
     "drive->jobs",
     "drive->kernel",
+    "drive->env",
     "resources->jobs",
     "resources->git",
     "codemap->git",
+    "codemap->fs",
     "codemap->kernel",
+    "config->fs",
     "config->kernel",
     "gate->codemap",
     "runners->config",
+    "runners->env",
     "items->config",
     "items->state",
     "runners->verify",
@@ -2494,16 +2510,19 @@
     "api->git",
     "api->store",
     "apps/lib->store",
+    "blueprints->fs",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
     "doctrine->codemap",
+    "doctrine->env",
     "gate->store",
     "gate->kernel",
     "gate->git",
     "gate->resources",
     "gate->drive",
     "gate->config",
+    "gate->env",
     "merge->config",
     "rigor->config",
     "spec->config",
@@ -2518,6 +2537,8 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->env",
+    "landing->fs",
     "landing->jobs",
     "landing->kernel",
     "landing->pin",
@@ -2529,6 +2550,7 @@
     "link->store",
     "merge->git",
     "outbox->store",
+    "outbox->env",
     "pages->store",
     "person->store",
     "sandbox->store",
@@ -2547,6 +2569,7 @@
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
+    "apps/cli->fs",
     "apps/cli->codemap",
     "apps/cli->api",
     "health->state",
@@ -2568,6 +2591,7 @@
     "moves->roadmap",
     "moves->config",
     "moves->link",
+    "moves->env",
     "rigor->state",
     "sandbox->state",
     "sandbox->items",
@@ -2591,14 +2615,18 @@
     "store->git",
     "store->jobs",
     "store->kernel",
+    "store->fs",
     "github->items",
     "link->kernel",
     "apps/relay->link",
+    "apps/relay->fs",
     "apps/relay->kernel",
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
     "apps/relay->seats",
+    "apps/relay->env",
+    "apps/relay->fs",
     "search->store",
     "board->git",
     "board->items",
@@ -2611,7 +2639,12 @@
     "board->stats",
     "board->store",
     "board->verify",
-    "apps/lib->board"
+    "apps/lib->board",
+    "apps/cli->fs",
+    "apps/lib->fs",
+    "apps/runner->env",
+    "apps/runner->fs",
+    "flakes->env"
   ],
   "upwardEdgesGrandfathered": [
     "apps/cli->apps/relay",

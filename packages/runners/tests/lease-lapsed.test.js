@@ -1,7 +1,7 @@
 /** A gate job whose runner lease lapsed goes to another capable runner, and the first runner cannot record a result for it [C7,P7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { LEASE_MS } from '../../jobs/index.js';
 import { claimJob } from '../../api/index.js';
 import { jobView } from '../../jobs/index.js';

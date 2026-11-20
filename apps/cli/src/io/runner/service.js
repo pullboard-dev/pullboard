@@ -6,14 +6,16 @@
  * Usage: node service.js <board-url> <key-file> <cache-directory> [<hint>]
  * The hint is what install-serve says to log when the board stays unreachable: the likely macOS block and its fix.
  */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingNumber } from '../../../../../packages/drive/index.js';
 import { runnerSettingOn } from '../../../../../packages/drive/index.js';
 import { machineSettingsFile } from '../../../../../packages/resources/light.js';
 import { pullGit } from './git.js';
+import { takeRunnerLock } from './lock.js';
 
 /** A pulled land job, as `pullboard runner serve` runs it: merge, check and push trunk by compare-and-swap in the cache [P7]. */
 async function land(claim, { cache, renew, env }) {
@@ -34,19 +36,27 @@ async function codePort(cache) {
 
 /**
  * Serve until stopped and return the exit code: 0 when serveRunner asked for a restart onto new runner code (the service
- * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal.
+ * manager's KeepAlive starts it) or stopped plainly, 1 on a refusal, and 1 before serving when PULLBOARD_RUNNER_JOBS is unset.
+ * The cache folder's lock is taken first, so a second service on one runner root refuses RUNNER_ALREADY_RUNNING before it serves [P7].
  */
-export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal } = {}) {
+export async function runService(argv, { serve = serveRunner, port = codePort, out = line => process.stdout.write(line), signal = new AbortController().signal, lock = takeRunnerLock, env = process.env } = {}) {
   const [board, keyFile, cache, hint] = argv;
   const say = line => out(`${new Date().toISOString()} ${line}\n`);
+  // The installed service takes its slot count from install-serve, so a start without it would fall to a cores-based default and starve gates [P7].
+  if (env.PULLBOARD_RUNNER_JOBS === undefined || env.PULLBOARD_RUNNER_JOBS === '') {
+    say('stopped: PULLBOARD_RUNNER_JOBS is not set; run pullboard runner install-serve <host> --board <url> again, which writes it');
+    return 1;
+  }
+  let held = null;
   try {
+    held = lock(cache);
     say(`runner serve pulling from ${board}`);
     const runnerCode = await port(cache);
-    const served = await serve({ board, key: readFileSync(keyFile, 'utf8').trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
+    const served = await serve({ board, key: fileSystemAdapter().readFile(keyFile).trim(), cache, handlers: { land }, git: pullGit, signal, say, unreachableHint: hint,
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
-      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'),
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), jobWorkerFactor: runnerSettingNumber(machineSettingsFile(), 'runners.jobWorkerFactor', 2),
       pulledProfilePaths: (await import('../../../../../packages/config/index.js')).pulledProfilePathsEnabled(),
       ...(runnerCode ? { runnerCode } : {}) });
     if (served?.restart) say(`runner code changed to ${served.restart}; exiting so the service manager starts it`);
@@ -55,7 +65,7 @@ export async function runService(argv, { serve = serveRunner, port = codePort, o
     // An exit is a restart: the service manager starts it again, so a refusal is logged with its code and nothing is lost.
     say(`stopped: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`);
     return 1;
-  }
+  } finally { held?.release(); }
 }
 
 // Only as the service program, so a test can import runService.

@@ -16,7 +16,7 @@ import {
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   checkAcceptCommand,
 } from '../../../../../packages/verify/index.js';
@@ -32,7 +32,7 @@ import {
   runStaticChecks,
   timingDigest,
   withGateSlot,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   check as flakeCheck,
 } from '../../../../../packages/flakes/index.js';
@@ -99,6 +99,21 @@ export async function run(io, { first, second, rest, values }) {
       throw new Refused('CHECK_CONFIRM', `the check set by ${authorName} was not run: ${check}; run pullboard check ${item.item_id} --yes after reading the command, or answer yes at the prompt`);
     }
   }
+  const run = await executeCheck(io, ctx, item, { check, by, caller, values });
+  return run.isGreen ? 0 : 1;
+}
+
+/**
+ * Run an item's frozen check at the seat's head: the static checks, the gate slot, the report and, when green, the clause ticks.
+ * Why: pullboard check and pullboard submit run the same step, so a clause waiting on the check never needs a second runner path [#11844].
+ *
+ * @param {any} io The command io.
+ * @param {any} ctx The command context.
+ * @param {any} item The claimed item row.
+ * @param {{ check: string, by: string, caller: string, values: any, quiet?: boolean }} how The frozen check, who set it, who runs it and the flags.
+ * @returns {Promise<any>} The gate run record.
+ */
+export async function executeCheck(io, ctx, item, { check, by, caller, values, quiet = false }) {
   await runStaticChecks(ctx.info.root, (item.item_claim_head ? itemPolicy(ctx.info.root, item) : mainPolicy(ctx.info.root)).config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: caller, item: String(item.item_id), onWait: queuedItemLease(ctx, item, caller, 'build'), onBrowserFallback: browserAdmissionReporter(io, values.json) });
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(ctx.info.root, check, { onFallback: browserAdmissionReporter(io, values.json) });
   const shortEligible = Boolean(await explicitCheckFiles(ctx.info.root, check));
@@ -106,7 +121,7 @@ export async function run(io, { first, second, rest, values }) {
   // With machine.holdHeavyAboveLoad on the whole check, runner or local, waits in the local resource line while this machine is over its load ceiling and says so; off, it runs as before [C7,#10078].
   const run = heavyLocalHoldEnabled() ? await withHeavyLocalWork('pullboard check', runCheck, { settings: loadMachineSettings, root: ctx.info.root, agent: caller }) : await runCheck();
   refuseSandboxBlocked(run);
-  io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, receipt: run.profile?.receipt, report: run.isGreen ? '' : digestOf(run.output) });
+  if (!quiet) io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, receipt: run.profile?.receipt, report: run.isGreen ? '' : digestOf(run.output) });
   const timings = timingDigest(run.profile);
   const compact = timings && !run.profile.files.length
     ? `; ${timings.replaceAll('\n', '; ')}; timing profile: ${run.profilePath}` : '';
@@ -117,5 +132,5 @@ export async function run(io, { first, second, rest, values }) {
   }
   if (!run.isGreen) io.say(digestOf(run.output).replace(/^/gm, '  '));
   if (run.isGreen) await recordCheckTicks(io, item.item_id);
-  return run.isGreen ? 0 : 1;
+  return run;
 }

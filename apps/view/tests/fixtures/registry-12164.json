@@ -1,0 +1,30 @@
+{
+ "view.pipeline.window-read": {
+  "proves": {
+   "specs": [
+    "N26"
+   ],
+   "claim": "pipelineRuntime finds the first event id inside the model's 26-hour floor by one-event probes and pages from there, so a board with more events than the window never reads from after=0 and hands the model only floor events."
+  },
+  "why": "Reading the whole history of a 640k-event board sent 600 MB and left the Pipeline page on Reading forever.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/view/src/io/pipeline/runtime.js",
+   "apps/view/tests/io/pipeline/runtime.test.js"
+  ]
+ },
+ "view.pipeline.window-live": {
+  "proves": {
+   "specs": [
+    "N26"
+   ],
+   "claim": "pipelineRuntime keeps its own window per board, draws from a window that was complete once while new events arrive, and reads later events only after the last held id."
+  },
+  "why": "A live board moves every second; re-reading the window or flickering back to Reading would make the page unusable.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/view/src/io/pipeline/runtime.js",
+   "apps/view/tests/io/pipeline/runtime.test.js"
+  ]
+ }
+}

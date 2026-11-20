@@ -1,8 +1,10 @@
 /** The pullboard spec command, in its own module so an item adding another command never edits these lines. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { answerQuestion } from '../../../../../packages/spec/index.js';
 import { rowDrafts } from '../../../../../packages/store/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { loadDoctrine } from '../../../../../packages/doctrine/index.js';
+import { loadStandardDecision } from '../../../../../packages/doctrine/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index.js';
 import {
   planRowVerificationApply,
@@ -112,11 +114,6 @@ import {
   renderSpecView,
 } from '../../../../view/index.js';
 import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
   resolve,
@@ -144,10 +141,12 @@ import {
   assertNoCitedSpecDecline,
   prepareSpecRowApplyPayload,
 } from '../../../../../packages/spec/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
 function verifierFindings(ctx, parsed) {
-  const source = readFileSync(parsed.file, 'utf8');
+  const source = fs.readFile(parsed.file, 'utf8');
   return hookRead(ctx, board => rowVerificationFindings(board, parsed, source, { rowDrafts }))
     ?? rowVerificationFindings(null, parsed, source, { rowDrafts });
 }
@@ -197,12 +196,19 @@ export async function specCommand(io, { first, second, rest, values }) {
   const spec = loadSpec(ctx.info.root, ctx.config);
   if (!spec.exists) throw new Refused('NO_SPEC', `no ${ctx.config.spec}; run: pullboard init`);
   const practice = ctx.doctrine;
+  // The decision line module loads here, at the call, so the cold commands never load it [C7,#2007].
+  const { standardDecisionLine } = await loadStandardDecision();
   const signoffs = readSignoffs(ctx.info.root);
   if (first === 'verify') {
     if (!second || rest.length !== 1 || !['accepted', 'rejected'].includes(rest[0])) throw new Refused('USAGE', 'use pullboard spec verify <id> accepted|rejected --reason "why"');
     const rows = spec.rows.filter(row => row.id === second);
     if (rows.length !== 1) throw new Refused('NO_ROW', `no unique row ${second}; read pullboard spec --json`);
-    const source = readFileSync(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
+    const source = fs.readFile(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
+    // With spec.requireFactQuote on, an accept of a source-backed row must cite the row's quote in its reason, so the verifier read the words it rests on [C7,#11250].
+    const quote = rows[0].quote?.trim();
+    if (rest[0] === 'accepted' && requireFactQuoteEnabled() && rows[0].source?.trim() && quote && !String(values.reason ?? '').includes(quote)) {
+      throw new Refused('FACT_QUOTE_UNCITED', `${second} rests on the quote "${quote}"; does this quote say what the row claims?`, 'if it does, run the accept again with that quote inside --reason');
+    }
     return withBoard(ctx, async board => {
       const me = whoAmI(ctx, board);
       const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason,
@@ -278,9 +284,9 @@ export async function specCommand(io, { first, second, rest, values }) {
       // The rows are read only when a passkey request is built, so an unpaired board refuses before reading them.
       const confirmed = await requireSignedPerson(ctx, board, me, { verb: `spec-${first}`, args: { ids: ids.join(','),
         ...(values.text === undefined ? {} : { text: values.text }), ...(values.reason === undefined ? {} : { reason: values.reason }) } },
-      () => shownDecisionRows(ctx.info.root, ctx.config, ids, { loadDoctrine }));
+      () => shownDecisionRows(ctx.info.root, ctx.config, ids, { loadDoctrine, standardDecisionLine }));
     if (confirmed !== null) return confirmed;
-      const sources = personSigning(board).signed ? shownDecisionRows(ctx.info.root, ctx.config, ids, { loadDoctrine }) : [];
+      const sources = personSigning(board).signed ? shownDecisionRows(ctx.info.root, ctx.config, ids, { loadDoctrine, standardDecisionLine }) : [];
       requirePersonChannel(io.personChannel);
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person from the main checkout approves or declines rows; use pullboard view for the person to decide');
       if (personSigning(board).signed) {
@@ -308,8 +314,8 @@ export async function specCommand(io, { first, second, rest, values }) {
       const kept = first === 'approve' ? pendingAnswers(ctx.info.root, ctx.config, ids, store.rowDecisions(board)) : new Map();
       if (signedDecision && values.text === undefined && kept.size) throw new Refused('STALE_ROW_DECISION', 'this row has a pending answer different from the original shown source', 'approve one row with --text containing the exact pending answer you want your passkey to confirm');
       const decide = { decision: first, reason: values.reason, by: signedDecision ? 'person' : values.by, sshSign: !signedDecision, passkeyRequest: signedDecision ? io.personRequest?.id : undefined, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' };
-      const records = values.text === undefined && kept.size ? ids.flatMap((id) => prepareRowDecisions(ctx.info.root, ctx.config, { ...decide, ids: [id], text: kept.get(id)?.text }, { loadDoctrine }))
-        : prepareRowDecisions(ctx.info.root, ctx.config, { ...decide, ids, text: values.text }, { loadDoctrine });
+      const records = values.text === undefined && kept.size ? ids.flatMap((id) => prepareRowDecisions(ctx.info.root, ctx.config, { ...decide, ids: [id], text: kept.get(id)?.text }, { loadDoctrine, standardDecisionLine }))
+        : prepareRowDecisions(ctx.info.root, ctx.config, { ...decide, ids, text: values.text }, { loadDoctrine, standardDecisionLine });
       const decisions = await ordered(ctx, board, 'recordRowDecisions', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal', decisions: records }]);
       io.result?.({ decisions });
       decisions.forEach((record) => {
@@ -336,7 +342,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       const evidence = ids.map(id => ({ id, ...rowEvidence(ctx.info.root, id, { ...proof, testFiles }) }));
       const missing = evidence.filter(row => !row.files.length && !row.verified.length).map(row => row.id);
       if (missing.length) throw new Refused('NO_EVIDENCE', `${missing.join(', ')} has no evidence; build it or cite its id in a test first`);
-      const completed = await requireSignedPerson(ctx, board, whoAmI(ctx, board), { verb: 'spec-approve', args: { ids: ids.join(',') } }, shownDecisionRows(ctx.info.root, ctx.config, ids, { loadDoctrine }));
+      const completed = await requireSignedPerson(ctx, board, whoAmI(ctx, board), { verb: 'spec-approve', args: { ids: ids.join(',') } }, shownDecisionRows(ctx.info.root, ctx.config, ids, { loadDoctrine, standardDecisionLine }));
       if (completed === null) throw new Refused('PERSON_SIGNED', 'confirm optional sign-off as a row approval through its original terminal request', 'run spec approve <ids> with your passkey');
       io.result?.({ count: ids.length, by: 'person', ids, evidence, ...io.personConfirmation });
       return completed;
@@ -347,10 +353,10 @@ export async function specCommand(io, { first, second, rest, values }) {
       const row = spec.rows.find(entry => entry.id === second);
       if (!row) throw new Refused('NO_ROW', `${second} is not a row in ${ctx.config.spec}`);
       if (personSigning(board).signed) refuseNamedSigners([row], [second]);
-      return requireSignedPerson(ctx, board, whoAmI(ctx, board), { verb: 'spec-answer', args: { row: second, answer: rest.join(' ').trim() } }, shownDecisionRows(ctx.info.root, ctx.config, [row.id], { loadDoctrine }));
+      return requireSignedPerson(ctx, board, whoAmI(ctx, board), { verb: 'spec-answer', args: { row: second, answer: rest.join(' ').trim() } }, shownDecisionRows(ctx.info.root, ctx.config, [row.id], { loadDoctrine, standardDecisionLine }));
     }) : null;
     if (completed !== null) return completed;
-    requirePersonChannel(io.personChannel, process.env, { command: personCommand(primaryCheckoutRoot(ctx.info) ?? ctx.info.root, ['spec', 'answer', second, rest.join(' ')]) });
+    requirePersonChannel(io.personChannel, environmentAdapter().all(), { command: personCommand(primaryCheckoutRoot(ctx.info) ?? ctx.info.root, ['spec', 'answer', second, rest.join(' ')]) });
     return withBoard(ctx, async (board) => {
       const me = whoAmI(ctx, board);
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person answers a pending question, from the main checkout or the view', 'ask the person to answer it in pullboard view, or in their own terminal at the main checkout');
@@ -359,9 +365,9 @@ export async function specCommand(io, { first, second, rest, values }) {
       const row = spec.rows.find((entry) => entry.id === second);
       if (!row) throw new Refused('NO_ROW', `${second} is not a row in ${ctx.config.spec}`, 'list the pending questions with pullboard spec --json, then answer one of them');
       if (row.status !== 'pending') throw new Refused('SPEC_ANSWER', `${second} is ${row.status}, not a pending question`, `read it with pullboard spec show ${second}; only a pending row takes an answer`);
-      if (personSigning(board).signed) requireShownRows(board, io.personRequest, [row], [second], shownDecisionRows(ctx.info.root, ctx.config, [second], { loadDoctrine }));
+      if (personSigning(board).signed) requireShownRows(board, io.personRequest, [row], [second], shownDecisionRows(ctx.info.root, ctx.config, [second], { loadDoctrine, standardDecisionLine }));
       const { text } = answerQuestion(row.text, given, second);
-      const records = prepareRowDecisions(ctx.info.root, ctx.config, { ids: [second], decision: 'approve', text, sshSign: !personSigning(board).signed, passkeyRequest: personSigning(board).signed ? io.personRequest?.id : undefined, by: personSigning(board).signed ? 'person' : undefined, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' }, { loadDoctrine });
+      const records = prepareRowDecisions(ctx.info.root, ctx.config, { ids: [second], decision: 'approve', text, sshSign: !personSigning(board).signed, passkeyRequest: personSigning(board).signed ? io.personRequest?.id : undefined, by: personSigning(board).signed ? 'person' : undefined, on: new Date().toISOString(), commit: headCommit(ctx.info.root) ?? '' }, { loadDoctrine, standardDecisionLine });
       const decisions = await ordered(ctx, board, 'recordRowDecisions', [{ agentId: store.PERSON, channel: io.personChannel ?? 'terminal', decisions: records }]);
       // The answer reported is read back from the signed text, never carried as a field of its own.
       const answered = decisions.map((record) => ({ ...record, answer: decisionAnswer(record) }));
@@ -377,22 +383,23 @@ export async function specCommand(io, { first, second, rest, values }) {
       applyRow.requireApplier({ isMain: ctx.info.isMain, me: me.id, coordinator: COORDINATOR, channel: io.personChannel, values, decisions: store.rowDecisions(board), events: io.personChannel === undefined ? [] : store.events(board, { kinds: ['row_decision'] }) });
       applyRow.requireCleanForCommit(ctx.info.root, values); // --commit proves the checkout clean first; every automatic proposal is preflighted before any draft or decision changes a file.
       const passkeyDecision = record => verifiedPasskeyRowDecision(board, record);
-      const first = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
+      const first = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine, standardDecisionLine });
       // Stale decisions are held and named; the command fails only when nothing at all could apply [B2].
       if (first.held.length && !first.records.length) throw new Refused('STALE_ROW_DECISION', first.held.map(held => `${held.why}`).join('; '), first.held.map(held => held.next).join('; '));
       assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
       const automatic = planAutomaticRigorApply(ctx.info.root, ctx.config, store.rowDrafts(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, automatic);
+      automatic.collisions.forEach(clash => io.say(`${clash.target}: ${clash.id} holds different text, gate or tier than its Rigor draft, so the draft was not written; resolve ${clash.id} by hand`));
       automatic.files.forEach(file => io.say(`${file.file}: materialized unproved Rigor drafts for the person's review`));
       // A lane's board drafts (#878) reach SPEC.md as draft rows at their own ids; the person approves them there as before.
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));
       drafted.forEach((row) => io.say(`${row.file}: ${row.id} drafted from a lane, for the person to approve`));
       clashingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).forEach((draft) => io.say(`${ctx.config.spec}: ${draft.id} holds other text, so the draft by ${draft.by} was not written; shout ${draft.by} to run pullboard spec draft again and cite the new id`));
-      const preflight = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
+      const preflight = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine, standardDecisionLine });
       let preparedApply;
       const applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: preflight.records.map(record => record.event) }], {
         prepareInWriter(currentBoard) {
-          const plan = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(currentBoard), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
+          const plan = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(currentBoard), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine, standardDecisionLine });
           try {
             writeRowApply(ctx.info.root, plan);
             const args = { agentId: me.id, events: plan.records.map(record => record.event) };
@@ -531,8 +538,8 @@ export async function specCommand(io, { first, second, rest, values }) {
       generatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       files: { spec: ctx.config.spec, practice: ctx.config.practice },
     });
-    mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, html);
+    fs.mkdir(dirname(out), { recursive: true });
+    fs.writeFile(out, html);
     io.result?.({ path: out });
     io.say(`wrote ${out}`);
     io.say(`open: ${pathToFileURL(out).href}`);

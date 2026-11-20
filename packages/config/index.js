@@ -14,9 +14,11 @@ export {
   configProblems,
   doctrineFile,
   frozenCheckCeilingMs,
+  nextIdleMinutes,
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
+  provenBreakRequired,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
@@ -74,6 +76,9 @@ export {
   fencedHopEnabled,
   judgeByReleaseEnabled,
   endStaleJobsEnabled,
+  failFastShardsEnabled,
+  seedWideMainTestsEnabled,
+  retryNewRedsOnceEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
   receiptMissingCauseEnabled,
@@ -81,6 +86,7 @@ export {
   settleOnMainReceiptEnabled,
   recordLapseEnabled,
   runnerCommitReportEnabled,
+  runnersCoresPerShard,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
@@ -93,10 +99,14 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  jsdocCheckEnabled,
   adapterLintEnvEnabled,
+  adapterLintSigningEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
+  adapterLintGithubEnabled,
+  adapterLintSshEnabled,
   idiomSpreadEnabled,
   literalPinsEnabled,
   movesLiveEnabled,
@@ -112,6 +122,7 @@ export {
   browserByLaunchEnabled,
   runnerDispatchMode,
   jobReserve,
+  gateAgedMs,
   localRunnerEnabled,
   localLoadShare,
   staticCheckSlots,
@@ -124,6 +135,8 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
+  itemsBarRulesAtAdd,
+  routeReservations,
   itemsTestMirrorAtAdd,
   docsRegenerateOnCommit,
   holdsLiftSettled,
@@ -138,6 +151,7 @@ export {
   joinCoordinatorSeat,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
+  reviewBuilderOffers,
   nextLabelBounds,
   nextCapBuilders,
   nextLightShapedStrong,
@@ -147,16 +161,20 @@ export {
   nextReadinessCheck,
   nextOneGitRead,
   nextReadinessCache,
+  nextReturnedFirst,
   refuseTempWorktree,
   claimKeepWhileRunning,
   refuseOffMainHead,
+  claimCheckCeilingEnabled,
   statusShowUsefulBuilders,
   refuseEmptyBar,
   rejectKeepsCheck,
   soloLowStakesEnabled,
+  lineTuneEnabled,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
+  adviceThroughNextEnabled,
   lapsedSweepEnabled,
   derivedStateEnabled,
   testLoadRerunEnabled,
@@ -284,6 +302,7 @@ export { submitProofOnly } from './src/logic/settings.js';
 export { submitComposeAsObject } from './src/logic/settings.js';
 export { landingComposedEquality } from './src/logic/settings.js';
 export { gateSampleSwap } from './src/logic/settings.js';
+export { checkVerdict } from './src/logic/check-verdict.js';
 export { submitComposeOnRunner } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
@@ -296,3 +315,4 @@ export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
 export { MACHINE_DEFAULTS } from './src/io/settings/machine-defaults.js';
 export { costPerMinute } from './src/logic/runner-rates.js';
+export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";

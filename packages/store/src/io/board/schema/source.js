@@ -64,9 +64,6 @@ export const SCHEMA = `
     item_hold_reason TEXT,
     item_hold_by TEXT,
     item_hold_at TEXT,
-    item_reservation_holder TEXT,
-    item_reservation_by TEXT,
-    item_reservation_at TEXT,
     item_created_by TEXT NOT NULL,
     item_created_at TEXT NOT NULL,
     item_updated_at TEXT NOT NULL
