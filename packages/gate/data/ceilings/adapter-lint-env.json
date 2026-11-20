@@ -1,8 +1,6 @@
 {
   "version": 1,
   "files": {
-    "apps/cli/src/io/beater.js": 2,
-    "apps/cli/src/io/beater/command.js": 1,
     "apps/cli/src/io/cells-submit-checks.js": 1,
     "apps/cli/src/io/cli-main/run.js": 4,
     "apps/cli/src/io/commands/verify.js": 3,
@@ -68,10 +66,6 @@
     "packages/stats/src/io/cost/due.js": 2,
     "packages/stats/src/io/cost/ledger.js": 1,
     "packages/stats/src/io/cost/session.js": 2,
-    "packages/store/src/io/board/access.js": 1,
-    "packages/store/src/io/board/busy.js": 1,
-    "packages/store/src/io/board/hold/log.js": 1,
-    "packages/store/src/io/home.js": 3,
     "packages/transport/src/io/ssh.js": 3
   }
 }
