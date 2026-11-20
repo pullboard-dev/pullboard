@@ -1,0 +1,33 @@
+{
+  "cli.journeys-version-update.each-install-kind-upgrades": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "for a global, an npx and a project install, pullboard update run as the real CLI runs that kind's upgrade through a stub npm and prints the changelog sections between the two versions."
+    },
+    "why": "Without it update could pick the wrong upgrade for an install kind and no journey would notice.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/update.js",
+      "apps/cli/src/logic/install-kind.js",
+      "apps/cli/src/logic/upgrade-command.js",
+      "apps/cli/src/logic/changelog-between.js"
+    ]
+  },
+  "cli.journeys-version-update.current-and-unknown-installs": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "pullboard update says Pullboard is already current when the stub reports the running version, and refuses UPDATE_KIND_UNKNOWN naming the one manual command for an install it cannot tell."
+    },
+    "why": "Without it an up-to-date or unclassifiable install could run an upgrade or fail without guidance.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/update.js",
+      "apps/cli/src/logic/install-kind.js",
+      "apps/cli/src/logic/upgrade-command.js"
+    ]
+  }
+}

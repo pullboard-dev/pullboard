@@ -7,6 +7,8 @@ import { LEASE_MS } from '../../../jobs/index.js';
 import { atomically } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { dehydrateRequest } from '../../../jobs/index.js';
+import { hydrateRequest } from '../../../jobs/index.js';
 import { readPayload } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { upsertProgressStep } from '../../../jobs/index.js';
@@ -19,14 +21,15 @@ import { renewLease } from '../../../jobs/index.js';
 import { JOB_CLASSES } from '../../../jobs/index.js';
 import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
-import { ledgerHits } from '../../../store/index.js';
-import { recordShadow } from '../../../store/index.js';
-import { firstDifference } from '../../../store/index.js';
+import { ledgerHits } from './store.js';
+import { recordShadow } from './store.js';
+import { firstDifference } from './store.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { noteLapse } from '../../../jobs/index.js';
+import { noteClaimKey } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
@@ -144,6 +147,11 @@ const REQUEST_BYTES = 60 * 1024;
 const PART_BYTES = 1024;
 // Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
 const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
+// Budget: a runner whose cap held back an open job is told to wait this long before its next claim, instead of polling every 2 s while it is full [C7,#12150].
+export const CAPPED_CLAIM_WAIT_MS = 10_000;
+// Budget: one batch renew names at most this many held jobs; a runner holds one per slot.
+const RENEW_BATCH = 64;
+
 // Budget: a job is claimed at most this many times (gate.jobMaxAttempts); at the cap it ends as a runaway and the coordinator hears once (#7386).
 export const JOB_MAX_ATTEMPTS = 12;
 // Budget: a pre-push gate renews its shards' liveness every 30 s; a shard unrenewed for this long has lost its gate and ends at its next claim (#7805).
@@ -166,6 +174,46 @@ const PROGRESS_STATES = new Set(['waiting', 'running', 'green', 'red']);
 /** The sha256 hex of a lease token: the board keeps only this, so its rows never hold a usable token. */
 function tokenHash(token) {
   return createHash('sha256').update(String(token)).digest('hex');
+}
+
+/** A claim key: the runner's own random name for one claim call, sent again unchanged when it retries that call. */
+const CLAIM_KEY = /^[A-Za-z0-9_-]{8,128}$/u;
+
+/** Refuse a claim key that is not a plain random name; return it, or null for a claim sent without one. */
+function claimKey(key) {
+  if (key === null || key === undefined) return null;
+  if (typeof key !== 'string' || !CLAIM_KEY.test(key)) throw new Refused('JOB_CLAIM_KEY', 'a claim key is 8 to 128 letters, digits, dashes or underscores, new for each claim call and sent again unchanged on its retry; pass { key }');
+  return key;
+}
+
+/** The note step a keyed claim leaves on the job it took: one row per runner, key and attempt, found by name on the step name index. */
+function claimKeyStep(runner, key) {
+  return `note:claim-key.${createHash('sha256').update(`${runner}\0${key}`).digest('hex')}`;
+}
+
+/** A keyed claim's token, derived from its key, so a retry with the same key gets the same token without the board keeping one. */
+function keyedToken(runner, key, job, attempt) {
+  return createHash('sha256').update(`claim-token\0${runner}\0${key}\0${job}\0${attempt}`).digest('base64url');
+}
+
+/** The claim answer for a job taken at this attempt and lease. */
+function claimAnswer(row, offer, { attempt, leaseUntil, token }) {
+  const { needs = [], run = [], payload = null } = offer;
+  return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil, token };
+}
+
+/**
+ * The live lease this runner already holds from a claim with this key, as that claim answered it, or null.
+ * Why: the board can commit a claim after the runner's call timed out; the runner never saw the answer and claimed again,
+ * and the first lease held its job and a share of the runner's cores until it lapsed. One indexed read: the step name holds runner and key, and CROSS JOIN keeps the planner on the step name index rather than every live lease.
+ */
+function keyedLease(db, runner, key, now) {
+  const row = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt, job.job_lease_until, offered.job_step_payload AS offer
+    FROM job_step AS keyed CROSS JOIN job ON job.job_id = keyed.job_step_job AND job.job_attempt = keyed.job_step_seq
+    JOIN job_step AS offered ON offered.job_step_job = job.job_id AND offered.job_step_name = 'offered' AND offered.job_step_seq = 0
+    WHERE keyed.job_step_name = ? AND job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed')`).get(claimKeyStep(runner, key), runner, now);
+  if (!row) return null;
+  return claimAnswer(row, readPayload(db, row.offer), { attempt: row.job_attempt, leaseUntil: row.job_lease_until, token: keyedToken(runner, key, row.job_id, row.job_attempt) });
 }
 
 /** Refuse a list that is not plain names; return it sorted and without repeats. */
@@ -221,6 +269,8 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   const argv = runArgv(run);
   if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
   if (payload !== null && Buffer.byteLength(JSON.stringify(payload)) > PAYLOAD_BYTES) throw new Refused('JOB_PAYLOAD', `a job payload is at most ${PAYLOAD_BYTES} bytes; name commits and refs, and let the runner fetch the code from git`);
+  // With runs_store on, program text is stored once in the runs file and the offer holds only its hash [B2,P7].
+  if (queue && request !== null && typeof request === 'object' && !Array.isArray(request)) request = dehydrateRequest(queue.runs.db, request);
   if (request !== null && (typeof request !== 'object' || Array.isArray(request) || Buffer.byteLength(JSON.stringify(request)) > STORED_REQUEST_BYTES)) {
     throw new Refused('JOB_REQUEST', `a job request is a JSON object of at most ${STORED_REQUEST_BYTES} bytes; keep large inputs in git and name them`);
   }
@@ -293,12 +343,12 @@ export function offeredRequest(db, job, { runs = null } = {}) {
   if (runs) db = runs.db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   const request = row ? JSON.parse(row.job_step_payload).request ?? null : null;
-  if (!namesParts(request)) return request;
+  if (!namesParts(request)) return hydrateRequest(db, request);
   // A queued job (runs_store on) keeps its whole request in the pending step intend wrote, not in a request step.
   const kept = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name IN (?, 'pending') AND job_step_seq = 0 ORDER BY job_step_name = 'pending'").get(job, REQUEST_STEP);
   const whole = kept ? readPayload(db, kept.job_step_payload) : null;
   if (!whole?.request) throw new Refused('JOB_REQUEST', `job ${job}'s offer names its request step, but the board no longer holds it; resubmit the item for a new gate job`);
-  return whole.request;
+  return hydrateRequest(db, whole.request);
 }
 
 /**
@@ -363,12 +413,19 @@ export function boardQueueMode(db, wanted) {
  * share of the runner's `jobs` slots; with none, pre-push gate shards first (#7790), then landing jobs, test runs and the rest, each by age (claimableJobs) [C7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
+ * onCapped is called when the claim takes nothing because the runner's own cap (shards, cores or census) held back an open job [C7,#12150].
+ *
+ * @param {{ runner: string, key?: string | null, onCapped?: (() => void) | null, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS }) {
+export function claimJob(db, { runner, key = null, onCapped = null, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS, place = null }) {
   runnerId(runner);
+  // A retried claim with the same key gets the live lease its first call took, never a second job [C7].
+  const keyed = claimKey(key);
+  if (keyed !== null) { const held = keyedLease(db, runner, keyed, now); if (held) return held; }
+  // Two runner ids claiming from one host and runner folder within the gap are one machine split in two [C7].
+  notePlace(runner, place, now);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
   const has = new Set(names(capabilities, 'capabilities'));
@@ -377,6 +434,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
   const skip = except === null ? null : new Set(names(except, 'except'));
   const ended = [];
   const repeated = [];
+  let capped = false;
   const claimed = atomically(db, () => {
     // A runner that reported its cores and holds its cap of gate shards is offered no more, so idle runners get the rest (#7765).
     const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores, coresPerShard);
@@ -397,17 +455,25 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
       return !(kind === SHARD_JOB_KIND ? shards === 0 : tests === 0 && weight <= TEST_FLOOR_CORES);
     };
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
-      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !overBudget(row.job_kind) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
+      runnable: (row, offer) => {
+        if (!((!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)))) return false;
+        // A job this runner could run but its cap holds back: a claim that then takes nothing tells the runner to wait [C7,#12150].
+        const full = (shardsFull && row.job_kind === SHARD_JOB_KIND) || overBudget(row.job_kind) || censusFull(offer);
+        if (full) capped = true;
+        return !full;
+      } });
     // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
     const shardsFirst = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
     // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
     const offered = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
     for (const { row, offer } of offered) {
-      const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
       if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
+      // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds skips this job before its lease is touched, and the claim goes on to the next job [C7,#8352,#12147].
+      const held = hop && row.job_kind === 'gate' && row.job_item ? acquireOrEnd(db, hop, row, { runner, now, leaseMs }) : null;
+      if (held === OVER || held === HELD) continue;
       // jobs.recordLapse: what the earlier claim held and last wrote, read before this claim overwrites the lease [C7,#9247].
       const lapsed = recordLapse && row.job_attempt >= 1 ? lapseOf(db, row, now) : null;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
@@ -415,18 +481,17 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
       if (taken.changes !== 1) continue;
       if (lapsed) noteLapse(db, row.job_id, lapsed, now);
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
-      const token = randomBytes(24).toString('base64url');
-      // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
-      const held = hop && row.job_kind === 'gate' && row.job_item ? acquireOrEnd(db, hop, row, { runner, now, leaseMs }) : null;
-      if (held === OVER) continue;
+      const token = keyed === null ? randomBytes(24).toString('base64url') : keyedToken(runner, keyed, row.job_id, attempt);
       writeStep(db, row.job_id, 'claimed', { runner, ...(held ? { hopEpoch: held.epoch } : {}), capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
       noteLease(db, row.job_id, 'lease.grant', { owner: runner, until: now + leaseMs }, now);
+      if (keyed !== null) noteClaimKey(db, row.job_id, claimKeyStep(runner, keyed), attempt, now);
       noteRepeatClaims(db, row, { now, repeated });
-      return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
+      return claimAnswer(row, offer, { attempt, leaseUntil: now + leaseMs, token });
     }
     return null;
   });
   // The shout is a board write of its own, so it follows the claim's transaction.
+  if (claimed === null && capped) onCapped?.();
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
   for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
@@ -449,19 +514,24 @@ function lapseOf(db, row, now) {
 
 /** acquireOrEnd's answer for a gate job it ended because its hop is over. */
 const OVER = Symbol('hop over');
+/** acquireOrEnd's answer for a gate job whose hop another live runner holds: this claim skips it and leaves it as it is. */
+const HELD = Symbol('hop held');
 
 /**
  * Acquire the item's hop for this gate job's claim, or end the job when its own candidate's hop is already done or ended.
  * Why: a resubmit ends the old candidate's hop but leaves its gate job open; once that job's lease lapsed, every claim
  * reached it first and was refused HOP_OVER, so no gate job behind it was ever claimed. A job whose hop is over is no
  * one's work, so it ends here like a runaway and the claim goes on to the next job [C7,#8352,#8353].
+ * A hop another live runner holds (HOP_HELD, refused as HOP_FENCED) skips only this job: a refused claim ended the whole runner serve,
+ * which then drained for about a minute before launchd restarted it. The caller runs this before it takes the lease, so the skipped job's lease row is never written [C7,#12147].
  *
- * @returns {{ owner: string | null, epoch: number } | typeof OVER}
+ * @returns {{ owner: string | null, epoch: number } | typeof OVER | typeof HELD}
  */
 function acquireOrEnd(db, hop, row, { runner, now, leaseMs }) {
   try {
     return moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'acquire', job: row.job_id, now, leaseMs });
   } catch (error) {
+    if (error?.code === 'HOP_FENCED') return HELD;
     if (error?.code !== 'HOP_OVER') throw error;
     endJob(db, row.job_id, 'superseded', { detail: `#${row.job_item}'s gate hop at ${String(row.job_candidate).slice(0, 12)} is already done or ended; ended, not rerun` }, { now });
     return OVER;
@@ -685,6 +755,28 @@ export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = L
   return shadowed(db, { name: 'renew', job, runner, token }, now, () => renewHeld(db, { job, runner, token, now, leaseMs, hop }));
 }
 
+/**
+ * Renew every job a runner holds in one call: each named job and token is renewed as renewJob does, and the answer names each job's new lease,
+ * or the refusal code of a job this runner no longer holds, so one moved job never fails the others.
+ * Why: each runner renewed every held job with its own call, and those calls loaded the board and slowed every other call [C7,#12150].
+ * A landing job's renewal carries a landing permit, so it renews with its own renew call.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ runner: string, held: { job: string, token: string }[], now?: number, leaseMs?: number, hop?: object | null }} request
+ * @returns {{ leases: ({ job: string, renewed: boolean, leaseUntil: number | null } | { job: string, renewed: false, refused: string })[] }}
+ */
+export function renewJobs(db, { runner, held, now = Date.now(), leaseMs = LEASE_MS, hop = null }) {
+  runnerId(runner);
+  if (!Array.isArray(held) || held.length === 0 || held.length > RENEW_BATCH || held.some(entry => typeof entry?.job !== 'string' || typeof entry?.token !== 'string')) {
+    throw new Refused('JOB_RENEW_BATCH', `a batch renew names 1 to ${RENEW_BATCH} held jobs as [{ job, token }]; send each job your claims returned with its token`);
+  }
+  const leases = held.map(({ job, token }) => {
+    try { return { job, ...renewJob(db, { job, runner, token, now, leaseMs, hop }) }; }
+    catch (error) { if (!(error instanceof Refused)) throw error; return { job, renewed: false, refused: error.code }; }
+  });
+  return { leases };
+}
+
 /** Step the item's hop as a gate job's claim at the epoch it took, refused HOP_FENCED when that claim no longer owns it [C7,#8352,#8353]. */
 function stepClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
   const row = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
@@ -728,6 +820,28 @@ const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 
 /**
+ * Split a proof plan's files into shard buckets: the files it names under `timing` (test files that declare
+ * @pullboard-test-timing) each get a bucket of their own, marked timing, after the rest split round-robin into one bucket
+ * per `cores` files. Why its own: a timing file judges wall time, so its shard job carries data.checkTiming and its runner
+ * runs it alone; any other file sharing that runner is load that turns it red [C7].
+ *
+ * @param {string[]} files - The plan's files.
+ * @param {number} cores - One runner's cores: how many files one ordinary bucket holds.
+ * @param {unknown} timing - The plan's timing list; only names that are among `files` count.
+ * @param {number} max - At most this many buckets in all.
+ * @returns {{ files: string[], timing: boolean }[]} Empty when the plan is not one to split: its files fit the cores and none is timing.
+ */
+export function proofBuckets(files, cores, timing, max) {
+  const timed = Array.isArray(timing) ? [...new Set(timing.filter(file => files.includes(file)))].slice(0, max - 1) : [];
+  if (!cores || (files.length <= cores && !timed.length)) return [];
+  const ordinary = files.filter(file => !timed.includes(file));
+  const count = ordinary.length ? Math.min(max - timed.length, Math.ceil(ordinary.length / cores)) : 0;
+  const buckets = Array.from({ length: count }, () => ({ files: [], timing: false }));
+  ordinary.forEach((file, at) => buckets[at % count].files.push(file));
+  return [...buckets, ...timed.map(file => ({ files: [file], timing: true }))];
+}
+
+/**
  * Offer a land job's proof as shard jobs on its runner's call: the plan's files split round-robin into one shard per
  * runner's worth of cores, each a gate-shard job `land:<job>:shard:N` any runner pulls. The runner holds the plan (the
  * proof's files and command, its cores) and the gate bootstrap to run it, and the board holds the queue and the ledger,
@@ -737,7 +851,9 @@ const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
  * shard id an earlier merged commit used is not reused: a retried land job never reads the old tree's receipts as its own [C7,#7818].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
+ * A plan's timing files each run as a shard of their own whose data carries checkTiming, so its runner holds it alone (proofBuckets) [C7].
+ *
+ * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number, timing?: string[] }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
 export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, reuseCommits = null, queue = null, now = Date.now() }) {
@@ -751,21 +867,20 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
   if (ref !== null && ref !== undefined && (typeof ref !== 'string' || !LAND_REF.test(ref))) throw new Refused('LAND_SHARDS', 'a land job\'s shards name their landing ref as refs/pullboard/landing/<name>', 'send ref as the landing ref the merged commit was pushed to');
   if (typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || files.some(file => typeof file !== 'string' || !PROOF_FILE.test(file))
     || !Array.isArray(gate?.run) || !gate.run.length || typeof gate.entry !== 'string') throw new Refused('LAND_SHARDS', 'a land job\'s shard plan is { runner, files, cores } and its gate is { run, entry }', 'send both as the proof names them');
-  if (!cores || files.length <= cores) return { sharded: false, shards: [] };
-  const count = Math.min(MAX_LAND_SHARDS, Math.ceil(files.length / cores));
-  const buckets = Array.from({ length: count }, () => []);
-  files.forEach((file, at) => buckets[at % count].push(file));
+  const buckets = proofBuckets(files, cores, plan.timing, MAX_LAND_SHARDS);
+  if (!buckets.length) return { sharded: false, shards: [] };
+  const count = buckets.length;
   const prefix = `${job}:shard:`;
   // queueRun makes its own board transaction, so with runs_store on the offers do not sit inside a runs transaction.
   const ids = (queue ? work => work() : work => atomically(db, work))(() => {
     const prior = jobs.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ?').all(SHARD_JOB_KIND, prefix.length, prefix);
     endJobs(jobs, prior.filter(row => row.job_candidate !== merged && row.job_step !== 'done').map(row => row.job_id), { reason: 'the land job proved another merged commit', now });
-    return buckets.map((part, index) => {
+    return buckets.map(({ files: part, timing }, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
       const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
       const ledger = ledgerHits(db, part, { budget: 16_000, ...(Array.isArray(reuseCommits) ? { commits: reuseCommits.slice(0, 64) } : {}) });
       return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
-        request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
+        request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged, ...(timing ? { checkTiming: true } : {}),
           shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }, queue).id;
     });
   });
@@ -1001,14 +1116,16 @@ function reportedCommit(read) {
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
+  const { action, runner, key, place, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
-    const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
+    let capped = false;
+    const claim = claimJob(db, { runner, key: key ?? null, onCapped: () => { capped = true; }, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
+    const answer = { claim, ...(claim ? { trunk: trunk() } : capped ? { waitMs: CAPPED_CLAIM_WAIT_MS } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
-  if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
+  // A renew naming held renews every job it lists in one call [C7,#12150]; one naming job and token renews that job as before.
+  if (action === 'renew') return body.held !== undefined ? renewJobs(db, { runner, held: body.held, now, hop }) : renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
   if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, reuseCommits: body.reuseCommits, queue, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
@@ -1026,4 +1143,48 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
   throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, shardReceipts, release, progress, artifact, receiptPart or receipt');
+}
+
+/** How long a runner id's claim keeps its place held against a second id from the same place. */
+const PLACE_GAP_MS = 30_000;
+/** Runner id to the place it last claimed from and when; refused ids to the same, so the health item can list them. In memory only, no table. */
+const placeClaims = new Map();
+const refusedPlaces = new Map();
+
+/** Whether a claim's place names a host and runner folder as strings. */
+const placeKey = place => (typeof place?.host === 'string' && typeof place?.root === 'string' ? JSON.stringify([place.host, place.root]) : null);
+
+/**
+ * Record a claim's place and refuse a second runner id from the same place whose first id claimed within the gap.
+ * A claim without a place changes nothing. The time is the claim's own `now`, never a new clock read.
+ *
+ * @param {string} runner
+ * @param {{ host?: string, root?: string } | null} place
+ * @param {number} now
+ */
+function notePlace(runner, place, now) {
+  const key = placeKey(place);
+  if (key === null) return;
+  for (const [other, seen] of placeClaims) {
+    if (other === runner || seen.key !== key || now - seen.at >= PLACE_GAP_MS) continue;
+    refusedPlaces.set(runner, { key, at: now, other });
+    throw new Refused('RUNNER_DUPLICATE', `runner ${runner} claims from the same host and runner folder as runner ${other}, which claimed ${Math.max(0, Math.round((now - seen.at) / 1000))} s ago; one runner service per folder`);
+  }
+  placeClaims.set(runner, { key, at: now });
+}
+
+/**
+ * The places where a second runner id was refused within the gap, each with both ids, for the health report.
+ *
+ * @param {number} now
+ * @returns {{ host: string, root: string, runners: string[] }[]}
+ */
+export function duplicateRunnerPlaces(now) {
+  const rows = [];
+  for (const [runner, refused] of refusedPlaces) {
+    if (now - refused.at >= PLACE_GAP_MS) continue;
+    const [host, root] = JSON.parse(refused.key);
+    rows.push({ host, root, runners: [refused.other, runner].sort() });
+  }
+  return rows;
 }
