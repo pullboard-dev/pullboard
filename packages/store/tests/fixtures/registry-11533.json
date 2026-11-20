@@ -1,0 +1,4 @@
+{
+  "store.blocks.claim-all-members": {"proves":{"specs":["C7"],"claim":"claimBlock claims every open member of a block for one seat in one write, each with its claim event and the same lease, and another seat claim of a member is refused."},"why":"A block is one unit of work for one seat, so its members are taken together or not at all.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]},
+  "store.blocks.claim-refusals": {"proves":{"specs":["C7"],"claim":"claimBlock refuses an unknown name with NO_BLOCK, a member held by another seat with BLOCK_CLAIMED naming it and nothing claimed, and a seat below the block tier with BLOCK_TIER."},"why":"A block claim takes every member or none, and only a seat whose route reaches the tier.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]}
+}

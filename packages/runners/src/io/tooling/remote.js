@@ -23,24 +23,13 @@ import { fileSystemAdapter } from '../../../../fs/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const TOOL_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 const fs = fileSystemAdapter();
-
-/**
- * The imports of the installer script that runs on the runner, one per name, in the order the installer text always had.
- * Why: the installer is a separate process that cannot reach the adapter, so it imports the bare modules itself; its text
- * is built from this table, so it is not a node:fs import of this file. `fs` there is the one call readCapsuleFromStdin makes.
- */
-const INSTALLER_IMPORTS = [
-  ['node:fs', ['chmodSync', 'mkdirSync', 'mkdtempSync', 'writeFileSync', 'readFileSync', 'readSync', 'readdirSync', 'renameSync', 'rmSync', 'statSync']],
-  ['node:path', ['dirname', 'isAbsolute', 'join']],
-  ['node:crypto', ['createHash']],
-  ['node:zlib', ['gunzipSync']],
-].flatMap(([module, names]) => names.map(name => `import { ${name} } from '${module}';`)).join('\n');
 
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
@@ -81,7 +70,7 @@ export function shellWord(value) { return `'${String(value).replaceAll("'", "'\\
 
 /** Give the SSH client connection necessities only; arbitrary caller secrets cannot be forwarded. */
 export function sshEnvironment() {
-  const inherited = { ...process.env };
+  const inherited = environmentAdapter().all();
   removeGitRepositorySelectors(inherited, process.stderr.write.bind(process.stderr));
   const env = {};
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR', 'SystemRoot', 'WINDIR']) {
@@ -233,6 +222,9 @@ export function readCapsuleFromStdin() {
   return bytes.toString('ascii');
 }
 
+/** The generated installer cannot import the fs adapter; readCapsuleFromStdin and claimRunnerLaunch get the same synchronous calls under that name [C7]. */
+const INSTALLER_FS_SHIM = 'const fs = { read: readSync, mkdir: mkdirSync, writeFile: writeFileSync };\n';
+
 /**
  * Install pinned bytes first, then replace the SSH shell with the file-based worker.
  * The command stays small and fixed; the capsule goes first on stdin, ahead of anything the worker reads.
@@ -247,12 +239,26 @@ export function remoteWorkerLaunch(runner, worker, tooling, runtime, extra = '',
   // A runner that holds this runtime by digest gets an empty capsule and re-hashes its installed copy.
   const payload = reuse ? REUSE_CAPSULE : full;
   if (Buffer.byteLength(payload) > CAPSULE_STDIN_LIMIT) throw new Refused('RUNNER_REQUEST_LIMIT', 'runner tooling capsule exceeds its safe transfer limit; keep this run local');
-  const installer = `${INSTALLER_IMPORTS}
-const fs = { read: readSync };
-${installRunnerPackage.toString()}
+  const installer = `import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
+import { homedir } from 'node:os';
+${INSTALLER_FS_SHIM}${installRunnerPackage.toString()}
 ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
-${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(process.env.HOME, '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
+${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(homedir(), '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
   const suffix = `/runtime/${tooling.sha256}/${tooling.entry ?? 'apps/runner/src/io/scripts/worker.js'}`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;

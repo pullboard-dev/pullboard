@@ -42,6 +42,11 @@ Fix the board, not the prompt.
 - **Forced landing:** with the person's OK, when the gate is broken.
 - **Forced means:** green at its exact candidate; never dodges a red.
 
+### Outside PRs
+
+- Land outside PRs through the merge train, never GitHub's merge button; GitHub marks the PR merged when their commit reaches main.
+- Outsiders never get commit rights, npm publishing rights or any token.
+
 ### Tools
 
 - **Order:** `pullboard roadmap`; `pullboard milestone pin` or `order`.

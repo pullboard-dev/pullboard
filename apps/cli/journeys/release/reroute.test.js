@@ -13,7 +13,7 @@ async function handBack(box, seat, id) {
   const taken = await cli(box, seat.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(taken.document.item.item_id, id, 'the seat was handed the item straight from next');
-  const released = await cli(box, seat.path, ['release', String(id), '--reason', 'INELIGIBLE']);
+  const released = await cli(box, seat.path, ['release', String(id), '--reason', 'INELIGIBLE', '--note', 'cannot be built as written']);
   assert.equal(released.code, 0, released.out + released.err);
   box.advance(31 * 60_000);
 }

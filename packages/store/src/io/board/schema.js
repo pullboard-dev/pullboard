@@ -1,9 +1,6 @@
 /** Compare a worktree's declaration with shared trunk schema without changing it [A5,A6,C7]. */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  existsSync,
-  realpathSync,
-} from 'node:fs';
 import {
   basename,
   dirname,
@@ -16,15 +13,17 @@ import {
 } from "../../../../git/index.js";
 import { Refused } from "../../../../kernel/index.js";
 
+const fs = fileSystemAdapter();
+
 const reported = new Set();
 
 /** Identify the repository-shared board without treating arbitrary private test files as shared. */
 export function isRepositoryBoard(file) {
   if (file === ':memory:') return false;
-  const canonical = existsSync(file) ? realpathSync(file) : resolve(file);
+  const canonical = fs.exists(file) ? fs.realpath(file) : resolve(file);
   const parent = dirname(canonical);
   return basename(canonical) === 'board.sqlite' && basename(parent) === 'pullboard'
-    && existsSync(join(dirname(parent), 'HEAD'));
+    && fs.exists(join(dirname(parent), 'HEAD'));
 }
 
 /** Read declared column shapes and persistent machine triggers; TEMP guards are connection-local. */
@@ -93,11 +92,11 @@ const declarations = new WeakMap();
 /** Resolve schema ownership independently of caller hints, while permitting fresh private fixtures. */
 export function sharedSchemaOwner(file, hint) {
   let owner = isRepositoryBoard(file) ? hint !== false && codeIsFromMain() : hint;
-  if (file !== ':memory:' && owner === false && !existsSync(file)) {
+  if (file !== ':memory:' && owner === false && !fs.exists(file)) {
     // Unmerged source cannot initialize its own shared board. A separate fresh project has no
     // existing schema to replace, even when it created linked worktrees before its first command.
     const commonDir = dirname(dirname(file));
-    if (isRepositoryBoard(file) && existsSync(join(commonDir, 'worktrees')) && codeUsesRepository(commonDir)) {
+    if (isRepositoryBoard(file) && fs.exists(join(commonDir, 'worktrees')) && codeUsesRepository(commonDir)) {
       throw new Refused('UNMERGED_SCHEMA', 'the shared board is missing; run pullboard status from the main checkout to initialize it before using this worktree');
     }
     owner = true;

@@ -1,9 +1,11 @@
-import { readdirSync } from 'node:fs';
-import { readGateReceipt } from '../../../../../packages/gate/index.js';
-import { receiptStore } from '../../../../../packages/gate/index.js';
-import { testClosures } from '../../../../../packages/gate/index.js';
+import { readGateReceipt } from '../../../../../packages/gate/heavy.js';
+import { receiptStore } from '../../../../../packages/gate/heavy.js';
+import { testClosures } from '../../../../../packages/gate/heavy.js';
 import { context } from '../entry.js';
 import { gitExecFileSync } from '../../../../../packages/git/light.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Run a read-only Git query, returning null when history is unavailable. */
 function git(root, ...args) {
@@ -55,7 +57,7 @@ function observations(root, file) {
   const store = receiptStore(root);
   if (!store) return [];
   let names;
-  try { names = readdirSync(store); } catch { return []; }
+  try { names = fs.list(store); } catch { return []; }
   return names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).flatMap(name => {
     const receipt = readGateReceipt(store, name.slice(0, -5));
     if (!receipt || receipt.proof && receipt.proof.sourceClean !== true) return [];

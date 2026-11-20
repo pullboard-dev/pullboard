@@ -5,15 +5,11 @@
  * Why here: a result that only one process understands dies with it; a result keyed by what made it can be thrown
  * away at any time and rebuilt, so a missing or stale file only costs the time to build it again.
  */
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 const SUFFIX = '.result';
 const PARTIAL = /\.(\d+)\.partial$/u;
@@ -33,11 +29,11 @@ function writerIsDead(pid) {
 export function removeDeadPartials(folder) {
   let removed = 0;
   let names;
-  try { names = readdirSync(folder); } catch { return 0; }
+  try { names = fs.list(folder); } catch { return 0; }
   for (const name of names) {
     const match = PARTIAL.exec(name);
     if (!match || Number(match[1]) === process.pid || !writerIsDead(Number(match[1]))) continue;
-    try { rmSync(join(folder, name), { force: true }); removed += 1; } catch { /* Gone already. */ }
+    try { fs.rm(join(folder, name), { force: true }); removed += 1; } catch { /* Gone already. */ }
   }
   return removed;
 }
@@ -61,15 +57,15 @@ export function keyedResultPath(folder, key) {
  * @param {Uint8Array} bytes
  */
 export function saveKeyedResult(folder, key, bytes) {
-  mkdirSync(folder, { recursive: true });
+  fs.mkdir(folder, { recursive: true });
   removeDeadPartials(folder);
   const path = keyedResultPath(folder, key);
   const temporary = `${path}.${process.pid}.partial`;
   try {
-    writeFileSync(temporary, bytes);
-    renameSync(temporary, path);
+    fs.writeFile(temporary, bytes);
+    fs.rename(temporary, path);
   } finally {
-    rmSync(temporary, { force: true });
+    fs.rm(temporary, { force: true });
   }
 }
 
@@ -81,7 +77,7 @@ export function saveKeyedResult(folder, key, bytes) {
  * @returns {Buffer | null}
  */
 export function loadKeyedResult(folder, key) {
-  try { return readFileSync(keyedResultPath(folder, key)); } catch (error) {
+  try { return fs.readFile(keyedResultPath(folder, key)); } catch (error) {
     if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
     throw error;
   }
@@ -95,10 +91,10 @@ export function loadKeyedResult(folder, key) {
  */
 export function savedKeyedResults(folder) {
   let names;
-  try { names = readdirSync(folder).filter((name) => name.endsWith(SUFFIX)); } catch { return []; }
+  try { names = fs.list(folder).filter((name) => name.endsWith(SUFFIX)); } catch { return []; }
   const results = [];
   for (const name of names) {
-    try { results.push(readFileSync(join(folder, name))); } catch { /* Swept between the listing and the read. */ }
+    try { results.push(fs.readFile(join(folder, name))); } catch { /* Swept between the listing and the read. */ }
   }
   return results;
 }
@@ -111,10 +107,10 @@ export function savedKeyedResults(folder) {
  */
 export function pruneKeyedResults(folder, keep) {
   let names;
-  try { names = readdirSync(folder).filter((name) => name.endsWith(SUFFIX)); } catch { return; }
+  try { names = fs.list(folder).filter((name) => name.endsWith(SUFFIX)); } catch { return; }
   const dated = [];
   for (const name of names) {
-    try { dated.push({ name, at: statSync(join(folder, name)).mtimeMs }); } catch { /* Swept between the listing and the stat. */ }
+    try { dated.push({ name, at: fs.stat(join(folder, name)).mtimeMs }); } catch { /* Swept between the listing and the stat. */ }
   }
-  for (const old of dated.sort((a, b) => b.at - a.at).slice(keep)) rmSync(join(folder, old.name), { force: true });
+  for (const old of dated.sort((a, b) => b.at - a.at).slice(keep)) fs.rm(join(folder, old.name), { force: true });
 }

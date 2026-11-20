@@ -18,7 +18,7 @@ import {
 import { join } from 'node:path';
 import { runnerJobReply } from '../../../../../packages/runners/index.js';
 import { processCensus } from '../../../../runner/index.js';
-import { isolateTestMachine } from '../../../../../packages/gate/index.js';
+import { isolateTestMachine } from '../../../../../packages/gate/heavy.js';
 import { createE2eHelpers } from '../e2e.js';
 import { waitForCondition } from './holders.js';
 

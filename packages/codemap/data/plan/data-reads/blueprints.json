@@ -653,14 +653,14 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "file": "apps/cli/tests/io/submit/gate/frozen.test.js",
       "line": 72,
       "expression": "join(mainRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "file": "apps/cli/tests/io/submit/gate/frozen.test.js",
       "line": 78,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
@@ -695,14 +695,14 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "file": "apps/cli/tests/io/submit/gate/frozen.test.js",
       "line": 44,
       "expression": "resolve(box.root, log)",
       "kind": "marker",
       "why": "Coordinator51385: reads a file the private Git fixture's own gate wrote (a stamp, log or marker), not a repository source."
     },
     {
-      "file": "apps/cli/journeys/submit/gate/selection/frozen.test.js",
+      "file": "apps/cli/tests/io/submit/gate/frozen.test.js",
       "line": 142,
       "expression": "stamp",
       "kind": "marker",

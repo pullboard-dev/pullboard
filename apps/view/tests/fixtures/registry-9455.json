@@ -1,0 +1,11 @@
+{
+  "view.x-page-boards.sidebar-groups-by-machine": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "clause 2: with a local view and a relay source on a seeded page, the production sidebar shows both machine headings with their boards in real Chrome."
+    },
+    "why": "Without it this behaviour could regress with no test naming what it proved.",
+    "kind": "journey",
+    "inputs": ["apps/view/tests/io/page/boards.test.js"]
+  }
+}
