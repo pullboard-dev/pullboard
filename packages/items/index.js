@@ -83,6 +83,6 @@ export { claimedItemRoot } from './src/io/patch/submit.js';
 export { dependencyWaiters, dependencyWorkAt } from './src/logic/progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/logic/diagnosis.js';
 export { ITEM_MARKER_FILE, itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
-export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
+export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed, itemsFailedOn } from './src/logic/audit/main-red.js';
 export { canonicalVendorFamily, vendorOfModel } from './src/logic/vendors.js';
 export { predictedFiles, requireFileLease, fileMiss } from './src/logic/lease.js';

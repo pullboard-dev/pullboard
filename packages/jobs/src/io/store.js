@@ -1,4 +1,5 @@
 /** Read and write job rows on the board's SQLite handle [C7]. */
+import { createHash } from "node:crypto";
 import { Refused } from "../../../kernel/light.js";
 import { viewOf } from "../logic/view.js";
 import { parseStub } from "./blobs.js";
@@ -367,4 +368,76 @@ export function leasedJobs(db, { kind, now = Date.now() }) {
   if (!kind) throw new Refused('JOB_FIELDS', 'Listing leased jobs needs a kind: pass { kind }.');
   return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done' ORDER BY job_created, job_id")
     .all(kind, now).map(row => jobView(db, row.job_id));
+}
+
+/** The runs file's program table: offered program text stored once, keyed by its sha256 [B2,P7]. */
+export const PROGRAM_SCHEMA_SQL = 'CREATE TABLE IF NOT EXISTS program (program_sha256 TEXT PRIMARY KEY, program_text TEXT NOT NULL)';
+
+/** A request string of at least this many characters, in its argv or entry, is program text the runs file stores once by hash [B2,P7]. */
+export const PROGRAM_MIN_CHARS = 256;
+
+/**
+ * Store program text once in the runs file's program table, keyed by its sha256; a text already there is left as it is.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The runs file's handle.
+ * @param {string} text
+ * @returns {string} The sha256 of the text.
+ */
+export function putProgram(db, text) {
+  const sha = createHash('sha256').update(text).digest('hex');
+  db.prepare('INSERT OR IGNORE INTO program (program_sha256, program_text) VALUES (?, ?)').run(sha, text);
+  return sha;
+}
+
+/**
+ * The program text stored under a hash, or null when the table holds none.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} sha
+ * @returns {string | null}
+ */
+export function readProgram(db, sha) {
+  return db.prepare('SELECT program_text AS text FROM program WHERE program_sha256 = ?').get(sha)?.text ?? null;
+}
+
+/** The hash a program stub holds, or null when the value is no stub. */
+const stubHash = value => (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 1 && /^[0-9a-f]{64}$/u.test(value.$program ?? '') ? value.$program : null);
+
+/**
+ * A copy of a job request whose program text (each long string of its `run` argv and its `input.entry`) is stored once in the
+ * runs file and replaced by `{ $program: sha256 }`, so an offer holds only the hash.
+ * Why: 214 MB of offered rows held 36 distinct program texts; the table keeps each once [B2,P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The runs file's handle.
+ * @param {Record<string, unknown> | null} request
+ * @returns {Record<string, unknown> | null}
+ */
+export function dehydrateRequest(db, request) {
+  if (!request) return request;
+  const long = value => typeof value === 'string' && value.length >= PROGRAM_MIN_CHARS;
+  const copy = { ...request };
+  if (Array.isArray(copy.run)) copy.run = copy.run.map(part => (long(part) ? { $program: putProgram(db, part) } : part));
+  if (copy.input && typeof copy.input === 'object' && long(copy.input.entry)) copy.input = { ...copy.input, entry: { $program: putProgram(db, copy.input.entry) } };
+  return copy;
+}
+
+/**
+ * The request as it was offered: each program stub of its `run` argv and `input.entry` read back from the program table.
+ * A request with no stub comes back as it is.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The handle the request was read from.
+ * @param {Record<string, unknown> | null} request
+ * @returns {Record<string, unknown> | null}
+ */
+export function hydrateRequest(db, request) {
+  if (!request) return request;
+  const text = stub => {
+    const body = readProgram(db, stubHash(stub));
+    if (body === null) throw new Refused('JOB_REQUEST', `an offered program ${stubHash(stub)} is no longer in the runs file; resubmit the item for a new job`);
+    return body;
+  };
+  const copy = { ...request };
+  if (Array.isArray(copy.run) && copy.run.some(stubHash)) copy.run = copy.run.map(part => (stubHash(part) ? text(part) : part));
+  if (stubHash(copy.input?.entry)) copy.input = { ...copy.input, entry: text(copy.input.entry) };
+  return copy;
 }
