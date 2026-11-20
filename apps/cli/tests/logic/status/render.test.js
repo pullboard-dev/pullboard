@@ -155,3 +155,10 @@ test('cli.logic-status-render.real-status: clause 3: the real status command on 
   assert.equal(code, 0, out);
   assert.ok(out.split('\n').includes(staffingLines(staffing)), `status prints ${staffingLines(staffing)}`);
 });
+
+test('cli.logic-status-render.ready-buffer-line: clause 1: statusLines prints one ready buffer line per route with the ratio to one decimal, and "no builders" for a route with none [C7,#12475]', () => {
+  const capacity = { liveAgents: 2, idleAgents: 1, readyItems: 14, readyByRoute: { mid: 12, strong: 2 }, buildersByRoute: { mid: 8, strong: 0 } };
+  const lines = statusLines({ ...summary(), capacity }, options());
+  assert.deepEqual(lines.filter((line) => line.startsWith('ready buffer: ')), ['ready buffer: mid 12 ready, 8 builders = 1.5x', 'ready buffer: strong 2 ready, no builders']);
+  assert.equal(statusLines(summary(), options()).some((line) => line.startsWith('ready buffer: ')), false, 'a summary without readyByRoute prints no ready buffer line');
+});
