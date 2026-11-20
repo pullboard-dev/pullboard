@@ -92,12 +92,14 @@ export async function runHere(io, ctx, { agent, item, items = [], files, values 
   if (result.green && item !== undefined) await recordAgainstMain(() => recordClauseTicks(io, item, files, { run: values['test-run'], logPath: result.logPath }));
   if (result.green && !values.diagnose && items.length) await recordAgainstMain(() => recordTestProofs(io, ctx, { items, files: result.files ?? files, result }));
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
+  if (result.screenshotsPath) io.err(`screenshots: ${result.screenshotsPath}`);
   if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);
   const notices = [...result.mainFailures, ...result.mainFileFailures].map(notice => notice.message);
   if (result.mainSkipped) notices.push(`main comparison skipped: ${result.mainSkipped}`);
   if (result.mainUnavailable) notices.push(`main comparison unavailable: ${result.mainUnavailable}`);
   const payload = { green: result.green, runner: result.runner, seconds: result.seconds, counts: result.counts ?? null,
-    failures: result.failures ?? [], logPath: result.logPath ?? null, files: result.files, notices };
+    failures: result.failures ?? [], logPath: result.logPath ?? null, files: result.files, notices,
+    ...(result.screenshotsPath ? { screenshotsPath: result.screenshotsPath } : {}) };
   return { code: result.green ? 0 : 1, payload };
 }
