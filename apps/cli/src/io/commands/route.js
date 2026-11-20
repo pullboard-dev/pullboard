@@ -41,6 +41,9 @@ async function reserve(io, first, values) {
   if (values.to !== undefined && values.off) throw new Refused('USAGE', 'route takes --to <seat> or --off, not both', 'pullboard route <id> --to <seat>');
   if (!routeReservations()) throw new Refused('SETTING_OFF', 'route reservations are off', 'turn on route.reservations in the machine settings first');
   const id = idArg(first);
+  // The command opts out of the native board for --suggest, so a write loads it here the way the dispatcher does for other commands.
+  await io.prepareProcessPorts();
+  io.nativeBoard ??= await io.loadNativeBoard();
   return actOn(io, async (ctx, board, me) => {
     if (values.off) {
       await ordered(ctx, board, 'clearReservation', [id, { agentId: me.id }]);
