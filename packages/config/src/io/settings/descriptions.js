@@ -56,6 +56,7 @@ const ROWS = [
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
+  ['health.adviceThroughNext', 'Builder advice comes through next', 'When enabled, builder advice that is sent as a shout is delivered in the output of next instead; off (default), advice stays in shouts.', 'Order', 'on/off'],
   ['health.derivedState', 'Derived item state', 'When enabled, an item state is derived from its board records instead of being stored; off (default), item state is exactly as before, and nothing reads this setting yet.', 'Order', 'on/off'],
   ['health.diskFloorGb', 'Health warns on low disk', 'When above 0, pullboard health warns when the disk holding this board has less free space than this many gigabytes; 0 (default) never warns.', 'Order', 'gigabytes'],
   ['health.lapsedSweep', 'The sentinel expires lapsed claims', 'When enabled, the View\'s sentinel expires claims whose lease lapsed every minute, so none waits for a command to run; off (default), lapsed claims are expired by the ten-minute sweep and before each write.', 'Order', 'on/off'],
@@ -119,6 +120,7 @@ const ROWS = [
   ['gate.adapterLintTimers', 'Refuse new direct timer use', 'When enabled, the static check refuses a source file that starts or clears a timer outside the clock adapter beyond its recorded count, and names the file, the line and the adapter to use; off, it reports nothing.', 'Runners', 'on/off'],
   ['gate.endStaleJobs', 'End stale gate jobs', 'When enabled, offering a new gate candidate for an item ends its older open gate jobs, and a landed item\'s open gate jobs end, so runners spend no time on candidates that can no longer land.', 'Runners', 'on/off'],
   ['gate.excuseMainTimingReds', 'Excuse timing reds that main shares', 'When enabled, a gate run whose only reds are timing reds that main also has is excused instead of refused; off (default), every red counts. Only an exact true turns it on.', 'Runners', 'on/off'],
+  ['gate.failFastShards', 'End remaining gate shards on a red', 'When enabled, a gate whose shard posts a red in a case the item itself changed ends its remaining shards instead of running them; off (default), every shard runs. Only an exact true turns it on.', 'Runners', 'on/off'],
   ['gate.fencedHop', 'Fenced gate hop row', 'When enabled, a gate hop is one row with one owner, written by compare-and-set; a writer that loses the race is refused with the owner named.', 'Runners', 'on/off'],
   ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once, computed from the runner slots when unset and lowered only by this setting, never by a launching command.', 'Capacity', 'count'],
   ['gate.idiomSpread', 'Refuse a spreading idiom', 'When enabled, the static check refuses a change that spreads a banned idiom to a file that did not use it before, and names the file, the line and the idiom; off, it reports nothing.', 'Runners', 'on/off'],
@@ -382,6 +384,7 @@ const ROWS = [
   ['commits.noCoAuthor', 'No co-author lines', 'Commits with co-author trailers are refused.', 'Commits', 'on/off'],
   ['commits.noEmoji', 'No emoji', 'Commit messages with emoji are refused.', 'Commits', 'on/off'],
   ['commits.noHostName', 'No computer name', 'Submit refuses commits that name this computer; off only warns.', 'Commits', 'on/off'],
+  ['commits.quotedNames', 'Quoted names', 'Names whose quoted words commits may not carry.', 'Commits', 'list'],
   ['commits.requireIds', 'Types that cite specs', 'Commit types whose header must cite a spec id.', 'Commits', 'list'],
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],
   ['protect.allowed', 'Protected-file exceptions', 'File patterns allowed even though they match a protected one.', 'Protection', 'list'],
@@ -405,6 +408,7 @@ const ROWS = [
   ['line.reviewsFirst', 'Reviews first', 'Reviews are offered before new builds.', 'Line', 'on/off'],
   ['line.reworkSameFamily', 'Same-family rework', 'After the original builder is gone, returned work first goes to live seats in the builder’s model family.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
+  ['line.tune', 'Self-tuning line', 'The line controller adjusts its own knobs from replayed board flow; off keeps every knob as set.', 'Line', 'on/off'],
   ['line.wipPerReviewer', 'Work per reviewer', 'How many items may be in progress for each active reviewer.', 'Line', 'ratio'],
 ];
 
