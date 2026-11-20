@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { createPackCache } from '../../../index.js';
+import { createPackCache } from '../../../heavy.js';
 
 /** A counting packer that writes a tarball named for its call number, standing in for npm pack. */
 function setup(t) {

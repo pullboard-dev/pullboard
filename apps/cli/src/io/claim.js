@@ -139,6 +139,16 @@ export async function maintainLapsedBeforeWrite(ctx, board, operation, args, act
   } finally { LAPSE_MAINTENANCE.delete(board); }
 }
 
+/**
+ * Run one board move through the writer, after the signed-move, spec-approval and first-refusal checks have shaped its arguments.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {string} operation
+ * @param {Array} args
+ * @param {object} [options]
+ * @returns {Promise<*>}
+ */
 export async function ordered(ctx, board, operation, args, { prepareInWriter } = {}) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });

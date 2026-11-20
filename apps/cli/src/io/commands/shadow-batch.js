@@ -1,4 +1,5 @@
 import { git } from '../../../../../packages/git/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -6,9 +7,10 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { context } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { scratchFolder } from '../../../../../packages/config/index.js';
-import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const USAGE = 'use pullboard shadow-batch <id> <id>... [--json] to run the tier-2 checks once over accepted items composed onto main';
 
@@ -42,7 +44,7 @@ function tierTwoChecks(config) {
 /** Run one shell check in the scratch tree and measure it. */
 function runCheck(name, command, cwd) {
   const started = performance.now();
-  const child = spawnSync('/bin/sh', ['-c', command], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: process.env });
+  const child = spawnSync('/bin/sh', ['-c', command], { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: environmentAdapter().all() });
   return { name, command, green: child.status === 0, exitCode: child.status, ms: Math.round(performance.now() - started),
     tail: `${child.stdout ?? ''}${child.stderr ?? ''}`.trim().split('\n').slice(-5).join('\n') };
 }
@@ -60,7 +62,7 @@ export function run(io, { first, second, rest, values }) {
   let merged = [], conflict = null, results = [];
   try {
     git(root, ['worktree', 'add', '--detach', '-q', scratch, main]);
-    const env = { ...process.env, GIT_AUTHOR_NAME: 'pullboard shadow-batch', GIT_AUTHOR_EMAIL: 'shadow-batch@pullboard.invalid', GIT_COMMITTER_NAME: 'pullboard shadow-batch', GIT_COMMITTER_EMAIL: 'shadow-batch@pullboard.invalid' };
+    const env = { ...environmentAdapter().all(), GIT_AUTHOR_NAME: 'pullboard shadow-batch', GIT_AUTHOR_EMAIL: 'shadow-batch@pullboard.invalid', GIT_COMMITTER_NAME: 'pullboard shadow-batch', GIT_COMMITTER_EMAIL: 'shadow-batch@pullboard.invalid' };
     for (const item of items) {
       const attempt = tryGit(scratch, ['-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', '--no-edit', '-q', item.commit], { env });
       if (attempt.status !== 0) { tryGit(scratch, ['merge', '--abort']); conflict = item.id; break; }
@@ -69,7 +71,7 @@ export function run(io, { first, second, rest, values }) {
     if (conflict === null) results = tierTwoChecks(ctx.config).map(([name, command]) => runCheck(name, command, scratch));
   } finally {
     tryGit(root, ['worktree', 'remove', '--force', scratch]);
-    rmSync(scratch, { recursive: true, force: true });
+    fs.rm(scratch, { recursive: true, force: true });
     tryGit(root, ['worktree', 'prune']);
   }
   const wallMs = Math.round(performance.now() - started);
