@@ -1,9 +1,6 @@
 /** Per-file static check results kept under the machine home, so a landing rescans only the files it changed [5564]. */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { cellOf } from '../edges.js';
 import { fileEdges } from '../edges.js';
@@ -45,7 +42,7 @@ export function fileCache({ name, version, tooling, home = undefined }) {
   let entries = {};
   if (path) {
     try {
-      const stored = JSON.parse(readFileSync(path, 'utf8'));
+      const stored = JSON.parse(fileSystemAdapter().readFile(path, 'utf8'));
       if (stored.version === version && stored.tooling === tooling) entries = stored.entries;
     } catch { /* no cache yet, or an unreadable one: start empty */ }
   }
@@ -71,10 +68,11 @@ export function fileCache({ name, version, tooling, home = undefined }) {
       // Drop files that left the tree only when the cache has grown far past it, so two trees can share one cache.
       if (Object.keys(entries).length > seen.size * 2) entries = Object.fromEntries(Object.entries(entries).filter(([file]) => seen.has(file)));
       try {
-        mkdirSync(dir, { recursive: true });
+        const disk = fileSystemAdapter();
+        disk.mkdir(dir, { recursive: true });
         const temporary = `${path}.${process.pid}.tmp`;
-        writeFileSync(temporary, JSON.stringify({ version, tooling, entries }));
-        renameSync(temporary, path);
+        disk.writeFile(temporary, JSON.stringify({ version, tooling, entries }));
+        disk.rename(temporary, path);
       } catch { /* a cache that cannot be written only costs the next run its speed */ }
     },
   };

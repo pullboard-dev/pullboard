@@ -157,3 +157,10 @@ test('state.logic-evidence.guard-bar-lists-all-faults: clause 1: guardBar on a b
     && /clause 1: end it with one of/u.test(error.next) && /clause 2: put the number it must meet/u.test(error.next) && !/service owner/u.test(`${error.message} ${error.next}`));
   assert.throws(() => guardBar('1. It loads [test]\n2. The load stays fast [measurement]'), error => error.code === 'BAR_AMBIGUOUS' && /put the number in clause 2/u.test(error.next));
 });
+
+test('state.logic-evidence.cold-import-refused: clause 1: guardBar refuses a bar adding a cold-path import with no closure row, naming the row to add, and accepts a bar naming it [C7]', () => {
+  const bare = '1. packages/board/light.js adds an import of packages/roadmap/index.js and prints the roadmap [test]';
+  assert.throws(() => guardBar(bare), error => error.code === 'BAR_COLD_IMPORT' && /closure-budget row/u.test(error.next ?? error.message));
+  assert.doesNotThrow(() => guardBar('1. packages/board/light.js adds an import of packages/roadmap/index.js, measured by closure row show 1 [test]'));
+  assert.doesNotThrow(() => guardBar('1. packages/board/index.js adds an import of packages/roadmap/index.js [test]'), 'a warm path needs no row');
+});
