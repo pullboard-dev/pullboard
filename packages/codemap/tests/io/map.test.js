@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildCodeMap } from '../../src/io/map.js';
+import { parseJsdoc } from '../../src/io/map.js';
 import { renderItemSlice } from '../../src/io/map.js';
 import { renderModuleCard } from '../../src/io/map.js';
 import { fixtureCommittedGraph } from '../../../store/tests/fixtures/cell.js';
@@ -104,4 +105,12 @@ test('codemap.io-map.jest-test-folders: clause 2: .test.js and .spec.js files in
   assert.equal(map.testCount, 2, 'the __tests__ file and the tests/ spec file are the test files');
   assert.deepEqual(map.modules.find(entry => entry.path === 'src/thing.js').tests, ['src/__tests__/thing.test.js', 'tests/thing.spec.js']);
   assert.ok(map.modules.some(entry => entry.path === 'src/notes.spec.js'), 'a spec file outside a tests folder stays a source module');
+});
+
+test('codemap.map.jsdoc-tags-at-line-start: clause 1: parseJsdoc reads param, returns and throws tags only where the tag opens a JSDoc line [C7]', () => {
+  const prose = parseJsdoc('/** Parse a block: first sentence, @param names and types, @returns type, @throws. */');
+  assert.deepEqual([prose.params, prose.returns, prose.throws], [[], null, []], 'a tag named in prose is no tag');
+  const tagged = parseJsdoc('/**\n * Add two numbers.\n * @param {number} a - The first.\n * @param [b] - The second.\n * @returns {number} The sum.\n * @throws {Error} Never.\n */');
+  assert.deepEqual(tagged.params, [{ name: 'a', type: 'number', optional: false }, { name: 'b', type: null, optional: true }]);
+  assert.deepEqual([tagged.summary, tagged.returns, tagged.throws], ['Add two numbers.', 'number', ['Error']]);
 });

@@ -189,7 +189,7 @@ export function pushShardSkipReason({ pull, clean, untracked: loose, files, name
 async function pushShardFacts(root, config) {
   const pull = runnerDispatchMode() === 'pull', clean = isClean(root), loose = untracked(root).length;
   if (!pull || !clean || loose) return { pull, clean, untracked: loose, files: 0, nameable: true };
-  const { trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
+  const { trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/heavy.js');
   const files = trackedDefaultTestFiles(root, process.env);
   return { pull, clean, untracked: loose, files: files.length, nameable: files.length < 2 || Boolean(valueGateCommand(root, config.gate, files)) };
 }
@@ -206,7 +206,7 @@ async function pushShardFacts(root, config) {
  */
 export async function pushShardPlan(root, config, { runners, history } = {}) {
   if (runnerDispatchMode() !== 'pull' || !isClean(root) || untracked(root).length) return null;
-  const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
+  const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/heavy.js');
   const files = trackedDefaultTestFiles(root, process.env);
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
   const times = readFileTimes(root);
@@ -447,7 +447,7 @@ export async function pushShardGate(ctx, { say, wait, pollMs, now = Date.now, re
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
   if (combined.status === 0) {
-    const { stampGreen } = await import('../../../../../packages/gate/index.js');
+    const { stampGreen } = await import('../../../../../packages/gate/heavy.js');
     stampGreen(root, tryGit(root, ['rev-parse', `${plan.source}^{tree}`]).stdout.trim());
     return { isGreen: true, problem: null, jobs };
   }

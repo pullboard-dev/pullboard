@@ -1,4 +1,5 @@
 import { RERUNNABLE_RUNNER_REFUSALS } from '../../../store/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { constrainedLandingHost } from './host.js';
 import { captureReleaseQueue } from './queue.js';
@@ -250,7 +251,7 @@ function phaseText(record) {
 
 /** Run one shard's files in a local child run-tests that inherits the shard's own gate lease. */
 async function runLocalShard({ root, runner, files, args = [], label, lease, stop, collectAll, collectionId, parseProcessCensus }) {
-  const env = { ...withoutGateMarkers(process.env), ...gateSlotEnvironment(lease),
+  const env = { ...withoutGateMarkers(environmentAdapter().all()), ...gateSlotEnvironment(lease),
     PULLBOARD_LANDING_RUN: '1', [LANDING_SHARD_ENV]: label, [LANDING_COLLECT_ALL_ENV]: collectAll ? '1' : '0', [COLLECTION_ID_ENV]: collectionId ?? '' };
   // Its own process group, so a stop reaches the shard's test files and their children together.
   const child = spawn(process.execPath, [runner, ...args, '--', ...files], { cwd: root, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -346,9 +347,11 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
   if (typeof parseProcessCensus !== 'function') throw new TypeError('landing shards need the explicit process census parser');
   const runnerOnly = runnerAdmission.runnerOnly === true;
   const selectionAt = performance.now();
-  const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
-  const collectionId = process.env[COLLECTION_ID_ENV];
-  const release = process.env[RELEASE_EXECUTORS_ENV] ? releasePlacement(process.env[RELEASE_EXECUTORS_ENV]) : null;
+  const environment = environmentAdapter();
+  const collectAll = environment.get(LANDING_COLLECT_ALL_ENV) === '1';
+  const collectionId = environment.get(COLLECTION_ID_ENV);
+  const releaseExecutors = environment.get(RELEASE_EXECUTORS_ENV);
+  const release = releaseExecutors ? releasePlacement(releaseExecutors) : null;
   if (release && !collectAll) throw new Error('a release requires complete native collection');
   const { Refused } = await import('../../../kernel/index.js');
   if (runnerOnly && release?.executors.some(executor => executor.kind === 'local')) {
@@ -375,8 +378,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
   const stop = stopper.signal;
   let firstFailure = null;
   // The parent's own markers would make every shard reuse its one lease; each lane passes its own.
-  const saved = Object.fromEntries(GATE_MARKERS.map(key => [key, process.env[key]]));
-  for (const key of GATE_MARKERS) delete process.env[key];
+  const saved = Object.fromEntries(GATE_MARKERS.map(key => [key, environment.get(key)]));
+  for (const key of GATE_MARKERS) environment.delete(key);
   write(`# landing shards: ${total} balanced by ${balance} (${plan.map((shard, index) => `${index + 1}/${total} ${shard.files.length} files`).join(', ')})\n`);
   const floor = landingFloor(files, history);
   // The slowest single file bounds the gate however many shards there are.
@@ -430,7 +433,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     const command = `${COLLECTION_ID_ENV}=${word(collectionId ?? '')} ${LANDING_COLLECT_ALL_ENV}=${collectAll ? '1' : '0'} ${LANDING_SHARD_ENV}=${word(entry.label)} ${['node', './apps/cli/src/io/run/tests.js', ...args, '--', ...entry.shard.files].map(word).join(' ')}`;
     try {
       const run = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, browser: lease.browser,
-        metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(process.env.PULLBOARD_AUDIT_COVERAGE_REPORTER) }, signal: stop });
+        metadata: { ...(lease.runMetadata ?? {}), landing: true, gui: entry.gui, auditCoverage: Boolean(environment.get('PULLBOARD_AUDIT_COVERAGE_REPORTER')) }, signal: stop });
       // A runner that could not prepare its checkout ran no test: that is infrastructure to requeue, never a red to
       // hold the batch on. A locked slot database on .54 held #2794 as "no accounted failure" on 6 Nov [C7].
       const setupRefused = !run.isGreen && /^runner setup refused:/u.test(run.output ?? '');
@@ -577,7 +580,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     // A completed shard can signal before its admission finishes releasing the owned slot.
     if (!entries.every(entry => entry.done)) { stopper.abort(); signalChange(); }
     while (acquisitions.size) await Promise.allSettled([...acquisitions]);
-    for (const [key, value] of Object.entries(saved)) if (value !== undefined) process.env[key] = value;
+    for (const [key, value] of Object.entries(saved)) if (value !== undefined) environment.set(key, value);
   }
   if (failures.length) throw failures[0];
   const merged = [];

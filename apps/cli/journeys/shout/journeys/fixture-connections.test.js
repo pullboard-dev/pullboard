@@ -17,7 +17,7 @@ import {
   boardId,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('[N38,C7] real cockpit fixture reads close API and stylesheet connections', async (t) => {
+test('cli.journeys-shout-journeys-fixture-connections.n38-c7-real-cockpit-fixture-reads: [N38,C7] real cockpit fixture reads close API and stylesheet connections', async (t) => {
   const box = machine();
   const fixtureProject = project(box, 'wire proof');
   const channel = diagnosticsChannel.channel('undici:client:sendHeaders');

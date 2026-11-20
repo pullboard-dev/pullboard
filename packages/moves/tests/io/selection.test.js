@@ -4,8 +4,12 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../../jobs/index.js';
+import { loadStopRules } from '../../../items/index.js';
+import { loadReturnedFirst } from '../../../queue/index.js';
 import * as store from '../../../store/index.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { nextSelection } from '../../index.js';
 import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
@@ -128,6 +132,51 @@ test('moves.selection.derived-gate-port-absent: clause 2: with no port, or a por
   assert.equal(pick({ ...box.ports, derivedGateAtHead: () => null }), first, 'a port returning null');
 });
 
+/** Run one default-loop pick and return the options the review offer was given, so a port's answer is seen where it reaches nextFor. */
+function offerOptions(t, box, ports) {
+  const seen = [];
+  const original = nextSelection.defaultOffer;
+  nextSelection.defaultOffer = (board, options) => { seen.push(options); return original(board, options); };
+  t.after(() => { nextSelection.defaultOffer = original; });
+  const picked = nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, ports);
+  return { seen, picked };
+}
+
+test('moves.selection.derived-seat-family-port: clause 1: with ports.derivedSeatFamily returning a map or a reader, pick passes it to nextFor as derivedSeatFamily and the answer is the port\'s [C7,#11384]', t => {
+  const box = fixture(t);
+  box.add('Work for the default loop');
+  const reader = id => (id === 'seat-x' ? 'openai' : undefined);
+  const fromReader = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => reader });
+  assert.equal(fromReader.seen.length, 1, 'the review offer ran once');
+  assert.equal(fromReader.seen[0].derivedSeatFamily, reader, 'a reader is passed as it is');
+  const families = new Map([['seat-x', 'anthropic']]);
+  const fromMap = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => families });
+  assert.equal(fromMap.seen[0].derivedSeatFamily('seat-x'), 'anthropic', 'a map answers through its entries');
+  assert.equal(fromMap.seen[0].derivedSeatFamily('seat-y'), undefined, 'an id the map does not name is unanswered');
+});
+
+test('moves.selection.derived-seat-family-port-absent: clause 2: with no port, or a port returning null, pick passes no derivedSeatFamily and returns the same item as before [C7,#11384]', t => {
+  const box = fixture(t);
+  const first = box.add('First work');
+  box.add('Second work');
+  for (const ports of [box.ports, { ...box.ports, derivedSeatFamily: () => null }]) {
+    const { seen, picked } = offerOptions(t, box, ports);
+    assert.equal('derivedSeatFamily' in seen[0], false, 'no derivedSeatFamily key reaches nextFor');
+    assert.equal(picked.item?.item_id, first);
+  }
+});
+
+test('moves.selection.derived-seat-family-beside-gate: clause 3: pick reads ports.derivedSeatFamily beside ports.derivedGateAtHead, each answering on its own [C7,#11384]', t => {
+  const box = fixture(t);
+  const gated = box.add('Gated by the derived table');
+  const free = box.add('Free work');
+  const reader = () => undefined;
+  const derivedGateAtHead = () => entry => (entry.item_id === gated ? `gate green at ${'a'.repeat(12)}` : undefined);
+  const { seen, picked } = offerOptions(t, box, { ...box.ports, derivedGateAtHead, derivedSeatFamily: () => reader });
+  assert.equal(seen[0].derivedSeatFamily, reader, 'the seat-family answer reaches nextFor');
+  assert.equal(picked.item?.item_id, free, 'the gate answer still skips the gated item');
+});
+
 /** The box's claim port, made to refuse `id` as claim refuses a bar naming paths no lane owns; every other claim goes through. */
 function refuseOwnership(box, id) {
   const through = box.ports.claimOrdered;
@@ -185,4 +234,82 @@ test('moves.selection.wait-held-unchanged: clause 2: nextOnce with values.wait a
   assert.equal(again.held, true);
   assert.equal(again.waitingOffer, undefined);
   assert.deepEqual(actorClaims(box), [mine], 'no second claim');
+});
+
+/** Insert one move event for an item long enough ago that the release cooldown does not hide it. */
+function seedMove(box, id, kind, detail = {}) {
+  box.board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES ('2026-10-01T00:00:00.000Z', 'fixture', ?, ?, ?)").run(kind, id, JSON.stringify(detail));
+}
+
+/** Run `read` with next.returnedFirst set in a private machine home, restoring the home afterwards. */
+function withReturnedFirst(on, read) {
+  const { root: dir } = privateFixtureFiles('pullboard-selection-returned-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(dir, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, on === undefined ? {} : { next: { returnedFirst: on } });
+    return read();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+/** The item next picks on this box with the given setting, through the production ports plus the queue's returnedFirst. */
+async function pickedWith(box, on) {
+  const returnedRules = { ...await loadReturnedFirst(), ...await loadStopRules() };
+  return withReturnedFirst(on, () => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, { ...box.ports, returnedRules }).item?.item_id);
+}
+
+test('moves.selection.returned-first-on: clause 1: with next.returnedFirst on, next hands an item released once with no refusal ahead of an untouched item, and never one rejected twice since its last criterion edit [C7,#11255]', async t => {
+  const box = fixture(t);
+  const walled = box.add('Rejected twice');
+  const untouched = box.add('Untouched work');
+  const returned = box.add('Released once');
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, returned, 'release', { reasonCode: 'OTHER' });
+  assert.equal(await pickedWith(box, true), returned, 'the released item leads; the walled one is passed over');
+  assert.notEqual(await pickedWith(box, true), untouched);
+  seedMove(box, walled, 'edit', { criterion: '1. reworded [test]' });
+  assert.equal(await pickedWith(box, true), walled, 'a reworded criterion resets the count, so its two rejects count no more and it leads again by queue order');
+});
+
+test('moves.selection.returned-first-off: clause 2: with next.returnedFirst off or unset, next hands exactly the item it hands today on the same board [C7,#11255]', async t => {
+  const box = fixture(t);
+  const walled = box.add('Rejected twice');
+  box.add('Untouched work');
+  const returned = box.add('Released once');
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, returned, 'release', { reasonCode: 'OTHER' });
+  const today = nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports).item?.item_id;
+  assert.equal(await pickedWith(box, undefined), today, 'unset');
+  assert.equal(await pickedWith(box, false), today, 'false');
+});
+
+/** Run pick under `config`, recording the who that reaches the review offer (plain loop) and the default offer (default loop). */
+function whoReaching(t, box, config) {
+  const seen = [];
+  const original = { ...nextSelection };
+  nextSelection.reviewOffer = (board, who) => { seen.push(who); return original.reviewOffer(board, who); };
+  nextSelection.defaultOffer = (board, who) => { seen.push(who); return original.defaultOffer(board, who); };
+  t.after(() => Object.assign(nextSelection, original));
+  const ctx = { ...box.ctx, config: { ...box.ctx.config, ...config } };
+  box.add('Open work');
+  nextSelection.pick(ctx, box.board, { defaultLoop: false, observeIdle: true, omitIds: [] }, box.ports);
+  nextSelection.pick(ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports);
+  return seen;
+}
+
+test('moves.selection.compose-landing-on: clause 1: with slices.composeLanding true in ctx.config, the who handed to the review offer and the default offer carries composeLanding true [C7,#11345]', t => {
+  const seen = whoReaching(t, fixture(t), { slices: { composeLanding: true } });
+  assert.equal(seen.length, 2, 'both offers were reached');
+  for (const who of seen) assert.equal(who.composeLanding, true);
+});
+
+test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding unset, the who carries no composeLanding and the offer is unchanged [C7,#11345]', t => {
+  for (const config of [{}, { slices: { composeLanding: false } }]) {
+    const seen = whoReaching(t, fixture(t), config);
+    assert.equal(seen.length, 2, 'both offers were reached');
+    for (const who of seen) assert.ok(!who.composeLanding, 'composeLanding is false or absent');
+  }
 });
