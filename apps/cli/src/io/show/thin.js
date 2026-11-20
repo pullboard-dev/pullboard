@@ -26,14 +26,14 @@ function hasRows(board, table, column, id) {
  * The facts `pullboard show <id>` would print for a plain item, or null when the full path must run it: no readable
  * board, a drifted board, an unknown item, or an item carrying any heavy section.
  *
- * @param {{ cwd: string, id: number, clock?: any, conflictReader?: () => Promise<Function> }} request - conflictReader loads the merge index's mechanical conflict reader.
+ * @param {{ cwd: string, id: number, clock?: any, conflictReader?: () => Promise<Function>, open?: Function }} request - conflictReader loads the merge index's mechanical conflict reader; open is the board opener, the store's read opener unless a test hands in another.
  * @returns {Promise<{ item: any, agents: any[], history: any[] } | null>}
  */
-export async function thinShowFacts({ cwd, id, clock = store.systemClock, conflictReader }) {
+export async function thinShowFacts({ cwd, id, clock = store.systemClock, conflictReader, open = store.openBoardForRead }) {
   // With health.derivedState on the full path reads the derived-state table for verdict freshness, so the thin door steps aside [C7,#11373].
   if (derivedStateEnabled()) return null;
   const info = repoInfo(cwd);
-  const board = store.openBoardForRead(`${info.commonDir}/pullboard/board.sqlite`, clock);
+  const board = open(`${info.commonDir}/pullboard/board.sqlite`, clock);
   if (!board) return null;
   if (!board.current || board.drifted) { store.closeBoard(board); return null; }
   try {

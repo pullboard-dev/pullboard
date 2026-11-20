@@ -14,6 +14,7 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import { declareItemField } from '../../../../../packages/store/index.js';
 import { events } from '../../../../../packages/store/index.js';
 import { listAgents } from '../../../../../packages/store/index.js';
+import { openBoardForRead } from '../../../../../packages/store/index.js';
 import { ReadNeedsWrite } from '../../../../../packages/store/index.js';
 import { thinShowFacts } from '../../../src/io/show/thin.js';
 
@@ -79,13 +80,14 @@ test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no 
   await stepsAsideFor(box, 'an after-gate list', 5, (db, id) => db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`after_gate:${id}`, '[2]'));
   await stepsAsideFor(box, 'a foreign wait', 6, (db, id) => db.prepare('UPDATE item SET item_after = ? WHERE item_id = ?').run('other-repo#7', id));
   // An accepted item loads the merge index's reader; a reader the read cannot serve sends the call to the full path.
-  // A status moves only inside a move, which the board marks in its temp.moving table; the fixture marks it the same way for this one row.
-  onBoard(box, board => {
-    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
-    try { board.db.prepare("UPDATE item SET item_status = 'verified', item_verified_by = 'fixture', item_commit = 'abc1234' WHERE item_id = 9").run(); } finally { board.db.exec('DELETE FROM temp.moving'); }
-  });
-  assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new ReadNeedsWrite('fixture write'); } }), null, 'ReadNeedsWrite');
-  assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new Error('no such table: fixture_missing'); } }), null, 'schemaMissing');
+  // A read the board refuses (it needs a write, or a table is missing) sends the call to the full path: the opener hands the door a board whose reads throw that refusal.
+  const failing = failure => (file, clock) => {
+    const real = openBoardForRead(file, clock);
+    const db = new Proxy(real.db, { get: (target, key) => key === 'prepare' ? () => { throw failure; } : typeof target[key] === 'function' ? target[key].bind(target) : target[key] });
+    return new Proxy(real, { get: (target, key) => key === 'db' ? db : target[key] });
+  };
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, open: failing(new ReadNeedsWrite('fixture write')) }), null, 'ReadNeedsWrite');
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, open: failing(new Error('no such table: fixture_missing')) }), null, 'schemaMissing');
   // The field tables join the board last: the item that holds no value is still served, so the item that holds one steps aside for its value alone.
   onBoard(box, board => declareItemField(board, { by: 'fixture', name: 'size', type: 'text', enabled: true }));
   await stepsAsideFor(box, 'a typed field', 7, (db, id) => db.prepare("INSERT INTO item_field (item_id, field_name, field_value, field_set_by, field_set_at) VALUES (?, 'size', 'small', 'fixture', ?)").run(id, NOW));
