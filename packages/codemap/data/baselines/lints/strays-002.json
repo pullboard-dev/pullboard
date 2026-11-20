@@ -5,7 +5,7 @@
     "apps/cli/journeys/decisions/row.test.js": 1,
     "apps/cli/journeys/doctrine/readme.test.js": 1,
     "apps/cli/journeys/edit/references.test.js": 1,
-    "apps/cli/journeys/fact/item/notes.test.js": 1,
+    "apps/cli/tests/io/commands/fact/item-notes.test.js": 1,
     "apps/cli/journeys/fact/item/presubmit.test.js": 1,
     "apps/cli/journeys/fact/landing/refresh.test.js": 1,
     "apps/cli/journeys/fact/owner.test.js": 1,

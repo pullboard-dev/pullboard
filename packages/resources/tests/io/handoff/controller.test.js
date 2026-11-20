@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/resources/index.js packages/resources/src/io/handoff/worker/cap.js */
+/** @pullboard-test-input packages/resources/index.js */
 /** The machine dispatcher, gate drive, handoff worker, its cap and lifeline are deleted; nothing starts them [C7,#6579,#6580]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

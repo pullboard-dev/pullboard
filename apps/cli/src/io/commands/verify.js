@@ -359,7 +359,7 @@ export function soloLowStakesFacts(item, enabled, evidence) {
   return {
     soloLowStakes: true,
     rows: rows.map((row) => ({ ...row, personApproved: readable === true && !unconfirmed.has(row.id) })),
-    checks: item?.item_check ? [{ machineRun, redBefore: machineRun && baseline?.result === 'red', greenAfter: machineRun && check?.state === 'green' }] : [],
+    checks: item?.item_check ? [{ machineRun, redBefore: machineRun && baseline?.result === 'red', greenAfter: machineRun && check?.state === 'pass' }] : [],
   };
 }
 
