@@ -74,7 +74,6 @@
     "packages/git/src/io/trunk/guard.js": 1,
     "packages/jobs/src/io/inbox-marks.js": 1,
     "packages/jobs/src/io/launch.js": 2,
-    "packages/keys/src/io/relay.js": 7,
     "packages/landing/src/io/shards.js": 9,
     "packages/landing/src/io/smoke.js": 2,
     "packages/landing/src/io/step/publish.js": 1,

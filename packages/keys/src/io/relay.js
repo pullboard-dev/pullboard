@@ -9,6 +9,7 @@ import {
 } from '../../../kernel/index.js';
 import { relayKeyDirectory } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** Every file read and write goes through the file-system adapter [C7]. */
 const fs = fileSystemAdapter();
@@ -86,15 +87,17 @@ export function readBoardKey(boardId, { legacyKeychain = true } = {}) {
       throw new Refused('RELAY_KEY_MISSING', 'the board key is unreadable in this shell (' + error.code + '); run this command where the key is available, or pair this device');
     }
     const key = decodeBoardKey(encoded);
-    if (process.env.PULLBOARD_RELAY_KEY !== undefined && process.env.PULLBOARD_RELAY_KEY !== encoded) {
+    const environmentKey = environmentAdapter().get('PULLBOARD_RELAY_KEY');
+    if (environmentKey !== undefined && environmentKey !== encoded) {
       throw new Refused('RELAY_KEY_FILE_ENV_MISMATCH', 'PULLBOARD_RELAY_KEY differs from this board key file; unset PULLBOARD_RELAY_KEY or set it to the key from this device file');
     }
     return key;
   }
   // A CI or cloud session, with an agent token and the key in its environment, uses that key as given: it never reads
   // a keychain or writes a key file [E18]. A person's machine still migrates a legacy keychain value first.
-  const environmentSession = process.env.PULLBOARD_RELAY_TOKEN !== undefined && process.env.PULLBOARD_RELAY_KEY !== undefined;
-  if (environmentSession) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
+  const environment = environmentAdapter();
+  const environmentSession = environment.has('PULLBOARD_RELAY_TOKEN') && environment.has('PULLBOARD_RELAY_KEY');
+  if (environmentSession) return decodeBoardKey(environment.get('PULLBOARD_RELAY_KEY'));
   const service = legacyKeychain ? keychain() : null;
   if (service) {
     const args = service === 'security'
@@ -111,7 +114,7 @@ export function readBoardKey(boardId, { legacyKeychain = true } = {}) {
       return key;
     }
   }
-  if (process.env.PULLBOARD_RELAY_KEY !== undefined) return decodeBoardKey(process.env.PULLBOARD_RELAY_KEY);
+  if (environment.has('PULLBOARD_RELAY_KEY')) return decodeBoardKey(environment.get('PULLBOARD_RELAY_KEY'));
   throw new Refused('RELAY_KEY_MISSING', 'the board key is missing on this device; set PULLBOARD_RELAY_KEY from your local secret store, pair this device again, or run pullboard relay off then relay on to upload a new sealed snapshot; run this command where the key is available, or pair this device');
 }
 
