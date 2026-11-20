@@ -1,7 +1,8 @@
 /** Read another runner process's SSH client address and command line for the orphan check [C7]. */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 
+const disk = fileSystemAdapter();
 const PS_ENV = { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C' };
 
 /**
@@ -15,7 +16,7 @@ const PS_ENV = { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C' };
 export function sshClientAddress(pid) {
   try {
     if (process.platform === 'linux') {
-      const entry = readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').find(line => line.startsWith('SSH_CLIENT='));
+      const entry = disk.readFile(`/proc/${pid}/environ`, 'utf8').split('\0').find(line => line.startsWith('SSH_CLIENT='));
       return /^SSH_CLIENT=(\S+)\s/u.exec(entry ?? '')?.[1] ?? null;
     }
     const shown = spawnSync('/bin/ps', ['-wwE', '-o', 'command=', '-p', String(pid)], { encoding: 'utf8', timeout: 2_000, env: PS_ENV });

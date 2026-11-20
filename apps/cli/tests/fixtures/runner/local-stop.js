@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { processAlive } from '../../../../../packages/drive/index.js';
 
@@ -20,12 +21,18 @@ function running(pid) {
   return !String(state.stdout ?? '').trim().startsWith('Z');
 }
 
-/** The live local runner a fixture machine home started, or null when none runs or its heartbeat is stale. */
+/** The live local runner a fixture machine home started under any PULLBOARD_HOME, or null when none runs or its heartbeat is stale. */
 function liveRunnerPid(machineHome) {
-  let state = null;
-  try { state = JSON.parse(readFileSync(join(machineHome, 'local-runner', 'state.json'), 'utf8')); } catch { return null; }
-  const pid = Number(state?.pid);
-  return processAlive(pid) && Date.now() - Number(state.heartbeatAt) < FRESH_MS ? pid : null;
+  const folder = join(machineHome, 'local-runner');
+  let names = [];
+  try { names = readdirSync(folder).filter(name => /^state(-[0-9a-f]{12})?\.json$/u.test(name)); } catch { return null; }
+  for (const name of names) {
+    let state = null;
+    try { state = JSON.parse(readFileSync(join(folder, name), 'utf8')); } catch { continue; }
+    const pid = Number(state?.pid);
+    if (processAlive(pid) && Date.now() - Number(state.heartbeatAt) < FRESH_MS) return pid;
+  }
+  return null;
 }
 
 /**

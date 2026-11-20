@@ -16,7 +16,7 @@ import {
   selectTestTiers,
   submitGatePlan,
   writeTestTiers,
-} from '../../../../index.js';
+} from '../../../../heavy.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
 
 const IDENTITY = ['-c', 'user.name=Seal Test', '-c', 'user.email=seal@example.test', '-c', 'commit.gpgsign=false'];

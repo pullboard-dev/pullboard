@@ -1,16 +1,11 @@
 /** Structural release evidence only: transport authentication and native custody must be verified separately [C7,V4]. */
 import { createHash } from 'node:crypto';
 import {
-  closeSync,
-  constants,
-  fstatSync,
-  openSync,
-  readSync,
-} from 'node:fs';
-import {
   receiptBody,
   receiptFields,
 } from '../run/receipt.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 export const RELEASE_RECEIPT_MAX_BYTES = 8 * 1024 * 1024;
 const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -160,17 +155,17 @@ export function releaseReceiptBody(envelope, expected) {
 export function readReleaseReceipt(file, expected) {
   let fd;
   try {
-    if (typeof constants.O_NOFOLLOW !== 'number') return null;
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd);
+    if (typeof fs.constants.O_NOFOLLOW !== 'number') return null;
+    fd = fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstat(fd);
     if (!stat.isFile() || stat.size > RELEASE_RECEIPT_MAX_BYTES) return null;
     const bytes = Buffer.alloc(RELEASE_RECEIPT_MAX_BYTES + 1);
     let size = 0, count;
-    while (size < bytes.length && (count = readSync(fd, bytes, size, bytes.length - size, null)) > 0) size += count;
+    while (size < bytes.length && (count = fs.read(fd, bytes, size, bytes.length - size, null)) > 0) size += count;
     if (size > RELEASE_RECEIPT_MAX_BYTES) return null;
     const text = bytes.subarray(0, size).toString('utf8');
     const envelope = JSON.parse(text);
     return releaseReceiptBody(envelope, expected) === text ? releaseReceiptFields(envelope, expected) : null;
   } catch { return null; }
-  finally { if (fd !== undefined) closeSync(fd); }
+  finally { if (fd !== undefined) fs.close(fd); }
 }

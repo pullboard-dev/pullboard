@@ -1,0 +1,53 @@
+{
+  "store.needs.save-and-read": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "saveItemNeeds writes the needs list that itemById reads back, an item never given needs reads an empty list, and saving an empty list clears it."
+    },
+    "why": "Without this test, a regression where saveItemNeeds writes the needs list that itemById reads back, an item never given needs reads an empty list, and saving an empty list clears it would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/needs.test.js",
+      "packages/store/src/io/needs.js",
+      "packages/store/src/io/board/add.js",
+      "packages/store/src/io/board/edit.js",
+      "packages/store/src/logic/board/item/lookup.js"
+    ]
+  },
+  "store.needs.refuse-unknown-and-old-engine": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an unknown need is refused with USAGE naming browser and gui, and addItem with needs on a board below NEEDS_ENGINE is refused with ENGINE_VERSION."
+    },
+    "why": "Without this test, a regression where an unknown need is refused with USAGE naming browser and gui, and addItem with needs on a board below NEEDS_ENGINE is refused with ENGINE_VERSION would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/needs.test.js",
+      "packages/store/src/io/needs.js",
+      "packages/store/src/io/board/add.js",
+      "packages/store/src/io/board/edit.js",
+      "packages/store/src/logic/board/item/lookup.js"
+    ]
+  },
+  "store.needs.add-real-path": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "the exported addItem and editItem record the needs list through saveItemNeeds, and itemById reads it back."
+    },
+    "why": "Without this test, a regression where the exported addItem and editItem record the needs list through saveItemNeeds, and itemById reads it back would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/needs.test.js",
+      "packages/store/src/io/needs.js",
+      "packages/store/src/io/board/add.js",
+      "packages/store/src/io/board/edit.js",
+      "packages/store/src/logic/board/item/lookup.js"
+    ]
+  }
+}

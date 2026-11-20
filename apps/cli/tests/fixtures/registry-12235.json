@@ -1,0 +1,4 @@
+{
+  "cli.mark.one-append": {"proves":{"specs":["C7"],"claim":"pullboard mark appends exactly one mark event carrying the stage, edge, ref and the given at through the real command."},"why":"Without it, an off-board actor's stage time could not reach the item timeline.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/mark.test.js"]},
+  "cli.mark.closed-lists": {"proves":{"specs":["C7"],"claim":"pullboard mark refuses an unknown stage, an unknown reason code and an --at more than 24 h from now, each with a code and no event."},"why":"Without it, free-text stages or wrong clocks would corrupt the timeline.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/mark.test.js"]}
+}

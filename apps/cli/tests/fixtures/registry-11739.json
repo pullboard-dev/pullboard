@@ -1,0 +1,41 @@
+{
+  "cli.io-item-bar-lane.foreign-path-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With items.barRulesAtAdd on, add and edit by a lane seat refuse a bar naming a file another lane owns, LANE_FOREIGN_PATH."
+    },
+    "why": "Without it, a bar naming another lane's file costs a builder a claim cycle before pre-commit refuses it as OUTSIDE_LANE.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/item/bar.js"
+    ]
+  },
+  "cli.io-item-bar-lane.refusal-names-alternative": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The LANE_FOREIGN_PATH refusal names the owning lane and the split filed --after the first piece."
+    },
+    "why": "Without it, the filer sees a refusal with no legal way forward.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/item/bar.js"
+    ]
+  },
+  "cli.io-item-bar-lane.off-or-own-lane-accepted": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With the setting off, or a bar naming only the item lane's files, add accepts the bar as before."
+    },
+    "why": "Without it, the new rule could refuse bars that were legal.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/item/bar.js"
+    ]
+  }
+}

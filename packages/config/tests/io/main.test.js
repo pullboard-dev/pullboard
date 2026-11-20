@@ -5,6 +5,8 @@ import { configFromSource } from '../../src/io/main.js';
 import { configProblems } from '../../src/io/main.js';
 import { defaults } from '../../src/io/main.js';
 import { loadConfig } from '../../src/io/main.js';
+import { provenBreakRequired } from '../../src/io/main.js';
+import { nextIdleMinutes } from '../../src/io/main.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -68,4 +70,27 @@ test('config.io-main.commits-quoted-names-is-a-list: clause 1: a config without 
   assert.deepEqual(configFromSource(JSON.stringify({ commits: { quotedNames: ['Sam'] } }), fixtureRepo()).commits.quotedNames, ['Sam']);
   const problems = configProblems({ ...defaults(), commits: { ...defaults().commits, quotedNames: 'Sam' } }, fixtureRepo()).filter(problem => problem.includes('commits.quotedNames'));
   assert.equal(problems.length, 1);
+});
+
+test('config.io-main.proven-break-required: clause 1: provenBreakRequired(config, pace) is true for strict and false for steady and sprint when review.requireProvenBreak is unset, the explicit true or false wins for every pace, and a string value is refused as BAD_CONFIG naming the key [C7]', () => {
+  const unset = defaults();
+  assert.deepEqual(['strict', 'steady', 'sprint'].map(pace => provenBreakRequired(unset, pace)), [true, false, false]);
+  for (const value of [true, false]) {
+    const config = { ...defaults(), review: { ...defaults().review, requireProvenBreak: value } };
+    assert.deepEqual(['strict', 'steady', 'sprint'].map(pace => provenBreakRequired(config, pace)), [value, value, value]);
+  }
+  const bad = { ...defaults(), review: { ...defaults().review, requireProvenBreak: 'yes' } };
+  assert.throws(() => provenBreakRequired(bad, 'strict'), error => error.code === 'BAD_CONFIG' && error.message.includes('review.requireProvenBreak'));
+  assert.ok(configProblems(bad, '.').some(problem => problem.includes('review.requireProvenBreak')));
+});
+
+test('config.io-main.next-idle-minutes: clause 1: next.idleMinutes accepts a positive integer, rejects 0, a negative, a fraction and a string with a BAD_CONFIG problem naming the key, and nextIdleMinutes(config) returns 10 when unset [C7,#12041]', () => {
+  const root = fixtureRepo();
+  const named = value => configProblems({ ...defaults(), next: { ...defaults().next, idleMinutes: value } }, root).filter(problem => problem.includes('next.idleMinutes'));
+  for (const value of [1, 3, 10, 45]) assert.deepEqual(named(value), [], `${value} is a valid wait`);
+  for (const value of [0, -2, 1.5, '10']) assert.equal(named(value).length, 1, `${JSON.stringify(value)} is one problem naming the key`);
+  assert.equal(nextIdleMinutes(configFromSource('{}', root)), 10);
+  assert.equal(nextIdleMinutes(configFromSource(JSON.stringify({ next: { idleMinutes: 3 } }), root)), 3);
+  assert.equal(nextIdleMinutes(configFromSource(JSON.stringify({ next: { wholeItemsFirst: true } }), root)), 10);
+  assert.throws(() => configFromSource(JSON.stringify({ next: { idleMinutes: 0 } }), root), error => error.code === 'BAD_CONFIG' && error.message.includes('next.idleMinutes'));
 });

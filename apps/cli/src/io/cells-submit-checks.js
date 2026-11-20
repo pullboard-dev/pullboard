@@ -1,4 +1,4 @@
-import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/index.js';
+import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/heavy.js';
 import { withCellGitObjects } from '../../../../packages/codemap/index.js';
 import { cellsObjectSnapshots } from '../../../../packages/codemap/index.js';
 import { withCellSourceSnapshots } from '../../../../packages/codemap/index.js';
@@ -8,8 +8,8 @@ import { withCellLintParser } from '../../../../packages/codemap/index.js';
 import { cellsCacheDirectory } from '../../../../packages/codemap/index.js';
 import { inventoryCache } from './cells/cache-door.js';
 import { observationCache } from './cells/cache-door.js';
-import { acceptedCellsIdentity } from '../../../../packages/gate/index.js';
-import { readAcceptedCells } from '../../../../packages/gate/index.js';
+import { acceptedCellsIdentity } from '../../../../packages/gate/heavy.js';
+import { readAcceptedCells } from '../../../../packages/gate/heavy.js';
 import { inventoryPending } from './cells/cache-door.js';
 import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */

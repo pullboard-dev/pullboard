@@ -1,8 +1,10 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
 import { browserFreeChecksEnabled } from '../../../../config/light.js';
 
-import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Retain native admission, complete stage output and failure observation under the actual run's lease.
@@ -51,7 +53,7 @@ export function requireLocalGuardClassification(state, gate) {
  * refuse SLOT_DB_LOCKED so the landing fault path keeps the batch and retries, never LAND_DIAGNOSTIC [C7,#3314].
  * Why: batch 3aa5b65d was refused LAND_DIAGNOSTIC with no failing case, only "[SLOT_DB_LOCKED] never ran" in its log.
  */
-export function requireNoLockOnlyRed(gate, readLog = path => readFileSync(path, 'utf8')) {
+export function requireNoLockOnlyRed(gate, readLog = path => fs.readFile(path, 'utf8')) {
   if (gate.isGreen || (gate.failures ?? []).length || !gate.logPath) return;
   let text = '';
   try { text = String(readLog(gate.logPath)); } catch { return; }
@@ -95,7 +97,7 @@ export function runnerRefusalOnly(text) {
  * Why: #2550 parked after two such gates (batches bc96678a, 30aab1ea): every shard that ran was green, so the
  * no-culprit diagnosis refused LAND_DIAGNOSTIC twice and the repeat guard held an item that did nothing wrong.
  */
-export function requireNoRunnerRefusalOnlyRed(gate, readLog = path => readFileSync(path, 'utf8')) {
+export function requireNoRunnerRefusalOnlyRed(gate, readLog = path => fs.readFile(path, 'utf8')) {
   if (gate.isGreen || gate.timedOut || (gate.failures ?? []).length || !gate.logPath) return;
   let text = '';
   try { text = String(readLog(gate.logPath)); } catch { return; }
