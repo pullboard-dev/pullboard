@@ -42,7 +42,7 @@ function medianMs(read, board, seat, samples = 20, batch = 20) {
   return times.sort((a, b) => a - b)[Math.floor(samples / 2)];
 }
 
-test('store.io-cooldown.seat-kind-reads-seek: clause 1: the release and pairing reads seek a seat\'s events by seat and kind, never scanning events or walking the seat\'s history by time [C7]', (t) => {
+test('store.io-cooldown.seat-kind-reads-seek: clause 1: the release and pairing reads seek a seat\'s events by seat and kind, never scanning events, every kind\'s events or the seat\'s history by time [C7]', (t) => {
   const board = cellBoard(t, ':memory:');
   const seat = seatWithHistory(board, '/fixture/core-1', 50);
   for (const [name, read] of Object.entries(READS)) {
@@ -51,6 +51,7 @@ test('store.io-cooldown.seat-kind-reads-seek: clause 1: the release and pairing 
     for (const { sql, plan } of statements) {
       assert.ok(!plan.some(detail => /^SCAN (event|e)\b/u.test(detail)), `${name} scans events: ${sql} -> ${plan.join('; ')}`);
       assert.ok(!plan.some(detail => /INDEX event_by_at\b/u.test(detail)), `${name} walks the seat's events by time: ${sql} -> ${plan.join('; ')}`);
+      if (/\bevent_by\s*=/u.test(sql) && /\bevent_kind\s*=/u.test(sql) && !/\bitem_id\s*=\s*\?/u.test(sql)) assert.ok(plan.some(detail => /INDEX event_by_kind_id\b/u.test(detail)), `${name} does not seek by seat and kind: ${sql} -> ${plan.join('; ')}`);
     }
   }
 });
