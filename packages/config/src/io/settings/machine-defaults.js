@@ -46,6 +46,7 @@ export const MACHINE_DEFAULTS = {
   'gate.excuseMainTimingReds': false,
   'gate.failFastShards': false,
   'gate.fencedHop': true,
+  'gate.gateAgedMinutes': 5,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
