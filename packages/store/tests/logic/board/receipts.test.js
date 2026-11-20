@@ -67,3 +67,32 @@ test('store.logic-board-receipts.flap-within-30-minutes-is-not-reshouted: clause
   assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE, 45).shouts.length, 1);
   assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE - 1, 10).shouts.length, 1, 'below the engine the flap rule does not apply');
 });
+
+/** A builder-owned and a coordinator-owned finding, each carrying the owner role the scan keeps when adviceThroughNext is on. */
+const advised = (key, ownerRole, owner) => ({ ...finding(key), owner, ownerRole });
+
+/** Deliver both findings at HEALTH_QUIET_ENGINE, with every target the coordinator and the owner, recording each shout and log. */
+function deliverAdvised(options) {
+  const shouts = [];
+  const logs = [];
+  deliverHealthNotices({ resolved: [], added: [advised('builder-owned', 'builder', 'core-1'), advised('coordinator-owned', 'coordinator', 'coordinator')], engine: HEALTH_QUIET_ENGINE,
+    coordinator: 'coordinator', targets: found => [...new Set(['coordinator', found.owner])], shout: (to, text) => shouts.push([to, text]), log: (found, cleared) => logs.push([found.key, cleared]), ...options });
+  return { shouts, logs };
+}
+
+test('store.logic-board-receipts.builder-advice-not-shouted: clause 1: with adviceThroughNext true deliverHealthNotices logs every finding but shouts none for a builder-owned one, and coordinator-owned findings shout as before [C7,#11705]', () => {
+  const { shouts, logs } = deliverAdvised({ adviceThroughNext: true });
+  assert.deepEqual(logs, [['builder-owned', false], ['coordinator-owned', false]], 'both findings are recorded');
+  assert.equal(shouts.some(([, text]) => text.includes('Owner: core-1')), false, 'the builder-owned finding is shouted to no one');
+  assert.deepEqual(shouts.map(([to]) => to), ['coordinator'], 'the coordinator-owned finding is shouted to the coordinator once');
+});
+
+test('store.logic-board-receipts.builder-advice-replay: clause 2: with adviceThroughNext false or absent, and for a finding recorded without an owner role, the shouts are exactly those of main [C7,#11705]', () => {
+  const main = deliverAdvised({});
+  assert.deepEqual(main.shouts.map(([to]) => to), ['coordinator', 'core-1', 'coordinator'], 'absent: the builder-owned finding shouts to the coordinator and the builder');
+  assert.deepEqual(deliverAdvised({ adviceThroughNext: false }).shouts, main.shouts, 'false is the same as absent');
+  const recorded = [];
+  deliverHealthNotices({ resolved: [], added: [finding('older')], engine: HEALTH_QUIET_ENGINE, coordinator: 'coordinator', adviceThroughNext: true,
+    targets: found => ['coordinator', found.owner], shout: (to) => recorded.push(to), log: () => {} });
+  assert.deepEqual(recorded, ['coordinator', 'core-1'], 'a finding recorded before this change carries no owner role and shouts as it did');
+});
