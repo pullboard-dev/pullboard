@@ -216,9 +216,24 @@ export function splitAdvice(lane, title, paths) {
     + `(pullboard add coordinator "${title}: coordinator piece" --after <lane item id>) naming ${paths.join(', ')}`;
 }
 
-/** Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path. */
+/**
+ * The options that make add and edit judge ownership the way claim does, or undefined with items.barRulesAtAdd off [C7,#11777].
+ * Why: with the setting on, the Files list alone says what an item changes, so a bar that cites a file the builder only reads is
+ * filed, and the coordinator filing a lane item meets the same rule as a lane seat.
+ *
+ * @param {any} ctx
+ * @param {boolean} on The items.barRulesAtAdd machine setting.
+ */
+export function barOwnerOptions(ctx, on) {
+  return on ? { filesOnly: true, prose: false, check: false, present: onTrunk(ctx.info.root) } : undefined;
+}
+
+/**
+ * Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path.
+ * With filesOnly set (items.barRulesAtAdd) the coordinator exemption covers only coordinator-lane items and person filings.
+ */
 export function requireNoCoordinatorPath(config, me, item, options) {
-  if (me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
+  if ((me.id === COORDINATOR && !options?.filesOnly) || item.lane === COORDINATOR || item.by === 'person') return;
   const paths = coordinatorPaths(config, item, options);
   if (!paths.length) return;
   throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,
