@@ -84,7 +84,7 @@ const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html:
   onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(), drawn: () => drawHistoryNotes(),
   remember: (root, value) => value === undefined ? (Number(keep('pb.activity.left.' + root)) || null) : keep('pb.activity.left.' + root, String(value)) });
 // The Insights Pipeline page (#6869): the held event history the Dashboard reads, this machine's CPU samples, and the pure model and markup.
-const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), history: project => dashboardView.history(project), api, current: () => view.root,
+const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), api, boardPath, current: () => view.root,
   redraw: () => { if (view.tab === 'pipeline' && data?.project) render(); }, windowMinutes: () => ({ '15m': 15, '30m': 30, '3h': 180 })[view.pipelineWindow] ?? 60,
   itemsHref: ids => itemsIdsHref(ids), itemHref: id => itemAddress(id), openItems: ids => openPipelineItems(ids), machineHere: privateCost });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.

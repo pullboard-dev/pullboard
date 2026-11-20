@@ -3,14 +3,6 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { homedir } from 'node:os';
 import {
   dirname,
@@ -21,6 +13,9 @@ import { spawnSync } from 'node:child_process';
 import { gitConfig } from '../../../git/light.js';
 import { Refused } from '../../../kernel/light.js';
 import { scratchRoot } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export const SIGNERS_FILE = '.pullboard/signers';
 export const FIRST_COMMIT_FILE = '.pullboard/first-commit';
@@ -65,7 +60,7 @@ function keyPath(root, requested, privateKey) {
   const path = resolve(root, expanded);
   const privatePath = path.endsWith('.pub') ? path.slice(0, -4) : path;
   const candidates = privateKey ? [privatePath] : [path, `${privatePath}.pub`];
-  const found = candidates.find((candidate) => existsSync(candidate));
+  const found = candidates.find((candidate) => fs.exists(candidate));
   if (!found) throw new Refused('SSH_KEY_NOT_FOUND', `SSH key file ${path} was not found; set git user.signingkey or use --key <path>`);
   return found;
 }
@@ -74,7 +69,7 @@ function keyPath(root, requested, privateKey) {
 function publicKey(root, requested) {
   const path = keyPath(root, requested, false);
   let line;
-  if (path.endsWith('.pub')) line = readFileSync(path, 'utf8').trim().split(/\r?\n/u)[0];
+  if (path.endsWith('.pub')) line = fs.readFile(path, 'utf8').trim().split(/\r?\n/u)[0];
   else line = runTool('ssh-keygen', ['-y', '-f', path], { cwd: root, inherit: true });
   const [type, encoded, ...comment] = line.split(/\s+/u);
   if (!/^(?:ssh-|ecdsa-|sk-)/u.test(type ?? '') || !/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded ?? '')) {
@@ -89,11 +84,11 @@ function privateKey(root, requested) { return keyPath(root, requested, true); }
 /** Read the signers file as exact UTF-8 text or return the empty initial state. */
 export function readSignerText(root) {
   const file = join(root, SIGNERS_FILE);
-  return existsSync(file) ? readFileSync(file, 'utf8') : '';
+  return fs.exists(file) ? fs.readFile(file, 'utf8') : '';
 }
 
 /** Treat the existence of the signer file as opt-in, including an incomplete empty file. */
-export function hasSignerFile(root) { return existsSync(join(root, SIGNERS_FILE)); }
+export function hasSignerFile(root) { return fs.exists(join(root, SIGNERS_FILE)); }
 
 /** Refuse required SSH principals that have no configured allowed-signers entry. */
 export function assertRequiredSigners(root, rows) {
@@ -129,8 +124,8 @@ function principalForSigningKey(root, allowed) {
 /** Read the immutable first commit recorded at opt-in. */
 export function readFirstCommit(root) {
   const file = join(root, FIRST_COMMIT_FILE);
-  if (!existsSync(file)) throw new Refused('NO_FIRST_COMMIT', `missing ${FIRST_COMMIT_FILE}; run pullboard spec signers add`);
-  const commit = readFileSync(file, 'utf8').trim();
+  if (!fs.exists(file)) throw new Refused('NO_FIRST_COMMIT', `missing ${FIRST_COMMIT_FILE}; run pullboard spec signers add`);
+  const commit = fs.readFile(file, 'utf8').trim();
   if (!/^[0-9a-f]{40,64}$/u.test(commit)) throw new Refused('BAD_FIRST_COMMIT', `${FIRST_COMMIT_FILE} must contain the repo's first commit id`);
   return commit;
 }
@@ -138,8 +133,8 @@ export function readFirstCommit(root) {
 /** Read the first signer-list hash that every later signed receipt binds. */
 function readInitialSignerHash(root) {
   const file = join(root, INITIAL_SIGNERS_HASH_FILE);
-  if (!existsSync(file)) throw new Refused('BAD_SIGNERS_BASE', `missing ${INITIAL_SIGNERS_HASH_FILE}; restore the initial signer-list hash`);
-  const hash = readFileSync(file, 'utf8').trim();
+  if (!fs.exists(file)) throw new Refused('BAD_SIGNERS_BASE', `missing ${INITIAL_SIGNERS_HASH_FILE}; restore the initial signer-list hash`);
+  const hash = fs.readFile(file, 'utf8').trim();
   if (!/^[0-9a-f]{64}$/u.test(hash)) throw new Refused('BAD_SIGNERS_BASE', `${INITIAL_SIGNERS_HASH_FILE} must contain a SHA-256 hash`);
   return hash;
 }
@@ -158,33 +153,33 @@ export function canonical(record) {
 /** Sign canonical text with ssh-keygen under the fixed Pullboard namespace. */
 export function makeSignature(root, record, requestedKey) {
   const dir = join(scratchRoot(), `pullboard-signature-${randomUUID()}`);
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   const message = join(dir, 'message');
   try {
-    writeFileSync(message, canonical(record));
+    fs.writeFile(message, canonical(record));
     runTool('ssh-keygen', ['-Y', 'sign', '-f', privateKey(root, requestedKey), '-n', SIGNOFF_NAMESPACE, message], { cwd: root, inherit: true });
-    return readFileSync(`${message}.sig`, 'utf8').trimEnd();
+    return fs.readFile(`${message}.sig`, 'utf8').trimEnd();
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    fs.rm(dir, { recursive: true, force: true });
   }
 }
 
 /** Verify a signature using an exact allowed-signers snapshot and the named principal. */
 export function verifySignature(record, allowedText) {
   const dir = join(scratchRoot(), `pullboard-verify-${randomUUID()}`);
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   const allowed = join(dir, 'allowed_signers');
   const signature = join(dir, 'record.sig');
   try {
-    writeFileSync(allowed, allowedText);
-    writeFileSync(signature, `${record.signature ?? ''}\n`);
+    fs.writeFile(allowed, allowedText);
+    fs.writeFile(signature, `${record.signature ?? ''}\n`);
     runTool('ssh-keygen', ['-Y', 'verify', '-f', allowed, '-I', record.by, '-n', SIGNOFF_NAMESPACE, '-s', signature], { cwd: dir, input: canonical(record) });
     return true;
   } catch (error) {
     if (error instanceof Refused) throw new Refused('BAD_SIGNATURE', `sign-off by ${record.by ?? '(unknown)'} has an invalid signature or unlisted SSH key`);
     throw error;
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    fs.rm(dir, { recursive: true, force: true });
   }
 }
 
@@ -212,7 +207,7 @@ export function verifySignerHistory(root, records) {
 export function verifySignedRecords(root, records) {
   const current = readSignerText(root);
   if (!hasSignerFile(root)) {
-    if (existsSync(join(root, FIRST_COMMIT_FILE))) throw new Refused('MISSING_SIGNERS', `${SIGNERS_FILE} was removed after SSH sign-offs were enabled`);
+    if (fs.exists(join(root, FIRST_COMMIT_FILE))) throw new Refused('MISSING_SIGNERS', `${SIGNERS_FILE} was removed after SSH sign-offs were enabled`);
     return records;
   }
   if (!current.trim()) throw new Refused('EMPTY_SIGNERS', `${SIGNERS_FILE} is empty; restore its SSH signer list before signing or checking`);
@@ -258,7 +253,7 @@ export function addSigner(root, { by, key } = {}) {
     const firstCommit = firstCommitFromGit(root);
     const next = `${entry}\n`;
     const folder = dirname(join(root, SIGNERS_FILE));
-    mkdirSync(folder, { recursive: true });
+    fs.mkdir(folder, { recursive: true });
     writeAtomic(join(root, SIGNERS_FILE), next);
     writeAtomic(join(root, FIRST_COMMIT_FILE), `${firstCommit}\n`);
     writeAtomic(join(root, INITIAL_SIGNERS_HASH_FILE), `${sha256(next)}\n`);
@@ -332,18 +327,18 @@ export function defaultPrincipal(root) {
 function writeAtomic(file, text) {
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temp, text, { mode: 0o600 });
-    renameSync(temp, file);
+    fs.writeFile(temp, text, { mode: 0o600 });
+    fs.rename(temp, file);
   } finally {
-    rmSync(temp, { force: true });
+    fs.rm(temp, { force: true });
   }
 }
 
 /** Read raw sign-off records without applying signer verification recursively. */
 export function readRawRecords(root) {
   const file = join(root, '.pullboard/signoffs.jsonl');
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').split('\n').filter((line) => line.trim()).map((line, index) => {
+  if (!fs.exists(file)) return [];
+  return fs.readFile(file, 'utf8').split('\n').filter((line) => line.trim()).map((line, index) => {
     let record;
     try { record = JSON.parse(line); } catch { throw new Refused('BAD_SIGNOFFS', `.pullboard/signoffs.jsonl line ${index + 1} is not JSON`); }
     if (!record || typeof record !== 'object' || Array.isArray(record)) {
@@ -361,6 +356,6 @@ function appendRecord(root, record) {
 /** Append a group of complete signed records in one write. */
 function appendRecords(root, records) {
   const file = join(root, '.pullboard/signoffs.jsonl');
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`, { flag: 'a', mode: 0o600 });
+  fs.mkdir(dirname(file), { recursive: true });
+  fs.writeFile(file, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`, { flag: 'a', mode: 0o600 });
 }

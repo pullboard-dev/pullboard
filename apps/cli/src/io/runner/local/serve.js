@@ -26,6 +26,7 @@ import { diagnoseLandingRed } from '../../commands/flakes.js';
 import { loopbackBoardApi } from '../../commands/serve.js';
 import { BOARD_HOST } from '../local.js';
 import { localRunnerFolder } from '../local.js';
+import { localRunnerHome } from '../local.js';
 
 // Budget: --off waits up to 30 s for the runner to hand its job back and close; a gate it stopped is retaken by the next puller.
 const STOP_WAIT_MS = 30_000;
@@ -38,7 +39,7 @@ function land(claim, { cache, renew, env }) {
   return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed, asyncFetch: asyncFetchEnabled() });
 }
 
-/** Run the local runner until SIGINT or SIGTERM; exit 0 at once when another already runs on this machine. */
+/** Run the local runner until SIGINT or SIGTERM; refuses LOCAL_RUNNER_RUNNING, a non-zero exit, when a runner of this home already runs. */
 async function serveLocal(io) {
   const folder = localRunnerFolder();
   // The log is written as it happens: this process runs for hours and its output is the runner log.
@@ -49,9 +50,9 @@ async function serveLocal(io) {
   try {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
-      wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
+      wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), home: localRunnerHome(), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
       admit: ({ running, held }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running, held }) });
-    if (!served.served) say(`a local runner already runs on this machine (pid ${served.pid})`);
+    if (!served.served) throw new Refused(served.code, `a local runner of this home already runs${served.pid === null ? '' : ` (pid ${served.pid})`}`, served.next);
     return 0;
   } finally {
     process.off('SIGINT', stopped); process.off('SIGTERM', stopped);

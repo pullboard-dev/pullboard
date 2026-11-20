@@ -13,6 +13,8 @@ import { offerJob } from '../../index.js';
 import { offerProofShards } from '../../src/io/gate.js';
 import { SHARD_JOBS_SQL } from '../../src/io/gate.js';
 import { shardJobs } from '../../index.js';
+import { ledgerMissReasons } from '../../../store/index.js';
+import { recordTestResults } from '../../../store/index.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
 const MAIN = 'a'.repeat(40);
@@ -67,11 +69,12 @@ test('api.gate.land-red-under-separate-still-holds: clause 2: a red or hook-refu
 });
 
 /** A gate job whose receipt's proof plan splits three files two to a core, offered as shards and read back as the runner reads them: each shard's data.shard by index. */
-function shardData(t, needs) {
+function shardData(t, needs, seed) {
   const dir = cellSandbox(t).dir;
   const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
   board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  if (seed) seed(board.db);
   offerJob(board.db, { id: 'gate:s', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1,
     request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
   const proofPlan = { runner: 'node --test', cores: 2, files: ['web/a.test.js', 'web/b.test.js', 'web/c.test.js'], ...(needs ? { needs } : {}) };
@@ -98,6 +101,105 @@ test('api.gate.shard-carries-browser-gui-need: clause 1: offerProofShards puts p
 
 test('api.gate.shard-plan-absent-without-needs: clause 2: a proof plan with no needs field adds no plan to the shard [C7]', t => {
   for (const shard of shardData(t, null)) assert.equal('plan' in shard, false, 'a shard of a plan with no needs carries no plan');
+});
+
+/** Every job a runner can claim from the board, read as the runner reads it: id, the shard's files, and whether its data asks for the runner alone. */
+function claimedShards(board) {
+  const seen = [];
+  for (let held = claimJob(board.db, { runner: 'r-timing', capabilities: [], now: 8 }); held; held = claimJob(board.db, { runner: 'r-timing', capabilities: [], now: 8 })) {
+    const data = jobRequest(board.db, { job: held.job, runner: 'r-timing', token: held.token }).request.input.data;
+    if (data.shard) seen.push({ job: held.job, files: data.shard.files, of: data.shard.of, alone: data.checkTiming === true, keyed: 'checkTiming' in data });
+  }
+  return seen.sort((a, b) => a.job.localeCompare(b.job));
+}
+
+/** A gate job whose passed receipt carries `plan` as its proof plan, offered as shards; the answer and the shards a runner reads. */
+function gateShards(t, plan) {
+  const dir = cellSandbox(t).dir;
+  const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
+  board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
+  const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  offerJob(board.db, { id: 'gate:t', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1, request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
+  const receipt = { version: 1, status: 0, gate: { source: MAIN, green: true, phases: [], proofPlan: { runner: 'node --test', ...plan } } };
+  const answer = offerProofShards(board, { job: 'gate:t', receipt, offered: { item: item.item_id, candidate: MAIN, main: MAIN, submit: { agentId: board.seat.id } } });
+  return { answer, shards: claimedShards(board) };
+}
+
+/** A claimed land job whose runner asks the board, through the jobs route, to shard `plan`; the answer and the shards a runner reads. */
+function landShards(t, plan) {
+  const dir = cellSandbox(t).dir;
+  const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
+  offerJob(board.db, { id: 'land:1:t', kind: 'land', base: MAIN, needs: [], now: 4 });
+  const held = claimJob(board.db, { runner: 'r-land', capabilities: [], now: 5 });
+  const answer = boardJobQueueCall(board, { action: 'shards', job: 'land:1:t', runner: 'r-land', token: held.token, merged: TRUNK,
+    plan: { runner: 'node --test', ...plan }, gate: { run: ['node', '-e', 'x'], entry: 'gate.js', commits: [MAIN] } }, { mode: 'pull', now: 6 });
+  return { answer, shards: claimedShards(board) };
+}
+
+const TIMED = ['web/a.test.js', 'web/b.test.js', 'web/c.test.js', 'web/d.test.js', 'web/e.test.js'];
+
+test('api.gate.timing-files-own-exclusive-shards: clause 1: offerProofShards gives each proofPlan.timing file its own gate-shard whose data carries checkTiming: true, splits the rest round-robin with no checkTiming, and shards a plan with a timing file even within its cores [C7]', t => {
+  const { answer, shards } = gateShards(t, { cores: 2, files: TIMED, timing: ['web/d.test.js', 'web/elsewhere.test.js'] });
+  assert.deepEqual(answer.shards, ['gate:t:shard:1', 'gate:t:shard:2', 'gate:t:shard:3']);
+  assert.deepEqual(shards.map(({ job, files, of, alone }) => ({ job, files, of, alone })), [
+    { job: 'gate:t:shard:1', files: ['web/a.test.js', 'web/c.test.js'], of: 3, alone: false },
+    { job: 'gate:t:shard:2', files: ['web/b.test.js', 'web/e.test.js'], of: 3, alone: false },
+    { job: 'gate:t:shard:3', files: ['web/d.test.js'], of: 3, alone: true },
+  ], 'the timing file is a shard of its own; a timing name outside the plan\'s files is ignored');
+  assert.equal(shards.some(shard => !shard.alone && shard.keyed), false, 'an ordinary shard carries no checkTiming key');
+  const within = gateShards(t, { cores: 4, files: ['web/a.test.js', 'web/b.test.js'], timing: ['web/b.test.js'] });
+  assert.deepEqual(within.shards.map(({ files, alone }) => ({ files, alone })), [{ files: ['web/a.test.js'], alone: false }, { files: ['web/b.test.js'], alone: true }],
+    'a plan within its cores still shards when a file is timing');
+});
+
+test('api.gate.land-timing-files-own-exclusive-shards: clause 2: offerLandShards, through the jobs route action shards, gives each land plan timing file its own shard whose data carries checkTiming: true [C7]', t => {
+  const { answer, shards } = landShards(t, { cores: 2, files: TIMED, timing: ['web/a.test.js'] });
+  assert.equal(answer.sharded, true);
+  assert.deepEqual(shards.map(({ job, files, alone }) => ({ job, files, alone })), [
+    { job: 'land:1:t:shard:1', files: ['web/b.test.js', 'web/d.test.js'], alone: false },
+    { job: 'land:1:t:shard:2', files: ['web/c.test.js', 'web/e.test.js'], alone: false },
+    { job: 'land:1:t:shard:3', files: ['web/a.test.js'], alone: true },
+  ]);
+  const within = landShards(t, { cores: 8, files: ['web/a.test.js', 'web/b.test.js'], timing: ['web/a.test.js'] });
+  assert.equal(within.answer.sharded, true, 'a land plan within its cores still shards when a file is timing');
+  assert.deepEqual(within.shards.map(({ files, alone }) => ({ files, alone })), [{ files: ['web/b.test.js'], alone: false }, { files: ['web/a.test.js'], alone: true }]);
+});
+
+test('api.gate.no-timing-plan-unchanged: clause 3: a plan with no timing field offers the same round-robin shards as before, none carrying checkTiming, and a plan within its cores is not split [C7]', t => {
+  const gate = gateShards(t, { cores: 2, files: TIMED });
+  assert.deepEqual(gate.shards.map(({ files, keyed }) => ({ files, keyed })), [
+    { files: ['web/a.test.js', 'web/d.test.js'], keyed: false },
+    { files: ['web/b.test.js', 'web/e.test.js'], keyed: false },
+    { files: ['web/c.test.js'], keyed: false },
+  ]);
+  assert.equal(gateShards(t, { cores: 8, files: TIMED, timing: [] }).answer, null, 'a gate plan within its cores and no timing file is not split');
+  const land = landShards(t, { cores: 2, files: TIMED });
+  assert.deepEqual(land.shards.map(({ files, keyed }) => ({ files, keyed })), gate.shards.map(({ files, keyed }) => ({ files, keyed })));
+  assert.equal(landShards(t, { cores: 8, files: TIMED }).answer.sharded, false, 'a land plan within its cores and no timing file is not split');
+});
+
+const KEY = '1'.repeat(64);
+const CONTEXT = 'e'.repeat(64);
+const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: 'proof', context: CONTEXT, status });
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer carries the ledger hit for a file with a recorded pass and a reason none, red or changed for each other file [C7,P7]', t => {
+  let reasons;
+  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [proofRow('web/a.test.js', 'pass'), proofRow('web/b.test.js', 'fail'), proofRow('web/b.test.js', 'pass', '2'.repeat(64)), proofRow('web/b.test.js', 'fail', '2'.repeat(64))] });
+    reasons = ledgerMissReasons(db, ['web/a.test.js', 'web/b.test.js', 'web/c.test.js']); };
+  const [first, second] = shardData(t, undefined, seed);
+  // Shard 1 holds a (a recorded pass: a hit) and c (no row at all); shard 2 holds b (a fail and a pass shadowed by a fail: red).
+  assert.deepEqual(first.files, ['web/a.test.js', 'web/c.test.js']);
+  assert.deepEqual(first.ledger.files, [['web/a.test.js', KEY, 0]]);
+  assert.deepEqual(first.ledger.contexts, [CONTEXT]);
+  assert.deepEqual(first.ledger.reasons, { 'web/c.test.js': 'none' });
+  assert.deepEqual(second.ledger.reasons, { 'web/b.test.js': 'red' });
+  assert.equal(second.ledger.files, undefined, 'a shard without a hit hands its runner no hit list');
+  // A file with a recorded pass that the runner still misses reads changed: its input key moved.
+  assert.deepEqual(reasons, { 'web/a.test.js': 'changed', 'web/b.test.js': 'red', 'web/c.test.js': 'none' });
+});
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
+  for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
 });
 
 test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a gate\'s own shard rows in order, not a sibling gate whose job id extends the same text, and its query plan searches job_id with no scan of job [C7]', t => {

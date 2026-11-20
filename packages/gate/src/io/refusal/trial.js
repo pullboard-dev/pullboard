@@ -3,16 +3,15 @@
  * one registered as changed, only reports what it would refuse until it has seen enough real gates with no false
  * refusal, then enforces [C7]. Why: on 3 Nov three new gate rules each refused good work for hours once live (#2611).
  */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Real gates a refusal on trial must see, with no false refusal recorded, before it enforces. */
 export const CLEAN_GATES_TO_ENFORCE = 20;
@@ -21,7 +20,7 @@ export const CLEAN_GATES_TO_ENFORCE = 20;
  * The refusal codes enforced on 3 Nov, generated from the source then and committed: any other code is new and starts
  * on trial by itself, with nothing for anyone to remember.
  */
-export const ENFORCED_REFUSALS = Object.freeze(new Set(JSON.parse(readFileSync(new URL('../../logic/refusals.json', import.meta.url), 'utf8')).codes));
+export const ENFORCED_REFUSALS = Object.freeze(new Set(JSON.parse(fs.readFile(new URL('../../logic/refusals.json', import.meta.url), 'utf8')).codes));
 
 /**
  * Enforced codes whose rule changed, mapped to the rule's content or its digest. Each distinct value starts a fresh trial.
@@ -36,7 +35,7 @@ export function refusalTrialFile(root) {
 /** Read the ledger; a missing or damaged one starts every trial over, which only keeps refusals in report mode. */
 function readLedger(file) {
   try {
-    const value = JSON.parse(readFileSync(file, 'utf8'));
+    const value = JSON.parse(fs.readFile(file, 'utf8'));
     return value?.version === 2 && Number.isSafeInteger(value.gates) && value.codes && typeof value.codes === 'object'
       ? value : { version: 2, gates: 0, codes: {} };
   } catch { return { version: 2, gates: 0, codes: {} }; }
@@ -44,15 +43,15 @@ function readLedger(file) {
 
 /** Replace the ledger whole. */
 function writeLedger(file, ledger) {
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(ledger) + '\n', { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(ledger) + '\n', { mode: 0o600 });
+  fs.rename(temporary, file);
 }
 
 /** Serialize read/replace operations across real gate processes with a private OS-released SQLite lock. */
 function updateLedger(file, change) {
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const lock = new DatabaseSync(`${file}.guard.sqlite`);
   try {
     lock.exec('PRAGMA busy_timeout = 10000; BEGIN IMMEDIATE');

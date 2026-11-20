@@ -13,14 +13,11 @@ import { selectTestTiers } from '../test/tier/selection.js';
  */
 export function shadowOfRun(root, { head, main, green, failures }) {
   try {
-    let reachable = null, cellStructure = false;
+    let reachable = null;
     try {
       const plan = head && main ? selectTestTiers(root, { base: main, commit: head }) : null;
-      if (plan) {
-        reachable = plan.units;
-        cellStructure = plan.changed.some(file => file.startsWith('packages/codemap/data/plan'));
-      }
+      if (plan) reachable = plan.units;
     } catch { /* An unreadable reach stays unknown. */ }
-    return tier1Shadow({ real: green, failures, reachable, cellStructure });
+    return tier1Shadow({ real: green, failures, reachable });
   } catch { return null; }
 }
