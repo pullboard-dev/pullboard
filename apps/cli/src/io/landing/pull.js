@@ -203,7 +203,9 @@ function deferredFilesOf(db, items) {
     let proof = null;
     try { proof = JSON.parse(row?.event_detail ?? 'null')?.submissionProof; } catch { /* an unreadable detail defers nothing */ }
     // The files the submit ran (its invariants) run again beside the deferred ones, on the merged tree.
-    if (Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...proof.deferredFiles, ...(Array.isArray(proof.files) ? proof.files : [])])];
+    const owed = Array.isArray(proof?.owedFiles) ? proof.owedFiles : [];
+    // Cell tests a narrowed gate dropped (confinedImportSelection) run on the merged tree: a narrowed receipt is never the landing proof [C7].
+    if (owed.length || Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...owed, ...(proof.deferredFiles ?? []), ...(Array.isArray(proof.files) ? proof.files : [])])];
   }
   return Object.keys(found).length ? found : null;
 }
