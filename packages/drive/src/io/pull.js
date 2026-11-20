@@ -422,7 +422,7 @@ async function dropCheckout(git, cache, { folder, primary }, exclusive = work =>
 }
 
 /** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
-const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
+const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|PLAYWRIGHT_BROWSERS_PATH|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
 
 /** The only names a job request may set for its job: test-only fixture switches, never PATH, HOME or a loader option [C7,#10848]. */
 export const JOB_ENV_NAME = /^(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+$/u;
@@ -475,6 +475,10 @@ export function jobEnvironment(cache, name, job, host = environmentAdapter().all
   // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
   // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
   const machine = join(home, '.pullboard');
+  // A job's HOME is empty, so Playwright would look for browsers in an empty cache; with no host PLAYWRIGHT_BROWSERS_PATH, point it at the host's default browser cache folder when that exists.
+  const hostHome = typeof host.HOME === 'string' && host.HOME !== '' ? host.HOME : homedir();
+  const browsers = ['Library/Caches/ms-playwright', '.cache/ms-playwright'].map(path => join(hostHome, path)).find(path => existsSync(path) && statSync(path).isDirectory());
+  if (passed.PLAYWRIGHT_BROWSERS_PATH === undefined && browsers) passed.PLAYWRIGHT_BROWSERS_PATH = browsers;
   return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder, temporary };
 }
 
@@ -736,6 +740,9 @@ export function heldKinds() {
   };
 }
 
+/** The board refusals that end one job, never the serve: the job is released and its slot claims again [C7]. */
+const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCED', 'BOARD_BUSY', 'HOP_HELD']);
+
 /**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
  * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
@@ -824,7 +831,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
   };
   /** Call the board until it answers; only the board's own refusal ends the call. */
-  const reliably = async body => {
+  const reliably = async call => {
+    // One claim key names one claim: every retry of that claim sends it again, so the board hands back the lease the first try took [C7].
+    const body = call.action === 'claim' ? { ...call, key: randomBytes(12).toString('hex') } : call;
     for (;;) {
       if (signal?.aborted) throw new Refused('RUNNER_STOPPED', 'the runner was stopped');
       try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; failures = 0; return answer; }
@@ -1068,7 +1077,13 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const slot = free.shift();
     let task, known;
     const learned = new Promise(resolve => { known = resolve; });
-    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, error => { failure ??= error; })
+    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, async error => {
+      // A refusal that belongs to this one job (its receipt, its write, its hop) hands the job back and the serve keeps its other slots running [C7].
+      if (!(error instanceof Refused) || !PER_JOB_REFUSALS.has(error.code)) { failure ??= error; return; }
+      say(`releasing ${claim.job}: [${error.code}] ${error.message}`);
+      await queueCall(endpoint, { action: 'release', job: claim.job, runner: id, token: claim.token, reason: `[${error.code}] ${error.message}` }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      jobs.push({ job: claim.job, outcome: 'released' });
+    })
       .finally(() => { ledger.drop(claim.kind); active.delete(task); free.push(slot); free.sort((a, b) => a - b); });
     active.add(task);
     task.learned = learned;
@@ -1101,7 +1116,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         if (claimed.claim) ledger.add(claimed.claim.kind);
         return claimed;
       });
-    } catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
+    } catch (error) {
+      if (error.code === 'RUNNER_STOPPED') break;
+      if (!(error instanceof Refused)) { failure = error; break; }
+      // A refused claim call is a wait like an unreachable board: said, backed off, tried again; only the signal ends the serve.
+      say(`claim refused: [${error.code}] ${error.message}; retrying in ${delay} ms`);
+      waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
+      continue;
+    }
     if (!answer) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([nap(idleMs), ...active]); continue;

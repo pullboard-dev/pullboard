@@ -5,22 +5,13 @@
  * seconds and a worker-exit release died on SLOT_DB_LOCKED. No daemon runs: a waiting caller drains, a release
  * appends and leaves, and the next writer applies it.
  */
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { threadId } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
 import { resourceQueueStalled } from './lock.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A writer whose lock is not refreshed for this long has hung; the next caller takes the writer over. A turn is milliseconds. */
 const WRITER_STALE_MS = 5_000;
@@ -57,7 +48,7 @@ function entryName(kind) {
 
 /** Read the queue in arrival order, skipping files still being written. */
 function entries(dir) {
-  try { return readdirSync(dir).filter(name => /^\d{24}-/u.test(name)).sort(); }
+  try { return fs.list(dir).filter(name => /^\d{24}-/u.test(name)).sort(); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
@@ -73,12 +64,12 @@ function entryPid(name) {
 
 /** When a file was last refreshed, or 0 when it is gone. */
 function touchedAt(path) {
-  try { return statSync(path).mtimeMs; } catch { return 0; }
+  try { return fs.stat(path).mtimeMs; } catch { return 0; }
 }
 
 /** Mark a file as refreshed now; a file already removed needs nothing. */
 function touch(path) {
-  try { const now = new Date(); utimesSync(path, now, now); } catch { /* Removed meanwhile. */ }
+  try { const now = new Date(); fs.utimes(path, now, now); } catch { /* Removed meanwhile. */ }
 }
 
 /**
@@ -99,8 +90,8 @@ function tryLock(dir, owner) {
   const lock = join(dir, 'writer.lock');
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const fd = openSync(lock, 'wx');
-      try { writeSync(fd, `${process.pid} ${Date.now()} ${owner}`); } finally { closeSync(fd); }
+      const fd = fs.open(lock, 'wx');
+      try { fs.write(fd, `${process.pid} ${Date.now()} ${owner}`); } finally { fs.close(fd); }
       return true;
     } catch (error) {
       // The folder was removed after this process made it (a machine home swept away): make it again and retry.
@@ -108,7 +99,7 @@ function tryLock(dir, owner) {
       if (error.code !== 'EEXIST') throw error;
     }
     let text = '';
-    try { text = readFileSync(lock, 'utf8'); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    try { text = fs.readFile(lock, 'utf8'); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     const [pid, at] = text.split(' ').map(Number);
     // A lock written but not yet filled reads empty for microseconds; one still empty past the stale window was left by a
     // writer killed between create and write, and is replaced. Why: on 11 Nov a SIGKILLed handoff worker left an empty
@@ -116,7 +107,7 @@ function tryLock(dir, owner) {
     // while it applies a long drain, so the later of the two stamps is its last sign of life.
     if (!text ? Date.now() - touchedAt(lock) < WRITER_STALE_MS
       : alive(pid) && Date.now() - Math.max(at, touchedAt(lock)) < WRITER_STALE_MS) return false;
-    try { unlinkSync(lock); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    try { fs.unlink(lock); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   return false;
 }
@@ -124,13 +115,13 @@ function tryLock(dir, owner) {
 /** Give up the writer this caller holds. */
 function unlock(dir, owner) {
   const lock = join(dir, 'writer.lock');
-  try { if (readFileSync(lock, 'utf8').endsWith(` ${owner}`)) unlinkSync(lock); }
+  try { if (fs.readFile(lock, 'utf8').endsWith(` ${owner}`)) fs.unlink(lock); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
 /** Remove one queue entry. */
 function remove(dir, name) {
-  try { unlinkSync(join(dir, name)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  try { fs.unlink(join(dir, name)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
 /**
@@ -147,7 +138,7 @@ function drain(dir, apply, mine) {
       continue;
     }
     let entry;
-    try { entry = JSON.parse(readFileSync(join(dir, name), 'utf8')); }
+    try { entry = JSON.parse(fs.readFile(join(dir, name), 'utf8')); }
     catch (error) { if (error.code === 'ENOENT') continue; remove(dir, name); continue; }
     try { apply(entry); }
     catch (error) { if (error?.code === 'SLOT_DB_LOCKED') return false; }
@@ -192,7 +183,7 @@ export function enterResourceQueue(file, { apply, deadlineMs = 5_000 }) {
     if (ready) return leaver(dir, owner, apply, '');
   }
   const mine = `${entryName('t')}${REFRESHED}`;
-  closeSync(openSync(join(dir, mine), 'wx'));
+  fs.close(fs.open(join(dir, mine), 'wx'));
   const started = Date.now();
   try {
     // Watch only the nearest live turn ahead, so a long line costs each waiter one stat per look, not a folder read.
@@ -206,7 +197,7 @@ export function enterResourceQueue(file, { apply, deadlineMs = 5_000 }) {
         // The turn ahead is rechecked for its owner's refresh too, so an abandoned file never holds the line.
         if (ahead && !liveTurn(dir, ahead)) ahead = '';
       }
-      if (!ahead || !existsSync(join(dir, ahead))) {
+      if (!ahead || !fs.exists(join(dir, ahead))) {
         const line = entries(dir);
         ahead = line.slice(0, Math.max(0, line.indexOf(mine))).findLast(name => name.includes('-t-') && liveTurn(dir, name)) ?? '';
       }
@@ -246,7 +237,7 @@ function leaver(dir, owner, apply, mine) {
 /** Create a queue folder once per process. */
 function makeDirectory(dir) {
   if (made.has(dir)) return;
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   made.add(dir);
 }
 
@@ -262,8 +253,8 @@ export function enqueueResourceWrite(file, entry, { apply }) {
   makeDirectory(dir);
   const name = entryName('o');
   const draft = join(dir, `draft-${name}`);
-  writeFileSync(draft, JSON.stringify(entry));
-  renameSync(draft, join(dir, name));
+  fs.writeFile(draft, JSON.stringify(entry));
+  fs.rename(draft, join(dir, name));
   if (held.has(dir)) return;
   settle(dir, apply);
 }

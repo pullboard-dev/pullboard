@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/jobs/index.js */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
@@ -206,7 +207,7 @@ export async function run(io, { first, values }) {
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
-  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+  const environment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN')
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
     try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
@@ -239,7 +240,7 @@ export async function run(io, { first, values }) {
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
-    const { retainedGateAssertions } = await import('../../../../../packages/gate/index.js');
+    const { retainedGateAssertions } = await import('../../../../../packages/gate/heavy.js');
     for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
   }
   if (item.item_rehome_import) {
@@ -274,7 +275,7 @@ export async function run(io, { first, values }) {
       io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
     }
   }
-  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
+  if (item.item_check_baseline) (await import('../../../../../packages/gate/heavy.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);

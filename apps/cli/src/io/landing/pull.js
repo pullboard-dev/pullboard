@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { queueFor } from '../../../../../packages/api/index.js';
+import { sprintLandable } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
@@ -22,8 +23,10 @@ import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
 import { recordedWriteLock } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { lineSettings } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/heavy.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { mechanicalConflictFiles } from '../../../../../packages/landing/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
 import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
@@ -127,6 +130,30 @@ export function hostUpstream(root, config) {
   if (!url || url.startsWith('-') || /[\0\n\r]/u.test(url)) return null;
   // A scheme URL or scp-like host:path stays as written; a local path resolves from this checkout, as git reads it here.
   return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//u.test(url) || /^[^/]+:/u.test(url) || isAbsolute(url) ? url : resolve(root, url);
+}
+
+/**
+ * Whether the line settings batch landings: line.landingBatchSize above 1 or line.collisionFreeBatch on. Why: only then
+ * does an automatic offer wait for the open land job and gather the waiting items into one batch; unset, each accept
+ * offers its own job as before [C7,S8].
+ */
+function batchesLandings(board) {
+  const line = lineSettings(board);
+  return (Number.isSafeInteger(line.landingBatchSize) && line.landingBatchSize > 1) || line.collisionFreeBatch === true;
+}
+
+/**
+ * The entries that share no changed file with an entry kept before them, in order, as the landing table's noOverlap rule
+ * reads its picked-touched map. Why: items changing the same file wait for the next batch rather than conflict in this one [C7,S8].
+ */
+function withoutOverlap(root, trunkTip, entries) {
+  const touched = new Set();
+  return entries.filter(entry => {
+    const changed = landingChangedFiles(root, trunkTip, entry.commit);
+    if (changed.some(file => touched.has(file))) return false;
+    for (const file of changed) touched.add(file);
+    return true;
+  });
 }
 
 /**
@@ -236,14 +263,19 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   const result = await (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
     const taken = ids ? new Set() : openLandingItems(board.db);
+    // With batching on, an open land job holds the next offer: its receipt settles the items, then the waiting ones go out together [C7,S8].
+    const batching = !ids && batchesLandings(board);
+    if (batching && openLandingJob(board.db)) return { offered: openLandingJob(board.db), items: [], waiting: true };
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
     const trunkTip = await landingTrunk(root, remote, policy.commit);
     // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
     if (!ids) await relandAcceptedItems({ root, board, base: trunkTip, write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), landingPorts: { quarantineWaivers: quarantineWaivers ?? (() => []) } });
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
-      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject() });
+      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject(), residualConflicts: mechanicalConflictFiles });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
-    const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at && !taken.has(item.item_id));
+    // A submitted sprint item with a green screen on this trunk tip lands as a verified one does; the pace is read from the listed row [V2,M1,#12177].
+    const landable = item => item.item_status === 'verified' || sprintLandable(board, item, trunkTip);
+    const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || landable(item)) : landable(item) && !item.item_hold_at && !taken.has(item.item_id));
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
     const accepted = await acceptOrderOf(root, board, all.filter(wanted).map(item => item.item_id));
     // landing.first in accepted trunk policy goes ahead of the accept order, in the order listed; named ids keep the order named [C7,#7387].
@@ -281,6 +313,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const queue = queueFor(board, 'coordinator', { file: ctx.file });
     // Every git read and machine-settings read the offer needs happens here, before the lock: they depend only on root, trunkTip, policy and the chosen items, and under the lock they held every other board write for 30 s+ [C7,#11105].
     const trunk = trunkRef(root);
+    // line.collisionFreeBatch: items changing the same file wait for the next batch; the files are read here, before the lock [C7,S8,#11105].
+    const disjoint = !ids && lineSettings(board).collisionFreeBatch === true ? withoutOverlap(root, trunkTip, items) : items;
     const settings = loadMachineSettings();
     const parallel = parallelGatesEnabled();
     const files = new Map(parallel ? items.map(entry => [entry.id, landingChangedFiles(root, trunkTip, entry.commit)]) : []);
@@ -291,7 +325,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     return (queue ? work => work() : work => lock(board, work))(() => {
       // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
       const fresh = ids ? new Set() : openLandingItems(board.db);
-      const free = items.filter(entry => !fresh.has(entry.id));
+      if (batching && openLandingJob(board.db)) return { offered: openLandingJob(board.db), items: [], waiting: true };
+      const free = disjoint.filter(entry => !fresh.has(entry.id));
       if (!free.length) return { offered: openLandingJob(board.db), items: [], waiting: false };
       // A set line.landingBatchSize splits an automatic offer into jobs of at most that many, as it capped the engine's
       // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
