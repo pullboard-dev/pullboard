@@ -444,8 +444,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
-    // verify.reviewFolder (off by default): a seat checkout not at the submitted commit is left alone, and the checks run in the detached review folder instead [C7,#8931].
-    if (!fromPacket && ctx.config.verify?.reviewFolder === true && !contains(root, commit, headCommit(root) ?? '')) {
+    // verify.reviewFolder (off by default): a seat checkout not at the submitted commit, or one holding a modified or untracked file, is left alone, and the checks run in the detached review folder instead [C7,#8931].
+    if (!fromPacket && ctx.config.verify?.reviewFolder === true && (!contains(root, commit, headCommit(root) ?? '') || !isClean(root) || untracked(root).length)) {
       root = madeReviewFolder = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
     }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
