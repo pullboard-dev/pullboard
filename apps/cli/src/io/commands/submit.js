@@ -85,6 +85,7 @@ import {
   machineNameProblems,
 } from '../../../../../packages/commits/index.js';
 import * as infraNotes from '../../../../../packages/commits/index.js';
+import { checkRangeMessages } from '../../../../../packages/commits/light.js';
 import {
   pairPrefix,
 } from '../../../../../packages/flakes/index.js';
@@ -503,6 +504,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
+  // A home-folder path in any commit message is refused always, and a Co-Authored-By trailer when commits.noCoAuthor is on [C1,C7].
+  await checkRangeMessages(root, `${acceptedMain.commit}..${commit}`, { noCoAuthor: acceptedMain.config.commits.noCoAuthor === true });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
   // Every gate is one runner job row this host writes, whatever gate.runnerDispatch says (the setting is a deprecated no-op here);
