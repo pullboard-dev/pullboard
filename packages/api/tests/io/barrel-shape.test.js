@@ -80,6 +80,7 @@ const BEFORE = [
   'provideMainComparison',
   'provideMainRedNotes',
   'provideMainTestRecorder',
+  'providePostLandMainTest',
   'provideRefusalTrials',
   'provideScreenStart',
   'provideTimingExcuse',
