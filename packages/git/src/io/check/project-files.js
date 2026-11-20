@@ -1,7 +1,9 @@
 /** File identity from the git index, so fingerprinting the tool's own source does not re-read every file [C7]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { git } from '../main.js';
+
+const fs = fileSystemAdapter();
 
 const BUFFER = 256 * 1024 * 1024;
 
@@ -27,7 +29,7 @@ function records(text) {
  * @returns {{ clean: Map<string, { mode: string, oid: string }>, dirty: Set<string>, untracked: Set<string>, links: Set<string>, length: number } | null}
  */
 export function indexedFiles(root, paths = [], { untracked: others = true } = {}) {
-  if (!existsSync(`${root}/.git`)) return null;
+  if (!fs.exists(`${root}/.git`)) return null;
   const spec = paths.length ? ['--', ...paths] : [];
   try {
     const staged = records(git(root, ['ls-files', '-s', '-z', ...spec], { maxBuffer: BUFFER }));
