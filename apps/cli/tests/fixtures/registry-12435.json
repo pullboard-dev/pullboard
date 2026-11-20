@@ -1,0 +1,3 @@
+{
+  "cli.io-cells-cache.stored-report-served-unchanged": {"proves":{"specs":["C7"],"claim":"A stored main report is served by the cells inventory cache exactly as stored, temporary shim findings included."},"why":"Without it, a regression where the cache report path re-reads or rewrites temporary edges would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/cells/cache.test.js"]}
+}

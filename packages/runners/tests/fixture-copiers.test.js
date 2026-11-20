@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../index.js';
-import { fixtureCopierProblems } from '../../../apps/cli/tests/fixtures/copy.js';
+import { fixtureCopierProblems } from '../../gate/tests/fixtures/package-copy.js';
 
 /** Create only private source and destination directories, never the person's checkout. */
 function fixture(t) {

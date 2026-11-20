@@ -8,18 +8,12 @@ import {
   execFileSync,
 } from 'node:child_process';
 import {
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
   relative,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 import { fileURLToPath } from 'node:url';
 import {
   acceptedInventoryKey,
@@ -55,10 +49,10 @@ function checkerFingerprint(toolRoot = TOOL_ROOT) {
   const files = [];
   /** Capture the full conservative dependency cells so any parser, binding or report code change invalidates reuse. */
   function visit(path) {
-    const entry = lstatSync(path);
-    if (entry.isDirectory()) { for (const name of readdirSync(path).sort()) visit(join(path, name)); return; }
+    const entry = fs.lstat(path);
+    if (entry.isDirectory()) { for (const name of fs.list(path).sort()) visit(join(path, name)); return; }
     if (!entry.isFile() || entry.isSymbolicLink()) throw new Error('accepted cells tooling contains a nonregular path');
-    if (CODE_FILE.test(path)) files.push([relative(toolRoot, path).replaceAll('\\', '/'), createHash('sha256').update(readFileSync(path)).digest('hex')]);
+    if (CODE_FILE.test(path)) files.push([relative(toolRoot, path).replaceAll('\\', '/'), createHash('sha256').update(fs.readFile(path, null)).digest('hex')]);
   }
   for (const path of TOOLING_PATHS) visit(join(toolRoot, path));
   return foldFingerprint(files);
@@ -146,7 +140,7 @@ export function readAcceptedCells(root, commit) {
     const identity = acceptedCellsIdentity(root, commit, { pinned: true });
     const found = readAcceptedInventory(identity);
     if (!found.available && found.cause !== 'missing-artifact') {
-      try { rmSync(join(identity.directory, `${acceptedInventoryKey(identity)}.ready.json`), { force: true }); } catch { /* Next nudge may retry. */ }
+      try { fs.rm(join(identity.directory, `${acceptedInventoryKey(identity)}.ready.json`), { force: true }); } catch { /* Next nudge may retry. */ }
     }
     return found;
   } catch (error) { return { available: false, cause: 'identity-unavailable', message: error.message }; }
@@ -154,10 +148,14 @@ export function readAcceptedCells(root, commit) {
 
 /** Save only completed metadata atomically; a failed producer leaves an actionable diagnostic. */
 function save(file, data) {
-  mkdirSync(join(file, '..'), { recursive: true, mode: 0o700 });
+  fs.mkdir(join(file, '..'), { recursive: true, mode: 0o700 });
   const temporary = `${file}.${randomUUID()}.tmp`;
-  try { writeFileSync(temporary, JSON.stringify(data) + '\n', { mode: 0o600, flag: 'wx' }); renameSync(temporary, file); }
-  finally { rmSync(temporary, { force: true }); }
+  try {
+    const handle = fs.open(temporary, 'wx', 0o600);
+    try { fs.write(handle, JSON.stringify(data) + '\n'); } finally { fs.close(handle); }
+    fs.rename(temporary, file);
+  }
+  finally { fs.rm(temporary, { force: true }); }
 }
 
 const LOCKED = /\b(?:database is locked|SQLITE_BUSY)\b/iu;
@@ -215,9 +213,9 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock, 
     parsers: { importsIn, commonJsIn }, withImportParseCache, eligible: () => preloadFingerprint() === originalPreloads,
     prior, onMode: value => { mode = value; } })), lockRetry);
   if (!result?.available) throw new Error(result?.unavailable ?? 'accepted cells inventory checkout failed');
-  const file = join(identity.directory, `${key}.inventory.gz`), stat = lstatSync(file);
+  const file = join(identity.directory, `${key}.inventory.gz`), stat = fs.lstat(file);
   save(join(identity.directory, `${key}.ready.json`), { version: 1, tree: identity.tree, checker: identity.checker, preloads: identity.preloads, key, bytes: stat.size, modified: stat.mtimeMs, digest: result.descriptor.digest, mode, ancestor: prior?.commit ?? null });
-  try { rmSync(join(identity.directory, `${key}.failure.json`), { force: true }); } catch { /* A stale failure is advisory. */ }
+  try { fs.rm(join(identity.directory, `${key}.failure.json`), { force: true }); } catch { /* A stale failure is advisory. */ }
   return { ...result, mode };
 }
 
@@ -246,12 +244,12 @@ export async function nudgeAcceptedCells(root, workerUrl, commit) {
   return withFileLock(join(directory, `${key}.owner-lock.sqlite`), async () => {
     const artifact = join(directory, `${key}.inventory.gz`), readyFile = join(directory, `${key}.ready.json`), ownerFile = join(directory, `${key}.owner.json`);
     try {
-      const ready = JSON.parse(readFileSync(readyFile, 'utf8')), stat = lstatSync(artifact);
+      const ready = JSON.parse(fs.readFile(readyFile, 'utf8')), stat = fs.lstat(artifact);
       if (ready.version === 1 && ready.key === key && ready.tree === identity.tree
         && ready.checker === identity.checker && ready.preloads === identity.preloads && stat.isFile() && !stat.isSymbolicLink()
         && ready.bytes === stat.size && ready.modified === stat.mtimeMs) return null;
     } catch { /* Missing or incomplete publication needs a producer. */ }
-    try { if (ownerLive(JSON.parse(readFileSync(ownerFile, 'utf8')))) return null; }
+    try { if (ownerLive(JSON.parse(fs.readFile(ownerFile, 'utf8')))) return null; }
     catch (error) { if (error.code !== 'ENOENT') return null; /* Unknown ownership cannot be stolen. */ }
     const env = gitChildEnv(root);
     for (const name of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[name];
@@ -281,7 +279,7 @@ function ownerState(root, commit) {
   let text;
   try {
     const identity = acceptedCellsIdentity(root, commit, { pinned: true });
-    text = readFileSync(join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`), 'utf8');
+    text = fs.readFile(join(identity.directory, `${acceptedInventoryKey(identity)}.owner.json`), 'utf8');
   } catch { return 'none'; }
   try { return ownerLive(JSON.parse(text)) ? 'live' : 'dead'; } catch { return 'dead'; }
 }

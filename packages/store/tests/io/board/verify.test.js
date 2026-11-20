@@ -72,3 +72,87 @@ test('store.io-board-verify.landed-dependent-gets-notice: clause 2: a dependent 
   assert.notEqual(status(board, landed), 'open', 'the landed item stays landed');
   assert.ok(noteTexts(board, landed).some(text => text.includes(`#${parent}`) && text.includes('already landed')), 'a notice fact names the parent');
 });
+
+const LOW = [{ id: 'row-1', stakes: 'low', personApproved: true }];
+const MACHINE = [{ machineRun: true, redBefore: true, greenAfter: true }];
+
+/** A submitted item whose frozen record carries one low-stakes row, built by core-1. */
+function soloItem(board, title, stakes = 'low') {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title, criterion: `1. ${CLAUSE} [test]` });
+  store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
+    freeze: () => ({ text: JSON.stringify({ criterion: `1. ${CLAUSE} [test]`, rows: [{ id: 'row-1', stakes }], policy: { version: 1, commit: LANDED, verify: { policy: 'any', family: 'off' } } }), digest: `synthetic-${title}` }) });
+  store.submit(board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: TREE, files: [],
+    submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'synthetic native board-state fixture; no execution proof' } });
+  return id;
+}
+
+/** The builder's own verify call, with the sealed review the CLI records and the solo facts as given. */
+function builderVerify(board, id, decision, solo) {
+  board.executionEngineVersion = store.ENGINE_VERSION; // the verify table decides only on a board that runs an engine
+  const item = store.getItem(board, id);
+  return store.verify(board, id, { agentId: 'core-1', decision, ...(decision === 'REJECT' ? { reason: 'TEST_FAILURE', clause: CLAUSE } : {}), head: item.item_commit, digest: item.item_frozen_digest,
+    note: 'Synthetic solo accept fixture; the check ran red then green on a machine.', ...REVIEW, review: { commit: item.item_commit, head: item.item_commit, trunk: LANDED, paths: [] }, ...solo });
+}
+
+const soloEvents = (board, id) => board.db.prepare("SELECT event_by by, event_detail d FROM event WHERE item_id=? AND event_kind='solo-low-stakes-accept'").all(id).map(row => ({ by: row.by, ...JSON.parse(row.d) }));
+
+test('store.io-board-verify.solo-accept-event: clause 1: the builder accepts its own low-stakes work with soloLowStakes, person-approved rows and machine-run red-then-green checks, and one solo-low-stakes-accept event names the verdict, commit, tree, digest and by [C7,#966]', t => {
+  const { board } = seeded(t);
+  const id = soloItem(board, 'Solo low');
+  assert.equal(builderVerify(board, id, 'ACCEPT', { soloLowStakes: true, rows: LOW, checks: MACHINE }).decision, 'ACCEPT');
+  const item = store.getItem(board, id);
+  assert.equal(item.item_status, 'verified', 'the item is verified through the verified proof trigger');
+  const verdict = board.db.prepare('SELECT verdict_id id FROM verdict WHERE item_id=?').get(id).id;
+  const events = soloEvents(board, id);
+  assert.equal(events.length, 1, 'one event');
+  const { by, verdict: eventVerdict, commit, tree, digest } = events[0];
+  assert.deepEqual({ by, verdict: eventVerdict, commit, tree, digest }, { by: 'core-1', verdict, commit: item.item_commit, tree: TREE, digest: item.item_frozen_digest });
+  assert.equal(item.item_verified_by, 'core-1');
+});
+
+test('store.io-board-verify.solo-accept-narrow: clause 2: a builder accept without soloLowStakes, with a non-low row or with a check that is not machine-run red-then-green is refused SELF_VERIFY and writes no event; a builder reject is refused [C7,#966]', t => {
+  const { board } = seeded(t);
+  const refused = (id, decision, solo) => assert.throws(() => builderVerify(board, id, decision, solo), error => error.code === 'SELF_VERIFY');
+  const cases = [
+    ['Solo flag false', 'low', { soloLowStakes: false, rows: LOW, checks: MACHINE }],
+    ['Solo flag absent', 'low', { rows: LOW, checks: MACHINE }],
+    ['Solo team row', 'team', { soloLowStakes: true, rows: LOW, checks: MACHINE }],
+    ['Solo unproved check', 'low', { soloLowStakes: true, rows: LOW, checks: [{ machineRun: true, redBefore: false, greenAfter: true }] }],
+  ];
+  for (const [title, stakes, solo] of cases) {
+    const id = soloItem(board, title, stakes);
+    refused(id, 'ACCEPT', solo);
+    assert.equal(store.getItem(board, id).item_status, 'submitted', `${title}: still submitted`);
+    assert.equal(soloEvents(board, id).length, 0, `${title}: no event`);
+  }
+  const rejected = soloItem(board, 'Solo builder reject');
+  refused(rejected, 'REJECT', { soloLowStakes: true, rows: LOW, checks: MACHINE });
+  assert.equal(soloEvents(board, rejected).length, 0, 'a builder reject writes no event');
+});
+
+const isolatedRows = board => board.db.prepare("SELECT meta_key k, meta_value v FROM board_meta WHERE meta_key LIKE 'verdict_isolated:%' ORDER BY meta_key").all().map(row => ({ k: row.k, v: row.v }));
+const verdictOf = (board, id) => board.db.prepare('SELECT verdict_id id FROM verdict WHERE item_id=?').get(id).id;
+/** Verify a submitted item as core-9 with the sealed review the CLI records, passing whatever isolated field the case gives. */
+function verdict(board, id, decision, extra) {
+  const item = store.getItem(board, id);
+  const base = { agentId: 'core-9', decision, head: item.item_commit, digest: item.item_frozen_digest, ...REVIEW, review: { commit: item.item_commit, head: item.item_commit, trunk: LANDED, paths: [] }, ...extra };
+  return store.verify(board, id, decision === 'ACCEPT'
+    ? { ...base, note: 'Synthetic isolated-flag fixture accept.' }
+    : { ...base, reason: 'TEST_FAILURE', clause: CLAUSE, note: 'Synthetic isolated-flag fixture reject.' });
+}
+
+test('store.io-board-verify.records-isolated: clause 1: store.verify given isolated true or false records it in board_meta as verdict_isolated:<verdict_id> beside the verdict, for an accept and for a reject, and a verdict given no isolated field writes no such row [C7,#1112]', t => {
+  const { board, submitted } = seeded(t);
+  const accepted = submitted('Isolated accept', 'core-1', 'a'.repeat(40));
+  const rejected = submitted('Isolated reject', 'core-2', 'd'.repeat(40));
+  const plain = submitted('No isolated field', 'core-3', 'e'.repeat(40));
+  assert.equal(verdict(board, accepted, 'ACCEPT', { isolated: true }).decision, 'ACCEPT');
+  assert.equal(verdict(board, rejected, 'REJECT', { isolated: false }).decision, 'REJECT');
+  assert.deepEqual(isolatedRows(board), [
+    { k: `verdict_isolated:${verdictOf(board, accepted)}`, v: 'true' },
+    { k: `verdict_isolated:${verdictOf(board, rejected)}`, v: 'false' },
+  ].sort((a, b) => a.k.localeCompare(b.k)), 'one row per verdict that said so, boolean valued');
+  verdict(board, plain, 'REJECT', {});
+  assert.equal(isolatedRows(board).length, 2, 'a verdict with no isolated field writes no row');
+  assert.equal(isolatedRows(board).some(row => row.k === `verdict_isolated:${verdictOf(board, plain)}`), false);
+});

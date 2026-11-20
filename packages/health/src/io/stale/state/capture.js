@@ -82,7 +82,7 @@ function recentCommit(row, now) {
 
 /**
  * Capture at most 32 claims before an ordinary write: claims idle past their lapsed lease (#1933), and, since #1225, live
- * claims with no real work for 20 minutes (stalled, told once) or 40 (released with a handoff), and claims waiting on
+ * claims with no real work for 20 minutes (stalled, told once) or 30 (released with a handoff), and claims waiting on
  * an item that has not landed. Incomplete activity evidence stays unknown and never releases anything.
  * `lapsedOnly` is the write path's share (#2427): only claims whose lease has already lapsed, which read board rows and
  * seat presence and never run Git. Live claims, and returns that pin a handoff, wait for background maintenance.
@@ -223,8 +223,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
     if (stall && heartbeatLost) return [];
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
-    // Presence is not progress (#3446): a lease lapsed 40 minutes ago returns once the holder has made no move, commit
-    // or proof run on it for 40 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the
+    // Presence is not progress (#3446): a lease lapsed 30 minutes ago returns once the holder has made no move, commit
+    // or proof run on it for 30 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the
     // write path leaves it to background maintenance. A claim waiting on an unlanded item keeps its own rule.
     const leaseAt = staleInstant(row.leaseUntil, at.getTime());
     if (!heartbeatLost && row.health !== 'waiting' && leaseAt !== null && at.getTime() - leaseAt >= CLAIM_IDLE_RELEASE_MS) {
@@ -263,7 +263,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     // A pinned item blocks the coordinator's order, so its idle claim lapses after 30 minutes instead of 40.
     const pinnedLapse = (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, row.id);
     if (row.idleMs >= (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS)) {
-      // Nothing keeps a claim stalled past 40 minutes; the handoff says what was pinned, or why nothing could be.
+      // Nothing keeps a claim stalled past 30 minutes; the handoff says what was pinned, or why nothing could be.
       return [{ ...row, idle: 'release', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }
     const told = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_stalled:${row.id}`)?.meta_value;

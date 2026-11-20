@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** Each hot command loads no more modules than its recorded budget plus headroom; budgets only ratchet down [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

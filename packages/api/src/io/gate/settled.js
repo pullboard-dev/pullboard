@@ -44,3 +44,23 @@ export function recordGateSettled(board, job, applied, receipt) {
   });
   return applied;
 }
+
+/** The shortest gap between two settle walks on one board (#12480). */
+export const SETTLE_WINDOW_MS = 8000;
+const lastWalk = new WeakMap();
+
+/**
+ * How often a board's done sharded gates are walked: at most once per SETTLE_WINDOW_MS from pull claims, or on the first
+ * claim after a receipt. The stamp lives in memory per board, so a restart walks on its first claim [C7,#12480].
+ */
+export const settleWindow = {
+  /** Run `walk` when the board's window is open, stamping it; skip it otherwise. */
+  run(board, now = Date.now(), walk) {
+    const last = lastWalk.get(board);
+    if (last !== undefined && now >= last && now - last < SETTLE_WINDOW_MS) return;
+    lastWalk.set(board, now);
+    walk();
+  },
+  /** A posted receipt opens the window at once. */
+  reopen(board) { lastWalk.delete(board); },
+};
