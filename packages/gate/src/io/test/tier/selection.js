@@ -217,10 +217,9 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const packages = new Set();
   // Cells the test-cell check records as sealed (packages/gate/data/tests/test-cells.json): their tests conform, so the plan names them [C7].
   const sealedCells = sealedTestCells(root, commit);
-  // A cell's own plan shard is a listing that rides with its work, so only the other plan files are global here (#4633).
   const hardGlobal = isHardGlobal(actual);
   const confined = confinementOf(root, base, commit, actual, sealedCells);
-  const global = hardGlobal || (!confined && actual.some(file => PLAN_SHARD.test(file)));
+  const global = hardGlobal;
   if (global) for (const row of after.manifest.files) for (const name of row.packages) packages.add(name);
   else for (const file of actual) {
     for (const snapshot of [before, after]) {
@@ -270,9 +269,9 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
     ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
-/** Whether a change list carries a file that is global whatever cell it sits in: a manifest, lockfile or non-shard plan file. */
+/** Whether a change list carries a file that is global whatever cell it sits in: a manifest or lockfile. */
 function isHardGlobal(actual) {
-  return !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file) || (file.startsWith('packages/codemap/data/plan') && !PLAN_SHARD.test(file)));
+  return !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file));
 }
 
 /** The sealed-cell confinement of the change from `base` to `commit`, or null; shared by selection and its guard so both read one rule (#5671). */
@@ -280,8 +279,6 @@ function confinementOf(root, base, commit, actual, sealedCells) {
   return isHardGlobal(actual) ? null : sealedConfinement(actual, sealedCells, (file, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${file}`], true));
 }
 
-/** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
-const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
 /** The generated fixture registry: one row per test file naming the fixtures it uses. */
 const [FIXTURE_REGISTRY] = BASELINE_TABLES;
 /** The per-file cross-cell import ceilings, a committed listing its writer in edges.js names. */
@@ -299,7 +296,7 @@ const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 const GENERATED_SECTIONS = { 'packages/gate/data/tests/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), [CELLS_EDGES_CEILINGS]: true, [TEST_TIERS_FILE]: true };
 
 /** Whether a changed path is a listing file a cell's work regenerates beside its code. */
-function isListing(file) { return COMMITTED_LISTINGS.has(file) || PLAN_SHARD.test(file); }
+function isListing(file) { return COMMITTED_LISTINGS.has(file); }
 
 /** The name the test-cell listing gives a cell root: `<cell>` for `packages/<cell>`, `apps/<name>` for `apps/<name>`. */
 function listedCellName(root) { return root.startsWith('apps/') ? root : root.slice('packages/'.length); }
@@ -350,7 +347,6 @@ function listingIsOwn(file, roots, read) {
   const parse = side => { try { const text = read(file, side); return text === null ? null : JSON.parse(text); } catch { return undefined; } };
   const [before, after] = [parse('base'), parse('head')];
   if (before === undefined || after === undefined) return false;
-  if (PLAN_SHARD.test(file) && !roots.has((after ?? before)?.root)) return false;
   const names = new Set([...roots].map(listedCellName));
   const owns = key => names.has(key.replace(/^<-/u, '')) || [...roots].some(root => key === root || key.startsWith(`${root}/`));
   const [was, now] = [listingRows(before), listingRows(after)];
@@ -364,7 +360,7 @@ function listingIsOwn(file, roots, read) {
  * reads a listing as input must run when the listing changes, even though a confined change runs no other journey (#4633).
  */
 function listingReaders(root, base, commit, listings) {
-  const needles = [...new Set(listings.map(file => PLAN_SHARD.test(file) ? 'packages/codemap/data/plan/' : posix.basename(file)))];
+  const needles = [...new Set(listings.map(file => posix.basename(file)))];
   const before = base ? codeMapGraph(root, base) : null;
   const readers = new Set();
   for (const graph of [before, codeMapGraph(root, commit, before)]) {

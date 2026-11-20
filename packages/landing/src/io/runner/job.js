@@ -388,7 +388,7 @@ function squashItem(root, entry, base) {
  * main keeps unassignedEngine() placeholders (#1101, #6951) [C7].
  */
 async function deriveMerged(root, { base, badges }) {
-  try { amendLandingEngines(root, IDENTITY); await amendLandingRegistries(root, { base, badges, hooks: IDENTITY }); return null; } catch (error) {
+  try { await amendLandingEngines(root, IDENTITY); await amendLandingRegistries(root, { base, badges, hooks: IDENTITY }); return null; } catch (error) {
     must(root, ['reset', '-q', '--hard', 'HEAD']);
     return `the landing derive failed: ${String(error?.message ?? error).slice(0, 300)}`;
   }
