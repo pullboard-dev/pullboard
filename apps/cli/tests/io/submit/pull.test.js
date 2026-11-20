@@ -97,3 +97,13 @@ test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says th
   assert.ok(gate >= 0, 'the submit says it is in the gate');
   assert.match(lines[gate + 1], /^test runner: /u, 'the runner note follows at once');
 });
+
+test('cli.submit-pull.item-needs-in-request: clause 1: the gate request carries the held item needs in its analysis data, and a request without needs is built as before [U136,#11479]', () => {
+  const pinned = { main: 'a'.repeat(40), source: 'b'.repeat(40), trunk: 'a'.repeat(40), base: null, check: 'true', criterion: '', title: 't',
+    composition: null, config: {}, crossRunTests: [], cutRows: [], produceInventory: [], doctrine: null, authorization: null, browserFreeChecks: false };
+  const plain = gateJobRequest(pinned);
+  assert.equal('needs' in plain.input.data.analysis, false);
+  const needing = gateJobRequest({ ...pinned, needs: ['gui'] });
+  assert.deepEqual(needing.input.data.analysis.needs, ['gui']);
+  assert.deepEqual({ ...needing.input.data.analysis, needs: undefined }, { ...plain.input.data.analysis, needs: undefined });
+});
