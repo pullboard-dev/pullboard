@@ -10,6 +10,7 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { sharedToolsTarget } from '../toolsnapshot.js';
@@ -722,8 +723,9 @@ export async function run(io, args) {
     const item = withBoardRead(ctx, board => store.getItem(board, id));
     const policy = reviewMainPolicy(ctx.info.root);
     const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
-    if (process.env.PULLBOARD_COMPARE_SOURCE && (process.env.PULLBOARD_COMPARE_SOURCE !== item.item_commit
-      || process.env.PULLBOARD_COMPARE_DIGEST !== item.item_frozen_digest)) {
+    const compare = environmentAdapter();
+    if (compare.get('PULLBOARD_COMPARE_SOURCE') && (compare.get('PULLBOARD_COMPARE_SOURCE') !== item.item_commit
+      || compare.get('PULLBOARD_COMPARE_DIGEST') !== item.item_frozen_digest)) {
       io.result?.({ item: id, status: 'superseded' }); return 0;
     }
     let compared;

@@ -24,13 +24,14 @@ const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js
 const ENV_READ = /(?<![\w$.])process\.env\b|(?<![\w$])(['"`])(?:[^'"`\n]*\/)?(?:[\w.-]*(?:config|settings)\.json|\.env(?:\.[\w-]+)?|\.pullboardrc)\1/gu;
 
 /**
- * The three files whose environment reads sit inside generated child-script strings (BOOTSTRAP, ANALYSIS_ENTRY, GATE_JOB_ENTRY and the stringified
- * remoteCells). A child node process runs those strings and cannot import the adapter, so the lint skips these exact paths and no others.
+ * The files whose environment reads sit inside generated child-script strings (BOOTSTRAP, ANALYSIS_ENTRY, GATE_JOB_ENTRY, the stringified
+ * remoteCells and the WARM_ENTRY template). A child node process runs those strings and cannot import the adapter, so the lint skips these exact paths and no others.
  */
 export const ENV_GENERATED_SCRIPT_FILES = [
   'apps/cli/src/io/submit/gate.js',
   'apps/cli/src/io/submit/pull.js',
   'apps/cli/src/io/submit/remote.js',
+  'apps/cli/src/io/fixture-memo-warm.js',
 ];
 
 /** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not a generated child-script file. */
