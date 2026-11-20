@@ -740,6 +740,7 @@ function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log 
       ...(run.cleanupVerified === undefined ? {} : { cleanupVerified: run.cleanupVerified }) } : {}),
     ...(run.cleanupUnverified ? { cleanupUnverified: true } : {}),
     ...(run.proofReceiptId ? { proofReceiptId: run.proofReceiptId } : {}), ...(run.timedOut ? { timedOut: true } : {}), ...(run.executionRoot ? { executionRoot: run.executionRoot } : {}),
+    ...(run.screenshotsPath ? { screenshotsPath: run.screenshotsPath } : {}),
     // A remote run's host load and pinned main reach the flake diagnostics with it (#925).
     ...(run.executionRunner ? { executionRunner: run.executionRunner, executionMain: run.executionMain ?? null, executionLoad: run.executionLoad ?? null } : {}), ...(stages ? { stages: run.stages } : {}) };
 }
