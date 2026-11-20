@@ -2,6 +2,7 @@ import { fileSystemAdapter } from '../../../../fs/index.js';
 const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { readCellLintBaseline } from '../cell/lint/store.js';
+import { readCellKeyedLintBaseline } from '../cell/lint/store.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../cell/lint/store.js';
 import { cellLintReport } from '../cell/lints.js';
 import { cellLintBaseline } from '../cell/lint/ratchet.js';
@@ -46,7 +47,7 @@ export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
     if (selected.status !== 0) throw new Refused('CELL_BASELINE', `main ${commit.slice(0, 12)} could not be checked out to count its cell debt; run git fetch, then the check again`);
     const report = cellLintReport(checkout, parsers);
     // The committed snapshot is the authority when main has one; main's counted debt only stands in when it has none [C7,CD23].
-    const committed = disk.exists(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(checkout) : null;
+    const committed = disk.exists(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? readCellKeyedLintBaseline(checkout) : null;
     return { commit, report, baseline: committed ?? cellLintBaseline(report), committed: Boolean(committed) };
   } finally {
     disk.rm(directory, { recursive: true, force: true });

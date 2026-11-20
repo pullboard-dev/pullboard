@@ -20,6 +20,8 @@ import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { applyGateReceipt } from '../../src/io/gate.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { SHARD_JOBS_SQL } from '../../src/io/gate.js';
+import { shardJobs } from '../../index.js';
 import { WIDE_SEED_SQL } from '../../src/io/recheck.js';
 import { settleDoneShardGates } from '../../src/io/gate.js';
 import { jobQueueCall } from '../../src/io/jobs.js';
@@ -269,6 +271,67 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
 
 test('api.io-gate.shard-offer-ledger-absent-without-rows: clause 1: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+test('api.io-gate.shard-jobs-key-range: clause 1: shardJobs returns exactly a gate\'s own shard rows in order, not a sibling gate whose job id extends the same text, and its query plan searches job_id with no scan of job [C7]', t => {
+  const board = cellBoard(t, ':memory:');
+  for (const [id, kind, created] of [['gate:1:a:shard:2', 'gate-shard', 2], ['gate:1:a:shard:1', 'gate-shard', 1], ['gate:1:ab:shard:1', 'gate-shard', 1], ['gate:1:a', 'gate', 0], ['gate:1:a:shard:3', 'gate', 3]]) {
+    board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?)').run(id, kind, 'offered', created, created);
+  }
+  assert.deepEqual(shardJobs(board.db, 'gate:1:a').map(shard => shard.job_id), ['gate:1:a:shard:1', 'gate:1:a:shard:2']);
+  assert.deepEqual(shardJobs(board.db, 'gate:1:ab').map(shard => shard.job_id), ['gate:1:ab:shard:1']);
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', 'gate:1:a:shard:', shardKeyEnd('gate:1:a:shard:')).map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job/u, plan);
+  assert.doesNotMatch(plan, /SCAN job/u, plan);
+});
+
+/** The exclusive upper bound of the job ids that start with `prefix`, as shardJobs reads them. */
+const shardKeyEnd = prefix => `${prefix}\uFFFF`;
+
+/** A generated board of 500 gates and 20000 gate-shard rows (40 each), the first `done` gates done on a claimed item, so each is a settle candidate. In memory, so the pass times the board's queries alone, not a runs file. */
+function scaleBoard(t, { done = 30 } = {}) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, ':memory:', undefined, { gitRoot: repo.root });
+  const now = Date.now();
+  const ids = Array.from({ length: 500 }, () => cellItem(board, { lane: 'web', title: 'Build a page' }).item_id);
+  const insert = board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?)');
+  ids.slice(0, done).forEach((id, index) => cellClaim(board, id, cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${index}` }), { root: repo.root }));
+  const gates = ids.map((id, index) => `gate:${id}:head${index}`);
+  board.db.exec('BEGIN');
+  ids.forEach((id, index) => {
+    insert.run(gates[index], 'gate', index < done ? 'done' : 'offered', id, now - 1000 + index, now);
+    for (let shard = 1; shard <= 40; shard += 1) insert.run(`${gates[index]}:shard:${shard}`, 'gate-shard', shard % 3 ? 'offered' : 'done', id, now - 1000 + index, now);
+  });
+  board.db.exec('COMMIT');
+  return { board, now, gates };
+}
+
+test('api.io-gate.shard-jobs-key-range-scale: clause 1: on 20000 shard rows across 500 gates shardJobs returns each gate\'s shards identical to the old substr query, and its plan searches the job primary-key index (sqlite_autoindex_job_1), not job_kind_created [C7]', t => {
+  const { board, gates } = scaleBoard(t);
+  assert.equal(board.db.prepare("SELECT count(*) AS n FROM job WHERE job_kind = 'gate-shard'").get().n, 20000);
+  const oldQuery = board.db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id');
+  for (const gate of gates) {
+    const prefix = `${gate}:shard:`;
+    const rows = shardJobs(board.db, gate).map(row => ({ ...row }));
+    assert.equal(rows.length, 40, gate);
+    assert.deepEqual(rows, oldQuery.all('gate-shard', prefix.length, prefix).map(row => ({ ...row })), gate);
+  }
+  const prefix = `${gates[7]}:shard:`;
+  const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${SHARD_JOBS_SQL}`).all('gate-shard', prefix, shardKeyEnd(prefix)).map(step => step.detail).join(' | ');
+  assert.match(plan, /SEARCH job USING INDEX sqlite_autoindex_job_1 \(job_id>\? AND job_id<\?\)/u, plan);
+  assert.doesNotMatch(plan, /job_kind_created/u, plan);
+});
+
+test('api.io-gate.shard-jobs-scale: clause 2: on that board of 20000 shard rows across 500 gates, a settleDoneShardGates pass over 30 candidate gates takes under 5 ms, its time printed [C7]', t => {
+  const { board, now } = scaleBoard(t, { done: 30 });
+  const candidates = board.db.prepare("SELECT count(*) AS n FROM item JOIN job ON job.job_item = item.item_id WHERE item.item_status = 'claimed' AND job.job_kind = 'gate' AND job.job_step = 'done'").get().n;
+  assert.equal(candidates, 30);
+  const pass = () => assert.deepEqual(settleDoneShardGates(board, {}, { now }), []);
+  for (let round = 0; round < 5; round += 1) pass();
+  const times = Array.from({ length: 21 }, () => { const start = performance.now(); pass(); return performance.now() - start; }).sort((a, b) => a - b);
+  const median = times[10];
+  t.diagnostic(`api.io-gate.shard-jobs-scale: settle pass over 30 candidate gates median ${median.toFixed(2)} ms, fastest ${times[0].toFixed(2)} ms, slowest ${times[20].toFixed(2)} ms`);
+  assert.ok(median < 5, `a settle pass over 30 candidates took ${median} ms, not under 5 ms`);
 });
 
 test('api.io-gate.seed-window-in-sql: clause 1: with gate.seedWideMainTests on, the 24 h window is inside the seeding SQL and its query plan searches job by an index and never scans job_step [C7,P7]', t => {
