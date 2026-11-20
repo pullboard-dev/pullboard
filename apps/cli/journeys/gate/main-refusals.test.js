@@ -64,6 +64,8 @@ test('cli.journeys-gate-main-refusals.the-gate-stops-before-the-suite: the gate 
   mkdirSync(scanner, { recursive: true });
   copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/src/io/budgets.js'), join(scanner, 'wall-clock-budgets.js'));
   writeFileSync(join(root, 'packages/gate/index.js'), "export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
+  // The scanner entry also reads the scan through the gate heavy door; the fixture door names only the scanner.
+  writeFileSync(join(root, 'packages/gate/heavy.js'), "export { wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
   // The scanner lists tracked files through the git package; the fixture supplies a plain git launcher for it.
   mkdirSync(join(root, 'packages/git'), { recursive: true });
   writeFileSync(join(root, 'packages/git/index.js'), "import { execFileSync } from 'node:child_process';\nexport const gitExecFileSync = (args, options) => execFileSync('git', args, options);\n");
