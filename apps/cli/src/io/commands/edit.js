@@ -1,5 +1,6 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
+import { briefFilesAbsentFromMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
 import { requireBarInLane } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
@@ -117,6 +118,10 @@ export async function run(io, args) {
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
   const barWarnings = sealed ? [] : guardBar(change.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
+  if (change.criterion !== undefined || change.brief !== undefined) {
+    const before = store.getItem(board, id);
+    briefFilesAbsentFromMain(ctx, { criterion: change.criterion ?? before.item_criterion, brief: change.brief ?? before.item_brief }, itemsBarRulesAtAdd());
+  }
   // A changed bar may not name a path missing from main, refused before any other bar rule; an edit that leaves the
   // criterion and check alone never refuses on it (#5709).
   if (change.criterion !== undefined || change.check !== undefined) {
