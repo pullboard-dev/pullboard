@@ -1,6 +1,7 @@
 /** @pullboard-test-input apps/cli/src/io/commands/verify.js */
 /** A strict item's accept states what the reviewer broke: refused without --broke, recorded with it, and unchanged for reject and for items that do not require it [C7,#12047]. */
 import assert from 'node:assert/strict';
+import { copyFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -21,6 +22,8 @@ function submitted(requireProvenBreak) {
     fixtureProjectPolicy(box.repo, { config });
     box.git(box.repo, 'add', 'pullboard.json');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: set review.requireProvenBreak');
+    // The reviewing seat reads the board policy from its own checkout.
+    copyFileSync(join(box.repo, 'pullboard.json'), join(box.review, 'pullboard.json'));
   }
   return box;
 }
@@ -43,7 +46,7 @@ test('cli.io-commands-verify.strict-accept-needs-break: clause 1: on a strict it
 
 test('cli.io-commands-verify.strict-reject-unchanged: clause 1: a reject on an item whose review requires a proven break needs no --broke [C7,#12047]', async () => {
   const box = submitted(true);
-  const rejected = await box.runLocal(box.review, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'the diff skips the bar clause', '--json');
+  const rejected = await box.runLocal(box.review, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'The page renders.', '--note', 'the diff skips the bar clause', '--json');
   assert.doesNotMatch(rejected.stdout + rejected.stderr, /PROVEN_BREAK_REQUIRED/u);
   assert.equal(rejected.code, 0, rejected.stdout + rejected.stderr);
 });
