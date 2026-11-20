@@ -136,6 +136,7 @@ const OPTIONS = {
   deadline: { type: 'string' },
   take: { type: 'string' },
   stuck: { type: 'string' },
+  done: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },

@@ -110,6 +110,8 @@ export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { return { proofFiles: ['test/a.test.js'], check: options.check }; }
 export async function submitGateAdmission() { return { browser: false, gui: false }; }
 `);
+  // The runner entries import the gate heavy door (684e8be2d7); the stand-in door re-exports the index stand-in.
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
   put('apps/cli/src/io/cells/cache.js', `import { join } from 'node:path';
