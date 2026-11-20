@@ -4,10 +4,10 @@
 import { sourceAdvancePlan } from '../../../../../packages/codemap/index.js';
 import { withSourceComposition } from '../../../../../packages/merge/index.js';
 import { retryReviewCommit } from '../../../../../packages/verify/index.js';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
-import { selectTestTreeGuards } from '../../../../../packages/gate/index.js';
-import { importsIn } from '../../../../../packages/gate/index.js';
-import { commonJsIn } from '../../../../../packages/gate/index.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
+import { selectTestTreeGuards } from '../../../../../packages/gate/heavy.js';
+import { importsIn } from '../../../../../packages/gate/heavy.js';
+import { commonJsIn } from '../../../../../packages/gate/heavy.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';

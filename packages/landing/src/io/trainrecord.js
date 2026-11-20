@@ -8,7 +8,7 @@ import { recordLandingBatch } from '../../../store/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { receiptBody } from '../../../gate/index.js';
+import { receiptBody } from '../../../gate/heavy.js';
 import { checkTrainLandingReceipt } from './train/receipt.js';
 import { TRAIN_LANDING_ENGINE } from '../../../state/light.js';
 import { validateLandingBatch } from '../../../items/index.js';

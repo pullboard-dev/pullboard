@@ -1,0 +1,3 @@
+{
+  "cli.submit-pull.item-needs-in-request": {"proves":{"specs":["C7"],"claim":"the submit gate request carries the held item's needs in its analysis data, and omits the key when the item has none"},"why":"Without it a needs gui item's submit gate never asks for a GUI slot.","kind":"contract","inputs":["apps/cli/src/io/submit/pull.js","apps/cli/src/io/submit/gate.js","apps/cli/tests/io/submit/pull.test.js"]}
+}

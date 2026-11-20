@@ -11,7 +11,7 @@ import {
   coordinatorLocal,
   runLocal,
   submitSettled,
-} from '../../../journeys/submit/gate/local.js';
+} from './local.js';
 import {
   privateRepo,
   builderRepo,

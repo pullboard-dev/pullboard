@@ -11,6 +11,7 @@ import { requestFor } from './request.js';
 import { forgetRuntimeHeld } from './runtime.js';
 import { recordRuntimeHeld } from './runtime.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { writeScreenshots } from '../../../transport/index.js';
 import { resultFrom } from './result.js';
 import { runnerFailure } from './result.js';
 import { readCleanupTimeoutDetails } from '../logic/diagnostics.js';
@@ -321,8 +322,11 @@ async function runInController(root, command, options, ports) {
     if (error instanceof Refused) throw error;
     if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
     const bounded = request.rawOutputPath ? Buffer.concat([head, ...(rawBytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]) : Buffer.concat(output);
-    return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
+    const verified = resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
+    if (!verified.screenshots) return verified;
+    const { screenshots, ...rest } = verified;
+    return { ...rest, screenshotsPath: await writeScreenshots(root, request.spec.id, screenshots) };
   } finally {
     jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); clearTimeout(runCeilingTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
     request.cleanup();
