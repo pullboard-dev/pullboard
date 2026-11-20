@@ -1,9 +1,8 @@
 /** A consumer contract file records which exports a consumer relies on from a provider cell [C7]. */
-import {
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { Refused } from '../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 const MALFORMED = 'the contract file must be JSON with string consumer and provider and an exports list of { name, params: string[], returns }; rewrite it with writeContractFile and retry';
 
@@ -26,12 +25,12 @@ function validContract(value) {
 
 /** Write one consumer contract file; a malformed contract is refused before any byte is written. */
 export function writeContractFile(path, contract) {
-  writeFileSync(path, `${JSON.stringify(validContract(contract), null, 2)}\n`);
+  fileSystem.writeFile(path, `${JSON.stringify(validContract(contract), null, 2)}\n`);
 }
 
 /** Read one consumer contract file back; unparseable or misshapen content refuses CONTRACT_MALFORMED. */
 export function readContractFile(path) {
   let parsed;
-  try { parsed = JSON.parse(readFileSync(path, 'utf8')); } catch { throw new Refused('CONTRACT_MALFORMED', MALFORMED); }
+  try { parsed = JSON.parse(fileSystem.readFile(path, 'utf8')); } catch { throw new Refused('CONTRACT_MALFORMED', MALFORMED); }
   return validContract(parsed);
 }

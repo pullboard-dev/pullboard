@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import * as store from '../../../../packages/store/index.js';
 import { withBoard } from './context.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
-import { settingCommand } from '../../../../packages/gate/index.js';
+import { settingCommand } from '../../../../packages/gate/heavy.js';
 import { detectGate } from './init.js';
 import { laneNames } from '../../../../packages/seats/index.js';
 import { applyStep } from '../../../../packages/spec/index.js';
