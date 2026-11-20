@@ -189,18 +189,19 @@ export function nextFor(board, options) {
   const abilities = new Set(agentAbilities(board, agentId));
   const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item\\_needs:%' ESCAPE '\\'").all()
     .map(row => [Number(row.meta_key.slice('item_needs:'.length)), JSON.parse(row.meta_value)]));
-  const lacksAbility = (entry) => entry.item_status === open && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
+  const lacksAbility = (entry) => entry.item_status === 'open' && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
     if (omitIds.includes(entry.item_id)) skip(entry, 'OMITTED');
     else if (!canTake(route, entry.item_route) || !routes.includes(entry.item_route)) skip(entry, 'ROUTE_FILTER');
+    else if (lacksAbility(entry)) skip(entry, 'NEEDS_ABILITY');
     else if (runnable && !entry.item_check) skip(entry, 'CHECK_REQUIRED');
     else if (verify && entry.item_built_by === agentId) skip(entry, 'SELF_VERIFY');
     else if (verify && skipIds.includes(entry.item_id)) skip(entry, 'SELF_SESSION_VERIFY');
   }
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check) && !lacksAbility(entry)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
       && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));
