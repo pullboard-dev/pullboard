@@ -284,9 +284,6 @@
   "apps/cli/journeys/export/team/board.test.js": {
     "launch": 3
   },
-  "packages/gate/tests/io/main/resource.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/mcp/main.test.js": {
     "launch": 1
   },
@@ -372,9 +369,6 @@
     "launch": 1
   },
   "apps/cli/journeys/view/startup.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/stats/cost.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/stats/cost-sessions.test.js": {
@@ -1121,14 +1115,8 @@
   "apps/cli/journeys/shout/fixture.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/shout/journeys/fixture-api.test.js": {
-    "launch": 3
-  },
-  "apps/cli/journeys/shout/journeys/fixture-presentation.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/shout/journeys/fixture-setup.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/shout/journeys/fixture-undeclared.test.js": {
     "launch": 1
@@ -1160,7 +1148,7 @@
   "apps/cli/journeys/inbox/events-stream.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/shout/activity/polish.test.js": {

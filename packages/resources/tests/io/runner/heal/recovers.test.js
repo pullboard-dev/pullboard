@@ -11,6 +11,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { controllerRegistrationPorts } from '../../../../src/io/controller/custody.js';
 import { initializeRunnerRecovery } from '../../../../index.js';
+import { RECOVERY_RETRY_MAX_MS } from '../../../../src/io/recovery.js';
+import { RECOVERY_PASS_MS } from '../../../../src/io/recovery.js';
 import { recordRunnerFailure } from '../../../../index.js';
 import { recoverUnavailableRunners } from '../../../../index.js';
 import { takeResource } from '../../../../index.js';
@@ -114,4 +116,37 @@ test('resources.recovers.a-healed-runner-returns-with-its: a healed runner retur
     'health and idle probes use the configured node path and runner root');
   assert.deepEqual(runner, expected, 'self-heal leaves its pinned settings unchanged');
   assert.equal(existsSync(join(root, '.git', 'runner-heal.sh')), false, 'recovery does not depend on a person-run script');
+});
+
+/** The bar of #6823: a controller-lost runner is back in service within two minutes. */
+const RECOVERY_BUDGET_MS = RECOVERY_RETRY_MAX_MS * 4;
+
+test('resources.runner-heal-recovers.lost-controller-runner-returns-within-120-s: clause 1: a runner quarantined after its controller was lost is returned by the recovery pass within 120000 ms on the injected clock, even when the first pass hangs on every probe [C7,#6823]', async t => {
+  const { db } = pool(t);
+  const runner = { host: 'lost-controller-host', root: '/nonexistent/runner-lost-controller', slots: 1, browser: 0 };
+  const lostAt = Date.now();
+  // The controller was lost: no holder remains and the cleanup of its job is unproven, so the runner is quarantined CLEANUP_UNVERIFIED.
+  recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'controller-lost', recovery: recovery('lost-controller-job') });
+  const row = () => db.prepare('SELECT * FROM runner_unavailable WHERE host=?').get(runner.host);
+  const asked = [];
+  const answering = {
+    probe: async () => ({ healthy: true, step: 'worker readiness' }),
+    idleProbe: async () => ({ healthy: true, idle: true, writable: true, reason: 'no live runner jobs remain' }),
+    leakProbe: async () => ({ ok: true, stopped: [] }) };
+  // Pass 1 starts when the quarantine first allows a probe; every probe hangs, so only the injected deadline timer ends the pass.
+  const firstAt = row().probe_after;
+  const hung = await recoverUnavailableRunners(db, [runner], { now: firstAt, ...answering, probe: () => new Promise(() => {}),
+    timer: (fire, ms) => { asked.push(ms); fire(); return 0; } });
+  assert.equal(hung, false, 'a pass whose probes never settle returns no runner');
+  assert.deepEqual(asked, [RECOVERY_PASS_MS], 'the pass asked for exactly one deadline');
+  assert.ok(row(), 'the runner stays quarantined and is re-queued');
+  // Pass 2 starts when the re-queued row allows it, with the runner answering again.
+  const secondAt = row().probe_after;
+  const healed = await recoverUnavailableRunners(db, [runner], { now: secondAt, ...answering });
+  assert.equal(healed, true, 'the second pass returns the runner');
+  assert.equal(row(), undefined, 'the runner is registered for admissions again');
+  assert.ok(secondAt >= firstAt + RECOVERY_PASS_MS, 'the second pass starts after the first pass deadline');
+  assert.equal(RECOVERY_BUDGET_MS, 120_000, 'the bar is two minutes: four retry intervals');
+  const elapsed = secondAt - lostAt;
+  assert.ok(elapsed <= RECOVERY_BUDGET_MS, `the runner returned ${elapsed} ms after the controller was lost`);
 });

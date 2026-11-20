@@ -1,11 +1,13 @@
 /** Interpret complete native failures without changing their raw process result [C7,V4,H16]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { accountedFailures } from '../../light.js';
 import { gateStages } from './stages.js';
 import { timingAccountingStages } from './run/timing.js';
 import { proofCounts } from '../../../verify/index.js';
 import { testOutcomeFields } from './test/outcomes.js';
 import { quarantineVerdict } from '../../../verify/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Unknown execution, incomplete identities or an unexplained shell component always remain blocking. */
 export function quarantineRunVerdict(run, quarantines, { root, sourceClean, privateCommand, outcomeId, source } = {}) {
@@ -14,7 +16,7 @@ export function quarantineRunVerdict(run, quarantines, { root, sourceClean, priv
   const outcomes = testOutcomeFields(run.testOutcomes);
   if (!outcomes) return run;
   let output;
-  try { output = run.outputPath ? readFileSync(run.outputPath, 'utf8') : run.output; } catch { return run; }
+  try { output = run.outputPath ? fs.readFile(run.outputPath, 'utf8') : run.output; } catch { return run; }
   const counts = run.proofCounts ?? proofCounts(output ?? '');
   if (counts.failed < 1 || counts.failed !== outcomes.filter(row => !row.passed && !row.skipped).length
     || counts.passed !== outcomes.filter(row => row.passed && !row.skipped).length

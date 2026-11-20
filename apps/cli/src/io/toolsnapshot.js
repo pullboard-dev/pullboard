@@ -1,10 +1,5 @@
 /** A new tools snapshot is an idle kept one moved to the new tooling commit: only the files that differ are written [C7]. */
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { queuedToolOwners } from '../../../../packages/items/index.js';
 import { toolTreeHasLiveOwner } from '../../../../packages/items/index.js';
@@ -16,10 +11,11 @@ import { touchToolTree } from '../../../../packages/items/index.js';
 import { scratchFolder } from '../../../../packages/config/index.js';
 import { scratchRoot } from '../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
-import { constants } from 'node:fs';
-import { cpSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { relative } from 'node:path';
+import { environmentAdapter } from '../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The Git index a shared snapshot keeps inside its own folder, so the folder moves as one rename and a later
@@ -39,7 +35,7 @@ export const TOOLS_IDLE_MS = 10 * 60_000;
 
 /** The process environment without the caller's Git variables, so no inherited GIT_DIR or index redirects a command. */
 function cleanGitEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+  return Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([name]) => !name.startsWith('GIT_')));
 }
 
 /**
@@ -107,10 +103,10 @@ export function checkoutCommittedTools(toolRoot, work, commit) {
  * @returns {boolean} Whether the snapshot can be moved later.
  */
 export function keepToolsIndex(toolRoot, work, commit) {
-  if (existsSync(join(work, TOOLS_INDEX)) && indexedAt(toolRoot, work, commit)) return true;
+  if (fs.exists(join(work, TOOLS_INDEX)) && indexedAt(toolRoot, work, commit)) return true;
   const kept = indexGit(toolRoot, work, ['read-tree', commit]).ok && exactlyIndexed(toolRoot, work)
     && indexedAt(toolRoot, work, commit);
-  if (!kept) rmSync(join(work, TOOLS_INDEX), { force: true });
+  if (!kept) fs.rm(join(work, TOOLS_INDEX), { force: true });
   return kept;
 }
 
@@ -135,17 +131,17 @@ export function advanceIdleToolTree({ toolRoot, commit, job, temp, now = Date.no
   const queued = owned ? null : queuedToolOwners({ now });
   const live = owned ?? (path => queued.has(path) || toolTreeHasLiveOwner(path));
   let names = [];
-  try { names = readdirSync(temp).filter(name => SHARED.test(name)); } catch { return null; }
+  try { names = fs.list(temp).filter(name => SHARED.test(name)); } catch { return null; }
   const idle = names.map(name => join(temp, name)).flatMap(path => {
-    try { return existsSync(join(path, TOOLS_INDEX)) ? [{ path, usedAt: statSync(path).mtimeMs }] : []; } catch { return []; }
+    try { return fs.exists(join(path, TOOLS_INDEX)) ? [{ path, usedAt: fs.stat(path).mtimeMs }] : []; } catch { return []; }
   }).filter(slot => now - slot.usedAt > idleMs).sort((a, b) => b.usedAt - a.usedAt);
   for (const slot of idle) {
     if (live(slot.path)) continue;
     const staging = join(temp, `pullboard-handoff-staging-${job}-${randomUUID()}`);
-    try { renameSync(slot.path, staging); } catch { continue; } // another submit took it first
+    try { fs.rename(slot.path, staging); } catch { continue; } // another submit took it first
     const moved = moveTo(toolRoot, staging, commit, wanted);
     if (moved) return { path: staging, ...moved };
-    rmSync(staging, { recursive: true, force: true });
+    fs.rm(staging, { recursive: true, force: true });
   }
   return null;
 }
@@ -172,7 +168,7 @@ function moveTo(toolRoot, staging, commit, wanted) {
 
 /** Copy the Pullboard tree without its history and dependencies, cloning files where the disk allows. */
 export function copyTools(toolRoot, target) {
-  cpSync(toolRoot, target, { recursive: true, mode: constants.COPYFILE_FICLONE,
+  fs.cp(toolRoot, target, { recursive: true, mode: fs.constants.COPYFILE_FICLONE,
     filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
 }
 
@@ -218,7 +214,7 @@ export function sharedToolsTarget(toolRoot) {
   // One process answers both; it fails when either does, as the two separate reads each refused (#5900).
   const read = tryGit(toolRoot, ['rev-parse', 'HEAD', '--show-toplevel']);
   const [head, top, ...rest] = read.status === 0 ? read.stdout.split('\n') : [];
-  if (read.status !== 0 || rest.length || !/^[0-9a-f]{40}$/u.test(head ?? '') || !top || realpathSync(top) !== realpathSync(toolRoot)) return null;
+  if (read.status !== 0 || rest.length || !/^[0-9a-f]{40}$/u.test(head ?? '') || !top || fs.realpath(top) !== fs.realpath(toolRoot)) return null;
   return { tools: join(scratchRoot(), `pullboard-handoff-tools-${toolingDigest(toolRoot)}`), commit: head };
 }
 
@@ -239,7 +235,7 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
   const target = rebuild ?? sharedToolsTarget(toolRoot);
   const clean = target !== null;
   const shared = target?.tools ?? null;
-  if (shared && existsSync(shared)) {
+  if (shared && fs.exists(shared)) {
     touchToolTree(shared);
     // The reuse path is the usual one; it sweeps too, so stale snapshots go on the next submit, not only on the next copy.
     sweepToolTrees({ commonDirs: [commonDir].filter(Boolean) });
@@ -260,11 +256,11 @@ export function toolsSnapshot(toolRoot, job, commonDir, { copy, copyCommitted = 
   const staging = advanced?.path ?? scratchFolder(`pullboard-handoff-staging-${job}-`);
   try {
     if (!advanced) { copyCommitted(toolRoot, staging, commit); keepToolsIndex(toolRoot, staging, commit); }
-    renameSync(staging, shared);
+    fs.rename(staging, shared);
   } catch (error) {
-    rmSync(staging, { recursive: true, force: true });
+    fs.rm(staging, { recursive: true, force: true });
     // A concurrent submit won the rename; its finished snapshot is the same tooling.
-    if (!existsSync(shared)) throw error;
+    if (!fs.exists(shared)) throw error;
   }
   return shared;
 }

@@ -15,29 +15,31 @@ import { WAKE_FILE } from './local.js';
  * waits ends the next nap at once, so one that arrives mid-claim is not lost.
  *
  * @param {string} folder - The local runner folder.
+ * @param {{ mark?: (step: 'touch' | 'wake' | 'timeout') => void }} [options] - mark sees touch (a watch event), then wake (a nap ended early by it) or timeout (the timer ended the nap); absent, nothing changes.
  * @returns {{ nap: (ms: number) => Promise<void>, close: () => void }}
  */
-export function watchWake(folder) {
+export function watchWake(folder, { mark = () => {} } = {}) {
   const waiters = new Set();
   let pending = false, watcher = null;
   try {
     writeFileSync(join(folder, WAKE_FILE), '', { flag: 'a' });
     watcher = watch(folder, (_event, name) => {
       if (name !== null && String(name) !== WAKE_FILE) return;
+      mark('touch');
       if (!waiters.size) { pending = true; return; }
-      for (const done of [...waiters]) done();
+      for (const done of [...waiters]) done('wake');
     });
     watcher.on('error', () => { /* the idle nap still finds the job */ });
   } catch { watcher = null; }
   return {
     nap: ms => {
-      if (pending) { pending = false; return Promise.resolve(); }
+      if (pending) { pending = false; mark('wake'); return Promise.resolve(); }
       return new Promise(resolve => {
-        const done = () => { clearTimeout(timer); waiters.delete(done); resolve(); };
+        const done = (step = 'timeout') => { clearTimeout(timer); waiters.delete(done); mark(step); resolve(); };
         const timer = setTimeout(done, ms);
         waiters.add(done);
       });
     },
-    close: () => { watcher?.close(); for (const done of [...waiters]) done(); },
+    close: () => { watcher?.close(); for (const done of [...waiters]) done('wake'); },
   };
 }

@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/sandbox/index.js packages/items/index.js */
 /** A runner gate fetches a claim base outside its checkout from the trunk remote; one the remote lacks refuses once [P7,C7,#5808]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { remoteSubmitAnalysis } from '../../../../src/io/submit/gate.js';
 import { sharedRemoteAnalysis } from '../../../../src/io/submit/gate.js';
-import { submitUntilSettled } from '../../../../../../packages/gate/index.js';
+import { submitUntilSettled } from '../../../../../../packages/gate/heavy.js';
 import { temporaryDirectory } from '../../../fixtures/board.js';
 import { temporaryRepository } from '../../../fixtures/board/submit.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
@@ -45,6 +46,7 @@ function fixture(t, { claim = 'branch' } = {}) {
   put(trunk, 'pullboard.json', JSON.stringify({ lanes: { core: { owns: ['src/'] }, docs: { owns: ['docs/'] } } }) + '\n');
   put(trunk, 'package.json', '{"type":"module"}\n');
   put(trunk, 'packages/items/index.js', `export function requireSubmitComposition() {}\nexport { fetchMissingCommits } from ${JSON.stringify(ITEMS)};\n`);
+  put(trunk, 'packages/gate/heavy.js', "export * from './index.js';\n");
   put(trunk, 'packages/gate/index.js', 'export async function submitGatePlan() { return { proofFiles: [] }; }\n');
   put(trunk, 'packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put(trunk, 'bin/cells-submit-checks.js', 'export async function requireSubmitCells() { return {}; }\n');

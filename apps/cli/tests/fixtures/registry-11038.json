@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-link.signs-one-link": {"proves":{"specs":["E32","B24"],"claim":"Linking a child with both board signer keys on this machine applies one signed states link on both boards, the current board being the parent."},"why":"Without it, no command makes a cross-board link and a foreign wait stays blocked forever.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/link.test.js"]},
+  "cli.io-commands-link.missing-signer-refused": {"proves":{"specs":["E32","B24"],"claim":"A board with no signer refuses BOARD_LINK_AUTH and writes no link on either board."},"why":"Without it, a link could be written with only one board's consent.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/link.test.js"]}
+}

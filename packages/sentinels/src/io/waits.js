@@ -7,13 +7,12 @@
  * before anyone looked. No hold, wait, queue or process may now exceed its budget silently.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { judgeWaits } from '../logic/budgets.js';
 import { sayAge } from '../logic/budgets.js';
 import { waitItemDraft } from '../logic/budgets.js';
 import { waitKey } from '../logic/budgets.js';
+import { boardWritesLog } from '../../../store/index.js';
 import { localCensus } from './surfaces.js';
 import { pidAlive } from './surfaces.js';
 import { readBoardWriters } from './surfaces.js';
@@ -25,6 +24,57 @@ import { readOrphans } from './surfaces.js';
 import { readPools } from './surfaces.js';
 import { readResourceWriteQueue } from './surfaces.js';
 import { readRunnerJobs } from './surfaces.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
+
+/** The most recent bytes of board-writes.jsonl read: the log grows without bound and a marker is minutes old. */
+const WRITE_LOG_TAIL_BYTES = 4 * 1024 * 1024;
+/** The recorded writes one over-budget board-write row names, the longest first. */
+const RECORDED_HOLDS_MAX = 12;
+
+/**
+ * Every write the machine recorded in its board write log (a bounded tail): { at, heldMs, command, seat, item, pid,
+ * phase, move, step, boardFile }. A missing or unreadable log is no rows, never a failed audit.
+ */
+export function readBoardWriteLog(file) {
+  let fd;
+  try {
+    fd = fs.open(file, 'r');
+    const { size } = fs.fstat(fd);
+    const start = Math.max(0, size - WRITE_LOG_TAIL_BYTES);
+    const buffer = Buffer.alloc(size - start);
+    const text = buffer.subarray(0, fs.read(fd, buffer, 0, buffer.length, start)).toString('utf8');
+    return (start ? text.slice(text.indexOf('\n') + 1) : text).split('\n').filter(Boolean).flatMap(line => {
+      try {
+        const row = JSON.parse(line);
+        return Number.isFinite(Date.parse(row.at)) && Number.isFinite(row.heldMs) ? [{ ...row, start: Date.parse(row.at) }] : [];
+      } catch { return []; }
+    });
+  } catch { return []; }
+  finally { if (fd !== undefined) try { fs.close(fd); } catch { /* A read-only audit ignores a close failure. */ } }
+}
+
+/**
+ * Attach to each over-budget board-write row the recorded writes over budget whose hold overlaps the marker's age.
+ * Why: a write-holders marker is published before the writer waits for SQLite, so its age may be waiting, not holding;
+ * the writes that really held the lock in that span are in the machine's board write log, and the filed bar names them.
+ */
+function attachRecordedHolds(rows, now, boardFile, readLog) {
+  if (!rows.some(row => row.surface === 'board-write' && row.breach && row.pid)) return rows;
+  let here = boardFile;
+  try { here = fs.realpath(boardFile); } catch { /* A board file not on disk keeps its given path. */ }
+  const log = readLog();
+  return rows.map(row => {
+    if (row.surface !== 'board-write' || !row.breach || !row.pid) return row;
+    const markerStart = now - row.ageMs;
+    const recordedHolds = log
+      .filter(hold => hold.heldMs > row.budgetMs && hold.start < now && hold.start + hold.heldMs > markerStart && [undefined, null, boardFile, here].includes(hold.boardFile))
+      .sort((a, b) => b.heldMs - a.heldMs).slice(0, RECORDED_HOLDS_MAX)
+      .map(({ command, seat, item, pid, heldMs, phase, move, step }) => ({ command, seat, item: item ?? null, pid: pid ?? null, heldMs, phase, move, step }));
+    return { ...row, recordedHolds };
+  });
+}
 
 /**
  * Read every surface once. `paths` names the files: { commonDir, boardFile, machineHome, handoffQueue }. Orphans are
@@ -40,7 +90,7 @@ export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = 
   const busyHosts = new Set(runners.rows.filter(row => row.working).map(row => row.host));
   const rows = [
     ...repo.rows, ...machine.rows, ...machine.unavailable.filter(row => !busyHosts.has(row.holder)),
-    ...readCheckoutWriters(paths.commonDir, now, census),
+    ...readCheckoutWriters(paths.commonDir, now, census).filter(row => !clearedDeadWriter(row)),
     ...readBoardWriters(paths.boardFile, now, census),
     ...readResourceWriteQueue(machineResources, now, census),
     ...readResourceWriteQueue(repoResources, now, census),
@@ -51,7 +101,8 @@ export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = 
   ];
   const accounted = new Set(rows.flatMap(row => [row.surface !== 'heartbeat-loop' ? row.pid : null, ...(row.waiters ?? []).map(waiter => waiter.pid)]).filter(Number.isSafeInteger));
   rows.push(...readOrphans(census, accounted).filter(row => !rows.some(other => other.pid === row.pid && other.surface === 'heartbeat-loop')));
-  const judged = judgeWaits(rows, budgets).sort((a, b) => Number(b.breach) - Number(a.breach) || b.ageMs - a.ageMs);
+  const judged = attachRecordedHolds(judgeWaits(rows, budgets), now, paths.boardFile, readers.boardWrites ?? (() => readBoardWriteLog(boardWritesLog())))
+    .sort((a, b) => Number(b.breach) - Number(a.breach) || b.ageMs - a.ageMs);
   return { at: new Date(now).toISOString(), budgets, rows: judged, notes: runners.notes };
 }
 
@@ -79,9 +130,17 @@ function terminateOrphan(pid, started) {
   try { process.kill(pid, 'SIGTERM'); return true; } catch { return false; }
 }
 
+/**
+ * Whether a checkout-writer row is a gone pid's record, removed here so a plain read never lists it as DEAD.
+ * Why: only the coordinator's recordWaits cleared these records, so a trial board kept printing one after its item landed; takeover already removes a gone pid's record, so removing it on read is safe [C7].
+ */
+function clearedDeadWriter(row) {
+  return row.surface === 'checkout-writer' && row.dead?.kind === 'file' && !pidAlive(row.dead.pid) && row.dead.files.every(removeDead);
+}
+
 /** Remove a file a dead holder left, saying whether it went. */
 function removeDead(file) {
-  try { unlinkSync(file); return true; } catch { return false; }
+  try { fs.unlink(file); return true; } catch { return false; }
 }
 
 /**
@@ -104,7 +163,7 @@ export async function recordWaits(snapshot, { openKey, repeat = async () => {}, 
       }
       if (row.dead?.kind === 'lock') {
         let text = null;
-        try { text = readFileSync(row.dead.file, 'utf8'); } catch { /* Released meanwhile. */ }
+        try { text = fs.readFile(row.dead.file, 'utf8'); } catch { /* Released meanwhile. */ }
         if (text === row.dead.text && !pidAlive(row.dead.pid) && remove(row.dead.file)) { reclaimed.push(`${row.surface}: removed writer.lock of gone pid ${row.dead.pid}`); handled.add(row); }
       }
       const orphanDue = row.surface === 'heartbeat-loop' || row.breach;

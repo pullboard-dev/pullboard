@@ -114,6 +114,17 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
 }
 
 /**
+ * The one family check for a reviewer, used alike by reservation, verdict and the eligibility listing: the two-tier rule on
+ * current engines, and below the independence engine the original require rule, compared through familiesDiffer so an alias
+ * of the builder's family is refused the same way everywhere (#3781).
+ */
+export function reviewFamilyEligibility(board, item, reviewer, familyPolicy = 'off') {
+  if (twoTierReviews(board)) return reviewFamilyProblem(board, item, reviewer, familyPolicy);
+  return familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, reviewer), builderFamilyOf(board, item))
+    ? new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`) : null;
+}
+
+/**
  * Refuse a reviewer that ever held the item when review.excludeEarlierHolders is on: it claimed, released, built or submitted it.
  * Why: a seat that dropped or handed on an item still knows its code, so its review is not independent (5287, 11 Nov).
  */
@@ -122,4 +133,15 @@ export function earlierHolderProblem(board, item, reviewer) {
   const held = item.item_built_by === reviewer || board.db.prepare("SELECT event_id,event_kind,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','release','submit')").all(item.item_id, reviewer)
     .some(event => event.event_kind !== 'release' || JSON.parse(event.event_detail ?? '{}').review !== true);
   return held ? new Refused('REVIEW_EARLIER_HOLDER', `${reviewer} claimed, built or released #${item.item_id} earlier, and review.excludeEarlierHolders is on; ask a seat that never held it`) : null;
+}
+
+/**
+ * Insert the immutable native verdict and return its row id; the one write of the verdict table [V1,B3].
+ * Why here: this module is already loaded wherever verdicts are recorded, so the write adds no module to the status path.
+ */
+export function insertVerdict(board, item, { agentId, decision, reason, note, digest, head, family }) {
+  return board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note,
+    verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,
+    digest, head, family, board.clock.now().toISOString()).lastInsertRowid;
 }

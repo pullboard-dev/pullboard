@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 import { boardRun } from '../../../store/index.js';
 import { RUNS_STORE_KEY } from '../../../store/index.js';
@@ -53,4 +53,14 @@ test('api.landing-queue.runs-store-off-both-offers: clause 2: with runs_store of
   const again = reofferLandingJob(board.db, job.id, { queue });
   assert.equal(jobView(board.db, again.id).step, 'offered');
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM run').get().n, 0);
+});
+
+/** A landing job's items keep each item's pace, steady when none is named, and refuse any other pace [C7]. */
+test('api.landing-pace.items-carry-pace: offerLandingJob keeps each landed item\'s pace in the payload, steady by default, and refuses any other pace [C7]', t => {
+  const board = boardWith(t, false);
+  const job = offerLandingJob(board.db, { items: [{ ...item(9101), pace: 'sprint' }, { ...item(9102), pace: 'strict' }, { ...item(9103), pace: 'steady' }, item(9104)], expect: 'b'.repeat(40), config: CONFIG });
+  const view = jobView(board.db, job.id);
+  const offered = view.steps.find(step => step.name === 'offered').payload.payload;
+  assert.deepEqual(offered.items.map(entry => entry.pace), ['sprint', 'strict', 'steady', 'steady']);
+  assert.throws(() => offerLandingJob(board.db, { items: [{ ...item(9105), pace: 'turbo' }], expect: 'b'.repeat(40), config: CONFIG }), { code: 'LANDING_ITEMS' });
 });

@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../packages/store/index.js';
 import { submitFixture } from './board/submit.js';
 import { onBoard } from './land/board.js';
+import { succeeds } from './verdict-check.js';
 
 /**
  * Write a pass receipt for a claimed item's committed head, record it on the board as a gate would, and return its id.
@@ -62,4 +63,18 @@ export function submittedWithoutGate(box, cwd, id) {
   const tree = String(box.git(cwd, 'rev-parse', 'HEAD^{tree}')).trim();
   onBoard(box, board => submitFixture(board, id, { agentId: store.getItem(board, id).item_owner, commit, tree }));
   return receiptId;
+}
+
+/** A fixture item claimed, committed in its seat and submitted through the seam, with the repo left on the trunk a verifier reads. */
+export async function seamSubmittedItem(box, repo, web) {
+  const added = await succeeds(box, repo, 'add', 'web', 'Accept after the seam', '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check');
+  const id = Number(/#(\d+)/.exec(added)?.[1]);
+  await succeeds(box, web, 'claim', String(id));
+  mkdirSync(join(web, 'web'), { recursive: true });
+  writeFileSync(join(web, 'web', `item-${id}.js`), 'export const complete = true;\n');
+  box.git(web, 'add', '-A');
+  box.git(web, 'commit', '-q', '-m', `feat(web): complete fixture ${id} [G1]`);
+  submittedWithoutGate({ repo, git: box.git }, web, id);
+  box.git(repo, 'switch', '--detach', 'web/one');
+  return id;
 }

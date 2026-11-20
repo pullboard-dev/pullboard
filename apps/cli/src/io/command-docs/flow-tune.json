@@ -1,0 +1,10 @@
+{
+  "name": "flow tune",
+  "help": "  pullboard flow tune [--window <duration>] [--apply] [--json]  the line controller's cycle clock and its chosen change from two adjacent board windows; read-only, changes no setting; --apply (coordinator, line.tune on, cycle due) records the one change or reverts the last\n",
+  "required": {
+    "windowMinutes": "number",
+    "cycle": "object",
+    "choice": "object",
+    "constraints": "array"
+  }
+}

@@ -1,0 +1,3 @@
+{
+  "cli.block.claim": {"proves": {"specs": ["C7"], "claim": "block claim takes every member of a named block for the calling seat and prints them, and a second seat's block claim of the same block is refused BLOCK_CLAIMED."}, "why": "Without it a block could be recorded but never taken as one unit from the command line.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/block.js", "apps/cli/tests/fixtures/next/take.js"]}
+}

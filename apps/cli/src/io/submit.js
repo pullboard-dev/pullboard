@@ -9,7 +9,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { checkoutHead } from '../../../../packages/git/index.js';
 import { commandObservation } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { selectTestTiers } from '../../../../packages/gate/index.js';
+import { selectTestTiers } from '../../../../packages/gate/heavy.js';
 import { junitCases } from '../../../../packages/gate/index.js';
 import { junitClauseTicks } from '../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../packages/verify/index.js';
@@ -19,8 +19,6 @@ import { clauseTicks } from '../../../../packages/state/index.js';
 import { clauseMarks } from '../../../../packages/commits/index.js';
 import { gateCoveredFiles } from '../../../../packages/state/index.js';
 import { testCaseTitles } from '../../../../packages/state/index.js';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { frozenRowGates } from '../../../../packages/verify/index.js';
@@ -28,6 +26,9 @@ import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { evidenceLine } from './shout.js';
 import { primaryCheckoutRoot } from './worktree.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The note a submit records with its clause marks under submit.clauseMarks: each numbered clause of the frozen bar, met with the evidence its tick cites or not marked.
@@ -107,7 +108,7 @@ function folderCoveredFiles(item, changedTests) {
 
 /** The case titles declared by the given test files in the working tree, as rows for the clause readers' `cases`; unreadable files give none (#8880) [C7]. */
 export function titleCases(root, files) {
-  return [...files].flatMap(file => { try { return testCaseTitles(file, readFileSync(join(root, file), 'utf8')); } catch { return []; } });
+  return [...files].flatMap(file => { try { return testCaseTitles(file, fs.readFile(join(root, file), 'utf8')); } catch { return []; } });
 }
 
 /** The changed tests a [test] clause no file covers is ticked by under verify.titleTicks: those holding a case titled for its number (#8880) [C7]. */
@@ -211,21 +212,33 @@ export function refuseUnverifiedStack(root, board, item, commit, trunk) {
  * @param {any} item - The item being submitted.
  * @param {string} commit - The head being submitted.
  * @param {{ commit: string } | null} trunk - Current accepted main.
+ * @param {any} [board] - The board; a trailer naming a withdrawn item is ignored, as that item can no longer be submitted (#11781).
  * @returns {void}
  */
-export function refuseWrongBranch(root, item, commit, trunk) {
+export function refuseWrongBranch(root, item, commit, trunk, board = null) {
   if (!trunk?.commit) return;
   const log = tryGit(root, ['log', '--no-merges', '--format=%(trailers:key=Pullboard-Item,valueonly,separator=%x2C)%x01', `${trunk.commit}..${commit}`]);
   if (log.status !== 0) return;
   const named = new Set(log.stdout.split('\x01').flatMap((entry) => entry.split(',')).map((value) => Number(value.trim().replace(/^#/u, ''))).filter((value) => Number.isSafeInteger(value) && value > 0));
-  if (!named.size || named.has(item.item_id)) return;
+  if (named.has(item.item_id)) return;
+  if (board) for (const id of [...named]) if (isWithdrawnItem(board, id)) named.delete(id);
+  if (!named.size) return;
   const other = [...named].sort((a, b) => a - b)[0];
   throw new Refused('WRONG_BRANCH', `this head's new commits belong to item #${other}, not #${item.item_id}; submit #${other} from here, or switch to the branch built for #${item.item_id}`);
 }
 
+/** Whether the board holds this item as withdrawn; an unknown item or a moved one is not (#11781). */
+function isWithdrawnItem(board, id) {
+  try {
+    return store.getItem(board, id)?.item_status === 'withdrawn';
+  } catch {
+    return false;
+  }
+}
+
 /** Run every stack refusal a submit owes: another item's unverified commits, then a head built for another item [V1]. */
 export function refuseUnsubmittableStack(root, board, item, commit, trunk) {
-  refuseWrongBranch(root, item, commit, trunk);
+  refuseWrongBranch(root, item, commit, trunk, board);
   refuseUnverifiedStack(root, board, item, commit, trunk);
 }
 
@@ -282,7 +295,7 @@ export function junitTickNotes(root, item, thread, head, report) {
   const none = { notes: [], failed: [] };
   if (!report || isAbsolute(report) || report.split(/[\\/]/u).includes('..')) return none;
   let xml, modified;
-  try { xml = readFileSync(join(root, report), 'utf8'); modified = Math.floor(statSync(join(root, report)).mtimeMs / 1000); } catch { return none; }
+  try { xml = fs.readFile(join(root, report), 'utf8'); modified = Math.floor(fs.stat(join(root, report)).mtimeMs / 1000); } catch { return none; }
   const committed = Number(tryGit(root, ['show', '-s', '--format=%ct', head]).stdout);
   if (!Number.isFinite(committed) || modified < committed) return none;
   const read = junitCases(xml);

@@ -1,0 +1,28 @@
+{
+  "cli.stable.journey-local-registries": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "records in a registry-<id>.json beside journeys count toward cli.stable.complete the same as records in the fixtures folder."
+    },
+    "why": "Without it a lane that may not edit the core-owned fixtures folder cannot register its tests and its gate goes red on cli.stable.complete.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/stable.test.js"
+    ]
+  },
+  "cli.stable.journey-local-duplicate-id": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a test id recorded both beside a journey and in the fixtures folder is still refused as a duplicate."
+    },
+    "why": "Without it a journey-local record could silently shadow a fixtures record and break unique ids.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/tests/stable.test.js"
+    ]
+  }
+}

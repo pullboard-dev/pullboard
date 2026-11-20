@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 
 test('relay.relay-on-direct.a-board-links-to-the-relay: a board links to the relay by calling relayOn directly, with no CLI process [H1,H18]', async (t) => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   await box.link();
   const link = box.readLink();
   assert.equal(link.url, box.origin, 'the saved link names the loopback relay');

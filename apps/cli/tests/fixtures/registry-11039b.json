@@ -1,0 +1,28 @@
+{
+  "cli.io-link-ports.capability-binds-the-record-body": {
+    "proves": {
+      "specs": [
+        "E32"
+      ],
+      "claim": "boardLinkPorts returns an authority and a capability whose binding is the JSON of the link record body."
+    },
+    "why": "Without it the verify path could seal a delivery under a capability bound to some other link.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/link/ports.js"
+    ]
+  },
+  "cli.io-link-ports.missing-signer-or-key-refuses": {
+    "proves": {
+      "specs": [
+        "E32"
+      ],
+      "claim": "A board with no signer file, or a readKey that returns nothing, refuses BOARD_LINK_AUTH and the message names pullboard link."
+    },
+    "why": "Without it a missing signer or key would surface later as an unexplained delivery failure.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/link/ports.js"
+    ]
+  }
+}

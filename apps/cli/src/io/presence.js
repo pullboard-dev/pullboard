@@ -46,6 +46,14 @@ export function stopSeatKeepalive() {
 }
 
 /**
+ * Whether a requested move's heartbeat prints claim overlap lines: the default next omits them to honor its output bound, so it reads no item list [C7,#5329].
+ * Both heartbeat callers use it; the first to run marks the io recorded, so a caller that disagreed would never apply.
+ * @param {{ defaultLoop?: boolean }} io
+ * @returns {boolean}
+ */
+export function claimHeartbeatOverlaps(io) { return io.defaultLoop !== true; }
+
+/**
  * Observe only the registered local checkout, or its seat's live item folder, after normal session binding;
  * unknown callers gain no identity. A successful beat keeps the seat fresh for the rest of the process; default next omits overlap text to honor its output bound.
  */

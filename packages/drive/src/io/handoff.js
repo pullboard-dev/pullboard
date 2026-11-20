@@ -1,9 +1,10 @@
 /** A served process hands its listening socket to its replacement on new code, so the port is never unanswered [C7,#6723]. */
 import { tracingChannel } from 'node:diagnostics_channel';
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
 import { Server } from 'node:net';
+import { environmentAdapter } from '../../../env/index.js';
 import { spawnDetachedChild } from '../../../jobs/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** The variable that tells a replacement its predecessor's listening socket is its descriptor 3. */
 export const SERVE_FD_ENV = 'PULLBOARD_SERVE_FD';
@@ -59,9 +60,10 @@ function descriptor(server) {
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {{ fd: number } | null}
  */
-export function inheritedListener(env = process.env) {
-  const handed = env[SERVE_FD_ENV] === String(HANDED_FD);
-  delete env[SERVE_FD_ENV];
+export function inheritedListener(env) {
+  const environment = environmentAdapter(env);
+  const handed = environment.get(SERVE_FD_ENV) === String(HANDED_FD);
+  environment.delete(SERVE_FD_ENV);
   return handed ? { fd: HANDED_FD } : null;
 }
 
@@ -82,10 +84,10 @@ export function announceListening() {
  * @param {{ fd: number, cwd?: string, env?: NodeJS.ProcessEnv, log?: string, wait?: number }} options log is a file for both output streams.
  * @returns {Promise<{ pid: number | null, listening: boolean }>}
  */
-export function spawnOnSocket(command, args, { fd, cwd = process.cwd(), env = process.env, log, wait = LISTEN_WAIT_MS }) {
+export function spawnOnSocket(command, args, { fd, cwd = process.cwd(), env = environmentAdapter().all(), log, wait = LISTEN_WAIT_MS }) {
   let out = 'ignore';
   try {
-    if (log) out = openSync(log, 'a', 0o600);
+    if (log) out = fs.open(log, 'a', 0o600);
     const child = spawnDetachedChild(command, args, { cwd, env: { ...env, [SERVE_FD_ENV]: String(HANDED_FD) }, stdio: ['ignore', out, out, fd, 'ipc'] });
     return new Promise((done) => {
       const finish = (listening) => {
@@ -103,5 +105,5 @@ export function spawnOnSocket(command, args, { fd, cwd = process.cwd(), env = pr
       child.on('message', said); child.once('error', failed); child.once('exit', failed);
     });
   } catch { return Promise.resolve({ pid: null, listening: false }); }
-  finally { if (typeof out === 'number') closeSync(out); }
+  finally { if (typeof out === 'number') fs.close(out); }
 }
