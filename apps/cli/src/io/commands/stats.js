@@ -51,7 +51,8 @@ import {
 } from '../../../../../packages/verify/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { caughtLines } from '../../../../../packages/items/index.js';
-import * as gateReceipt from '../../../../../packages/gate/index.js';
+import { retainedReceipts } from '../../../../../packages/gate/index.js';
+import { gateWaitStats } from '../../../../../packages/gate/heavy.js';
 import { readRunnerStage } from '../../../../runner/index.js';
 import {
   compareFlowWindows,
@@ -107,7 +108,7 @@ export function run(io, { first, second, rest, values }) {
     if (kind !== undefined && !['weekly', 'release'].includes(kind)) throw new Refused('USAGE', 'record a checkpoint with --checkpoint weekly or --checkpoint release');
     const days = flowWindowMinutes(values.window ?? '7d') / 1440;
     const now = ctx.clock.now().getTime();
-    const receipts = gateReceipt.retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
+    const receipts = retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
     const catalog = criterionCells(ctx.info.root);
     const time = withBoard(ctx, board => {
       const history = store.events(board);
@@ -178,7 +179,7 @@ export function run(io, { first, second, rest, values }) {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
   });
-  const waits = gateReceipt.gateWaitStats(ctx.info.root, now);
+  const waits = gateWaitStats(ctx.info.root, now);
   const boardHolds = boardHoldStats({ since: window?.since ?? stats.since ?? undefined, until: now });
   const holdBaseline = readBoardHoldBaseline();
   boardHolds.allowance = { ...holdBaseline, status: holdBaseline.allowancePerDay === null ? 'unmeasured'
