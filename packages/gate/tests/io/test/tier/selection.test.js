@@ -165,6 +165,46 @@ test('gate.io-test-tier-selection.narrowed-gate-not-landing-proof: clause 2: a n
   for (const file of CELL_TESTS) assert.ok(landing.units.includes(file), `landing selects ${file} on the exact tree: ${landing.units}`);
 });
 
+const REGISTRY_TEST = 'packages/alpha/tests/registry.test.js';
+const INPUTS_TEST = 'packages/alpha/tests/inputs.test.js';
+const STABLE_TEST = 'packages/alpha/tests/stable.test.js';
+const RECORD = 'packages/alpha/tests/fixtures/registry-1.json';
+const READER_TEST = 'packages/alpha/tests/reads-record.test.js';
+const LOADER_TEST = 'packages/alpha/tests/loads-lone.test.js';
+const LATE_TEST = 'packages/alpha/tests/late-comment.test.js';
+
+/** The sealed cell plus its registry, inputs and stable tests, a test whose header reads the record, one whose header loads the lone test, and one naming it only after code. */
+function recordedCell(t) {
+  const box = sealedCell(t);
+  const quiet = 'import assert from "node:assert/strict";\nassert.ok(true);\n';
+  box.put(REGISTRY_TEST, quiet);
+  box.put(INPUTS_TEST, quiet);
+  box.put(STABLE_TEST, quiet);
+  box.put(RECORD, '{}\n');
+  box.put(READER_TEST, `/** @pullboard-test-reads ${RECORD} */\n${quiet}`);
+  box.put(LOADER_TEST, `/** @pullboard-test-loads ${LONE_TEST} */\n${quiet}`);
+  box.put(LATE_TEST, `${quiet}// @pullboard-test-reads ${RECORD}\n`);
+  git(box.root, 'add', '-A');
+  writeTestTiers(box.root);
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'records');
+  return { ...box, base: git(box.root, 'rev-parse', 'HEAD').trim() };
+}
+
+test('gate.io-test-tier-selection.test-only-change-adds-cell-readers: clause 1: a change of only a cell test and its registry record also selects the cell registry, inputs and stable tests and every test whose header names a changed file, and no other test of the cell [C7]', t => {
+  const edit = { [LONE_TEST]: 'import assert from "node:assert/strict";\nassert.ok(2);\n', [RECORD]: '{"a":1}\n' };
+  const plan = planWith(recordedCell(t), edit, 'tests').plan;
+  for (const file of [LONE_TEST, REGISTRY_TEST, INPUTS_TEST, STABLE_TEST, READER_TEST, LOADER_TEST]) assert.ok(plan.proofFiles.includes(file), `${file} runs: ${plan.proofFiles}`);
+  for (const file of [H_TEST, SRC_TEST, LATE_TEST]) assert.ok(!plan.proofFiles.includes(file), `${file} is no reader of the change: ${plan.proofFiles}`);
+  assert.deepEqual(plan.owedFiles, [H_TEST, LATE_TEST, SRC_TEST].sort(), 'the rest of the cell is owed to landing');
+  const source = planWith(recordedCell(t), { ...edit, 'packages/alpha/src/core/a.js': 'export const a = 4;\n' }, 'tests').plan;
+  for (const file of [H_TEST, SRC_TEST, LATE_TEST, REGISTRY_TEST]) assert.ok(source.proofFiles.includes(file), `a product source change keeps ${file}: ${source.proofFiles}`);
+  for (const key of [undefined, 'off']) {
+    const whole = planWith(recordedCell(t), edit, key).plan;
+    for (const file of [H_TEST, SRC_TEST, LATE_TEST]) assert.ok(whole.proofFiles.includes(file), `${key ?? 'absent'} key keeps ${file}: ${whole.proofFiles}`);
+  }
+});
+
 test('gate.io-test-tier-selection.no-plan-same-selection: clause 1: selectTestTiers picks the same tests for one source change on a temp tree with and without a plan folder [C7]', t => {
   const source = { 'packages/web/src/page.js': 'export const page = 2;\n' };
   const without = change(frozen(t), source);
