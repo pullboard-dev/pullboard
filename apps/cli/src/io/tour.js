@@ -26,6 +26,7 @@ import { setLocalWake } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
 import { environmentAdapter } from '../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import {
   forgetProject,
   listProjects,
@@ -58,15 +59,12 @@ const CONFIG = {
   shared: [],
 };
 
+const fs = fileSystemAdapter();
 const FIRST = 'export const greet = (name) => `Hello, ${name}!`;\n';
 const FIXED = "export const greet = (name) => `Hello, ${name.trim() || 'world'}!`;\n";
 const TEST = `import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { greet } from './greet.mjs';
-import { fileSystemAdapter } from '../../../../packages/fs/index.js';
-
-const fs = fileSystemAdapter();
-
 test('greets by name [G1]', () => assert.equal(greet('Ada'), 'Hello, Ada!'));
 `;
 const EDGE_TEST = `${TEST}test('a blank name greets the world [G1]', () => assert.equal(greet(' '), 'Hello, world!'));\n`;

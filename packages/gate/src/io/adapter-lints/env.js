@@ -18,6 +18,8 @@ const KERNEL = 'packages/kernel/';
 const SCOPE_INSTALLER = 'packages/resources/src/io/environment.js';
 /** The gate preload, exempt by exact path: its reads sit inside the template string gateRuntimeCaptureSource returns, run as a CJS preload in the test child process, which cannot import the adapter [C7,#11497]. */
 const GATE_PRELOAD = 'packages/gate/src/io/preload.js';
+/** The sandbox capture source, exempt by exact path: its reads sit mostly in the runtimeCaptureSource template, generated text run in a child process that must stay byte-identical to the gate preload and cannot import the adapter [C7,#11932]. */
+const SANDBOX_CAPTURE_SOURCE = 'packages/sandbox/src/io/environment.js';
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const ENV_READ = /(?<![\w$.])process\.env\b|(?<![\w$])(['"`])(?:[^'"`\n]*\/)?(?:[\w.-]*(?:config|settings)\.json|\.env(?:\.[\w-]+)?|\.pullboardrc)\1/gu;
 
@@ -36,6 +38,7 @@ export const coveredByEnvLint = path => SOURCE_FILE.test(path) && !path.startsWi
   && !ENV_GENERATED_SCRIPT_FILES.includes(path)
   && path !== SCOPE_INSTALLER
   && path !== GATE_PRELOAD
+  && path !== SANDBOX_CAPTURE_SOURCE
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**
