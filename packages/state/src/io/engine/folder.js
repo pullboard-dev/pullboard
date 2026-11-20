@@ -49,6 +49,9 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
 /** The state cell's two front doors, either of which may forward an engine leaf. */
 const STATE_DOORS = new Set(['packages/state/index.js', 'packages/state/light.js']);
 
+/** The pure module light.js re-exports its engine numbers from; it forwards leaf numbers the way the doors do [C7,H16]. */
+const ENGINE_NUMBER_DOOR = 'packages/state/src/logic/engine/constants.js';
+
 /** Every name a leaf in the engines folder declares with `export const`, the only source of an engine's identity. */
 function leafEngineNames(sources) {
   const names = new Set();
@@ -79,23 +82,23 @@ function forwardedEngineNumbers(file, code, literals, leaves) {
 function stateEngineExports(sources) {
   const names = new Set();
   const leaves = leafEngineNames(sources);
-  for (const entry of sources.filter(row => STATE_DOORS.has(row.file))) {
-    for (const name of doorEngineExports(sources, entry.source)) names.add(name);
+  for (const entry of sources.filter(row => STATE_DOORS.has(row.file) || row.file === ENGINE_NUMBER_DOOR)) {
+    for (const name of doorEngineExports(sources, entry.source, posix.dirname(entry.file))) names.add(name);
     const { code, strings } = lex(entry.source);
     for (const { name } of forwardedEngineNumbers(entry.file, code, new Map(strings.map(literal => [literal.start, literal.text])), leaves)) names.add(name);
   }
   return names;
 }
 
-/** The engine names one state front door forwards straight from a leaf that declares them. */
-function doorEngineExports(sources, source) {
+/** The engine names one state front door, or the engine-number door, forwards straight from a leaf that declares them; `base` is the folder its relative targets start from. */
+function doorEngineExports(sources, source, base) {
   const { code, strings } = lex(source), names = new Set();
   const literals = new Map(strings.map(literal => [literal.start, literal.text]));
   for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
     const end = list.index + list[0].length, from = /^\s*from\b\s*/u.exec(code.slice(end));
     const target = from ? literals.get(end + from[0].length) : null;
     if (!target || !/^\.{1,2}\//u.test(target) || target.includes('\\')) continue;
-    const file = posix.normalize(posix.join('packages/state', target));
+    const file = posix.normalize(posix.join(base, target));
     if (!HOME.test(file)) continue;
     const definitions = sources.filter(row => row.file === file);
     if (definitions.length !== 1) continue;
