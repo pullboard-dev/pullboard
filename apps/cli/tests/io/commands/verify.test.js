@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { provenBreakStatement } from '../../../src/io/commands/verify.js';
+import { soloLowStakesFacts } from '../../../src/io/commands/verify.js';
 import { refuseLinkedDependencies } from '../../../src/io/commands/verify.js';
 import { verdictIsolation } from '../../../src/io/commands/verify.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
@@ -79,4 +80,25 @@ test('cli.io-commands-verify.isolated-flag: verdictIsolation is true for a check
   assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: { commit } }), true);
   assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: null }), false);
   assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: '/review/one', commit, receipt: { commit: 'b'.repeat(40) } }), false);
+});
+
+const FROZEN = JSON.stringify({ rows: [{ id: 'C7' }, { id: 'U148', stakes: 'low' }] });
+
+test('cli.io-commands-verify.solo-facts-off-by-default: soloLowStakesFacts returns nothing unless enabled is exactly true [C7,#966]', () => {
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, undefined), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, false), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, 'true'), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, 1), {});
+});
+
+test('cli.io-commands-verify.solo-facts-from-frozen-rows: when enabled it returns one row per frozen row, a row without stakes read as team [C7,#966]', () => {
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, true), { soloLowStakes: true, rows: [{ id: 'C7', stakes: 'team' }, { id: 'U148', stakes: 'low' }] });
+});
+
+test('cli.io-commands-verify.solo-facts-never-invent-a-row: an empty, unparseable or row-less frozen record returns nothing even when enabled [C7,#966]', () => {
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '' }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: null }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '{not json' }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '{"rows":[]}' }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '{"check":"x"}' }, true), {});
 });

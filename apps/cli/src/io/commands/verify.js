@@ -26,8 +26,9 @@ import { committedTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { submitGateConfig } from '../../../../../packages/gate/heavy.js';
 import { submitGatePlan } from '../../../../../packages/gate/heavy.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
-import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { sealedFallbackMain } from '../../../../../packages/verify/index.js';
+import { namedProofTests } from '../submit.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/heavy.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
@@ -193,6 +194,7 @@ import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { provenBreakRequired } from '../../../../../packages/config/index.js';
 import { itemPace } from '../../../../../packages/moves/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
+import { soloLowStakesEnabled } from '../../../../../packages/config/index.js';
 
 const fs = fileSystemAdapter();
 /** Loads the review folder module at the call, so cold paths through this command never pay for it. */
@@ -329,6 +331,22 @@ async function announceVerdictState(ctx, board, id) {
 
 /** The shortest statement of a broken thing that names a file, command or case and the failure it showed. */
 const PROVEN_BREAK_MIN = 40;
+
+/**
+ * The solo low-stakes facts a verify call carries (#966): `{}` unless `enabled` is exactly true, and `{}` when the item froze no
+ * parseable rows. Otherwise `{ soloLowStakes: true, rows }`, one `{ id, stakes }` per frozen row, a row without stakes read as team.
+ * Why: the move rule compares these rows with the item's frozen record, so the rows come from that record and never from the caller.
+ * @param {{ item_frozen?: string | null }} item
+ * @param {unknown} enabled
+ * @returns {{ soloLowStakes: true, rows: { id: string, stakes: string }[] } | {}}
+ */
+export function soloLowStakesFacts(item, enabled) {
+  if (enabled !== true) return {};
+  let record;
+  try { record = JSON.parse(item?.item_frozen ?? ''); } catch { return {}; }
+  if (!Array.isArray(record?.rows) || record.rows.length === 0) return {};
+  return { soloLowStakes: true, rows: record.rows.map((row) => ({ id: row.id, stakes: row.stakes ?? 'team' })) };
+}
 
 /**
  * The reviewer's stated break for an accept: required on a strict item, kept when given on any other.
@@ -525,19 +543,32 @@ export async function verifyHere(ctx, id, { second, values }) {
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
         // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
-        const sealedMain = reused.ids || !frozenCheck(item) || reReview || companionDigest || item.item_effective_head ? null : submittedPolicyCommit(store.events(board, { itemId: id }));
+        const sealedMain = sealedFallbackMain(store.events(board, { itemId: id }), { reused, reReview, companionDigest, effectiveHead: item.item_effective_head });
+        let sealedReuse = false;
         if (sealedMain) {
           let moveNote = '';
           try {
             const overlap = sealedMoveOverlap(root, { from: sealedMain, to: trunk.commit, commit, check: frozenCheck(item) });
             if (overlap) moveNote = `main moved since submit and reaches ${overlap}`;
           } catch (error) { moveNote = `main move since submit cannot be judged (${error.message.split('\n')[0]})`; }
+          let sealedPlan;
+          if (!moveNote) {
+            try {
+              const sealedConfig = submitGateConfig(policyAt(root, commit).config, policyAt(root, sealedMain).config);
+              const plan = submitGatePlan(root, sealedConfig, { base: item.item_claim_head, trunk: sealedMain, commit, check: frozenCheck(item), crossRunTests: namedProofTests(root, item, commit) });
+              sealedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
+            } catch { /* A plan that cannot be reproduced grants no reuse. */ }
+          }
           const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
-            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true });
-          if (sealed?.ids) reused = sealed;
-          else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
+            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true, expectedPlan: sealedPlan });
+          if (sealed?.ids) { reused = sealed; sealedReuse = true; }
+          else {
+            const recorded = (() => { try { const row = store.events(board, { itemId: id }).findLast(event => event.event_kind === 'submit'); const { files, full, deferred } = JSON.parse(row.event_detail).submissionProof ?? {}; return { files, full, deferred }; } catch { return null; } })();
+            const planNote = sealed?.reason === 'submit selection changed' ? ` (recorded ${JSON.stringify(recorded)}, rebuilt ${JSON.stringify(sealedPlan && { files: sealedPlan.files, full: sealedPlan.full, deferred: sealedPlan.deferred })})` : '';
+            reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}${planNote}` };
+          }
         }
-        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement)) { // a named guard is re-run: a submit proof never reverted it
+        if (reused.ids && !guardOf(item) && (frozenCheck(item) || supplement || sealedReuse)) { // a named guard is re-run: a submit proof never reverted it
           ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
@@ -666,6 +697,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(knownMain ? { knownMainFailures: knownMain } : {}),
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
+      ...soloLowStakesFacts(item, decision === 'ACCEPT' && soloLowStakesEnabled()),
     }]);
   };
   const result = await withBoard(ctx, async (board) => {
