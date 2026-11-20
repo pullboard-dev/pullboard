@@ -1,5 +1,5 @@
 /**
- * Count direct reads of the environment (process.env and config files) in source files outside the kernel folder, and refuse new ones [C7,#9448].
+ * Count direct reads of the environment (process.env and config files) in source files outside the kernel folder and the scope installer, and refuse new ones [C7,#9448].
  * A source file reads the environment through the environment adapter in packages/kernel, so a test can hand it a fixed environment. The
  * offenders that exist today are held by a per-file ceiling that never rises; a file past its ceiling is a finding naming file, line and adapter.
  *
@@ -14,6 +14,12 @@ import { walk } from '../scan.js';
 export const ENV_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-env.json';
 
 const KERNEL = 'packages/kernel/';
+/** The scope installer, exempt by exact path: it replaces process.env with a per-caller scope proxy, which the adapter cannot do over a source object [C7,#11917]. */
+const SCOPE_INSTALLER = 'packages/resources/src/io/environment.js';
+/** The gate preload, exempt by exact path: its reads sit inside the template string gateRuntimeCaptureSource returns, run as a CJS preload in the test child process, which cannot import the adapter [C7,#11497]. */
+const GATE_PRELOAD = 'packages/gate/src/io/preload.js';
+/** The sandbox capture source, exempt by exact path: its reads sit mostly in the runtimeCaptureSource template, generated text run in a child process that must stay byte-identical to the gate preload and cannot import the adapter [C7,#11932]. */
+const SANDBOX_CAPTURE_SOURCE = 'packages/sandbox/src/io/environment.js';
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const ENV_READ = /(?<![\w$.])process\.env\b|(?<![\w$])(['"`])(?:[^'"`\n]*\/)?(?:[\w.-]*(?:config|settings)\.json|\.env(?:\.[\w-]+)?|\.pullboardrc)\1/gu;
 
@@ -30,6 +36,9 @@ export const ENV_GENERATED_SCRIPT_FILES = [
 /** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not a generated child-script file. */
 export const coveredByEnvLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL)
   && !ENV_GENERATED_SCRIPT_FILES.includes(path)
+  && path !== SCOPE_INSTALLER
+  && path !== GATE_PRELOAD
+  && path !== SANDBOX_CAPTURE_SOURCE
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**

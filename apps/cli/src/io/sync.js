@@ -1,7 +1,7 @@
 import { nativeBoardOpeners } from './context.js';
 import { nativePersonRequestPorts } from './context.js';
 import { recordedMoveRefusal } from '../../../../packages/state/index.js';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { baselineReceiptsPending } from '../../../../packages/store/light.js';
 import { readBoardKey } from '../../../../packages/keys/index.js';
 /**
@@ -35,6 +35,8 @@ import {
   withBoard,
   withBoardRead,
 } from './context.js';
+
+const fs = fileSystemAdapter();
 
 /** Deliver finished baselines; the gate loads only when a sync step reaches this call [C7]. */
 async function retryCheckBaselines(root, ...args) {
@@ -77,7 +79,7 @@ function localFirstLink(io) {
   try {
     const info = repoInfo(io.cwd);
     const file = relayLinkFile(info.commonDir);
-    return localFirstBoard(file, () => relayOutboxSetting(info.root)) ? { root: info.root, file, board: JSON.parse(readFileSync(file, 'utf8')).board } : null;
+    return localFirstBoard(file, () => relayOutboxSetting(info.root)) ? { root: info.root, file, board: JSON.parse(fs.readFile(file, 'utf8')).board } : null;
   } catch { return null; }
 }
 
@@ -111,7 +113,7 @@ function pausedBaselineWaitMs() {
 /** Whether this checkout's relay link holds a paused baseline upload: its saved pause, read from one small local file. */
 function pausedBaseline(io) {
   try {
-    const state = JSON.parse(readFileSync(relayLinkFile(repoInfo(io.cwd).commonDir), 'utf8'));
+    const state = JSON.parse(fs.readFile(relayLinkFile(repoInfo(io.cwd).commonDir), 'utf8'));
     return Boolean(state?.baselinePause) && state.mode === 'ordered' && !state.environment;
   } catch { return false; }
 }

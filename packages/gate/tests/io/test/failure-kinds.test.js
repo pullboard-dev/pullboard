@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runClauseBaseComparison } from '../../../index.js';
-import { receiptFields } from '../../../index.js';
-import { testOutcomeCollector } from '../../../index.js';
-import { testOutcomeFields } from '../../../index.js';
+import { runClauseBaseComparison } from '../../../heavy.js';
+import { receiptFields } from '../../../heavy.js';
+import { testOutcomeCollector } from '../../../heavy.js';
+import { testOutcomeFields } from '../../../heavy.js';
 
 /** Feed the collector events shaped as node:test emits them (captured from a real run) and return its rows. */
 function collect(events) {

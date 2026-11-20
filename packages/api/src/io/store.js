@@ -14,6 +14,8 @@ export function runsPort(...args) { return loaded().runsPort(...args); }
 export function queueRun(...args) { return loaded().queueRun(...args); }
 /** The ledger hits a shard carries. */
 export function ledgerHits(...args) { return loaded().ledgerHits(...args); }
+/** Why each file of a shard without a hit has none: none, red or changed. */
+export function ledgerMissReasons(...args) { return loaded().ledgerMissReasons(...args); }
 /** Record one shadow comparison. */
 export function recordShadow(...args) { return loaded().recordShadow(...args); }
 /** The first difference between a decided and a written job. */

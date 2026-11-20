@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { gateRunnerLoadPolicy } from '../../index.js';
+import { gateRunnerLoadPolicy } from '../../heavy.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { runFixtureChildAsync } from '../fixtures/child.js';
 
