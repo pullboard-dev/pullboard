@@ -71,6 +71,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
   const runs = new Map();
   let publishing = Promise.resolve();
   let waiting = 0;
+  const waiters = new Map();
+  let pumping = false;
 
   /** True when `pid` is a live process. */
   function alive(pid) {
@@ -170,6 +172,35 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
     }
   }
 
+  /** Answer every waiter whose result is now stored; true when none is left waiting. */
+  function settleWaiters() {
+    for (const [id, list] of waiters) {
+      const stored = readRecord(resultFile(id));
+      if (!stored) continue;
+      waiters.delete(id);
+      for (const waiter of list) waiter.resolve(stored);
+    }
+    return waiters.size === 0;
+  }
+
+  /** The one retry loop of this queue: each round takes the drain lock if it is free, then answers every waiter whose result exists. */
+  async function pump() {
+    if (pumping) return;
+    pumping = true;
+    try {
+      while (!settleWaiters()) {
+        if (takeLock(lock)) {
+          try { await drain(); } finally { rmSync(lock, { recursive: true, force: true }); }
+          if (settleWaiters()) break;
+        } else if (lockIsStale(lock)) rmSync(lock, { recursive: true, force: true });
+        await pause(LOCK_RETRY_MS);
+      }
+    } catch (error) {
+      for (const list of waiters.values()) for (const waiter of list) waiter.reject(error);
+      waiters.clear();
+    } finally { pumping = false; }
+  }
+
   return {
     /** Queue a write; resolves with its stored outcome. A repeat of an id that has a result returns it unrun. */
     async submit({ id, run }) {
@@ -178,17 +209,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
       runs.set(id, run);
       if (!existsSync(pendingFile(id)) && (waiting > 0 || !tryPublish(id))) await publishLater(id);
       if (transaction) await new Promise(done => queueMicrotask(done)); // let every write submitted in this turn queue before the drain
-      for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
-        if (takeLock(lock)) {
-          try { await drain(); } finally { rmSync(lock, { recursive: true, force: true }); }
-          if (!readRecord(resultFile(id))) await pause(LOCK_RETRY_MS);
-        } else {
-          if (lockIsStale(lock)) rmSync(lock, { recursive: true, force: true });
-          await pause(LOCK_RETRY_MS);
-        }
-      }
-      runs.delete(id);
-      return readRecord(resultFile(id));
+      try { return await new Promise((resolve, reject) => { waiters.set(id, [...(waiters.get(id) ?? []), { resolve, reject }]); pump(); }); }
+      finally { runs.delete(id); }
     },
     /** The stored outcome of write `id`, or null when it has not finished. */
     result: id => readRecord(resultFile(id)),

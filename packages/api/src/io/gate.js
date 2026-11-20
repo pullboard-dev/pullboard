@@ -38,6 +38,7 @@ import { applyPostLandReceipt } from './gate/post-land-main-test.js';
 import { postLandJob } from './gate/post-land-main-test.js';
 import { queuePostLandMainTest } from './gate/post-land-main-test.js';
 import { sprintLandable } from './gate/sprint-land.js';
+import { rebuiltOnTrunk } from './gate/rebuild.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
@@ -316,7 +317,7 @@ const timed = buckets => {
  *
  * @returns {{ applied: true, outcome: 'sharded', shards: string[] } | null}
  */
-export function offerProofShards(board, { job, receipt, offered }) {
+export function offerProofShards(board, { job, receipt, offered, rebuilt = null, at = rebuilt ?? offered }) {
   const gate = receipt?.gate ?? {};
   const plan = gate.proofPlan;
   const files = Array.isArray(plan?.files) ? plan.files : [];
@@ -343,12 +344,12 @@ export function offerProofShards(board, { job, receipt, offered }) {
     const hit = new Set((hits?.files ?? []).map(([file]) => file));
     const reasons = store.ledgerMissReasons(board.db, part.filter(file => !hit.has(file)));
     const ledger = hits || Object.values(reasons).some(reason => reason !== 'none') ? { ...(hits ?? {}), reasons } : null;
-    return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
+    return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: at.candidate, base: at.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, ...(timing ? { checkTiming: true } : {}), shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
+        input: { main: at.main, entry: gateRequest.input.entry, data: { main: at.main, source: at.candidate, ...(timing ? { checkTiming: true } : {}), shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
-    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls${timed(buckets)}, and the gate result applies when the last one posts.` });
+    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}${rebuilt ? ` and is rebuilt on trunk ${at.main.slice(0, 12)} as ${at.candidate.slice(0, 12)}` : ''}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls${timed(buckets)}, and the gate result applies when the last one posts.` });
   return { applied: true, outcome: 'sharded', shards: ids };
 }
 
@@ -845,7 +846,7 @@ function pulledProfilePaths(receipt) {
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
-function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false, receiptMissingCause = false, queue = null } = {}) {
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false, receiptMissingCause = false, queue = null, trunk = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -858,10 +859,9 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
   if (stale) return { applied: false, outcome: 'stale', reason: stale };
   recordTimedSubmitReceipt(board, { job, receipt, runner: postedReceipt(board.db, job)?.runner });
   // A gate that left its proof to shards waits for them; the gate result applies when the last shard posts [P7].
-  if (receipt?.gate?.proofPlan) {
-    const sharded = offerProofShards(board, { job, receipt, offered });
-    if (sharded) return sharded;
-  }
+  const rebuilt = receipt?.gate?.proofPlan ? rebuiltOnTrunk(board, offered, receipt, { trunk, job }) : null;
+  const sharded = rebuilt?.returned ?? (receipt?.gate?.proofPlan ? offerProofShards(board, { job, receipt, offered, rebuilt }) : null);
+  if (sharded) return sharded;
   // Static rows main also has, which the runner's analysis let pass: each is recorded once as a known main red on the item at the job's pinned main [C7,#10567].
   const knownMain = Array.isArray(receipt?.analysis?.staticKnownMain) ? receipt.analysis.staticKnownMain.filter(row => typeof row?.rule === 'string' && typeof row?.file === 'string') : [];
   if (knownMain.length) store.recordKnownMainStatic(board, id, { agentId: submit.agentId, findings: knownMain.slice(0, 200), main });
@@ -1153,7 +1153,7 @@ export function provideMainComparison(lookup) {
  */
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, seedWideMainTests: seedWide = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
-  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, receiptNow: options.now };
+  const ports = { trunk: options.trunk, compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
     // With gate.seedWideMainTests on, wide-failing files get main's receipt queued once per board root and main sha (#12094).
     if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
