@@ -92,7 +92,7 @@ test('cli.sentinel.line-tune-off-and-refusal: clause 2: a sentinel pass with lin
   assert.equal(lineEvents(refused).length, before, 'a refused apply writes nothing');
 });
 
-const CHECKCEILING_ON = { claim: { checkCeiling: true }, gate: { localRunner: false }, runners: [{ host: 'fixture-runner', slots: 2, browser: 0 }] };
+const CHECKCEILING_ON = { claim: { checkCeiling: true }, gate: { localRunner: false }, runners: [{ host: 'fixture-runner', slots: 2, browser: 0 }, { host: 'fixture-runner-b', slots: 2, browser: 0 }] };
 
 /** Three open items, each with an untimed non-strict red baseline (a check frozen before claim.checkCeiling); their ids, oldest first. */
 async function untimedBoard() {
@@ -124,7 +124,7 @@ test('cli.io-commands-sentinel.remeasure-requests: clause 1: with claim.checkCei
   const pass = await box.inProcess(box.repo, 'sentinel', 'run');
   assert.equal(pass.code, 0, pass.err || pass.out);
   const edits = requested(box);
-  assert.deepEqual(edits.map(edit => edit.id), [ids[0], ids[1]], 'one request per free runner slot, oldest first, and none for the third item');
+  assert.deepEqual(edits.map(edit => edit.id), [ids[0], ids[1]], 'one request per registered runner, oldest first, and none for the third item');
   for (const [index, edit] of edits.entries()) {
     assert.equal(edit.check, checks[index], 'the item\'s check is unchanged');
     assert.equal(edit.checkBaseline.result, 'pending');
@@ -159,7 +159,7 @@ test('cli.io-commands-sentinel.remeasure-seconds: clause 2: when a remeasure bas
 
 test('cli.io-commands-sentinel.remeasure-off: clause 3: with claim.checkCeiling off, the default, sentinel run offers no baseline [C7,#1273]', async () => {
   const { box, ids } = await untimedBoard();
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false }, runners: [{ host: 'fixture-runner', slots: 2, browser: 0 }] });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false }, runners: CHECKCEILING_ON.runners });
   const pass = await box.inProcess(box.repo, 'sentinel', 'run');
   assert.equal(pass.code, 0, pass.err || pass.out);
   assert.doesNotMatch(pass.out, /remeasure/u);
