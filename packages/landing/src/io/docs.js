@@ -6,6 +6,8 @@ import { Refused } from '../../../kernel/index.js';
 import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
 const fs = fileSystemAdapter();
+/** The mechanical-conflict reader, reached through the landing front door by the pulled offer's freshness check. */
+export { mechanicalConflictFiles } from '../../../merge/index.js';
 
 /** Snapshot only known regular output files; generator output can never choose what landing stages. */
 function contents(root, file) {

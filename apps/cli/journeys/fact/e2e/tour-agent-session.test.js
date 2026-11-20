@@ -29,13 +29,16 @@ function sessionDigest(name, value) {
   return createHash('sha256').update(JSON.stringify([name, value])).digest('hex');
 }
 
-/** Milliseconds from each job's offer to its claim on the demo board, in offer order. */
-function offerToClaimMs(repo) {
+// The offering command touches the wake file just before the board stamps the offer step, so the runner's marker can precede that stamp by a few ms; order is judged with this slack.
+const OFFER_RECORD_SLACK_MS = 500;
+
+/** The time of each job's offer and of its claim on the demo board, in offer order. */
+function offerToClaim(repo) {
   // @pullboard-board-file journey: a read-only look at the jobs the tour's demo runner claimed.
   const db = new DatabaseSync(join(repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout = 10000');
-    return db.prepare("SELECT o.job_step_at AS offered, c.job_step_at AS claimed FROM job_step o JOIN job_step c ON c.job_step_job = o.job_step_job AND c.job_step_name = 'claimed' AND c.job_step_seq = (SELECT MIN(job_step_seq) FROM job_step WHERE job_step_job = o.job_step_job AND job_step_name = 'claimed') WHERE o.job_step_name = 'offered' ORDER BY o.job_step_at").all().map(row => row.claimed - row.offered);
+    return db.prepare("SELECT o.job_step_at AS offered, c.job_step_at AS claimed FROM job_step o JOIN job_step c ON c.job_step_job = o.job_step_job AND c.job_step_name = 'claimed' AND c.job_step_seq = (SELECT MIN(job_step_seq) FROM job_step WHERE job_step_job = o.job_step_job AND job_step_name = 'claimed') WHERE o.job_step_name = 'offered' ORDER BY o.job_step_at").all().map(row => ({ offered: row.offered, claimed: row.claimed }));
   } finally { db.close(); }
 }
 
@@ -69,10 +72,17 @@ test('cli.journeys-fact-e2e-tour.the-tour-finishes-when-an-agent: clause 1: the 
     // The ledger holds the builder's claim and submit; the reviewer's verify passing already proves it is another session.
     assert.ok(digests.length > 0, `${name}: the builder's claim and submit are recorded`);
     assert.equal(digests.includes(sessionDigest(name, value)), false, `${name}: the caller's session is no seat's builder`);
-    const claims = offerToClaimMs(repo);
-    if (wake) assert.ok(claims.length > 0 && claims.every((ms) => ms <= 500), `${name}: with runners.localWake on every claim, the first included, follows its offer within 0.5 s: ${JSON.stringify(claims)}`);
-    t.diagnostic(`offer-to-claim ms (runners.localWake ${wake ? 'on' : 'off'}, ${name}): ${JSON.stringify(offerToClaimMs(repo))}`);
-    const settings = join(dirname(repo), '.pullboard-machine', 'settings.json');
+    const claims = offerToClaim(repo);
+    const machine = join(dirname(repo), '.pullboard-machine');
+    // Order, not time: a run beside other jobs has a cold first claim, so the proof is offer, then the runner's wake marker, then claim.
+    const log = existsSync(join(machine, 'local-runner', 'runner.log')) ? readFileSync(join(machine, 'local-runner', 'runner.log'), 'utf8') : '';
+    const woke = log.split('\n').filter(line => /^\S+ runner-woke-on-offer$/u.test(line)).map(line => Date.parse(line.split(' ')[0]));
+    if (wake) {
+      assert.ok(claims.length > 0, `${name}: the demo runner claimed jobs`);
+      assert.ok(woke.some(at => at >= claims[0].offered - OFFER_RECORD_SLACK_MS && at <= claims[0].claimed), `${name}: with runners.localWake on the first claim follows its offer through a runner wake marker, offer then marker then claim: ${JSON.stringify({ first: claims[0], woke, runnerLogTail: log.split('\n').slice(-12) })}`);
+    } else assert.deepEqual(woke, [], `${name}: with runners.localWake off the runner records no wake marker`);
+    t.diagnostic(`offer-to-claim ms (runners.localWake ${wake ? 'on' : 'off'}, ${name}): ${JSON.stringify(claims.map(({ offered, claimed }) => claimed - offered))}`);
+    const settings = join(machine, 'settings.json');
     const demo = existsSync(settings) ? JSON.parse(readFileSync(settings, 'utf8')) : {};
     assert.equal(demo['runners.localWake'], wake ? true : undefined, `${name}: the demo settings carry the caller's runners.localWake only when it is on`);
   }

@@ -1,14 +1,16 @@
 /** Recognize finite executable and data inputs without evaluating repository modules [C7,CD62]. */
 import { posix } from 'node:path';
-import { readFileSync } from 'node:fs';
 import { lex } from '../../../../../kernel/index.js';
 import { COMMAND_CANDIDATE } from '../../../../../kernel/index.js';
 import { COMMAND_FILE } from '../../../../../kernel/index.js';
 import { bindingReadsForModules } from '../uses.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 
-const DISCOVERY = readFileSync(new URL('../../../../../kernel/src/logic/discovery.js', import.meta.url), 'utf8');
-const KERNEL_FRONT_DOOR = readFileSync(new URL('../../../../../kernel/index.js', import.meta.url), 'utf8');
-const KERNEL_LIGHT_DOOR = readFileSync(new URL('../../../../../kernel/light.js', import.meta.url), 'utf8');
+const fs = fileSystemAdapter();
+
+const DISCOVERY = fs.readFile(new URL('../../../../../kernel/src/logic/discovery.js', import.meta.url), 'utf8');
+const KERNEL_FRONT_DOOR = fs.readFile(new URL('../../../../../kernel/index.js', import.meta.url), 'utf8');
+const KERNEL_LIGHT_DOOR = fs.readFile(new URL('../../../../../kernel/light.js', import.meta.url), 'utf8');
 
 /** Resolve one literal module-relative input, excluding external URLs and parent escapes. */
 function relativeInput(file, literal) {
@@ -38,8 +40,9 @@ function importBindings(info) {
 /** Recognize the canonical discovered-command ABI, never every command-looking file on its own. */
 function commandInputs(file, info, names, files) {
   const specifier = names.get('discovered');
-  if (!specifier || names.get('COMMAND_CANDIDATE') !== specifier || names.get('COMMAND_FILE') !== specifier
-    || names.get('readdirSync') !== 'node:fs') return [];
+  const viaNode = names.get('readdirSync') === 'node:fs';
+  const viaAdapter = names.has('fileSystemAdapter') && relativeInput(file, names.get('fileSystemAdapter')) === 'packages/fs/index.js';
+  if (!specifier || names.get('COMMAND_CANDIDATE') !== specifier || names.get('COMMAND_FILE') !== specifier || !(viaNode || viaAdapter)) return [];
   const provider = relativeInput(file, specifier);
   const legacy = specifier === '../discovery.js' && files.get(provider)?.toString('utf8') === DISCOVERY;
   const kernel = (provider === 'packages/kernel/index.js' && files.get(provider)?.toString('utf8') === KERNEL_FRONT_DOOR
@@ -49,13 +52,16 @@ function commandInputs(file, info, names, files) {
   const folder = /\bconst\s+(\w+)\s*=\s*new\s+URL\(\s*(['"])[^'"]*\2\s*,\s*import\.meta\.url\s*\)/u.exec(info.code);
   const compact = info.code.replace(/\s/gu, '');
   const literal = folder && info.strings.find(row => row.start >= folder.index && row.end <= folder.index + folder[0].length);
-  if (!literal || !compact.includes('discovered(readdirSync(' + folder[1] + '),COMMAND_CANDIDATE,COMMAND_FILE,')
+  // The folder is listed with node:fs readdirSync, or with the list call of a fileSystemAdapter() from the fs front door [C7,#11560].
+  const adapter = viaAdapter ? /\bconst\s+(\w+)\s*=\s*fileSystemAdapter\(\s*\)/u.exec(info.code)?.[1] : null;
+  const lister = folder && (viaNode ? 'readdirSync(' + folder[1] + ')' : adapter ? adapter + '.list(' + folder[1] + ')' : null);
+  if (!literal || !lister || !compact.includes('discovered(' + lister + ',COMMAND_CANDIDATE,COMMAND_FILE,')
     || !compact.includes('return()=>import(newURL(file,' + folder[1] + ').href)') || !compact.includes('loader(file)')) return [];
   const directory = relativeInput(file, literal.text + '/placeholder')?.replace(/placeholder$/u, '');
   if (!directory) return [];
   return [...files.keys()].filter(target => target.startsWith(directory)
     && !target.slice(directory.length).includes('/') && COMMAND_CANDIDATE.test(target.slice(directory.length))
-    && COMMAND_FILE.test(target.slice(directory.length))).map(target => ({ target, specifier: './' + target.slice(directory.length), entryExports: ['run'], kind: 'command', guards: ['discovered', 'readdirSync', 'URL'] }));
+    && COMMAND_FILE.test(target.slice(directory.length))).map(target => ({ target, specifier: './' + target.slice(directory.length), entryExports: ['run'], kind: 'command', guards: ['discovered', viaNode ? 'readdirSync' : 'fileSystemAdapter', 'URL'] }));
 }
 
 /** Capture only literal URL uses at real worker/process launches or native file-read calls. */

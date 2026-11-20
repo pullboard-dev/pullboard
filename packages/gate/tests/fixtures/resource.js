@@ -20,7 +20,7 @@ import { BROWSER_SLOT_HELD_ENV } from '../../../../packages/resources/index.js';
 import { GATE_SLOT_HELD_ENV } from '../../../../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../packages/resources/index.js';
-import { TEST_FILE_POOL_ENV } from '../../../../packages/gate/index.js';
+import { TEST_FILE_POOL_ENV } from '../../../../packages/gate/heavy.js';
 import { executionServicesSource } from './execution.js';
 import { fixtureProjectPolicy } from './testkit.js';
 
@@ -235,4 +235,76 @@ export async function waitFor(predicate, description, timeoutMs = 30_000) {
 /** Read the current private event log. */
 export function events(box) {
   return existsSync(box.events) ? readFileSync(box.events, 'utf8').trim().split(/\r?\n/u).filter(Boolean) : [];
+}
+
+export const PROBE_WRITE_TARGET_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_TARGET';
+export const PROBE_WRITE_READY_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_READY';
+export const PROBE_WRITE_RELEASE_ENV = 'PULLBOARD_GATE_RESOURCE_WRITE_RELEASE';
+const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../config/index.js')).href;
+
+/** The gate command's own engine in a fresh process: the repo's configured gate under the machine queue, printing the wait lines and report the command prints. */
+export function gateRunScript(box) {
+  const script = join(box.dir, 'gate-run.mjs');
+  writeFileSync(script, `import { readFileSync } from 'node:fs';
+import { runGate, gateReport, gateWaitReporter } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
+const config = JSON.parse(readFileSync('pullboard.json', 'utf8'));
+const say = line => console.log(line);
+const gate = await runGate(process.cwd(), config, { executionServices, trustStamp: true, agent: 'coordinator', onWait: gateWaitReporter({ say }) });
+say(gateReport(gate));
+process.exitCode = gate.isGreen ? 0 : 1;
+`);
+  return script;
+}
+
+/** Launch the gate directly in its own process group and collect its output. */
+export function launch(box, root) {
+  return trackChild(spawn(process.execPath, [gateRunScript(box)], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] }));
+}
+
+/** Run the gate directly to completion and return its status and output. */
+export function runGateSync(box, root) {
+  return spawnSync(process.execPath, [gateRunScript(box)], { cwd: root, env: box.env, encoding: 'utf8' });
+}
+
+/** Set the machine gate capacity through the config cell's writer, as the settings command does; returns the written settings. */
+export function setGateSlots(box, root, slots) {
+  const script = join(box.dir, 'set-gate-slots.mjs');
+  writeFileSync(script, `import { setGateSlots } from ${JSON.stringify(CONFIG_MODULE)};\nprocess.stdout.write(JSON.stringify(setGateSlots(Number(process.argv[2]))));\n`);
+  const result = spawnSync(process.execPath, [script, String(slots)], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.failure ?? result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+/** Set the fixture machine pool to one gate slot before starting holders. */
+export function setOneGateSlot(box, root) {
+  assert.equal(setGateSlots(box, root, 1).gateSlots, 1);
+}
+
+/** Launch a real process that holds the production diagnostic resource class until released. */
+export function launchDiagnostic(box, root, name, started, release, waiting) {
+  const script = join(box.dir, `${name}.mjs`);
+  writeFileSync(script, `import { existsSync, renameSync, writeFileSync } from 'node:fs';
+import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
+${executionServicesSource(GATE_MODULE)}
+/** Publish a complete handshake so its visible file always contains its value. */
+function publish(file, value) { writeFileSync(file + '.tmp', value); renameSync(file + '.tmp', file); }
+await withGateSlot(process.cwd(), async () => {
+  publish(${JSON.stringify(started)}, 'started');
+  while (!existsSync(${JSON.stringify(release)})) await new Promise(done => setTimeout(done, 10));
+}, { executionServices, diagnostic: true, kind: 'main-red', agent: ${JSON.stringify(name)}, onWait: state => publish(${JSON.stringify(waiting)}, String(state.position)) });
+`);
+  const child = spawn(process.execPath, [script], { cwd: root, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  child.stdoutText = '';
+  child.stderrText = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', chunk => { child.stdoutText += chunk; });
+  child.stderr.on('data', chunk => { child.stderrText += chunk; });
+  CHILDREN.add(child);
+  child.closed = new Promise(resolveClose => child.once('close', (code, signal) => {
+    CHILDREN.delete(child);
+    resolveClose({ code, signal });
+  }));
+  return child;
 }

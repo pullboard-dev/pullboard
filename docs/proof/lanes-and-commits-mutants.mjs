@@ -48,7 +48,7 @@ const MUTANTS = [
   ['C4', 'a refused header does not show what it saw', [['packages/commits/src/io/hooks.js', ' (saw "${header.slice(0, 60)}")', '']], HEADER, 'red'],
   ['C4', 'a blocked hook drops the note that says what to do', [['apps/cli/src/io/commands/hook.js', ".join('\\n')}\\n${FIX_NOTE}`);", ".join('\\n')}`);"]], IN_LANE, 'red'],
   ['C5', 'no fixer ever runs', [['packages/commits/src/io/hooks.js', '  if (!fixers.length) return [];', '  return [];']], FIXERS, 'red'],
-  ['C5', 'a partly staged file is fixed anyway', [['packages/commits/src/io/hooks.js', 'covers(fixer, path) && !unstaged.has(path) && existsSync(join(root, path))', 'covers(fixer, path) && existsSync(join(root, path))']], FIXERS, 'red'],
+  ['C5', 'a partly staged file is fixed anyway', [['packages/commits/src/io/hooks.js', 'covers(fixer, path) && !unstaged.has(path) && fs.exists(join(root, path))', 'covers(fixer, path) && fs.exists(join(root, path))']], FIXERS, 'red'],
   ['C5', 'what a fixer fixed is not staged again', [['packages/commits/src/io/hooks.js', "if (result.status === 0) git(root, ['add', '--', ...files]);", "if (false) git(root, ['add', '--', ...files]);"]], FIXERS, 'red'],
   ['C7', 'Linux runs only while the repository is public', [['.github/workflows/gate.yml', '    runs-on: ubuntu-latest\n    strategy:\n', '    if: ${{ !github.event.repository.private }}\n    runs-on: ubuntu-latest\n    strategy:\n']], CI, 'red'],
   ['C7', 'CI drops the oldest Node it supports', [['.github/workflows/gate.yml', "        node: ['22.13', '24']\n", "        node: ['24']\n"]], CI, 'red'],

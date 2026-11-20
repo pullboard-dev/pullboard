@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { checkoutHead } from '../../../git/index.js';
 import { gitExecFileSync } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Freeze a Git worktree's content; failure is unknown, never evidence of no work. The status is the command's shared
@@ -28,10 +28,10 @@ export function claimWorktreeSnapshot(root) {
     const untracked = listed.sort();
     for (const file of untracked) {
       const path = join(root, file);
-      const stat = lstatSync(path);
+      const stat = fs.lstat(path);
       add(file);
       add(String(stat.mode));
-      add(stat.isSymbolicLink() ? readlinkSync(path) : readFileSync(path));
+      add(stat.isSymbolicLink() ? fs.readlink(path) : fs.readFile(path, null));
     }
     return { head, digest: hash.digest('hex') };
   } catch { return null; }

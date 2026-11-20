@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -181,4 +182,16 @@ test('store.io-write-queue-file.fifty-claims-from-separate-processes-reach: clau
   assert.equal(rows.length, 50);
   assert.equal(new Set(rows.map(row => row.claim)).size, 50, 'every claim landed once');
   assert.deepEqual(rows.map(row => row.seq), rows.map(row => row.seq).slice().sort((a, b) => a - b), 'board event order equals queue order');
+});
+
+test('store.io-write-queue-file.scan-skips-stored-results: clause 1: a drain beside 500 stored results still applies three new writes in queue order and leaves no pending record [C7]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-scan-').root;
+  for (let n = 0; n < 500; n++) writeFileSync(join(dir, `old${n}.result`), JSON.stringify({ ok: true, value: n }));
+  const queue = createFileWriteQueue(dir);
+  const order = [];
+  const results = await Promise.all(['a', 'b', 'c'].map(id => queue.submit({ id, run: () => { order.push(id); return id; } })));
+  assert.deepEqual(order, ['a', 'b', 'c'], 'the three writes applied in queue order');
+  assert.deepEqual(results.map(result => result.value), ['a', 'b', 'c']);
+  assert.deepEqual(readdirSync(join(dir, 'pending')), [], 'no pending record is left');
+  assert.equal(readdirSync(dir).filter(name => name.endsWith('.pending')).length, 0, 'pending records never sit among the stored results');
 });
