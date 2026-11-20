@@ -1,0 +1,4 @@
+{
+  "gate.logic-adapter-lints-env.generated-script-files-exempt": {"proves":{"specs":["C7"],"claim":"The three generated child-script files are listed by exact path and the lint does not cover them."},"why":"Their reads sit in strings a child process runs and cannot migrate to the adapter; an exact-path list keeps every other file covered.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/env.js"]},
+  "gate.logic-adapter-lints-env.listed-file-without-ceiling-reports-nothing": {"proves":{"specs":["C7"],"claim":"A listed file with reads and no ceiling row reports nothing while an unlisted file with the same reads is reported."},"why":"Without this case the exemption could widen to other files unnoticed.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/env.js"]}
+}

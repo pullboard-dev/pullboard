@@ -2,7 +2,7 @@
 import { browserModules } from '../../../relay/index.js';
 import { presentationShout } from '../../../../packages/pages/light.js';
 import { presentationShout as nodePresentationShout } from '../../../../packages/pages/index.js';
-import { importsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
 import { fileURLToPath } from 'node:url';
 /** Native API and actual sealed relay readers must expose the same board [H5,H15,H16,A2]. */
 import assert from 'node:assert/strict';

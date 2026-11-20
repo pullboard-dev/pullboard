@@ -13,7 +13,7 @@ export const RELEASE_REASON_LINES = Object.freeze([
 export const workHelp = `Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
-  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
+  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--after-gate 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--readiness "<command>"]           the command that says the item is ready to start; edit replaces it, "" clears it
     [--needs browser,gui]               the abilities an agent needs to build it; edit replaces them, "" clears them
@@ -38,6 +38,7 @@ export const workHelp = `Work
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--level light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--after-gate <id>[,<id>...]|none]   replace the ids it waits on until their gate is green; none clears them
                 [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
                 [--needs browser,gui]   the abilities an agent needs to build it; "" clears them
                 [--sensitive]           select Strict review; edit can set it while open
@@ -121,6 +122,7 @@ export const workHelp = `Work
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
   pullboard next --stuck "<why>"        release the build you hold as BLOCKED with that reason, then print the next instruction
+  pullboard next --done                 submit the build you hold, then print the next instruction
   pullboard next --verify               reserve the next submitted item you can check;
   pullboard next --verify <id>          reserve that submitted item instead
                                         in the main checkout, verifying needs --as coordinator

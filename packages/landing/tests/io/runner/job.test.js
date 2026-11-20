@@ -135,3 +135,20 @@ test('landing.job.two-items-adding-registry-records-land-together: clause 2: wit
   assert.deepEqual(Object.keys(JSON.parse(box.rev('show', `refs/heads/main:${box.file}`))), ['demo.a', 'demo.item42', 'demo.item43']);
   for (const id of [42, 43]) assert.equal(box.rev('cat-file', '-t', `refs/heads/main:item-${id}.txt`), 'blob', `#${id}'s own file landed`);
 });
+
+test('landing.job.install-runs-before-item-check: clause 1: the land job runs the payload install command in its landing checkout before the first item check [C7,#12232]', async t => {
+  const box = landFixture(t);
+  const receipt = await runLandingJob({ ...box.payload, install: 'echo installed > installed.marker', check: ['sh', '-c', 'test -f installed.marker'] }, { workdir: box.workdir });
+  assert.equal(receipt.outcome, 'landed', JSON.stringify(receipt.detail));
+  assert.deepEqual(receipt.landed, [ITEM]);
+});
+
+test('landing.job.red-install-names-command-returns-no-item: clause 2: a red install ends the land job with an outcome naming the install command and returns no item [C7,#12232]', async t => {
+  const box = landFixture(t);
+  const before = box.tip();
+  const receipt = await runLandingJob({ ...box.payload, install: 'exit 3 # npm ci', check: ['true'] }, { workdir: box.workdir });
+  assert.equal(receipt.outcome, 'install-red');
+  assert.match(receipt.detail, /exit 3 # npm ci/u);
+  assert.deepEqual(receipt.returned, []);
+  assert.equal(box.tip(), before, 'a red install lands nothing');
+});
