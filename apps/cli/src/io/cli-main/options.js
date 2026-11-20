@@ -10,6 +10,7 @@ const OPTIONS = {
   'not-duplicate-of': { type: 'string' },
   here: { type: 'string' },
   confirm: { type: 'boolean' },
+  clear: { type: 'boolean' },
   reject: { type: 'boolean' },
   'accept-green': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
