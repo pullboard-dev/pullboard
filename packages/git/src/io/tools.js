@@ -1,12 +1,12 @@
 /** Content-addressed receipts bind board-tool recipes to exact Git input and output trees [C7,V4]. */
 import { gitSpawnSync } from './adapter.js';
-import { mkdtempSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { cleanGitEnvironment } from './main.js';
 import { invalidateGitFacts } from './main.js';
 
+const fs = fileSystemAdapter();
 const OBJECT = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
 
 /** Run scoped Git plumbing without consulting another checkout's inherited repository selectors. */
@@ -50,13 +50,13 @@ function receipt(root, base, tree) {
 
 /** Capture exactly what a subsequent ordinary commit would stage, without changing the caller's index. */
 function workingTree(root) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-tool-index-'));
+  const directory = fs.mkdtemp(join(tmpdir(), 'pullboard-tool-index-'));
   const env = { GIT_INDEX_FILE: join(directory, 'index') };
   try {
     run(root, ['read-tree', 'HEAD'], { env });
     run(root, ['add', '-A', '--', '.'], { env });
     return run(root, ['write-tree'], { env });
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }
 
 /** Record successful tool execution only when every prior uncommitted edit is already tool-recorded. */
