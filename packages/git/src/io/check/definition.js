@@ -1,16 +1,5 @@
 /** Fingerprint literal checker programs and their local module dependencies without executing them [V4,C7]. */
 import { createHash } from 'node:crypto';
-import { accessSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { constants } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { basename } from 'node:path';
 import { delimiter } from 'node:path';
@@ -19,12 +8,15 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { lex } from '../../../../kernel/light.js';
 import { literalShellWords } from '../../../../kernel/light.js';
 import { blobOid } from './project-files.js';
 import { indexedFiles } from './project-files.js';
 import { repoInfo } from '../main.js';
 import { storeName } from '../store-names.js';
+
+const fs = fileSystemAdapter();
 
 const binaries = new Map();
 
@@ -33,7 +25,7 @@ function fileDigest(file, stat) {
   const identity = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mode}:${stat.mtimeNs}:${stat.ctimeNs}`;
   const prior = binaries.get(file);
   if (stat.size > 1024n * 1024n && prior?.identity === identity) return prior.digest;
-  const digest = createHash('sha256').update(readFileSync(file)).digest('hex');
+  const digest = createHash('sha256').update(fs.readFile(file, null)).digest('hex');
   if (stat.size > 1024n * 1024n) binaries.set(file, { identity, digest });
   return digest;
 }
@@ -42,14 +34,14 @@ function fileDigest(file, stat) {
 function executable(root, word) {
   const paths = isAbsolute(word) || word.includes('/') ? [resolve(root, word)]
     : String(process.env.PATH ?? '').split(delimiter).map(directory => resolve(root, directory || '.', word));
-  return paths.find(file => { try { accessSync(file, constants.X_OK); return statSync(file).isFile(); } catch { return false; } });
+  return paths.find(file => { try { fs.access(file, fs.constants.X_OK); return fs.stat(file).isFile(); } catch { return false; } });
 }
 
 /** Resolve only literal local module files; directory/package loaders remain uncached rather than guessed. */
 function localModule(file, specifier) {
   const target = resolve(dirname(file), specifier);
   const found = [target, `${target}.js`, `${storeName(target)}`, `${target}.node`].find(candidate => {
-    try { return statSync(candidate).isFile(); } catch { return false; }
+    try { return fs.stat(candidate).isFile(); } catch { return false; }
   });
   if (!found) throw new Error('checker module cannot be resolved literally');
   return found;
@@ -106,11 +98,11 @@ export function scanImports(source, strict, size = contextWindow) {
 
 /** The first line of a file, read without loading the rest: executables and binaries are never read whole. */
 function firstLine(file) {
-  const descriptor = openSync(file, 'r');
+  const descriptor = fs.open(file, 'r');
   try {
     const head = Buffer.alloc(65536);
-    return head.toString('utf8', 0, readSync(descriptor, head, 0, head.length, 0)).split('\n', 1)[0];
-  } finally { closeSync(descriptor); }
+    return head.toString('utf8', 0, fs.read(descriptor, head, 0, head.length, 0)).split('\n', 1)[0];
+  } finally { fs.close(descriptor); }
 }
 
 // Import edges by blob id: what a file loads depends only on its bytes, its name and how it is read, never on the checkout.
@@ -126,13 +118,13 @@ const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../
 /** This repository's edge file, named by the scanner's bytes and Node (which decides builtins); merged once. */
 function loadEdges(project) {
   try {
-    const name = createHash('sha256').update(process.version).update(readFileSync(fileURLToPath(import.meta.url)))
-      .update(readFileSync(fileURLToPath(new URL('../../../../kernel/src/logic/lex.js', import.meta.url)))).digest('hex');
+    const name = createHash('sha256').update(process.version).update(fs.readFile(fileURLToPath(import.meta.url), null))
+      .update(fs.readFile(fileURLToPath(new URL('../../../../kernel/src/logic/lex.js', import.meta.url)), null)).digest('hex');
     const file = `${repoInfo(project).commonDir}/pullboard/import-edges-${name.slice(0, 16)}.json`;
     if (!loaded.has(file)) {
       loaded.add(file);
       try {
-        for (const [key, value] of Object.entries(JSON.parse(readFileSync(file, 'utf8')))) {
+        for (const [key, value] of Object.entries(JSON.parse(fs.readFile(file, 'utf8')))) {
           if (value?.k === 'js' ? Array.isArray(value.local) && value.local.every(item => typeof item === 'string') : /^(?:sh|none|bad)$/u.test(value?.k)) edges.set(key, value);
         }
       } catch { added++; /* None yet, or unreadable: the save replaces it. */ }
@@ -146,9 +138,9 @@ function saveEdges(file) {
   if (!file || !added) return;
   added = 0;
   try {
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(`${file}.${process.pid}`, JSON.stringify(Object.fromEntries([...edges].filter(([key]) => edges.size < 16384 || used.has(key)))));
-    renameSync(`${file}.${process.pid}`, file);
+    fs.mkdir(dirname(file), { recursive: true });
+    fs.writeFile(`${file}.${process.pid}`, JSON.stringify(Object.fromEntries([...edges].filter(([key]) => edges.size < 16384 || used.has(key)))));
+    fs.rename(`${file}.${process.pid}`, file);
   } catch { /* As above. */ }
 }
 
@@ -157,7 +149,7 @@ const unvouched = new WeakMap();
 
 /** The digest of one file the way the fingerprint takes it: project files by git blob id, others by content. */
 function entryDigest(file, stat, inside, length) {
-  return inside ? `git:${blobOid(readFileSync(file), length)}` : fileDigest(file, stat);
+  return inside ? `git:${blobOid(fs.readFile(file, null), length)}` : fileDigest(file, stat);
 }
 
 /**
@@ -173,7 +165,7 @@ export function definitionUnchanged(root, previous, commands, code) {
   try {
     const index = saved.tool.entries.length ? indexedFiles(saved.tool.root, [], { untracked: false }) : null;
     return saved.tool.entries.every(({ path, oid }) => index?.clean.get(path)?.oid === oid)
-      && saved.rest.every(({ file, inside, length, digest }) => entryDigest(file, statSync(file, { bigint: true }), inside, length) === digest);
+      && saved.rest.every(({ file, inside, length, digest }) => entryDigest(file, fs.stat(file, { bigint: true }), inside, length) === digest);
   } catch { return false; }
 }
 
@@ -187,7 +179,7 @@ function under(base, file) {
 export function checkCommandDefinition(root, commands, codeFiles = [], { tool: toolRoot = TOOL_ROOT } = {}) {
   const files = new Map();
   const rest = [];
-  const project = realpathSync.native(root);
+  const project = fs.realpath(root);
   const indexes = new Map();
   /** The git index answer, asked once and only when a file there needs it. */
   function tracked(base) {
@@ -195,7 +187,7 @@ export function checkCommandDefinition(root, commands, codeFiles = [], { tool: t
     return indexes.get(base);
   }
   let tool = null;
-  try { tool = realpathSync.native(toolRoot); } catch { /* Read like any other files. */ }
+  try { tool = fs.realpath(toolRoot); } catch { /* Read like any other files. */ }
   // Inside the project, Pullboard is the project's own code.
   if (tool === project || under(project, tool ?? '/') !== undefined) tool = null;
   const toolEntries = [];
@@ -207,10 +199,10 @@ export function checkCommandDefinition(root, commands, codeFiles = [], { tool: t
     const own = tool && given === undefined ? under(tool, named) : undefined;
     // A clean tracked regular file has no symlink above it, so its name is already its real path.
     const file = given !== undefined && tracked(project)?.clean.has(given) ? resolve(project, given)
-      : own !== undefined && tracked(tool)?.clean.has(own) ? resolve(tool, own) : realpathSync.native(input);
+      : own !== undefined && tracked(tool)?.clean.has(own) ? resolve(tool, own) : fs.realpath(input);
     if (files.has(file)) return;
     if (files.size >= 8192) throw new Error('checker dependency closure is unbounded');
-    const stat = statSync(file, { bigint: true });
+    const stat = fs.stat(file, { bigint: true });
     if (!stat.isFile()) throw new Error('checker input is not a regular file');
     const path = relative(project, file);
     const inside = !(path.startsWith('..') || isAbsolute(path));
@@ -223,13 +215,13 @@ export function checkCommandDefinition(root, commands, codeFiles = [], { tool: t
       digest = `git:${known.oid}`;
       if (!inside) toolEntries.push({ path: toolPath, oid: known.oid });
     } else {
-      if (inside) { bytes = readFileSync(file); digest = `git:${blobOid(bytes, length)}`; }
+      if (inside) { bytes = fs.readFile(file, null); digest = `git:${blobOid(bytes, length)}`; }
       else digest = fileDigest(file, stat);
       rest.push({ file, inside, length, digest });
     }
     files.set(file, { path: inside ? `project:${path}` : file, mode: String(stat.mode), digest });
     let text;
-    const source = () => text ??= bytes ? bytes.toString('utf8') : readFileSync(file, 'utf8');
+    const source = () => text ??= bytes ? bytes.toString('utf8') : fs.readFile(file, 'utf8');
     const flags = [/\.sh$/u.test(file), /\.[cm]?js$/u.test(file), /\.(?:py|rb|pl|php|ts|mjscript)$/u.test(file)].map(Number).join('');
     const key = digest.startsWith('git:') ? `${digest}:${strict ? 1 : 0}:${language}:${flags}` : null;
     let record = key ? edges.get(key) : undefined;
@@ -271,7 +263,7 @@ export function checkCommandDefinition(root, commands, codeFiles = [], { tool: t
       const operand = word.startsWith('-') ? word.includes('=') ? word.slice(word.indexOf('=') + 1) : '' : word;
       if (!operand) continue;
       const path = resolve(root, operand);
-      try { if (statSync(path).isFile()) { visit(path, true, script ? language : ''); if (!word.startsWith('-')) script = false; } }
+      try { if (fs.stat(path).isFile()) { visit(path, true, script ? language : ''); if (!word.startsWith('-')) script = false; } }
       catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
     }
   }
