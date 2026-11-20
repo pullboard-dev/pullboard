@@ -2,6 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { realGitAdapter } from '../../../git/index.js';
+import { withGitContractAdapter } from '../../../git/index.js';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
@@ -10,6 +13,7 @@ import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { headTree } from '../../../git/index.js';
 import * as store from '../../../store/index.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { boardJobQueueCall } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
@@ -253,4 +257,25 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
 
 test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+test('api.io-gate.seed-claim-path-no-git: clause 1: with gate.seedWideMainTests on and main unmoved, a pull claim through boardJobQueueCall spawns no git process, and the main sha is computed once per main move [C7,P7]', t => {
+  const project = cellProject(t, { real: true, config: { affectedTests: 'node --test' } });
+  const board = { db: cellBoard(t, ':memory:').db, gitRoot: project.repo };
+  const spawned = [];
+  const counting = Object.fromEntries(['spawnSync', 'execFileSync', 'spawn'].map(name => [name, (args, options) => { spawned.push(args.join(' ')); return realGitAdapter[name](args, options); }]));
+  const claim = () => withGitContractAdapter(counting, () => boardJobQueueCall(board, { action: 'claim', runner: 'r-seed', capabilities: [] }, { mode: 'pull', now: 10 * 3_600_000, seedWideMainTests: true }));
+  claim();
+  spawned.length = 0;
+  claim();
+  claim();
+  assert.deepEqual(spawned, [], 'claims at an unmoved main spawn no git process');
+  writeFileSync(join(project.repo, 'moved.txt'), 'moved');
+  project.git(project.repo, 'add', '-A');
+  project.git(project.repo, 'commit', '-qm', 'chore: move main');
+  claim();
+  assert.ok(spawned.length >= 1 && spawned.length <= 2, `one main move computes its sha once: ${spawned.join(' | ')}`);
+  spawned.length = 0;
+  claim();
+  assert.deepEqual(spawned, [], 'the next claim at the moved main spawns none');
 });

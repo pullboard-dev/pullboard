@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 /** Claimed companions bind their original author source to actual native composed proof [C7,V4,H16]. */
-import { rmSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { gitSpawnSync } from "../../../../git/index.js";
 import { cleanGitEnvironment } from "../../../../git/index.js";
 import { repoInfo } from "../../../../git/index.js";
@@ -15,6 +14,8 @@ import { Refused } from "../../../../kernel/index.js";
 import { claimedItemRoot } from '../claim.js';
 import { headCommitOf } from '../submit/revs.js';
 import { scratchFolder } from '../../../../config/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The claimed item's validated checkout, offered to the engine ports through the items front door [C7]. */
 export { claimedItemRoot };
@@ -57,7 +58,7 @@ export function sealItemPatchFollow(board, id, options) {
   const root = claimedItemRoot(board, item);
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!SHA.test(options.commit ?? '') || !root || !file
-    || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
+    || fs.realpath(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== fs.realpath(file)
     || headCommitOf(root) !== options.commit || git(root, ['status', '--porcelain'])) {
     throw new Refused('ITEM_PATCH_SOURCE', 'follow companions only on the clean registered builder head of this board');
   }
@@ -129,7 +130,7 @@ export function sealItemPatchSubmit(board, id, options) {
       : board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path);
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
-    if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)) throw new Error('foreign board');
+    if (!root || !file || fs.realpath(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== fs.realpath(file)) throw new Error('foreign board');
     // A pulled gate applies its receipt after the builder has moved on; its binding and receipts already name the exact source [P7,C7,#8747].
     if (!options.pulledPlan && headCommitOf(root) !== options.commit) throw new Error('builder moved');
     const receipts = binding.receiptIds.map(id => readGateReceipt(boardReceiptStore(board), id));
@@ -170,7 +171,7 @@ export function sealItemPatchSubmit(board, id, options) {
 /** Execute in a native temporary worktree sharing the real receipt store; always remove only this owned scratch, after any diagnostics the work left running. */
 export async function withItemPatchSubmit(root, binding, work) {
   if (!binding) return work(root);
-  const directory = realpathSync(scratchFolder('pullboard-companion-submit-'));
+  const directory = fs.realpath(scratchFolder('pullboard-companion-submit-'));
   const checkout = join(directory, 'repo');
   try {
     git(root, ['worktree', 'add', '--detach', checkout, binding.commit]);
@@ -182,6 +183,6 @@ export async function withItemPatchSubmit(root, binding, work) {
     // A post-checkout hook may fail after Git registered the worktree: inspect native registration, not exit status.
     const registered = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0').includes(`worktree ${checkout}`);
     if (registered) git(root, ['worktree', 'remove', '--force', checkout]);
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
   }
 }
