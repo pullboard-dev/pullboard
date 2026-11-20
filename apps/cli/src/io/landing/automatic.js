@@ -22,6 +22,7 @@ import {
 } from '../../../../../packages/git/index.js';
 import { stopLandingWaits } from '../../../../../packages/landing/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
+import { sprintLandable } from '../../../../../packages/api/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 import {
   landingBatches,
@@ -88,7 +89,7 @@ function landingObservation(root, ioOptions = {}) {
   const trunk = mainCheckout(root);
   // A repository with no board has nothing to land; reading must never create one (withBoardRead would open it for write).
   const verified = !existsSync(ctx.file) ? [] : withBoardRead(ctx, board => listItems(board, { all: true })
-    .filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => `${item.item_id}:${item.item_commit}`).sort());
+    .filter(item => !item.item_merged_commit && (item.item_status === 'verified' || sprintLandable(board, item, trunk?.commit ?? null))).map(item => `${item.item_id}:${item.item_commit}`).sort());
   return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0, verified };
 }
 
