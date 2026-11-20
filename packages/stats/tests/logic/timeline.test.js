@@ -42,6 +42,19 @@ test('stats.timeline.item-rows: clause 1: events, a gate job and its steps becom
   assert.deepEqual(unmapped, [{ kind: 'fact', count: 1 }], 'an event kind no stage names is reported, not dropped');
 });
 
+test('stats.timeline.submit-offered: clause 1: an item whose events hold a submit_offered followed 90 s later by a submit gets one submitted row, at the submit_offered [C7,#12214]', () => {
+  const { rows, unmapped } = timelineOf({ events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit_offered'), event(4, 10 * MIN + 90 * SEC, 'submit')], jobs: [], steps: [] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'submitted']);
+  assert.equal(rows[2].at, T0 + 10 * MIN);
+  assert.deepEqual(unmapped, []);
+});
+
+test('stats.timeline.submit-without-offered: clause 2: a submit event with no submit_offered before it still maps to the submitted stage as before [C7,#12214]', () => {
+  const { rows } = timelineOf({ events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit')], jobs: [], steps: [] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'submitted']);
+  assert.equal(rows[2].at, T0 + 10 * MIN);
+});
+
 test('stats.timeline.buckets: clause 1: bucket totals plus UNACCOUNTED equal the last row minus filed exactly, and the summary names the longest gap and its reason [C7,#12143]', () => {
   const gate = job('gate:1', 'gate', 20 * MIN, [['claimed', 21 * MIN], ['result', 25 * MIN, '{"outcome":"green"}']]);
   const land = job('land:1', 'landing-run', 40 * MIN, [['running', 40 * MIN + 30 * SEC], ['result', 41 * MIN]]);
