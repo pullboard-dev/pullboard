@@ -1,1 +1,3 @@
-{"edge": "resources->env"}
+{
+  "edge": "resources->env"
+}
