@@ -55,6 +55,7 @@ const BEFORE = {
   'gate.endStaleJobs': false,
   'gate.excuseMainTimingReds': false,
   'gate.fencedHop': true,
+  'gate.gateAgedMinutes': 5,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
@@ -85,6 +86,7 @@ const BEFORE = {
   'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
   'gate.retryNewRedsOnce': false,
+  'gate.seedWideMainTests': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300000,
@@ -203,6 +205,7 @@ const BEFORE = {
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'serve.pullRoute': false,
+  'serve.restartTrial': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'spec.requireFactQuote': false,
@@ -302,6 +305,13 @@ test('config.io-settings-machine-defaults.clause-1-gate-idiomspread-is-in-the: c
 test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machine: clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('config.io-settings-machine-defaults.restart-trial-default-off: clause 1: serve.restartTrial is a described boolean machine setting, listed in BEFORE, and false with nothing set [C7]', () => {
+  assert.equal(BEFORE['serve.restartTrial'], false);
+  assert.equal(MACHINE_DEFAULTS['serve.restartTrial'], false);
+  assert.equal(typeof MACHINE_DEFAULTS['serve.restartTrial'], 'boolean');
+  assert.ok(SETTING_DESCRIPTIONS['serve.restartTrial']);
 });
 
 test('clause 1: gate.knownMainStatic is a machine setting, false by default, with a description [C7]', () => {
@@ -600,4 +610,10 @@ test('config.io-settings-machine-defaults.health-advice-through-next: clause 1: 
   assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: false } }), false);
   assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: true } }), true);
   await assert.rejects(adviceThroughNextWith({ health: { adviceThroughNext: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /health\.adviceThroughNext/u.test(error.message));
+});
+
+test('config.io-settings-machine-defaults.seed-wide-main-default-off: clause 1: gate.seedWideMainTests is a described machine setting, boolean, default off, listed in BEFORE, and false with nothing set [C7,#12119]', () => {
+  assert.equal(BEFORE['gate.seedWideMainTests'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.seedWideMainTests'], false);
+  assert.equal(typeof SETTING_DESCRIPTIONS['gate.seedWideMainTests'].description, 'string');
 });

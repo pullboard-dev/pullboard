@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 /** Name file-backed board opens in tests and refuse growth of the unclassified debt [C7]. */
-import {
-  existsSync,
-  realpathSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { BOARD_FILE_BASELINE } from './baseline.js';
@@ -15,6 +12,9 @@ import {
   TEST_FILE,
   walk,
 } from '../scan.js';
+
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
 
 /**
  * Find production board opens whose first argument is not the literal :memory:.
@@ -65,7 +65,7 @@ export function boardFileProblems(root, baseline) {
   return boardFileGrowth(boardFileReport(root), baseline);
 }
 
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && disk.exists(process.argv[1]) && disk.realpath(process.argv[1]) === disk.realpath(fileURLToPath(import.meta.url))) {
   const args = process.argv.slice(2);
   const root = resolve(args.find(value => !value.startsWith('--')) ?? process.cwd());
   if (args.includes('--report')) report(boardFileReport(root));

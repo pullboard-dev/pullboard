@@ -40,6 +40,7 @@ import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
 import { noteSubmitSession } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { recordSubmitOffered } from './offered.js';
 import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
@@ -87,6 +88,24 @@ const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 /** Where the browser journeys look for Chrome (apps/cli/tests/fixtures/chrome.js), besides PULLBOARD_CHROME. */
 const KNOWN_BROWSERS = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+
+/**
+ * The proof plan a gate job hands the board to shard, or null when the proof runs in this job.
+ * Why: a proof over more files than the runner has cores is sharded, and a declared timing file is sharded even within the cores, so it runs alone on its runner [C7,#11961].
+ * It is injected into the gate entry's source, so it uses nothing outside itself.
+ *
+ * @param {{ testRunner?: string, proofFiles?: string[], selection?: { full?: boolean } }} plan The analysis plan.
+ * @param {number} cores The cores this runner has.
+ * @param {string[]} timing The proof files declared as needing an exclusive runner; only files in the proof list count.
+ * @param {string[] | null} selected The selected files when test tiers demand an account for each.
+ * @returns {{ runner: string, files: string[], cores: number, account?: true, timing?: string[] } | null}
+ */
+export function proofShardPlan(plan, cores, timing, selected) {
+  if (plan.selection?.full || typeof plan.testRunner !== 'string' || !plan.testRunner.trim() || !Array.isArray(plan.proofFiles)) return null;
+  const declared = Array.isArray(timing) ? plan.proofFiles.filter(file => timing.includes(file)) : [];
+  if (plan.proofFiles.length <= cores && !declared.length) return null;
+  return { runner: plan.testRunner.trim(), files: plan.proofFiles, cores, ...(selected ? { account: true } : {}), ...(declared.length ? { timing: declared } : {}) };
+}
 
 /**
  * The refusal line for a pinned analysis that died on an uncaught exception, or null when its output holds no thrown error and stack frame.
@@ -138,6 +157,7 @@ const keepOutput = (name, output) => {
   try { writeFileSync(join(keptFolder, name), output.length > ${KEPT_PHASE_BYTES} ? output.subarray(-${KEPT_PHASE_BYTES}) : output, { mode: 0o600 }); return name; } catch { return null; }
 };
 ${tapCaseErrors}
+${proofShardPlan}
 ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${specFailureFiles}
@@ -396,12 +416,16 @@ else {
     const plan = analysis.plan ?? {}, cores = availableParallelism();
     // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
     const selected = plan.testTiers && Array.isArray(plan.proofFiles) ? plan.proofFiles : null;
-    const shardable = input.shards === true && !receipt.analysis.ownership && !plan.selection?.full && typeof plan.testRunner === 'string' && plan.testRunner.trim() && Array.isArray(plan.proofFiles) && plan.proofFiles.length > cores;
+    // Main's gate door names the proof files that declare a need for an exclusive runner; an older main or a throw declares none [#11961].
+    let timing = [];
+    try { if (typeof gate?.timingTestFiles === 'function' && Array.isArray(plan.proofFiles)) timing = gate.timingTestFiles(root, plan.proofFiles); } catch { timing = []; }
+    const shardPlan = input.shards === true && !receipt.analysis.ownership ? proofShardPlan(plan, cores, timing, selected) : null;
+    const shardable = shardPlan !== null;
     // The check and the proof are independent commands: they start together and their phases keep the check-then-proof order [C7].
     // A shardable proof waits for the check, since the board takes it as shard jobs only when the check passed.
     if (shardable) {
       if (input.check) receipt.phases.push(await runPhase('check', input.check, PATH));
-      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores, ...(selected ? { account: true } : {}) };
+      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = shardPlan;
       else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH, selected));
     } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
     // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
@@ -640,7 +664,13 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) }));
+  const job = withBoard(ctx, board => {
+    const reopened = openJob(board.db, { kind: 'gate', item: id, candidate: source });
+    const offered = offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) });
+    // The submit's own instant is recorded only for a job this call offered; a retried submit that gets the open job writes nothing [C7].
+    if (!reopened) recordSubmitOffered(board, { item: id, by: me.id, commit, job: offered.id, main: main.commit });
+    return offered;
+  });
   mark('pins-and-offer');
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].

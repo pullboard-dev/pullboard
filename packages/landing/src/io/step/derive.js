@@ -1,9 +1,9 @@
 /** A named landing's derived files built on a runner: the coordinator applies the returned patch and commits [C7,#5568]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
-import { runStaticChecks } from '../../../../gate/index.js';
+import { runStaticChecks } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { stageLandingDerived } from '../derive.js';
@@ -15,6 +15,8 @@ import { DERIVE_ENGINES } from '../derive.js';
 import { DERIVE_PATCH } from '../derive.js';
 import { DERIVE_TREE } from '../derive.js';
 import { DERIVE_RULES } from '../derive.js';
+
+const fs = fileSystemAdapter();
 
 /** The value after `prefix` on the first output line carrying it, or null. */
 function lineValue(output, prefix) {
@@ -70,7 +72,7 @@ export async function commitDerived(state, merged, hooks) {
     // The coordinator writes the badge documents itself when no runner answered.
     const written = state.landingPorts?.writeBadges(root, state.landingPorts.badgeCounts(state.board)) ?? [];
     if (written.length) git(root, ['add', '--', ...written]);
-    derived = stageLandingDerived(root).engines;
+    derived = (await stageLandingDerived(root)).engines;
     await stageTestRegistries(root, state.batch.base);
     state.say('the runner could not derive this batch; engine numbers and docs were built on the coordinator');
   }
@@ -87,5 +89,5 @@ export async function commitDerived(state, merged, hooks) {
 
 /** Whether this batch derives on a runner: a named batch whose tree carries the derive script and rides runner jobs for its scan. */
 export function deriveRidesRunner(state) {
-  return scanRidesRunner(state) && existsSync(join(state.batch.root, 'packages/landing/src/io/derive.js'));
+  return scanRidesRunner(state) && fs.exists(join(state.batch.root, 'packages/landing/src/io/derive.js'));
 }

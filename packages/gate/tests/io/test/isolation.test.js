@@ -1,6 +1,6 @@
 /** @pullboard-test-loads apps/cli/src/io/run/tests.js packages/gate/src/io/run-tests.js packages/gate/src/io/test/isolation.js src/child-journal-preload.js packages/resources/src/io/home.js packages/config/src/io/settings.js packages/resources/index.js packages/config/src/io/main.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
-import { awaitNestedRun } from '../../../index.js';
+import { awaitNestedRun } from '../../../heavy.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -14,10 +14,10 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
-import { childJournalPreloadSource } from '../../../index.js';
-import { foreignNodeOptions } from '../../../index.js';
-import { gateMachineHome } from '../../../index.js';
-import { gateRuntimeCaptureSource } from '../../../index.js';
+import { childJournalPreloadSource } from '../../../heavy.js';
+import { foreignNodeOptions } from '../../../heavy.js';
+import { gateMachineHome } from '../../../heavy.js';
+import { gateRuntimeCaptureSource } from '../../../heavy.js';
 import { runtimeCaptureSource } from '../../../../sandbox/index.js';
 import { machineHome } from '../../../../resources/index.js';
 import { takeResource } from '../../../../resources/index.js';

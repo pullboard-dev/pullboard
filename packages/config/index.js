@@ -14,9 +14,11 @@ export {
   configProblems,
   doctrineFile,
   frozenCheckCeilingMs,
+  nextIdleMinutes,
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
+  provenBreakRequired,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
@@ -75,6 +77,7 @@ export {
   judgeByReleaseEnabled,
   endStaleJobsEnabled,
   failFastShardsEnabled,
+  seedWideMainTestsEnabled,
   retryNewRedsOnceEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
@@ -119,6 +122,7 @@ export {
   browserByLaunchEnabled,
   runnerDispatchMode,
   jobReserve,
+  gateAgedMs,
   localRunnerEnabled,
   localLoadShare,
   staticCheckSlots,
@@ -309,3 +313,4 @@ export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
 export { MACHINE_DEFAULTS } from './src/io/settings/machine-defaults.js';
 export { costPerMinute } from './src/logic/runner-rates.js';
+export { RUNNER_JOB_ENV, TESTS_ON_COORDINATOR, isCoordinatorMachine, coordinatorTestRefusal, refuseTestsOnCoordinator, testProcesses } from "./src/io/coordinator/guard.js";
