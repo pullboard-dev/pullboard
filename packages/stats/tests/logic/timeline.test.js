@@ -115,3 +115,18 @@ test('stats.timeline.fleet-overlay: clause 1: an api_stall row inside an unaccou
   assert.equal(outside.unaccounted_ms, 5 * MIN);
   assert.equal(outside.slowest[0].biggest_gap.reason, UNACCOUNTED);
 });
+
+test('stats.timeline.merged-at-commit-time: clause 1: a merged event whose mergedAt is ten minutes before its event time places merged at mergedAt and adds a recorded row at the event time, so the gap is its own row and not landing [C7,#12156]', () => {
+  const { rows, summary } = timelineOf({ events: [event(1, 0, 'add'), event(2, MIN, 'claim'), event(3, 20 * MIN, 'merged', { mergedAt: T0 + 10 * MIN, commit: 'abc' })] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'merged', 'recorded']);
+  assert.equal(rows[2].at, T0 + 10 * MIN, 'merged sits at the commit time');
+  assert.equal(rows[3].at, T0 + 20 * MIN, 'recorded sits at the event time');
+  assert.equal(rows[3].delta, 10 * MIN, 'the record lag is its own row');
+  assert.equal(summary.buckets.landing, 0, 'the lag is not charged to landing');
+});
+
+test('stats.timeline.merged-without-merged-at: clause 1: a merged event with no mergedAt places merged at its event time as before and adds no recorded row [C7,#12156]', () => {
+  const { rows } = timelineOf({ events: [event(1, 0, 'add'), event(2, MIN, 'claim'), event(3, 20 * MIN, 'merged', { commit: 'abc' })] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'merged']);
+  assert.equal(rows[2].at, T0 + 20 * MIN);
+});
