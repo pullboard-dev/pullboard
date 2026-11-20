@@ -138,7 +138,6 @@
     "packages/sandbox/src/io/regeneration.js"
   ],
   "write-state-file": [
-    "apps/cli/src/io/init/finish.js",
     "apps/cli/src/io/memo.js",
     "apps/cli/src/io/pinned/tool/build.js",
     "apps/cli/src/io/scale.js",
