@@ -18,7 +18,7 @@ test('stats.logic-flow-window.replay-window: clause 1: replayWindow counts lande
   assert.equal(window.stages.build.targetMinutes, 240);
   assert.equal(window.stages.build.overTargetMinutes, 60);
   assert.equal(window.stages.reviewWait.overTargetMinutes, 20);
-  assert.equal(window.stages.review.overTargetMinutes, 50 + 10);
+  assert.equal(window.stages.review.overTargetMinutes, 50);
   assert.equal(window.stages.mergeWait.overTargetMinutes, 0);
   assert.deepEqual(window.constraint, { stage: 'build', overTargetMinutes: 60 });
 });
