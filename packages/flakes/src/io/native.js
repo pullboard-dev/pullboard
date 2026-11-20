@@ -29,13 +29,13 @@ import {
 } from "../../../sandbox/index.js";
 import { fileURLToPath } from 'node:url';
 import { environmentAdapter } from "../../../env/index.js";
-import { runProfiledShellAsync } from "../../../gate/index.js";
-import { runFrozenProof } from "../../../gate/index.js";
+import { runProfiledShellAsync } from "../../../gate/heavy.js";
+import { runFrozenProof } from "../../../gate/heavy.js";
+import { tapFailures } from "../../../gate/index.js";
 import {
   committedTest,
-  tapFailures,
   tapTests,
-} from "../../../gate/index.js";
+} from "../../../gate/heavy.js";
 
 const fs = fileSystemAdapter();
 

@@ -1,0 +1,3 @@
+{
+  "config.io-settings-machine-defaults.seed-wide-main-default-off": {"proves":{"specs":["C7"],"claim":"gate.seedWideMainTests is a described machine setting, default off, listed in the BEFORE list."},"why":"Without this case the seed marker setting could ship on or undescribed.","kind":"cell unit","inputs":["packages/config/src/io/settings/machine-defaults.js","packages/config/tests/io/settings/machine-defaults.test.js"]}
+}

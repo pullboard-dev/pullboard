@@ -14,7 +14,7 @@ const { values } = parseArgs({ options: { output: { type: 'string' }, head: { ty
 import {
   releaseSource,
   runReleaseGate,
-} from '../../../../gate/index.js';
+} from '../../../../gate/heavy.js';
 const landing = Object.freeze({ ...landingExecutionServices(), releaseSource, runReleaseGate });
 if (!values.output || !values.head || landing.releaseSource(process.cwd()).head !== values.head) {
   throw new Error('release-gate needs --output and --head naming the exact accepted commit');

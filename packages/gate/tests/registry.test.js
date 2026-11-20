@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { relative } from 'node:path';
 import { test } from 'node:test';
 import { registryStrictEnabled as registryStrict } from '../../config/index.js';
 
@@ -31,6 +32,13 @@ function registryFindings(files, records) {
 /** Findings fail only in strict mode (tests.registryStrict on) and only when there is one. */
 function registryOutcome(findings, strict) {
   return { fails: strict && findings.length > 0, report: findings.length === 0 ? '' : `${findings.length} unregistered: ${findings.join('; ')}` };
+}
+
+/** How many tests the files declare, counted from their own test( lines, so a case added to a checked file never leaves a typed number stale. */
+function declared(files) {
+  const count = files.reduce((sum, { source }) => sum + [...source.matchAll(TESTS)].length, 0);
+  assert.ok(count > 0, 'the checked files declare tests');
+  return count;
 }
 
 const DIR = import.meta.dirname;
@@ -117,7 +125,7 @@ test('gate.registry.io-c: clause 2: [C7,U148] the io top-level red-fact-text, re
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 26, 'every test in those files has an ID');
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.logic-d: clause 2: [C7,U148] the logic test conversion, freeze-paths, journey-check, manifest-keep, progress and source tests each carry an ID in every test title and one record per ID', () => {
@@ -127,7 +135,7 @@ test('gate.registry.logic-d: clause 2: [C7,U148] the logic test conversion, free
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 45);
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each carry an ID in every test title and one record per ID', () => {
@@ -137,7 +145,7 @@ test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each car
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 40, 'all 40 tests of the logic b files are registered');
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.io-a: clause 2: [C7,U148] the io top-level a test files each carry an ID in every test title and one record per ID', () => {
@@ -147,7 +155,7 @@ test('gate.registry.io-a: clause 2: [C7,U148] the io top-level a test files each
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith("registry.json:"));
   assert.deepEqual(mine, [], "every test in those files is titled with a registered ID");
-  assert.equal(ids.length, 33, 'all 33 tests of the io top-level a files are registered');
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.io-stores: clause 2: [C7,U148] the io stores test file carries an ID in every test title and one record per ID', () => {
@@ -156,7 +164,7 @@ test('gate.registry.io-stores: clause 2: [C7,U148] the io stores test file carri
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in that file is titled with a registered ID');
-  assert.equal(ids.length, 39, 'all 39 tests of the io stores file are registered');
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.io-moves-to-watchdog: clause 3: [C7,U148] the io folders moves through watchdog, style.test.js excepted, each carry an ID in every test title and one record per ID', () => {
@@ -177,7 +185,7 @@ test('gate.registry.io-b: clause 2: [C7,U148] the io top-level b test files each
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 25, 'all 25 tests of the io top-level b files are registered');
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.logic-c: clause 2: [C7,U148] the logic c test files each carry an ID in every test title and one record per ID', () => {
@@ -187,7 +195,7 @@ test('gate.registry.logic-c: clause 2: [C7,U148] the logic c test files each car
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 43, 'all 43 tests of the logic c files are registered');
+  assert.equal(ids.length, declared(files), 'every test declared in those files is registered');
 });
 
 test('gate.registry.top-left: clause 2: [C7,U148] the journey parity, run-tests-timeout, runner pid and io test isolation files each carry an ID in every test title and one record per ID', () => {
@@ -197,7 +205,7 @@ test('gate.registry.top-left: clause 2: [C7,U148] the journey parity, run-tests-
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 32, `all 32 tests of those files are registered (${ids.length})`);
+  assert.equal(ids.length, declared(files), `every test declared in those files is registered (${ids.length})`);
 });
 
 test('gate.registry.logic-all: clause 1: [C7,U148] every test file under the logic folder carries an ID in every test title and one record per ID', () => {
@@ -207,7 +215,7 @@ test('gate.registry.logic-all: clause 1: [C7,U148] every test file under the log
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in the logic folder is titled with a registered ID');
-  assert.ok(ids.length >= 216, 'all 216 tests of the logic folder are registered');
+  assert.equal(ids.length, declared(files), 'every test declared in the logic folder is registered');
 });
 
 test('gate.registry.per-item-files: clause 1: [C7] the registry loader returns a record kept only in a registry-<id>.json in the fixtures folder, merged with packages/gate/tests/fixtures/registry.json', () => {
@@ -224,4 +232,48 @@ test('gate.registry.per-item-files: clause 1: [C7] the registry loader returns a
 test('gate.registry.duplicate-across-files: clause 2: [C7] an ID recorded in two registry files is reported as a duplicate, and gate.registry.complete fails on any duplicate', () => {
   const files = { 'registry.json': '{"a.one":{}}', 'registry-12.json': '{"a.one":{}}' };
   assert.deepEqual(mergeRecords(Object.keys(files), (name) => files[name]).duplicates, ['a.one (registry.json)']);
+});
+
+test('gate.registry.derived-counts: clause 1: [C7] the expected test count is read from the checked files, so one more declared test raises it with no typed number to update', () => {
+  const two = ["import test from 'node:test';", "test('a.one: x', () => {});", "test('a.two: y', () => {});", ''].join('\n');
+  const three = `${two}test('a.three: z', () => {});\n`;
+  assert.equal(declared([{ file: 'one.test.js', source: two }]), 2);
+  assert.equal(declared([{ file: 'one.test.js', source: two }, { file: 'two.test.js', source: three }]), 5);
+  const stores = join(DIR, 'io', 'stores.test.js');
+  const source = readFileSync(stores, 'utf8');
+  assert.equal(declared([{ file: stores, source }]), [...source.matchAll(TITLE_ID)].length);
+});
+
+/** The two view-lane test files left out of the whole-folder check, each with the item that holds its registration: a named exclusion that cannot grow [#10189,#10297]. */
+const VIEW_LANE_EXCLUSIONS = new Map([['stable.test.js', '#10189'], ['io/static/style.test.js', '#10297']]);
+/** A test title anywhere in a file, at any indent, in single or double quotes or a template literal. */
+const ANY_TITLE = /^[ \t]*(?:test|it)\(\s*[`'"]([^`'":\s]+): /gmu;
+/** A title written out in a quote or template; a title computed from a variable, as a generated fixture's probes do, names no ID to check. */
+const ANY_TEST = /^[ \t]*(?:test|it)\(\s*[`'"]/gmu;
+
+test('gate.registry.all: clause 1: [C7,U148,#10739] every test file under the gate tests folder, the two view-lane files excepted, carries an ID in every test title and no record names no test; an unregistered test fails only with tests.registryStrict on', (t) => {
+  const { records } = loadRecords(DIR);
+  const left = testFiles(DIR).filter((file) => !VIEW_LANE_EXCLUSIONS.has(relative(DIR, file)));
+  assert.equal(testFiles(DIR).length - left.length, VIEW_LANE_EXCLUSIONS.size, 'exactly the named view-lane files are excluded');
+  const findings = [];
+  const written = new Set();
+  for (const file of left) {
+    const source = readFileSync(file, 'utf8');
+    const found = [...source.matchAll(ANY_TITLE)].map((match) => match[1]);
+    const missing = [...source.matchAll(ANY_TEST)].length - found.length;
+    if (missing > 0) findings.push(`${relative(DIR, file)}: ${missing} test title(s) start without an ID and a colon`);
+    for (const id of found) {
+      written.add(id);
+      if (!Object.hasOwn(records, id)) findings.push(`${relative(DIR, file)}: test ${id} has no registry record`);
+    }
+  }
+  const excluded = [...VIEW_LANE_EXCLUSIONS.keys()].map((name) => readFileSync(join(DIR, name), 'utf8'));
+  for (const id of Object.keys(records)) {
+    if (!written.has(id) && !excluded.some((source) => source.includes(`${id}:`))) findings.push(`registry.json: record ${id} names no test`);
+  }
+  assert.ok(left.length >= 150, 'the gate tests folder is present');
+  const outcome = registryOutcome(findings, registryStrict());
+  if (outcome.report) t.diagnostic(outcome.report);
+  assert.equal(outcome.fails, false, outcome.report);
+  assert.deepEqual(findings, [], 'every gate test is titled with a registered ID');
 });
