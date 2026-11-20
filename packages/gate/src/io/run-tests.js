@@ -65,11 +65,12 @@ import { hasTestFiles as selectedFilesPresent } from './test/selection.js';
 import { explicitTestFiles as selectedFiles } from './test/selection.js';
 import { formatTestOutcomes } from './test/outcomes.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 // The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
 import { testRunPhaseClock } from './test/run/phases.js';
 import { storeName } from './store-names.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
-removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
+const environment = environmentAdapter(); for (const name of removeGitRepositorySelectors(environment.all(), text => process.stderr.write(text))) environment.delete(name);
 /** Keep selected path parsing on the same native option-arity contract. */
 const explicitTestFiles = args => selectedFiles(args, optionTakesValue);
 /** Distinguish actual files from option values before admission. */
@@ -90,7 +91,7 @@ const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
 export { DEFAULT_TEST_FILE_TIMEOUT_MS };
 // Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable; PULLBOARD_LANDING_IDENTITY_WAIT_MS (1 to 999999 ms) shortens both waits for fixtures that make ps fail on purpose [C7].
-const LANDING_WORKER_IDENTITY_TIMEOUT_MS = /^[1-9]\d{0,5}$/u.test(process.env.PULLBOARD_LANDING_IDENTITY_WAIT_MS ?? '') ? Number(process.env.PULLBOARD_LANDING_IDENTITY_WAIT_MS) : 12_000;
+const LANDING_WORKER_IDENTITY_TIMEOUT_MS = /^[1-9]\d{0,5}$/u.test(environment.get('PULLBOARD_LANDING_IDENTITY_WAIT_MS', '')) ? Number(environment.get('PULLBOARD_LANDING_IDENTITY_WAIT_MS')) : 12_000;
 const LANDING_CHILD_CUSTODY_TIMEOUT_MS = LANDING_WORKER_IDENTITY_TIMEOUT_MS;
 let reportFileTest = () => {};
 
@@ -100,7 +101,7 @@ let reportFileTest = () => {};
  * @param {string | undefined} value
  * @returns {number}
  */
-function testTimeoutMs(value = process.env.PULLBOARD_TEST_TIMEOUT_MS) {
+function testTimeoutMs(value = environment.get('PULLBOARD_TEST_TIMEOUT_MS')) {
   if (value === undefined) return DEFAULT_TEST_TIMEOUT_MS;
   if (!/^[1-9][0-9]*$/u.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > 2_147_483_647) {
     throw new Error('PULLBOARD_TEST_TIMEOUT_MS must be a positive integer no greater than 2147483647 milliseconds');
@@ -116,7 +117,7 @@ function testTimeoutMs(value = process.env.PULLBOARD_TEST_TIMEOUT_MS) {
 function installTestWatchdog() {
   const timeoutMs = testTimeoutMs();
   const fileTimeoutMs = testFileTimeoutMs();
-  const file = process.env.PULLBOARD_TEST_FILE ?? process.argv[1] ?? '<unknown test file>';
+  const file = environment.get('PULLBOARD_TEST_FILE') ?? process.argv[1] ?? '<unknown test file>';
   const watchdog = new Worker(watchdogSource, { eval: true });
   watchdog.on('message', (message) => {
     if (message.type !== 'file-diagnostic-request') return;
@@ -201,7 +202,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   writeFileSync(git, `#!/bin/sh\nexec ${shellWord(realGit)} -c user.useConfigOnly=true "$@"\n`);
   chmodSync(git, 0o755);
 
-  const env = { ...process.env };
+  const env = environment.all();
   for (const key of Object.keys(env)) {
     if (key.startsWith('GIT_')) delete env[key];
   }
@@ -220,10 +221,10 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   env.PULLBOARD_MACHINE_HOME = join(sandbox, 'machine');
   // A test finds its runner by this pid, never by parsing ps text; a nested runner sets its own (#1073).
   // Behind the shim at packages/gate/src/io/run/tests.js the shim is the runner a SIGKILL can reach, so it is the one named.
-  env.PULLBOARD_TEST_RUNNER_PID = String(Number(process.env.PULLBOARD_RUN_SHIM_PID) || process.pid);
+  env.PULLBOARD_TEST_RUNNER_PID = String(Number(environment.get('PULLBOARD_RUN_SHIM_PID')) || process.pid);
   delete env.PULLBOARD_RUN_SHIM_PID;
   // #1046: every file of every run takes a token from one machine pool; a nested run keeps its parent's loan.
-  env[TEST_FILE_POOL_ENV] = testFilePoolValue(process.env);
+  env[TEST_FILE_POOL_ENV] = testFilePoolValue(environment.all());
   isolateTestMachine(env, sandbox); // #1068: no settings, resources, runners or host markers of the real machine.
   // init and resume start a background view by default; a test opts back in by deleting this.
   env.PULLBOARD_VIEW_BACKGROUND = '0';
@@ -243,7 +244,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   env.GIT_CONFIG_VALUE_1 = '0';
   env.GIT_CONFIG_KEY_2 = 'maintenance.auto';
   env.GIT_CONFIG_VALUE_2 = 'false';
-  env.PATH = [shims, process.env.PATH].filter(Boolean).join(delimiter);
+  env.PATH = [shims, environment.get('PATH')].filter(Boolean).join(delimiter);
   delete env.PULLBOARD_RELAY_TOKEN; // Fixtures must supply their own scoped credentials, never an agent’s live bearer.
   delete env.NODE_TEST_CONTEXT;
   delete env.PULLBOARD_TEST_FILE;
@@ -539,7 +540,7 @@ function watchLandingChildCustody(startsPath, attempt) {
     child.once('spawn', () => {
       if (!Number.isInteger(child.pid)) return;
       const recordPath = join(directory, storeName(`${prefix}${sequence++}.${randomUUID()}`));
-      const record = { type: 'child-pending', attempt, file: process.env.PULLBOARD_TEST_FILE,
+      const record = { type: 'child-pending', attempt, file: environment.get('PULLBOARD_TEST_FILE'),
         parentPid: process.pid, pid: child.pid, spawnFile: child.spawnfile,
         spawnArgs: Array.isArray(child.spawnargs) ? child.spawnargs : [] };
       try {
