@@ -24,6 +24,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
 import { takeConflictNotices } from '../../../../packages/outbox/light.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import {
   localFirstBoard,
   nudgeRelaySender,
@@ -41,7 +42,7 @@ const fs = fileSystemAdapter();
 async function retryCheckBaselines(root, ...args) {
   // No finished result waiting means nothing to deliver, so the gate stays unloaded.
   if (!baselineReceiptsPending(repoInfo(root).commonDir)) return;
-  return (await import('../../../../packages/gate/index.js')).retryCheckBaselines(root, ...args);
+  return (await import('../../../../packages/gate/heavy.js')).retryCheckBaselines(root, ...args);
 }
 
 /** Codes a checkout with no board refuses with, which the sync around a command keeps quiet. */
@@ -104,8 +105,9 @@ const PAUSED_BASELINE_WAIT_MS = 250;
 
 /** The paused-baseline wait: 250 ms for people; a fixture board may widen it, since its loopback relay shares a loaded event loop. */
 function pausedBaselineWaitMs() {
-  const widened = Number(process.env.PULLBOARD_FIXTURE_PAUSED_WAIT_MS);
-  return process.env.PULLBOARD_FIXTURE_BOARD === '1' && widened > 0 ? widened : PAUSED_BASELINE_WAIT_MS;
+  const environment = environmentAdapter();
+  const widened = Number(environment.get('PULLBOARD_FIXTURE_PAUSED_WAIT_MS'));
+  return environment.get('PULLBOARD_FIXTURE_BOARD') === '1' && widened > 0 ? widened : PAUSED_BASELINE_WAIT_MS;
 }
 
 /** Whether this checkout's relay link holds a paused baseline upload: its saved pause, read from one small local file. */
