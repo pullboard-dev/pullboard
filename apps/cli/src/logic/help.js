@@ -115,6 +115,7 @@ const HELP_ALIASES = {
 };
 
 export const HELP_FLAG_EXPLANATIONS = {
+  '--done': 'next: submit the one build claim this seat holds, as pullboard submit does, then answer as next does',
   '--stuck': 'next: release the one build claim this seat holds as BLOCKED with this reason, then answer as next does',
   '--take': 'next: take one eligible item in this seat; handoff: take the named existing hand-off',
   '--after': 'ids or repo#id; claiming waits for verified items on their own boards',
