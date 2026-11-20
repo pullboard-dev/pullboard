@@ -1,0 +1,3 @@
+{
+  "cli.journeys-mcp.cell-from-folder": {"proves":{"specs":["A9","C7"],"claim":"The mcp cell query names the cell and front door from the path folder and the allowed imports from the declared edge rule, reading no plan and no temporary-edges file."},"why":"Without it the cell query keeps depending on the restructure plan that goes with the last Cells move.","kind":"journey","inputs":["apps/cli/src/io/commands/mcp.js","apps/cli/journeys/mcp/main.test.js"]}
+}
