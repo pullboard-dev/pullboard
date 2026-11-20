@@ -1,15 +1,15 @@
 /** pullboard mark appends one mark event from the closed stage and reason lists and refuses anything else with no event [C7,#12157]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
-import { runCliInProcess } from '../../fixtures/process.js';
 
 const marks = (box, id) => box.board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id=? AND event_kind='mark' ORDER BY event_id").all(id);
 
-/** Run mark from the builder's seat through the real command; nothing is stubbed. */
-const mark = (box, ...args) => {
-  const ran = runCliInProcess(['mark', ...args, '--json'], { cwd: box.seats.builder.path, env: box.env });
-  return ran;
+/** Run mark from the builder's seat through the real command on the fixture's clock, so --at is judged against the same now the test sets; nothing is stubbed. */
+const mark = async (box, ...args) => {
+  const ran = await cli(box, box.seats.builder.path, ['mark', ...args]);
+  return { status: ran.code, stdout: ran.out, stderr: ran.err };
 };
 
 test('cli.mark.one-append: clause 1: pullboard mark ID smoke --start --ref SHA --at TIME appends exactly one mark event with stage, edge, ref and the given at [C7,#12157]', async t => {
