@@ -369,13 +369,17 @@ function caseTickNotes(clauses, outcomes, { run, head }) {
  */
 export function checkRunTickNotes(item, head) {
   const check = String(item.item_check ?? '').trim();
-  return check ? testClauseTickNotes(criterionClauses(item.item_criterion), `check run of ${check}`, head) : [];
+  return check ? testClauseTickNotes(criterionClauses(item.item_criterion), `check run of ${check}`, head, true) : [];
 }
 
-/** One tick note per test clause (declared [test] or undeclared) citing a green run description at a head commit. */
-function testClauseTickNotes(clauses, run, head) {
-  return clauses.filter(clause => clause.kind === null || clause.kind === 'test')
-    .map(clause => `clause ${clause.number} [test]: green pullboard ${run} at ${head}`);
+/**
+ * One tick note per test clause (declared [test] or undeclared) citing a green run description at a head commit; with
+ * `commands`, [command] clauses get a note too. Why: a green check run is the proof of a command clause as well, so the
+ * builder need not retype what the board knows; [measurement] and [reasoning] clauses always need their own evidence [C7].
+ */
+function testClauseTickNotes(clauses, run, head, commands = false) {
+  return clauses.filter(clause => clause.kind === null || clause.kind === 'test' || (commands && clause.kind === 'command'))
+    .map(clause => `clause ${clause.number} [${clause.kind ?? 'test'}]: green pullboard ${run} at ${head}`);
 }
 
 /** The most case names one gate tick note lists; the receipt keeps the rest. */

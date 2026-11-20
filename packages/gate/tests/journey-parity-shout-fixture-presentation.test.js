@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/shout/journeys/fixture-presentation.test.js', cases: ["clause 1: borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]"] }];
+const SAMPLES = [{ journey: 'apps/cli/journeys/shout/journeys/fixture-presentation.test.js', cases: ["cli.journeys-shout-journeys-fixture-presentation.borrowed-board-presentation-keeps-parity-shows: clause 1: borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]"] }];
 
 test('gate.parity-shout-fixture-presentation.sample-gives-same-results: clause 1: a sample of the shout fixture-presentation journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);

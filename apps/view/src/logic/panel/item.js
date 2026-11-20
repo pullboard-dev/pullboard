@@ -235,6 +235,30 @@ export function itemPanelHtml(model, h) {
       + '<text class="jt" x="0" y="59">' + esc(j.start) + '</text><text class="jt" x="' + W + '" y="59" text-anchor="end">' + esc(j.end) + '</text></svg>';
     out += sec('Journey', esc(j.span) + (j.builtAny ? ' · building ' + esc(j.built) : ''), '<div class="ip-card ip-jc">' + svg + '</div>');
   }
+  const tl = h.strip && h.strip.summary && h.strip.summary.total_ms > 0 ? h.strip.summary : null;
+  if (tl) {
+    // The Timeline strip [#12162]: one line from filed to now or merged, a segment per bucket, wait reason and UNACCOUNTED stretch, each as wide as its share of the item's time.
+    const W = 1000;
+    const span = ms => { const s = Math.round(ms / 1000); return s >= 3600 ? Math.floor(s / 3600) + 'h ' + Math.floor(s % 3600 / 60) + 'm' : s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's'; };
+    const slug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/gu, '-');
+    const parts = [];
+    for (const [name, ms] of Object.entries(tl.buckets || {})) if (ms > 0) parts.push({ cls: 'tl-' + slug(name), stage: name, ms, reason: '' });
+    for (const [name, ms] of Object.entries(tl.waits || {})) if (ms > 0) parts.push({ cls: 'tl-wait', stage: 'waiting', ms, reason: name });
+    if (tl.unaccounted_ms > 0) parts.push({ cls: 'tl-unaccounted', stage: 'UNACCOUNTED', ms: tl.unaccounted_ms, reason: 'UNACCOUNTED' });
+    let at = 0;
+    const rects = parts.map(part => {
+      const width = part.ms / tl.total_ms * W, x = at;
+      at += width;
+      const tip = part.stage + ' ' + span(part.ms) + (part.reason ? ' ' + part.reason : '');
+      return '<rect class="tl-seg ' + part.cls + '"' + (part.reason === 'UNACCOUNTED' ? ' data-unaccounted="true"' : '') + ' data-stage="' + esc(part.stage) + '" data-ms="' + part.ms + '" x="' + x.toFixed(2) + '" y="0" width="' + width.toFixed(2) + '" height="10"><title>' + esc(tip) + '</title></rect>';
+    }).join('');
+    const gap = tl.longest_gap;
+    const gapLabel = gap ? 'longest gap ' + span(gap.ms) + ' ' + gap.reason : 'no gap';
+    const mark = tl.unaccounted_ms > 0 ? ' · ' + span(tl.unaccounted_ms) + ' UNACCOUNTED' : '';
+    out += sec('Timeline', esc(span(tl.total_ms)) + mark + ' · ' + esc(gapLabel),
+      '<div class="ip-card ip-tl item-timeline-strip"><svg class="tl-strip" viewBox="0 0 ' + W + ' 10" preserveAspectRatio="none" role="img" aria-label="Timeline of #' + hd.id + '"><rect class="tl-track" x="0" y="0" width="' + W + '" height="10"/>' + rects + '</svg>'
+      + '<p class="tl-gap" data-gap="' + (gap ? esc(gap.reason) : '') + '">' + esc(gapLabel) + '</p></div>');
+  }
   if (model.clauses.length) {
     out += sec('Done when', model.proven + ' of ' + model.clauses.length + ' proven',
       '<div class="ip-card">' + model.clauses.map(c => '<div class="ip-cl" data-item-clause role="button" tabindex="0" aria-expanded="false"><span class="n">' + c.n + '</span><span class="t">' + h.inline(c.text) + '</span>'

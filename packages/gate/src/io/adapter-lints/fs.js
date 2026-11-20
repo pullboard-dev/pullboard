@@ -6,19 +6,39 @@
  * Why: scattered node:fs imports tie every module to the real disk, so the lint stops the count from growing while the
  * adapter replaces them. Behind gate.adapterLintFs, off by default: with it off the lint reports nothing.
  */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { walk } from '../scan.js';
+
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
 
 /** The ceilings file: per-file counts of today's direct node:fs imports, repo-relative. */
 export const FS_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-fs.json';
 
 const KERNEL = 'packages/kernel/';
+/**
+ * The files whose node:fs imports live inside generated child-process scripts, which cannot import the adapter:
+ * the two submit files, the runner probe, the capsule installer stringified into the remote install script (#11632),
+ * the runner service and parser worker programs, the runner remote tooling script, the journal source script and the
+ * codemap module-imports script (#11997).
+ *
+ * Why: the lint counts import text, so these files can never reach zero by migration; exempting them by exact path keeps
+ * the imports visible here instead of rewriting the generated scripts to dodge the count [C7].
+ */
+const GENERATED_CHILD_SCRIPTS = new Set(['apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js', 'packages/runners/src/io/probe.js', 'packages/runners/src/io/package/install.js',
+  'packages/runners/src/io/service.js', 'packages/runners/src/io/module/parser/worker.js', 'packages/runners/src/io/tooling/remote.js', 'packages/gate/src/io/journal/source.js', 'packages/codemap/src/io/module/imports.js']);
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const FS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(['"`])(?:node:)?fs(?:\/promises)?\1/gu;
 
-/** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test. */
-export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL)
+/**
+ * The watchdog worker's program text: a worker thread's own program cannot import the adapter, and it must write a
+ * diagnostic from outside the stuck event loop, so its node:fs require is the one exempt path.
+ */
+const WATCHDOG_SOURCE = 'packages/gate/src/io/run-tests-watchdog-source.js';
+
+/** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not the watchdog program text, not a generated-child-script file. */
+export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && path !== WATCHDOG_SOURCE && !GENERATED_CHILD_SCRIPTS.has(path)
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**
@@ -76,8 +96,8 @@ export function fsCounts(files) {
 export function fsLintRows(root, { enabled = false } = {}) {
   if (enabled !== true) return [];
   let ceilings = {};
-  try { ceilings = JSON.parse(readFileSync(join(root, FS_CEILING_FILE), 'utf8')).files ?? {}; } catch { ceilings = {}; }
+  try { ceilings = JSON.parse(disk.readFile(join(root, FS_CEILING_FILE), 'utf8')).files ?? {}; } catch { ceilings = {}; }
   const files = {};
-  for (const path of walk(root, SOURCE_FILE)) if (coveredByFsLint(path)) files[path] = readFileSync(join(root, path), 'utf8');
+  for (const path of walk(root, SOURCE_FILE)) if (coveredByFsLint(path)) files[path] = disk.readFile(join(root, path), 'utf8');
   return fsFindings(files, ceilings);
 }

@@ -5,7 +5,8 @@
  * Why a file: the test runner sits behind the gate bootstrap's own processes and pipes, so a side file the runner
  * names by env is the one channel that reaches runner serve unchanged. Only repository-relative paths are kept.
  */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** The env var the run's progress reporter reads (packages/gate/src/io/test/progress.js says the same name). */
 export const PROGRESS_ENV = 'PULLBOARD_TEST_PROGRESS';
@@ -55,7 +56,7 @@ export function watchProgress({ file, selected = null, post, everyMs = PROGRESS_
   const tick = () => {
     posting = posting.then(async () => {
       let text = '';
-      try { text = readFileSync(file, 'utf8'); } catch { return; }
+      try { text = fs.readFile(file, 'utf8'); } catch { return; }
       const progress = foldProgress(text, { selected });
       const said = JSON.stringify(progress);
       if (!progress || said === last) return;

@@ -2,12 +2,6 @@
  * Lanes (L1, L2): which folders each lane owns. The board, `pullboard lanes` and the pre-commit
  * lane check all read the same declaration in pullboard.json, and `pullboard lane add` writes it.
  */
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   CONFIG_FILE,
@@ -17,6 +11,8 @@ import {
 } from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { laneOf } from '../logic/lane/lookup.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 export { laneOf };
 
@@ -77,7 +73,7 @@ export function lanePath(root, path) {
   if (!prefix || prefix.startsWith('/') || prefix.split('/').includes('..')) {
     throw new Refused('BAD_LANE_PATH', `"${path}" is not a folder inside this repo; give a path relative to the repo root, like packages/web/`);
   }
-  if (!prefix.endsWith('/') && existsSync(join(root, prefix)) && statSync(join(root, prefix)).isDirectory()) prefix += '/';
+  if (!prefix.endsWith('/') && fileSystem.exists(join(root, prefix)) && fileSystem.stat(join(root, prefix)).isDirectory()) prefix += '/';
   return prefix;
 }
 
@@ -110,7 +106,7 @@ export function addLane(root, name, paths) {
     }
   }
   const file = join(root, CONFIG_FILE);
-  const raw = JSON.parse(readFileSync(file, 'utf8'));
+  const raw = JSON.parse(fileSystem.readFile(file, 'utf8'));
   raw.lanes = { ...(raw.lanes ?? {}), [name]: { owns } };
   const text = `${JSON.stringify(raw, null, 2)}\n`;
   try { configFromSource(text); }
@@ -118,6 +114,6 @@ export function addLane(root, name, paths) {
     if (!(error instanceof Refused)) throw error;
     throw new Refused('BAD_LANE', `lane "${name}" cannot be added: names are lowercase words of letters, digits and dashes, like web or api-2; pick another name`);
   }
-  writeFileSync(file, text);
+  fileSystem.writeFile(file, text);
   return { lane: name, owns };
 }

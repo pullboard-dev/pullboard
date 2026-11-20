@@ -26,11 +26,14 @@ export function createQueuedItemLease(ctx, initial, agentId, kind, admission, { 
     return await withBoard(ctx, async (board) => {
       const current = getItem(board, initial.item_id);
       const expires = Date.parse(current[field]);
-      if (current.item_status !== status || current[owner] !== agentId || !Number.isFinite(expires) || expires <= now
-        || current.item_frozen_digest !== expected.digest || current.item_commit !== expected.commit) {
+      const lapsed = !Number.isFinite(expires) || expires <= now;
+      const same = current.item_status === status && current[owner] === agentId
+        && current.item_frozen_digest === expected.digest && current.item_commit === expected.commit;
+      // A reviewer whose own reservation lapsed while a slow runner held the check renews it; a lapsed build claim, or any change of reviewer, status, commit or digest, is lost.
+      if (!same || (lapsed && !review)) {
         throw new Refused('ITEM_LEASE_LOST', `the queued ${review ? 'review' : 'build'} lease for #${initial.item_id} changed or expired; claim or reserve the item again before retrying`);
       }
-      if (state.admitted || expires - now <= leaseMs / 2) {
+      if (state.admitted || lapsed || expires - now <= leaseMs / 2) {
         const witness = state.admitted && admission ? { id: randomUUID(), commit: admission.commit, tree: admission.tree } : null;
         const result = await ordered(ctx, board, review ? 'reserveReview' : 'claim', [initial.item_id, {
           agentId, leaseMs,

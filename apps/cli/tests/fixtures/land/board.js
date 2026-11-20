@@ -1,4 +1,4 @@
-import { readMainAudit } from '../../../../../packages/gate/index.js';
+import { readMainAudit } from '../../../../../packages/gate/heavy.js';
 import { writeFileSync } from 'node:fs';
 import { appendFileSync } from 'node:fs';
 import { waitForFixtureProgress } from '../progress.js';

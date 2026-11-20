@@ -16,3 +16,9 @@ test('config.settings-descriptions.items-bar-rules-at-add-row: clause 3: the des
   assert.ok(row, 'items.barRulesAtAdd has a description row');
   assert.equal(row.label, 'Refuse a bar that breaks a bar path rule at add');
 });
+
+test('config.settings-descriptions.route-reservations-row: clause 3: the descriptions list route.reservations as an on/off row [C7,#9177]', () => {
+  const row = describeSetting('route.reservations');
+  assert.ok(row, 'route.reservations has a description row');
+  assert.equal(row.label, 'Route reservations');
+});

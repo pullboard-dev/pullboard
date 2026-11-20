@@ -1,4 +1,5 @@
 /** The pull path's shared helpers: the bridge reply decoder, output cap, startup deadline, run ceiling and unavailable refusal [C7,#7526]. */
+import { environmentAdapter } from '../../../env/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { RunnerDropped } from './result.js';
 import { runnerFailure } from './result.js';
@@ -74,7 +75,7 @@ export const RUN_CEILING_MS = 20 * 60_000;
  * @param {Record<string, string|undefined>} [env]
  * @returns {number|null}
  */
-export function runCeilingMs(spec, env = process.env) {
+export function runCeilingMs(spec, env = environmentAdapter().all()) {
   if (spec.timeoutMs || spec.trustedMode?.timeoutMs || spec.landing === true || spec.kind === 'main-red') return null;
   const configured = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
   if (configured === undefined || configured === '') return RUN_CEILING_MS;

@@ -1,7 +1,7 @@
 /** The init notes that name each detected language's JUnit-writing gate command and report path, and a single language's per-file test command [C7]. */
 import { affectedRow } from '../../../../../packages/gate/index.js';
 import { junitCommand } from '../../../../../packages/gate/index.js';
-import { languageToolchains } from '../../../../../packages/gate/index.js';
+import { languageToolchains } from '../../../../../packages/gate/heavy.js';
 
 /**
  * One note line per detected language that has a report form: the command that writes JUnit, the report path, the setting line

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 392" width="840" height="392" role="img" aria-labelledby="title desc">
-<title id="title">An item's life</title><desc id="desc">Drawn from packages/state/src/io/machine.js. An item starts open and ends withdrawn. claimed to open: patch-objected, release, lapse (clock), escalate, refreeze. submitted to open: patch-objected, reject, reopen, refreeze. verified to submitted: patch. open to verified: rehomeImport. open to submitted: intake. open to claimed: claim. claimed to submitted: submit. claimed to verified: submit-merge. submitted to verified: accept. verified to open: reject, reopen, refreeze. open to withdrawn: withdraw. claimed to withdrawn: withdraw. submitted to withdrawn: withdraw. verified to withdrawn: withdraw.</desc>
+<title id="title">An item's life</title><desc id="desc">Drawn from packages/state/src/io/machine.js. An item starts open and ends withdrawn. claimed to open: patch-objected, release, lapse (clock), escalate, refreeze. submitted to open: patch-objected, reject, reopen, refreeze. verified to submitted: patch. open to verified: rehomeImport, reland. open to submitted: intake. open to claimed: claim. claimed to submitted: submit. claimed to verified: submit-merge. submitted to verified: accept. verified to open: reject, reopen, refreeze. open to withdrawn: withdraw. claimed to withdrawn: withdraw. submitted to withdrawn: withdraw. verified to withdrawn: withdraw.</desc>
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; fill: #1f2328; }
 .mono { font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
@@ -48,7 +48,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 
 <path class="edge" d="M 695 208 L 695 230 L 575 230 L 575 208" marker-end="url(#tip)"/>
 <text class="label" x="635" y="223" text-anchor="middle">patch</text>
 <path class="edge" d="M 185 198 L 205 198 L 205 268 L 735 268 L 735 212" marker-end="url(#tip)"/>
-<text class="label" x="650" y="261" text-anchor="middle">rehomeImport</text>
+<text class="label" x="650" y="261" text-anchor="middle">rehomeImport · reland</text>
 <path class="edge" d="M 165 208 L 165 248 L 495 248 L 495 208" marker-end="url(#tip)"/>
 <text class="label" x="405" y="241" text-anchor="middle">intake</text>
 <path class="edge" d="M 185 179 L 231 179" marker-end="url(#tip)"/>

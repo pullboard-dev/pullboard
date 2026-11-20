@@ -1,7 +1,6 @@
 /** @pullboard-test-input packages/doctrine/src/io/standard.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import {
   DOCTRINE_FILE,
@@ -10,10 +9,12 @@ import {
 } from '../../../config/light.js';
 import { parseSpec } from '../../../spec/light.js';
 
+const fs = fileSystemAdapter();
+
 export const STANDARD_VERSION = 1;
 
 // Bind shipped data to this module generation before a landing can move or remove its source.
-const STANDARD_SOURCE = readFileSync(new URL('./standard.md', import.meta.url), 'utf8');
+const STANDARD_SOURCE = fs.readFile(new URL('./standard.md', import.meta.url));
 
 /** Read the shipped rows, preserving their source lines and marking the standard's version. */
 export function standardDoctrine() {
@@ -40,7 +41,7 @@ export function loadDoctrine(root, config = {}) {
   const name = doctrineFile(root, config.practice);
   const file = join(root, name);
   // Read here, not through the spec front door: that door loads git and the board, and this one is a light door.
-  const repo = existsSync(file) ? { ...parseSpec(readFileSync(file, 'utf8')), file, name, exists: true } : { ...parseSpec(''), file, name, exists: false };
+  const repo = fs.exists(file) ? { ...parseSpec(fs.readFile(file)), file, name, exists: true } : { ...parseSpec(''), file, name, exists: false };
   return composeDoctrine(repo, name);
 }
 

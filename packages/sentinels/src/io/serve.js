@@ -1,11 +1,13 @@
 /** Keep each view-served board's health observer running without overlapping scans [A6]. */
 import { spawn } from 'node:child_process';
 import { Refused } from "../../../kernel/index.js";
+import { AGENT_SHELL_MARKERS } from "../../../kernel/index.js";
 import { listProjects } from "../../../seats/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { lapsedSweepEnabled } from "../../../config/index.js";
 import { startRelayCanaryWatch } from "../../../link/index.js";
+import { environmentAdapter } from "../../../env/index.js";
 
 /** Ten minutes is the declared background cadence, not a test performance budget. */
 export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;
@@ -22,12 +24,22 @@ function sentinelRunsFor(root) {
   return config.claims.releaseGone || healthSentinelEnabled(config);
 }
 
+/**
+ * The environment a scan child runs in: this one without the agent session ids, agent shell markers or a checkout lease
+ * token, so a view started from an agent session never runs its scans as that agent [C7].
+ */
+export function scanEnvironment(environment = environmentAdapter()) {
+  const clean = { ...environment.all() };
+  for (const name of ["PULLBOARD_CHECKOUT_SESSION_TOKEN", ...AGENT_SHELL_MARKERS]) delete clean[name];
+  return clean;
+}
+
 /** Run only the ordered health scan in one owned child and drain it on view shutdown. */
 function refreshBoard(cli, root, signal, words = ['sentinel', 'run', '--health-only', '--json'], degradedIsExpected = false) {
   if (typeof cli !== 'string' || !cli) throw new Refused('NO_CLI_ENTRY', 'name the CLI entry the scan child runs: startServeSentinel({ cli: <path to the pullboard entry> })');
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...words], {
-      cwd: root, env: process.env, stdio: 'ignore', signal,
+      cwd: root, env: scanEnvironment(), stdio: 'ignore', signal,
     });
     let timer;
     /** Bound shutdown of this exact child; never signal a peer or a process selected by name. */
