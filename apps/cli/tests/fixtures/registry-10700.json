@@ -1,0 +1,3 @@
+{
+  "cli.io-cells-submit-checks.a-new-source-file-without-a-plan-row-raises-no-placement-finding": {"proves":{"specs":["C7"],"claim":"cellsSnapshotProblems on a candidate that adds a source file with no plan row returns no placement problem, machinery row or warning."},"why":"Without it, a regression where the submit check restores the cells-plan placement check would refuse or warn on every new source file the plan does not list yet.","kind":"cell unit","inputs":["apps/cli/tests/io/cells-submit-checks.test.js","apps/cli/tests/fixtures/cells/snapshot.js"]}
+}

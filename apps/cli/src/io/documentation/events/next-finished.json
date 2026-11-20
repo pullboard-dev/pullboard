@@ -1,0 +1,10 @@
+{
+  "kind": "next-finished",
+  "entries": [
+    {
+      "order": 61,
+      "actor": "idle seat",
+      "detail": "`version`, `engine`, `lane` (a seat that finished its loop, once per seat)"
+    }
+  ]
+}

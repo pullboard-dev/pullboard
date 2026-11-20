@@ -69,6 +69,19 @@ function missingOwnerStatusIndex(db) {
 }
 
 /**
+ * A seat's events of one kind, in order: next's cooldown and pairing reads (releases, finishes) seek them by seat and kind [C7].
+ * Why: through event_by_at they read every event of the seat and filtered by kind, which grew with the seat's whole history
+ * (the coordinator's 181,874 events cost next over a second at load, 20 Nov). Additive, not in SCHEMA, so no digest drift.
+ */
+const SEAT_KIND_INDEX = 'event_by_kind_id';
+const SEAT_KIND_SQL = `CREATE INDEX IF NOT EXISTS ${SEAT_KIND_INDEX} ON event (event_by, event_kind, event_id)`;
+
+/** True when the seat-and-kind event index is not installed yet. */
+function missingSeatKindIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(SEAT_KIND_INDEX);
+}
+
+/**
  * The reservation columns #9181 put into SCHEMA and ADDED_COLUMNS without a SCHEMA_VERSION bump, so every board stamped before it read as drifted (#11172).
  * Why additive, not in SCHEMA: SCHEMA and ADDED_COLUMNS feed the digest, and repairDrift repairs no column. Each is nullable, so no row is rewritten.
  */
@@ -103,7 +116,7 @@ function missingLedgerCommitIndex(db) {
 
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
+  return missingAdditiveColumns(db) || missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatKindIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingLedgerCommitIndex(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
@@ -112,6 +125,7 @@ export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
+  db.exec(SEAT_KIND_SQL);
   ensureJobTables(db);
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
@@ -126,7 +140,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return missingAdditiveColumns(db) || HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingSeatKindIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'test_result_commit_file', 'gate_hop', 'event_archive'].every(installed);
 }
 
 /**
@@ -139,6 +153,7 @@ export function ensureAdditiveSchema(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(OWNER_STATUS_SQL);
+  db.exec(SEAT_KIND_SQL);
   db.exec(JOB_SCHEMA_SQL);
   db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);

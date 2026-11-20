@@ -2,7 +2,6 @@
 import { git } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../light.js';
-import { retryReviewCommit } from '../logic/verdict/retry.js';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { COMPARISON_WORKER_RECORD } from './comparison.js';
@@ -136,6 +135,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
   let fallback = null;
   if (result.base.tests === null) {
     fallback = { base: originalBase, reason: result.base.unavailable ?? 'base produced no complete test account' };
+    const { retryReviewCommit } = await import('../logic/verdict/retry.js');
     const composed = retryReviewCommit(root, originalHead, { commit: main });
     result = await pair(composed, main, result.files);
   }
