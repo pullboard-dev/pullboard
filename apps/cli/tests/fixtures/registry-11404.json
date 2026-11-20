@@ -1,0 +1,48 @@
+{
+  "cli.io-commands-sentinel.remeasure-requests": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling on, the coordinator sentinel run re-takes a pending check baseline for each item remeasureCandidates returns, up to the registered runner count, through the ordered editItem move with the item's unchanged check."
+    },
+    "why": "Without it checks frozen before the ceiling exist stay unmeasured, or a pass floods the runners with more baselines than they have slots.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/sentinel.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "packages/store/index.js"
+    ]
+  },
+  "cli.io-commands-sentinel.remeasure-seconds": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "When a remeasure baseline completes, the item baseline records its seconds, and a later claim of it follows checkVerdict on the measured time."
+    },
+    "why": "Without it a remeasured check never gains the time the ceiling judges, and is requested again on every pass.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/sentinel.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "packages/store/index.js",
+      "packages/config/index.js"
+    ]
+  },
+  "cli.io-commands-sentinel.remeasure-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With claim.checkCeiling off, the default, sentinel run offers no baseline."
+    },
+    "why": "Without it the default machine would start remeasuring every old check the moment a pass ran.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/sentinel.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "packages/store/index.js"
+    ]
+  }
+}

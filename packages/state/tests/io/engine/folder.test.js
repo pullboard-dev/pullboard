@@ -22,7 +22,7 @@ import { nextEngineNumber } from '../../../src/io/engine/numbers.js';
 import { LANDING_DIMENSION_ENGINE } from '../../../light.js';
 import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
-import { copyPackageSubset } from '../../../../../apps/cli/tests/fixtures/copy.js';
+import { copyPackageSubset } from '../../../../gate/tests/fixtures/package-copy.js';
 
 /** The one folder engine leaves live in. */
 const E = 'packages/state/src/logic/engines';

@@ -1,19 +1,19 @@
 /** The files a landing derives after its item merges (engine numbers, format table, generated docs, plan placement), as one step a runner job can run [C7,#5568]. */
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { git } from '../../../git/index.js';
 import { gitSpawn } from '../../../git/index.js';
+import { CLOSURE_CEILINGS } from '../../../gate/index.js';
 import { assignEngineNumbers } from '../../../state/index.js';
 import { writeFormatTable } from '../../../state/index.js';
 import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
 import { refreshLandingDocs } from './docs.js';
 import { measureHeldRules } from './doctrine.js';
 import { stageTestRegistries } from './registries.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Printed instead of a patch when this checkout is not the tree the coordinator named, so the coordinator derives locally. */
 export const DERIVE_UNAVAILABLE = 'LANDING_DERIVE_UNAVAILABLE';
@@ -25,26 +25,48 @@ export const DERIVE_ENGINES = 'LANDING_DERIVE_ENGINES=';
 /** The doctrine rows a derive job counted on the derived tree, as JSON; absent when the job was not asked or a rule needs a browser [C7,#5583]. */
 export const DERIVE_RULES = 'LANDING_DERIVE_RULES=';
 
+/** The tighten script beside the closure ceilings file (named by the gate cell, not spelled here), and how long its run may take before it is abandoned [C7,#12053]. */
+const TIGHTEN_SCRIPT = join(dirname(CLOSURE_CEILINGS), 'tighten.js');
+const TIGHTEN_TIMEOUT_MS = 120000;
+
+/** Run the tighten script in `root`; resolves whether it exited 0 within the time cap. Async so a leased caller's timer keeps firing. */
+function runTighten(root) {
+  return new Promise(resolve => {
+    execFile(process.execPath, [TIGHTEN_SCRIPT, '--write'], { cwd: root, timeout: TIGHTEN_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024 }, error => resolve(!error));
+  });
+}
+
+/**
+ * Re-baseline the closure ceilings downward by running the tighten script in the merged tree; resolves the ceilings file when it changed, else nothing.
+ * Why: main owns the ceilings, so each landing tightens them to what main measures; a failed or timed-out run stages nothing and never fails the landing.
+ */
+async function tightenClosureCeilings(root) {
+  if (!fs.exists(join(root, TIGHTEN_SCRIPT))) return [];
+  if (!await runTighten(root)) { git(root, ['checkout', 'HEAD', '--', CLOSURE_CEILINGS]); return []; }
+  return git(root, ['diff', '--name-only', 'HEAD', '--', CLOSURE_CEILINGS]).split('\n').filter(Boolean);
+}
+
 /**
  * Derive and stage everything a landing writes after an item merge: engine numbers and their history, the format table, generated docs.
  * Why: one function builds the files whether the coordinator or a runner runs it, so the two can never differ.
  * @param {string} root A checkout of the merged tree.
  * @returns {{ engines: { files: string[], assigned: { name: string, number: number }[] } }} What was staged.
  */
-export function stageLandingDerived(root) {
+export async function stageLandingDerived(root) {
   const engines = assignEngineNumbers(root);
-  if (existsSync(join(root, 'packages/state/src/io/formats')) && existsSync(join(root, 'docs', 'formats.md'))
+  if (fs.exists(join(root, 'packages/state/src/io/formats')) && fs.exists(join(root, 'docs', 'formats.md'))
     && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
   refreshLandingDocs(root);
   const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
   for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
+  for (const file of await tightenClosureCeilings(root)) if (!engines.files.includes(file)) engines.files.push(file);
   if (engines.files.length) git(root, ['add', '--', ...engines.files]);
   return { engines };
 }
 
 /** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
-export function amendLandingEngines(root, hooks = []) {
-  const { engines } = stageLandingDerived(root);
+export async function amendLandingEngines(root, hooks = []) {
+  const { engines } = await stageLandingDerived(root);
   if (engines.files.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
   return engines;
 }
@@ -88,9 +110,9 @@ export function stageBadgeDocuments(root, documents) {
   const changed = [];
   for (const document of documents) {
     const file = join(root, document.path);
-    if (existsSync(file) && readFileSync(file, 'utf8') === document.text) continue;
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, document.text);
+    if (fs.exists(file) && fs.readFile(file, 'utf8') === document.text) continue;
+    fs.mkdir(dirname(file), { recursive: true });
+    fs.writeFile(file, document.text);
     changed.push(document.path);
   }
   if (changed.length) git(root, ['add', '--', ...changed]);
@@ -102,7 +124,7 @@ async function main() {
   const root = process.cwd();
   const wanted = argument('--tree');
   if (git(root, ['rev-parse', 'HEAD^{tree}']) !== wanted) { process.stdout.write(`${DERIVE_UNAVAILABLE}\n`); return; }
-  const { engines } = stageLandingDerived(root);
+  const { engines } = await stageLandingDerived(root);
   await stageTestRegistries(root, argument('--base') ?? 'HEAD^1');
   const badges = argument('--badges');
   if (badges) stageBadgeDocuments(root, JSON.parse(Buffer.from(badges, 'base64').toString('utf8')));

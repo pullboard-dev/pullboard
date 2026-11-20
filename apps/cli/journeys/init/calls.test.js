@@ -7,7 +7,7 @@ import {
 } from 'node:crypto';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
-import { receiptBody } from '../../../../packages/gate/index.js';
+import { receiptBody } from '../../../../packages/gate/heavy.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,

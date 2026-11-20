@@ -81,3 +81,43 @@ test('moves.verify-sprint.a-landed-steady-item-and-a-landed: clause 3: a landed 
   const steadyRows = (rows) => rows.filter(row => !row.paces || row.paces.includes('steady')).map(row => row.id);
   assert.ok(!steadyRows(TABLE.guards).includes('sprint-not-final') && !steadyRows(TABLE.followups).includes('pull-out'), 'steady holds no sprint row');
 });
+
+/** A submitted item its builder accepts on its own: one low-stakes row frozen and approved, one check a machine ran red then green, and the tree the event binds. */
+const TREE = 'b'.repeat(40);
+const SOLO_FROZEN = JSON.stringify({ ...JSON.parse(FROZEN), rows: [{ id: 'r1', stakes: 'low' }] });
+const solo = (extra = {}) => {
+  const s = landed(null, { soloLowStakes: true, rows: [{ id: 'r1', stakes: 'low', personApproved: true }],
+    checks: [{ machineRun: true, redBefore: true, greenAfter: true }], ...extra });
+  Object.assign(s.item, { merged: false, mergedCommit: null, frozen: SOLO_FROZEN, tree: TREE });
+  s.history.pop();
+  s.actor = { ...s.actor, id: 'core-1' };
+  return s;
+};
+const BUILDER_ACCEPT = { ...ACCEPT, actor: 'core-1' };
+
+test('moves.table-verify.solo-accept-event: clause 1: a builder accept with every solo condition holding is admitted and followed by one solo-low-stakes-accept event binding verdict, commit, tree, digest and by [C7]', () => {
+  const s = solo();
+  const out = run(s, BUILDER_ACCEPT);
+  assert.equal(out.refused, undefined);
+  assert.deepEqual(out.events.map(e => e.kind), ['accept', 'solo-low-stakes-accept']);
+  assert.deepEqual(out.events[1].detail, { verdict: 5, commit: COMMIT, tree: TREE, digest: DIGEST, by: 'core-1' });
+  assert.equal(out.patch.verdictRow.id, out.events[1].detail.verdict);
+});
+
+test('moves.table-verify.no-solo-event-independent: clause 2: an independent accept writes no solo-low-stakes-accept event, and a builder accept where a solo condition fails is refused SELF_VERIFY with no events [C7]', () => {
+  const independent = run(solo(), ACCEPT);
+  assert.equal(independent.refused, undefined);
+  assert.deepEqual(independent.events.map(e => e.kind), ['accept']);
+  const failing = {
+    'setting off': solo({ soloLowStakes: false }),
+    'a team row': solo({ rows: [{ id: 'r1', stakes: 'team', personApproved: true }] }),
+    'a row not approved': solo({ rows: [{ id: 'r1', stakes: 'low', personApproved: false }] }),
+    'a check not run red then green': solo({ checks: [{ machineRun: true, redBefore: false, greenAfter: true }] }),
+    'no tree': Object.assign(solo(), { item: { ...solo().item, tree: null } }),
+  };
+  for (const [name, s] of Object.entries(failing)) {
+    const out = run(s, BUILDER_ACCEPT);
+    assert.equal(out.refused?.code, 'SELF_VERIFY', name);
+    assert.deepEqual(out.events ?? [], [], name);
+  }
+});

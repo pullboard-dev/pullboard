@@ -9,6 +9,8 @@ import {
   withBoard,
   writeFileSync,
 } from '../../../tests/fixtures/scenarios/team.js';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** Run one CLI call the way the journey does (in-process, or a real process under PULLBOARD_JOURNEY_MODE=process) and return its output. */
@@ -20,6 +22,12 @@ async function go(box, root, ...args) {
 
 test('cli.journeys-verify-team-repair.a-checkout-or-trunk-moving-during: clause 1: a checkout or trunk moving during verification cannot acquire proof [E8]', async () => {
   const box = helpers.project();
+  // The NOT_AT_COMMIT and VERDICT_TRUNK_MOVED refusals need the item submitted at once, which the submit command does itself only with submit.composeOnRunner off since it became the default (#11423).
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let current = {};
+  try { current = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* no machine settings yet */ }
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  writeFileSync(settings, JSON.stringify({ ...current, submit: { ...current.submit, composeOnRunner: false } }));
   const reviewer = join(box.dir, 'moving-reviewer');
   const moveHead = join(box.dir, 'move-review-head');
   const moveMain = join(box.dir, 'move-review-main');

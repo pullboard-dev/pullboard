@@ -31,8 +31,8 @@ import {
   browserBoundFiles,
   checkNeedsBrowser,
   testsNeedBrowser,
-} from '../../../../packages/gate/index.js';
-import { browserInCall } from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
+import { browserInCall } from '../../../../packages/gate/heavy.js';
 import { declaresBrowser } from '../../../../packages/gate/src/logic/declaration.js';
 
 

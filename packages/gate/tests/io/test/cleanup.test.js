@@ -9,7 +9,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { removeTestSandbox } from '../../../index.js';
+import { removeTestSandbox } from '../../../heavy.js';
 
 test('gate.io-test-cleanup.a-sandbox-whose-removal-fails-is: a sandbox whose removal fails is reported, not thrown, so the run stays green [C7]', t => {
   const sandbox = mkdtempSync(join(tmpdir(), 'pb-sandbox-cleanup-'));
