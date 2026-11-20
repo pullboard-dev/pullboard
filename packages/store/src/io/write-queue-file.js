@@ -81,17 +81,35 @@ export function createFileWriteQueue(dir, { transaction, savepoint, timing } = {
     try { process.kill(pid, 0); return true; } catch (error) { return error.code !== 'ESRCH'; }
   }
 
-  /** Every pending write still worth running, oldest first; drops records already answered or whose owner died (its function is gone). */
-  function pendingWrites() {
-    const entries = readdirSync(pendingDir).filter(name => name.endsWith('.pending')).map(name => {
-      const record = readRecord(join(pendingDir, name));
-      return { id: name.slice(0, -'.pending'.length), seq: record?.seq ?? 0, pid: record?.pid };
+  /**
+   * Every pending write still worth running, oldest first; drops records already answered or whose owner died (its function is gone).
+   * A caller that passes `known` (a Map it keeps across calls) has each record parsed once: a name already in it is not read again,
+   * a name whose file is gone leaves it, and a write this process owns is checked for an answer only the first time it is seen,
+   * because only this process's own settle answers it, and settle removes the record.
+   */
+  function pendingWrites(known = new Map()) {
+    const names = readdirSync(pendingDir).filter(name => name.endsWith('.pending'));
+    if (known.size > names.length) {
+      const present = new Set(names);
+      for (const name of known.keys()) if (!present.has(name)) known.delete(name);
+    }
+    const entries = names.map(name => {
+      let entry = known.get(name);
+      if (!entry) {
+        const record = readRecord(join(pendingDir, name));
+        entry = { id: name.slice(0, -'.pending'.length), seq: record?.seq ?? 0, pid: record?.pid, owned: false };
+        known.set(name, entry);
+      }
+      return entry;
     }).sort((a, b) => a.seq - b.seq || (a.id < b.id ? -1 : 1));
     return entries.filter(entry => {
+      if (entry.owned) return true;
       if (existsSync(resultFile(entry.id)) || (!runs.has(entry.id) && Number.isInteger(entry.pid) && !alive(entry.pid))) {
         rmSync(pendingFile(entry.id), { force: true });
+        known.delete(`${entry.id}.pending`);
         return false;
       }
+      entry.owned = runs.has(entry.id);
       return true;
     });
   }
@@ -193,7 +211,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint, timing } = {
   }
 
   async function drainNow() {
-    for (let list = pendingWrites(); list.length && runs.has(list[0].id); list = pendingWrites()) {
+    const known = new Map();
+    for (let list = pendingWrites(known); list.length && runs.has(list[0].id); list = pendingWrites(known)) {
       if (transaction) {
         const batch = [];
         for (const entry of list) { if (!runs.has(entry.id)) break; batch.push(entry); }
