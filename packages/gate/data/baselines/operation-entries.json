@@ -154,7 +154,6 @@
     "packages/doctrine/src/io/checks.js",
     "packages/drive/src/io/local.js",
     "packages/gate/src/io/check/baseline/worker.js",
-    "packages/gate/src/io/inventory.js",
     "packages/gate/src/io/main/audit/state.js",
     "packages/gate/src/io/refusal/trial.js",
     "packages/gate/src/io/run-tests.js",
