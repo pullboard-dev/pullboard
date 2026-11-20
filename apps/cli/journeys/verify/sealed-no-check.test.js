@@ -43,13 +43,14 @@ async function ok(box, cwd, ...args) {
   return result;
 }
 
-test('cli.journeys-verify-sealed-no-check.reuses-after-main-moves: clause 1: an item with no frozen check, submitted on a green gate, still has its sealed receipts reused by verify --accept after main moves by a file the item and its proof never touched [C7]', { timeout: 240_000 }, async t => {
+/** Submit an item with no frozen check on a green gate; the caller then moves main and has a reviewer accept it. */
+async function submittedNoCheckItem(t) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: RUN });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(box.repo, 'web'));
-  writeFileSync(join(box.repo, 'web/greet.js'), "export const greet = () => '';\n");
+  writeFileSync(join(box.repo, 'web/greet.js'), "export const greet = () => '';\n// one\n// two\n// three\n// four\n// five\nexport const farewell = () => '';\n");
   writeFileSync(join(box.repo, 'web/outcome-reporter.js'), REPORTER);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed sealed no-check fixture [G1]');
@@ -60,7 +61,7 @@ test('cli.journeys-verify-sealed-no-check.reuses-after-main-moves: clause 1: an 
     '--criterion', '1. The visitor is named by web/sealed.test.js [test]', '--json')).out);
   const id = added.item.item_id;
   await ok(box, builder, 'claim', String(id));
-  writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
+  writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n// one\n// two\n// three\n// four\n// five\nexport const farewell = () => '';\n");
   writeFileSync(join(builder, 'web/sealed.test.js'), [
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
@@ -73,16 +74,41 @@ test('cli.journeys-verify-sealed-no-check.reuses-after-main-moves: clause 1: an 
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   await ok(box, builder, 'fact', String(id), 'note', 'clause 1 [test]: web/sealed.test.js, run by the gate for clause 1');
   assert.equal((await settleSubmit(t, box, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out))).gate.green, true, 'the fixture gate is green');
+  return { box, builder, id, head };
+}
+
+/** A reviewer seat at the submitted head accepts the item after main has moved. */
+async function acceptAtHead({ box, id, head }, note) {
+  const reviewer = join(box.dir, 'api-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
+  assert.equal((await joinFixtureSeat(box, reviewer, 'api', { run: box.runIn })).code, 0);
+  return ok(box, reviewer, 'verify', String(id), 'accept', '--note', note);
+}
+
+test('cli.journeys-verify-sealed-no-check.reuses-after-main-moves: clause 1: an item with no frozen check, submitted on a green gate, still has its sealed receipts reused by verify --accept after main moves by a file the item and its proof never touched [C7]', { timeout: 240_000 }, async t => {
+  const fixture = await submittedNoCheckItem(t);
+  const { box } = fixture;
 
   // Main moves by a file nothing in the item or its proof ran reads.
   writeFileSync(join(box.repo, 'NOTES.txt'), 'unrelated note\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'docs: an unrelated note [G1]');
 
-  const reviewer = join(box.dir, 'api-review');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  assert.equal((await joinFixtureSeat(box, reviewer, 'api', { run: box.runIn })).code, 0);
-  const accepted = await ok(box, reviewer, 'verify', String(id), 'accept', '--note', 'the sealed submit proof covers clause 1 and main moved only by an unrelated file');
+  const accepted = await acceptAtHead(fixture, 'the sealed submit proof covers clause 1 and main moved only by an unrelated file');
   assert.match(accepted.out, /reused submit proof \S+/u, 'the sealed receipts are reused after main moved');
   assert.doesNotMatch(accepted.out + accepted.err, /submit proof not reused/u, 'no tier tests re-ran');
+});
+
+test('cli.journeys-verify-sealed-no-check.reruns-when-proof-file-moves: clause 2: the same item, after main moves by a commit touching a file its proof ran, makes verify --accept re-run its tiers and name the reached file in the not-reused line [C7]', { timeout: 240_000 }, async t => {
+  const fixture = await submittedNoCheckItem(t);
+  const { box } = fixture;
+
+  // Main moves by the file the item's proof ran.
+  writeFileSync(join(box.repo, 'web/greet.js'), "export const greet = () => '';\n// one\n// two\n// three\n// four\n// five\nexport const farewell = () => 'Goodbye';\n");
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'feat(web): say goodbye to every visitor [G1]');
+
+  const accepted = await acceptAtHead(fixture, 'main moved by a file the sealed proof ran, so the tiers run again');
+  assert.doesNotMatch(accepted.out + accepted.err, /reused submit proof/u, 'the sealed receipts are not reused');
+  assert.match(accepted.out + accepted.err, /submit proof not reused: main moved since submit and reaches web\/greet\.js/u, 'the not-reused line names the reached file');
 });
