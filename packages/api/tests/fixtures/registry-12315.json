@@ -1,0 +1,3 @@
+{
+  "api.io-gate.settled-class-main-red-stale-infra": {"proves":{"specs":["C7"],"claim":"A gate job settled red only in a case main also fails, one settled stale because a newer gate job exists, and one whose receipt names infrastructure each append one gate_settled event with the outcome and class (red, main-red), (stale, stale-base) and (unknown, infra)."},"why":"Without this test the timeline reader cannot tell a main-owned red, a stale gate or an infrastructure failure from the item's own red, and charges their wait to the builder.","kind":"contract","inputs":["packages/api/src/io/gate.js"]}
+}

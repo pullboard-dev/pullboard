@@ -5,12 +5,7 @@ import {
 import {
   createHash,
 } from 'node:crypto';
-import {
-  existsSync,
-} from 'node:fs';
-import {
-  readFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   configFromSource,
 } from '../../../../../config/light.js';
@@ -27,6 +22,8 @@ import {
 import {
   Refused,
 } from '../../../../../kernel/light.js';
+
+const fs = fileSystemAdapter();
 
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
@@ -112,9 +109,9 @@ export function runnerPolicyRecord(spec) {
 export function carriedRunnerTrunk(root) {
   if (!repoInfo(root).isMain) return null;
   const file = gitPath(root, RUNNER_POLICY_FILE);
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   try {
-    const record = JSON.parse(readFileSync(file, 'utf8'));
+    const record = JSON.parse(fs.readFile(file, 'utf8'));
     const expected = runnerPolicyRecord({ id: record.job, commit: record.commit, tree: record.tree, trunk: record.trunk });
     if (JSON.stringify(record) !== JSON.stringify(expected)) throw new Error('changed admission context');
     for (const [ref, expectedObject] of [['HEAD^{commit}', record.commit], ['HEAD^{tree}', record.tree],

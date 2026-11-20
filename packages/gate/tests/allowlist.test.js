@@ -14,8 +14,8 @@ import { cellLintReport } from '../../codemap/index.js';
 import { lowerCellLintBaseline } from '../../codemap/index.js';
 import { rootAllowed } from '../../codemap/light.js';
 import { strayNextStep } from '../../codemap/light.js';
-import { commonJsIn } from '../index.js';
-import { importsIn } from '../index.js';
+import { commonJsIn } from '../heavy.js';
+import { importsIn } from '../heavy.js';
 import { runFixtureGit } from './fixtures/child.js';
 
 /** A private repository with one app, one package and today's kinds of root strays. */

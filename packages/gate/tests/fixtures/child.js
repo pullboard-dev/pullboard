@@ -18,7 +18,7 @@ import {
   join,
   sep,
 } from 'node:path';
-import { refuseTestsOnCoordinator } from '../../index.js';
+import { refuseTestsOnCoordinator } from '../../heavy.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { tmpdir } from 'node:os';
 

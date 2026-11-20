@@ -3,16 +3,16 @@ import { environmentAdapter } from '../../../env/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { constrainedLandingHost } from './host.js';
 import { captureReleaseQueue } from './queue.js';
-import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
-import { fileTimesPath } from '../../../gate/index.js';
-import { readFileTimes } from '../../../gate/index.js';
-import { planReleaseShards } from '../../../gate/index.js';
-import { fileKey } from '../../../gate/index.js';
-import { landingBalance } from '../../../gate/index.js';
-import { landingFloor } from '../../../gate/index.js';
-import { planFreeSlotShards } from '../../../gate/index.js';
-import { planLandingShards } from '../../../gate/index.js';
+import { RELEASE_EXECUTORS_ENV } from '../../../gate/heavy.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/heavy.js';
+import { fileTimesPath } from '../../../gate/heavy.js';
+import { readFileTimes } from '../../../gate/heavy.js';
+import { planReleaseShards } from '../../../gate/heavy.js';
+import { fileKey } from '../../../gate/heavy.js';
+import { landingBalance } from '../../../gate/heavy.js';
+import { landingFloor } from '../../../gate/heavy.js';
+import { planFreeSlotShards } from '../../../gate/heavy.js';
+import { planLandingShards } from '../../../gate/heavy.js';
 
 export { fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards };
 
@@ -25,15 +25,6 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
 import {
   dirname,
   join,
@@ -49,14 +40,14 @@ import {
   gitChildEnv,
   repoInfo,
 } from '../../../git/index.js';
-import { testsNeedGui } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/heavy.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { localRunnerDescriptor } from '../../../runners/index.js';
-import { guiSession } from '../../../gate/index.js';
+import { guiSession } from '../../../gate/heavy.js';
 import { headTree } from '../../../git/index.js';
-import { cpuRunnerRequired } from '../../../gate/index.js';
-import { shardSelectionMatched } from '../../../gate/index.js';
+import { cpuRunnerRequired } from '../../../gate/heavy.js';
+import { shardSelectionMatched } from '../../../gate/heavy.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -71,7 +62,10 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from '../../../gate/index.js';
+} from '../../../gate/heavy.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -116,10 +110,10 @@ const SWEEP_WAIT_MS = 1_000;
 function writeFileTimes(root, measured) {
   const path = fileTimesPath(root);
   const files = { ...readFileTimes(root), ...measured };
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  fs.mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify({ version: 1, files }, null, 2)}\n`, { mode: 0o600 });
-  renameSync(temporary, path);
+  fs.writeFile(temporary, `${JSON.stringify({ version: 1, files }, null, 2)}\n`, { mode: 0o600 });
+  fs.rename(temporary, path);
 }
 
 /** Read the per-file wall-time lines a shard printed, keeping the longest report for each file. */
@@ -293,8 +287,8 @@ export function landingSource(root) {
     const full = join(root, path);
     let content;
     try {
-      const stat = lstatSync(full);
-      content = stat.isSymbolicLink() ? `link:${readlinkSync(full)}` : stat.isFile() ? readFileSync(full) : `kind:${stat.mode}`;
+      const stat = fs.lstat(full);
+      content = stat.isSymbolicLink() ? `link:${fs.readlink(full)}` : stat.isFile() ? fs.readFile(full, null) : `kind:${stat.mode}`;
     } catch { content = 'missing'; }
     hash.update(path).update('\0').update(content).update('\0');
   }
@@ -359,7 +353,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
   }
   const releaseStartedAt = new Date().toISOString();
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
-  const { withLandingGateSlot } = await import('../../../gate/index.js');
+  const { withLandingGateSlot } = await import('../../../gate/heavy.js');
   const runners = await import('../../../runners/index.js');
   const { RunnerDropped } = runners;
   // A test may stand in for the SSH round trip to make a runner answer with a given refusal.
@@ -627,8 +621,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
 
 /** Print this shard's per-file wall times and exit codes for its orchestrator; a missing record prints nothing. */
 export function printShardFileTimes(path, write = text => process.stdout.write(text)) {
-  if (!path || !existsSync(path)) return;
-  for (const line of shardFileLines(readFileSync(path, 'utf8'))) write(`${line}\n`);
+  if (!path || !fs.exists(path)) return;
+  for (const line of shardFileLines(fs.readFile(path, 'utf8'))) write(`${line}\n`);
 }
 
 /**

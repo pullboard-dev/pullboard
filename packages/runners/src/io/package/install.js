@@ -1,5 +1,4 @@
 /** Path-safe fixed-bound capsule installation shared by bootstrap and private copy controls [C7,P3]. */
-import { environmentAdapter } from '../../../../env/index.js';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -14,10 +13,15 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
+import { homedir } from 'node:os';
 
-/** Install a complete immutable module capsule without reading the job's stdin stream. */
+/**
+ * Install a complete immutable module capsule without reading the job's stdin stream.
+ * Why: remoteWorkerLaunch serializes this function into the runner's installer script, which has no adapter import; node's
+ * homedir() reads the runner's own HOME, so the body names only modules that script imports (#11521 left an adapter call here).
+ */
 export function installRunnerPackage(payload, expected, configuredRoot) {
-  const home = environmentAdapter().get('HOME');
+  const home = homedir();
   if (!configuredRoot && (!home || !isAbsolute(home))) throw new Error('runner home must be absolute');
   const root = configuredRoot || join(home, '.pullboard-runner');
   const directory = join(root, 'runtime', expected);
