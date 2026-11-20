@@ -596,6 +596,10 @@ export function loadMachineSettings() {
   if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
   }
+  const gateAged = value.gate?.gateAgedMinutes;
+  if (gateAged !== undefined && !(Number.isSafeInteger(gateAged) && gateAged >= 1 && gateAged <= 1440)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.gateAgedMinutes in ${file} must be a whole number of minutes, 1 to 1440; remove it to keep 5`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
@@ -760,9 +764,9 @@ export function gateSampleSwap() {
   return loadMachineSettings().gate?.sampleSwap === true;
 }
 
-/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755): off by default; only an exact `true` turns it on. */
+/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755, default on in #11423): on by default; only an exact `false` turns it off. */
 export function submitComposeOnRunner() {
-  return loadMachineSettings().submit?.composeOnRunner === true;
+  return loadMachineSettings().submit?.composeOnRunner !== false;
 }
 
 /** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): on by default; only an exact `false` turns it off. */
@@ -907,6 +911,11 @@ export function browserFreeChecksEnabled() {
 /** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
 export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether health.derivedState is on (#8974): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function derivedStateEnabled() {
+  return loadMachineSettings().health?.derivedState === true;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */

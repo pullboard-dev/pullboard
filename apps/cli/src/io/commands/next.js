@@ -3,6 +3,7 @@ import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
+import { adviceThroughNextEnabled } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { nextRouteByTier } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
@@ -109,6 +110,12 @@ function nextChangeInputs(ctx) {
  * @returns {Promise<number>}
  */
 export async function nextHere(io, values) {
+  if (values.stuck !== undefined) values = await releaseStuck(io, values);
+  if (values.done === true) {
+    const submitted = await submitDone(io);
+    if (submitted !== 0) return submitted;
+    values = { ...values, done: undefined };
+  }
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
   const monitor = startNextProgressMonitor(io);
@@ -140,6 +147,43 @@ export async function nextHere(io, values) {
     delete io.lagSilent;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
+}
+
+/**
+ * next --stuck "<why>": release the one build claim this seat holds as BLOCKED with that note, through the release command's own path, then answer as next does [C7,#11700].
+ * Why: a builder whose item cannot go on needs one command to hand it back and hear the next instruction, not a release and a second call.
+ *
+ * @param {any} io
+ * @param {any} values
+ * @returns {Promise<any>} The values for the next answer, without the stuck switch.
+ */
+async function releaseStuck(io, values) {
+  const why = typeof values.stuck === 'string' ? values.stuck.trim() : '';
+  const held = seatClaims(context(io));
+  if (!why || held.length !== 1) {
+    throw new Refused('USAGE', `pullboard next --stuck "<why>" releases the one build claim this seat holds, with a reason; ${held.length === 1 ? 'the reason is empty' : `this seat holds ${held.length}`}`, 'hold one claim, then run pullboard next --stuck "<why>"; to continue without releasing run pullboard next');
+  }
+  const { run: release } = await import('./release.js');
+  const quiet = Object.create(io, { result: { value: undefined } });
+  await release(quiet, { first: String(held[0]), values: { reason: 'BLOCKED', note: why } });
+  const { stuck, ...rest } = values;
+  return rest;
+}
+
+/**
+ * next --done: submit the one build claim this seat holds through the submit command's own run, as the done alias does, then answer as next does [C7,#11701].
+ * Why: a builder whose item is committed needs one command to hand it to the gate and hear the next instruction, not a submit and a second call.
+ *
+ * @param {any} io
+ * @returns {Promise<number>} Zero after the submit queued; submit's own nonzero code, so no new item is handed out after a refusal.
+ */
+async function submitDone(io) {
+  const held = seatClaims(context(io));
+  if (held.length !== 1) {
+    throw new Refused('USAGE', `pullboard next --done submits the one build claim this seat holds; this seat holds ${held.length}`, 'hold one claim, then run pullboard next --done; to continue without submitting run pullboard next');
+  }
+  const { run: submit } = await import('./submit.js');
+  return submit(io, { first: String(held[0]), values: {} });
 }
 
 /** The line after a claim's check: the criterion and check above are the bar, so a builder skips show [#10557]. */
@@ -396,6 +440,11 @@ async function nextWithProgress(io, values, progress) {
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         for (const line of notices) io.say(`  ${line}`);
+        // health.adviceThroughNext (off by default): this seat's open health advice follows the notices; the module loads only when the setting is on [C7,#2330].
+        if (!review && adviceThroughNextEnabled()) {
+          const { healthAdviceLines } = await import('../next/health.js');
+          for (const line of withBoardRead(ctx, board => healthAdviceLines(board, whoAmI(ctx, board).id))) io.say(`  ${line}`);
+        }
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
         for (const next of more) {

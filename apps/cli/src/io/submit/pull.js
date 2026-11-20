@@ -89,6 +89,24 @@ const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 const KNOWN_BROWSERS = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
 
 /**
+ * The proof plan a gate job hands the board to shard, or null when the proof runs in this job.
+ * Why: a proof over more files than the runner has cores is sharded, and a declared timing file is sharded even within the cores, so it runs alone on its runner [C7,#11961].
+ * It is injected into the gate entry's source, so it uses nothing outside itself.
+ *
+ * @param {{ testRunner?: string, proofFiles?: string[], selection?: { full?: boolean } }} plan The analysis plan.
+ * @param {number} cores The cores this runner has.
+ * @param {string[]} timing The proof files declared as needing an exclusive runner; only files in the proof list count.
+ * @param {string[] | null} selected The selected files when test tiers demand an account for each.
+ * @returns {{ runner: string, files: string[], cores: number, account?: true, timing?: string[] } | null}
+ */
+export function proofShardPlan(plan, cores, timing, selected) {
+  if (plan.selection?.full || typeof plan.testRunner !== 'string' || !plan.testRunner.trim() || !Array.isArray(plan.proofFiles)) return null;
+  const declared = Array.isArray(timing) ? plan.proofFiles.filter(file => timing.includes(file)) : [];
+  if (plan.proofFiles.length <= cores && !declared.length) return null;
+  return { runner: plan.testRunner.trim(), files: plan.proofFiles, cores, ...(selected ? { account: true } : {}), ...(declared.length ? { timing: declared } : {}) };
+}
+
+/**
  * The refusal line for a pinned analysis that died on an uncaught exception, or null when its output holds no thrown error and stack frame.
  * Why: the pulled entry once reported only "returned no result", so a builder read main's tooling fault as their own red; the code names it [C7,P7].
  * It is injected into the gate entry's source, so it uses nothing outside itself.
@@ -138,6 +156,7 @@ const keepOutput = (name, output) => {
   try { writeFileSync(join(keptFolder, name), output.length > ${KEPT_PHASE_BYTES} ? output.subarray(-${KEPT_PHASE_BYTES}) : output, { mode: 0o600 }); return name; } catch { return null; }
 };
 ${tapCaseErrors}
+${proofShardPlan}
 ${FAILURE_DIAGNOSTICS_SOURCE}
 ${exitLines}
 ${specFailureFiles}
@@ -396,12 +415,16 @@ else {
     const plan = analysis.plan ?? {}, cores = availableParallelism();
     // Test tiers make the controller demand an account for every selected file; the pulled proof demands the same [C7].
     const selected = plan.testTiers && Array.isArray(plan.proofFiles) ? plan.proofFiles : null;
-    const shardable = input.shards === true && !receipt.analysis.ownership && !plan.selection?.full && typeof plan.testRunner === 'string' && plan.testRunner.trim() && Array.isArray(plan.proofFiles) && plan.proofFiles.length > cores;
+    // Main's gate door names the proof files that declare a need for an exclusive runner; an older main or a throw declares none [#11961].
+    let timing = [];
+    try { if (typeof gate?.timingTestFiles === 'function' && Array.isArray(plan.proofFiles)) timing = gate.timingTestFiles(root, plan.proofFiles); } catch { timing = []; }
+    const shardPlan = input.shards === true && !receipt.analysis.ownership ? proofShardPlan(plan, cores, timing, selected) : null;
+    const shardable = shardPlan !== null;
     // The check and the proof are independent commands: they start together and their phases keep the check-then-proof order [C7].
     // A shardable proof waits for the check, since the board takes it as shard jobs only when the check passed.
     if (shardable) {
       if (input.check) receipt.phases.push(await runPhase('check', input.check, PATH));
-      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = { runner: plan.testRunner.trim(), files: plan.proofFiles, cores, ...(selected ? { account: true } : {}) };
+      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = shardPlan;
       else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH, selected));
     } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
     // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
@@ -476,7 +499,8 @@ export function gateJobRun() {
  *
  * @param {{ main: string, source: string, trunk: string, base: string | null, check: string, criterion: string, title: string,
  *   composition: string | null, config: object, crossRunTests: string[], cutRows: object[], produceInventory: string[],
- *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean }} pinned. checkTiming: the
+ *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean, needs?: string[] }} pinned. needs: the item's
+ *   needs list, carried only when it has one so the gate admission asks for the slots it names [U136,#11479]. checkTiming: the
  *   bar was frozen with exclusive check timing; the job carries it on its data so a runner can admit the check alone [C7,#7942].
  * @returns {{ run: string[], input: { main: string, entry: string, data: object }, commits: string[] }} commits: what a
  *   runner fetches beside the candidate, since the bootstrap archives main and the analysis reads trunk from the checkout's objects.
@@ -620,7 +644,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const frozen = frozenCheck(held);
   const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
-    criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
+    criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', ...(held.item_needs?.length ? { needs: held.item_needs } : {}), composition: requireComposition ? commit : null,
     ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),

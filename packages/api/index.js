@@ -29,6 +29,7 @@ export {
   SHARD_JOB_KIND,
   boardQueueMode,
   claimJob,
+  duplicateRunnerPlaces,
   endJobs,
   heldShards,
   jobArtifacts,
@@ -98,6 +99,8 @@ export {
   shardedResult,
 } from "./src/io/gate.js";
 export { provideMainRedNotes } from "./src/io/gate/files.js";
+export { provideScreenStart } from "./src/io/gate/screen-start.js";
+export { sprintLandable } from "./src/io/gate/sprint-land.js";
 export {
   CHECK_BASELINE_KIND,
   offerCheckBaseline,

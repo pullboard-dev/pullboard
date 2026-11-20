@@ -88,6 +88,6 @@ test('gate.io-static-check-registry.jsdoc-grows-only: clause 2: the jsdoc class 
   machine(t, { gate: { jsdocCheck: true } });
   assert.deepEqual(judge(NO_SUMMARY, NO_SUMMARY), [], 'an old finding is not new debt');
   assert.equal(judge(`${NO_SUMMARY}export function another() {}\n`, NO_SUMMARY).length, 1, 'one added finding fails');
-  machine(t, {});
-  assert.deepEqual(judge(NO_SUMMARY), [], 'the default reports nothing');
+  machine(t, { gate: { jsdocCheck: false } });
+  assert.deepEqual(judge(NO_SUMMARY), [], 'an explicit false reports nothing');
 });

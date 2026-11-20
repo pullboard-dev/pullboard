@@ -1,11 +1,15 @@
 /** @pullboard-test-input source-cell gate */
 /** Detected languages map to the runner toolchains they need [C7]. */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { LANGUAGE_ROWS } from '../../src/logic/language-rows.js';
 import { TOOLCHAIN_LANGUAGES } from '../../src/io/config.js';
 import { TOOLCHAIN_NAME } from '../../src/io/config.js';
+import { detectGate } from '../../src/io/config.js';
+import { detectLanguages } from '../../src/io/config.js';
 import { languageToolchains } from '../../src/io/config.js';
+import { privateFixtureFiles } from '../fixtures/child.js';
 
 /** The languages detectLanguages adds in code (packages/gate/src/io/config.js) before the row table. */
 const BUILT_IN = ['node', 'go', 'rust', 'python', 'php', 'elixir', 'csharp', 'cmake', 'make'];
@@ -44,4 +48,23 @@ test('gate.language-toolchains.unknown: clause 3: an unknown language adds no to
   assert.deepEqual(languageToolchains([{ language: 'cobol' }, { language: 'go', command: 'go test ./...' }, { language: 'constructor' }]), { toolchains: ['go'], unknown: ['cobol', 'constructor'] });
   assert.deepEqual(languageToolchains([]), { toolchains: [], unknown: [] });
   assert.deepEqual(languageToolchains(undefined), { toolchains: [], unknown: [] });
+});
+
+test('gate.language-toolchains.php-no-test-script-writes-no-gate: clause 1: a PHP repo whose composer.json has no scripts.test gets no gate or affectedTests command, and with scripts.test it gets composer test [C7,#11948]', (t) => {
+  const repo = (composer) => {
+    const { root, write } = privateFixtureFiles('php-gate-');
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    if (composer !== undefined) write('composer.json', composer);
+    return root;
+  };
+  for (const composer of ['{}', '{"scripts":{}}', '{"scripts":{"test":""}}', '{"scripts":{"test":[]}}', 'not json']) {
+    const root = repo(composer);
+    assert.deepEqual(detectLanguages(root), [], composer);
+    assert.equal(detectGate(root), '', composer);
+  }
+  for (const composer of ['{"scripts":{"test":"phpunit"}}', '{"scripts":{"test":["@composer install","phpunit"]}}']) {
+    const root = repo(composer);
+    assert.deepEqual(detectLanguages(root), [{ language: 'php', command: 'composer test' }], composer);
+    assert.equal(detectGate(root), 'composer test', composer);
+  }
 });
