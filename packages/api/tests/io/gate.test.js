@@ -11,6 +11,7 @@ import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { WIDE_SEED_SQL } from '../../src/io/recheck.js';
 import { ledgerMissReasons } from '../../../store/index.js';
 import { recordTestResults } from '../../../store/index.js';
 
@@ -198,4 +199,13 @@ test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer ca
 
 test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
   for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
+});
+
+test('api.io-gate.seed-window-in-sql: clause 1: with gate.seedWideMainTests on, the 24 h window is inside the seeding SQL and its query plan searches job by an index and never scans job_step [C7,P7]', t => {
+  const { db } = cellBoard(t, ':memory:');
+  assert.match(WIDE_SEED_SQL, /job_created >= \?/u, 'the window bound is a parameter of the SQL, not a filter over rows read');
+  const plan = db.prepare(`EXPLAIN QUERY PLAN ${WIDE_SEED_SQL}`).all(0, 10).map(row => row.detail);
+  assert.ok(plan.some(line => /^SEARCH job USING (?:COVERING )?INDEX job_kind_created \(job_kind=\? AND job_created>\?\)/u.test(line)), `job is searched by the kind and created index: ${plan.join(' | ')}`);
+  assert.equal(plan.some(line => /^SCAN/u.test(line)), false, `no table is scanned: ${plan.join(' | ')}`);
+  assert.equal(plan.some(line => /job_step USING INDEX job_step_name_(?:at|seq)/u.test(line)), false, `job_step is read by its job key, not by name across all jobs: ${plan.join(' | ')}`);
 });
