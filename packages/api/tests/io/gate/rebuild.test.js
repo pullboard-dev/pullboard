@@ -21,6 +21,8 @@ function diverged(t, { conflict }) {
   repo.put('trunk-only.txt', 'trunk\n');
   if (conflict) { repo.put('shared.txt', 'trunk\n'); repo.put('other.txt', 'trunk\n'); }
   const trunk = repo.commitAll();
+  git(repo.root, ['config', 'user.name', 'Gate Test']);
+  git(repo.root, ['config', 'user.email', 'gate@example.invalid']);
   return { repo, commit, trunk };
 }
 
