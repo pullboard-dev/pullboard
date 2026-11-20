@@ -1,5 +1,7 @@
 /** The board reads a light consumer needs, open read-only, the board id and the item list, without heavy imports [C7,V4]. */
 // Why a module of its own: query.js reaches verify, seats and items, so a light door exporting from it broke its cold-load budget.
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { subscribe } from 'node:diagnostics_channel';
 import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -95,6 +97,45 @@ export function boardId(board) {
   return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('board_id').meta_value;
 }
 
+/** The item-list scope of one command (withItemSnapshot), or undefined outside one. */
+const SNAPSHOT = new AsyncLocalStorage();
+
+/** The channel the board write lock publishes on as each write transaction begins and ends (write/lock.js). */
+export const BOARD_WRITE_CHANNEL = 'pullboard:board-write';
+
+/**
+ * Run `work` with one item list per board file for the whole call: listItems on a read-only connection answers each
+ * filter from the list this scope read first, across connections and other processes' commits, until this process
+ * begins or ends a board write, refreshItemSnapshot runs, or a remembered lease lapses [C7,N2,#12010].
+ * Why: each next phase opens its own read connection, and on a live board other seats commit about once a second, so
+ * one next re-read every item row many times (19.8 s of a 70 s next on a 12,000-item board).
+ * `state.reads` counts the scope's table reads.
+ *
+ * @template T
+ * @param {() => T} work
+ * @param {{ reads: number }} [state]
+ * @returns {T}
+ */
+export function withItemSnapshot(work, state = { reads: 0 }) {
+  return SNAPSHOT.run({ state, generation: 0, lists: new Map() }, work);
+}
+
+/** Make the current scope read the item table again on its next listItems call; outside a scope it does nothing. */
+export function refreshItemSnapshot() {
+  const scope = SNAPSHOT.getStore();
+  if (scope) scope.generation += 1;
+}
+
+// A write this process begins or ends may change the items, so the scope it runs in reads them again.
+subscribe(BOARD_WRITE_CHANNEL, refreshItemSnapshot);
+
+/** The remembered lists for this board: the scope's, per board file, or this connection's own outside a scope. */
+function listsFor(board, scope) {
+  const owner = scope ? scope.lists : LISTED, key = scope ? board.db.location?.() ?? board.db : board.db;
+  if (!owner.has(key)) owner.set(key, new Map());
+  return owner.get(key);
+}
+
 /** An item holds files in flight while it is claimed, submitted, or verified and not yet merged. */
 const inFlightNow = item => item.item_status === 'claimed' || item.item_status === 'submitted'
   || (item.item_status === 'verified' && !item.item_merged_commit);
@@ -113,22 +154,25 @@ export function listItems(board, { lane, all = false, inFlight = false } = {}) {
   if (inFlight) all = false;
   // One command lists the board's items many times (next did 19 times); the same unchanged board answers from memory.
   const key = `${hasLane ? lane : ''}\0${inFlight ? 'in-flight' : all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
-  const version = boardDataVersion(board);
-  const remembered = LISTED.get(board.db)?.get(key), at = now(board);
+  // Inside withItemSnapshot a read-only connection keeps the scope's list; only this process's writes move its version.
+  const scope = board.readOnly ? SNAPSHOT.getStore() : undefined;
+  const version = scope ? `scope:${scope.generation}` : boardDataVersion(board);
+  const lists = listsFor(board, scope);
+  const remembered = lists.get(key), at = now(board);
   // Any reader's clock may reuse the list: lapsed claims stay lapsed later, and live ones hold until the first expiry.
   if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
     return remembered.items.map(item => ({ ...item }));
   }
   // The open list is the all-items list without its closed items: read from a fresh remembered all-items list, not the tables again (#8432).
   if (!all) {
-    const everything = LISTED.get(board.db)?.get(`${hasLane ? lane : ''}\0true\0${board.executionEngineVersion ?? ENGINE_VERSION}`);
+    const everything = lists.get(`${hasLane ? lane : ''}\0true\0${board.executionEngineVersion ?? ENGINE_VERSION}`);
     if (everything && everything.version === version && everything.at <= at && !(everything.expires <= at)) {
       const open = everything.items.filter(inFlight ? inFlightNow : item => item.item_status !== 'verified' && item.item_status !== 'withdrawn');
-      if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
-      LISTED.get(board.db).set(key, { at, version, expires: everything.expires, items: open.map(item => ({ ...item })) });
+      lists.set(key, { at, version, expires: everything.expires, items: open.map(item => ({ ...item })) });
       return open.map(item => ({ ...item }));
     }
   }
+  if (scope) scope.state.reads += 1;
   const rows = board.db.prepare(listItemsSql({ all, hasLane, inFlight })).all(...(hasLane ? [lane] : []));
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
@@ -159,8 +203,7 @@ export function listItems(board, { lane, all = false, inFlight = false } = {}) {
   // A held claim reads as open once its lease passes, so the remembered list lasts only until the first future lease
   // ends; a lapsed claim held by its gate changes only with the gate's board_meta write, which moves the data version.
   const expires = items.filter(item => item.item_status === 'claimed' && (item.item_lease_until ?? '') > at).map(item => item.item_lease_until).sort()[0];
-  if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
-  LISTED.get(board.db).set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
+  lists.set(key, { at, version, expires, items: items.map(item => ({ ...item })) });
   return items;
 }
 
