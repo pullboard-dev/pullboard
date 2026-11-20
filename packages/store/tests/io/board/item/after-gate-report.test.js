@@ -86,7 +86,12 @@ const notesStarting = (board, id, prefix) => itemThread(board, id).filter(entry 
 
 test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 1: verifying an after-gate parent records one after-gate saved: note naming each claimed dependent and its whole minutes, and sending a dependent back records one after-gate rebuild: note naming it on the parent [C7,#12326]", t => {
   const { board, clock, seats, item, claim, submitted, verdict } = timed(t);
+  // Both parents are submitted before the first verdict sets the engine that seals each submission's policy.
   const parent = submitted("Parent that is verified");
+  const rejected = submitted("Parent that is rejected");
+  const rebuilt = item("Dependent that is rebuilt");
+  claim(rebuilt, seats.third);
+  setAfterGate(board, rebuilt, [rejected]);
   const first = item("First dependent"), second = item("Second dependent"), idle = item("Dependent that never claimed");
   claim(first, seats.first);
   recordAfterGateClaim(board, first, { parent, head: COMMIT, agentId: seats.first.id });
@@ -102,10 +107,6 @@ test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 
   assert.ok(saved[0].includes(`#${second} 5 min`), "the second dependent's whole minutes");
   assert.ok(!saved[0].includes(`#${idle}`), "a dependent that never claimed on the gate is not named");
 
-  const rejected = submitted("Parent that is rejected");
-  const rebuilt = item("Dependent that is rebuilt");
-  claim(rebuilt, seats.third);
-  setAfterGate(board, rebuilt, [rejected]);
   verdict(rejected, "REJECT");
   const rebuilds = notesStarting(board, rejected, "after-gate rebuild:");
   assert.equal(rebuilds.length, 1, "one rebuild note on the parent");
