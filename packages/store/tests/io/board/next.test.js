@@ -6,6 +6,7 @@ import { listItems } from '../../../index.js';
 import { nextFor } from '../../../index.js';
 import { reviewOffer } from '../../../index.js';
 import { register } from '../../../index.js';
+import { saveAgentAbilities } from '../../../src/io/needs.js';
 import { claim } from '../../../index.js';
 import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
@@ -255,4 +256,30 @@ test('store.io-board-next.wave-off-leaves-the-order: clause 3: with contention n
   const agentId = register(board, { lane: 'web', path: '/seat-off', route: 'strong' });
   assert.equal(nextFor(board, { agentId, lane: 'web', contention: null }).item?.item_id, ids.a);
   assert.equal(nextFor(board, { agentId, lane: 'web', omitIds: [ids.a] }).item?.item_id, ids.b);
+});
+
+/** Two open items on one lane: one needing a browser, one needing nothing; seats with and without the ability. */
+function needsBoard(t) {
+  const board = fixtureBoard(t);
+  const make = (title, file) => addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files:\n- ${file}` });
+  const ids = { plain: make('needs nothing', 'src/plain.js'), browser: make('needs a browser', 'src/browser.js') };
+  board.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)").run(`item_needs:${ids.browser}`, JSON.stringify(['browser']));
+  const seat = (path, abilities) => { const agentId = register(board, { lane: 'web', path, route: 'strong' }); saveAgentAbilities(board, agentId, abilities); return agentId; };
+  return { board, ids, seat };
+}
+
+test('store.io-board-next.needs-ability-skips: clause 1: nextFor never offers an open item whose needs the seat abilities lack, offers it to a seat that has them, and offers an item with no needs as before [U136, #1888]', t => {
+  const { board, ids, seat } = needsBoard(t);
+  const bare = seat('/seat-bare', []), able = seat('/seat-able', ['browser']);
+  assert.equal(nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain] }).item, null, 'a seat without the browser ability is not offered the browser item');
+  assert.equal(nextFor(board, { agentId: bare, lane: 'web' }).item?.item_id, ids.plain, 'an item with no needs is offered as today');
+  assert.equal(nextFor(board, { agentId: able, lane: 'web', omitIds: [ids.plain] }).item?.item_id, ids.browser);
+});
+
+test('store.io-board-next.needs-ability-idle-skip: clause 2: with observeIdle the item skipped for a missing ability is listed with code NEEDS_ABILITY [U136, #1888]', t => {
+  const { board, ids, seat } = needsBoard(t);
+  const bare = seat('/seat-idle', []);
+  const idle = nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain], observeIdle: true });
+  assert.equal(idle.item, null);
+  assert.deepEqual(idle.skips, [{ item: ids.browser, code: 'NEEDS_ABILITY' }]);
 });

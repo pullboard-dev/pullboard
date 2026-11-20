@@ -17,6 +17,8 @@ import { seatFamily } from "../../../../verify/index.js";
 import { idleReason } from "../../../../seats/index.js";
 import { liveRouteProblem } from "../../../../seats/index.js";
 import { withLocalSeatPresence } from "../presence.js";
+import { missingNeeds } from "../../../../queue/light.js";
+import { agentAbilities } from "../needs.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { criticalPathEnabled } from "../../../../items/index.js";
 import { criticalPathOrder } from "../../../../items/index.js";
@@ -183,6 +185,11 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  // An open item names the abilities it needs [U136,#1888]; a seat lacking one is never offered it. One read for the whole board, not one per item (#5329).
+  const abilities = new Set(agentAbilities(board, agentId));
+  const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item\\_needs:%' ESCAPE '\\'").all()
+    .map(row => [Number(row.meta_key.slice('item_needs:'.length)), JSON.parse(row.meta_value)]));
+  const lacksAbility = (entry) => entry.item_status === open && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
