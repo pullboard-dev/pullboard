@@ -1022,10 +1022,6 @@
       "kind": "repo-data",
       "owner": "apps/cli/src/io/static/view.js"
     },
-    "queue.json": {
-      "kind": "json",
-      "owner": "packages/resources/src/io/handoff/owner.js"
-    },
     "receipt.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/release/transport.js"
