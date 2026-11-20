@@ -1,4 +1,4 @@
-/** A claim of an after-gate dependent records one note on it naming the parent, its head and the claim time [C7,#12325]. */
+/** A claim of an after-gate dependent records one note on it naming the parent, its head and the claim time; a verified parent records the minutes saved and a send-back a rebuild [C7,#12325,#12326]. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { recordSubmitHandoff } from "../../../../../jobs/index.js";
@@ -6,6 +6,15 @@ import { setAfterGate } from "../../../../src/io/board/item/after-gate.js";
 import { getItem } from "../../../../index.js";
 import { itemThread } from "../../../../index.js";
 import { fixture } from "../../../fixtures/dispatch.js";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import * as store from "../../../../index.js";
+import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { recordAfterGateClaim } from "../../../../src/io/board/item/after-gate-report.js";
+import { cellBoard } from "../../../fixtures/cell.js";
+import { cellItem } from "../../../fixtures/cell.js";
+import { cellSeat } from "../../../fixtures/cell.js";
+import { temporaryRepository } from "../../../fixtures/submit.js";
 
 /** The after-gate claim notes on one item's thread. */
 function claimNotes(board, id) {
@@ -37,4 +46,70 @@ test("store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a
   const plain = box.add("Item with no after-gate parent");
   box.claim(plain, box.seats.actor);
   assert.equal(claimNotes(box.board, plain).length, 0, "a claim with no after-gate parent records none");
+});
+
+const COMMIT = "a".repeat(40);
+const TRUNK = "b".repeat(40);
+const CLAUSE = "the fixture keeps its behavior";
+const POLICY = { version: 1, commit: COMMIT, verify: { policy: "any", family: "off" } };
+const PROOF = { version: 1, files: [], full: false, deferred: true, reason: "synthetic board-state fixture; no gate execution" };
+
+/** A real board file on a controllable clock, with a builder, two dependent builders and a reviewer. */
+function timed(t) {
+  const repo = temporaryRepository(t, "pullboard-after-gate-report-");
+  mkdirSync(join(repo, ".git", "pullboard"));
+  const clock = { at: Date.parse("2026-11-20T10:00:00.000Z"), now: () => new Date(clock.at) };
+  const board = cellBoard(t, join(repo, ".git", "pullboard", "board.sqlite"), clock, { real: true, gitRoot: repo });
+  cellSeat(board, { lane: "coordinator", path: "/repo" });
+  const seat = (name, lane, route) => cellSeat(board, { lane, path: `/${name}`, family: `${name} Vendor`, route });
+  const seats = { builder: seat("builder", "core", "mid"), first: seat("first", "core", "mid"), second: seat("second", "core", "mid"), third: seat("third", "core", "mid"), reviewer: seat("reviewer", "review", "strong") };
+  const item = title => cellItem(board, { lane: "core", title, criterion: CLAUSE, route: "mid", check: "true", brief: "Files: src/a.js\nTest: proves it" }).item_id;
+  const claim = (id, seat) => store.claim(board, id, { agentId: seat.id, lane: "core", leaseMs: 7_200_000, freeze: row => ({ text: JSON.stringify({ criterion: row.item_criterion, policy: POLICY }), digest: `digest:${id}` }) });
+  const submitted = title => {
+    const id = item(title);
+    claim(id, seats.builder);
+    store.writeBoardCommand(board, "submit", [id, { agentId: seats.builder.id, commit: COMMIT, tree: COMMIT, submissionProof: PROOF }], seats.builder.id);
+    return id;
+  };
+  const verdict = (id, decision) => {
+    board.executionEngineVersion = ENGINE_VERSION;
+    const row = store.getItem(board, id);
+    return store.verify(board, id, { agentId: seats.reviewer.id, decision, head: row.item_commit, digest: row.item_frozen_digest, policy: "any", familyPolicy: "off",
+      ...(decision === "REJECT" ? { reason: "TEST_FAILURE", clause: CLAUSE } : {}), note: "Synthetic fixture verdict: read the diff against the bar.",
+      review: { commit: row.item_commit, head: row.item_commit, trunk: TRUNK, paths: [] } });
+  };
+  return { board, clock, seats, item, claim, submitted, verdict };
+}
+
+/** The note texts on one item that start with a prefix. */
+const notesStarting = (board, id, prefix) => itemThread(board, id).filter(entry => entry.type === "fact" && entry.kind === "note" && String(entry.text).startsWith(prefix)).map(entry => entry.text);
+
+test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 1: verifying an after-gate parent records one after-gate saved: note naming each claimed dependent and its whole minutes, and sending a dependent back records one after-gate rebuild: note naming it on the parent [C7,#12326]", t => {
+  const { board, clock, seats, item, claim, submitted, verdict } = timed(t);
+  // Both parents are submitted before the first verdict sets the engine that seals each submission's policy.
+  const parent = submitted("Parent that is verified");
+  const rejected = submitted("Parent that is rejected");
+  const rebuilt = item("Dependent that is rebuilt");
+  claim(rebuilt, seats.third);
+  setAfterGate(board, rebuilt, [rejected]);
+  const first = item("First dependent"), second = item("Second dependent"), idle = item("Dependent that never claimed");
+  claim(first, seats.first);
+  recordAfterGateClaim(board, first, { parent, head: COMMIT, agentId: seats.first.id });
+  clock.at += 450_000;
+  claim(second, seats.second);
+  recordAfterGateClaim(board, second, { parent, head: COMMIT, agentId: seats.second.id });
+  for (const id of [first, second, idle]) setAfterGate(board, id, [parent]);
+  clock.at += 300_000;
+  verdict(parent, "ACCEPT");
+  const saved = notesStarting(board, parent, "after-gate saved:");
+  assert.equal(saved.length, 1, "one saved note on the parent");
+  assert.ok(saved[0].includes(`#${first} 12 min`), "the first dependent's whole minutes: 12 min 30 s floors to 12");
+  assert.ok(saved[0].includes(`#${second} 5 min`), "the second dependent's whole minutes");
+  assert.ok(!saved[0].includes(`#${idle}`), "a dependent that never claimed on the gate is not named");
+
+  verdict(rejected, "REJECT");
+  const rebuilds = notesStarting(board, rejected, "after-gate rebuild:");
+  assert.equal(rebuilds.length, 1, "one rebuild note on the parent");
+  assert.ok(rebuilds[0].includes(`#${rebuilt}`), "it names the dependent sent back");
+  assert.equal(notesStarting(board, parent, "after-gate rebuild:").length, 0, "a verified parent records no rebuild");
 });
