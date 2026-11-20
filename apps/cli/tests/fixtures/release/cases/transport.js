@@ -14,10 +14,10 @@ import {
   GitHubReleaseTransport,
   ReleaseTransportError,
   unpackReleaseReceipt,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 import { verifyHostedRelease } from '../../../../../../packages/sandbox/index.js';
-import { releaseReceiptFields } from '../../../../../../packages/gate/index.js';
-import { releaseReceiptProblem } from '../../../../../../packages/gate/index.js';
+import { releaseReceiptFields } from '../../../../../../packages/gate/heavy.js';
+import { releaseReceiptProblem } from '../../../../../../packages/gate/heavy.js';
 
 /** Supply explicit synthetic API observations; the envelope remains intentionally unvalidated by this transport. */
 function fixture() {

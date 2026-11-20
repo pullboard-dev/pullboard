@@ -76,3 +76,18 @@ test('config.io-compat.optional-handoff-setting-is-retained-and: optional handof
   assert.equal(configFromSource(JSON.stringify({ submit: { handoff: true } })).submit.handoff, true);
   assert.equal(configFromSource(JSON.stringify({ submit: { handoff: false } })).submit.handoff, false);
 });
+
+/** The jobs section is accepted and carried through, so the expedite cap reads a repo value instead of only its default. */
+test('config.io-compat.jobs-section: a pullboard.json with jobs.expediteMax 5 validates and the loaded config carries 5 [C7]', () => {
+  assert.equal(configFromSource(JSON.stringify({ jobs: { expediteMax: 5 } })).jobs.expediteMax, 5);
+});
+
+/** The cells section accepts the plan path, refuses an empty or non-string one, and loads null when the key is absent. */
+test('config.io-compat.cells-plan-key: a pullboard.json with cells.plan set to a path validates and loads it; an empty or non-string one is refused naming "cells"; absent loads null [C7]', () => {
+  assert.equal(configFromSource(JSON.stringify({ cells: { cache: true, shimMaxAgeDays: 7, plan: 'packages/codemap/data/plan/cells.json' } })).cells.plan, 'packages/codemap/data/plan/cells.json');
+  assert.equal(configFromSource('{}').cells.plan, null);
+  assert.equal(configFromSource(JSON.stringify({ cells: { cache: true } })).cells.plan, null);
+  for (const plan of ['', '  ', 5, true, [], {}]) {
+    assert.throws(() => configFromSource(JSON.stringify({ cells: { plan } })), (error) => error.code === 'BAD_CONFIG' && /"cells"/u.test(error.message));
+  }
+});

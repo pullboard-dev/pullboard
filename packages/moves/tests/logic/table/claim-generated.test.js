@@ -115,6 +115,7 @@ const BREAKS = [
       next: `${s.io.primaryRoot ? 'cd /repo && ' : ''}pullboard worktree ${other} --model "${s.actor.model ?? '<model name>'}", then in that worktree: pullboard claim ${ID}` };
   } },
   { row: 'light-diagnosed', apply: (g, s, m) => { Object.assign(s.actor, { route: 'light' }); Object.assign(s.item, { route: 'light', diagnosed: false }); m.routeCap = s.io.sessionCap = null; } },
+  { row: 'abilities-cover-needs', apply: (g, s) => { s.item.needs = ['browser', 'gui']; s.actor.abilities = ['gui']; return { message: `item #${ID} needs browser, which this seat's abilities lack` }; } },
   { row: 'route-allows', apply: (g, s, m) => {
     const variant = g.int(3);
     s.item.route = variant === 2 ? 'mid' : g.pick(['mid', 'strong']);

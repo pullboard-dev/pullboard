@@ -26,6 +26,7 @@ import { drainAllOwned } from './process.js';
 import { installSignalCustody } from './process.js';
 import { watchJobFolder } from './orphan.js';
 import { receipt } from './receipt.js';
+import { collectScreenshots } from './screenshots.js';
 import { safeSetupMessage } from './receipt.js';
 import { setupRefusalCode } from './receipt.js';
 import { stopReading } from './receipt.js';
@@ -38,6 +39,9 @@ import { guiSession } from '../../../../../packages/gate/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { createDescendantTracker } from '../custody.js';
 import { sampleRunnerLoad } from '../../../../../packages/runners/light.js';
+import { SCREENSHOT_DIRECTORY } from '../../../../../packages/runners/light.js';
+import { SCREENSHOT_MAX_BYTES } from '../../../../../packages/runners/light.js';
+import { screenshotPlan } from '../../../../../packages/runners/light.js';
 import { pinSourceCacheJob } from '../../../../../packages/runners/light.js';
 import { recordRunnerCompletion } from '../../../../../packages/runners/light.js';
 import { recordRunnerOwner } from '../../../../../packages/runners/light.js';
@@ -93,8 +97,11 @@ export async function main(S) {
       final.testRuntimes = runtimeCapture?.finish() ?? null;
       final.executionPhases = phases.finish();
       final.sourcePreparation = sourceMetrics;
+      // A failed listing sends the result without screenshots; the job's own outcome is never lost to them.
+      let shots = { screenshots: [] };
+      try { shots = collectScreenshots(final.root, { screenshotPlan, maxBytes: SCREENSHOT_MAX_BYTES, directory: SCREENSHOT_DIRECTORY }); } catch { /* The result still goes out without screenshots. */ }
       S.cleanupStage = 'result receipt';
-      await receipt(spec, { ...final, gui, dependencies }, sink);
+      await receipt(spec, { ...final, ...(shots.refused && !final.refused ? { refused: shots.refused.code } : {}), screenshots: shots.screenshots, gui, dependencies }, sink);
       S.resultSent = true;
       // The delivered result is the job's terminal record: the disk sweep may remove this folder even if the worker dies.
       try { if (runDirectory) writeTerminalResult(runDirectory); } catch { /* The quiet window still protects the folder. */ }

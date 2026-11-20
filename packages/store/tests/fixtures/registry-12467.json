@@ -1,0 +1,3 @@
+{
+  "store.logic-board-stale-apply.release-at-30": {"proves":{"specs":["C7"],"claim":"The stale-state apply re-check accepts a captured idle release row at exactly 30 minutes and refuses one at 29 minutes, through the limit constant the real sweep reads."},"why":"A dead claim is released after 30 minutes without the seat's own board activity, not 40, so a stuck claim returns to the queue sooner.","kind":"cell unit","inputs":["packages/store/tests/logic/board/stale/apply.test.js"]}
+}

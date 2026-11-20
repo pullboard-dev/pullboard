@@ -1,0 +1,3 @@
+{
+  "moves.landing-dimension.dependent-waits-for-after-gate-parent": {"proves":{"specs":["C7"],"claim":"A verified dependent whose after-gate parent is verified but not merged is refused WAITS_ON_ITEM and is selected once the parent has a merged commit."},"why":"A dependent must never land before the item it waits on, or main holds work whose base is missing.","kind":"cell unit","inputs":["packages/moves/src/logic/table/landing.table.js","packages/moves/tests/logic/table/landing-dimension.test.js"]}
+}

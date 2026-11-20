@@ -3,10 +3,11 @@
  * Why a file of its own: the runner worker imports the gate span file, and this reader is for the controller side and
  * `pullboard gate-health`, so it stays out of the worker's bundle.
  */
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
+
 
 const DAY_FILE = /^\d{4}-\d{2}-\d{2}\.jsonl$/u;
 
@@ -29,12 +30,12 @@ export function runnerTimeFolder(commonDir) {
  * @returns {{ v: 1, host: string, item: string, kind: string, minutes: number, start: string, end: string, outcome: string }[]}
  */
 export function readRunnerTime(folder, { since, now = Date.now() }) {
-  if (!existsSync(folder)) return [];
+  if (!fs.exists(folder)) return [];
   const first = new Date(since).toISOString().slice(0, 10), last = new Date(now).toISOString().slice(0, 10);
   const lines = [];
-  for (const name of readdirSync(folder).sort()) {
+  for (const name of fs.list(folder).sort()) {
     if (!DAY_FILE.test(name) || name.slice(0, 10) < first || name.slice(0, 10) > last) continue;
-    for (const text of readFileSync(join(folder, name), 'utf8').split('\n')) {
+    for (const text of fs.readFile(join(folder, name), 'utf8').split('\n')) {
       if (!text) continue;
       let line;
       try { line = JSON.parse(text); } catch { continue; /* a torn line is skipped */ }

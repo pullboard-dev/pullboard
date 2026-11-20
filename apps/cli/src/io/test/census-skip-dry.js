@@ -1,6 +1,6 @@
 /** A dry run of census skip-unchanged: which files two census outputs and the commits between them would skip, run nothing [C7,#10379]. */
 import { readFileSync } from 'node:fs';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { skipSplit } from '../../logic/census-skip.js';
 
 /** The rows of one census JSONL, skipping blank or garbled lines. */

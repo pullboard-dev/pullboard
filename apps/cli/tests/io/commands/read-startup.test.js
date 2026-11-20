@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-cell apps/cli packages/kernel packages/store packages/state packages/queue packages/seats packages/items packages/spec packages/git packages/verify packages/merge packages/config packages/stats packages/resources packages/transport packages/jobs packages/sandbox packages/doctrine packages/codemap packages/commits packages/person packages/roadmap */
+/** @pullboard-test-input apps/cli/journeys/list/startup-heavy.json apps/cli/journeys/list/startup-budget.json */
 /**
  * A read command pays only for its own modules: list and show load no gate, relay or landing module beyond the audited row each keeps
  * in startup-heavy.json, and every command keeps a startup ceiling row in startup-budget.json that only ever shrinks [C7].
@@ -80,8 +81,8 @@ test('cli.io-commands-read-startup.the-list-thin-row-is-200-ms: clause 2: the li
 });
 
 const startupReport = {};
-test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', async (t) => {
-  await assertStartupBudgets(t, startupReport);
+test('cli.io-commands-read-startup.the-version-show-status-and-list-rows-hold: clause 1: the version, show, status and list rows hold their startup rows; list thin is measured in apps/cli/tests/io/list/thin.test.js [C7,#10293]', async (t) => {
+  await assertStartupBudgets(t, startupReport, { only: ['version', 'show', 'status', 'list'] });
 });
 
 test('cli.io-commands-read-startup.the-version-row-reports-its-median-the: clause 1: the version row reports its median, the bare node median and the overhead as a diagnostic line [C7]', () => {

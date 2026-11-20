@@ -1,0 +1,30 @@
+{
+ "cli.logic-step-words.seat-refusal-table": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "every refusal the claim, commit, submit, verify, release and next paths raise maps to a specific next step."
+  },
+  "why": "Without it a refusal added at a raise site could ship with the generic or service-owner line.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/src/logic/step/words.js",
+   "apps/cli/tests/logic/step/words.test.js"
+  ]
+ },
+ "cli.logic-step-words.seat-refusal-table-in-catalog": {
+  "proves": {
+   "specs": [
+    "C7"
+   ],
+   "claim": "every code in the seat refusal table has a NEXT_STEPS row or carries its own step."
+  },
+  "why": "Without it the table and the catalog could drift apart unnoticed.",
+  "kind": "cell unit",
+  "inputs": [
+   "apps/cli/src/logic/step/words.js",
+   "apps/cli/tests/logic/step/words.test.js"
+  ]
+ }
+}

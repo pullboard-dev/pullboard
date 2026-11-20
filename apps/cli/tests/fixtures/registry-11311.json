@@ -1,0 +1,30 @@
+{
+  "cli.io-landing-pull.step-aside-says-why": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "offerPulledLanding says one line naming a stepped-aside head and its infrastructure-failure count, and nothing for a head with one failure"
+    },
+    "why": "Without it the reorder of a stepped-aside head is silent and the person cannot tell why an accepted item landed late.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "apps/cli/tests/fixtures/landing/offer.js"
+    ]
+  },
+  "cli.io-landing-pull.own-red-head-stays-held": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a head held after a landing red on its own tests is not offered and is not counted as stepped aside"
+    },
+    "why": "Without it an own-test red could be mistaken for an infrastructure failure and offered again behind the next item.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "apps/cli/tests/fixtures/landing/offer.js"
+    ]
+  }
+}
