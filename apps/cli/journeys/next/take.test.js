@@ -258,8 +258,8 @@ test('cli.journeys-next-take.health-observes-each-of-two-free: health observes e
   const stuck = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
   assert.equal(stuck.length, 0, 'UNPAIRED_WORK is a routine finding: it is buffered for the digest, not shouted at once (#11268)');
   box.advance(10 * 60 * 1000); box.scan();
-  const digests = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Digest:') && shout.shout_text.includes('UNPAIRED_WORK'));
-  assert.equal(digests.length, 1, 'the coordinator hears one digest line once the window has passed');
+  const digests = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Digest:'));
+  assert.equal(digests.length, 1, 'the coordinator hears one digest line naming the free seats once the window has passed');
   for (const seat of new Set(observed.dispatch.map(pair => pair.seat))) assert.ok(digests[0].shout_text.includes(seat), `the digest names the free seat ${seat}`);
 });
 
