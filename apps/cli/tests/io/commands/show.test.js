@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** show prints the after-gate ids beside the after line only when the list is not empty, and the measured minutes and rebuilds under it [C7,#11802,#12327]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,8 +8,14 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
+import { Worker } from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { privateFixtureFiles } from '../../fixtures/child.js';
 import { thinShowFacts } from '../../../src/io/show/thin.js';
 
+const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+const PRELOAD = fileURLToPath(new URL('../../../journeys/imports/count.js', import.meta.url));
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
@@ -65,7 +72,7 @@ async function shownThin(box, id, on) {
   return { out: shown.out, err: shown.err, code: shown.code };
 }
 
-test('cli.commands-show.thin-equal: clause 1: with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off [C7,#12413]', async (t) => {
+test('cli.commands-show.thin-equal: clause 1: [C7,#12413] with read.thinCommands on, show of a fixture item with no receipt, refusal or thread prints the same lines and exit code as with it off', async () => {
   const box = helpers.project();
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show plain item');
   assert.equal(added.code, 0, added.err);
@@ -78,7 +85,7 @@ test('cli.commands-show.thin-equal: clause 1: with read.thinCommands on, show of
   assert.match(off.out, /Thin show plain item/u);
 });
 
-test('cli.commands-show.thin-null-falls-back: clause 2: with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null [C7,#12413]', async (t) => {
+test('cli.commands-show.thin-null-falls-back: clause 2: [C7,#12413] with read.thinCommands on, show of an item with a receipt or a thread entry prints the full path lines, the thin door returning null', async () => {
   const box = helpers.project();
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show noted item');
   assert.equal(added.code, 0, added.err);
@@ -90,4 +97,39 @@ test('cli.commands-show.thin-null-falls-back: clause 2: with read.thinCommands o
   assert.equal(on.code, off.code, on.err);
   assert.equal(on.out, off.out);
   assert.match(on.out, /a thread entry the thin door leaves to the full path/u);
+});
+
+/** The distinct repo files a fresh worker thread loads running `show 1` through the process entry's own composition, counted by count.js. */
+function filesLoaded(box, countFile) {
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    (async () => {
+      await import(workerData.preload);
+      const { main } = await import(workerData.main);
+      const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import(workerData.ports);
+      const sink = { isTTY: false, write: () => true };
+      return main(['show', '1'], { cwd: workerData.cwd, loadNativeBoard, gateWaitReporter, loadProcessPorts, stdout: sink, stderr: sink, stdin: process.stdin });
+    })().then((status) => parentPort.postMessage({ status }), (error) => parentPort.postMessage({ failure: String(error?.stack ?? error) }));`;
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(code, { eval: true, env: { ...box.env, PULLBOARD_OWN_CLI: '1', PULLBOARD_RESIDENT: '0', PULLBOARD_COUNT_FILE: countFile },
+      workerData: { cwd: box.repo, preload: pathToFileURL(PRELOAD).href, main: pathToFileURL(`${ROOT}apps/cli/src/io/main.js`).href, ports: pathToFileURL(`${ROOT}apps/cli/src/io/ports/process.js`).href } });
+    worker.once('message', (message) => { void worker.terminate(); resolve(message); });
+    worker.once('error', reject);
+  });
+}
+
+test('cli.commands-show.thin-never-imported-off: clause 3: [C7,#12413] with read.thinCommands off, show never imports the thin door, and with it on it does', async () => {
+  const box = helpers.project();
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Thin show import item');
+  assert.equal(added.code, 0, added.err);
+  const seen = async (on) => {
+    setThin(box, on);
+    const files = privateFixtureFiles('show-thin-');
+    files.write('seen.txt', '');
+    const result = await filesLoaded(box, `${files.root}/seen.txt`);
+    assert.equal(result.failure, undefined, result.failure);
+    assert.equal(result.status, 0);
+    return files.read('seen.txt').toString('utf8').split('\n').filter(Boolean);
+  };
+  assert.equal((await seen(false)).some((file) => file.endsWith('apps/cli/src/io/show/thin.js')), false, 'thin.js stays unloaded with the setting off');
+  assert.equal((await seen(true)).some((file) => file.endsWith('apps/cli/src/io/show/thin.js')), true, 'thin.js loads with the setting on');
 });

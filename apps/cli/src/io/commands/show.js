@@ -31,7 +31,7 @@ import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
-import { readThinCommands } from '../../../../../packages/config/light.js';
+import * as configLight from '../../../../../packages/config/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
 import { withBoardRead } from '../board/read.js';
 import {
@@ -163,7 +163,7 @@ export async function run(io, { first, values }) {
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
   // With read.thinCommands on, the thin door serves a plain item's facts for the text show; null takes the full path [C7,#12413].
-  const thin = readThinCommands() && !values.json ? await thinFacts(ctx, id, prices) : null;
+  const thin = configLight.readThinCommands() && !values.json ? await thinFacts(ctx, id, prices) : null;
   const { fields, links, afterGate, afterGateMeasure, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     if (thin) {
       const stored = thin.item;
