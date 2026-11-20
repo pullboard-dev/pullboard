@@ -1,7 +1,6 @@
 {
   "version": 1,
   "files": {
-    "apps/cli/src/io/cells-submit-checks.js": 1,
     "apps/cli/src/io/commands/verify.js": 3,
     "apps/cli/src/io/commands/view.js": 6,
     "apps/cli/src/io/commands/worktree.js": 1,
@@ -10,7 +9,6 @@
     "apps/cli/src/io/hook/push.js": 4,
     "apps/cli/src/io/hook/thin.js": 1,
     "apps/cli/src/io/init.js": 2,
-    "apps/cli/src/io/landing/budget.js": 4,
     "apps/cli/src/io/resident/board.js": 7,
     "apps/runner/src/io/sweep.js": 1,
     "apps/view/src/io/background.js": 1,
@@ -19,11 +17,6 @@
     "packages/commits/src/io/contribution-clauses.js": 1,
     "packages/commits/src/io/hooks.js": 2,
     "packages/config/src/io/main.js": 2,
-    "packages/gate/src/io/check/signoffs.js": 3,
-    "packages/gate/src/io/coordinator/guard.js": 2,
-    "packages/gate/src/io/gui/admission.js": 1,
-    "packages/gate/src/io/imports.js": 1,
-    "packages/gate/src/io/inventory.js": 1,
     "packages/gate/src/io/journal/source.js": 1,
     "packages/gate/src/io/run-tests.js": 40,
     "packages/gate/src/io/watchdog.js": 2,
