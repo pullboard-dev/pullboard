@@ -689,9 +689,9 @@ export function releaseStaleItemRevision() {
   return loadMachineSettings().release?.staleItemRevision === true;
 }
 
-/** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
+/** Whether a settled hold lifts when main moves (#9699, on by default since #12474): only an exact `false` in the settings file turns it off. */
 export function holdsLiftSettled() {
-  return loadMachineSettings().holds?.liftSettled === true;
+  return loadMachineSettings().holds?.liftSettled !== false;
 }
 
 /**

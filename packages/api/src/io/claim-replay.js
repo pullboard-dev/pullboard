@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { scratchBase } from '../../../kernel/light.js';
 import { boardJobQueueCall } from './gate.js';
 
 const fs = fileSystemAdapter();
@@ -92,9 +93,9 @@ export function replayLine({ p50, p95, max }, count) {
   return `claim replay: ${count} claims p50 ${p50.toFixed(2)} ms, p95 ${p95.toFixed(2)} ms, max ${max.toFixed(2)} ms`;
 }
 
-/** Export the tree of a git ref into a new temp folder with git archive; returns the folder. */
+/** Export the tree of a git ref into a new folder under the scratch root with git archive; returns the folder. */
 async function exportTree(root, ref) {
-  const folder = (await run('mktemp', ['-d', join(tmpdir(), 'pullboard-claim-compare-XXXXXX')], { encoding: 'utf8' })).stdout.trim();
+  const folder = (await run('mktemp', ['-d', join(scratchBase(), 'pullboard-claim-compare-XXXXXX')], { encoding: 'utf8' })).stdout.trim();
   const archive = join(folder, '.tree.tar');
   await run('git', ['-C', root, 'archive', '--format=tar', '-o', archive, ref]);
   await run('tar', ['-x', '-C', folder, '-f', archive]);

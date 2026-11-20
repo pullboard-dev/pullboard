@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/api */
 /** The board API serves its runner job queue on loopback, only under gate.runnerDispatch pull [P7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

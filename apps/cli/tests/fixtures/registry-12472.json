@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-hold.list-person": {"proves":{"specs":["C7"],"claim":"pullboard hold --list --owner person prints the open person holds, oldest deadline first, and says so when there are none."},"why":"Without it, a regression where the person holds sit scattered with no one list to answer from would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/hold.test.js"]}
+}

@@ -34,6 +34,7 @@ const OPTIONS = {
   status: { type: 'string' },
   cancel: { type: 'string' },
   off: { type: 'boolean' },
+  list: { type: 'boolean' },
   stale: { type: 'boolean' },
   port: { type: 'string' },
   address: { type: 'string' },

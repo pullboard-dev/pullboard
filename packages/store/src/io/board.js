@@ -384,7 +384,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
       const problem = requiredReviewFamilyProblem(board, found, agentId);
       return problem && relaxRequiredFamilyEnabled() && relaxationFor?.(found) ? null : problem;
     },
-    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy),
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy, { relaxationFor }),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId

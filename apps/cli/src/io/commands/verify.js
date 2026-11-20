@@ -359,7 +359,7 @@ export function soloLowStakesFacts(item, enabled, evidence) {
   return {
     soloLowStakes: true,
     rows: rows.map((row) => ({ ...row, personApproved: readable === true && !unconfirmed.has(row.id) })),
-    checks: item?.item_check ? [{ machineRun, redBefore: machineRun && baseline?.result === 'red', greenAfter: machineRun && check?.state === 'green' }] : [],
+    checks: item?.item_check ? [{ machineRun, redBefore: machineRun && baseline?.result === 'red', greenAfter: machineRun && check?.state === 'pass' }] : [],
   };
 }
 
@@ -485,6 +485,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
     if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
     const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
+    // A check run in the review folder can still move the seat it left alone; that seat moving refuses the same as the reviewed checkout moving [E8].
+    const seatHead = madeReviewFolder ? headCommit(ctx.info.root) ?? '' : null;
     let digest = 'missing';
     let check;
     let review;
@@ -651,7 +653,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
         submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
-        if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
+        if (headCommit(root) !== head || (seatHead !== null && (headCommit(ctx.info.root) ?? '') !== seatHead) || (reReview && (!isClean(root) || untracked(root).length))) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
         }
         const moved = currentTrunk.commit === trunk.commit ? null
