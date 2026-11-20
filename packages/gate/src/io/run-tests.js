@@ -1301,10 +1301,10 @@ async function main(args) {
   try {
     const { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, gateSlotEnvironment, inheritedGateSlot } = await import('../../../resources/index.js');
     const scopedMarker = process.env[GATE_SLOT_POOL_ENV] || process.env[GATE_SLOT_TOKEN_ENV];
-    const legacyHeld = process.env[GATE_SLOT_HELD_ENV] === '1'; const ordinaryShards = process.env[LANDING_RUN_ENV] !== '1' && process.env.PULLBOARD_RUN_SHARDS !== '0';
+    const legacyHeld = environment.get(GATE_SLOT_HELD_ENV) === '1'; const ordinaryShards = environment.get(LANDING_RUN_ENV) !== '1' && environment.get('PULLBOARD_RUN_SHARDS') !== '0';
     // A named-file landing shards its own selection too: fullSuite is only the scope, not the trigger (#1787), and a name
     // filter rides on every shard, so a name-filtered landing gate shards across runners instead of one local pass (#3158).
-    if ((process.env[LANDING_RUN_ENV] === '1' || ordinaryShards) && !shardLabel) {
+    if ((environment.get(LANDING_RUN_ENV) === '1' || ordinaryShards) && !shardLabel) {
       // Direct modules, not the barrel: the barrel loads main.js, and an ordinary run never needs it (only a landing counts shards there).
       const [{ landingShardOptions, landingFanOutFiles }, { nativeFileArguments }, { freeRunnerSlots }] = await Promise.all([
         import('./test/selection.js'), import('./test/file/dispatch.js'), import('./shards/proof.js'),
@@ -1312,9 +1312,9 @@ async function main(args) {
       let count = ordinaryShards ? freeRunnerSlots() : (await import('../../heavy.js')).landingShardCount(process.cwd());
       // A gate already running in a runner slot is one shard of the controller's fan-out: it runs as one pass and never shards again.
       const insideRunnerSlot = scopedMarker ? inheritedGateSlot({ root: process.cwd(), browser })?.runnerExecution === true : false;
-      shardedRun: if (!insideRunnerSlot && (count > 1 || process.env.PULLBOARD_RELEASE_EXECUTORS)) {
+      shardedRun: if (!insideRunnerSlot && (count > 1 || environment.get('PULLBOARD_RELEASE_EXECUTORS'))) {
         const files = landingFanOutFiles(actions.files ?? (fullSuite // Globs expand and fold; a caller shard flag is refused.
-          ? (isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : [])
+          ? (isGitWorkTree(process.cwd(), environment.all()) ? trackedDefaultTestFiles(process.cwd(), environment.all()) : [])
           : explicitTestFiles(args)), actions.args, process.cwd(), optionTakesValue);
         if (!files.length && !ordinaryShards) throw new Error('a sharded landing gate needs tracked Node test files; commit them or set landingShards to 1');
         if (ordinaryShards && (count = Math.min(count, files.length)) < 2) break shardedRun; // ordinary runs shard over the slots free after landings [C7]
@@ -1367,10 +1367,10 @@ async function main(args) {
         process.exitCode = result.exitCode;
       }, {
         executionServices, browser, gui,
-        kind: process.env[LANDING_RUN_ENV] === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
+        kind: environment.get(LANDING_RUN_ENV) === '1' ? 'gate' : 'seat-test', agent: seat?.seat,
         // A run the landing worker spawns (a main comparison, a bisection half) waits as a landing, not as a seat test
         // behind every submit: one comparison queued 17 minutes behind builders on 6 Nov while nothing landed [C7].
-        landing: process.env.PULLBOARD_LANDING_CLASS === '1',
+        landing: environment.get('PULLBOARD_LANDING_CLASS') === '1',
         shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: state => {
@@ -1413,7 +1413,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   recordRunnerWait = state => { if (state.admitted) { finishWait?.(); finishWait = null; } else finishWait ??= beginSeatTiming(process.cwd(), 'runner-wait', 'gate slot'); };
   try { await main(process.argv.slice(2)); } finally { finishWait?.(); finishSeatTiming(); }
 } else if (process.argv[1]) {
-  process.env.PULLBOARD_TEST_FILE = process.argv[1];
+  environment.set('PULLBOARD_TEST_FILE', process.argv[1]);
   (await import('./test/action/cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
   const fileTimes = process.env[LANDING_FILE_TIMES_ENV];
   let tokenWaitMs = 0;
