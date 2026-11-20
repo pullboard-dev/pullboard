@@ -289,11 +289,12 @@ const shardKeyEnd = prefix => `${prefix}\uFFFF`;
 
 /** A generated board of 500 gates and 20000 gate-shard rows (40 each), the first `done` gates done on a claimed item, so each is a settle candidate. In memory, so the pass times the board's queries alone, not a runs file. */
 function scaleBoard(t, { done = 30 } = {}) {
-  const board = cellBoard(t, ':memory:');
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, ':memory:', undefined, { gitRoot: repo.root });
   const now = Date.now();
   const ids = Array.from({ length: 500 }, () => cellItem(board, { lane: 'web', title: 'Build a page' }).item_id);
   const insert = board.db.prepare('INSERT INTO job (job_id, job_kind, job_step, job_item, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?)');
-  board.db.prepare("UPDATE item SET item_status = 'claimed' WHERE item_id IN (SELECT value FROM json_each(?))").run(JSON.stringify(ids.slice(0, done)));
+  ids.slice(0, done).forEach((id, index) => cellClaim(board, id, cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${index}` }), { root: repo.root }));
   const gates = ids.map((id, index) => `gate:${id}:head${index}`);
   board.db.exec('BEGIN');
   ids.forEach((id, index) => {
