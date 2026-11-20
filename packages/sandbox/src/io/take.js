@@ -38,8 +38,14 @@ function selected(ctx, board, values, services) {
   /** Builds never wait on review cover; the backlog is shouted to the coordinator when the build is claimed [#3792]. */
   const withCover = found => found;
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
-  const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id
+  const omittedIds = values.omitIds ?? [];
+  const nowIso = ctx.clock.now().toISOString();
+  const ownClaim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === me.id
+    && item.item_lease_until > nowIso && !omittedIds.includes(item.item_id)
     && !store.pendingSubmitHandoff(board, item, { fromJobRow: pendingFromJobRow() }));
+  const holding = Boolean(ownClaim);
+  // One claim per call: a seat holding an unsubmitted claim with a live lease gets that claim back and selects nothing else (#12122).
+  if (ownClaim) return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });

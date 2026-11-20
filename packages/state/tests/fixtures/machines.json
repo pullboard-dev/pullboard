@@ -68,7 +68,7 @@
       "id": "<hand-off id>",
       "created": "packages/jobs/src/io/shadow.js:shadowSubmitHandoff",
       "serves": "item claimed by the hand-off's seat at its commit and frozen digest, until the gate's green turns into the submit",
-      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
+      "states": ["queued", "captured", "running", "collected", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
       "terminal": ["green", "submitted", "red", "incomplete", "ownership-wait", "ended", "withdrawn", "done"],
       "lease": "none in production since f226542983; legacy handoff-drive rows carried a 2-minute lease (LEASE_MS)",
       "transitions": [
@@ -89,29 +89,6 @@
       ],
       "servingCheck": { "status": "partial", "at": "packages/store/src/io/submit/handoff/retry.js:startSubmitHandoff", "note": "checked on queue and on queued to running; a running record is resumed with no item check (no driver resumes one since #6580 deleted the hand-off worker). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate." },
       "harness": "apps/cli/tests/io/submit/handoff.test.js"
-    },
-    {
-      "kind": "gate-drive",
-      "name": "submit gate driver",
-      "id": "gate-drive:<hand-off id>",
-      "created": "packages/drive/src/io/gate.js:admitGateDrive",
-      "serves": "the hand-off record while it is queued or running, so the item claimed at the hand-off's commit and digest",
-      "states": ["admitted", "spawned", "unstarted", "queued", "captured", "running", "shard.started", "shard.done", "shard.invalid", "section.done", "gate.progress", "gate.stalled", "collected", "verdict", "done"],
-      "terminal": ["done", "unstarted"],
-      "lease": "LEASE_MS 120 s; renewed every GATE_RENEW_MS 5 s by the driver's timer; a late tick retakes a lapsed lease; GATE_STALL_MS 20 min with no step stalls once, then GATE_INFRA_EXHAUSTED",
-      "transitions": [
-        { "from": "(none)", "to": "admitted", "trigger": "the dispatcher admits a queued ticket and takes the lease", "at": "packages/drive/src/io/gate.js:admitGateDrive" },
-        { "from": "admitted", "to": "spawned", "trigger": "the driver process started", "at": "packages/drive/src/io/gate.js:recordGateDriveSpawn" },
-        { "from": "admitted", "to": "unstarted", "trigger": "spawn failed; lease released", "at": "packages/drive/src/io/gate.js:endGateDriveUnstarted" },
-        { "from": "spawned", "to": "captured", "trigger": "candidate and base resolved to trees", "at": "packages/drive/src/io/once.js:driveOnce" },
-        { "from": "captured", "to": "running", "trigger": "source sent, gate started", "at": "packages/drive/src/io/once.js:driveOnce" },
-        { "from": "running", "to": "gate.progress", "trigger": "every 30 s while the gate runs; resets the stall clock", "at": "packages/drive/src/io/once.js:attemptGate" },
-        { "from": "running", "to": "gate.stalled", "trigger": "no step for GATE_STALL_MS", "at": "packages/drive/src/io/once.js:attemptGate" },
-        { "from": "running", "to": "collected", "trigger": "the gate returned, or GATE_INFRA_EXHAUSTED after one stall retry", "at": "packages/drive/src/io/once.js:driveOnce" },
-        { "from": "collected", "to": "verdict", "trigger": "the receipt cell judges; lease released", "at": "packages/drive/src/io/once.js:recordJobRow" }
-      ],
-      "servingCheck": { "status": "violated", "gap": "SM1", "at": "packages/drive/src/io/once.js:attemptGate", "note": "no item or hand-off check on admission, on any drive transition, or on renewal; the fallback lists only kind gate, so it never sees this kind. A withdrawn, reopened or replaced item's driver runs to its verdict; a driver freed by SIGTERM stays not done and is never ended." },
-      "harness": "NONE"
     },
     {
       "kind": "review",
@@ -694,7 +671,7 @@
     { "case": "withdrawal mid-gate", "current": "the hand-off record ends withdrawn and its ticket is dropped, but a running driver is not stopped and runs to its verdict", "intended": "the driver ends at its next renewal tick", "harness": "apps/cli/journeys/verify/machine.test.js" },
     { "case": "reopen or reject mid-gate", "current": "next skips a gate older than the reopen; the driver keeps running", "intended": "the driver ends at its next renewal tick", "harness": "packages/store/tests/io/board/next/gate.test.js" },
     { "case": "new head submitted while a gate runs", "current": "the old worker is signalled, its slot freed and the new head queued", "intended": "same", "harness": "apps/cli/journeys/submit/handoff/queued.test.js" },
-    { "case": "lapsed gate job whose item moved on (zombie)", "current": "a fallback pass ends legacy kind gate rows; kind gate-drive is never listed", "intended": "every job kind ends at once when its item leaves its serving state", "harness": "apps/cli/tests/io/submit/handoff.test.js" },
+    { "case": "lapsed gate job whose item moved on (zombie)", "current": "a fallback pass ends legacy kind gate rows", "intended": "every job kind ends at once when its item leaves its serving state", "harness": "apps/cli/tests/io/submit/handoff.test.js" },
     { "case": "review held on an item that was withdrawn or verified", "current": "the review job is not released; a heartbeating reviewer keeps extending it", "intended": "a verdict, withdraw or reopen releases it in the same transaction", "harness": "packages/gate/tests/fixtures/pipeline/review-held-on-an-item-that-was-withdraw.js" },
     { "case": "next resumes a claim that changed in the same moment", "current": "you hold #N prints from the read snapshot", "intended": "re-read in the transaction that prints", "harness": "packages/gate/tests/fixtures/pipeline/next-resumes-a-claim-that-changed-in-the.js" },
     { "case": "a shout names an item this seat cannot act on", "current": "next --wait returns a shout asks you to act on #N only for an item open in the seat's lane, claimed by it or reservable by it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/a-shout-names-an-item-this-seat-cannot-a.js" },
@@ -707,7 +684,6 @@
     { "case": "the P7 chaos test", "current": "SPEC P7 names test/durable-chaos-26.test.js as its gate; the file does not exist", "intended": "the chaos test kills drivers at random and asserts each job finishes once", "harness": "NONE" }
   ],
   "gaps": [
-    { "id": "SM1", "severity": "high", "title": "gate-drive jobs never check their item", "files": ["packages/drive/src/io/once.js", "packages/drive/src/io/gate.js"], "test": "test/gate-drive-serving-state.test.js", "criterion": "A gate-drive job whose hand-off record is no longer queued or running, or whose item is not claimed by the hand-off's seat at its frozen digest, writes an ended step {stale:true}, is marked done and stops its gate at its next renewal tick; the dispatcher never admits such a ticket." },
     { "id": "SM2", "severity": "high", "title": "the fallback lists only kind gate", "files": ["packages/drive/src/io/reclaim.js", "apps/cli/src/io/reclaim.js"], "test": "apps/cli/tests/io/submit/handoff.test.js", "criterion": "lapsedGateJobs lists kinds gate and gate-drive; a lapsed gate-drive job whose hand-off is ended, or whose item left its serving state, ends stale on the next next or status, never driven." },
     { "id": "SM3", "severity": "high", "title": "a running hand-off resumes with no item check", "files": ["packages/store/src/io/submit/handoff/retry.js"], "test": "NONE", "criterion": "startSubmitHandoff on a running record checks the item is claimed by the record's seat at its digest, as it does for a queued one, and refuses SUBMIT_HANDOFF_CHANGED otherwise; the worker then ends the job." },
     { "id": "SM4", "severity": "high", "title": "the fallback's serving predicate is wrong for pre-submit gates", "files": ["apps/cli/src/io/reclaim.js"], "test": "apps/cli/tests/io/submit/handoff.test.js", "criterion": "the active predicate takes the hand-off record: a queued or running gate serves claimed by its seat at its digest, and only a post-submit job serves submitted at its commit; a pre-submit gate for a claimed item is never ended stale." },
