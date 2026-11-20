@@ -1,4 +1,4 @@
-/** @pullboard-test-input .github/workflows/stale.yml .github/workflows/reopen-clarify.yml .github/workflows/contribution-gate.yml */
+/** @pullboard-test-input .github/workflows/stale.yml .github/workflows/reopen-clarify.yml .github/workflows/contribution-gate.yml .github/workflows/contribution-post.yml */
 /** Clarification issues close only after inactivity and reopen only for their author [I1]. */
 /** @pullboard-world-pin: the clauses read the repository workflow files, which are the subject of these rules. */
 import assert from 'node:assert/strict';
@@ -8,6 +8,7 @@ import test from 'node:test';
 const staleWorkflow = readFileSync(new URL('../../../.github/workflows/stale.yml', import.meta.url), 'utf8');
 const reopenWorkflow = readFileSync(new URL('../../../.github/workflows/reopen-clarify.yml', import.meta.url), 'utf8');
 const gateWorkflow = readFileSync(new URL('../../../.github/workflows/contribution-gate.yml', import.meta.url), 'utf8');
+const postWorkflow = readFileSync(new URL('../../../.github/workflows/contribution-post.yml', import.meta.url), 'utf8');
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const scriptOffset = reopenWorkflow.indexOf('          script: |\n');
 assert.notEqual(scriptOffset, -1, 'the author-reopen workflow has an executable script');
@@ -125,4 +126,19 @@ test('github.workflows.contribution-gate-trusted-base: the contribution gate run
   assert.match(gateWorkflow, /permissions:\n  contents: read\n/u);
   assert.doesNotMatch(gateWorkflow, /: write\b/u);
   assert.doesNotMatch(gateWorkflow, /secrets\./u);
+});
+
+test('github.workflows.contribution-post-trusted-quotes: the post workflow runs after the gate with one write permission, runs no pull request code and quotes only sanitized values [I1]', () => {
+  assert.match(postWorkflow, /on:\n  workflow_run:\n    workflows: \["Contribution gate"\]\n    types: \[completed\]\n/u, 'it runs on workflow_run of the gate');
+  assert.doesNotMatch(postWorkflow, /pull_request_target|pull_request:/u);
+  assert.match(postWorkflow, /permissions:\n  pull-requests: write\n/u);
+  assert.equal([...postWorkflow.matchAll(/: write\b/gu)].length, 1, 'pull-requests write is the only write permission');
+  assert.doesNotMatch(postWorkflow, /actions\/checkout|head_sha|head_branch|pull_request\.head/u, 'no pull request code is checked out or run');
+  assert.doesNotMatch(postWorkflow, /secrets\./u);
+  const scriptAt = postWorkflow.indexOf('script: |');
+  assert.notEqual(scriptAt, -1);
+  assert.doesNotMatch(postWorkflow.slice(scriptAt), /\$\{\{/u, 'no expression is spliced into the script');
+  assert.match(postWorkflow, /const sanitize = /u, 'the sanitizing step is present');
+  assert.match(postWorkflow, /\[link removed\]/u);
+  assert.match(postWorkflow, /> result: \$\{conclusion\}/u, 'the body quotes only sanitized values');
 });
