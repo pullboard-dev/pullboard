@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cutShims } from '../../../src/io/shims.js';
 import { readCellRule } from '../../../light.js';
+import { CELL_RULE_FILE } from '../../../index.js';
+import { readCellRule as readCellRuleSync } from '../../../index.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 
@@ -37,4 +39,14 @@ test('codemap.io-cell-rule.shims-use-declared-edges: clause 2: the shim cutter r
   const undeclared = cutShims(tree([]), { write: false });
   assert.deepEqual(undeclared.cut, []);
   assert.ok(undeclared.kept.some(([shim, reasons]) => shim === 'src/b-shim.js' && reasons.some(reason => reason.includes('cross-cell imports'))));
+});
+
+test('codemap.io-cell-rule.front-door-reads-sync: clause 1: the front door exports the synchronous reader and the rule file name, and it sees the same edges, grandfathered edges and cell order as the light door [C7,#11676]', async () => {
+  const sync = readCellRuleSync();
+  assert.equal(CELL_RULE_FILE, 'packages/codemap/data/ceilings/allowed-edges.json');
+  const light = await readCellRule();
+  assert.ok(sync.allowedEdges.length > 100, 'the declared edge set is the plan\'s whole list');
+  assert.deepEqual(sync.allowedEdges, light.allowedEdges);
+  assert.deepEqual(sync.upwardEdgesGrandfathered, light.upwardEdgesGrandfathered);
+  assert.deepEqual(sync.cellOrder, light.cellOrder);
 });

@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/list/startup-heavy.json */
 /** The static import closure of the status command loads no more heavy startup modules than today's 10 [C7,#6480]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import {
