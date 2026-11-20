@@ -13,6 +13,7 @@ import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { provenBreakStatement } from '../../../src/io/commands/verify.js';
 import { refuseLinkedDependencies } from '../../../src/io/commands/verify.js';
+import { verdictIsolation } from '../../../src/io/commands/verify.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -70,4 +71,12 @@ test('cli.io-commands-verify.deps-outside-tree-refused: refuseLinkedDependencies
   refuseLinkedDependencies(folder);
   symlinkSync(outside, join(folder, 'node_modules', 'left-pad'));
   assert.throws(() => refuseLinkedDependencies(folder), (error) => error.code === 'DEPS_OUTSIDE_TREE' && error.message.includes('left-pad') && !error.message.includes('kept-pkg'));
+});
+
+test('cli.io-commands-verify.isolated-flag: verdictIsolation is true for a check run in the board-made review folder or one proven by a runner receipt at the submitted commit, and false otherwise [C7,#1112]', () => {
+  const commit = 'a'.repeat(40);
+  assert.equal(verdictIsolation({ folder: '/review/one', reviewFolder: '/review/one', commit, receipt: null }), true);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: { commit } }), true);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: null }), false);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: '/review/one', commit, receipt: { commit: 'b'.repeat(40) } }), false);
 });
