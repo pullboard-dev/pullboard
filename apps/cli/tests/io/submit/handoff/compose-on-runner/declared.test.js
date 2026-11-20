@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { jobsOf } from '../../../../../../packages/jobs/index.js';
-import { runSubmit } from '../../../fixtures/submit/compose-on-runner.js';
+import { jobsOf } from '../../../../../../../packages/jobs/index.js';
+import { runSubmit } from '../../../../fixtures/submit/compose-on-runner.js';
 
 const RUNS = new Map();
 const CLEANUPS = [];
