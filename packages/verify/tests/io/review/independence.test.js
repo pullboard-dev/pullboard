@@ -62,10 +62,10 @@ test('verify.io-review-independence.eligibility-forwards-witness: clause 3: elig
   const { board, item } = submittedBoard(t, null);
   const agent = { agent_id: 'core-2', agent_route: 'strong' };
   const options = { policy: 'any', familyPolicy: 'require', relaxRequiredFamily: true };
-  assert.equal(withRelax(true, () => eligibilityProblem(board, item, agent, options))?.code, 'O2_FAMILY_MATCH', 'a same-family seat is refused under require without a witness');
+  assert.equal(withRelax(true, () => eligibilityProblem(board, item, agent, options))?.code, 'SAME_FAMILY', 'a same-family seat is refused under require without a witness');
   const seen = [];
   const requiredFamilyWitness = (_board, found, agentId) => { seen.push([found.item_id, agentId]); return WITNESS; };
   assert.equal(withRelax(true, () => eligibilityProblem(board, item, agent, { ...options, requiredFamilyWitness })), null);
   assert.deepEqual(seen, [[item.item_id, 'core-2']], 'the family guard read the witness for this item and seat');
-  assert.equal(withRelax(false, () => eligibilityProblem(board, item, agent, { ...options, requiredFamilyWitness }))?.code, 'O2_FAMILY_MATCH', 'the setting off still refuses');
+  assert.equal(withRelax(false, () => eligibilityProblem(board, item, agent, { ...options, requiredFamilyWitness }))?.code, 'SAME_FAMILY', 'the setting off still refuses');
 });
