@@ -66,7 +66,7 @@ export const idList = (text) => (Array.isArray(text) ? text : [text ?? '']).flat
  * The start of a command an agent can paste anywhere: agent shells often start each command in the
  * main checkout, so every command pullboard suggests names its folder (I5).
  *
- * @param {string} root
+ * @param {string} text
  * @returns {string}
  */
 export const shellWord = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);

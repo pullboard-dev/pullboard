@@ -43,9 +43,6 @@ import {
   requireSubmitHandoffExecution,
 } from '../../../../../packages/sandbox/index.js';
 import { machineVerificationEligible } from '../../../../../packages/verify/index.js';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 export { doctrineExecutionPhases } from '../submit/gate.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
@@ -221,6 +218,15 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
 /** The tree of a commit, which for a composed submit is not the checkout's tree. */
 function commitTree(root, commit) { return git(root, ['rev-parse', `${commit}^{tree}`]).trim(); }
 
+/**
+ * Submit the item from the checkout it is built in, running the submit checks and recording the move.
+ *
+ * @param {object} ctx
+ * @param {number} id
+ * @param {object} infra
+ * @param {object|null} [companionInput]
+ * @returns {Promise<*>}
+ */
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
@@ -315,7 +321,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const dirty = authorizationStep('tree-state', () => !treeUntouched(root) && !isClean(root));
   if (dirty) {
     // Preserve the typed grammar refusal without starting gates for a dirty candidate.
-    try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
+    try { parseSpec(fs.readFile(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
     catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
     throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
   }
@@ -461,9 +467,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const companion = await authorizationStep('item-patches', () => withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
-      try { patchStat = statSync(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
+      try { patchStat = fs.stat(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
       if (!patchStat.isFile() || patchStat.size > 8 * 1024 * 1024) throw new Refused('ITEM_PATCH_FORMAT', 'supply a regular companion patch of at most eight MiB');
-      const patchBytes = readFileSync(companionInput.file);
+      const patchBytes = fs.readFile(companionInput.file, null);
       const patchText = patchBytes.toString('utf8');
       if (!Buffer.from(patchText, 'utf8').equals(patchBytes)) throw new Refused('ITEM_PATCH_FORMAT', 'companion patch must contain valid UTF8');
       const patch = normalizeItemPatch(patchText);
@@ -605,7 +611,7 @@ async function handOffHostedSubmit(ctx, id, runner) {
     if (item?.item_status !== 'claimed' || item.item_owner !== who.id) throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     return { me: who, local: itemFolderPath(seatRoot(ctx, board, who), id) };
   });
-  const branch = `${me.lane}/item-${id}`, root = ctx.info.root, existed = existsSync(local);
+  const branch = `${me.lane}/item-${id}`, root = ctx.info.root, existed = fs.exists(local);
   if (existed) {
     const current = checkoutBranch(local);
     if (current !== null && current !== branch) throw new Refused('HOSTED_BRANCH_MISMATCH', `item folder ${local} is on ${current}, not the claimed branch ${branch}; switch it back and submit again`);
@@ -624,6 +630,13 @@ async function handOffHostedSubmit(ctx, id, runner) {
   return local;
 }
 
+/**
+ * The submit command: parse its arguments and flags, hand off to a hosted runner when one is set, and submit the item.
+ *
+ * @param {object} io
+ * @param {object} args the first word and the parsed flags
+ * @returns {Promise<number>}
+ */
 export async function run(io, { first, values }) {
   const submissionResult = {};
   let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, dryRunReview: values['dry-run-review'] === true, json: values.json === true };
@@ -682,3 +695,5 @@ export async function run(io, { first, values }) {
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/light.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();

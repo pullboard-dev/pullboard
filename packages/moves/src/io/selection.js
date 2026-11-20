@@ -311,8 +311,9 @@ function openNextFolder(ctx, board, me, id, options, { openItemFolder, ordered }
 }
 
 /** Name the best item in another lane without claiming it; that lane's own seat builds it [N2,B13]. */
-function otherLaneWork(me, item, reasons) {
-  const line = `#${item.item_id} (${item.item_title}) is next, in the ${item.item_lane} lane; this seat builds the ${me.lane} lane, so it stays unclaimed for a ${item.item_lane} seat: pullboard worktree ${item.item_lane} --model "<model name>"`;
+function otherLaneWork(me, item, reasons, holder = null) {
+  const keeps = holder ? `; #${holder.item_id} keeps this seat in ${me.lane} until it lands or is released` : '';
+  const line = `#${item.item_id} (${item.item_title}) is next, in the ${item.item_lane} lane; this seat builds the ${me.lane} lane, so it stays unclaimed for a ${item.item_lane} seat: pullboard worktree ${item.item_lane} --model "<model name>"${keeps}`;
   return { reasons: [...(reasons ?? []), line], idleReason: 'nothing-eligible', otherLane: { item: item.item_id, lane: item.item_lane } };
 }
 
@@ -328,14 +329,25 @@ function builderRework(board, items, agents, me) {
 }
 
 /**
- * Whether next may re-join this seat to another lane: it holds no live claim, and its lane owns folders [N2,C7,#10691].
+ * The item that keeps this seat in its lane: one it built or owns that is submitted or verified, so in the gate or in
+ * review and not yet landed or released [C7,#12019].
+ * Why: a rejection returns the item to the lane it was built in, and the pre-commit hook enforces the seat's lane, so a seat
+ * moved away could not fix the files it still owns.
+ */
+function laneHolder(items, me) {
+  return items.find(entry => ['submitted', 'verified'].includes(entry.item_status) && (entry.item_built_by === me.id || entry.item_owner === me.id)) ?? null;
+}
+
+/**
+ * Whether next may re-join this seat to another lane: it holds no live claim, no item in the gate or review, and its lane
+ * owns folders [N2,C7,#10691,#12019].
  * Why: an item folder belongs to its seat only while its branch is <seat lane>/item-<id>, so a move strands every held
  * folder (pre-commit NOT_JOINED); and a lane that owns no folders seats verifiers, which a move turned into builders.
  */
 function movable(config, items, me) {
   const lane = config.lanes?.[me.lane];
   if (lane && !(lane.owns ?? []).length) return false;
-  return !items.some(entry => entry.item_status === 'claimed' && entry.item_owner === me.id);
+  return !items.some(entry => entry.item_status === 'claimed' && entry.item_owner === me.id) && !laneHolder(items, me);
 }
 
 /** Whether this seat's own claim is one it may keep building here: its lane, route and runnable filter (#2978). */
@@ -543,7 +555,7 @@ function nextPick(ctx, board, values, ports) {
   // laneMode off: a light seat is offered an open light item from any lane, so it neither moves nor only names it [C7,#8940].
   const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
   if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) || !movable(ctx.config, items, me)
-    ? otherLaneWork(me, item, reasons) : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
+    ? otherLaneWork(me, item, reasons, laneHolder(items, me)) : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   // next.lightShapedStrong: the selection already found no free light item, so a light-shaped strong item is this light seat's to take [C7,#9568].
   const shapedStrong = selection.lightShapedStrong === true && me.route === 'light' && item.item_route === 'strong' && lightShaped(item);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !shapedStrong && !store.canTake(me.route, item.item_route))
