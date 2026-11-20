@@ -308,7 +308,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // With health.derivedState on and the table swept at this trunk commit, each item's freshness is its table row, not a git read [C7,#3010].
     const derived = await derivedVerdicts(board, trunkTip);
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
-      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject(), residualConflicts: mechanicalConflictFiles, derived });
+      write: (operation, args) => write ? write(operation, args) : ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject(), residualConflicts: mechanicalConflictFiles, derived });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     // A submitted sprint item with a green screen on this trunk tip lands as a verified one does; the pace is read from the listed row [V2,M1,#12177].
     const landable = item => item.item_status === 'verified' || sprintLandable(board, item, trunkTip);
