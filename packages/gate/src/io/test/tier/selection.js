@@ -26,7 +26,7 @@ import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
 import { CELLS_EDGES_CEILINGS } from '../../edges.js';
-import { declaredReads } from '../gui/admission.js';
+import { declaredReads } from '../../gui/admission.js';
 
 const snapshots = new Map();
 /** Shared data files many tests read: the gate ceilings, the codemap plan and edges, and the registries tests record into [C7]. */
