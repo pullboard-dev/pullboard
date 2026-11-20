@@ -54,7 +54,7 @@ Generated from `apps/cli/src/io/documentation/events` by `docs/formats/generate.
 | `flake-observation` | reporting agent | `engine`, `observation` |
 | `flake-repair` | reporting agent | `engine`, `key`, `item` |
 | `test-quarantine` | reporting agent | `engine`, `file`, `name`, `tree`, `runs`, ledger `ledger` (true when the typed flake ledger filed it), automatic-Submit `autoSubmit` |
-| `health-scan` | observing agent | `active`, optional `pendingCpu`, `engine` |
+| `health-scan` | observing agent | `active`, optional `pendingCpu`, `digest`, `engine` |
 | `health-failure` | sentinel | `key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine` |
 | `health-resolved` | sentinel | `key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine` |
 | `sentinel-proposal` | proposing agent | `row`, `digest`, `engine` |
