@@ -1,0 +1,7 @@
+{
+  "name": "timeline",
+  "help": "  pullboard timeline <id> [--json]                    one item's stages with deltas, the bucket summary and its longest gap, read only\n  pullboard timeline --fleet [--since 3h] [--json]    the fleet's stage medians, time shares, gates per landed item and slowest items, read only\n",
+  "required": {
+    "summary": "object"
+  }
+}

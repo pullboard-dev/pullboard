@@ -6,6 +6,7 @@
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -90,7 +91,7 @@ function branchOf(gitDir) {
  * a Refused the command reported; `seat` is the registered agent id when known; `why` is the agent's stated intent. It returns the line written, or
  * null when nothing could be written; it never throws.
  */
-export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat = null, why = null, env = process.env, now = Date.now }) {
+export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat = null, why = null, env = environmentAdapter().all(), now = Date.now }) {
   try {
     const where = locate(cwd);
     if (!where) return null;
