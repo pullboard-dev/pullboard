@@ -1,8 +1,11 @@
 /** Smoke the candidate's own CLI on a scratch board before main moves: help, init, add, list, show, claim, next and status [C7]. */
 import { fileSystemAdapter } from '../../../fs/index.js';
 import { spawnSync } from 'node:child_process';
+import { basename } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { runCheckOnRunner } from './main/red.js';
@@ -55,7 +58,7 @@ function smokeReceiptExists(root, commit, git) {
 /** An environment that carries no seat, board or token of the caller, only what a fresh checkout would see. */
 function scratchEnvironment(home) {
   const env = {};
-  for (const [key, value] of Object.entries(process.env)) if (!key.startsWith('PULLBOARD_') && !key.startsWith('GIT_') && !/^(?:CLAUDE|CODEX|SSH_)/u.test(key)) env[key] = value;
+  for (const [key, value] of Object.entries(environmentAdapter().all())) if (!key.startsWith('PULLBOARD_') && !key.startsWith('GIT_') && !/^(?:CLAUDE|CODEX|SSH_)/u.test(key)) env[key] = value;
   return { ...env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Smoke', GIT_AUTHOR_EMAIL: 'smoke@example.invalid',
     GIT_COMMITTER_NAME: 'Smoke', GIT_COMMITTER_EMAIL: 'smoke@example.invalid', PULLBOARD_HOME: join(home, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(home, 'machine-home'), PULLBOARD_USAGE_CHECKPOINT: 'inline' };
@@ -117,7 +120,7 @@ export function runLandingCliSmoke(candidate, { record = false, git: launch = gi
   try {
     fs.mkdir(join(home, 'machine-home'));
     // A background view would outlive the smoke; the scratch machine keeps it off.
-    fs.writeFile(join(home, 'machine-home', 'settings.json'), JSON.stringify({ view: { background: false } }));
+    fs.writeFile(join(home, 'machine-home', basename(machineSettingsFile())), JSON.stringify({ view: { background: false } }));
     const env = scratchEnvironment(home), repo = join(home, 'repo'), seat = join(home, 'seat');
     const git = (cwd, ...args) => {
       // init installs this repository's hooks, which call a pullboard that is not installed here; the scratch repository runs none.

@@ -27,7 +27,7 @@ import {
 import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { watchSpecPress } from '../../../tests/fixtures/cockpit/spec-watch.js';
 
-test('real Chrome records Spec row decisions from the row, detail and confirmed section controls [B26,N26]', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-spec-cockpit-decisions.real-chrome-records-spec-row-decisions: real Chrome records Spec row decisions from the row, detail and confirmed section controls [B26,N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec decision checks.');
 
@@ -198,7 +198,7 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
   await runWidth(1280);
 });
 
-test('clause 2: cockpit.test.js no longer holds the Spec row decisions case, which lives only in this file [B26,N26,C7]', () => {
+test('cli.journeys-spec-cockpit-decisions.cockpit-test-js-no-longer-holds: clause 2: cockpit.test.js no longer holds the Spec row decisions case, which lives only in this file [B26,N26,C7]', () => {
   assert.equal(readdirSync(new URL('../', import.meta.url)).includes('cockpit.test.js'), false, 'the emptied cockpit.test.js is gone');
   assert.equal(existsSync(new URL('./decisions.test.js', import.meta.url)), true, 'the case lives here');
 });

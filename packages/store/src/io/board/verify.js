@@ -73,6 +73,7 @@ import { REVIEW_REQUEST_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { SPEC_APPROVAL_ENGINE } from "../../../../state/light.js";
 import { STRONG_REJECTION_NOTICE_ENGINE } from "../../../../state/light.js";
+import { itemPace } from "./sprint-pace.js";
 
 /** What the verify table needs from the cells the writer already reads; the table decides a verdict only from the engine where every rule it holds was in force. */
 const VERIFY_TABLE_DEPS = Object.freeze({ pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
@@ -193,7 +194,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         joined: null,
         [IN_STATE]: (found) => new Refused('NOT_SUBMITTED', `item #${id} is ${current(board, found).item_status}, not submitted`),
         atSubmittedCommit: null,
-        notMerged: found => !found.item_merged_commit ? null
+        // Sprint lands submitted work before its verdict, so only steady and strict items refuse a landed one, as the verify table's not-merged guard says [#12180].
+        notMerged: found => !found.item_merged_commit || itemPace(found) === 'sprint' ? null
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,

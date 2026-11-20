@@ -3,7 +3,7 @@ import { fileSystemAdapter } from '../../../../fs/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
-import { runStaticChecks } from '../../../../gate/index.js';
+import { runStaticChecks } from '../../../../gate/heavy.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { stageLandingDerived } from '../derive.js';
@@ -72,7 +72,7 @@ export async function commitDerived(state, merged, hooks) {
     // The coordinator writes the badge documents itself when no runner answered.
     const written = state.landingPorts?.writeBadges(root, state.landingPorts.badgeCounts(state.board)) ?? [];
     if (written.length) git(root, ['add', '--', ...written]);
-    derived = stageLandingDerived(root).engines;
+    derived = (await stageLandingDerived(root)).engines;
     await stageTestRegistries(root, state.batch.base);
     state.say('the runner could not derive this batch; engine numbers and docs were built on the coordinator');
   }
