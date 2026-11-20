@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { recordSubmitHandoff } from '../../../jobs/index.js';
 import { loadStopRules } from '../../../items/index.js';
 import { loadReturnedFirst } from '../../../queue/index.js';
@@ -64,6 +65,39 @@ test('moves.selection.idle-seat-still-moves: clause 3: a view seat holding nothi
   const { pick, work } = board(t, 'view');
   const docs = work('Docs work', 'docs');
   assert.deepEqual(pick().move, { from: 'view', lane: 'docs', item: docs });
+});
+
+/** This seat's item, claimed and then submitted through the submit move, so it waits in the gate or review and is no longer a claim. */
+function builtItem(box, seat, work) {
+  const held = work('View work this seat built', 'view');
+  box.claim(held, seat);
+  const commit = box.git('rev-parse', 'HEAD');
+  submitFixture(box.board, held, { agentId: seat.id, commit, tree: box.git('rev-parse', `${commit}^{tree}`), gateGreen: true });
+  return held;
+}
+
+test('moves.io-selection.gate-item-pins-lane: clause 1: a view seat whose built item is submitted, in the gate or in review gets no move to docs even with view empty, and the idle line names that item [N2,C7,#12019]', (t) => {
+  for (const status of ['submitted']) {
+    const { box, seat, pick, work, laneNow } = board(t, 'view');
+    const held = builtItem(box, seat, work);
+    const docs = work('Docs work', 'docs');
+    const looked = pick();
+    assert.equal(looked.move, undefined, JSON.stringify(looked));
+    assert.deepEqual(looked.otherLane, { item: docs, lane: 'docs' });
+    assert.ok(looked.reasons.some(line => line.includes(`#${held} keeps this seat in view until it lands or is released`)), JSON.stringify(looked.reasons));
+    assert.equal(laneNow(), 'view');
+  }
+});
+
+test('moves.io-selection.landed-item-frees-lane: clause 2: once that item lands or is withdrawn, the same seat is moved to the lane with work as before [N2,C7,#12019]', (t) => {
+  for (const end of ['landed on main', 'withdrawn']) {
+    const { box, seat, pick, work } = board(t, 'view');
+    const held = builtItem(box, seat, work);
+    const docs = work('Docs work', 'docs');
+    assert.equal(pick().move, undefined, 'held while submitted');
+    store.withdraw(box.board, held, { agentId: 'coordinator', reason: end });
+    assert.deepEqual(pick().move, { from: 'view', lane: 'docs', item: docs }, `freed once the item is ${end}`);
+  }
 });
 
 /** Seed closed built items as a long-running board holds them: filed open with a builder, withdrawn by the coordinator, each keeping its own last update. */
