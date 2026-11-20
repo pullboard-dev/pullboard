@@ -520,6 +520,18 @@ export function preCommitProblems(context) {
   return withSharedReads(context.root, stagedPaths(context.root).touched, () => checkStagedChange(context));
 }
 
+/**
+ * The ITEM_FOLDER_OFF_BRANCH refusal when this checkout is an item folder (a path ending -item-<id>) whose HEAD is not on a `<lane>/item-<id>` branch, else null.
+ * Why: the folder's identity needs that exact branch, so a probe commit on any other branch looked like an unjoined worktree [C7,#10799].
+ */
+function itemFolderOffBranch(root) {
+  const item = /-item-([1-9]\d*)$/u.exec(root)?.[1];
+  if (!item) return null;
+  const branch = tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim();
+  if (branch.endsWith(`/item-${item}`)) return null;
+  return `ITEM_FOLDER_OFF_BRANCH: this is the item folder of #${item} but HEAD is ${branch ? `on ${branch}` : 'detached'}; switch back to <lane>/item-${item}, or probe in a separate worktree (git worktree add <path> <commit> --detach)`;
+}
+
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
@@ -564,7 +576,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   }
   if (isMain) return problems;
   if (!agent) {
-    problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
+    const offBranch = itemFolderOffBranch(root);
+    problems.push(offBranch ?? 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
     return problems;
   }
   const mergeHeads = mainMergeHeads(root, preMergeHook);

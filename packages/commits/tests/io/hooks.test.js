@@ -2,6 +2,7 @@
 /** The pre-commit shared reads answer each cells plan shard as one record, however many paths a commit stages [C7,#10657]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
@@ -105,6 +106,44 @@ test('commits.io-hooks.lanes-on-unchanged: clause 2: with laneMode on the named 
   const problems = laneChange(t, 'on', ['packages/alpha/src/a.js']);
   assert.equal(problems.length, 1);
   assert.match(problems[0], /outside the web lane: packages\/alpha\/src\/a\.js/u);
+});
+
+/** A linked worktree named like an item folder of #7, checked out on `branch`, with one staged change. */
+function itemFolder(t, branch) {
+  const graph = fixtureCommittedGraph('pullboard-item-folder-'), main = graph.root, root = `${main}-item-7`;
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode: 'on', lanes: { core: { owns: ['a.txt'], specs: ['G1'] } } }) + '\n');
+  graph.put('a.txt', 'original\n');
+  graph.commit();
+  runFixtureSetupGit(['worktree', 'add', '-b', branch, root], { cwd: main });
+  writeFileSync(join(root, 'a.txt'), 'edited\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  return root;
+}
+
+const FOLDER_OPTIONS = { isMain: false, boardFile: 'board.sqlite', config: { protect: { blocked: [], allowed: [], secrets: false } }, approvedRowPorts: { checkLoosening: () => [] } };
+
+test('commits.io-hooks.item-folder-off-branch-refused: clause 1: a commit in a claimed item folder whose HEAD is on probe/7 is refused with ITEM_FOLDER_OFF_BRANCH, not NOT_JOINED, and says to switch back or probe elsewhere [C7,#10799]', (t) => {
+  const problems = preCommitProblems({ ...FOLDER_OPTIONS, root: itemFolder(t, 'probe/7'), agent: null });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /^ITEM_FOLDER_OFF_BRANCH: /u);
+  assert.match(problems[0], /switch back to <lane>\/item-7, or probe in a separate worktree/u);
+  assert.doesNotMatch(problems[0], /not joined/u);
+});
+
+test('commits.io-hooks.item-folder-own-branch-passes: clause 2: a commit on core/item-7 in that folder, resolved to its claiming seat, passes as today [C7,#10799]', (t) => {
+  assert.deepEqual(preCommitProblems({ ...FOLDER_OPTIONS, root: itemFolder(t, 'core/item-7'), agent: { agent_lane: 'core', agent_id: 'seat-1' } }), []);
+});
+
+test('commits.io-hooks.unjoined-worktree-unchanged: clause 2: a checkout that is not an item folder and has no seat still says it has not joined a lane [C7,#10799]', (t) => {
+  const graph = fixtureCommittedGraph('pullboard-unjoined-');
+  t.after(() => rmSync(graph.root, { recursive: true, force: true }));
+  graph.put('a.txt', 'original\n');
+  graph.commit();
+  graph.put('a.txt', 'edited\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: graph.root });
+  assert.deepEqual(preCommitProblems({ ...FOLDER_OPTIONS, root: graph.root, agent: null }), ['this worktree has not joined a lane: pullboard join <lane> --model "<model name>"']);
 });
 
 /** A repository with one commit per message after a base commit; a message starting "Merge " is made as a merge commit. */
