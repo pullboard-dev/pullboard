@@ -139,7 +139,11 @@ function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
 function expeditedGateJobs(db, ordered) {
   const gateKind = ({ row }) => row.job_kind === 'gate' || row.job_kind === SHARD_JOB_KIND;
   if (!ordered.some(gateKind)) return ordered;
-  const expedited = new Set(expeditedItems({ db }));
+  // A runs file holds job rows only; the expedite events live on the board, so a claim made on a runs file orders by age alone.
+  let marked;
+  try { marked = expeditedItems({ db }); }
+  catch (error) { if (!/no such table: event\b/u.test(error?.message ?? '')) throw error; marked = []; }
+  const expedited = new Set(marked);
   if (!expedited.size) return ordered;
   const isExpedited = entry => gateKind(entry) && expedited.has(Number(entry.row.job_item));
   if (!ordered.some(isExpedited)) return ordered;
