@@ -185,6 +185,7 @@ const BEFORE = {
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
+  'route.reservations': false,
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
@@ -425,6 +426,36 @@ test('config.io-settings-machine-defaults.items-bar-rules-at-add-exact-true: cla
 test('config.io-settings-machine-defaults.items-bar-rules-at-add-refuses-non-boolean: clause 2: a non-boolean items.barRulesAtAdd refuses BAD_MACHINE_SETTINGS [C7,#11738]', async () => {
   await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.barRulesAtAdd/u.test(error.message));
   await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 1 } }), error => error.code === 'BAD_MACHINE_SETTINGS');
+});
+
+/** Read route.reservations through a private machine home holding the given settings. */
+async function reservationsWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { routeReservations } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-route-reservations-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return routeReservations();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.route-reservations-exact-true: clause 1: route.reservations defaults false and routeReservations() is true only for an exact true [C7,#9177]', async () => {
+  assert.equal(BEFORE['route.reservations'], false);
+  assert.equal(MACHINE_DEFAULTS['route.reservations'], false);
+  assert.equal(await reservationsWith({}), false);
+  assert.equal(await reservationsWith({ route: { reservations: false } }), false);
+  assert.equal(await reservationsWith({ route: { reservations: true } }), true);
+});
+
+test('config.io-settings-machine-defaults.route-reservations-refuses-non-boolean: clause 2: a non-boolean route.reservations refuses BAD_MACHINE_SETTINGS [C7,#9177]', async () => {
+  await assert.rejects(reservationsWith({ route: { reservations: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /route\.reservations/u.test(error.message));
+  await assert.rejects(reservationsWith({ route: { reservations: 1 } }), error => error.code === 'BAD_MACHINE_SETTINGS');
 });
 
 async function reviewHoldWith(settings) {

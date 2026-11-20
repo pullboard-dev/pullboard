@@ -1,0 +1,47 @@
+{
+  "cli.io-commands-route.to-reserves": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With route.reservations on, route <id> --to <seat> reserves the item for that seat through reserveItem."
+    },
+    "why": "Without it the reserveItem move has no command, so a reservation cannot be recorded from the CLI.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/route.js",
+      "apps/cli/src/io/cli-main/options.js",
+      "apps/cli/tests/io/commands/route.test.js"
+    ]
+  },
+  "cli.io-commands-route.off-clears": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With route.reservations on, route <id> --off clears the reservation through clearReservation."
+    },
+    "why": "Without it a reservation could never be lifted from the CLI.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/route.js",
+      "apps/cli/src/io/cli-main/options.js",
+      "apps/cli/tests/io/commands/route.test.js"
+    ]
+  },
+  "cli.io-commands-route.off-by-default-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With route.reservations off, route --to and --off are refused with a next step naming the setting and --suggest is unchanged."
+    },
+    "why": "Without it an unlisted setting could silently turn on a board-writing command.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/route.js",
+      "apps/cli/src/io/cli-main/options.js",
+      "apps/cli/tests/io/commands/route.test.js"
+    ]
+  }
+}
