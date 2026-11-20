@@ -162,7 +162,7 @@ function inspectionReads(board, id, commit, proof, titleTicks) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
+ * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} options - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
 export function submit(board, id, options) {
