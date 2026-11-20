@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { executionServices } from '../../../gate/tests/fixtures/execution.js';
 import { takeResource } from '../../../resources/index.js';
-import { withGateSlot } from '../../../gate/index.js';
+import { withGateSlot } from '../../../gate/heavy.js';
 
 /** A private real repository and machine home; the machine home stands in for one runner's own ~/.pullboard. */
 function machine(t, settings) {

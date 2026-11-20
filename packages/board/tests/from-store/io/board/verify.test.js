@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
-import * as store from '../../../index.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
-import { temporaryRepository } from '../../fixtures/submit.js';
+import * as store from '../../../../../store/index.js';
+import { ENGINE_VERSION } from '../../../../../state/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { temporaryRepository } from '../../../../../store/tests/fixtures/submit.js';
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);
@@ -71,15 +71,14 @@ function verdictEvents(f, id) {
     .map(({ kind, by, d }) => { const { model, ...detail } = JSON.parse(d); return { kind, by, detail }; });
 }
 
-test('store.io-board-verify.finish-reads-before-lock: clause 1: the reads a verdict needs that do not depend on its write run before the write lock, and the verdict events are unchanged [C7,#10868]', async t => {
-  // Loaded here so main, which has no such export, still runs this file's measurement case.
-  const { prepareVerdictFacts } = await import('../../../src/io/board/verify.js');
+test('board.verify.finish-reads-before-lock: clause 1: the reads a verdict needs that do not depend on its write run before the write lock, and the verdict events are unchanged [C7,#10868]', async t => {
+  const { prepareVerdictFacts } = await import('../../../../../store/index.js');
   const f = fixture(t);
   const prepared = f.submitted('prepared verdict');
   const plain = f.submitted('plain verdict');
   f.current();
   const seen = watchTableReads(f);
-  const facts = prepareVerdictFacts(f.board, prepared, accept(f, prepared));
+  const facts = await prepareVerdictFacts(f.board, prepared, accept(f, prepared));
   assert.ok(facts, 'the verdict reads were prepared');
   for (const name of Object.keys(TABLE_READS)) assert.ok(seen.some(read => read.name === name), `the ${name} read ran while preparing`);
   assert.deepEqual(seen.filter(read => read.locked), [], 'no table read ran under the write lock while preparing');
@@ -93,7 +92,7 @@ test('store.io-board-verify.finish-reads-before-lock: clause 1: the reads a verd
   assert.equal(store.getItem(f.board, prepared).item_status, 'verified');
 });
 
-test('store.io-board-verify.finish-preparation-wired: clause 3: PREPARATIONS.verify in write.js hands the prepared reads to the native verify through writeBoardCommand [C7,#10868]', t => {
+test('board.verify.finish-preparation-wired: clause 3: PREPARATIONS.verify in write.js hands the prepared reads to the native verify through writeBoardCommand [C7,#10868]', t => {
   const f = fixture(t);
   const id = f.submitted('wired verdict');
   f.current();
@@ -106,7 +105,7 @@ test('store.io-board-verify.finish-preparation-wired: clause 3: PREPARATIONS.ver
   assert.equal(store.getItem(f.board, id).item_status, 'verified');
 });
 
-test('store.io-board-verify.finish-waiter-wait: clause 2: a writer that waits on a verdict waits for its write, not for the table reads [C7,#10868]', async t => {
+test('board.verify.finish-waiter-wait: clause 2: a writer that waits on a verdict waits for its write, not for the table reads [C7,#10868]', async t => {
   const f = fixture(t);
   const READ_MS = 400;
   const id = f.submitted('waited-on verdict');
