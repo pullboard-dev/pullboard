@@ -20,6 +20,7 @@ import { PROBE_WRITE_RELEASE_ENV } from '../../fixtures/resource.js';
 import { launch } from '../../fixtures/resource.js';
 import { setOneGateSlot } from '../../fixtures/resource.js';
 import { launchDiagnostic } from '../../fixtures/resource.js';
+import { reapFixtures } from '../../fixtures/resource.js';
 
 after(reapFixtures);
 
