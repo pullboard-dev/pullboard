@@ -702,7 +702,6 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
   const { PassThrough } = await import('node:stream');
-  const { createWriteStream } = await import('node:fs');
   const { pathToFileURL } = await import('node:url');
   const { options, env: testEnv } = await landingTestOptions(args, env, concurrency);
   delete testEnv[LANDING_WAIVERS_ENV];
@@ -753,7 +752,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const input = new PassThrough({ objectMode: true });
     const output = input.compose(reporter);
     const destination = entry.destination === 'stdout' ? process.stdout
-      : entry.destination === 'stderr' ? process.stderr : createWriteStream(resolve(entry.destination));
+      : entry.destination === 'stderr' ? process.stderr : fs.createWriteStream(resolve(entry.destination));
     const readableEnd = new Promise(resolveEnd => {
       output.once('end', resolveEnd);
       output.once('close', resolveEnd);
