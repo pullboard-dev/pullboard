@@ -370,10 +370,6 @@
   "packages/resources/src/io/controller/custody.js": {
     "state-file": 4
   },
-  "packages/resources/src/io/handoff/worker/cap.js": {
-    "daemon-loop": 1,
-    "detached": 1
-  },
   "packages/resources/src/io/liveness.js": {
     "detached": 1,
     "unref": 1
