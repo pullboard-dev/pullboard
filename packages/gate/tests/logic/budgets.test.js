@@ -110,7 +110,7 @@ test('gate.logic-budgets.perf-budgets-warn-by-name-and: perf budgets warn by nam
   assert.equal(run(zero).child.status, 0, 'a measured zero is distinct from missing evidence');
 
   // The configuration reader also fails closed if its declared budget registry is incomplete.
-  const { evaluatePerfBudgets, PERF_BUDGETS } = await import('../../index.js');
+  const { evaluatePerfBudgets, PERF_BUDGETS } = await import('../../heavy.js');
   const incomplete = { ...PERF_BUDGETS }; delete incomplete.search;
   assert.match(evaluatePerfBudgets(report(), incomplete).errors.join('\n'), /search.*has no budget entry/u);
   const extra = { ...PERF_BUDGETS, absentMeasurement: { medianMs: 100, worstMs: 250 } };

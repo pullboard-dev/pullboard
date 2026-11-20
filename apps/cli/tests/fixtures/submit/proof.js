@@ -19,7 +19,7 @@ import {
 } from '../testkit.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import { settleSubmit } from './settle.js';
-import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/heavy.js';
 
 const helpers = createE2eHelpers();
 after(() => {
@@ -45,7 +45,7 @@ function commit(box, cwd, message) {
 /** The repo runner's reporter: TAP plus native per-test outcome frames, so receipts record each file's tests. */
 function outcomeReporter(box) {
   writeFileSync(join(box.repo, 'web/outcome-reporter.js'), `import { tap } from 'node:test/reporters';
-import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../../packages/gate/index.js', import.meta.url).href)};
+import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../../packages/gate/heavy.js', import.meta.url).href)};
 export default async function* report(events) {
   const collector = testOutcomeCollector(process.cwd());
   let count = null;

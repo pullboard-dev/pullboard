@@ -1,9 +1,10 @@
 /** A live-stream watcher that wakes only when the board's newest event id moves [A2,C7]. */
-import { statSync } from 'node:fs';
-import { watch as watchPath } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { repoInfo } from '../../../git/index.js';
 import * as store from '../../../store/index.js';
+
+const fs = fileSystemAdapter();
 
 /** How long a burst of board writes is gathered before the newest event id is read once. */
 const EVENT_SETTLE_MS = 50;
@@ -35,11 +36,11 @@ export function watchEventSignals(board) {
   const bind = () => {
     for (const path of [dbPath, dbPath + '-wal']) {
       let ino = null;
-      try { ino = statSync(path).ino; } catch { /* A missing input is picked up by the folder watch when it appears. */ }
+      try { ino = fs.stat(path).ino; } catch { /* A missing input is picked up by the folder watch when it appears. */ }
       const known = watches.get(path);
       if (known && known.ino !== ino) { known.watcher.close(); watches.delete(path); }
       if (ino === null || watches.has(path)) continue;
-      const watcher = watchPath(path, (event) => { if (event === 'rename') replaced = true; wake(); });
+      const watcher = fs.watch(path, (event) => { if (event === 'rename') replaced = true; wake(); });
       watcher.on('error', notify);
       watches.set(path, { ino, watcher });
     }
@@ -48,7 +49,7 @@ export function watchEventSignals(board) {
   const newest = () => {
     if (!db || replaced) {
       replaced = false;
-      const current = statSync(dbPath).ino;
+      const current = fs.stat(dbPath).ino;
       if (!db || current !== inode) { const next = store.openBoardReadOnly(dbPath); db?.close(); db = next; inode = current; }
     }
     return db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
@@ -70,7 +71,7 @@ export function watchEventSignals(board) {
     db?.close();
   };
   try {
-    folderWatch = watchPath(folder, (event, name) => { if (name === null || inputs.has(String(name))) { if (event === 'rename' || name === null) replaced = true; wake(); } });
+    folderWatch = fs.watch(folder, (event, name) => { if (name === null || inputs.has(String(name))) { if (event === 'rename' || name === null) replaced = true; wake(); } });
     folderWatch.on('error', notify);
     bind();
     // Taken before the stream replays its events, so a write between the two still wakes it.

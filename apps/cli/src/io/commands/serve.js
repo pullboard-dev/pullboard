@@ -19,6 +19,12 @@ import {
 import { apiBoards } from '../../../../../packages/api/index.js';
 import { poolHandlers } from '../../../../../packages/api/index.js';
 import { restartOnCodeMove } from '../../../../../packages/drive/index.js';
+import { claimTrial } from '../../../../../packages/drive/index.js';
+import { trialClaims } from '../../../../../packages/api/index.js';
+import { serveRestartTrial } from '../../../../../packages/config/index.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 import { servedModuleMoved } from '../../../../../packages/drive/index.js';
 import { startLoopWatchdog } from '../../../../../packages/drive/index.js';
 import { announceListening } from '../../../../../packages/drive/index.js';
@@ -62,11 +68,15 @@ import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
 import { provideComparisonStart } from '../../../../../packages/api/index.js';
 import { provideLandingStart } from '../../../../../packages/api/index.js';
-import { machineryRefusal } from '../../../../../packages/gate/index.js';
-import { countTrialGate } from '../../../../../packages/gate/index.js';
+import { provideScreenStart } from '../../../../../packages/api/index.js';
+import { providePostLandMainTest } from '../../../../../packages/api/index.js';
+import { providePostLandPullOut } from '../../../../../packages/api/index.js';
+import { runScreenJob } from '../../../../../packages/drive/index.js';
+import { machineryRefusal } from '../../../../../packages/gate/heavy.js';
+import { countTrialGate } from '../../../../../packages/gate/heavy.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
 import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
-import { recordPulledBaseline } from '../../../../../packages/gate/index.js';
+import { recordPulledBaseline } from '../../../../../packages/gate/heavy.js';
 import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
 import { mainRedMessage } from '../../../../../packages/landing/index.js';
 import { companionMainFailuresUntouched } from '../../../../../packages/landing/index.js';
@@ -154,6 +164,9 @@ export async function serveHere(io, values) {
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
+  provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
+  providePostLandPullOut(startPostLandPullOut);
   traceServeStartup('serve-listen-start');
   // serve.pullRoute (off by default): runners that dial out pull jobs through this API's /pull/ routes [C7,#8765].
   const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
@@ -180,7 +193,9 @@ export async function serveHere(io, values) {
   // Where the socket can be handed on, the new process listens before this one stops accepting, so no request is refused (#6723).
   const log = join(pullboardHome(), 'serve.log');
   const socket = listening.socketFd(api.port);
-  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), handoff: socket !== null,
+  // With serve.restartTrial on, a move is first tried on the claim path: this process's own claims against the new code's (#12118).
+  const trial = serveRestartTrial() ? claimTrial({ claims: trialClaims, db: ctx.file, root: ctx.info.root, next: newCodeClaims }) : null;
+  const fresh = restartOnCodeMove({ root: CODE_ROOT, revision: () => codeCommit(), handoff: socket !== null, trial,
     close: socket !== null ? () => listening.drain(api.port).then(api.close) : api.close,
     affects: servedModuleMoved({ root: CODE_ROOT, entries: [join(CODE_ROOT, 'apps/cli/pullboard.js'), fileURLToPath(import.meta.url)] }), log: (line) => process.stderr.write(`${line}; the new process logs to ${log}\n`),
     relaunch: () => socket !== null ? spawnOnSocket(process.execPath, sameServe(api.port), { fd: socket, cwd: process.cwd(), log }) : spawnReachable(process.execPath, sameServe(api.port), { cwd: process.cwd(), log }) });
@@ -194,6 +209,14 @@ export async function serveHere(io, values) {
   reconciler.stop();
   if (!restarted) await api.close();
   return 0;
+}
+
+/** The trial claims run by the code now in this checkout (the new commit), in a child process so this one's loaded code is not the one measured. */
+async function newCodeClaims(_to, { db, root, count }) {
+  const module = pathToFileURL(join(CODE_ROOT, 'packages/api/src/io/claim-replay.js')).href;
+  const script = `const m = await import(${JSON.stringify(module)}); process.stdout.write(JSON.stringify(m.trialClaims({ db: ${JSON.stringify(db)}, root: ${JSON.stringify(root)}, count: ${count} })))`;
+  const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script], { cwd: CODE_ROOT, encoding: 'utf8', maxBuffer: 1024 * 1024 });
+  return JSON.parse(stdout);
 }
 
 /** The checkout this CLI's code runs from. */
@@ -222,6 +245,16 @@ function startPulledComparison(request) {
 }
 
 /**
+ * Run the pull-out of the sprint items a red main-wide test receipt reopened: revert each landing on the trunk and record it pulled.
+ * Why: the reopen writes pull_out, and only a land job offer started the landing wake, so the work stayed on main [M2,R3,#12184].
+ * @param {{ root: string, items: number[] }} request
+ */
+export async function startPostLandPullOut({ root, items }) {
+  const [{ wakeIo }, { pullOutPulling }] = await Promise.all([import('../landing/automatic.js'), import('../landing/pull-out.js')]);
+  return pullOutPulling(context(wakeIo(root)), items);
+}
+
+/**
  * Offer the land job for an item a gate receipt left accepted, as `verify accept` offers it, from the board host's main
  * checkout. Why: a carried merge-only accept runs no verify command, so without this its item waited accepted with no
  * land job (#7948). The lander loads with the first such receipt.
@@ -230,6 +263,20 @@ function startPulledComparison(request) {
 export async function startReceiptLanding({ root }) {
   const [{ wakeIo }, { landAfterAcceptance }] = await Promise.all([import('../landing/automatic.js'), import('./land.js')]);
   return landAfterAcceptance(context(wakeIo(root)));
+}
+
+/**
+ * Run the screen for a sprint item a gate receipt just recorded as submitted: merge its commit onto the trunk tip the gate ran
+ * on, run the board's staticChecks and the trusted commit re-check, and store the receipt as a screen job on the board.
+ * Why: a sprint item lands after a green screen instead of an accept, and nothing ran one, so it waited like a steady item.
+ * The board API calls this only for a sprint item; the re-check loads with the first screen [V2,M1].
+ * @param {{ root: string, item: number, commit: string, digest: string | null, trunk: string }} request
+ */
+export async function startReceiptScreen({ root, item, commit, digest, trunk }) {
+  const [{ wakeIo }, { recheckRange }] = await Promise.all([import('../landing/automatic.js'), import('../../../../../packages/commits/index.js')]);
+  const ctx = context(wakeIo(root));
+  return withBoard(ctx, board => runScreenJob(board.db, { repo: root, item: { id: item, pace: 'sprint', commit, digest }, base: trunk,
+    owner: `serve:${process.pid}`, staticCommand: typeof ctx.config.staticChecks === 'string' ? ctx.config.staticChecks : null, recheck: recheckRange }));
 }
 
 /** The inline gate's main-red wording, which pulled gate facts name an inherited red's owning rework with [V1,C7]. */
@@ -255,6 +302,9 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
+  provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
+  providePostLandPullOut(startPostLandPullOut);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -298,6 +348,9 @@ export async function boardHandlerPorts({ isMain } = {}) {
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
+  provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
+  providePostLandPullOut(startPostLandPullOut);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');

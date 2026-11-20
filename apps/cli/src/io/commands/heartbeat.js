@@ -15,7 +15,7 @@ export async function run(io, { values = {} } = {}) {
   const ctx = context(io);
   if (values.claims) {
     // The gate cell's keepalive is the one path that beats a seat; the shell loops that read SQLite directly retire (#3784).
-    const { keepClaimsAlive } = await import('../../../../../packages/gate/index.js');
+    const { keepClaimsAlive } = await import('../../../../../packages/gate/heavy.js');
     await keepClaimsAlive(ctx.info.root);
   }
   const seat = await withBoardRead(ctx, board => {

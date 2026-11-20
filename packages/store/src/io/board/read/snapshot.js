@@ -1,8 +1,6 @@
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { closeBoardWrites } from "../write/lock.js";
 /** Open existing board data without loading move execution [C7]. */
-import {
-  existsSync,
-} from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { CANTOPEN_RETRY_MS } from "./light.js";
 import { readBoardSnapshot } from "./light.js";
@@ -18,7 +16,9 @@ import {
 } from "../schema/source.js";
 import { Refused } from "../../../../../kernel/light.js";
 // Engine numbers come from the state light door, which reads each named engine declaration on load [C7].
-import { ENGINE_VERSION } from "../../../../../state/light.js";
+import { ENGINE_VERSION } from "../../../../../state/browser.js";
+
+const fs = fileSystemAdapter();
 
 
 let heldReadConnection = null;
@@ -41,7 +41,7 @@ export function holdReadConnections(provider) {
  * main's write open repairs when it can (#5825). Null when there is no board yet.
  */
 export function openBoardForRead(file, clock = systemClock, { connection = null } = {}) {
-  if (file === ':memory:' || !existsSync(file)) return null;
+  if (file === ':memory:' || !fs.exists(file)) return null;
   // A long-lived process, the resident board process, hands out read-only connections it already holds.
   const db = connection ?? heldReadConnection?.(file) ?? openBoardReadOnly(file);
   try {
@@ -89,4 +89,3 @@ export function closeBoard(board) {
   board.db.close();
   closeBoardWrites(board.db);
 }
-

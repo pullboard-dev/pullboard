@@ -17,7 +17,7 @@ import { CLAIM_RECENT_COMMIT_MS } from '../../../logic/stale/state/query.js';
 import { RENEWALS } from '../../../logic/stale/state/query.js';
 import { cleanGitEnvironment } from '../../../../../git/index.js';
 import { tryGit } from '../../../../../git/index.js';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { claimKeepWhileRunning } from '../../../../../config/index.js';
 import { machineStalled } from '../../../logic/stall.js';
 import { claimFolderActive } from '../../claim/activity.js';
@@ -27,6 +27,8 @@ import { itemWorkInFlight } from '../../../../../store/index.js';
 import { itemPinned } from '../../../../../store/index.js';
 import { PINNED_CLAIM_RELEASE_MS } from '../../../../../store/index.js';
 import { PINNED_CLAIM_LAPSE_ENGINE } from '../../../../../state/light.js';
+
+const fs = fileSystemAdapter();
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {
@@ -80,7 +82,7 @@ function recentCommit(row, now) {
 
 /**
  * Capture at most 32 claims before an ordinary write: claims idle past their lapsed lease (#1933), and, since #1225, live
- * claims with no real work for 20 minutes (stalled, told once) or 40 (released with a handoff), and claims waiting on
+ * claims with no real work for 20 minutes (stalled, told once) or 30 (released with a handoff), and claims waiting on
  * an item that has not landed. Incomplete activity evidence stays unknown and never releases anything.
  * `lapsedOnly` is the write path's share (#2427): only claims whose lease has already lapsed, which read board rows and
  * seat presence and never run Git. Live claims, and returns that pin a handoff, wait for background maintenance.
@@ -157,6 +159,15 @@ export function dependencyWaitedIds(board) {
   return waited;
 }
 
+/**
+ * Capture the claims whose lease has lapsed, or whose holder has gone quiet, as one stale-state snapshot for the sweep to act on.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {string} actor
+ * @param {{lapsedOnly?: boolean}} [options]
+ * @returns {object|null}
+ */
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
   const seatQuietLimit = 2 * 60_000;
@@ -171,7 +182,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   items.push(...otherClaims);
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
-  const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !existsSync(path); };
+  const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !fs.exists(path); };
   const snapshot = staleStateSnapshot(board, ctx.config, { now: at, items, claimsOnly: true, blocker: () => false,
     // Lapsed rows read seat presence only; the write path's guard keeps Git out even if that ever changed.
     workObservation: holder => gone(holder) ? { available: true, at: null } : lapsedOnly ? { available: false, at: null } : observeStaleWork(board, holder) });
@@ -200,7 +211,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
     const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
-    const worktreeMissing = !path || !existsSync(path);
+    const worktreeMissing = !path || !fs.exists(path);
     // Any event the seat itself wrote is a sign of life: a seat without hooks runs reads, tests and other board
     // commands between heartbeats, and a busy presence file can miss a beat. On 4 Nov 412 of 415 seat-gone
     // releases took claims from seats that had written an event within the previous two minutes.
@@ -212,8 +223,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
     if (stall && heartbeatLost) return [];
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];
-    // Presence is not progress (#3446): a lease lapsed 40 minutes ago returns once the holder has made no move, commit
-    // or proof run on it for 40 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the
+    // Presence is not progress (#3446): a lease lapsed 30 minutes ago returns once the holder has made no move, commit
+    // or proof run on it for 30 minutes, however often the seat heartbeats. Pinning its handoff runs Git, so the
     // write path leaves it to background maintenance. A claim waiting on an unlanded item keeps its own rule.
     const leaseAt = staleInstant(row.leaseUntil, at.getTime());
     if (!heartbeatLost && row.health !== 'waiting' && leaseAt !== null && at.getTime() - leaseAt >= CLAIM_IDLE_RELEASE_MS) {
@@ -252,7 +263,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     // A pinned item blocks the coordinator's order, so its idle claim lapses after 30 minutes instead of 40.
     const pinnedLapse = (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, row.id);
     if (row.idleMs >= (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS)) {
-      // Nothing keeps a claim stalled past 40 minutes; the handoff says what was pinned, or why nothing could be.
+      // Nothing keeps a claim stalled past 30 minutes; the handoff says what was pinned, or why nothing could be.
       return [{ ...row, idle: 'release', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }
     const told = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_stalled:${row.id}`)?.meta_value;

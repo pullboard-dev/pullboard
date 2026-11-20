@@ -31,6 +31,7 @@ const BEFORE = {
   'census.selfTune': false,
   'census.skipUnchanged': false,
   'census.soloFileSeconds': null,
+  'claim.checkCeiling': false,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'docs.regenerateOnCommit': false,
@@ -54,10 +55,11 @@ const BEFORE = {
   'gate.endStaleJobs': false,
   'gate.excuseMainTimingReds': false,
   'gate.fencedHop': true,
+  'gate.gateAgedMinutes': 5,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
-  'gate.jsdocCheck': false,
+  'gate.jsdocCheck': true,
   'gate.junitReport': null,
   'gate.knownMainStatic': false,
   'gate.literalPins': false,
@@ -84,6 +86,7 @@ const BEFORE = {
   'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
   'gate.retryNewRedsOnce': false,
+  'gate.seedWideMainTests': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300000,
@@ -110,7 +113,7 @@ const BEFORE = {
   'health.diskFloorGb': 0,
   'health.lapsedSweep': false,
   'health.sentinel': true,
-  'holds.liftSettled': false,
+  'holds.liftSettled': true,
   'holds.requireOwner': false,
   'inspection.clauses': false,
   'items.barRulesAtAdd': false,
@@ -177,11 +180,13 @@ const BEFORE = {
   'relay.renewAfterSync': false,
   'release.rerouteUntouched': false,
   'release.staleItemRevision': false,
+  'review.builderOffers': false,
   'review.canonicalFamilies': false,
   'review.holdAfterTwoReleases': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
+  'route.reservations': true,
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
@@ -202,6 +207,7 @@ const BEFORE = {
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'serve.pullRoute': false,
+  'serve.restartTrial': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'spec.requireFactQuote': false,
@@ -210,11 +216,11 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.composeAsObject': false,
-  'submit.composeOnRunner': false,
+  'submit.composeOnRunner': true,
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
-  'submit.residentChecks': false,
+  'submit.residentChecks': true,
   'test.inProcessHooks': false,
   'test.loadRerun': false,
   'test.retryStaleRecord': false,
@@ -301,6 +307,13 @@ test('config.io-settings-machine-defaults.clause-1-gate-idiomspread-is-in-the: c
 test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machine: clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('config.io-settings-machine-defaults.restart-trial-default-off: clause 1: serve.restartTrial is a described boolean machine setting, listed in BEFORE, and false with nothing set [C7]', () => {
+  assert.equal(BEFORE['serve.restartTrial'], false);
+  assert.equal(MACHINE_DEFAULTS['serve.restartTrial'], false);
+  assert.equal(typeof MACHINE_DEFAULTS['serve.restartTrial'], 'boolean');
+  assert.ok(SETTING_DESCRIPTIONS['serve.restartTrial']);
 });
 
 test('clause 1: gate.knownMainStatic is a machine setting, false by default, with a description [C7]', () => {
@@ -414,6 +427,36 @@ test('config.io-settings-machine-defaults.items-bar-rules-at-add-exact-true: cla
 test('config.io-settings-machine-defaults.items-bar-rules-at-add-refuses-non-boolean: clause 2: a non-boolean items.barRulesAtAdd refuses BAD_MACHINE_SETTINGS [C7,#11738]', async () => {
   await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.barRulesAtAdd/u.test(error.message));
   await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 1 } }), error => error.code === 'BAD_MACHINE_SETTINGS');
+});
+
+/** Read route.reservations through a private machine home holding the given settings. */
+async function reservationsWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { routeReservations } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-route-reservations-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return routeReservations();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.route-reservations-exact-true: clause 1: route.reservations defaults true and routeReservations() is false only for an exact false [C7,#9177,#11306]', async () => {
+  assert.equal(BEFORE['route.reservations'], true);
+  assert.equal(MACHINE_DEFAULTS['route.reservations'], true);
+  assert.equal(await reservationsWith({}), true);
+  assert.equal(await reservationsWith({ route: { reservations: false } }), false);
+  assert.equal(await reservationsWith({ route: { reservations: true } }), true);
+});
+
+test('config.io-settings-machine-defaults.route-reservations-refuses-non-boolean: clause 2: a non-boolean route.reservations refuses BAD_MACHINE_SETTINGS [C7,#9177]', async () => {
+  await assert.rejects(reservationsWith({ route: { reservations: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /route\.reservations/u.test(error.message));
+  await assert.rejects(reservationsWith({ route: { reservations: 1 } }), error => error.code === 'BAD_MACHINE_SETTINGS');
 });
 
 async function reviewHoldWith(settings) {
@@ -599,4 +642,10 @@ test('config.io-settings-machine-defaults.health-advice-through-next: clause 1: 
   assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: false } }), false);
   assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: true } }), true);
   await assert.rejects(adviceThroughNextWith({ health: { adviceThroughNext: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /health\.adviceThroughNext/u.test(error.message));
+});
+
+test('config.io-settings-machine-defaults.seed-wide-main-default-off: clause 1: gate.seedWideMainTests is a described machine setting, boolean, default off, listed in BEFORE, and false with nothing set [C7,#12119]', () => {
+  assert.equal(BEFORE['gate.seedWideMainTests'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.seedWideMainTests'], false);
+  assert.equal(typeof SETTING_DESCRIPTIONS['gate.seedWideMainTests'].description, 'string');
 });

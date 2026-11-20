@@ -21,8 +21,11 @@ import { Refused } from "../../../../kernel/index.js";
 import { awaitPersonConfirmation } from "../confirmation.js";
 import { loadMachineSettings } from "../../../../config/index.js";
 import { repoInfo } from "../../../../git/index.js";
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from "../../../../fs/index.js";
+import { environmentAdapter } from "../../../../env/index.js";
 import { join } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 const AUTHORITY_PATH = '/.well-known/pullboard-person-authority';
 
@@ -33,7 +36,7 @@ const AUTHORITY_PATH = '/.well-known/pullboard-person-authority';
  * path, never in pullboard.json, a board row, an environment variable or a global, so no shell can set it (#408).
  */
 function authorityOrigin(origin, io, builtInOrigin) {
-  if (origin === builtInOrigin) return process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+  if (origin === builtInOrigin) return environmentAdapter().get('NODE_TLS_REJECT_UNAUTHORIZED') !== '0';
   return typeof io?.trustedRelayOrigin === 'string' && io.trustedRelayOrigin === origin;
 }
 
@@ -181,7 +184,7 @@ export function signsPersonMoves(cwd) {
   let file;
   try { file = join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite'); }
   catch { return false; } // Outside a repository there is no board to sign for; the usual checks apply.
-  if (!existsSync(file)) return false;
+  if (!fs.exists(file)) return false;
   let db;
   try { db = store.openBoardReadOnly(file); return personSigning({ db }).signed; }
   catch { return false; } // An unreadable board keeps the stricter shell checks; the command then reports why it cannot open.

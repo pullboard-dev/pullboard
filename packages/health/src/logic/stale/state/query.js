@@ -72,7 +72,7 @@ export const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
 export const CLAIM_STALL_MS = 20 * 60_000;
 /** A holder who committed this recently is never returned by the progress rule (#2251). */
 export const CLAIM_RECENT_COMMIT_MS = 30 * 60_000;
-export const CLAIM_IDLE_RELEASE_MS = 40 * 60_000;
+export const CLAIM_IDLE_RELEASE_MS = 30 * 60_000;
 
 /** When the holder's current claim began: its first claim since the item last left that holder's hands. Renewals do not move it. */
 function claimEpisode(board, item) {

@@ -138,3 +138,37 @@ export function commitFirst(owners, next) {
   if (!owners.coordinator) return next;
   return `commit the applied row file first: ${owners.coordinator.command}; then ${next}`;
 }
+
+/**
+ * The rows the person approved that `spec apply` has not written yet, in the order recorded. A
+ * decline is not an approval, and a decision already applied is done.
+ *
+ * @param {{ id: string, decision: string, applied?: boolean }[]} decisions every recorded row decision
+ * @returns {string[]}
+ */
+export function pendingApplyIds(decisions) {
+  return [...new Set(decisions.filter((record) => record.decision === 'approve' && !record.applied).map((record) => record.id))];
+}
+
+/**
+ * The text line naming the approved rows that still wait for `spec apply`.
+ *
+ * @param {string[]} ids
+ * @returns {string}
+ */
+export function pendingApplyLine(ids) {
+  return `approved by the person, pending apply: ${ids.join(', ')}`;
+}
+
+/**
+ * The coordinator's next step with approved rows waiting, so the text and JSON forms of resume
+ * agree: apply them, then commit the row file so every worktree reads them.
+ *
+ * @param {string[]} ids
+ * @param {string} next the step the board names otherwise
+ * @param {string} specFile
+ * @returns {string}
+ */
+export function applyFirst(ids, next, specFile) {
+  return ids.length ? `pullboard spec apply, then commit ${specFile}` : next;
+}

@@ -1,0 +1,15 @@
+{
+  "gate.logic-adapter-lints-fs.watchdog-source-is-exempt": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The watchdog worker program text is exempt from the fs lint and a sibling file is not."
+    },
+    "why": "Without this case a regression in adapter-lints fs would pass the gate unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/gate/src/io/adapter-lints/fs.js"
+    ]
+  }
+}

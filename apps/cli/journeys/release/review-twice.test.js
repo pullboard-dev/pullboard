@@ -36,9 +36,18 @@ async function submitted(t) {
   return { box, id, gamma, delta: await reviewSeat(box, 'delta', 'Family Delta', 'fixture-D') };
 }
 
+/** The review lease mark of a just-reserved review lasts five seconds on the fixture clock; a second reviewer asks after it has run out, so the journey advances that clock past the mark before each ask. */
+const PAST_LEASE_MS = 6_000;
+
+/** `pullboard next --verify <id>` as `seat` asks for the review once the lease mark of the last reservation has run out. */
+async function nextVerify(box, seat, id) {
+  box.advance(PAST_LEASE_MS);
+  return cli(box, seat.path, ['next', '--verify', String(id)]);
+}
+
 /** Take the review with `pullboard next --verify <id>` as `seat`, then drop it with `pullboard release <id> --reason OTHER --note ...`. */
 async function dropReview(box, seat, id) {
-  const taken = await cli(box, seat.path, ['next', '--verify', String(id)]);
+  const taken = await nextVerify(box, seat, id);
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(taken.document.item.item_id, id);
   const released = await cli(box, seat.path, ['release', String(id), '--reason', 'OTHER', '--note', 'no time to judge this one', '--no-next']);
@@ -67,11 +76,11 @@ test('cli.journeys-release-review-twice.family-refused: clause 2: after pullboar
   await dropReview(box, gamma[1], id);
   const lifted = await cli(box, box.root, ['hold', String(id), '--off']);
   assert.equal(lifted.code, 0, lifted.out + lifted.err);
-  const refused = await cli(box, gamma[2].path, ['next', '--verify', String(id)]);
+  const refused = await nextVerify(box, gamma[2], id);
   assert.notEqual(refused.code, 0);
   assert.match(refused.out + refused.err, /REVIEW_RELEASE_TWICE/u);
   assert.match(refused.out + refused.err, /next/u, 'the refusal names its next step');
-  const taken = await cli(box, delta.path, ['next', '--verify', String(id)]);
+  const taken = await nextVerify(box, delta, id);
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(taken.document.item.item_id, id);
 });

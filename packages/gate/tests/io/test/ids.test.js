@@ -10,9 +10,9 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { deriveTestRegistries } from '../../../index.js';
-import { idRenames } from '../../../index.js';
-import { resolveIdRows } from '../../../index.js';
-import { testIdIndex } from '../../../index.js';
+import { idRenames } from '../../../heavy.js';
+import { resolveIdRows } from '../../../heavy.js';
+import { testIdIndex } from '../../../heavy.js';
 
 const NAMES = ['alpha', 'beta', 'gamma'];
 const IDS = NAMES.map(name => `cell.${name}.claim`);
