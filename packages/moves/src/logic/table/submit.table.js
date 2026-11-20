@@ -408,10 +408,10 @@ const COMPLETE = ({
       record: (s, m) => { const exhausted = m.windowSpent === true || (s.handoff.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
         return { ...s.handoff, ...lockWaits(m), state: 'infrastructure', error: { ...m.result.error }, completedAt: s.now, ...(m.windowSpent === true ? { infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT } : {}),
           ...(exhausted || !RECOVERED_STOPS.has(m.result.error.code) ? { infrastructureNotified: true } : {}) }; } },
-    // returnToBoard runs only for a driver failure with claim.returnToBoard on (failureCompletion's keepSeat).
+    // returnToBoard runs only for a driver failure with claim.returnToBoard on (failureCompletion's keepSeat); boardCodes (set by the retry writer at boards at or above BOARD_RELEASE_CODES_ENGINE) names the release GATE_REFUSED [C7,#12222].
     { id: 'red-to-board', when: (s, m) => redReturns(s, m) && m.returnToBoard === true, patch: () => ({ status: 'open', owner: null, leaseUntil: null }),
       events: (s, m) => [
-        { kind: 'release', by: s.handoff.agentId, detail: { reasonCode: 'OTHER', reason: `the queued gate was refused (${m.result.error.code}); returned to the board for any free seat` } },
+        { kind: 'release', by: s.handoff.agentId, detail: { reasonCode: m.boardCodes === true ? 'GATE_REFUSED' : 'OTHER', reason: `the queued gate was refused (${m.result.error.code}); returned to the board for any free seat` } },
         { kind: 'submit_handoff_returned', by: s.handoff.agentId, detail: { commit: s.handoff.commit, returnedToBoard: true } },
         shoutEvent('coordinator', s.handoff.agentId, `Queued submit #${m.id} was refused (${m.result.error.code}); it went back to the board for any free seat. pullboard show ${m.id} prints the refusal.`),
         handoffEvent({ ...s.handoff, state: 'red' })],

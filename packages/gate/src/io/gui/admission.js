@@ -5,6 +5,7 @@ import { explicitCheckFiles } from '../browser/admission.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { git } from '../../../../git/index.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 const fs = fileSystemAdapter();
 
 /** Only an explicit file annotation requests a GUI; --headless does not establish this capability. */
@@ -32,7 +33,7 @@ function headerNeedsGui(source, tag = '@pullboard-test-gui') {
 /** The files whose leading comments carry a @pullboard-test-timing line: each needs an exclusive runner for its timing measurements; a missing file never counts [C7]. */
 export function timingTestFiles(root, files) {
   return files.filter(file => {
-    try { return headerNeedsGui(readFileSync(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
+    try { return headerNeedsGui(fs.readFile(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
     catch { return false; }
   });
 }
@@ -56,7 +57,7 @@ export function declaredReads(source) {
 export function readsDeclared(root, files) {
   const reads = new Map();
   for (const file of files) {
-    try { reads.set(file, declaredReads(readFileSync(resolve(root, file), 'utf8'))); }
+    try { reads.set(file, declaredReads(fs.readFile(resolve(root, file), 'utf8'))); }
     catch { reads.set(file, []); }
   }
   return reads;
@@ -101,7 +102,7 @@ function committedTestsNeedGui(root, entries, files) {
 }
 
 /** Classify an explicit check from its exact committed tree when supplied, otherwise its live checkout. */
-export async function checkNeedsGui(root, command, { commit, env = process.env } = {}) {
+export async function checkNeedsGui(root, command, { commit, env = environmentAdapter().all() } = {}) {
   const files = await explicitCheckFiles(root, command, { commit, env });
   if (commit !== undefined) {
     const entries = committedGuiFiles(root, commit);

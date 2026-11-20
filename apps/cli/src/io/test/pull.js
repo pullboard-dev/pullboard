@@ -22,10 +22,15 @@ import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
 import { JOB_ENV_NAME } from '../../../../../packages/drive/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
+import { ledgerHits } from '../../../../../packages/store/index.js';
+import { recordTestResults } from '../../../../../packages/store/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { fileBudgetField } from './file-limit.js';
 import { fileLimitEnv } from './file-limit.js';
+
+// The run-tests ledger variable (packages/gate LEDGER_HITS_ENV), named here because the gate's heavy door does not export it.
+const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 
 /** The job kind of a pulled test run; the board records its receipt and applies nothing, since the caller reads it. */
 export const TEST_JOB_KIND = 'test';
@@ -44,6 +49,7 @@ const CASES = 100;
 export const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
@@ -54,6 +60,8 @@ import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
 let light = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: a red run names no cases */ }
+let gate = null;
+try { gate = await import(pathToFileURL(join(tools, 'packages', 'gate', 'heavy.js')).href); } catch { /* an older main: the run records no ledger rows */ }
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
 // The job's own start time and the runner's 1-minute load at that moment, so a census row can place the job [C7,#9284].
@@ -66,6 +74,9 @@ delete env.NODE_TEST_CONTEXT;
 // A job that names a file budget (pullboard test --no-file-limit) runs under it; any other job's limits are the runner's own [C7].
 ${fileLimitEnv.toString()}
 Object.assign(env, fileLimitEnv(input));
+// The board's ledger hits for this run's files: a file whose own key and context match a hit is reused, so an unchanged file does not run again [P7].
+const hits = input.testResults?.ledger;
+if (hits && Array.isArray(hits.files)) { const hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify({ ...hits, account: true }), { mode: 0o600 }); env[${JSON.stringify(LEDGER_HITS_ENV)}] = hitsFile; }
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
@@ -101,6 +112,8 @@ const receipt = { version: 1, kind: 'test', main: input.main, source: input.sour
   // The runner's own load, so the board can keep main's side of a comparison as a native receipt [V4,C7].
   load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) }, startedAt, endedAt: new Date().toISOString(), loadAtStart,
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
+// Each file that ran under a key becomes a proof-ledger row the board records from this receipt, green files of a red run included [P7].
+try { const ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root, budget: 16000 }) : null; if (ledger) receipt.phases[0].ledger = ledger; } catch { /* no rows: the gate runs the files */ }
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
 /**
@@ -207,11 +220,41 @@ function shellWord(value) {
 }
 
 /**
+ * The test results a finish run's job carries: an origin naming the run, and the board's ledger hits for the run's files
+ * with the input keys they hold, so the runner reuses an unchanged file and the receipt's rows are posted for the ledger
+ * [P7]. Null when the board holds no hit for the files.
+ *
+ * @param {string} run - The run id, or the job's tag when it has none.
+ * @param {{ contexts: string[], files: Array<[string, string, number]> } | null} ledger
+ */
+export function finishTestResults(run, ledger) {
+  if (!ledger || !Array.isArray(ledger.files) || !ledger.files.length) return null;
+  return { origin: `finish:${run}`, inputKeys: [...new Set(ledger.files.map(row => row[1]))].sort(), ledger };
+}
+
+/**
+ * The proof-ledger rows a finish run's receipt carries: one row per file its run phase ran under a key, recorded under
+ * the gate's proof command so the gate's own offer finds them; none when the receipt holds no keyed file [P7].
+ *
+ * @param {Record<string, any>} gate - The receipt's gate section.
+ * @returns {Array<{ file: string, inputKey: string, command: string, context: string, status: string }>}
+ */
+export function finishLedgerRows(gate) {
+  const rows = [];
+  for (const phase of Array.isArray(gate?.phases) ? gate.phases : []) {
+    const { contexts, files } = phase?.ledger ?? {};
+    if (!Array.isArray(contexts) || !Array.isArray(files)) continue;
+    for (const [file, inputKey, context, status] of files.filter(Array.isArray)) rows.push({ file, inputKey, command: 'proof', context: contexts[context], status });
+  }
+  return rows;
+}
+
+/**
  * The data a test job carries into its entry. `fileBudgetMs` is the file budget the runner gives this job's files
  * (set by --no-file-limit); a job without it carries no such field and runs under the runner's own limits [C7].
  */
-export function testJobData({ main, commit, command, files, runId = null, fileBudgetMs = null }) {
-  return { main, source: commit, command, files, ...(runId ? { runId } : {}), ...(fileBudgetMs ? { fileBudgetMs } : {}) };
+export function testJobData({ main, commit, command, files, runId = null, fileBudgetMs = null, testResults = null }) {
+  return { main, source: commit, command, files, ...(runId ? { runId } : {}), ...(fileBudgetMs ? { fileBudgetMs } : {}), ...(testResults ? { testResults } : {}) };
 }
 
 /**
@@ -229,7 +272,7 @@ function testJobEnv(environment = process.env) {
  * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-export async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null, environment = process.env }) {
+export async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null, ledger = null, environment = process.env }) {
   const { root } = ctx.info;
   const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
@@ -237,7 +280,7 @@ export async function testJobRow(ctx, { item, commit, main, command, files, runI
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const env = testJobEnv(environment);
-  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
+  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }) }, commits: [main] };
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
@@ -280,7 +323,8 @@ export function readTestRow({ board, runs = null }, job) {
 /** Offer one test job for a commit. Returns the job id and the pinned ref. */
 async function offerTestJob(ctx, fields, runs) {
   const { offerJob } = await import('../../../../../packages/api/index.js');
-  const { ref, row } = await testJobRow(ctx, fields);
+  const ledger = Array.isArray(fields.files) && fields.files.length ? withBoardRead(ctx, board => ledgerHits(board.db, fields.files)) : null;
+  const { ref, row } = await testJobRow(ctx, { ...fields, ledger });
   const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
   await startLocalRunner(ctx);
   return { job: job.id, ref };
@@ -347,6 +391,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
   try {
     const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
     const gate = receipt.gate ?? {};
+    const rows = finishLedgerRows(gate);
+    if (rows.length) withBoard(ctx, board => recordTestResults(board.db, { receipt: `${offered.job}#0`, origin: `finish:${runner ?? 'unknown'}`, commit: fields.commit, rows }));
     const phase = gate.phases?.[0] ?? null;
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
