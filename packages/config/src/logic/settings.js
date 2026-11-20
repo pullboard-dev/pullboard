@@ -383,6 +383,9 @@ export function loadMachineSettings() {
   if (value.gate?.refuseTempWorktree !== undefined && typeof value.gate.refuseTempWorktree !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseTempWorktree in ${file} must be true or false`);
   }
+  if (value.claim?.checkCeiling !== undefined && typeof value.claim.checkCeiling !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `claim.checkCeiling in ${file} must be true or false`);
+  }
   if (value.claim?.keepWhileRunning !== undefined && typeof value.claim.keepWhileRunning !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `claim.keepWhileRunning in ${file} must be true or false`);
   }
@@ -718,9 +721,9 @@ export function reachableDispatcherOn() {
   return loadMachineSettings().launch?.reachableDispatcher === true;
 }
 
-/** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
+/** Whether pullboard list reads through the thin read door (#9089): on by default; only an exact `false` turns it off. */
 export function listThinRead() {
-  return loadMachineSettings().list?.thinRead === true;
+  return loadMachineSettings().list?.thinRead !== false;
 }
 
 /** Whether whoami, show and status read through the thin doors (#9810, #3072): off by default; only an exact `true` turns it on. */

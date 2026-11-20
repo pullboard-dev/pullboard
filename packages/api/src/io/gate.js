@@ -37,7 +37,6 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
-import { seedWideMainTests } from './recheck.js';
 import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
@@ -356,18 +355,18 @@ function redShard(part) {
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted }) => {
+  const parts = shards.map(({ job, posted, ended = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
     return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null };
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
   const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
-  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? (part.ended ? `ended: ${part.ended}` : 'no proof phase')).slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
@@ -401,7 +400,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const signatures = { signatures: ports.settleOnMainReceipt === true };
-  const parts = shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) }));
+  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, ended: posted ? null : endedDetail(board.db, row.job_id) }; });
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null;
   try {
@@ -442,6 +441,16 @@ export function applyShardReceipt(board, { job }, ports = {}) {
       text: `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.` });
   }
   return applied;
+}
+
+/**
+ * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
+ * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
+ */
+function endedDetail(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
+  if (!row) return null;
+  try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
@@ -1119,8 +1128,6 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
-    // Files that fail in the gates of many items get main's receipt queued when main advances, ahead of the gates that would ask (#12035).
-    try { seedWideMainTests(board, { main: acceptedMain(board.gitRoot), now: options.now }); } catch (error) { if (!error?.code) throw error; }
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
     settleDoneShardGates(board, ports, { now: options.now });
@@ -1129,13 +1136,6 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
   const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
-}
-
-/** Accepted main's commit, read from trunk's ref files first and from Git when they name none; null without a repository. */
-function acceptedMain(root) {
-  if (!root) return null;
-  const read = trunkRevisionReader(repoInfo(root))();
-  return SHA.test(String(read)) ? read : resolveCommit(root, plainTrunkRef(root));
 }
 
 /**
