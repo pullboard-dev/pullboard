@@ -1,0 +1,4 @@
+{
+  "cli.test.post-land.request-runs-gate": {"proves":{"specs":["V2","M1"],"claim":"The request pullboard serve hands the board API for a landed tip runs the project's gate command whole at that tip through testJobEntry with GATE_NEEDS and the gate bootstrap."},"why":"The board API cannot build a runnable test job alone; without this request the post-land job has nothing to run.","kind":"cell unit","inputs":["apps/cli/tests/io/test/post-land.test.js","apps/cli/src/io/test/post-land.js","apps/cli/src/io/test/pull.js"]},
+  "cli.test.post-land.no-gate-no-job": {"proves":{"specs":["V2","M1"],"claim":"A project whose pullboard.json names no gate command gets no post-land request, so no job is queued."},"why":"A job with no command would run nothing and post a meaningless receipt.","kind":"cell unit","inputs":["apps/cli/tests/io/test/post-land.test.js","apps/cli/src/io/test/post-land.js"]}
+}
