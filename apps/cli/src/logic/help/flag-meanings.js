@@ -95,7 +95,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'join --parent': ['--parent <session-id>', 'the session that started this worktree'],
   'add --parent': ['--parent <id>', 'the item this one is a child of'],
   '--diagnostics': 'runs the setup, hook, dirty-file and stale-work checks',
-  'add --criterion': ['--criterion "..."', 'what must be true for the item to be done'],
+  'add --criterion': ['--criterion "..."', 'what must be true for the item to be done: at most three numbered clauses, each ending with exactly one tag: [test], [command], [measurement] or [reasoning]\n      a [measurement] clause needs a number, as in "2. build time stays under 30 s [measurement]"'],
   'edit --criterion': ['--criterion "..."', 'replaces what must be true for the item to be done'],
   'companion --criterion': ['--criterion "<criterion>"', 'what must be true for the child to be done'],
   'intake --criterion': ['--criterion "behavior"', 'the behavior the outside change must show'],

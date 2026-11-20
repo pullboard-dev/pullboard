@@ -1,0 +1,3 @@
+{
+  "cli.journeys-init-perf-tab-speed-spec.spec-tab-first-and-repeat-paint": {"proves":{"specs":["C7"],"claim":"The spec tab, first and repeat click, paints under TAB_SPEED_GOAL_MS or its audited row in tab-speed-rows.mjs."},"why":"Without it, a spec tab that paints over its audited row on the large board would pass unnoticed, and the doctrine pair file would still run over its file budget.","kind":"journey","inputs":["apps/cli/journeys/init/perf/tab-speed-spec.test.js"]}
+}

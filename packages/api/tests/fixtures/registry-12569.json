@@ -1,0 +1,44 @@
+{
+  "api.gate-unknown-review.hands-to-review": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A claimed item whose newest gate settled unknown, with every red file red on main at its unchanged input key, moves to submitted on the next pull-claim settle walk and next --verify offers it."
+    },
+    "why": "Without this test an unknown gate can again hold its builder's claim forever, so finished work is never reviewed or landed.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate/unknown-review.js",
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.gate-unknown-review.item-red-stays": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "An unknown gate whose red file main has no receipt for, has only at another input key, or passes at the same key stays claimed by its builder and is not offered for review."
+    },
+    "why": "Without this test the hand-off could submit a red that is the item's own, sending broken work to review.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate/unknown-review.js",
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.gate-unknown-review.appended-only": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The hand-off appends one settled note and one gate_settled event naming gate.unknownToReview and leaves every earlier job step and event unchanged."
+    },
+    "why": "Without this test the hand-off could overwrite the unknown settled note, breaking the append-only step log of RFC 0008 DJ2.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate/unknown-review.js",
+      "packages/api/src/io/gate.js"
+    ]
+  }
+}

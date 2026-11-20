@@ -1,0 +1,30 @@
+{
+  "cli.journeys-claim-policy-chaos.fifty-policy-commits-zero-no-policy": {
+    "proves": {
+      "specs": [
+        "B4",
+        "R2"
+      ],
+      "claim": "While 50 commits to pullboard.json change a lane check, 5 items each cycle claim, submit and verify accept in process and no call returns NO_POLICY."
+    },
+    "why": "Without it, a policy commit landing between claim, submit and verify could strand an item with NO_POLICY unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/claim/policy/chaos.test.js"
+    ]
+  },
+  "cli.journeys-claim-policy-chaos.all-five-items-verified-none-stranded": {
+    "proves": {
+      "specs": [
+        "B4",
+        "R2"
+      ],
+      "claim": "The same case ends with all 5 items verified and none stranded."
+    },
+    "why": "Without it, a policy commit landing between claim, submit and verify could strand an item with NO_POLICY unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/claim/policy/chaos.test.js"
+    ]
+  }
+}

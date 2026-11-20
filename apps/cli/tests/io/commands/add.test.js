@@ -12,6 +12,7 @@ import { requireTestMirror } from '../../../src/io/item/bar.js';
 import { after } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { onBoard } from '../../fixtures/land/board.js';
+import { withFixtureBoard } from '../../fixtures/board.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 import * as store from '../../../../../packages/store/index.js';
 
@@ -99,6 +100,60 @@ test('cli.io-commands-add.edit-and-worktree-json-carry-level: clause 2: edit --j
   const tree = JSON.parse(made.out);
   assert.ok(tree.route, 'route is kept');
   assert.equal(tree.level, tree.route);
+});
+
+/**
+ * Walk a fixture item to claimed, submitted or verified with the fields each state requires.
+ * The seed stands in for the claim, submit and accept moves, so it opens the move guard that only moveItem opens.
+ */
+function seedStatus(board, id, status) {
+  const commit = 'a'.repeat(40);
+  const steps = ['claimed', 'submitted', 'verified'];
+  board.db.exec('INSERT INTO temp.moving VALUES (1)');
+  board.db.prepare("UPDATE item SET item_owner = 'web-1', item_lease_until = '2999-01-01T00:00:00.000Z', item_frozen_digest = 'd', item_built_by = 'web-1', item_commit = ? WHERE item_id = ?").run(commit, id);
+  if (status === 'verified') {
+    board.db.prepare("INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at) VALUES (?, 'reviewer-1', 'ACCEPT', '', 'seeded acceptance', ?, 'd', ?, '2026-11-19T00:00:00Z')").run(id, commit, commit);
+    board.db.prepare("UPDATE item SET item_verified_by = 'reviewer-1' WHERE item_id = ?").run(id);
+  }
+  for (const step of steps.slice(0, steps.indexOf(status) + 1)) board.db.prepare('UPDATE item SET item_status = ? WHERE item_id = ?').run(step, id);
+  board.db.exec('DELETE FROM temp.moving');
+}
+
+test('cli.io-commands-add.after-withdrawn-refused: clause 1: add and edit each refuse an --after list naming a withdrawn item, the message naming the replacement move; an after-list of open, claimed, submitted or verified items is accepted [C7,#12125]', async () => {
+  const box = helpers.project();
+  const file = async (title, ...after) => box.inProcess(box.repo, 'add', 'web', title, '--specs', 'G1', '--json', ...(after.length ? ['--after', after.join(',')] : []));
+  const first = await file('Replaced work');
+  assert.equal(first.code, 0, first.err + first.out);
+  const gone = String(JSON.parse(first.out).item.item_id);
+  const kept = await file('Open work');
+  assert.equal(kept.code, 0, kept.err + kept.out);
+  const open = String(JSON.parse(kept.out).item.item_id);
+  const withdrawn = await box.inProcess(box.repo, 'withdraw', gone, 'replaced by another item', '--json');
+  assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
+  const refusedAdd = await file('Waits on the withdrawn item', gone);
+  assert.notEqual(refusedAdd.code, 0, refusedAdd.out);
+  assert.match(refusedAdd.err + refusedAdd.out, /AFTER_WITHDRAWN/u);
+  assert.match(refusedAdd.err + refusedAdd.out, new RegExp(`replaced #${gone}|replaced ${'#' + gone}`, 'u'));
+  const accepted = await file('Waits on the open item', open);
+  assert.equal(accepted.code, 0, accepted.err + accepted.out);
+  const id = String(JSON.parse(accepted.out).item.item_id);
+  const refusedEdit = await box.inProcess(box.repo, 'edit', id, '--after', gone, '--reason', 'retarget the dependency', '--json');
+  assert.notEqual(refusedEdit.code, 0, refusedEdit.out);
+  assert.match(refusedEdit.err + refusedEdit.out, /AFTER_WITHDRAWN/u);
+  const edited = await box.inProcess(box.repo, 'edit', id, '--after', open, '--reason', 'keep the open dependency', '--json');
+  assert.equal(edited.code, 0, edited.err + edited.out);
+  const live = [];
+  for (const status of ['claimed', 'submitted', 'verified']) {
+    const made = await file(`Work left ${status}`);
+    assert.equal(made.code, 0, made.err + made.out);
+    const madeId = JSON.parse(made.out).item.item_id;
+    withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => seedStatus(board, madeId, status));
+    live.push(String(madeId));
+  }
+  const acceptedLive = await file('Waits on unfinished and finished work', open, ...live);
+  assert.equal(acceptedLive.code, 0, acceptedLive.err + acceptedLive.out);
+  const editedLive = await box.inProcess(box.repo, 'edit', id, '--after', [open, ...live].join(','), '--reason', 'wait on every live item', '--json');
+  assert.equal(editedLive.code, 0, editedLive.err + editedLive.out);
 });
 
 /** The baseline pending on an item whose check was just set, read from the board. */

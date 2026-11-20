@@ -45,12 +45,11 @@ export async function pullOutPulling(ctx, ids) {
   const branch = mainCheckout(root)?.branch;
   if (!branch || !ids.length) return [];
   const remote = landingRemote(root, branch);
-  if (!remote) return [];
   return withBoard(ctx, board => {
     const pulling = ids.filter(item => pullingLanding(board, item));
     // The revert is built on the remote trunk tip, which a runner land job may have pushed after this checkout last fetched.
     // Through the land job's own trunk fetch; a failed fetch leaves each pull-out to refuse PULL_OUT_TRUNK below, logged and run again by the wake.
-    if (pulling.length) { try { fetchTrunk(root, remote, `refs/heads/${branch}`); } catch { /* the pull-out names the missing trunk */ } }
+    if (pulling.length && remote) { try { fetchTrunk(root, remote, `refs/heads/${branch}`); } catch { /* the pull-out names the missing trunk */ } }
     return pulling.map(item => {
       try { return { item, ...runPullOutJob(board, { root, remote, branch, item, fenced: fencedHopEnabled() }, { fenceHop: hookless(fenceHop), pushTrunkThroughFence: hookless(pushTrunkThroughFence) }) }; }
       catch (error) {

@@ -8,6 +8,7 @@ import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
 import { openKitBoard } from '../../fixtures/board.js';
 import { fixtureJoin } from '../../fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../fixtures/testkit.js';
 
 const CRITERION = 'The page renders its title. The page renders its footer.';
 
@@ -16,6 +17,7 @@ test('clause 1: the BAR_CLAUSE_REQUIRED refusal lists each frozen clause as a pa
   let board;
   t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
   const box = helpers.project('true');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Render the page', '--criterion', CRITERION,
     '--check', 'test -f web/page.html', '--route', 'strong', '--brief', 'Files: web/page.html\nTest: assert the title and footer.', '--json');
   assert.equal(added.code, 0, added.err + added.out);
