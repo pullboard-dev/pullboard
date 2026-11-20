@@ -1,0 +1,5 @@
+{
+  "cli.add-foreign.add-refuses-an-unlinked-repo": {"proves":{"specs":["B24"],"claim":"pullboard add --after with a repo#id that has no live link refuses FOREIGN_UNLINKED naming pullboard link and files nothing."},"why":"Without it, an item could wait forever on a repository no board is linked to.","kind":"cell unit","inputs":["apps/cli/src/io/commands/add.js"]},
+  "cli.add-foreign.add-files-with-a-live-link": {"proves":{"specs":["B24"],"claim":"The same add with a live link to the repository files as before."},"why":"Without it, the refusal could also block links that work.","kind":"cell unit","inputs":["apps/cli/src/io/commands/add.js"]},
+  "cli.add-foreign.edit-refuses-an-unlinked-repo": {"proves":{"specs":["B24"],"claim":"pullboard edit --after with a repo#id that has no live link refuses FOREIGN_UNLINKED and leaves the item as filed."},"why":"Without it, an edit could add the wait that add refuses.","kind":"cell unit","inputs":["apps/cli/src/io/commands/edit.js"]}
+}

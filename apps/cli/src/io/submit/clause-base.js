@@ -1,5 +1,5 @@
 /** The base-commit run of each [test] clause's named file, recorded on the board before submit judges fail-before [C7,#8090]. */
-import { committedTest } from '../../../../../packages/gate/index.js';
+import { committedTest } from '../../../../../packages/gate/heavy.js';
 import { clauseTestFiles } from '../../../../../packages/state/index.js';
 import { recordedMainComparison } from './recorded.js';
 

@@ -43,3 +43,20 @@ function siblingSlices(board, item, parentId) {
   }
   return found;
 }
+
+/** What a verdict needs to know about an item's slices: whether it is a slice, and its own slices with their statuses; empty when the board cannot list them. */
+export function sliceVerdictFacts(board, itemId) {
+  const rows = board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'item-slice:%'").all?.() ?? [];
+  let isSlice = false;
+  const sliceChildren = [];
+  for (const row of rows) {
+    const id = Number(row.meta_key.slice('item-slice:'.length));
+    if (id === itemId) { isSlice = true; continue; }
+    let detail;
+    try { detail = JSON.parse(row.meta_value); } catch { continue; }
+    if (detail.parentId !== itemId) continue;
+    const held = board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id);
+    sliceChildren.push({ id, status: held?.item_status ?? 'open' });
+  }
+  return { isSlice, sliceChildren };
+}
