@@ -4,12 +4,8 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
-import {
-  mkdtempSync,
-  realpathSync,
-  rmSync,
-} from 'node:fs';
 import { loadMachineSettings } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { scratchRoot } from '../../../config/index.js';
 import {
   isAbsolute,
@@ -25,6 +21,7 @@ import { gateSlotEnvironment } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { createRequire } from 'node:module';
 
+const fs = fileSystemAdapter();
 const requireModule = createRequire(import.meta.url);
 let proofPackagesLoaded = null;
 /** The runner, landing, gate and history-map packages a proof run needs, loaded at its first use: a board that only counts rigor never pays for them [C7]. */
@@ -66,7 +63,7 @@ export async function prepareCauseProof(root, cause, { check, red, green }) {
     const words = proofPackages().gate.literalShellWords(check);
     const executable = words && proofPackages().gate.resolveExecutable(words[0]);
     let exactNode = false;
-    try { exactNode = Boolean(executable) && realpathSync(executable) === realpathSync(process.execPath); } catch { /* No verified executable. */ }
+    try { exactNode = Boolean(executable) && fs.realpath(executable) === fs.realpath(process.execPath); } catch { /* No verified executable. */ }
     if (!exactNode || words[1] !== '--test') refuse(`the check for ${file}::${title} must be a literal Node test command: node --test ${quote(file)}; other runners cannot yet provide bound named-test proof`);
     const args = words.slice(2);
     let pattern = null;
@@ -204,7 +201,7 @@ async function runOwnedCheck(tree, check, runner, timeoutMs, gateEnvironment, re
 /** Run an immutable commit's check, draining its child group before removing only this owned worktree. */
 export async function runCheckAt(root, commit, check, runner = null, { timeoutMs = CHECK_TIMEOUT_MS, gateEnvironment = {}, parseProcessCensus } = {}) {
   if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before preparing its worktree');
-  const dir = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-proof-'));
+  const dir = fs.mkdtemp(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-proof-'));
   const tree = join(dir, 'tree');
   const added = tryGit(root, ['worktree', 'add', '--detach', '--quiet', tree, commit]);
   let drained = added.status !== 0;
@@ -227,7 +224,7 @@ export async function runCheckAt(root, commit, check, runner = null, { timeoutMs
         const removed = tryGit(root, ['worktree', 'remove', '--force', tree]);
         if (removed.status !== 0) throw new Refused('RIGOR_UNPROVEN', `the owned proof worktree at ${tree} could not be removed; clean it before retrying`);
       }
-      rmSync(dir, { recursive: true, force: true });
+      fs.rm(dir, { recursive: true, force: true });
     }
   }
 }
