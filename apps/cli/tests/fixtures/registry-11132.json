@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-usage.usage-line-matches-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "usageLine returns the detail and short usage text exactly as show printed it for a known, an unknown, a shared-session and a split-by-time cost."
+    },
+    "why": "Without it, moving these lines out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/usage.js"
+    ]
+  }
+}
