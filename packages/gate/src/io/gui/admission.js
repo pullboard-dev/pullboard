@@ -14,18 +14,26 @@ export function testsNeedGui(root, files) {
   });
 }
 
-/** Read annotation lines only from leading comments, stopping before any executable source or code literal. */
-function headerNeedsGui(source) {
+/** Read one annotation tag (the GUI tag by default) only from leading comments, stopping before any executable source or code literal. */
+function headerNeedsGui(source, tag = '@pullboard-test-gui') {
   let remaining = source.replace(/^#![^\n]*(?:\n|$)/u, '').trimStart();
   while (remaining.startsWith('/*') || remaining.startsWith('//')) {
     const block = remaining.startsWith('/*');
     const end = block ? remaining.indexOf('*/', 2) : remaining.indexOf('\n');
     if (block && end < 0) return false;
     const comment = remaining.slice(2, end < 0 ? remaining.length : end);
-    if (/^[ \t]*\*?[ \t]*@pullboard-test-gui[ \t]*\r?$/mu.test(comment)) return true;
+    if (new RegExp(`^[ \\t]*\\*?[ \\t]*${tag}[ \\t]*\\r?$`, 'mu').test(comment)) return true;
     remaining = end < 0 ? '' : remaining.slice(end + (block ? 2 : 1)).trimStart();
   }
   return false;
+}
+
+/** The files whose leading comments carry a @pullboard-test-timing line: each needs an exclusive runner for its timing measurements; a missing file never counts [C7]. */
+export function timingTestFiles(root, files) {
+  return files.filter(file => {
+    try { return headerNeedsGui(readFileSync(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
+    catch { return false; }
+  });
 }
 
 /** Read the project's tracked Node test files when an opaque full gate supplies no explicit selection. */

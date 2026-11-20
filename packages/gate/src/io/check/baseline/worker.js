@@ -26,6 +26,8 @@ import {
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
+import { checkTestFiles } from '../../../../../items/index.js';
+import { missingCheckFiles } from '../../../../../items/index.js';
 import { storeName } from '../../store-names.js';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 
@@ -53,10 +55,30 @@ function holdsProvesNothing(root) {
   try { return mainPolicy(root).config?.checks?.provesNothing === 'hold'; } catch { return false; }
 }
 
+/**
+ * The argument fragment that makes a green baseline hold its item: main's policy asks for the hold and the check's
+ * named test file already exists on main. A check naming a file main lacks is expected red until the item creates it,
+ * so a green there reads an empty suite and holds nothing; a check naming no file, or a tree that cannot be read, keeps
+ * the hold as before. One git ls-tree reads main's tree.
+ *
+ * @param {string} root
+ * @param {{ command: string, main: string }} expected
+ * @param {{ result?: string }} baseline
+ * @returns {{ holdProvesNothing: true }|{}}
+ */
+function holdFlag(root, expected, baseline) {
+  if (baseline?.result !== 'green' || !holdsProvesNothing(root)) return {};
+  if (checkTestFiles(expected?.command).length === 0) return { holdProvesNothing: true };
+  const tree = tryGit(root, ['ls-tree', '-r', '--name-only', expected.main], { env: gitChildEnv(root) });
+  if (tree.status !== 0) return { holdProvesNothing: true };
+  const onMain = new Set(tree.stdout.split('\n'));
+  return missingCheckFiles(expected.command, file => onMain.has(file.replace(/^\.\//u, ''))).length === 0 ? { holdProvesNothing: true } : {};
+}
+
 /** Apply captured data through the same local or linked engine as the original add/edit. */
 async function complete(root, receipt, io, services) {
   const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline,
-    ...(receipt.baseline?.result === 'green' && holdsProvesNothing(root) ? { holdProvesNothing: true } : {}) }];
+    ...holdFlag(root, receipt.expected, receipt.baseline) }];
   return relayLinked(root) ? relayOperation(root, 'completeCheckBaseline', args, io)
     : withBoard(root, (board) => store.completeCheckBaseline(board, ...args), services);
 }
@@ -100,7 +122,7 @@ export async function retryCheckBaselines(root, io, services) {
 export function recordPulledBaseline(board, { item, expected, run, seconds }) {
   const baseline = runnerBaseline(expected, run, seconds);
   return store.completeCheckBaseline(board, item, { agentId: 'coordinator', expected, baseline,
-    ...(baseline.result === 'green' && board.gitRoot && holdsProvesNothing(board.gitRoot) ? { holdProvesNothing: true } : {}) });
+    ...(board.gitRoot ? holdFlag(board.gitRoot, expected, baseline) : {}) });
 }
 
 /**
