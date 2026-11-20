@@ -18,6 +18,9 @@ function fields(text) {
     decision: 'approve', reason: '', note: '' };
 }
 
+/** Whether a board root carries the signer file its link authority needs, so a caller can refuse early with its own next step. */
+export function boardHasSigner(root) { return hasSignerFile(root); }
+
 /**
  * Supply the signer port from trusted board handles and their roots, never message-provided paths.
  * A future verified person-signature adapter can implement the same sign/verify interface.

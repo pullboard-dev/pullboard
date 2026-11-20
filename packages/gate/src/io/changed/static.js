@@ -1,21 +1,25 @@
 /** The gate's changed-file static checks as one function, so the gate and the pre-commit hook run the same list [C7]. */
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runStaticRegistry } from '../static/check/registry.js';
 import { STATIC_CHECKS } from '../static/check/registry.js';
 import { gitSpawnSync } from '../../../../git/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Judge only the named files with the static checks the gate runs on changed files.
  *
  * @param {string} root - Checkout root the files are read from.
  * @param {string[]} files - Root-relative changed or staged paths.
- * @param {{ staged?: boolean, only?: string[] | null, also?: { name: string, run: (context: object) => string[] }[] }} [options] - `only` runs
+ * @param {{ staged?: boolean, only?: string[] | null, also?: { name: string, run: (context: object) => string[] }[], deadline?: number | null }} [options] - `only` runs
  *   just the registered checks with these names; `also` adds checks the caller owns, run on the same context after the registry.
- * @returns {string[]} One `path:line: message` per failure; empty when clean.
+ *   `deadline` is an epoch time in milliseconds: checks run in order, and once it has passed no further check starts.
+ *   Why: a loaded machine ran the whole list to the pre-commit timeout; what does not fit is left to the gate, which passes no deadline [C7].
+ * @returns {string[] | { failures: string[], deferred: string[] }} With no deadline, one `path:line: message` per failure, empty when clean.
+ *   With a deadline, those failures and the names of the checks it skipped.
  */
-export function changedStaticFailures(root, files, { staged = false, only = null, also = [] } = {}) {
+export function changedStaticFailures(root, files, { staged = false, only = null, also = [], deadline = null } = {}) {
   const cache = new Map();
   const accepted = new Map();
   let indexed = null;
@@ -56,7 +60,7 @@ export function changedStaticFailures(root, files, { staged = false, only = null
   const text = file => {
     if (!cache.has(file)) {
       if (staged) cache.set(file, (indexed ??= indexReader(root))(file));
-      else cache.set(file, readFileSync(join(root, file), 'utf8'));
+      else cache.set(file, fs.readFile(join(root, file), 'utf8'));
     }
     return cache.get(file);
   };
@@ -72,8 +76,16 @@ export function changedStaticFailures(root, files, { staged = false, only = null
     engineSources = [...sources, ...extra.map(read)];
   }
   const context = { root, files, staged, text, previous, read, sources, engineSources };
-  const registry = only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
-  return [...registry, ...also.flatMap(check => check.run(context))];
+  if (deadline === null) {
+    const registry = only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
+    return [...registry, ...also.flatMap(check => check.run(context))];
+  }
+  const failures = [], deferred = [];
+  for (const check of [...(only ? STATIC_CHECKS.filter(row => only.includes(row.name)) : STATIC_CHECKS), ...also]) {
+    if (Date.now() >= deadline) deferred.push(check.name);
+    else failures.push(...check.run(context));
+  }
+  return { failures, deferred };
 }
 
 /**
@@ -92,7 +104,7 @@ function indexReader(root) {
   const differs = new Set(dirty.stdout.split('\0').filter(Boolean));
   const plain = new Set(listed.stdout.split('\0').filter(row => row.startsWith('H ')).map(row => row.slice(2)).filter(file => !differs.has(file)));
   return file => {
-    if (plain.has(file) && lstatSync(join(root, file), { throwIfNoEntry: false })?.isFile()) return readFileSync(join(root, file), 'utf8');
+    if (plain.has(file) && fs.lstat(join(root, file), { throwIfNoEntry: false })?.isFile()) return fs.readFile(join(root, file), 'utf8');
     const result = gitSpawnSync(['show', `:${file}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
     if (result.status !== 0) throw new Error(`cannot read staged ${file}: ${result.stderr || result.error?.message}`);
     return result.stdout;
@@ -130,7 +142,7 @@ function movedFrom(root, staged) {
   for (const shard of (listed.status === 0 ? listed.stdout : '').split('\0').filter(name => name.endsWith('.json'))) {
     let data;
     try {
-      data = JSON.parse(staged ? staged(shard) : readFileSync(join(root, shard), 'utf8'));
+      data = JSON.parse(staged ? staged(shard) : fs.readFile(join(root, shard), 'utf8'));
     } catch { continue; } // an unreadable shard maps nothing
     if (data && typeof data === 'object' && !Array.isArray(data)) for (const [from, to] of Object.entries(data)) if (typeof to === 'string') map.set(from, to);
   }
