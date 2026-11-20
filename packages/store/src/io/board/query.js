@@ -1,4 +1,4 @@
-import { ENGINE_VERSION } from '../../../../state/light.js';
+import { ENGINE_VERSION } from '../../../../state/browser.js';
 import { withDerivedFamily } from "../../../../items/light.js";
 import { withDerivedFamilies } from "../../../../items/light.js";
 import { effectiveItemHead } from "../../../../verify/read.js";
@@ -37,7 +37,7 @@ import { COORDINATOR } from "../../../../queue/light.js";
 export { validateNeeds } from "../../../../queue/light.js";
 import { itemFiles } from "../../../../items/light.js";
 import { parseSpec } from "../../../../spec/light.js";
-import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { BOARD_SENTINEL_ENGINE } from "../../../../state/browser.js";
 import { Refused } from "../../../../kernel/light.js";
 import { boardDataVersion } from "./read/light.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./read/snapshot.js";
