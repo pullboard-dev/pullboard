@@ -3,7 +3,7 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { formatCollectionReport } from '../../../../gate/index.js';
+import { formatCollectionReport } from '../../../../gate/heavy.js';
 
 /**
  * Read the live person waivers Pullboard projects into a landing run, as `{kind, test}` pairs.

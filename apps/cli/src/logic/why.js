@@ -2,6 +2,7 @@
  * The shared --why flag: any pullboard command takes `--why "<text>"` (or PULLBOARD_WHY), ignores it for behaviour
  * and keeps it in that call's trace line. One definition feeds the parser strip and every command's help [C7].
  */
+import { environmentAdapter } from '../../../../packages/env/index.js';
 
 /** The flag as help shows it, the same for every command. */
 export const WHY_FLAG = '--why "<text>"';
@@ -14,7 +15,7 @@ const WHY_MAX = 500;
  * Split the stated intent out of argv. It returns the argv without `--why`, and the intent text (the flag first,
  * else PULLBOARD_WHY, else null). `land --why` is its own boolean flag, so for `land` only a flag with a value is taken.
  */
-export function extractWhy(argv, env = process.env) {
+export function extractWhy(argv, env = environmentAdapter().all()) {
   const out = [];
   let why = null;
   const landBoolean = argv[0] === 'land';

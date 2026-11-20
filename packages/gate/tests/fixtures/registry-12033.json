@@ -1,0 +1,3 @@
+{
+  "gate.io-changed-static.deadline-defers": {"proves":{"specs":["C7"],"claim":"changedStaticFailures with a deadline already passed runs no further check and returns the names of the checks it skipped; with no deadline it runs every check as before"},"why":"The commit hook ran the whole static list to its 120 s timeout on a loaded machine; without this case the deadline could stop deferring and the hook would time out again.","kind":"cell unit","inputs":["packages/gate/src/io/changed/static.js"]}
+}

@@ -1,7 +1,7 @@
 /** Committed rule coverage is derived on the event writer, never by status or API readers [S1,C7]. */
 import { createHash } from 'node:crypto';
-import { tryGit } from '../../../../../git/index.js';
-import { literalShellWords } from '../../../../../kernel/index.js';
+import { tryGit } from '../../../../../git/light.js';
+import { literalShellWords } from '../../../../../kernel/light.js';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 
 const fs = fileSystemAdapter();
