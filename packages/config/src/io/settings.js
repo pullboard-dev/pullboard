@@ -206,9 +206,9 @@ export function adapterLintSigningEnabled() {
   return loadMachineSettings().gate?.adapterLintSigning === true;
 }
 
-/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
+/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: on by default; only an exact `false` turns it off [C7,#1807]. */
 export function jsdocCheckEnabled() {
-  return loadMachineSettings().gate?.jsdocCheck === true;
+  return loadMachineSettings().gate?.jsdocCheck !== false;
 }
 
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */

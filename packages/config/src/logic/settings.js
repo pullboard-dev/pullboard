@@ -760,9 +760,9 @@ export function gateSampleSwap() {
   return loadMachineSettings().gate?.sampleSwap === true;
 }
 
-/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755): off by default; only an exact `true` turns it on. */
+/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755, default on in #11423): on by default; only an exact `false` turns it off. */
 export function submitComposeOnRunner() {
-  return loadMachineSettings().submit?.composeOnRunner === true;
+  return loadMachineSettings().submit?.composeOnRunner !== false;
 }
 
 /** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): on by default; only an exact `false` turns it off. */
