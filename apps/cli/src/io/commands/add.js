@@ -24,6 +24,7 @@ import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireSpecRow } from '../item/bar.js';
+import { requireCellTestFixture } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
@@ -201,6 +202,7 @@ export async function run(io, args) {
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
   requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
   requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
+  await requireCellTestFixture(ctx, { criterion: item.criterion, check: item.check, brief: item.brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || item.by === 'person');
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
