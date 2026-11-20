@@ -2,8 +2,8 @@
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
-import { STATIC_SCOPE_ENV } from '../../../gate/index.js';
-import { analysisScope } from '../../../gate/index.js';
+import { STATIC_SCOPE_ENV } from '../../../gate/heavy.js';
+import { analysisScope } from '../../../gate/heavy.js';
 
 /** The `path:line: text` rows a static check prints, one per violation. */
 export function staticRows(output) {

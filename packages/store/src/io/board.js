@@ -35,6 +35,7 @@ import { reviewHolder } from "./board/query.js";
 import { events } from "./board/query.js";
 import { proofReceipts } from "./receipts.js";
 import { prepareMergeOnlySubmit } from "../../../merge/index.js";
+import { mechanicalConflictFiles } from "../../../merge/index.js";
 import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
@@ -45,6 +46,7 @@ import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
 import { companionWindowProblem } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
+export { relaxRequiredFamilyEnabled } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { GUARDS } from "../../../state/index.js";
 import { IN_STATE } from "../../../state/index.js";
@@ -114,6 +116,8 @@ import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
 import { clearReservation } from "./board/hold/item.js";
+import { addBlock } from "./board/blocks.js";
+import { listBlocks } from "./board/blocks.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -154,6 +158,9 @@ export {
   unverifiedSubmissions,
 } from "./board/read/shouts.js";
 export { lineSettings } from "../../../state/light.js";
+/** The engine numbers blocks.js reads through this file, so the new module adds no cross-cell import of state [C7,#11280]. */
+export { BLOCK_ENGINE } from "../../../state/light.js";
+export { ENGINE_VERSION };
 export { setLineSetting } from "./board/settings.js";
 
 export {
@@ -310,7 +317,7 @@ export function moveItem(board, id, verb, { checks, set = () => ({}), before = (
  */
 export const onlyCoordinator = (agentId, what) => (agentId === COORDINATOR ? null : new Refused('COORDINATOR_ONLY', `only the coordinator ${what}`));
 
-export { prepareMergeOnlySubmit };
+export { prepareMergeOnlySubmit, mechanicalConflictFiles };
 
 export { reviewHolder } from "./board/query.js";
 
@@ -506,6 +513,8 @@ export {
   holdItem,
   reserveItem,
   clearReservation,
+  addBlock,
+  listBlocks,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,

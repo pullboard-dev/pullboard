@@ -1,15 +1,7 @@
 import { relayFetch } from '../../../../person/index.js';
 /** CLI pairing flow: the relay stores only a one-use client-encrypted package [H15,H17]. */
 import { randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { computerName } from '../../../../seats/index.js';
 import {
   dirname,
@@ -43,6 +35,9 @@ import { Refused } from '../../../../kernel/index.js';
 import { requirePersonChannel } from '../../../../person/index.js';
 import { listApiProjects } from '../../../../seats/index.js';
 
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
+
 const TOKEN = /^pm_[A-Za-z0-9_-]{43}$/;
 const BOARD = /^[0-9a-f]{32}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -65,11 +60,11 @@ function linkFile(root) {
 
 /** Load and validate relay state before it supplies a destination or credential. */
 function loadState(file) {
-  if (!existsSync(file)) throw new Refused('RELAY_NOT_LINKED', 'link this board with pullboard relay on before pairing a device');
-  const stat = lstatSync(file);
+  if (!fs.exists(file)) throw new Refused('RELAY_NOT_LINKED', 'link this board with pullboard relay on before pairing a device');
+  const stat = fs.lstat(file);
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Refused('RELAY_STORAGE', 'restore relay.json as an owner-only regular file with mode 600');
   let state;
-  try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before pairing this board'); }
+  try { state = JSON.parse(fs.readFile(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore valid relay link metadata before pairing this board'); }
   if (!state || state.version !== 1 || !BOARD.test(state.board) || !TOKEN.test(state.token) ||
       typeof state.repository !== 'string' || !REPOSITORY.test(state.repository) ||
       (state.mode !== undefined && !['mirror', 'ordered'].includes(state.mode)) ||
@@ -82,12 +77,12 @@ function loadState(file) {
 
 /** Persist a joined-device link with owner-only permissions and atomic replacement. */
 function saveState(file, state) {
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, JSON.stringify(state) + '\n', { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
+    fs.writeFile(temporary, JSON.stringify(state) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.rename(temporary, file);
+  } finally { fs.rm(temporary, { force: true }); }
 }
 
 /** Send one authenticated, bounded JSON request without including credentials in errors. */
@@ -251,7 +246,7 @@ export async function relayJoin(root, code, address, io, { name: labelInput } = 
   if (bundle.repository !== repository) throw new Refused('PAIR_REPOSITORY', 'this code belongs to another GitHub repository and was consumed; ask the linked device for a fresh code, then join inside the matching clone');
   if (new URL(bundle.url).origin !== new URL(url).origin) throw new Refused('PAIR_RELAY', 'this code belongs to another relay; rerun join with that relay address');
   const file = linkFile(root);
-  if (existsSync(file)) throw new Refused('RELAY_LINKED', 'this clone already has relay link metadata; use a fresh clone to join another device');
+  if (fs.exists(file)) throw new Refused('RELAY_LINKED', 'this clone already has relay link metadata; use a fresh clone to join another device');
   const machine = updateRelayMachine(state => state.machine);
   // Only a person's explicit label travels to other computers; never send this host or path.
   const issued = await relayRequest(url, signed.token, '/auth/machines', { board: bundle.board, machine, ...(label === undefined ? {} : { name: label }) });
