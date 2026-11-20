@@ -27,7 +27,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { browserSlotRefusal } from '../../index.js';
+import { browserSlotRefusal } from '../../heavy.js';
 const STARTUP_TIMEOUT_MS = 30_000;
 const COMMAND_TIMEOUT_MS = 15_000;
 const CLEANUP_TIMEOUT_MS = 5_000;

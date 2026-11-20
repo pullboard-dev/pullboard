@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { quote } from '../../fixtures/resource.js';
 import { fixture } from '../../fixtures/resource.js';
 import { probeSuite } from '../../fixtures/resource.js';
-import { withNestedGroup } from '../../../index.js';
+import { withNestedGroup } from '../../../heavy.js';
 import { launchTestRunner } from '../../fixtures/resource.js';
 import { gateRepo } from '../../fixtures/resource.js';
 import { waitFor } from '../../fixtures/resource.js';

@@ -9,8 +9,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { redGateReport } from '../../../index.js';
-import { retainTestOutput } from '../../../index.js';
+import { redGateReport } from '../../../heavy.js';
+import { retainTestOutput } from '../../../heavy.js';
 
 /**
  * Run real test files with node's TAP reporter in a scratch project, as a gate does, and return the output.
