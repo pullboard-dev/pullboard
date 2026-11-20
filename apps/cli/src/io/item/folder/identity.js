@@ -25,7 +25,7 @@ export function seatAt(board, root) {
  */
 export function itemFolderSeatHint(board, root) {
   try {
-    const marker = JSON.parse(readFileSync(gitPath(root, ITEM_MARKER_FILE), 'utf8'));
+    const marker = JSON.parse(fs.readFile(gitPath(root, ITEM_MARKER_FILE), 'utf8'));
     if (marker.version !== 1 || typeof marker.seat !== 'string' || !Number.isSafeInteger(marker.item)) return null;
     const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(marker.seat);
     return seat ? { seat: seat.agent_path, item: marker.item } : null;
