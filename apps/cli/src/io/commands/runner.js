@@ -40,7 +40,6 @@ import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import { asyncFetchEnabled } from '../../../../../packages/config/index.js';
 import { pulledProfilePathsEnabled } from '../../../../../packages/config/index.js';
-import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
@@ -50,6 +49,8 @@ import {
   computeRunnerSlots,
   effectiveRunner,
 } from '../../../../../packages/runners/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 /** How long runner add waits for the one-time registration probe (SSH, a shell and node on the runner); health probes keep their 3 s default so a loaded runner or slow link still registers [C7]. */
 const REGISTRATION_PROBE_MS = 15_000;
@@ -115,7 +116,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
     // Pulled-job capacity from the board's job table: claimed jobs against each serve's declared jobs setting [#5993].
     if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner status [--json]');
     const ctx = context(io);
-    if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
+    if (!fs.exists(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
     const db = openBoardReadOnly(ctx.file);
     let capacity;
     try { capacity = readPulledCapacity(db, { runs: boardRunsReader({ db }, ctx.file) }); } finally { db.close(); }
@@ -178,7 +179,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
     if (!runner) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${second} is not registered`, 'run pullboard runner add <ssh-host>');
     // The key: the flag, the URL's own ?k=, the runner environment's variable, or this machine's board key when it serves the board.
     const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? environmentAdapter().get('PULLBOARD_BOARD_KEY')
-      ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
+      ?? (fs.exists(boardKeyFile()) ? boardKey() : undefined);
     const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
     if (values.remove) {
