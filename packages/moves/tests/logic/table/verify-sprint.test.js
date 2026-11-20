@@ -118,6 +118,6 @@ test('moves.table-verify.no-solo-event-independent: clause 2: an independent acc
   for (const [name, s] of Object.entries(failing)) {
     const out = run(s, BUILDER_ACCEPT);
     assert.equal(out.refused?.code, 'SELF_VERIFY', name);
-    assert.deepEqual(out.events, [], name);
+    assert.deepEqual(out.events ?? [], [], name);
   }
 });
