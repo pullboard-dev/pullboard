@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../../store/index.js';
-import { openCellBoard as openBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard as openBoard } from '../../../board/tests/fixtures/cell-board.js';
 import {
   exportBoard,
   importBoard,

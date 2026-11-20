@@ -54,22 +54,19 @@ test('api.jobs-release-hop.runner-releases-gate-job-claims: clause 1: a runner t
   assert.throws(() => renewJob(db, { job: first.job, runner: 'r1', token: first.token, now: until + 2, leaseMs: LEASE, hop: gateClaimHop(true) }), 'the released claim\'s token stays dead');
 });
 
-test('api.jobs-release-hop.while-first-runner-holds-hop: clause 2: while the first runner holds the hop, another runner is still refused the released gate job HOP_FENCED [C7,#8439]', t => {
+test('api.jobs-release-hop.while-first-runner-holds-hop: clause 2: while the first runner holds the hop, another runner still does not get the released gate job; its claim skips it [C7,#8439,#12147]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000);
   const { until } = releaseJob(db, { job: first.job, runner: 'r1', token: first.token, reason: 'busy', now: 6000 });
-  assert.throws(() => claim(db, 'r2', until + 1), error => {
-    assert.equal(error.code, 'HOP_FENCED');
-    assert.match(error.message, /driven by r1/u);
-    return true;
-  });
+  assert.equal(claim(db, 'r2', until + 1), null, 'the released gate job is skipped while r1 holds its hop');
   assert.deepEqual([readGateHop(db, ITEM).owner, readGateHop(db, ITEM).epoch], ['r1', 1], 'the refused claim left r1\'s hop as it was');
 });
 
-test('api.jobs-release-hop.runner-holding-live-gate-claim: clause 2: a runner holding one live gate claim on the item is refused a second, so two claims never share an epoch [C7,#8439]', t => {
+test('api.jobs-release-hop.runner-holding-live-gate-claim: clause 2: a runner holding one live gate claim on the item does not get a second, so two claims never share an epoch [C7,#8439,#12147]', t => {
   const db = board(t, ['gate:7:a', 'gate:7:b']);
   claim(db, 'r1', 5000);
-  assert.throws(() => claim(db, 'r1', 5001), { code: 'HOP_FENCED' });
+  assert.equal(claim(db, 'r1', 5001), null, 'the second gate job is skipped');
+  assert.equal(db.prepare("SELECT job_lease_owner AS owner FROM job WHERE job_id = 'gate:7:b'").get().owner, null, 'the skipped job took no lease');
 });
 
 test('api.jobs-release-hop.stopping-runner-hands-back-gate: clause 1: a stopping runner that hands back its gate job lease frees its hop, so a second runner claims the job at once and runs it without HOP_FENCED [C7,#8700]', t => {

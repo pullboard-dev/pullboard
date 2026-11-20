@@ -2,21 +2,17 @@ import { localDependencyIds } from '../../../../../packages/items/light.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { dependencyLabel } from '../../../../../packages/items/light.js';
 import { itemFileCollisions } from '../../../../../packages/items/light.js';
-import { allItemsNeedingRescope } from '../../../../../packages/store/index.js';
-import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
+import { allItemsNeedingRescope } from '../../../../../packages/store/light.js';
 import { readCapacity } from '../../../../../packages/stats/light.js';
 import { capacityLines } from '../../../../../packages/stats/light.js';
 import { statusShowUsefulBuilders } from '../../../../../packages/config/index.js';
 import { readMaxUsefulBuilders } from '../../../../../packages/stats/light.js';
 import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
-import { staleStateLine } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/state/light.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
 import { foreignBlockers } from '../../../../../packages/items/light.js';
-import { readReceivedBoardState } from '../../../../../packages/store/index.js';
 import { existsSync } from 'node:fs';
-import { relayMachineDirectory } from '../../../../../packages/store/index.js';
-import { submitHandoff } from '../../../../../packages/store/index.js';
+import { submitHandoff } from '../../../../../packages/store/light.js';
 import { handoffWorkerAlive } from '../alive.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
@@ -29,12 +25,13 @@ import { join } from 'node:path';
 import { statusLines } from '../../logic/status/render.js';
 import { landWhy } from '../../../../../packages/landing/light.js';
 import { landingLine } from '../../../../../packages/landing/light.js';
-import * as store from '../../../../../packages/store/index.js';
 import { identifyCaller } from '../read.js';
-import { relayStateExists } from '../../../../../packages/store/index.js';
+import { relayStateExists } from '../../../../../packages/store/light.js';
 import { fileURLToPath } from 'node:url';
-import { memoryHeldRuns } from '../../../../../packages/store/index.js';
-import { longestRecentHolds } from '../../../../../packages/store/index.js';
+import {
+  productLine,
+  productSummaries,
+} from '../../../../../packages/spec/index.js';
 import { originRepository } from '../../../../../packages/seats/light.js';
 import {
   signingLine,
@@ -44,8 +41,8 @@ import {
   span,
 } from '../read.js';
 
-/** Bind authenticated foreign state to the status reader's existing read-only board. */
-function statusForeignBlockers(board, item) {
+/** Bind authenticated foreign state to the status reader's existing read-only board; the reader comes from the full store door the run loads lazily. */
+function statusForeignBlockers(board, item, readReceivedBoardState) {
   return foreignBlockers(board, item, { readReceivedBoardState });
 }
 
@@ -55,6 +52,8 @@ export const nativeBoardRequired = false;
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);
+  // The full store door loads here, not at import: status's static closure then reaches none of its board modules [C7,#6480].
+  const store = await import('../../../../../packages/store/index.js');
   const { submitInvariantLine, submitInvariantProposals } = await import('../../../../../packages/items/index.js');
   const { bindProofRunner, currentProofCounters, proofCounter, ruleProofCounts, reviewQueueLine } = await import('../../../../../packages/verify/index.js');
   const { claimHealthProjection, releaseBlockingItems, staleStateSnapshot } = await import('../../../../../packages/health/index.js');
@@ -99,22 +98,22 @@ export async function run(io, { values }) {
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
     batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
-    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
-  if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
+  if (!summary.relay.linked && existsSync(store.relayMachineDirectory())) {
     const exclusion = (await import('../../../../../packages/link/index.js')).relayExclusion(ctx.info.root);
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
   summary.reclaim = reclaim;
   summary.landingBatch = batchLine;
-  summary.memoryHeld = memoryHeldRuns();
+  summary.memoryHeld = store.memoryHeldRuns();
   // These status readers load here, not through the packages' light doors: those doors are the runner worker's, and a status reader in them widens the worker bundle [C7].
   const { retainedReceipts } = await import('../../../../../packages/gate/index.js');
   const { readRunnerUtilization, runnerDeadlineRuns } = await import('../../../../../packages/runners/index.js');
   summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
-  summary.longestHolds = longestRecentHolds();
+  summary.longestHolds = store.longestRecentHolds();
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {
     io.result(summary);
@@ -122,7 +121,7 @@ export async function run(io, { values }) {
   }
   if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
   const originHint = !summary.relay.linked && !originRepository(ctx.info.root, { optional: true });
-  const format = { capacityLines, usefulBuilderLines, signingLine, staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
+  const format = { capacityLines, usefulBuilderLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
   for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
   if (Object.keys(ctx.config.products).length) {
     const { loadSpec, productLine, productSummaries } = await import('../../../../../packages/spec/index.js');
