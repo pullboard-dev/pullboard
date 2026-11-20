@@ -4,7 +4,6 @@ import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { endLostTestRuns } from '../../../../../packages/drive/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
-import { handoffQueueDirectory } from '../../../../../packages/resources/index.js';
 import { listResources } from '../../../../../packages/resources/index.js';
 import { machineHome } from '../../../../../packages/resources/index.js';
 import { openWaitKey } from '../../../../../packages/sentinels/index.js';
@@ -25,7 +24,7 @@ import { withBoard } from '../entry.js';
 async function snapshotHere(ctx, budgets, runnerTimeoutMs) {
   const settings = loadMachineSettings();
   return waitsSnapshot({ budgets, runnerTimeoutMs, hosts: (settings.runners ?? []).map(runner => runner.host).filter(host => typeof host === 'string'),
-    paths: { commonDir: ctx.info.commonDir, boardFile: ctx.file, machineHome: machineHome(), handoffQueue: handoffQueueDirectory() } });
+    paths: { commonDir: ctx.info.commonDir, boardFile: ctx.file, machineHome: machineHome() } });
 }
 
 /**
