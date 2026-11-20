@@ -117,8 +117,6 @@
     "packages/seats/src/io/projects.js": 2,
     "packages/seats/src/io/registration.js": 1,
     "packages/seats/src/io/wake.js": 1,
-    "packages/sentinels/src/io/runner.js": 1,
-    "packages/sentinels/src/io/serve.js": 1,
     "packages/stats/src/io/cost/checkpoint.js": 1,
     "packages/stats/src/io/cost/due.js": 2,
     "packages/stats/src/io/cost/ledger.js": 1,
