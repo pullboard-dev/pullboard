@@ -301,6 +301,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
       return !stacked;
     }).sort((left, right) => Number(aside.has(left.item_id)) - Number(aside.has(right.item_id)) || pin(left) - pin(right) || byPriority(left, right) || rank(left) - rank(right) || left.item_id - right.item_id);
+    // A head stepped aside is named with its failure count, so the reorder is never silent [C7,#3118].
+    for (const item of chosen) if (aside.has(item.item_id)) ctx.io.say?.(`#${item.item_id} steps aside: ${stepAsideCount(board, item.item_id)} infrastructure failures, offered behind the next accepted item`);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
     if (publishHold && !chosen.length) throw publishHold.refusal;
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));

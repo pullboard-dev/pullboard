@@ -134,6 +134,20 @@ test('cli.io-landing-pull.step-aside-on-the-real-pull-path: clause 3: the step-a
   assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2], [1]]);
 });
 
+test('cli.io-landing-pull.step-aside-says-why: clause 1: offerPulledLanding says one line naming the stepped-aside head and its infrastructure-failure count [C7,#3118]', async t => {
+  const { said } = await offerWithLog(t, { lapses: { 1: 2 } });
+  assert.deepEqual(said.filter(line => /steps aside/u.test(line)), ['#1 steps aside: 2 infrastructure failures, offered behind the next accepted item']);
+  const quiet = await offerWithLog(t, { lapses: { 1: 1 } });
+  assert.deepEqual(quiet.said.filter(line => /steps aside/u.test(line)), [], 'one failure is not a step aside, so nothing is said');
+});
+
+test('cli.io-landing-pull.own-red-head-stays-held: clause 2: a head held after a red on its own tests is not offered and not counted as stepped aside [C7,#3118]', async t => {
+  const { jobs, result, said } = await offerWithLog(t, { held: [1] });
+  assert.deepEqual(result.items, [2], 'the held head is not offered');
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2]]);
+  assert.deepEqual(said.filter(line => /steps aside/u.test(line)), []);
+});
+
 test('cli.io-landing-pull.mechanical-only-conflict-stays-verified: clause 1: a mechanical-only conflict keeps the accepted item verified and the offer takes it [C7,#3064]', async t => {
   const { result, said, item } = await offerOverConflict(t, mechanicalOnlyConflictRepo());
   assert.equal(item.item_status, 'verified', said.join('\n'));
