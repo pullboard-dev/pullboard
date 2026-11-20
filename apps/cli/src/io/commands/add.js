@@ -137,6 +137,7 @@ export async function run(io, args) {
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
+  const afterGate = dependencyValues(idList(values['after-gate']));
   const title = [second, ...rest].filter(Boolean).join(' ');
   requireSpecRow({ lane: first, title, specIds }, itemsBarRulesAtAdd());
   const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
@@ -156,6 +157,7 @@ export async function run(io, args) {
     specIds,
     parentId,
     after,
+    afterGate,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
