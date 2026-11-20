@@ -87,9 +87,9 @@ const MAX_SHARDS = 32;
 /**
  * The newest gate job offered for an item, so an older candidate's receipt reads as stale.
  * runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the job rows are read from the runs file; null reads the board's [B2,P7,#9149].
- */
+ * Why +job_created: ordering by job_kind_created walked every gate row from the newest down to the item's; job_kind_item reads only the item's gates [C7,#12095]. */
 export function latestGateJob(db, item, { runs = null } = {}) {
-  return prepared(runs ? runs.db : db, "SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
+  return prepared(runs ? runs.db : db, "SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY +job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
 }
 
 /**
