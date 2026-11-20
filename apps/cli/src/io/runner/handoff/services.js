@@ -2,14 +2,14 @@
 import { requireSubmitCells } from '../../cells-submit-checks.js';
 import { holdDoctrineAsync } from '../../../../../../packages/doctrine/index.js';
 import { ruleLine } from '../../../../../../packages/doctrine/index.js';
-import { commonJsIn } from '../../../../../../packages/gate/index.js';
+import { commonJsIn } from '../../../../../../packages/gate/heavy.js';
 import { failureSignatures } from '../../../../../../packages/landing/index.js';
-import { foreignNodeOptions } from '../../../../../../packages/gate/index.js';
-import { importsIn } from '../../../../../../packages/gate/index.js';
-import { regenerateDeclaredFiles } from '../../../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../../../packages/gate/heavy.js';
+import { importsIn } from '../../../../../../packages/gate/heavy.js';
+import { regenerateDeclaredFiles } from '../../../../../../packages/gate/heavy.js';
 import { requireSubmitComposition } from '../../../../../../packages/items/index.js';
-import { tapTests } from '../../../../../../packages/gate/index.js';
-import { withImportParseCache } from '../../../../../../packages/gate/index.js';
+import { tapTests } from '../../../../../../packages/gate/heavy.js';
+import { withImportParseCache } from '../../../../../../packages/gate/heavy.js';
 import { withMainCheckout } from '../../../../../../packages/landing/index.js';
 import { regenerateToolChange } from '../../../../../../packages/sandbox/index.js';
 
