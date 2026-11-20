@@ -195,3 +195,14 @@ test('store.io-write-queue-file.scan-skips-stored-results: clause 1: a drain bes
   assert.deepEqual(readdirSync(join(dir, 'pending')), [], 'no pending record is left');
   assert.equal(readdirSync(dir).filter(name => name.endsWith('.pending')).length, 0, 'pending records never sit among the stored results');
 });
+
+test('store.io-write-queue-file.a-write-published-beside-a-far-ahead-record-takes-a-higher-number: clause 2: a write published while another record with a far-ahead sequence number is visible takes a sequence number above it [C7,#11021]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-').root;
+  const far = (Date.now() + 3_600_000) * 1000;
+  const queue = createFileWriteQueue(dir);
+  writeFileSync(join(dir, 'pending', 'far.pending'), JSON.stringify({ seq: far, pid: 2_147_483_646 }));
+  let taken = 0;
+  const outcome = await queue.submit({ id: 'late', run: seq => { taken = seq; return seq; } });
+  assert.equal(outcome.ok, true);
+  assert.ok(taken > far, `the late write took ${taken}, not above the visible ${far}`);
+});

@@ -7,17 +7,12 @@ import { join } from 'node:path';
 import { Refused } from "../../../kernel/light.js";
 import { parseContributionRecord } from "../logic/contribution.js";
 
-/**
- * The accepted-records directory inside a repository's Pullboard state folder.
- *
- * @param {string} stateDir the repository's Pullboard state folder
- * @returns {string} the snapshot directory
- */
+const HASH = /^[0-9a-f]{64}$/u;
+
+/** The accepted-records store inside a repository's pullboard state folder (the caller names the folder). */
 export function acceptedRecordsDir(stateDir) {
   return join(stateDir, 'accepted-records');
 }
-
-const HASH = /^[0-9a-f]{64}$/u;
 
 /**
  * Save a record text that parseContributionRecord accepts, unchanged, under the sha256 hex of its bytes; a snapshot is never overwritten.

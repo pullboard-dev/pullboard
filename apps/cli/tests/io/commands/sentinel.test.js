@@ -1,12 +1,16 @@
-/** @pullboard-test-input apps/cli/src/io/commands/sentinel.js apps/cli/src/io/commands/flow.js apps/cli/tests/fixtures/e2e.js packages/stats/index.js packages/queue/index.js */
-/** One pullboard sentinel pass runs the line tune apply, so the line tunes on the board cadence [C7,#1099]. */
+/** @pullboard-test-input apps/cli/src/io/commands/sentinel.js apps/cli/src/io/commands/flow.js apps/cli/tests/fixtures/e2e.js packages/stats/index.js packages/queue/index.js packages/store/index.js packages/config/index.js */
+/** One pullboard sentinel pass runs the line tune apply, so the line tunes on the board cadence, and with claim.checkCeiling on it remeasures old unmeasured checks [C7,#1099,#1273]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { onBoard } from '../../fixtures/land/board.js';
+import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { checkVerdict } from '../../../../../packages/config/index.js';
+import * as store from '../../../../../packages/store/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -86,4 +90,79 @@ test('cli.sentinel.line-tune-off-and-refusal: clause 2: a sentinel pass with lin
   assert.equal(pass.code, 0, pass.err || pass.out);
   assert.match(pass.out, /flow tune --apply: refused \(COORDINATOR_ONLY\)/u);
   assert.equal(lineEvents(refused).length, before, 'a refused apply writes nothing');
+});
+
+const CHECKCEILING_ON = { claim: { checkCeiling: true }, gate: { localRunner: false }, runners: [{ host: 'fixture-runner', slots: 2, browser: 0 }, { host: 'fixture-runner-b', slots: 2, browser: 0 }] };
+
+/** Three open items, each with an untimed non-strict red baseline (a check frozen before claim.checkCeiling); their ids, oldest first. */
+async function untimedBoard() {
+  const box = e2e.project();
+  const ids = [];
+  for (const name of ['One', 'Two', 'Three']) {
+    const added = await box.inProcess(box.repo, 'add', 'web', name, '--criterion', '1. the page renders [test]', '--check', `node --test web/${name.toLowerCase()}.test.js`, '--json');
+    assert.equal(added.code, 0, added.err + added.out);
+    ids.push(JSON.parse(added.out).item.item_id);
+  }
+  const main = box.git(box.repo, 'rev-parse', 'main').trim();
+  onBoard(box, board => { for (const id of ids) store.saveCheckBaseline(board, id, { command: store.getItem(board, id).item_check, main, result: 'red' }); });
+  return { box, ids, main };
+}
+
+/** The checkBaseline each recorded edit event carried, by item id, with that event's recorded check. */
+function requested(box) {
+  const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  const rows = db.prepare("SELECT item_id, event_detail FROM event WHERE event_kind = 'edit' ORDER BY event_id").all()
+    .map(row => ({ id: row.item_id, ...JSON.parse(row.event_detail) })).filter(detail => detail.checkBaseline);
+  db.close();
+  return rows;
+}
+
+test('cli.io-commands-sentinel.remeasure-requests: clause 1: with claim.checkCeiling on, the coordinator sentinel run re-takes a pending check baseline for each item remeasureCandidates returns, up to the registered runner count, through the ordered editItem move with the item\'s unchanged check [C7,#1273]', async () => {
+  const { box, ids, main } = await untimedBoard();
+  const checks = onBoard(box, board => ids.map(id => store.getItem(board, id).item_check));
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, CHECKCEILING_ON);
+  const pass = await box.inProcess(box.repo, 'sentinel', 'run');
+  assert.equal(pass.code, 0, pass.err || pass.out);
+  const edits = requested(box);
+  assert.deepEqual(edits.map(edit => edit.id), [ids[0], ids[1]], 'one request per registered runner, oldest first, and none for the third item');
+  for (const [index, edit] of edits.entries()) {
+    assert.equal(edit.check, checks[index], 'the item\'s check is unchanged');
+    assert.equal(edit.checkBaseline.result, 'pending');
+    assert.equal(edit.checkBaseline.command, checks[index]);
+    assert.equal(edit.checkBaseline.main, main);
+    assert.equal('strict' in edit.checkBaseline, false, 'an unchanged check is not made strict');
+    assert.match(edit.checkBaseline.request, /^[a-f0-9-]{36}$/u);
+  }
+  assert.deepEqual(onBoard(box, board => ids.map(id => store.getItem(board, id).item_check)), checks, 'no check moved');
+  assert.equal(onBoard(box, board => store.getItem(board, ids[2]).item_check_baseline.result), 'red', 'the third item keeps its record');
+});
+
+test('cli.io-commands-sentinel.remeasure-seconds: clause 2: when a remeasure baseline completes, the item baseline records its seconds, and a later claim of it follows checkVerdict on the measured time [C7,#1273]', async () => {
+  const { box, ids } = await untimedBoard();
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...CHECKCEILING_ON, runners: [{ host: 'fixture-runner', slots: 1, browser: 0 }] });
+  const pass = await box.inProcess(box.repo, 'sentinel', 'run');
+  assert.equal(pass.code, 0, pass.err || pass.out);
+  const [edit] = requested(box);
+  assert.equal(edit.id, ids[0]);
+  const pending = edit.checkBaseline;
+  const done = onBoard(box, board => {
+    store.saveCheckBaseline(board, ids[0], pending);
+    assert.equal(store.completeCheckBaseline(board, ids[0], { agentId: 'coordinator', expected: pending, baseline: { command: pending.command, main: pending.main, result: 'green', seconds: 7 } }), true);
+    return { baseline: store.getItem(board, ids[0]).item_check_baseline, candidates: store.remeasureCandidates(board, { slots: 5 }).map(item => item.item_id) };
+  });
+  assert.equal(done.baseline.seconds, 7, 'the baseline records its seconds');
+  assert.equal(done.baseline.request, pending.request);
+  assert.equal(done.candidates.includes(ids[0]), false, 'a timed check is not remeasured again');
+  assert.deepEqual(checkVerdict({ measuredMs: done.baseline.seconds * 1000, ceilingMs: 10_000 }), { ok: true });
+  assert.throws(() => checkVerdict({ measuredMs: done.baseline.seconds * 1000, ceilingMs: 5_000 }), { code: 'CHECK_OVER_CEILING' });
+});
+
+test('cli.io-commands-sentinel.remeasure-off: clause 3: with claim.checkCeiling off, the default, sentinel run offers no baseline [C7,#1273]', async () => {
+  const { box, ids } = await untimedBoard();
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false }, runners: CHECKCEILING_ON.runners });
+  const pass = await box.inProcess(box.repo, 'sentinel', 'run');
+  assert.equal(pass.code, 0, pass.err || pass.out);
+  assert.doesNotMatch(pass.out, /remeasure/u);
+  assert.deepEqual(requested(box), [], 'no baseline was requested');
+  assert.deepEqual(onBoard(box, board => ids.map(id => store.getItem(board, id).item_check_baseline.result)), ['red', 'red', 'red']);
 });
