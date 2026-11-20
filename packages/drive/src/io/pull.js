@@ -422,7 +422,7 @@ async function dropCheckout(git, cache, { folder, primary }, exclusive = work =>
 }
 
 /** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
-const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
+const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|PLAYWRIGHT_BROWSERS_PATH|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
 
 /** The only names a job request may set for its job: test-only fixture switches, never PATH, HOME or a loader option [C7,#10848]. */
 export const JOB_ENV_NAME = /^(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+$/u;
@@ -475,6 +475,10 @@ export function jobEnvironment(cache, name, job, host = environmentAdapter().all
   // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
   // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
   const machine = join(home, '.pullboard');
+  // A job's HOME is empty, so Playwright would look for browsers in an empty cache; with no host PLAYWRIGHT_BROWSERS_PATH, point it at the host's default browser cache folder when that exists.
+  const hostHome = typeof host.HOME === 'string' && host.HOME !== '' ? host.HOME : homedir();
+  const browsers = ['Library/Caches/ms-playwright', '.cache/ms-playwright'].map(path => join(hostHome, path)).find(path => existsSync(path) && statSync(path).isDirectory());
+  if (passed.PLAYWRIGHT_BROWSERS_PATH === undefined && browsers) passed.PLAYWRIGHT_BROWSERS_PATH = browsers;
   return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder, temporary };
 }
 
@@ -1112,7 +1116,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         if (claimed.claim) ledger.add(claimed.claim.kind);
         return claimed;
       });
-    } catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
+    } catch (error) {
+      if (error.code === 'RUNNER_STOPPED') break;
+      if (!(error instanceof Refused)) { failure = error; break; }
+      // A refused claim call is a wait like an unreachable board: said, backed off, tried again; only the signal ends the serve.
+      say(`claim refused: [${error.code}] ${error.message}; retrying in ${delay} ms`);
+      waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
+      continue;
+    }
     if (!answer) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([nap(idleMs), ...active]); continue;
