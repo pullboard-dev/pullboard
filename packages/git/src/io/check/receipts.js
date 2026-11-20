@@ -10,14 +10,13 @@ import { definitionUnchanged } from './definition.js';
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { tryGit } from '../main.js';
 import { repoInfo } from '../main.js';
 import { storeName } from '../store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** Stable JSON: object keys sorted at every depth, so equal values always hash the same. */
 function stable(value) {
@@ -47,14 +46,14 @@ function receiptDir(root) {
 /** Hash both project configuration files, including a missing-file marker. */
 function projectConfig(root) {
   return Object.fromEntries(['pullboard.json', 'package.json'].map(name => {
-    try { return [name, receiptDigest(readFileSync(join(root, name)))]; } catch (error) { return [name, error.code === 'ENOENT' ? 'missing' : 'unreadable']; }
+    try { return [name, receiptDigest(fs.readFile(join(root, name), null))]; } catch (error) { return [name, error.code === 'ENOENT' ? 'missing' : 'unreadable']; }
   }));
 }
 
 /** Explain why an earlier receipt cannot even be addressed by the current inputs. */
 function unavailableReceipt(root, kind, part) {
   try {
-    readFileSync(join(receiptDir(root), `${receiptDigest(kind)}-latest.json`));
+    fs.readFile(join(receiptDir(root), `${receiptDigest(kind)}-latest.json`), null);
     process.stderr.write(`${kind} receipt not reused: ${part} changed or cannot be fingerprinted\n`);
   } catch { /* First runs have no receipt to refuse. */ }
   return null;
@@ -84,12 +83,12 @@ export function checkReceiptKey(root, { kind, definition, config, code = [], com
 export function readCheckReceipt(root, key) {
   if (!key) return null;
   try {
-    const receipt = JSON.parse(readFileSync(join(receiptDir(root), `${storeName(key.key)}`), 'utf8'));
+    const receipt = JSON.parse(fs.readFile(join(receiptDir(root), `${storeName(key.key)}`), 'utf8'));
     const same = receipt.version === 1 && receipt.green === true && ['kind', 'tree', 'checkDigest', 'configDigest'].every(field => receipt[field] === key[field]);
     return same ? receipt : null;
   } catch {
     try {
-      const previous = JSON.parse(readFileSync(join(receiptDir(root), `${receiptDigest(key.kind)}-latest.json`), 'utf8'));
+      const previous = JSON.parse(fs.readFile(join(receiptDir(root), `${receiptDigest(key.kind)}-latest.json`), 'utf8'));
       const changed = Object.keys(key.parts).filter(part => previous.parts?.[part] !== key.parts[part]);
       const paths = key.files.filter(file => previous.files?.find(old => old.path === file.path)?.digest !== file.digest).map(file => file.path);
       if (paths.length) changed.push(`checker files (${paths.join(', ')})`);
@@ -106,12 +105,12 @@ export function writeCheckReceipt(root, key, { by = '', result = null } = {}) {
     parts: key.parts, files: key.files, green: true, by, at: new Date().toISOString(), result };
   try {
     const dir = receiptDir(root);
-    mkdirSync(dir, { recursive: true });
+    fs.mkdir(dir, { recursive: true });
     const temporary = join(dir, `.${receipt.id}.tmp`);
-    writeFileSync(temporary, `${JSON.stringify(receipt)}\n`);
-    renameSync(temporary, join(dir, `${storeName(key.key)}`));
-    writeFileSync(temporary, `${JSON.stringify(receipt)}\n`);
-    renameSync(temporary, join(dir, `${receiptDigest(key.kind)}-latest.json`));
+    fs.writeFile(temporary, `${JSON.stringify(receipt)}\n`);
+    fs.rename(temporary, join(dir, `${storeName(key.key)}`));
+    fs.writeFile(temporary, `${JSON.stringify(receipt)}\n`);
+    fs.rename(temporary, join(dir, `${receiptDigest(key.kind)}-latest.json`));
   } catch (error) { process.stderr.write(`check receipt not recorded for ${key.kind} at tree ${key.tree.slice(0, 12)}: ${error.message}\n`); }
   return receipt;
 }

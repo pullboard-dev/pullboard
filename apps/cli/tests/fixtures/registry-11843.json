@@ -1,0 +1,4 @@
+{
+  "cli.io-item-duplicate.different-files-pass": {"proves":{"specs":["C7"],"claim":"a new item near an open one is filed when both bars name files and share none."},"why":"Without it templated per-file items needed --not-duplicate-of on each.","kind":"journey","inputs":["apps/cli/src/io/item/duplicate.js","apps/cli/tests/io/item/duplicate.test.js"]},
+  "cli.io-item-duplicate.shared-file-refused": {"proves":{"specs":["C7"],"claim":"a near open item sharing a named file, or naming none, is still refused DUPLICATE_LIKELY."},"why":"Without it the file rule could let real duplicates through.","kind":"journey","inputs":["apps/cli/src/io/item/duplicate.js","apps/cli/tests/io/item/duplicate.test.js"]}
+}
