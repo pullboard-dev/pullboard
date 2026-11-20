@@ -14,6 +14,7 @@ import { homedir } from 'node:os';
 import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { posix } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +36,8 @@ const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 export const SERVICE_ENTRY = 'apps/cli/src/io/runner/service.js';
 /** The launchd label, so a reinstall replaces the one service and --remove finds it. */
 export const SERVICE_LABEL = 'dev.pullboard.runner-serve';
+/** The per-run ceiling a runner's serve gets when its record sets none: the old daemon's 40 minutes [#11871]. */
+const DEFAULT_RUN_CEILING_MS = 2_400_000;
 // Budget: the service and what it imports through the drive and landing front doors is about 8 MB; double that is a runaway closure.
 const SERVICE_BYTES = 16 * 1024 ** 2;
 // Budget: one ssh writes a few files and asks launchd to load them; a minute covers a slow login shell and retries.
@@ -333,14 +336,17 @@ export async function runnerServiceInstaller() {
     `  <key>Label</key><string>${xml(plan.label)}</string>`,
     ...(daemon && uid !== 0 ? [`  <key>UserName</key><string>${xml(user)}</string>`] : []),
     '  <key>ProgramArguments</key>', '  <array>', ...args.map(arg => `    <string>${xml(arg)}</string>`), '  </array>',
-    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string></dict>`,
+    // The serve's session (gui for the agent, daemon for the daemon), job count and per-run ceiling: without PULLBOARD_RUNNER_JOBS serveSlots() falls to 3 and a minis' gate jobs go unclaimed [#11871].
+    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string>${[['PULLBOARD_RUNNER_JOBS', plan.jobs], ['PULLBOARD_RUNNER_RUN_CEILING_MS', plan.ceilingMs]].filter(([, value]) => Number.isFinite(value)).map(([name, value]) => `<key>${name}</key><string>${value}</string>`).join('')}<key>PULLBOARD_RUNNER_SESSION</key><string>${daemon ? 'daemon' : 'gui'}</string></dict>`,
     `  <key>WorkingDirectory</key><string>${xml(dir)}</string>`,
     '  <key>RunAtLoad</key><true/>', '  <key>KeepAlive</key><true/>', '  <key>ThrottleInterval</key><integer>10</integer>',
     `  <key>StandardOutPath</key><string>${xml(log)}</string>`, `  <key>StandardErrorPath</key><string>${xml(log)}</string>`,
     '</dict>', '</plist>', ''].join('\n'));
   // A bootout just before may still be settling; an agent tries the GUI session domain first, then the background user domain.
   let domain = null;
-  const domains = daemon ? uid === 0 ? ['system'] : [] : [`gui/${uid}`, `user/${uid}`];
+  // An agent is not loaded while an older system daemon for the label remains: both would run, so the sudo line removes it first.
+  const pendingRemoval = !daemon && daemonLeft;
+  const domains = daemon ? uid === 0 ? ['system'] : [] : pendingRemoval ? [] : [`gui/${uid}`, `user/${uid}`];
   for (const candidate of domains) {
     for (let attempt = 0; attempt < 5 && !domain; attempt++) {
       if (await launchctl('bootstrap', candidate, plist)) domain = candidate;
@@ -348,7 +354,7 @@ export async function runnerServiceInstaller() {
     }
     if (domain) break;
   }
-  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist, restarted,
+  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, pendingRemoval, domain, plist, restarted,
     ...(daemon ? { daemonPlist, user: uid === 0 ? 'root' : user } : {}), sudo, dir, log, args })}\n`);
 }
 
@@ -410,13 +416,14 @@ function recordService(host, service, file = serviceRecordFile()) {
  * @returns {Promise<object>} What the runner reported: the form, plist, folder and log, whether launchd loaded it, and
  *   the sudo line a person runs when it could not.
  */
-export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = process.env } = {}) {
+export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = environmentAdapter().all() } = {}) {
   const plan = { label: SERVICE_LABEL, root: runner.root ?? '', remove, host: runner.host };
   if (!remove) {
     const target = serviceBoard(board);
     const chosen = key ?? target.key;
     if (!chosen) throw new Refused('BOARD_KEY_REQUIRED', 'the runner needs the board key: pass --key, or use the URL pullboard serve printed with its ?k=', 'pullboard runner install-serve <ssh-host> --board <url> --key <board-key>');
-    Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles() });
+    Object.assign(plan, { board: target.url, key: chosen, form: serviceForm(target.url), entry: SERVICE_ENTRY, files: serviceFiles(),
+      jobs: runner.slots, ceilingMs: runner.ceilingMs ?? DEFAULT_RUN_CEILING_MS });
   }
   const script = `exec ${pullWord(runner.node ?? 'node')} --input-type=module -e ${pullWord(installerProgram())}`;
   const run = await createSshAdapter().run(runner, script, { stdin: JSON.stringify(plan), ssh, env, timeoutMs: INSTALL_MS });
@@ -426,6 +433,6 @@ export async function installRunnerService(runner, { board, key, remove = false,
   if (run.status !== 0 || !reply) {
     throw new Refused('RUNNER_SETUP', `runner ${runner.host} did not ${remove ? 'remove' : 'install'} runner serve: ${run.error ?? (run.stderr.trim().slice(-400) || `status ${run.status}`)}`, 'fix the ssh connection or the runner\'s Node, then run the command again');
   }
-  recordService(runner.host, remove ? null : { board: plan.board, form: reply.form, loaded: reply.loaded, sudo: reply.sudo, at: new Date().toISOString() });
+  recordService(runner.host, remove ? null : { board: plan.board, form: reply.form, loaded: reply.loaded, sudo: reply.sudo, ...(reply.pendingRemoval ? { pendingRemoval: true } : {}), at: new Date().toISOString() });
   return { host: runner.host, label: SERVICE_LABEL, ...reply };
 }

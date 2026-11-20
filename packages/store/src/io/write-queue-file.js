@@ -8,8 +8,9 @@
  * (group commit), each write inside its own savepoint so a refused write rolls back only itself. Grouped writes must be
  * synchronous: a transaction cannot stay open across an await. Without the ports each write runs alone, as before.
  *
- * Layout in `dir`: `<id>.pending` (the write waits), `<id>.result` ({ ok, value } or { ok: false, error }), and
- * `drain.lock` (the process now draining). Records are written to a temp name and renamed, so a reader never sees half.
+ * Layout in `dir`: `pending/<id>.pending` (the write waits; its own folder, so a drain lists only pending writes however many
+ * results are stored), `<id>.result` ({ ok, value } or { ok: false, error }), `drain.lock` (the process now draining) and
+ * `publish.lock` (the process now taking a sequence number). Records are written to a temp name and renamed, so a reader never sees half.
  */
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -39,7 +40,7 @@ function lockIsStale(lock) {
   try { return Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS; } catch { return false; }
 }
 
-/** Take the drain lock without blocking; true when this process now holds it. */
+/** Take a lock without blocking; true when this process now holds it. */
 function takeLock(lock) {
   try { mkdirSync(lock); } catch (error) {
     if (error.code !== 'EEXIST') throw error;
@@ -53,8 +54,9 @@ function takeLock(lock) {
 const pause = ms => new Promise(done => setTimeout(done, ms));
 
 /**
+ * Open the cross-process write queue in a directory, so a caller can submit writes and read their results later.
  * @param {string} dir the queue directory shared by every process; each write's `run` receives its queue sequence number
- * @param {{ transaction?: <T>(work: () => T) => T, savepoint?: <T>(work: () => T) => T }} [ports]
+ * @param {{ transaction?: <T>(work: () => T) => T, savepoint?: <T>(work: () => T) => T }} [ports] the transaction and savepoint wrappers
  * @returns {{ submit: (write: { id: string, run: () => unknown }) => Promise<{ ok: boolean, value?: unknown, error?: { code: string, message: string } }>,
  *   result: (id: string) => { ok: boolean, value?: unknown, error?: { code: string, message: string } } | null }}
  */
@@ -62,9 +64,15 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
   mkdirSync(dir, { recursive: true });
   const lock = join(dir, 'drain.lock');
   const resultFile = id => join(dir, `${id}.result`);
-  const pendingFile = id => join(dir, `${id}.pending`);
+  const pendingDir = join(dir, 'pending');
+  const pendingFile = id => join(pendingDir, `${id}.pending`);
+  const publishLock = join(dir, 'publish.lock');
+  mkdirSync(pendingDir, { recursive: true });
   const runs = new Map();
-  let counter = 0;
+  let publishing = Promise.resolve();
+  let waiting = 0;
+  const waiters = new Map();
+  let pumping = false;
 
   /** True when `pid` is a live process. */
   function alive(pid) {
@@ -73,8 +81,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
 
   /** Every pending write still worth running, oldest first; drops records already answered or whose owner died (its function is gone). */
   function pendingWrites() {
-    const entries = readdirSync(dir).filter(name => name.endsWith('.pending')).map(name => {
-      const record = readRecord(join(dir, name));
+    const entries = readdirSync(pendingDir).filter(name => name.endsWith('.pending')).map(name => {
+      const record = readRecord(join(pendingDir, name));
       return { id: name.slice(0, -'.pending'.length), seq: record?.seq ?? 0, pid: record?.pid };
     }).sort((a, b) => a.seq - b.seq || (a.id < b.id ? -1 : 1));
     return entries.filter(entry => {
@@ -84,6 +92,41 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
       }
       return true;
     });
+  }
+
+  /** The highest sequence number among the records visible now, or 0. */
+  function highestVisibleSeq() {
+    let highest = 0;
+    for (const name of readdirSync(pendingDir)) if (name.endsWith('.pending')) highest = Math.max(highest, readRecord(join(pendingDir, name))?.seq ?? 0);
+    return highest;
+  }
+
+  /**
+   * Make write `id` visible, the one place a sequence number is taken. Under a short publish lock the number is the
+   * larger of the clock and one above the highest visible record, so sequence order is visibility order: a process
+   * stalled before publishing takes a number above every record already visible, never below one that ran [C7,#11021].
+   * True when published; false when another process holds the lock.
+   */
+  function tryPublish(id) {
+    if (!takeLock(publishLock)) {
+      if (lockIsStale(publishLock)) rmSync(publishLock, { recursive: true, force: true });
+      return false;
+    }
+    try { writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Math.max(Date.now() * 1000, highestVisibleSeq() + 1), pid: process.pid })); }
+    finally { rmSync(publishLock, { recursive: true, force: true }); }
+    return true;
+  }
+
+  /** Publish after a held lock: this process's waiting writes go in call order, so a wait never reorders them. */
+  async function publishLater(id) {
+    const turn = publishing;
+    let done;
+    publishing = new Promise(resolve => { done = resolve; });
+    waiting += 1;
+    try {
+      await turn;
+      while (!tryPublish(id)) await pause(LOCK_RETRY_MS);
+    } finally { waiting -= 1; done(); }
   }
 
   /** Store a write's outcome and clear its pending record. */
@@ -129,25 +172,45 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
     }
   }
 
+  /** Answer every waiter whose result is now stored; true when none is left waiting. */
+  function settleWaiters() {
+    for (const [id, list] of waiters) {
+      const stored = readRecord(resultFile(id));
+      if (!stored) continue;
+      waiters.delete(id);
+      for (const waiter of list) waiter.resolve(stored);
+    }
+    return waiters.size === 0;
+  }
+
+  /** The one retry loop of this queue: each round takes the drain lock if it is free, then answers every waiter whose result exists. */
+  async function pump() {
+    if (pumping) return;
+    pumping = true;
+    try {
+      while (!settleWaiters()) {
+        if (takeLock(lock)) {
+          try { await drain(); } finally { rmSync(lock, { recursive: true, force: true }); }
+          if (settleWaiters()) break;
+        } else if (lockIsStale(lock)) rmSync(lock, { recursive: true, force: true });
+        await pause(LOCK_RETRY_MS);
+      }
+    } catch (error) {
+      for (const list of waiters.values()) for (const waiter of list) waiter.reject(error);
+      waiters.clear();
+    } finally { pumping = false; }
+  }
+
   return {
     /** Queue a write; resolves with its stored outcome. A repeat of an id that has a result returns it unrun. */
     async submit({ id, run }) {
       const done = readRecord(resultFile(id));
       if (done) return done;
-      if (!existsSync(pendingFile(id))) writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Date.now() * 1000 + (counter++ % 1000), pid: process.pid }));
       runs.set(id, run);
+      if (!existsSync(pendingFile(id)) && (waiting > 0 || !tryPublish(id))) await publishLater(id);
       if (transaction) await new Promise(done => queueMicrotask(done)); // let every write submitted in this turn queue before the drain
-      for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
-        if (takeLock(lock)) {
-          try { await drain(); } finally { rmSync(lock, { recursive: true, force: true }); }
-          if (!readRecord(resultFile(id))) await pause(LOCK_RETRY_MS);
-        } else {
-          if (lockIsStale(lock)) rmSync(lock, { recursive: true, force: true });
-          await pause(LOCK_RETRY_MS);
-        }
-      }
-      runs.delete(id);
-      return readRecord(resultFile(id));
+      try { return await new Promise((resolve, reject) => { waiters.set(id, [...(waiters.get(id) ?? []), { resolve, reject }]); pump(); }); }
+      finally { runs.delete(id); }
     },
     /** The stored outcome of write `id`, or null when it has not finished. */
     result: id => readRecord(resultFile(id)),

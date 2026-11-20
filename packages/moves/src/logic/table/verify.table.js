@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
 import { landingOf } from './rules.js';
+import { soloLowStakesHolds } from '../lifecycle/rules.js';
 import { VERIFY_NEXT } from './next.js';
 export { VERIFY_NEXT } from './next.js';
 
@@ -162,6 +163,12 @@ export function verifyEngine(board) {
     return m.implies?.length ? { ...detail, implies: m.implies } : detail;
   }
 
+  /** Is this a builder accept the solo low-stakes rule allows: every solo condition holds and the item records the tree the event binds [#966]? */
+  const soloAccept = (s, m) => isAccept(m) && typeof s.item.tree === 'string' && s.item.tree !== '' && soloLowStakesHolds(s, 'accept');
+  /** The event the verified proof trigger reads to pass a builder's own accept: the verdict, commit, tree, digest and verifier of that accept. */
+  const soloEvent = (s, m) => authors(s).includes(m.actor) && soloAccept(s, m)
+    ? [{ kind: 'solo-low-stakes-accept', by: m.actor, detail: { verdict: s.nextVerdictId, commit: s.item.commit, tree: s.item.tree, digest: m.digest, by: m.actor } }] : [];
+
   /** The item fields and the verdict row a verdict writes. */
   function verdictPatch(s, m) {
     const accept = isAccept(m);
@@ -270,7 +277,7 @@ export function verifyEngine(board) {
   guard('review-recorded', 'BAD_VERDICT_REVIEW', 'the review binds the submitted commit, its checked head, trunk and sorted paths', (s, m) => !reviewValid(m.review, s.item.commit),
     'the review must bind the current submitted commit, its checked commit, reviewed trunk and sorted unique candidate paths; use current Pullboard to review it again');
   fromShell('companion-window', 'deferred', 'companionWindow', 'automatic companions are past their objection window', 'COMPANION_WINDOW');
-  guard('not-builder', 'SELF_VERIFY', 'no author of the item verifies it', (s, m) => authors(s).includes(m.actor), VERIFY_WORDS.selfVerify);
+  guard('not-builder', 'SELF_VERIFY', 'no author of the item verifies it, except a builder accept the solo low-stakes conditions allow', (s, m) => authors(s).includes(m.actor) && !soloAccept(s, m), VERIFY_WORDS.selfVerify);
   fromShell('author-independence', 'deferred', 'authorProblem', 'the reviewer shares no parent session with an author, never wrote a strict item, and has standing', 'SELF_SESSION_VERIFY');
   guard('route-allows', 'ROUTE', 'the reviewer route covers the item route', (s) => ROUTES.indexOf(s.item.route) > ROUTES.indexOf(s.actor.route),
     (s) => `item #${s.item.id} needs a ${s.item.route} verifier; you joined on the ${s.actor.route} route`);
@@ -313,7 +320,7 @@ export function verifyEngine(board) {
     guards: Object.freeze(guards),
     outcomes: Object.freeze([
       { id: 'selector-gap', when: 'selectorGap', patch: () => ({}), events: () => [] },
-      { id: 'accept', when: 'accepts', patch: verdictPatch, events: (s, m) => [{ kind: 'accept', by: m.actor, detail: verdictDetail(s, m) }] },
+      { id: 'accept', when: 'accepts', patch: verdictPatch, events: (s, m) => [{ kind: 'accept', by: m.actor, detail: verdictDetail(s, m) }, ...soloEvent(s, m)] },
       { id: 'reject', patch: verdictPatch, events: (s, m) => [{ kind: 'reject', by: m.actor, detail: verdictDetail(s, m) }] },
     ]),
     followups: Object.freeze([

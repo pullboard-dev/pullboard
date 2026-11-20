@@ -1,5 +1,5 @@
 /** Put a job on a pull-mode runner, send it a source pack, and read back its files; one multiplexed ssh each [5465,5468]. */
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { enqueueScript } from './scripts.js';
 import { fetchScript } from './scripts.js';
 import { packScript } from './scripts.js';
@@ -37,7 +37,7 @@ export async function enqueueRunnerJob(runner, { id, row, frame, command, agent 
  * @returns {Promise<void>} Settles when the pack is in place and marked ready.
  */
 export async function uploadRunnerPack(runner, { id, file }, options = {}) {
-  const run = await ssh.run(runner, packScript(runner, { id, bytes: statSync(file).size }),
+  const run = await ssh.run(runner, packScript(runner, { id, bytes: fileSystemAdapter().stat(file).size }),
     { timeoutMs: 600_000, ...options, stdin: { file } });
   if (run.status !== 0 || run.error) throw scriptFailure(`could not send the source pack for ${id} to ${runner.host}`, run);
 }

@@ -2,7 +2,6 @@ import { addItem } from '../../../../store/index.js';
 import { addMilestone } from '../../../../store/index.js';
 import { closeBoard } from '../../../../store/index.js';
 import { moveMilestone } from '../../../../store/index.js';
-import { openKitBoard } from '../../../../store/tests/fixtures/cell.js';
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -27,15 +26,15 @@ await withGateSlot(root, async () => {
 } });
 `;
 
-/** Open the fixture repository's board file in process; the first open creates the production schema. */
-function openFixtureBoard(root) {
+/** Open the fixture repository's board file in process with the opener the calling test passes in; the first open creates the production schema. */
+function openFixtureBoard(root, openKitBoard) {
   mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });
   return openKitBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: root });
 }
 
 /** Seed the queue's real SQLite roadmap through canonical public writes on a board the fixture opens itself. */
-function board(box, root) {
-  const state = openFixtureBoard(root);
+function board(box, root, openKitBoard) {
+  const state = openFixtureBoard(root, openKitBoard);
   try {
     for (const title of ['Current work', 'Later work', 'Unplanned work']) addItem(state, { by: 'coordinator', lane: 'coordinator', title });
     addMilestone(state, { agentId: 'coordinator', name: 'current', items: [1], reason: 'Arrange current release for queue fixture' });
@@ -44,8 +43,8 @@ function board(box, root) {
 }
 
 /** Move a milestone ahead of another, as `pullboard milestone move` does, through the store move. */
-function moveBefore(root, name, before) {
-  const state = openFixtureBoard(root);
+function moveBefore(root, name, before, openKitBoard) {
+  const state = openFixtureBoard(root, openKitBoard);
   try { moveMilestone(state, name, { agentId: 'coordinator', before }); } finally { closeBoard(state); }
 }
 
@@ -70,11 +69,11 @@ function age(box, agent) {
  * test file does not grow another block of fixture code. The outer native runner owns the real
  * machine lease; these child queues use only the fixture's separate machine home.
  *
- * @param {{ fixture: Function, poolWorker: Function, privateList: Function, event: Function, acquired: Function, release: Function, legacyModule: string, machineSettings: Function, executionServicesSource: Function }} helpers
+ * @param {{ openKitBoard: Function, fixture: Function, poolWorker: Function, privateList: Function, event: Function, acquired: Function, release: Function, legacyModule: string, machineSettings: Function, executionServicesSource: Function }} helpers
  * @returns {Promise<void>}
  */
 export async function releaseQueueProof(helpers) {
-  const { fixture, poolWorker, privateList, event, acquired, release, legacyModule, executionServicesSource } = helpers;
+  const { openKitBoard, fixture, poolWorker, privateList, event, acquired, release, legacyModule, executionServicesSource } = helpers;
   const line = box => privateList(box).find(row => row.name === 'gate').line.map(row => row.agent);
   /** Launch a real gate action that captures its board and item when joining the pool. */
   const run = (box, root, agent, item, kind = 'submit', landing = false) => {
@@ -107,7 +106,7 @@ export async function releaseQueueProof(helpers) {
   };
 
   const off = fixture();
-  board(off, off.first);
+  board(off, off.first, openKitBoard);
   const offHolders = await hold(off);
   const offLater = await queue(off, off.first, 'off-later', 2);
   const offCurrent = await queue(off, off.first, 'off-current', 1);
@@ -115,8 +114,8 @@ export async function releaseQueueProof(helpers) {
   await drain(off, offHolders, [offLater, offCurrent]);
 
   const on = fixture();
-  board(on, on.first);
-  board(on, on.second);
+  board(on, on.first, openKitBoard);
+  board(on, on.second, openKitBoard);
   settings(on, { currentReleaseFirst: true });
   const onHolders = await hold(on);
   const unplanned = await queue(on, on.first, 'A-unplanned', 3, 'focused');
@@ -127,14 +126,14 @@ export async function releaseQueueProof(helpers) {
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'landing stays first and each board retains its opportunity positions');
   assert.equal(helpers.machineSettings(off, 'gateQueueSettings').value.currentReleaseFirst, false);
-  moveBefore(on.first, 'later', 'current');
+  moveBefore(on.first, 'later', 'current', openKitBoard);
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'queued ranks remain captured despite a roadmap reorder');
   await drain(on, onHolders, [landing, current, foreign, later, unplanned]);
   assert.equal(helpers.machineSettings(on, 'gateQueueSettings').value.currentReleaseFirst, true);
 
   const aging = fixture();
-  board(aging, aging.first);
+  board(aging, aging.first, openKitBoard);
   settings(aging, { reviewsFirst: true, currentReleaseFirst: true, agingMinutes: 1 });
   const agingHolders = await hold(aging);
   const aged = await queue(aging, aging.first, 'aged-unplanned', 3, 'focused');
@@ -146,7 +145,7 @@ export async function releaseQueueProof(helpers) {
   await drain(aging, agingHolders, [review, aged, young]);
 
   const mixed = fixture();
-  board(mixed, mixed.first);
+  board(mixed, mixed.first, openKitBoard);
   settings(mixed, { reviewsFirst: true, currentReleaseFirst: true });
   const mixedHolders = await hold(mixed);
   const old = poolWorker(mixed, { agent: 'legacy-focused', kind: 'focused', module: legacyModule });

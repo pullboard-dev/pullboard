@@ -1,8 +1,10 @@
 /** A board writer applies moves computed elsewhere, one at a time, so no command holds the board lock while it computes [H24,C7]. */
 import { createConnection } from 'node:net';
 import { createServer } from 'node:net';
-import { rmSync } from 'node:fs';
 import { Refused } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The answer a writer gives a move computed from a snapshot that has since changed. */
 const CHANGED = 'changed, retry';
@@ -55,7 +57,7 @@ export function createBoardWriter({ apply, version = 0 }) {
  */
 export function serveBoardWriter(socket, writer) {
   requireShortSocket(socket);
-  rmSync(socket, { force: true });
+  fs.rm(socket, { force: true });
   const open = new Set();
   const server = createServer(connection => {
     let buffered = '';
@@ -74,7 +76,7 @@ export function serveBoardWriter(socket, writer) {
   });
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(socket, () => resolve({ close: () => new Promise(done => { for (const connection of open) connection.destroy(); server.close(() => { rmSync(socket, { force: true }); done(); }); }) }));
+    server.listen(socket, () => resolve({ close: () => new Promise(done => { for (const connection of open) connection.destroy(); server.close(() => { fs.rm(socket, { force: true }); done(); }); }) }));
   });
 }
 
