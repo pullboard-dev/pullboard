@@ -17,7 +17,7 @@ import { landingWaivers } from '../../index.js';
 import { requireLandingModuleResolution } from '../../index.js';
 import { requireLandingSecretFree } from '../../index.js';
 import { scanLanding } from '../../src/io/scan.js';
-import { runShell } from '../../../gate/index.js';
+import { runShell } from '../../../gate/heavy.js';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 

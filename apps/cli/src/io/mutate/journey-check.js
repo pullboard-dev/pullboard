@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Check delete-tagged journeys against their covering cells' mutation scores: `node apps/cli/src/io/mutate/journey-check.js [--limit n] [--write]` [C7]. */
-import { runJourneyCheck } from '../../../../../packages/gate/index.js';
+import { runJourneyCheck } from '../../../../../packages/gate/heavy.js';
 import { mutateCell } from './run.js';
 
 // Each line is printed as it is known, so a run that is killed has still printed its verdicts; the returned stdout is the same lines.
