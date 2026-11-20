@@ -73,6 +73,7 @@ export { queuedToolOwners } from './src/io/submit/recovery.js';
 export { toolTreeHasLiveOwner } from './src/io/submit/recovery.js';
 export { sweepToolTrees } from './src/io/submit/recovery.js';
 export { assertToolTreeRoom } from './src/io/submit/recovery.js';
+export { toolTreeRoomProblem } from './src/io/submit/recovery.js';
 export { touchToolTree } from './src/io/submit/recovery.js';
 
 export { claimedItemRoot } from './src/io/patch/submit.js';
