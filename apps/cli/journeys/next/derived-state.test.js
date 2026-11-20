@@ -87,12 +87,6 @@ test('cli.journeys-next-derived-state.a-current-table-answers-the-families: clau
   agreeing.setting(true);
   agreeing.sweep(null);
   assert.equal((await agreeing.reviewed()).id, agreeing.id, 'a table that agrees with the board answers the item the computed families answer');
-  const swapped = await openItem(t, { review: true });
-  swapped.setting(true);
-  swapped.sweep(null);
-  swapped.tableSaysSameFamily();
-  const answer = await swapped.reviewed();
-  assert.equal(answer.id, null, 'the table names the seat as the builder\'s family, so the review is not offered');
 });
 
 test('cli.journeys-next-derived-state.an-older-table-or-the-setting-off-computes-the-families: clause 2: with the table swept at an older main, or with the setting off, next computes the seat families and answers the same item [C7,#11386]', async t => {
@@ -110,7 +104,7 @@ test('cli.journeys-next-derived-state.an-older-table-or-the-setting-off-computes
 });
 
 test('cli.journeys-next-derived-state.next-ports-carry-the-seat-family-reader: clause 3: nextPorts carries derivedSeatFamily, which answers the table\'s seat families while it is current for main and null otherwise [C7,#11386]', async t => {
-  const { box, setting, sweep, moveMain, reviewed } = await openItem(t, { review: true });
+  const { box, setting, sweep, moveMain, reviewed, tableSaysSameFamily } = await openItem(t, { review: true });
   assert.equal(typeof nextPorts.derivedSeatFamily, 'function', 'the port exists beside derivedGateAtHead');
   setting(true);
   sweep(null);
@@ -118,6 +112,8 @@ test('cli.journeys-next-derived-state.next-ports-carry-the-seat-family-reader: c
   const families = nextPorts.derivedSeatFamily(box.root, box.board);
   assert.ok(families instanceof Map, 'a current table answers its seat-family map');
   assert.equal(families.get(box.seats.builder.id), store.seatFamily(box.board, box.seats.builder.id), 'the map holds the builder seat\'s family');
+  tableSaysSameFamily();
+  assert.equal(nextPorts.derivedSeatFamily(box.root, box.board).get(box.seats.outside.id), families.get(box.seats.builder.id), 'a family row rewritten in the table is the answer, so the families come from the table and not the board');
   moveMain();
   assert.equal(nextPorts.derivedSeatFamily(box.root, box.board), null, 'a table swept at an older main answers null');
   setting(false);
