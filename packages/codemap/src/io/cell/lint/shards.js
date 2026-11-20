@@ -143,7 +143,7 @@ export function readCellLintCellBaseline(root, base) {
   return baseline;
 }
 /** Translate an accepted allowance key through the committed path map, as the ratchet does for measured findings. */
-export function translatedKey(metric, key, map) {
+function translatedKey(metric, key, map) {
   if (metric === 'cycles') return key;
   if (metric === 'boundaries') return key.split('->').map(path => mappedPath(map, path)).join('->');
   if (metric === 'unreachableExports') {

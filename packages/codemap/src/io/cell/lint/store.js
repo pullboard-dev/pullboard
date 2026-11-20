@@ -9,7 +9,6 @@ import { join } from 'node:path';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { cellLintCells } from './shards.js';
 import { translatedBase } from './shards.js';
-import { translatedKey } from './shards.js';
 import { readCellLintCellBaseline } from './shards.js';
 import { writeCellLintCellBaseline } from './shards.js';
 import { CELL_METRICS } from '../lints.js';
@@ -52,30 +51,6 @@ export function cellLintFiles(baseline) {
   return files;
 }
 
-/** The committed path map, read the way the cell lint reader reads it. */
-function committedPathMap(root) {
-  const snapshot = cellSourceSnapshot(root);
-  return snapshot ? pathMapFromFiles(snapshot.files, snapshot.entries) : readPathMap(root);
-}
-
-/** Map a baseline keyed by cell path back to the committed legacy keys; keys already legacy or unknown pass through, and an ambiguous cell key is refused. */
-function legacyKeyed(root, baseline, base) {
-  const map = committedPathMap(root);
-  return { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => {
-    const inverse = new Map();
-    for (const key of Object.keys(base.metrics[metric].allowances)) {
-      const cell = translatedKey(metric, key, map);
-      inverse.set(cell, inverse.has(cell) ? null : key);
-    }
-    const allowances = Object.create(null);
-    for (const [key, count] of Object.entries(baseline.metrics[metric].allowances)) {
-      if (inverse.get(key) === null) throw new Refused('CELL_BASELINE', `cell key ${metric}:${key} is ambiguous between two committed legacy keys`);
-      allowances[inverse.get(key) ?? key] = count;
-    }
-    return [metric, { count: Object.values(allowances).reduce((sum, count) => sum + count, 0), allowances }];
-  })) };
-}
-
 /** Read only complete, hash-bound generations; no missing shard ever becomes a lower allowance. */
 function readLegacyCellLintBaseline(root) {
   try {
@@ -104,14 +79,25 @@ function readLegacyCellLintBaseline(root) {
   }
 }
 
-/** Combine the immutable accepted generation with the complete per-cell falling deltas, keyed by cell path once a path-map cell exists. */
+/** Combine the immutable accepted generation with the complete per-cell falling deltas. */
 export function readCellLintBaseline(root) {
-  try {
-    const baseline = readCellLintCellBaseline(root, readLegacyCellLintBaseline(root));
-    if (!cellLintCells(root).length) return baseline;
-    return translatedBase(baseline, committedPathMap(root));
-  }
+  try { return readCellLintCellBaseline(root, readLegacyCellLintBaseline(root)); }
   catch (error) { throw new Refused('CELL_BASELINE', `restore the complete per-cell cell lint baseline: ${error.message}`); }
+}
+
+/**
+ * The committed baseline with every allowance key translated to its cell path through the committed path map, counts
+ * unchanged, for compare-time reads; untranslated when no path-map cell exists. readCellLintBaseline keeps the stored
+ * legacy keys, which the writer's round trip needs [C7,CD64].
+ *
+ * @param {string} root
+ * @returns {object}
+ */
+export function readCellKeyedLintBaseline(root) {
+  const baseline = readCellLintBaseline(root);
+  if (!cellLintCells(root).length) return baseline;
+  const snapshot = cellSourceSnapshot(root);
+  return translatedBase(baseline, snapshot ? pathMapFromFiles(snapshot.files, snapshot.entries) : readPathMap(root));
 }
 
 /** Seed one empty shard for each existing path-map cell without rewriting accepted legacy bytes. */
@@ -135,8 +121,8 @@ export function writeCellLintBaseline(root, baseline, { initialize = false, veri
   if (cellLintCells(root).length && cellExistsSync(join(root, DESCRIPTOR))) {
     if (initialize) throw new Refused('CELL_BASELINE', 'baseline already exists; use explicit falling update');
     const base = readLegacyCellLintBaseline(root);
-    if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(translatedBase(previous, committedPathMap(root)))) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read the current per-cell generation');
-    writeCellLintCellBaseline(root, base, legacyKeyed(root, baseline, base), verify);
+    if (previous && JSON.stringify(readCellLintBaseline(root)) !== JSON.stringify(previous)) throw new Refused('CELL_BASELINE', 'baseline changed since planning; read the current per-cell generation');
+    writeCellLintCellBaseline(root, base, baseline, verify);
     return;
   }
   const files = cellLintFiles(baseline), descriptor = join(root, DESCRIPTOR);

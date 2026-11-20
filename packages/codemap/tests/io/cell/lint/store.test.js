@@ -1,15 +1,13 @@
 /** @pullboard-test-input source-tree packages/codemap/src/io/cell/lint/shards.js packages/codemap/src/io/cell/lint/store.js packages/codemap/data/plan/path-map/** */
-/** The committed cell lint baseline reads back keyed by cell path [C7,CD64]. */
+/** The committed cell lint baseline reads back keyed by cell path [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../../../../gate/tests/fixtures/child.js';
 import { cellLintFiles } from '../../../../index.js';
 import { readCellLintBaseline } from '../../../../index.js';
-import { writeCellLintBaseline } from '../../../../index.js';
+import { readCellKeyedLintBaseline } from '../../../../index.js';
 import { CELL_METRICS } from '../../../../index.js';
 
 /** Build a temp repo with one accepted src/alpha.js allowance and, optionally, a committed path-map shard naming it. */
@@ -32,24 +30,13 @@ function fixture(t, mapped, map = { 'src/alpha.js': 'packages/alpha/src/core/alp
   return root;
 }
 
-test('codemap.io-cell-lint-store.baseline-keys-are-cell-paths: every allowance key reads back as its cell path with unchanged counts, and unchanged without a path-map cell [C7,CD64]', t => {
-  const plain = readCellLintBaseline(fixture(t, false));
+test('codemap.io-cell-lint-store.baseline-keys-are-cell-paths: every allowance key reads back as its cell path with unchanged counts, and unchanged without a path-map cell [C7]', t => {
+  const plain = readCellKeyedLintBaseline(fixture(t, false));
   assert.deepEqual(Object.keys(plain.metrics.legacySource.allowances), ['src/alpha.js'], 'no path-map cell leaves the baseline as it is');
-  const baseline = readCellLintBaseline(fixture(t, true));
+  const mapped = fixture(t, true), baseline = readCellKeyedLintBaseline(mapped);
+  assert.deepEqual(Object.keys(readCellLintBaseline(mapped).metrics.legacySource.allowances), ['src/alpha.js'], 'the stored reader keeps the legacy keys');
   assert.deepEqual({ ...baseline.metrics.legacySource.allowances }, { 'packages/alpha/src/core/alpha.js': 2 });
   assert.deepEqual({ ...baseline.metrics.boundaries.allowances }, { 'packages/alpha/src/core/alpha.js->src/common.js': 1 });
   assert.equal(baseline.metrics.legacySource.count, plain.metrics.legacySource.count);
   assert.equal(baseline.metrics.boundaries.count, plain.metrics.boundaries.count);
-});
-
-test('codemap.io-cell-lint-store.writer-takes-cell-keys: a lowered cell-keyed baseline writes, reads back equal and leaves the committed shards in legacy keys, and an ambiguous cell key is refused [C7,CD64]', t => {
-  const root = fixture(t, true), before = readCellLintBaseline(root), shard = join(root, 'packages/codemap/data/baselines/lints/cells/alpha.json');
-  const lowered = structuredClone(before);
-  lowered.metrics.legacySource = { count: 1, allowances: { 'packages/alpha/src/core/alpha.js': 1 } };
-  writeCellLintBaseline(root, lowered, { previous: before });
-  assert.equal(JSON.stringify(readCellLintBaseline(root)), JSON.stringify(lowered));
-  assert.deepEqual(JSON.parse(readFileSync(shard, 'utf8')).metrics.legacySource, { remove: ['src/alpha.js'], allowances: { 'src/alpha.js': 1 } }, 'the shard keeps the legacy key');
-  const clash = fixture(t, true, { 'src/alpha.js': 'packages/alpha/src/core/alpha.js', 'src/beta.js': 'packages/alpha/src/core/alpha.js' });
-  const base = readCellLintBaseline(clash);
-  assert.throws(() => writeCellLintBaseline(clash, structuredClone(base), {}), { code: 'CELL_BASELINE' });
 });
