@@ -71,12 +71,12 @@ test('api.gate.land-reoffer.starts-after-settle: clause 1: with line.landingBatc
   assert.deepEqual(calls, [{ root: landing.repo.root, item: null }], 'the lander is started once, for every waiting item');
 });
 
-test('api.gate.land-reoffer.starts-after-stopped-job: clause 1: with line.collisionFreeBatch on, a stopped (red) land job receipt returns the item and calls the served landing starter once [C7,#12185]', async t => {
+test('api.gate.land-reoffer.starts-after-stopped-job: clause 1: with line.collisionFreeBatch on, a stopped (red) land job receipt lands nothing and calls the served landing starter once [C7,#12185]', async t => {
   const calls = recordingStarter(t);
   const landing = claimedLanding(t, { line: { collisionFreeBatch: true } });
   const { answer, item } = await post(landing, STOPPED);
-  assert.deepEqual(answer.applied?.returned, [7], JSON.stringify(answer));
-  assert.notEqual(item.item_status, 'verified', 'the red job returned its item');
+  assert.equal(answer.applied?.outcome, 'red', JSON.stringify(answer));
+  assert.equal(item.item_merged_commit, null, 'the stopped job landed nothing');
   assert.equal(calls.length, 1, 'the settled job starts the lander once');
   assert.equal(calls[0].root, landing.repo.root);
 });
