@@ -5,11 +5,14 @@ import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { captureLapsedClaims } from '../../../../../packages/health/index.js';
+import { githubKeys } from '../../../../../packages/github/index.js';
+import { COMMANDS } from '../../../src/io/commands/index.js';
 import { fixture } from '../../fixtures/next/take.js';
 import { cli } from '../../fixtures/next/take.js';
 import { runCliInProcess } from '../../fixtures/process.js';
@@ -101,4 +104,30 @@ test('cli.io-cli-main-run.beat-reads-command-clock: clause 3: a command run thro
   const ran = await cli(box, seat.path, ['whoami']);
   assert.equal(ran.code, 0, ran.out + ran.err);
   assert.equal(beat.at(), box.clock.now().toISOString(), 'the beat carries the injected clock\'s time');
+});
+
+test('cli.io-cli-main-run.io-carries-github-keys: clause 1: the io object that run.js builds carries io.githubKeys beside io.checkpointInBackground, and it reads a member\'s keys exactly as the github front door\'s githubKeys does [C7,#12428]', async t => {
+  const box = await fixture(t);
+  const key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOnlyATestKeyForTheCarryingCase';
+  const server = createServer((request, response) => {
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify(request.url === '/users/carrier/keys' ? [{ id: 1, key }, { id: 2, key: 'not a key' }] : []));
+  });
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  const seen = {};
+  const original = COMMANDS.version;
+  const previousApi = process.env.PULLBOARD_GITHUB_API;
+  COMMANDS.version = async () => ({ run: async io => { seen.io = io; return 0; } });
+  process.env.PULLBOARD_GITHUB_API = `http://127.0.0.1:${server.address().port}`;
+  t.after(() => {
+    COMMANDS.version = original;
+    if (previousApi === undefined) delete process.env.PULLBOARD_GITHUB_API; else process.env.PULLBOARD_GITHUB_API = previousApi;
+    server.close();
+  });
+  const ran = await cli(box, box.seats.actor.path, ['version']);
+  assert.equal(ran.code, 0, ran.out + ran.err);
+  assert.equal(typeof seen.io.githubKeys, 'function', 'run.js puts githubKeys on the io object');
+  assert.ok('checkpointInBackground' in seen.io, 'beside io.checkpointInBackground');
+  assert.deepEqual(await seen.io.githubKeys('carrier'), [key]);
+  assert.deepEqual(await seen.io.githubKeys('carrier'), await githubKeys('carrier'), 'the same answer the github front door gives');
 });

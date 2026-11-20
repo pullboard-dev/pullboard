@@ -166,7 +166,7 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
   const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: init/perf.test.js, init/perf/tab-speed-rows-ceiling.test.js.
-  const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js']);
+  const viewOwned = new Set(['init/perf.test.js', 'init/perf/tab-speed-rows-ceiling.test.js', 'init/perf/tab-speed-spec.test.js']);
   for (const area of ['init', 'land', 'lanes', 'languages', 'list', 'log', 'mcp']) {
     for (const file of testFiles(join(journeys, area))) {
       if (viewOwned.has(file.slice(journeys.length + 1))) continue;

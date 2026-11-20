@@ -909,9 +909,6 @@
   "packages/gate/tests/io/main/async.test.js": {
     "tempdir": 2
   },
-  "apps/cli/tests/fixtures/gate/driver.js": {
-    "raw-board": 1
-  },
   "packages/gate/tests/io/main/failures.test.js": {
     "tempdir": 1
   },
@@ -980,10 +977,6 @@
   },
   "packages/resources/tests/io/handoff/worker/cap.test.js": {
     "tempdir": 1
-  },
-  "packages/resources/tests/io/handoff/worker/detach.test.js": {
-    "tempdir": 1,
-    "repo-read": 1
   },
   "apps/cli/tests/fixtures/membership.js": {
     "tempdir": 1

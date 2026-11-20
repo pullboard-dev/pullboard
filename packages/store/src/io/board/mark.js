@@ -8,10 +8,10 @@ import { logEvent } from "./event/log.js";
  *
  * @param {object} board - An open board.
  * @param {number} id - The item the mark is for; an id that does not exist is refused with no event.
- * @param {{ agentId: string, stage: string, edge: string, reason: string|null, ref: string|null, at: number }} mark
+ * @param {{ agentId: string, stage: string, edge: string, reason: string|null, ref: string|null, at: number, id?: string }} mark
  * @returns {void}
  */
-export function appendMark(board, id, { agentId, stage, edge, reason, ref, at }) {
+export function appendMark(board, id, { agentId, stage, edge, reason, ref, at, id: markId }) {
   itemById(board, id);
-  logEvent(board, agentId, 'mark', id, { stage, edge, reason, ref, at });
+  logEvent(board, agentId, 'mark', id, { stage, edge, reason, ref, at, ...(markId === undefined ? {} : { id: markId }) });
 }

@@ -443,7 +443,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   }
 
   report.retired = [];
-  for (const fault of queueFaults(board, { items, at, retired: report.retired, gone: goneWorktrees(root) })) report.stuck.push(fault);
+  for (const fault of queueFaults(board, { items, at, retired: report.retired, gone: goneWorktrees(root), machineSettings })) report.stuck.push(fault);
 
   const overdue = releaseOverdue(db, root, at, limits.ms.release, history);
   if (overdue) found(report.stuck, overdue);
@@ -486,7 +486,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  *   the list that collects retired seats, and the worktree paths Git reports gone
  * @returns {Finding[]}
  */
-function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
+function queueFaults(board, { items, at, retired = [], gone = new Set(), machineSettings }) {
   const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold, localDependencyIds, dependencyLabel, itemFileCollisions });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
@@ -594,6 +594,8 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
   for (const claim of items.filter((item) => item.item_status === 'claimed' && Date.parse(item.item_lease_until ?? '') > at)) {
     const holder = agents.find((agent) => agent.id === claim.item_owner);
     if (!holder) continue;
+    // With advice through next on, a claim the coordinator reserved to its holder or held is routed work, so no release advice is given for it [C7,#11704,#1479].
+    if (machineSettings?.health?.adviceThroughNext === true && (claim.item_reservation_holder === holder.id || claim.item_hold_reason)) continue;
     const claimEvent = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim'").get(claim.item_id, holder.id)?.id;
     const proved = claimEvent && board.db.prepare(`SELECT 1 FROM event WHERE event_id>? AND event_by=? AND
       ((item_id=? AND event_kind='proof-run') OR (event_kind='gate-run' AND json_extract(event_detail,'$.run.proof.item')=?)) LIMIT 1`)

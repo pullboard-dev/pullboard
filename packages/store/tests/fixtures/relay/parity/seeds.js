@@ -9,6 +9,8 @@ import {
   randomUUID,
 } from 'node:crypto';
 import { join } from 'node:path';
+import { cellItem } from '../../cell.js';
+import { cellSeat } from '../../cell.js';
 
 /** Count only actual native mutations whose full current owner-supplied oracle succeeds.
  * work may prepare genuine asynchronous gate evidence before its native mutation.
@@ -232,6 +234,23 @@ export async function seedHandoff(context) {
   const { board, store, exercise, agent, reviewer } = context;
   const handoff = await exercise('openHandoff', () => store.openHandoff(board, { agentId: agent }));
   if (handoff) await exercise('takeHandoff', () => store.takeHandoff(board, { agentId: reviewer, item: handoff.item }));
+  return context;
+}
+
+/** seedBlocks files a block of two items, claims it for a strong seat, then reserves and clears one open item, all through the native moves. */
+export async function seedBlocks(context) {
+  const { board, box, store, exercise } = context;
+  const file = title => cellItem(board, { lane: box.lane, title, route: 'mid', check: 'true',
+    criterion: 'The parity block fixture records its move.',
+    brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n' }).item_id;
+  const ids = [file('Parity block first'), file('Parity block second')];
+  await exercise('addBlock', () => store.addBlock(board, { agentId: 'coordinator', name: 'parity-pair', ids, tier: 'mid' }));
+  const seat = cellSeat(board, { lane: box.lane, path: join(box.root, 'study-block-seat'), route: 'strong', family: 'Fixture Parity Block Vendor' }).id;
+  await exercise('claimBlock', () => store.claimBlock(board, { agentId: seat, name: 'parity-pair', lane: box.lane, leaseMs: 3600000,
+    freeze: row => ({ text: row.item_title, digest: `parity-block:${row.item_title}` }) }));
+  const reserved = file('Parity reserved item');
+  await exercise('reserveItem', () => store.reserveItem(board, reserved, { agentId: 'coordinator', holder: 'parity-seat' }));
+  await exercise('clearReservation', () => store.clearReservation(board, reserved, { agentId: 'coordinator' }));
   return context;
 }
 

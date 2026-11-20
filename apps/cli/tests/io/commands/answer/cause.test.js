@@ -32,9 +32,9 @@ test('cli.journeys-answer-cause.a-listed-cause-is-recorded-on-the-answer: clause
 
 test('cli.journeys-answer-cause.a-cause-outside-the-list-is-refused: clause 2: pullboard answer with --cause not-a-key exits non-zero with RULING_CAUSE naming the valid keys, and writes no answer [C7,#1444,#10979]', async t => {
   const { box, ask } = await decision(t);
-  const result = await box.runLocal(box.repo, 'answer', String(ask), 'Share it', '--as', 'person', '--cause', 'not-a-key');
+  const result = await box.runLocal(box.repo, 'answer', String(ask), 'Share it', '--as', 'person', '--cause', 'not-a-key', '--json');
   assert.notEqual(result.code, 0, 'an unknown cause is refused');
-  assert.match(result.err + result.out, /RULING_CAUSE/u);
+  assert.equal(JSON.parse(result.err.trim() || result.out.trim()).error.code, 'RULING_CAUSE');
   for (const key of TYPED_REQUEST_CAUSES) assert.ok((result.err + result.out).includes(key), `the refusal names ${key}`);
   assert.equal(answers(box.repo).filter(detail => detail.answers === ask).length, 0, 'no answer was written');
 });

@@ -17,6 +17,7 @@ import {
 } from '../../../../../../packages/store/index.js';
 import { landingFailures } from '../../../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { waitForState } from '../../../fixtures/check-baseline.js';
 import { fixtureSettledMachine } from '../../../../../../packages/gate/tests/fixtures/testkit.js';
 import { settleLand } from '../../../fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../../fixtures/land/project.js';
@@ -45,9 +46,15 @@ test('cli.journeys-reopen-evidence.a-landing-reopen-carries-the-exact: a landing
   // The commit (with test.inProcessHooks on), submit and accept run in this process, not as a node start-up each [C7,#10463].
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const entry = await itemWorktreeLocal(box, 1, 'web/land-1.test.js');
+  // The claim's check-baseline job runs on the loopback runner at no fixed moment, so its event lands before or after the submit's own submit_offered
+  // event by timing, not by runtime; wait for it so both runtimes record the same order [C7,#12213].
+  await waitForState(() => onBoard(box, board => board.db.prepare("SELECT 1 FROM event WHERE item_id = ? AND event_kind = 'check-baseline'").get(entry.item)), 'the claim\'s check baseline is recorded before the submit');
   box.env.LAND_SUPPRESS_RED = '1';
   await commitItemLocal(box, entry, 'RED\n');
   await submitItemLocal(box, entry);
+  // The runner's receipt applies the submit at no fixed moment, and accept retries each call it answers NOT_SUBMITTED, so a fast runtime would record
+  // extra calls; wait for the status so both runtimes record the same calls [C7].
+  await waitForState(() => onBoard(box, board => board.db.prepare("SELECT 1 FROM item WHERE item_id = ? AND item_status = 'submitted'").get(entry.item)), 'the submit is applied before the accept');
   await acceptItemLocal(box, entry);
   delete box.env.LAND_SUPPRESS_RED; // the switch folder mirrors the delete to the pulled gate, so the red shows
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).

@@ -45,6 +45,8 @@ export function retainedVerifierIdentityProblem(board, item, reviewer, ports) {
 /** Apply full author identity and current linked standing to every fresh review and queue selection. */
 export function itemAuthorProblem(board, item, reviewer, ports) {
   const authors = itemAuthors(board, item, ports);
+  // The builder alone may pass on its own work when the verify table found soloLowStakesHolds for this accept (#966); any other author keeps the rule.
+  if (ports.soloLowStakes === true && authors.length > 0 && authors.every(author => author === reviewer)) return null;
   const identity = authorIdentityProblem(board, item, reviewer, authors, ports.reviewPatchAuthors);
   if (identity) return identity;
   const { strictReviewProblem } = ports;

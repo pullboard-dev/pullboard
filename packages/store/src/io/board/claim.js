@@ -80,6 +80,7 @@ import {
 import { afterGateIds } from './item/after-gate.js';
 import { afterGateBase } from './item/after-gate.js';
 import { gateGreenParent } from './item/after-gate.js';
+import { recordAfterGateClaim } from './item/after-gate-report.js';
 import { writeBoardMeta } from './meta.js';
 
 /**
@@ -449,10 +450,12 @@ function admissionUsedSince(board, since, admissionId) {
  * The pending-correction guard is the one it does not cover: a coordinator correction to a held peer's bar must be refrozen before its lease extends, as for any renewal.
  * Why not the rest: a held item's lane and route cannot be edited, and its bar, route and dependencies change only through that same pending correction.
  */
-const peerChecks = (board, peer) => ({
-  ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
-  correctionRefrozen: () => pendingRefreezeProblem(board, peer),
-});
+function peerChecks(board, peer) {
+  return {
+    ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
+    correctionRefrozen: () => pendingRefreezeProblem(board, peer),
+  };
+}
 
 /**
  * Renew every other member the seat holds through a block that names item `id`, to the same lease, each with its own renew event, so a stalled block lapses and is returned as one [C7,#2202].
@@ -516,7 +519,10 @@ function commitClaim(board, id, prepared, binding, ports) {
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     // A claim that took a gate-green after-gate parent builds on that parent's submitted head: record it for the builder.
     const afterGateBaseRecord = !renewed ? afterGateBase(board, id) : null;
-    if (afterGateBaseRecord) writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
+    if (afterGateBaseRecord) {
+      writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
+      recordAfterGateClaim(board, id, { ...afterGateBaseRecord, agentId });
+    }
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
     if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
     else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),

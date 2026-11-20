@@ -139,3 +139,38 @@ test('cli.io-submit-pull.entry-reads-timing-through-gate-door: clause 3: the gat
   assert.equal(run({ timingTestFiles: () => { throw new Error('unreadable'); } }).timing, undefined);
   assert.equal(run(null).timing, undefined);
 });
+
+const ENTRY_REQUEST = { main: 'a'.repeat(40), source: 'b'.repeat(40), trunk: 'a'.repeat(40), base: null, check: 'true', criterion: '', title: 't',
+  composition: null, config: {}, crossRunTests: [], cutRows: [], produceInventory: [], doctrine: null, authorization: null, browserFreeChecks: false };
+
+test('cli.io-submit-pull.proof-plan-needs: clause 1: the gate entry sets receipt.proofPlan.needs to the browser files and the GUI files of the proof files, and a throw or a missing export declares none [C7,#11831]', async () => {
+  const { input } = gateJobRequest(ENTRY_REQUEST);
+  const from = input.entry.indexOf('const proofNeeds = async files'), to = input.entry.indexOf('const shardBrowserless', from);
+  assert.ok(from > 0 && to > from, 'the entry carries proofNeeds');
+  assert.ok(input.entry.includes('receipt.proofPlan = shardPlan; receipt.proofPlan.needs = await proofNeeds(plan.proofFiles);'), 'the needs ride on the plan at the line that sets it');
+  const build = (gate) => new Function('gate', 'root', `${input.entry.slice(from, to)} return proofNeeds;`)(gate, '/r');
+  const gate = { testsNeedBrowser: async (root, files) => root === '/r' && files[0] === 'b.test.js', testsNeedGui: (root, files) => files[0] === 'c.test.js' };
+  assert.deepEqual(await build(gate)(PLAN.proofFiles), { browser: ['b.test.js'], gui: ['c.test.js'] });
+  const throwing = { testsNeedBrowser: async () => { throw new Error('unreadable'); }, testsNeedGui: () => { throw new Error('unreadable'); } };
+  assert.deepEqual(await build(throwing)(PLAN.proofFiles), { browser: [], gui: [] });
+  assert.deepEqual(await build(null)(PLAN.proofFiles), { browser: [], gui: [] });
+});
+
+test('cli.io-submit-pull.shard-plan-env: clause 2: a shard run with input.shard.plan runs its proof phase with PULLBOARD_SHARD_PLAN set to that plan as JSON, and with no plan sets none [C7,#11831]', () => {
+  const { input } = gateJobRequest(ENTRY_REQUEST);
+  const from = input.entry.indexOf('const inheritedEnv = { ...process.env };'), end = input.entry.indexOf('const capture = role', from);
+  assert.ok(from > 0 && end > from, 'the entry builds the phase environment from inherited env and the shard plan');
+  const build = (shard, inherited) => {
+    const saved = process.env.PULLBOARD_SHARD_PLAN;
+    if (inherited === undefined) delete process.env.PULLBOARD_SHARD_PLAN; else process.env.PULLBOARD_SHARD_PLAN = inherited;
+    try {
+      return new Function('shard', 'role', 'gate', 'PATH', 'run', 'hitsFile', 'sharedResultStore', 'selected', 'root',
+        `${input.entry.slice(from, end)} return phaseEnv;`)(shard, 'proof', null, '/bin', { id: 'r' }, null, () => ({}), null, '/r');
+    } finally { if (saved === undefined) delete process.env.PULLBOARD_SHARD_PLAN; else process.env.PULLBOARD_SHARD_PLAN = saved; }
+  };
+  const plan = { browser: true, gui: false };
+  assert.deepEqual(JSON.parse(build({ plan }).PULLBOARD_SHARD_PLAN), plan);
+  assert.equal('PULLBOARD_SHARD_PLAN' in build({}), false);
+  assert.equal('PULLBOARD_SHARD_PLAN' in build(null), false);
+  assert.equal('PULLBOARD_SHARD_PLAN' in build({}, '{"browser":true,"gui":true}'), false);
+});

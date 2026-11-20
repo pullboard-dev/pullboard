@@ -23,7 +23,6 @@ const pinned = (s) => s.item?.commit === s.job?.commit && s.item?.digest === s.j
 const every = (s, ok) => Array.isArray(s.items) && s.items.length > 0 && s.items.every(ok);
 const NEEDS = {
   gate: (s) => s.item?.owner === s.job.seat && s.item.status === 'claimed' && pinned(s),
-  'gate-drive': (s) => ['queued', 'running'].includes(s.job.status) && s.item?.status === 'claimed' && pinned(s),
   review: (s) => s.item?.status === 'submitted' && pinned(s) && s.item.reservedBy === s.job.reviewer,
   'landing-run': (s) => every(s, i => i.status === 'verified' && !i.merged),
   landing: (s) => every(s, i => i.status === 'verified' && !i.merged) && every(s, i => i.commit === s.job.commits?.[i.id]),
@@ -100,7 +99,6 @@ test('moves.backbone-generated.moves-backbone-one-kind-served-metamorphic-a-job-
 test('moves.backbone-generated.moves-backbone-moved-job-unserved-metamorphic-move-the-item-off-the: moves.backbone.moved-job-unserved: metamorphic: move the item off the job commit, digest or status, or take away what it serves, and a served job stops being served [C7,#8328]', () => {
   const breaks = {
     gate: [s => ({ ...s, item: { ...s.item, owner: 'z' } }), s => ({ ...s, item: { ...s.item, status: 'submitted' } })],
-    'gate-drive': [s => ({ ...s, job: { ...s.job, status: 'done' } }), s => ({ ...s, item: { ...s.item, status: 'verified' } })],
     review: [s => ({ ...s, item: { ...s.item, reservedBy: 'z' } }), s => ({ ...s, item: { ...s.item, status: 'claimed' } })],
     'landing-run': [s => ({ ...s, items: [...s.items, { id: 99, status: 'verified', merged: true }] }), s => ({ ...s, items: [] })],
     landing: [s => ({ ...s, items: s.items.map((i, n) => (n === 0 ? { ...i, commit: 'other' } : i)) }), s => ({ ...s, items: undefined })],
@@ -120,7 +118,7 @@ test('moves.backbone-generated.moves-backbone-moved-job-unserved-metamorphic-mov
   for (const kind of KINDS) {
     const served = results.filter(c => c.holds && c.s.job.kind === kind);
     assert.ok(served.length > 20, `${kind}: only ${served.length} served`);
-    const changes = [...breaks[kind], ...(['gate', 'gate-drive', 'review', 'gate-verdict', 'gate-shard'].includes(kind) ? pins : [])];
+    const changes = [...breaks[kind], ...(['gate', 'review', 'gate-verdict', 'gate-shard'].includes(kind) ? pins : [])];
     for (const c of served) for (const [n, change] of changes.entries()) assert.equal(serves(change(c.s), kind), false, `seed ${c.seed} (${kind}): break ${n} still served`);
   }
 });

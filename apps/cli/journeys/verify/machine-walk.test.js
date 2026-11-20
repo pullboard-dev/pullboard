@@ -120,7 +120,7 @@ const CAUGHT = {
  * Encrypted transport authenticates/orders a move; its board operation is walked separately above.
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
-const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported']);
+const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLinked', '../packages/link/src/io/relay.js#relayOperation', '../packages/link/src/io/relay.js#relayRecovered', '../packages/link/src/io/relay.js#relayCommandReceipt', '../packages/link/src/io/relay.js#relayCommandReceiptReported', '../packages/link/src/io/relay/link.js#relayLinked', '../packages/link/src/io/relay/link.js#relayRecovered', '../packages/link/src/io/relay/link.js#relayMachineContext', '../packages/link/src/io/relay/link.js#environmentAgent']);
 // This independently ordered bootstrap happens before the requested move; its refusals remain audited above.
 const SETUP_EDGES = { '../apps/cli/src/io/claim.js#ordered': ['../packages/store/index.js#recordSpecApprovalBaseline'] };
 
@@ -358,6 +358,8 @@ function codeProblems(machine, read = fromDisk) {
   for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
   // The lease table names its refusals as data (code: 'X') and the table engine raises them; the walk reads only thrown Refused codes.
   for (const [, code] of read('../packages/moves/src/logic/table/lease.table.js').matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
+  // The claim table names its exit-key guard's refusal as data, guard('exit-key', 'exitKey', 'EXIT_USAGE', ...), and the table engine raises it inside the write.
+  for (const [, code] of read('../packages/moves/src/logic/table/claim.table.js').matchAll(/guard\('exit-key', '\w+', '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -502,13 +504,14 @@ test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-declaration: clause 
 });
 
 test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
-  for (const [file, pattern] of [
-    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
-    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
+  // The strict accept path records its proven-break fact through the board link record reader (8836e3032a), so a refusal planted in boardLinkRecord reaches accept and reject uncaught.
+  for (const [file, pattern, expected] of [
+    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m, ['MOON_PHASE is raised by accept and reject but not declared there']],
+    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m, []],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
-    assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
+    assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), expected, 'only the exact foreign evidence reader is caught as unavailable; the record reader is audited where another move reaches it');
   }
   const inForeignCaller = editedSource('../packages/items/src/logic/cross/repo.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
@@ -536,6 +539,8 @@ test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy 
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
+      // Claim writes its events through the same rigor counter, so the drafting entry is reached from claim too.
+      'MOON_PHASE is raised by claim but not declared there',
       'MOON_PHASE is raised by release but not declared there',
       'MOON_PHASE is raised by reopen but not declared there',
       // Submit starts the companion objection window, which reads the same rigor sources (#2540).
