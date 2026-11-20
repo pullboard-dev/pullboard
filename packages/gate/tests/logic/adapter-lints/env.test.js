@@ -99,3 +99,18 @@ test('gate.logic-adapter-lints-env.real-tree-generated-preload: clause 3: the li
   const rows = envLintRows(join(import.meta.dirname, '..', '..', '..', '..', '..'), { enabled: true });
   assert.deepEqual(rows.filter(row => row.startsWith(`${GATE_PRELOAD}:`)), []);
 });
+
+const SANDBOX_CAPTURE = 'packages/sandbox/src/io/environment.js';
+
+test('gate.logic-adapter-lints-env.sandbox-capture-source-is-exempt: clause 1: the sandbox capture source is exempt by exact path, a sibling file is not, and its ten reads report nothing [C7,#11932]', () => {
+  assert.equal(coveredByEnvLint(SANDBOX_CAPTURE), false);
+  assert.equal(coveredByEnvLint('packages/sandbox/src/io/other.js'), true);
+  const text = Array.from({ length: 10 }, (_, index) => `process.env.V${index};\n`).join('');
+  assert.deepEqual(envFindings({ [SANDBOX_CAPTURE]: text }), []);
+  assert.equal(envFindings({ 'packages/sandbox/src/io/other.js': text }).length, 10);
+});
+
+test('gate.logic-adapter-lints-env.real-tree-sandbox-capture-source: clause 3: the lint over this checkout with the setting on returns no row naming the sandbox capture source [C7,#11932]', () => {
+  const rows = envLintRows(join(import.meta.dirname, '..', '..', '..', '..', '..'), { enabled: true });
+  assert.deepEqual(rows.filter(row => row.startsWith(`${SANDBOX_CAPTURE}:`)), []);
+});
