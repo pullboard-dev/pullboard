@@ -2,12 +2,16 @@
 /** The slice that next and claim print with map.slice on is the ranked item slice, read from a real main checkout [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { sayMapSlice } from '../../src/io/slice.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommitAll } from '../../../gate/tests/fixtures/testkit.js';
 
 /** A committed main checkout: one target module with a helper and a test, plus many modules sharing a generic name. */
@@ -67,5 +71,69 @@ test('codemap.io-slice.no-item-silent: clause 3: a call with no item prints noth
     const said = [];
     await sayMapSlice({ say: text => said.push(text) }, { config, info: {} }, undefined, () => { throw new Error('no item resolves no checkout'); });
     assert.deepEqual(said, []);
+  }
+});
+
+/** Run sayMapSlice for one item against a fixture root and return what it said and how long it took. */
+async function sliceOnce(root, item) {
+  const said = [];
+  const started = performance.now();
+  await sayMapSlice({ say: text => said.push(text) }, { config: { map: { slice: true } }, info: { commonDir: join(root, '.git') } }, item, () => root);
+  return { said, ms: performance.now() - started };
+}
+
+const TARGET_ITEM = { item_id: 52, item_title: 'Render the target page', item_criterion: '1. packages/demo/src/io/target.js serves the page [test]', item_brief: '', item_files: '', item_check: '' };
+
+test('codemap.io-slice.cached-per-item-and-main: clause 1: a second sayMapSlice for the same item at the same main commit prints the same slice with the map unreadable [C7,#12591]', async () => {
+  const root = fixture();
+  try {
+    const first = await sliceOnce(root, TARGET_ITEM);
+    assert.equal(first.said.length, 1);
+    assert.match(first.said[0], /^# Slice for #52$/mu);
+    const mapFile = join(root, '.git', 'pullboard', 'code-map.json');
+    rmSync(mapFile, { force: true });
+    mkdirSync(mapFile);
+    const second = await sliceOnce(root, TARGET_ITEM);
+    assert.deepEqual(second.said, first.said, 'the cached text is printed without reading or rebuilding the map');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('codemap.io-slice.cached-cost-flat-with-map-size: clause 2: with a cached slice, repeat calls stay under 50 ms and within 2x whether the map file is 100 KB or 10 MB [C7,#12591]', async () => {
+  const root = fixture();
+  try {
+    await sliceOnce(root, TARGET_ITEM);
+    const mapFile = join(root, '.git', 'pullboard', 'code-map.json');
+    const median = async () => {
+      const times = [];
+      for (let index = 0; index < 10; index += 1) times.push((await sliceOnce(root, TARGET_ITEM)).ms);
+      return times.sort((left, right) => left - right)[5];
+    };
+    writeFileSync(mapFile, ' '.repeat(100 * 1024));
+    const small = await median();
+    writeFileSync(mapFile, ' '.repeat(10 * 1024 * 1024));
+    assert.ok(statSync(mapFile).size >= 10 * 1024 * 1024);
+    const large = await median();
+    assert.ok(large < 50, `median with a 10 MB map was ${large} ms`);
+    assert.ok(large <= 2 * Math.max(small, 1), `median ${large} ms with 10 MB vs ${small} ms with 100 KB`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('codemap.io-slice.new-main-renders-fresh: clause 3: after main moves to a commit changing a file the item names, the next sayMapSlice prints the new commit slice, not the cached text [C7,#12591]', async () => {
+  const root = fixture();
+  try {
+    const first = await sliceOnce(root, TARGET_ITEM);
+    writeFileSync(join(root, 'packages/demo/src/io/target.js'), "import { helpOut } from './helper.js';\n/** Serve the target page. */\nexport function serveTarget() { return helpOut(); }\n/** Serve a second page. */\nexport function serveSecondPage() { return 2; }\n");
+    const git = (...args) => runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root });
+    git('add', '.');
+    git('commit', '-q', '-m', 'change target');
+    const second = await sliceOnce(root, TARGET_ITEM);
+    assert.notDeepEqual(second.said, first.said);
+    assert.match(second.said[0], /serveSecondPage/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
