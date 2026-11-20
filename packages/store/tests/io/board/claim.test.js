@@ -21,7 +21,7 @@ function seeded(t) {
   const project = cellProject(t, { real: true, gate: "true" });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: "coordinator", path: project.repo });
-  const seat = cellSeat(board, { lane: "web", path: project.repo });
+  const seat = cellSeat(board, { lane: "web", path: "/claim-seat", route: "strong" });
   const add = (title, extra = {}) => addItem(board, { by: "coordinator", lane: "web", title, route: "mid", criterion: "The private fixture proves the claim.", brief: BRIEF, check: "true", ...extra });
   /** The parent is submitted at HEAD with a gate record in the given state, recorded for a head the gate ran at. */
   const submitParent = (title, job, { jobHead = HEAD } = {}) => {
