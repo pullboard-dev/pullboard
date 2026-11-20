@@ -237,6 +237,20 @@ export function noteLapse(db, job, lapse, now) {
 }
 
 /**
+ * Write a keyed claim note: a note: step named for the runner and claim key, at the attempt the claim took, so a retried
+ * claim with the same key finds that live lease by name. It never changes the job's current step [C7,#12144].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} name - The note step name, starting note:.
+ * @param {number} attempt
+ * @param {number} now
+ */
+export function noteClaimKey(db, job, name, attempt, now) {
+  db.prepare("INSERT OR IGNORE INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, '{}', ?)").run(job, name, attempt, now);
+}
+
+/**
  * Record a runner's progress for one attempt: the first post inserts the step, a later post for the same attempt replaces it.
  *
  * Why: progress is a live reading, so the newest post wins; this lives here because the jobs store owns job_step.
