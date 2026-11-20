@@ -10,6 +10,7 @@ import { redLocationLine } from './gate/where.js';
 import { missingReceiptPart } from './gate/where.js';
 import { redShard } from './gate/where.js';
 import { recordGateSettled } from './gate/settled.js';
+import { recordGateQueue } from './gate/queue-snapshot.js';
 import { settleWindow } from './gate/settled.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
@@ -300,9 +301,7 @@ export function postedReceipt(db, job, { runs = null } = {}) {
 }
 
 /** Quote one word for a shell, as the gate's planner quotes the files it names. */
-function shellWord(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
-}
+const shellWord = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 
 /** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. Why SHARD_JOBS_SQL reads a key range on job_id (the primary key) from the prefix to the prefix plus U+FFFF (job ids are plain text, so none holds it): substr() scanned every gate-shard row on each pull claim, and +job_kind keeps the planner off job_kind_created, which it picks for a plain key range [C7]. */
 export function shardJobs(db, job, { runs = null } = {}) {
@@ -1165,6 +1164,7 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
   const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => (settleWindow.reopen(board), queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports)) });
+  if (body?.action === 'claim' && options.mode === 'pull') recordGateQueue(board, body, options.now ?? Date.now());
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
