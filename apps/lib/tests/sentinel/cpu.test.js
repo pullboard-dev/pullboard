@@ -12,6 +12,8 @@ import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
 import { scanHealthSentinel } from '../../../../packages/sentinels/index.js';
 import { CPU_SENTINEL_ENGINE } from '../../../../packages/state/light.js';
 import { HEALTH_SHOUT_CAP } from '../../../../packages/store/index.js';
+import { applyRelayMove } from '../../../../packages/state/index.js';
+import { prepareEngineMove } from '../../../../packages/state/index.js';
 
 // The store's digest window: a reader's buffered routine findings are sent once this long has passed [#1479].
 const DIGEST_WINDOW_MS = 10 * 60_000;
@@ -99,7 +101,13 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   assert.equal(notices().length - beforeCap, 1, 'one digest line names every process');
   for (const pid of pids) assert.equal(notices().filter(row => new RegExp(`\\bpid ${pid}\\b`, 'u').test(row.shout_text)).length, 1, `PID ${pid} is named exactly once`);
   const pendingEvents = store.events(board);
-  // A routine process finding never waits in the durable pending queue, so only the engine refusal of an older empty scan remains to prove here.
+  const emptyMove = prepareEngineMove(board, 'recordHealthFindings', [{
+    agentId: 'coordinator', observedRevision: pendingEvents.length, findings: [],
+  }], { actor: 'coordinator' });
+  assert.throws(() => applyRelayMove(board, { ...emptyMove, engine: CPU_SENTINEL_ENGINE - 1 }, {
+    sequence: 1, at: new Date().toISOString(), kind: 'move',
+    sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture-user' },
+  }), { code: 'RELAY_MOVE' }, 'ordered old-engine input cannot erase the pending queue');
   board.executionEngineVersion = CPU_SENTINEL_ENGINE - 1;
   assert.throws(() => store.recordHealthFindings(board, {
     agentId: 'coordinator', observedRevision: pendingEvents.length, findings: [],
