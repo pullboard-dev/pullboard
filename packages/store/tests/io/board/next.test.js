@@ -4,9 +4,12 @@ import { test } from 'node:test';
 import { addItem } from '../../../index.js';
 import { listItems } from '../../../index.js';
 import { nextFor } from '../../../index.js';
+import { reviewOffer } from '../../../index.js';
 import { register } from '../../../index.js';
 import { claim } from '../../../index.js';
 import { largestDisjointWave } from '../../../../items/index.js';
+import { submitFixture } from '../../fixtures/submit.js';
+import { FIXTURE_MODEL } from '../../fixtures/cell.js';
 import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 
 const FUTURE = '2999-01-01T00:00:00.000Z';
@@ -93,6 +96,121 @@ test('store.io-board-next.selection-matches-reading-every-item: clause 2: on a b
   for (const options of [{}, { omitIds: [ids.onLanded] }, { omitIds: [ids.onLanded, ids.onWithdrawn] }, { omitIds: [ids.onLanded, ids.onWithdrawn, ids.afterLanded] }, { lanes: ['web', 'api'] }, { observeIdle: true, idleBlockers: true, omitIds: [ids.onLanded, ids.onWithdrawn, ids.afterLanded, ids.onClaimed, ids.onUnmerged] }]) {
     assert.deepEqual(pick(options), fromAll(options), JSON.stringify(options));
   }
+});
+
+/**
+ * A parent and two slice children, all built by core-1 and reviewable by core-2; the second slice is submitted only when `secondSubmitted`.
+ * Slices carry their item-slice row and item_parent_id after submitting, the way the slice move records them.
+ */
+function sliceBoard(t, { secondSubmitted }) {
+  const board = fixtureBoard(t);
+  let now = new Date('2026-01-01T00:00:00.000Z');
+  board.clock = { now: () => new Date(now) };
+  register(board, { id: 'coordinator', lane: 'coordinator', path: '/fixture/coordinator', family: 'human', parentDigest: 'a'.repeat(64), model: FIXTURE_MODEL });
+  for (const seat of [1, 2]) register(board, { id: `core-${seat}`, lane: 'core', path: `/fixture/core-${seat}`, family: 'openai', parentDigest: String(seat).padStart(64, '0'), model: FIXTURE_MODEL });
+  const make = title => addItem(board, { by: 'coordinator', lane: 'core', title, criterion: 'prove it' });
+  const ids = { parent: make('parent whole'), first: make('first slice'), second: make('second slice') };
+  const submitted = secondSubmitted ? [ids.parent, ids.first, ids.second] : [ids.parent, ids.first];
+  for (const id of submitted) {
+    claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000, freeze: () => ({ text: '{}', digest: 'fixture-digest' }) });
+    submitFixture(board, id, { agentId: 'core-1', commit: String(id).padStart(40, 'a'), tree: 'b'.repeat(40) });
+  }
+  board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+  try {
+    for (const id of [ids.first, ids.second]) {
+      board.db.prepare('UPDATE item SET item_parent_id=? WHERE item_id=?').run(ids.parent, id);
+      board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`item-slice:${id}`, JSON.stringify({ parentId: ids.parent }));
+    }
+  } finally { board.db.exec('DELETE FROM temp.moving'); }
+  return { board, ids, advance: ms => { now = new Date(now.getTime() + ms); } };
+}
+
+test('store.io-board-next.compose-landing-holds-parent: clause 1: with composeLanding true, verify never offers a submitted slice and offers its submitted parent only once every slice child is submitted [C7,#11320]', t => {
+  const who = { agentId: 'core-2', lane: 'core', verify: true, composeLanding: true };
+  const waiting = sliceBoard(t, { secondSubmitted: false });
+  const held = nextFor(waiting.board, who);
+  assert.equal(held.item, null, `the parent waits for its open slice and no slice is offered: ${held.reasons.join(' | ')}`);
+  const done = sliceBoard(t, { secondSubmitted: true });
+  assert.equal(nextFor(done.board, who).item?.item_id, done.ids.parent, 'the parent is offered once both slices are submitted');
+  assert.equal(nextFor(done.board, { ...who, omitIds: [done.ids.parent] }).item, null, 'a submitted slice is never offered');
+});
+
+test('store.io-board-next.compose-landing-off-offers-slices: clause 2: with composeLanding false or unset, a submitted slice is offered for review exactly as before [C7,#11320]', t => {
+  const { board, ids } = sliceBoard(t, { secondSubmitted: false });
+  for (const options of [{}, { composeLanding: false }]) {
+    const who = { agentId: 'core-2', lane: 'core', verify: true, ...options };
+    const first = nextFor(board, who).item?.item_id;
+    const second = nextFor(board, { ...who, omitIds: [first] }).item?.item_id;
+    assert.deepEqual([first, second].sort(), [ids.parent, ids.first].sort(), `the submitted parent and the submitted slice are both offered: ${JSON.stringify(options)}`);
+  }
+});
+
+test('store.io-board-next.compose-landing-review-offer: clause 3: reviewOffer given who.composeLanding true never returns a submitted slice, and returns it when the option is off [C7,#11320]', t => {
+  const { board, ids, advance } = sliceBoard(t, { secondSubmitted: true });
+  advance(3 * 60_000);
+  const who = { agentId: 'core-2', lane: 'core', skipIds: [ids.parent] };
+  assert.equal(reviewOffer(board, { ...who, composeLanding: true })?.item ?? null, null, 'no slice is offered when slices compose into their parent');
+  assert.ok([ids.first, ids.second].includes(reviewOffer(board, who)?.item?.item_id), 'a waiting slice is offered when the option is off');
+});
+
+/** Two submitted items, the lower id built by seat `same` and the higher by seat `other`, for a reviewer seat `rev` under the prefer family policy. */
+function submittedPair(t) {
+  const board = fixtureBoard(t);
+  const make = (title, file, builder) => {
+    const id = addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files:\n- ${file}` });
+    board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
+    try { board.db.prepare('UPDATE item SET item_status=?, item_built_by=?, item_commit=?, item_frozen_digest=? WHERE item_id=?').run('submitted', builder, 'c'.repeat(40), 'd'.repeat(64), id); }
+    finally { board.db.exec('DELETE FROM temp.moving'); }
+    return id;
+  };
+  return { board, first: make('built by the reviewer family', 'src/p.js', 'same-1'), second: make('built by another family', 'src/q.js', 'other-1') };
+}
+
+const REVIEW = { agentId: 'rev-1', lane: 'web', verify: true, familyPolicy: 'prefer' };
+
+/** Every family-table read the connection prepares, with the arguments each read ran with, so a test sees which seat ids were looked up. */
+function familyReads(board) {
+  const prepare = board.db.prepare.bind(board.db), args = [];
+  board.db.prepare = sql => {
+    const statement = prepare(sql);
+    if (!/famil/iu.test(sql)) return statement;
+    return new Proxy(statement, { get: (target, key) => typeof target[key] === 'function' && ['get', 'all', 'run'].includes(key) ? (...values) => { args.push(...values.flat()); return target[key](...values); } : target[key] });
+  };
+  return args;
+}
+
+test('store.next.derived-seat-family-used: clause 1: nextFor given a derivedSeatFamily answer uses it for the seat and builder families of its review family check, and no seatFamily or builderFamilyOf read runs for an id it names [C7,#11383]', t => {
+  const { board, first, second } = submittedPair(t);
+  // Below the critical-path engine the queue order ties for these two items, so the family preference alone orders the offer.
+  board.executionEngineVersion = 100;
+  const families = { 'rev-1': 'anthropic', 'same-1': 'anthropic', 'other-1': 'openai' };
+  const before = nextFor(board, REVIEW);
+  assert.equal(before.item?.item_id, first, 'with no family known for any seat the lower id is offered');
+  const reads = familyReads(board);
+  const asked = [];
+  const offered = nextFor(board, { ...REVIEW, derivedSeatFamily: id => { asked.push(id); return families[id]; } });
+  assert.equal(offered.item?.item_id, second, 'the answer alone makes the other family preferred, so the later item is offered');
+  assert.ok(asked.includes('rev-1') && asked.includes('same-1') && asked.includes('other-1'), `the answer was asked for every seat: ${asked}`);
+  const looked = reads.filter(value => Object.keys(families).includes(value));
+  assert.deepEqual(looked, [], `no family read ran for an id the answer names: ${looked}`);
+});
+
+test('store.next.derived-seat-family-fallback: clause 2: without the answer, or for an id it does not name, nextFor computes the families as before and offers the same item [C7,#11383]', t => {
+  const { board, first } = submittedPair(t);
+  for (const options of [{}, { derivedSeatFamily: () => undefined }]) {
+    const offered = nextFor(board, { ...REVIEW, ...options });
+    assert.equal(offered.item?.item_id, first, offered.reasons.join(' | '));
+  }
+  const partial = nextFor(board, { ...REVIEW, derivedSeatFamily: id => (id === 'rev-1' ? 'openai' : undefined) });
+  assert.equal(partial.item?.item_id, first, 'an id the answer does not name is computed from the board, as on main');
+});
+
+test('store.next.derived-seat-family-beside-gate: clause 3: nextFor reads derivedSeatFamily beside derivedGateAtHead from the same options, each answering its own check [C7,#11383]', t => {
+  const { board, first } = submittedPair(t);
+  const asked = [];
+  const offered = nextFor(board, { ...REVIEW, derivedGateAtHead: () => undefined, derivedSeatFamily: id => { asked.push(id); return undefined; } });
+  assert.equal(offered.item?.item_id, first, offered.reasons.join(' | '));
+  assert.ok(asked.includes('rev-1'), 'the seat-family option was read with the gate option beside it');
 });
 
 /** Four ready items: A{x}, B{x,y}, C{y}, D{z}; the largest disjoint wave is A, C, D and B waits. */

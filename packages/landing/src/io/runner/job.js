@@ -291,26 +291,46 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     const guard = timedGuard && carry ? (context => carry(context, timedGuard)) : timedGuard;
     const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
       ...(payload.check ? [['proof', phaseOf('proof', commandCheck(payload.check, { deadline }))]] : []),
-      ...(prove && files.length ? [['proof', phaseOf('proof', proveFiles({ ...payload.proof, files }))]] : [])];
+      ...(prove && files.length ? [['proof', phaseOf('proof', proveFiles({ ...payload.proof, files })), payload.proof?.runner]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
     const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
     if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
       const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
-      if (owed.length) parts.push(['proof', phaseOf('proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline }))]);
+      if (owed.length) parts.push(['proof', phaseOf('proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })), deferred.runner]);
     }
     // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
     const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
-    if (contractPart) parts.push(['proof', phaseOf('contracts', contractPart)]);
-    let proof = null, waived = null, contracts = null;
-    for (const [role, part] of parts) {
-      const result = await part(context);
+    if (contractPart) parts.push(['proof', phaseOf('contracts', contractPart), payload.contracts.runner]);
+    let proof = null, waived = null, contracts = null, rerun = null;
+    for (const [role, part, runner] of parts) {
+      let result = await part(context);
+      // landing.retryRedsOnce: a proof red in one to three files runs those files once more on this same tree; green on the rerun makes the part green [C7,#11744].
+      if (payload.retryRedsOnce === true && role === 'proof' && typeof runner === 'string' && !result?.ok && !result?.timeout && result?.failures?.length) {
+        const again = await rerunProofRed(result.failures, runner, context, { env, payload, deadline });
+        if (again && !again.length) { rerun = { files: [...new Set(result.failures.map(row => row.file))], green: true }; result = { ...result, ok: true, detail: null }; }
+      }
       if (result?.proof) proof = result.proof;
       if (result?.contracts) contracts = result.contracts;
       if (result?.waived?.length) waived = result.waived;
       if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(result?.timeout ? { timeout: true } : {}), ...(result?.guard ? { guard: result.guard } : {}), ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(result?.failed ? { failed: result.failed } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
     }
-    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
+    return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}), ...(rerun ? { rerun } : {}) };
   };
+}
+
+/**
+ * Rerun a proof red's failing files once on the merged tree being checked, with the part's own runner.
+ * Why: rerunRedOnce decides which reds are worth a rerun; this only runs the files and reads their failures back [C7,#11744].
+ *
+ * @returns {Promise<{ file: string, name: string }[] | null>} The failures that remain, [] when green, null when the rerun cannot say.
+ */
+async function rerunProofRed(failures, runner, context, { env, payload, deadline }) {
+  const { rerunRedOnce } = await import('./contracts.js');
+  const { ledgerProofCheck } = await import('./proof.js');
+  return rerunRedOnce(failures, { rerun: async files => {
+    const result = await ledgerProofCheck({ runner, files, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })(context);
+    return result.ok ? [] : result.timeout ? null : result.failures ?? null;
+  } });
 }
 
 /**
@@ -502,6 +522,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const result = derived ? { ok: false, detail: derived } : payload.stallStop === true ? await stallWatched(check, { root, base, items: pending.map(entry => entry.id), renew }, { clock, pollMs: stallPollMs }) : await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
     if (result?.contracts) receipt.contracts = result.contracts;
+    // landing.retryRedsOnce: the files a red proof reran once on this tree, green, so the receipt says why a red landed [C7,#11744].
+    if (result?.ok && result.rerun) receipt.rerun = result.rerun;
     // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].
     if (result?.ok && result.waived?.length) receipt.waived = result.waived;
     // A check that ran past its deadline is no red: nothing is returned to a builder, and the board offers the landing again [C7,#7820].

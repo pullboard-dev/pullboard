@@ -5,7 +5,7 @@ export { criterionCells } from './src/io/criterion.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, readLedgerBytes, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords, allowanceWords } from './src/io/blocks.js';
 export { briefFiles } from './src/logic/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/logic/caught.js';
-export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
+export { newBlock, firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
 export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/logic/order/path.js';
 export { foreignDependencyStates, foreignBlockers } from './src/logic/cross/repo.js';
 export { optionsDigest, decisionHandoffs } from './src/io/decision.js';
@@ -74,6 +74,7 @@ export { queuedToolOwners } from './src/io/submit/recovery.js';
 export { toolTreeHasLiveOwner } from './src/io/submit/recovery.js';
 export { sweepToolTrees } from './src/io/submit/recovery.js';
 export { assertToolTreeRoom } from './src/io/submit/recovery.js';
+export { toolTreeRoomProblem } from './src/io/submit/recovery.js';
 export { touchToolTree } from './src/io/submit/recovery.js';
 
 export { claimedItemRoot } from './src/io/patch/submit.js';
