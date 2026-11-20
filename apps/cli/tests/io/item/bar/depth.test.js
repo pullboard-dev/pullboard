@@ -18,7 +18,12 @@ function barRulesOn() {
 const refusal = result => (result.code === 0 ? null : result.document?.error?.code ?? `exit ${result.code}: ${result.out}${result.err}`);
 
 const row = (id, after, status = 'open', extra = {}) => ({ item_id: id, item_status: status, item_after: after, ...extra });
-const add = (box, title, ...args) => cli(box, box.seats.actor.path, ['add', 'web', title, '--specs', 'G1', '--criterion', `1. ${title} [test]`, ...args]);
+/** File a web item; with items already filed, the add says it differs from them, so only the chain rule can refuse. */
+const add = (box, title, ...args) => {
+  const filed = store.listItems(box.board, { all: true }).map(item => item.item_id);
+  const apart = filed.length ? ['--not-duplicate-of', `${Math.max(...filed)} a different piece of work`] : [];
+  return cli(box, box.seats.actor.path, ['add', 'web', title, '--specs', 'G1', '--criterion', `1. ${title} [test]`, ...apart, ...args]);
+};
 
 test('cli.io-item-bar-depth.refuse-over-3: clause 1: requireChainDepth refuses CHAIN_TOO_DEEP when the longest --after chain through open items, itself counted, is deeper than 3, names the deepest chain and says to split interface-first, and accepts depth 3 [C7,#12477]', () => {
   const depthOf = chainDepthOf([row(1, ''), row(2, '1'), row(3, '2'), row(4, '3'), row(5, '1')]);
