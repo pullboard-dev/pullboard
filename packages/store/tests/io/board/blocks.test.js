@@ -87,3 +87,20 @@ test("store.blocks.claim-refusals: clause 2: an unknown name refuses NO_BLOCK, a
   assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }), error => error.code === "BLOCK_CLAIMED" && error.message.includes(`#${ids[1]}`));
   assert.equal(getItem(board, ids[0]).item_owner, null, "the refused block claimed no member");
 });
+
+test("store.blocks.claim-all-or-none: clause 1: a member whose bar cannot freeze refuses before any member is written, and a member whose write fails under the lock rolls back the earlier members, so a block claim takes every member or none [C7]", t => {
+  const { board, ids } = twoItems(t);
+  addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
+  const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
+  const claimEvents = () => board.db.prepare("SELECT COUNT(*) n FROM event WHERE event_kind = 'claim' AND event_by = ?").get(seat.id).n;
+  const failing = item => { if (item.item_id === ids[1]) throw new Error("second bar cannot freeze"); return FREEZE(item); };
+  assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: failing }), /second bar cannot freeze/u);
+  assert.deepEqual(ids.map(id => getItem(board, id).item_owner), [null, null], "a member refused while preparing left no member claimed");
+  assert.equal(claimEvents(), 0);
+  board.db.exec(`CREATE TEMP TRIGGER block_second_refuses BEFORE UPDATE ON item WHEN NEW.item_id = ${ids[1]} AND NEW.item_status = 'claimed' BEGIN SELECT RAISE(ABORT, 'second member write refused'); END`);
+  assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }), /second member write refused/u);
+  assert.deepEqual(ids.map(id => getItem(board, id).item_owner), [null, null], "a write that failed on the second member rolled the first back");
+  assert.equal(claimEvents(), 0);
+  board.db.exec("DROP TRIGGER block_second_refuses");
+  assert.deepEqual(claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }).claimed, ids);
+});

@@ -1,5 +1,6 @@
 import { Refused } from "../../../../kernel/index.js";
 import { claim } from "../board.js";
+import { prepareClaim } from "../board.js";
 import { canTake } from "../board.js";
 import { routeOf } from "../board.js";
 import { BLOCK_ENGINE } from "../board.js";
@@ -54,6 +55,7 @@ export function listBlocks(board) {
  * Why: each member takes the ordinary claim and the same lease, so one clock reading serves the whole block; members keep their own criteria and verdicts.
  * Members are item-folder claims sized to the whole block (ten live claims at most), so the one-top-level-claim rule does not stop the second member.
  * A member another seat holds refuses BLOCK_CLAIMED naming it before anything is written, and a seat whose route is below the tier refuses BLOCK_TIER.
+ * Every open member is prepared first (prepareClaim runs each guard and freezes each bar), then all prepared claims commit inside one write, so a refusal at any member leaves no member claimed [C7].
  *
  * @param {any} board
  * @param {{ agentId: string, name: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string } }} options claim options shared by every member
@@ -76,13 +78,12 @@ export function claimBlock(board, { agentId, name, ...options }) {
     const instant = original.now();
     board.clock = { ...original, now: () => new Date(instant.getTime()) };
     try {
-      const claimed = [];
-      for (const id of block.ids) {
-        const member = board.db.prepare("SELECT item_status FROM item WHERE item_id = ?").get(id);
-        if (member?.item_status !== "open") continue;
-        claim(board, id, { itemFolder: true, perSeat: 10, ...options, agentId });
-        claimed.push(id);
-      }
+      const open = block.ids.filter(id => board.db.prepare("SELECT item_status FROM item WHERE item_id = ?").get(id)?.item_status === "open");
+      const prepared = open.map(id => [id, prepareClaim(board, id, { itemFolder: true, perSeat: 10, ...options, agentId })]);
+      const claimed = atomic(board, () => prepared.map(([id, binding]) => {
+        claim(board, id, binding);
+        return id;
+      }));
       return { name, claimed, leaseUntil: new Date(instant.getTime() + options.leaseMs).toISOString() };
     } finally {
       board.clock = original;
