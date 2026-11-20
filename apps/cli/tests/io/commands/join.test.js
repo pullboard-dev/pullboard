@@ -3,26 +3,23 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after } from 'node:test';
+import { before } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { joinFixtureSeat } from '../../fixtures/testkit.js';
+import { freshSeat } from '../../fixtures/join-seat.js';
+import { withoutRoute } from '../../fixtures/join-seat.js';
 
 /** A light-tier model name: the fixture join adds no route for it, so a repeated join names none. */
 const LIGHT_MODEL = 'Fixture Haiku';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-
-/** The same run with the --route pair dropped, so join repeats the seat's lane and model alone and answers already joined. */
-function withoutRoute(box) {
-  return (cwd, ...args) => {
-    const at = args.indexOf('--route');
-    return runCliInProcess(at < 0 ? args : [...args.slice(0, at), ...args.slice(at + 2)], { cwd, env: box.env });
-  };
-}
+/** The one fixture project the four cases share: each makes its own seats, under distinct worktree names and branches. */
+let box;
+before(() => { box = e2e.project(); });
 
 test('cli.io-commands-join-level.join-json-carries-level-beside-route: clause 1: join --json carries level equal to route, route kept as an alias, on both result paths [C7,#10969]', async () => {
-  const box = e2e.project();
   const seat = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', seat, '-b', 'web/two');
   const registered = joinFixtureSeat(box, seat, 'web', { model: LIGHT_MODEL, route: 'light' });
@@ -38,15 +35,7 @@ test('cli.io-commands-join-level.join-json-carries-level-beside-route: clause 1:
   assert.equal(already.level, already.route);
 });
 
-/** A new worktree of the fixture project on its own branch, not yet joined. */
-function freshSeat(box, name) {
-  const seat = join(box.dir, name);
-  box.git(box.repo, 'worktree', 'add', '-q', seat, '-b', `web/${name}`);
-  return seat;
-}
-
 test('cli.io-commands-join-role.clause-1-join-role-advisor: clause 1: join --role advisor carries role advisor in --json and ends the text line with the lane as an advisor [C7,#10993]', async () => {
-  const box = e2e.project();
   const joined = joinFixtureSeat(box, freshSeat(box, 'advice'), 'web', { role: 'advisor' });
   assert.equal(joined.code, 0, joined.err);
   assert.equal(JSON.parse(joined.out).role, 'advisor');
@@ -57,7 +46,6 @@ test('cli.io-commands-join-role.clause-1-join-role-advisor: clause 1: join --rol
 });
 
 test('cli.io-commands-join-role.clause-2-bad-role-refused: clause 2: --role with another value, or in the main checkout, is refused BAD_ROLE [C7,#10993]', async () => {
-  const box = e2e.project();
   const other = joinFixtureSeat(box, freshSeat(box, 'judge'), 'web', { role: 'judge' });
   assert.equal(other.code, 1);
   assert.match(other.err, /BAD_ROLE/u);
@@ -67,7 +55,6 @@ test('cli.io-commands-join-role.clause-2-bad-role-refused: clause 2: --role with
 });
 
 test('cli.io-commands-join-role.clause-3-plain-join-unchanged: clause 3: a join without --role has no role key in --json and the old text line [C7,#10993]', async () => {
-  const box = e2e.project();
   const plain = joinFixtureSeat(box, freshSeat(box, 'plain'), 'web');
   assert.equal(plain.code, 0, plain.err);
   assert.equal(Object.hasOwn(JSON.parse(plain.out), 'role'), false);
