@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/doctrine/light.js apps/cli/src/io/item/folder/identity.js */
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
@@ -495,7 +496,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   // A CI or cloud session works as the agent its environment token names, on that one board [E18].
   // A seat joined over the served API acts as itself at the board root, which has no worktree of its own [P7].
   const seat = environmentAgent(ctx.info.root, board) ?? (ctx.io.remoteAgent ? readers.agentById(board, ctx.io.remoteAgent) : null);
-  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
+  if (seat) return { id: seat.agent_id, lane: seat.agent_lane, route: sessionRoute(seat.agent_route, seat.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers), family: seatFamily(board, seat.agent_id), model: seat.agent_model ?? 'unknown', displayName: displayAgentName(seat, ctx.config.agents.names), ...(seat.agent_role ? { role: seat.agent_role } : {}) };
   if (ctx.info.isMain) {
     ctx.io.caller?.('coordinator', ctx.info.root);
     const registered = readers.agentById(board, COORDINATOR);
@@ -511,7 +512,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   }
   ctx.io.caller?.('seat', ctx.info.root);
   // The route follows the model this session declares, not only the one the seat joined with (#3678).
-  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
+  return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, environmentAdapter().get('PULLBOARD_MODEL'), ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names), ...(agent.agent_role ? { role: agent.agent_role } : {}) };
 }
 
 /** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
