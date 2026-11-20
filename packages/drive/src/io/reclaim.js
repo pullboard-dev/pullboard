@@ -1,36 +1,17 @@
 /** The fallback reclaim pass a board command runs before answering: one reclaimLapsed read, at most one driveOnce (RFC 0008 DJ15) [C7]. */
 import { Refused } from '../../../kernel/index.js';
 import { jobView } from '../../../jobs/index.js';
-import { reclaimLapsed } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
-import { phaseOf } from '../logic/phase.js';
 import { GATE_DRIVE_KIND } from '../logic/gate.js';
 import { driveOnce } from './once.js';
+import { lapsedGateJobs } from './lapsed.js';
+
+export { lapsedGateJobs };
 
 /** The longest a command's fallback drive may hold its answer; past it the command answers and the lease lapses. */
 export const FALLBACK_BUDGET_MS = 1000;
-
-/**
- * The lapsed gate jobs a fallback pass may drive, oldest lapse first: one reclaimLapsed read, without the dispatcher
- * row (ensured, never driven) and without jobs already at their verdict.
- *
- * Why: a command that sees none opens no write handle, so `next` and `status` stay read-only on a healthy board.
- *
- * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the jobs are read from its handle [P7,#9080].
- * @returns {{ id: string, kind: string, step: string, leaseOwner: string, lapsedMs: number }[]}
- */
-export function lapsedGateJobs(db, { now = Date.now(), runs = null } = {}) {
-  const jobs = runs?.db ?? db;
-  return reclaimLapsed(jobs, { now }).filter((job) => {
-    // A gate-drive job is listed too, so a stale one is ended; it is never driven here (#4071, SM2).
-    if (job.kind !== 'gate' && job.kind !== GATE_DRIVE_KIND) return false;
-    const view = jobView(jobs, job.id);
-    return Boolean(view) && phaseOf(view) !== 'verdict';
-  });
-}
 
 /** How long a lapsed gate job may go without a recorded step before a fallback pass ends it instead of renewing it. */
 export const GATE_JOB_NO_PROGRESS_MS = 20 * 60_000;

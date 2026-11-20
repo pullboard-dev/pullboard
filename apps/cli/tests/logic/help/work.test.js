@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { coordinatorHelp } from '../../../src/logic/help/coordinator.js';
 import { workHelp } from '../../../src/logic/help/work.js';
+import { HELP } from '../../../src/logic/help.js';
 
 const line = (text, start) => text.split('\n').find(row => row.trimStart().startsWith(start)) ?? assert.fail(`no help line starting ${start}`);
 
@@ -21,4 +22,12 @@ test('cli.logic-help-work.list-request-and-sweep-usage-show-level: clause 2: the
   assert.match(workHelp, /--level strong\|mid\|light/u);
   assert.match(line(coordinatorHelp, 'pullboard sweep'), /--level light/u);
   assert.doesNotMatch(line(coordinatorHelp, 'pullboard sweep'), /--route/u);
+});
+
+test('cli.logic-help-work.level-listed-route-not: clause 1: pullboard help add, help edit, help join and help worktree print a --level line and no --route line [test] [C7,#11063]', () => {
+  for (const name of ['add', 'edit', 'join', 'worktree']) {
+    const { usages, flags } = HELP.commands[name];
+    assert.ok(flags.some(flag => flag.startsWith('--level')), `help ${name} lists no --level flag line`);
+    assert.ok(![...usages, ...flags].some(row => /--route/u.test(row)), `help ${name} still lists --route`);
+  }
 });

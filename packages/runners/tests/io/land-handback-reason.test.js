@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { serveRunner } from '../../../drive/index.js';
 import { testGit as pullGit } from '../fixtures/git.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { backOffLease } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';

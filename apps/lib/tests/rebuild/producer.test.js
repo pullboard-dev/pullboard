@@ -54,7 +54,8 @@ function producerFixture() {
 /** Wait for the detached producer to exit, then read its ready record if it published one. */
 async function published(child, file) {
   child.ref();
-  await once(child, 'exit');
+  // A producer that failed fast may already have exited, and an exit event that fired before this listener would never come.
+  if (child.exitCode === null && child.signalCode === null) await once(child, 'exit');
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 

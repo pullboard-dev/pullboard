@@ -1,0 +1,4 @@
+{
+  "store.blocks.renew-peer-correction-refused": {"proves":{"specs":["C7"],"claim":"Renewing one member of a block is refused PENDING_REFREEZE when a held peer has a pending criterion correction, and no member's lease or renew event moves."},"why":"A block-peer renew passes the one claim-move guard its holder check does not cover, so a correction cannot be skipped by renewing through a sibling.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]},
+  "store.blocks.renew-non-member-unchanged": {"proves":{"specs":["C7"],"claim":"Renewing a claim held through no block renews only that item and writes only its own renew event."},"why":"The block renewal must not reach items outside a block.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]}
+}

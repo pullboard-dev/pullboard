@@ -1,9 +1,6 @@
 import { validateAcceptedInventory } from '../../../../../packages/codemap/index.js';
 /** Cache immutable base inventories on the machine and incrementally inspect a candidate [C7,D3]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { serialize } from 'node:v8';
 import { deserialize } from 'node:v8';
@@ -20,6 +17,9 @@ import { cellsCacheDirectory } from '../../../../../packages/codemap/index.js';
 import { publishCacheEntry } from '../../../../../packages/codemap/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { temporaryCellEdges } from '../../../../../packages/codemap/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A cache is never evidence for a moved or dirty immutable source. */
 function unchanged(checkout, commit) {
@@ -67,7 +67,7 @@ export function inventoryCacheFile(key, commit) {
 
 /** Mark a cache entry used now, so pruning keeps the bases that gates still read. */
 function touch(file) {
-  try { const now = new Date(); utimesSync(file, now, now); } catch { /* Use order is advisory. */ }
+  try { const now = new Date(); fs.utimes(file, now, now); } catch { /* Use order is advisory. */ }
 }
 
 /**
@@ -129,7 +129,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
   /** Read the cached inventory of one commit under this checker; a missing, damaged or foreign entry is never evidence. */
   function read(file, commit) {
     try {
-      const data = deserialize(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }));
+      const data = deserialize(gunzipSync(fs.readFile(file, null), { maxOutputLength: 256 * 1024 * 1024 }));
       if (data.version !== 2 || data.commit !== commit || data.checker !== checker || !Buffer.isBuffer(data.payload)
         || data.digest !== createHash('sha256').update(data.payload).digest('hex')) throw new Error('invalid inventory cache');
       const inventory = deserialize(data.payload);
@@ -149,7 +149,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
     catch { return null; }
     for (const ancestor of ancestors) {
       const file = inventoryCacheFile(key, ancestor);
-      const cached = existsSync(file) ? read(file, ancestor) : null;
+      const cached = fs.exists(file) ? read(file, ancestor) : null;
       if (!cached) continue;
       let changed;
       try { changed = git(checkout, ['diff', '--no-renames', '--name-only', '-z', ancestor, commit]).split('\0').filter(Boolean); }
@@ -197,7 +197,7 @@ export function observationCache(root, key, eligible = () => false) {
   const file = checker ? join(directory, `${checker}.json.gz`) : null;
   let values = new Map();
   if (file && eligible()) try {
-    const data = JSON.parse(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }).toString('utf8'));
+    const data = JSON.parse(gunzipSync(fs.readFile(file, null), { maxOutputLength: 256 * 1024 * 1024 }).toString('utf8'));
     if (data.version !== 2 || data.checker !== checker || data.digest !== receiptDigest(data.payload)) throw new Error('invalid observations');
     const loaded = deserialize(Buffer.from(data.payload, 'base64'));
     if (!(loaded instanceof Map) || loaded.size > 32768 || [...loaded].some(([id, row]) => typeof id !== 'string'
@@ -231,18 +231,22 @@ export function inventoryPending(message, commit) {
     { name: 'CellsInventoryInfrastructureError', code: 'CELLS_INVENTORY_PENDING', retryable: true, inventoryCommit: commit });
 }
 
+/** The temporary-edges file a finding key or problem line names, wherever the checker reads it from. */
+const TEMPORARY_FILE = /^((?:[\w.-]+\/)*temporary-edges\.json)(?:[:[]|$)/u;
+
 /** Refresh only date-dependent temporary edges; immutable source/report findings stay cached. */
 function currentInventoryReport(report, inventory) {
   const temporary = temporaryCellEdges(inventory.files);
   const metrics = Object.fromEntries(Object.entries(report.metrics).map(([name, value]) => [name, { ...value,
     findings: value.findings.filter(row => name === 'shims' ? !row.key.startsWith('temporary:')
-      : name !== 'unknown' || !row.key.startsWith('packages/codemap/data/plan/temporary-edges.json:')) }]));
-  const unknown = report.unknown.filter(row => row.file !== 'packages/codemap/data/plan/temporary-edges.json');
+      : name !== 'unknown' || !TEMPORARY_FILE.test(row.key)) }]));
+  const unknown = report.unknown.filter(row => !TEMPORARY_FILE.test(`${row.file}:`));
   for (const row of temporary.edges) metrics.shims.findings.push({ key: `temporary:${row.importer}->${row.target}`, count: 1,
     detail: `contract #${row.contractItem}; expires ${row.expires} UTC` });
   for (const reason of temporary.problems) {
-    unknown.push({ file: 'packages/codemap/data/plan/temporary-edges.json', reason });
-    metrics.unknown.findings.push({ key: `packages/codemap/data/plan/temporary-edges.json::${reason}`, count: 1, detail: reason });
+    const file = reason.match(TEMPORARY_FILE)[1];
+    unknown.push({ file, reason });
+    metrics.unknown.findings.push({ key: `${file}::${reason}`, count: 1, detail: reason });
   }
   for (const value of Object.values(metrics)) {
     value.findings.sort((a, b) => a.key.localeCompare(b.key));

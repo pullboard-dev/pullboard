@@ -1,0 +1,4 @@
+{
+  "moves.claim-block.descriptor": {"proves":{"specs":["C7"],"claim":"The claimBlock descriptor names its operation, reads its actor from args[0].agentId and routes at BLOCK_ENGINE."},"why":"A block claim replayed under an engine older than the block leaf would be misrouted.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/claimBlock.js","packages/moves/tests/logic/moves/claimBlock.test.js"]},
+  "moves.claim-block.next-steps": {"proves":{"specs":["C7"],"claim":"NO_BLOCK, BLOCK_CLAIMED and BLOCK_TIER each map to a next step naming pullboard block list or another seat."},"why":"A refused block claim must tell the seat what to do next.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/claimBlock.js","packages/moves/tests/logic/moves/claimBlock.test.js"]}
+}

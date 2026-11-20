@@ -26,7 +26,7 @@ import {
   prepareEngineMove,
 } from '../../../../../packages/state/index.js';
 import { FLOW_SIZE_ENGINE } from '../../../../../packages/state/light.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';

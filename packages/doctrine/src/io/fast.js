@@ -6,21 +6,19 @@
  * Counts only fall and can only rise in changed files, so those files at the merge base and at the
  * candidate decide it. One pass shares a single base checkout across every rule.
  */
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gitSpawnSync } from '../../../git/index.js';
-import { mkdtempSync } from 'node:fs';
+import { environmentAdapter } from '../../../env/index.js';
 import { tmpdir } from 'node:os';
+
+const fs = fileSystemAdapter();
 
 /** The process environment without git's repository variables, so a hook's GIT_DIR never redirects a child. */
 function cleanEnv() {
-  return Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+  return Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([name]) => !name.startsWith('GIT_')));
 }
 
 const SCRIPT = /^node\s+(packages\/gate\/src\/io\/[\w./-]+\.js)$/u;
@@ -44,7 +42,7 @@ export const FAST_CHECK_SCRIPTS = Object.freeze(['packages/gate/src/io/assumptio
 export function fastCheckScript(root, command) {
   const script = SCRIPT.exec(command.trim())?.[1];
   if (!script || !FAST_CHECK_SCRIPTS.includes(script)) return null;
-  try { return /@file-local\b/u.test(readFileSync(join(root, script), 'utf8')) ? script : null; } catch { return null; } // no script, no fast path
+  try { return /@file-local\b/u.test(fs.readFile(join(root, script))) ? script : null; } catch { return null; } // no script, no fast path
 }
 
 /** Split the output of one `git cat-file --batch` into blobs by name; missing names are left out. */
@@ -75,15 +73,15 @@ export function createFastPass(root) {
   /** The directory holding the given files as committed at a revision, filling in only the ones not yet written. */
   function baseTree(revision, files) {
     let entry = bases.get(revision);
-    if (!entry) { entry = { directory: mkdtempSync(join(process.env.PULLBOARD_SCRATCH || tmpdir(), 'pullboard-doctrine-files-')), have: new Set() }; bases.set(revision, entry); }
+    if (!entry) { entry = { directory: fs.mkdtemp(join(environmentAdapter().get('PULLBOARD_SCRATCH') || tmpdir(), 'pullboard-doctrine-files-')), have: new Set() }; bases.set(revision, entry); }
     const wanted = files.filter(file => !entry.have.has(file));
     if (wanted.length) {
       const shown = gitSpawnSync(['--no-replace-objects', 'cat-file', '--batch'], { cwd: root, env: cleanEnv(), maxBuffer: 1024 * 1024 * 1024,
         input: wanted.map(file => `${revision}:${file}\n`).join('') });
       if (shown.status !== 0) throw new Error('could not read the merge base');
       for (const [file, bytes] of parseBatch(shown.stdout, wanted)) {
-        mkdirSync(dirname(join(entry.directory, file)), { recursive: true });
-        writeFileSync(join(entry.directory, file), bytes);
+        fs.mkdir(dirname(join(entry.directory, file)), { recursive: true });
+        fs.writeFile(join(entry.directory, file), bytes);
       }
       for (const file of wanted) entry.have.add(file);
     }
@@ -108,10 +106,10 @@ export function createFastPass(root) {
     /** Answer one hold request in-process when its rule can be narrowed; null when it cannot. */
     async answer(request) {
       const script = request.scope ? fastCheckScript(root, request.command) : null;
-      if (!script || !existsSync(join(root, 'packages/gate/src/io/scan.js'))) return null;
+      if (!script || !fs.exists(join(root, 'packages/gate/src/io/scan.js'))) return null;
       return narrowed(script, request.candidate ? root : baseTree(request.commit, request.scope), request.scope);
     },
     /** Remove the shared base checkouts. */
-    close() { for (const { directory } of bases.values()) rmSync(directory, { recursive: true, force: true }); },
+    close() { for (const { directory } of bases.values()) fs.rm(directory, { recursive: true, force: true }); },
   };
 }

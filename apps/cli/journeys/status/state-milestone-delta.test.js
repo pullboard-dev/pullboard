@@ -9,7 +9,7 @@ import { getItem } from '../../../../packages/store/index.js';
 import { merged } from '../../../../packages/store/index.js';
 import { shout } from '../../../../packages/store/index.js';
 import { verify } from '../../../../packages/store/index.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';

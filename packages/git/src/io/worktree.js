@@ -1,13 +1,11 @@
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   cleanGitEnvironment,
   git,
   tryGit,
 } from "./main.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 
 /** The npm lockfiles `npm ci` installs from, in the order npm itself prefers them. */
 const NPM_LOCKFILES = ['npm-shrinkwrap.json', 'package-lock.json'];
@@ -22,9 +20,9 @@ const NPM_LOCKFILES = ['npm-shrinkwrap.json', 'package-lock.json'];
  */
 function declaredDependencies(root) {
   const file = join(root, 'package.json');
-  if (!existsSync(file)) return 0;
+  if (!disk.exists(file)) return 0;
   let manifest;
-  try { manifest = JSON.parse(readFileSync(file, 'utf8')); } catch { return 0; }
+  try { manifest = JSON.parse(disk.readFile(file, 'utf8')); } catch { return 0; }
   if (!manifest || typeof manifest !== 'object') return 0;
   const count = (field) => (field && typeof field === 'object' && !Array.isArray(field) ? Object.keys(field).length : 0);
   return count(manifest.dependencies) + count(manifest.devDependencies);

@@ -1,0 +1,7 @@
+{
+  "name": "mark",
+  "help": "  pullboard mark <id> <stage> --start|--end|--point [--reason CODE] [--ref x] [--at <ISO time>]   record one stage mark for an actor the board cannot see; stage and reason come from the closed lists, --at is within 24 h of now\n",
+  "required": {
+    "mark": "object"
+  }
+}

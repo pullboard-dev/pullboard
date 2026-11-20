@@ -10,9 +10,9 @@ import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { commonJsIn } from '../../index.js';
-import { importsIn } from '../../index.js';
-import { withImportParseCache } from '../../index.js';
+import { commonJsIn } from '../../heavy.js';
+import { importsIn } from '../../heavy.js';
+import { withImportParseCache } from '../../heavy.js';
 
 /** Count real parser subprocesses without substituting any successful compiler outcome. */
 function compilerCalls(t) {
@@ -41,7 +41,7 @@ function isolateMachineHome(t) {
 
 const SOURCE = "import value from './leaf.js'; export default value;";
 
-test('one census reuses exact real compilation bytes but exposes independent results [C7]', t => {
+test('gate.io-imports.one-census-reuses-exact-real-compilation: one census reuses exact real compilation bytes but exposes independent results [C7]', t => {
   isolateMachineHome(t);
   const calls = compilerCalls(t);
   withImportParseCache(() => {
@@ -57,7 +57,7 @@ test('one census reuses exact real compilation bytes but exposes independent res
   assert.equal(calls(), 2, 'machine-wide cache reuse survives the census boundary');
 });
 
-test('cached and uncached real parser results agree for computed, quoted, invalid and CommonJS source [C7]', () => {
+test('gate.io-imports.cached-and-uncached-real-parser-results: cached and uncached real parser results agree for computed, quoted, invalid and CommonJS source [C7]', () => {
   const cases = [SOURCE, "import(process.env.TARGET);", "const text = 'import(untrusted)';",
     "const require = value => value; require('node:fs');", 'export const broken = ;'];
   for (const source of cases) {
@@ -70,7 +70,7 @@ test('cached and uncached real parser results agree for computed, quoted, invali
   assert.deepEqual(withImportParseCache(() => importsIn(["import(process.env.TARGET);"])), [['(computed)']]);
 });
 
-test('foreign NODE_OPTIONS disable compile reuse even when the option is accepted by Node [C7]', t => {
+test('gate.io-imports.foreign-node-options-disable-compile-reuse: foreign NODE_OPTIONS disable compile reuse even when the option is accepted by Node [C7]', t => {
   const calls = compilerCalls(t);
   const before = process.env.NODE_OPTIONS;
   try {
@@ -86,7 +86,7 @@ test('foreign NODE_OPTIONS disable compile reuse even when the option is accepte
   }
 });
 
-test('a subprocess error is not a cached compiler observation [C7]', t => {
+test('gate.io-imports.a-subprocess-error-is-not-a: a subprocess error is not a cached compiler observation [C7]', t => {
   isolateMachineHome(t);
   const original = childProcess.spawnSync;
   let calls = 0;
@@ -102,7 +102,7 @@ test('a subprocess error is not a cached compiler observation [C7]', t => {
 });
 
 
-test('the real browser-slot preload retains census reuse while opaque options still invalidate it [C7,O5]', t => {
+test('gate.io-imports.the-real-browser-slot-preload-retains: the real browser-slot preload retains census reuse while opaque options still invalidate it [C7,O5]', t => {
   isolateMachineHome(t);
   const calls = compilerCalls(t);
   const before = process.env.NODE_OPTIONS;

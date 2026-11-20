@@ -10,7 +10,7 @@ import { pullQueue } from '../../tests/fixtures/pull.js';
 /** Claim item 1, commit one file in its folder, then move main on, with submit.composeAsObject set as `on` says. */
 async function readySubmit(t, { on }) {
   const box = await pullProject(t, 1);
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'pull' }, ...(on ? { submit: { composeAsObject: true } } : {}) });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'pull' }, submit: { composeOnRunner: false, ...(on ? { composeAsObject: true } : {}) } });
   const [id] = box.ids;
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);

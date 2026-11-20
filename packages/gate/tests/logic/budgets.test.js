@@ -12,6 +12,9 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../fixtures/child.js';
+import { CLOSURE_CEILINGS } from '../../src/logic/budgets.js';
+import { closureCeilingRaises } from '../../src/logic/budgets.js';
+import { STATIC_CHECKS } from '../../heavy.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const BIN = join(ROOT, 'packages/gate/src/io/check/budgets.js');
@@ -35,7 +38,7 @@ function report() {
   };
 }
 
-test('perf budgets warn by name and fail on a missing action [N40,C7]', async t => {
+test('gate.logic-budgets.perf-budgets-warn-by-name-and: perf budgets warn by name and fail on a missing action [N40,C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-perf-budgets-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   let sequence = 0;
@@ -107,14 +110,14 @@ test('perf budgets warn by name and fail on a missing action [N40,C7]', async t 
   assert.equal(run(zero).child.status, 0, 'a measured zero is distinct from missing evidence');
 
   // The configuration reader also fails closed if its declared budget registry is incomplete.
-  const { evaluatePerfBudgets, PERF_BUDGETS } = await import('../../index.js');
+  const { evaluatePerfBudgets, PERF_BUDGETS } = await import('../../heavy.js');
   const incomplete = { ...PERF_BUDGETS }; delete incomplete.search;
   assert.match(evaluatePerfBudgets(report(), incomplete).errors.join('\n'), /search.*has no budget entry/u);
   const extra = { ...PERF_BUDGETS, absentMeasurement: { medianMs: 100, worstMs: 250 } };
   assert.match(evaluatePerfBudgets(report(), extra).errors.join('\n'), /absentMeasurement.*has no measured action/u);
 });
 
-test('main CI saves the eight-project performance report outside the gate [N40,C7]', () => {
+test('gate.logic-budgets.main-ci-saves-the-eight-project: main CI saves the eight-project performance report outside the gate [N40,C7]', () => {
   const workflow = readFileSync(join(ROOT, '.github/workflows/gate.yml'), 'utf8');
   const perf = workflow.match(/\n  perf:\n([\s\S]*)$/u)?.[1];
   assert.ok(perf, 'performance is its own job beside the gate’s matrix jobs');
@@ -125,4 +128,30 @@ test('main CI saves the eight-project performance report outside the gate [N40,C
   assert.match(perf, /actions\/upload-artifact@v4\n\s+if: always\(\)/u);
   assert.match(perf, /path: artifacts\/performance\//u);
   assert.ok(!/npm (?:test|run gate)|node (?:packages\/gate|apps\/cli)\/src\/io\/run\/tests\.js/u.test(perf), 'the large observation runs separately from the gate’s tests');
+});
+
+const MAIN = '{\n  "whoami": 227,\n  "status": 1331,\n  "show 1": 530\n}\n';
+
+test('gate.logic-budgets.closure-ceiling-raise-refused: clause 1: a raised or dropped row is refused naming the file, the row and both numbers [C7]', () => {
+  const raised = closureCeilingRaises(MAIN, '{\n  "whoami": 227,\n  "status": 1340,\n  "show 1": 530\n}\n');
+  assert.deepEqual(raised.map(row => [row.path, row.line]), [[CLOSURE_CEILINGS, 3]]);
+  assert.match(raised[0].text, /closure ceiling "status" rises from 1331 to 1340: an item never raises a closure ceiling; raising one is a coordinator item/u);
+  const dropped = closureCeilingRaises(MAIN, '{\n  "whoami": 227,\n  "status": 1331\n}\n');
+  assert.match(dropped[0].text, /closure ceiling "show 1" is dropped \(main holds 530\)/u);
+  assert.equal(closureCeilingRaises(MAIN, '{"whoami": "227", "status": 1331, "show 1": 530}').length, 1);
+});
+
+test('gate.logic-budgets.closure-ceiling-lower-or-new-passes: clause 2: a lowered row, an unchanged file and a new row pass [C7]', () => {
+  assert.deepEqual(closureCeilingRaises(MAIN, MAIN), []);
+  assert.deepEqual(closureCeilingRaises(MAIN, '{"whoami": 200, "status": 1331, "show 1": 529, "list": 265}'), []);
+});
+
+test('gate.logic-budgets.closure-ceiling-static-check-wired: clause 3: the static registry runs the closure-ceiling check on a change to the ceilings file and skips other changes [C7]', () => {
+  const check = STATIC_CHECKS.find(entry => entry.name === 'closure-ceiling');
+  assert.ok(check, 'STATIC_CHECKS has a closure-ceiling entry');
+  const raisedText = MAIN.replace('1331', '1400');
+  const context = files => ({ files, text: () => raisedText, previous: () => MAIN });
+  assert.deepEqual(check.run(context([CLOSURE_CEILINGS])), [`${CLOSURE_CEILINGS}:3: closure ceiling "status" rises from 1331 to 1400: an item never raises a closure ceiling; raising one is a coordinator item with its reason and the measured cold-start time before and after`]);
+  assert.deepEqual(check.run(context(['packages/gate/index.js'])), []);
+  assert.deepEqual(check.run({ files: [CLOSURE_CEILINGS], text: () => raisedText, previous: () => null }), []);
 });

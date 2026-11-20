@@ -29,6 +29,7 @@ const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.js
 
 const DAEMON = [
   "import { spawn } from 'node:child_process';",
+  '/** Start the fixture daemon. */',
   'export async function start(pause) {',
   "  const child = spawn('sh', ['-c', 'sleep 9'], { detached: true, stdio: 'ignore' });",
   '  child.unref();',
@@ -90,7 +91,7 @@ test('lib.durable-daemons.a-detached-child-an-unref-and: clause 1: a detached ch
   assert.deepEqual(kinds("spawn('sh', [], { detached: false });\nfor (;;) { if (step()) break; }\n", 'src/x.js'), [], 'an attached child and a loop with no await are not daemons');
   const refused = loadBearingFailures([{ file: 'packages/items/src/io/daemon.js', source: DAEMON }], {});
   assert.equal(refused.length, 4);
-  assert.match(refused[0], /^packages\/items\/src\/io\/daemon\.js:3: load-bearing detached: .* make the work a job the drive cell runs/u);
+  assert.match(refused[0], /^packages\/items\/src\/io\/daemon\.js:4: load-bearing detached: .* make the work a job the drive cell runs/u);
 });
 
 test('lib.durable-daemons.a-state-file-under-git-pullboard: clause 1: a state file under .git/pullboard or the OS temp folder outside the four cells is refused [C7]', () => {
@@ -108,7 +109,7 @@ test('lib.durable-daemons.existing-sites-sit-in-a-ceiling: clause 1: existing si
   assert.notEqual(grown.status, 0);
   assert.match(grown.out, /packages\/items\/src\/io\/daemon\.js:\d+: load-bearing unref/u);
   const fresh = stageAndCheck(box, { [file]: DAEMON, 'src/new-daemon.js': DAEMON });
-  assert.match(fresh.out, /src\/new-daemon\.js:3: load-bearing detached/u, 'a file the ceilings do not list allows none');
+  assert.match(fresh.out, /src\/new-daemon\.js:4: load-bearing detached/u, 'a file the ceilings do not list allows none');
   box.git(box.repo, 'rm', '-q', '--cached', 'src/new-daemon.js');
   const raised = stageAndCheck(box, { [file]: DAEMON, [LOAD_BEARING_CEILINGS]: JSON.stringify({ [file]: { detached: 2, unref: 1, 'daemon-loop': 2 } }) });
   assert.notEqual(raised.status, 0);

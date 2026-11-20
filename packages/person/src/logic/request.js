@@ -42,6 +42,8 @@ const MOVES = {
   answer: { item: true, positions: ['text'], flags: ['as', 'implies', 'supersedes', 'origin', 'rationale'] },
   pass: { item: true, positions: ['note'] },
   next: { flags: ['as'], booleans: ['verify', 'build'] },
+  // A seat joined by URL has no process of its own to beat, so it sends this move to stay present [P7].
+  heartbeat: {},
 };
 
 /** Reject unsupported fields, then pass values as distinct argv entries, never a shell command. */

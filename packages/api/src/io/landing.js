@@ -1,7 +1,6 @@
 /** The board side of a runner landing job: one queue row naming the accepted items and the trunk sha expected [P7]. */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -16,6 +15,8 @@ import { runsStoreOn } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { holdJob } from '../../../jobs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
@@ -64,6 +65,8 @@ function landingHops(hops, landed) {
   return hops.map(({ item, epoch }) => ({ item, epoch }));
 }
 
+const PACES = ['sprint', 'steady', 'strict'];
+
 /** Refuse an accepted-items list a runner could not land as written; return it in landing order. */
 function landingItems(items) {
   if (!Array.isArray(items) || items.length === 0) throw new Refused('LANDING_ITEMS', 'a landing job names at least one accepted item as { id, commit, ref? }');
@@ -74,7 +77,8 @@ function landingItems(items) {
     if (entry.header !== undefined && (typeof entry.header !== 'string' || !MESSAGE_HEADER.test(entry.header) || typeof entry.trailers !== 'string' || !MESSAGE_TRAILERS.test(entry.trailers))) {
       throw new Refused('LANDING_ITEMS', 'a landed item\'s message is { header, trailers }: one header line and its Pullboard- trailer lines, as the landing message builder writes them');
     }
-    return { id: entry.id, commit: entry.commit, ...(entry.ref ? { ref: entry.ref } : {}), ...(entry.header !== undefined ? { header: entry.header, trailers: entry.trailers } : {}) };
+    if (entry.pace !== undefined && !PACES.includes(entry.pace)) throw new Refused('LANDING_ITEMS', 'a landed item\'s pace is sprint, steady or strict, and steady when it names none');
+    return { id: entry.id, commit: entry.commit, pace: entry.pace ?? 'steady', ...(entry.ref ? { ref: entry.ref } : {}), ...(entry.header !== undefined ? { header: entry.header, trailers: entry.trailers } : {}) };
   });
 }
 
@@ -136,6 +140,8 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : []), ...(fenced.length ? [fenced] : [])])).digest('hex').slice(0, 16);
   // The board's static guard runs on the merged tree, from accepted main's config, never the item's own [C7,#7492].
   const staticChecks = !forced && typeof config?.staticChecks === 'string' && config.staticChecks.trim() && !/\0/u.test(config.staticChecks) ? config.staticChecks.trim() : null;
+  // The repository's install command (check.install) rides on the job, so its runner prepares the landing checkout before the first item check [C7,#12231].
+  const install = typeof config?.check?.install === 'string' && config.check.install.trim() && !/\0/u.test(config.check.install) ? config.check.install.trim() : null;
   // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].
   const batchOnly = config?.landing?.perItem === false || config?.landing?.parallel === true;
   // The landing's checks may run this long (the push shard limit setting) before the runner stops them and posts LAND_PROOF_TIMEOUT; only a non-default limit rides on the job [C7,#7820].
@@ -144,7 +150,7 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
   const shardOn = config?.landing?.shardProof === true && !forced;
   if (shardOn && (!Array.isArray(shardGate?.run) || !shardGate.run.length || typeof shardGate.entry !== 'string')) throw new Refused('LANDING_SHARD_GATE', 'landing.shardProof is on, so the offer names the gate a proof shard runs: { run, entry }');
   const shardProof = shardOn ? { run: shardGate.run, entry: shardGate.entry } : null;
-  const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(contracts && Array.isArray(mainReds) && mainReds.length ? { mainReds } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
+  const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(contracts && Array.isArray(mainReds) && mainReds.length ? { mainReds } : {}), ...(staticChecks ? { staticChecks } : {}), ...(install ? { install } : {}), ...(waivers.length ? { waivers } : {}),
     ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}),
     // landing.reofferTrunkBusy rides on the job only when on, so its runner may carry a green static check to a new tip [C7,#9103].
     ...(squash === true && !forced ? { squash: true } : {}),
@@ -273,9 +279,9 @@ export function keepLandingLog(board, job, receipt) {
   const rows = (receipt.returned ?? []).filter(row => typeof row?.detail === 'string');
   if (!folder || (!rows.length && !receipt.detail)) return null;
   try {
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
     const body = [`land job ${job}: ${receipt.outcome ?? 'red'}`, ...rows.map(row => `#${row.id} ${row.reason}:\n${row.detail}`), ...(rows.length ? [] : [String(receipt.detail)])].join('\n\n');
-    writeFileSync(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
+    fs.writeFile(join(folder, 'runner.log'), `${body}\n`, { mode: 0o600 });
     return join(folder, 'runner.log');
   } catch { return null; }
 }

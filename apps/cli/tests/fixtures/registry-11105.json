@@ -1,0 +1,14 @@
+{
+  "cli.io-landing-pull.git-outside-offer-lock": {
+    "proves": { "specs": ["C7"], "claim": "offerPulledLanding with parallelGates on starts no git child process while its board write lock is held" },
+    "why": "Without it every offer held the board write lock for 30 s or more while git ran under it, stalling every other board writer.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/landing/pull.js"]
+  },
+  "cli.io-landing-pull.offer-unchanged-outside-lock": {
+    "proves": { "specs": ["C7"], "claim": "the offered job carries the same items, files, tests and flakes as when the reads ran inside the lock, and an item a concurrent offer took is still left out" },
+    "why": "Without it moving the git reads out of the lock could change which items a landing offers or what each job carries.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/landing/pull.js"]
+  }
+}

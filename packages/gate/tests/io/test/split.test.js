@@ -33,7 +33,6 @@ function tree() {
   write('packages/gate/data/tests/tiers.json', json({ version: 1, files: [{ file: 'apps/a.test.js', tier: 'T1' }, { file: OLD, tier: 'T3' }, { file: 'apps/z.test.js', tier: 'T1' }] }));
   write('apps/view/src/logic/roles.js', `export const VIEW_TEST_ROLES = Object.freeze({\n  '${OLD}': { kind: 'journey', reason: 'Real Chrome {layout}.' },\n  'apps/cli/journeys/x.test.js': { kind: 'logic', reason: 'x' }\n});\n`);
   write('pullboard.json', json({ lanes: { view: { owns: ['apps/view/', OLD] }, core: { owns: ['apps/'] } } }));
-  write('packages/codemap/data/plan/path-map/demo.json', json({ 'test/old.test.js': OLD }));
   const shards = { fileSize: { [OLD]: 207, 'apps/big.js': 40 }, boundaries: { [`${OLD}->apps/x.js`]: 1, [`${OLD}->src/gone.js`]: 1 }, strays: { [OLD]: 1 } };
   const descriptor = { version: 2, metrics: {} };
   for (const metric of CELL_METRICS) {
@@ -82,9 +81,9 @@ test('gate.io-test-split.a-split-moves-every-per-file: a split moves every per-f
     assert.deepEqual(data('pullboard.json').lanes.view.owns, ['apps/view/', OLD, NEW, HELPER], 'the owning lane keeps every piece');
     assert.deepEqual(data('pullboard.json').lanes.core.owns, ['apps/'], 'a lane that never named the file is untouched');
     const baseline = readCellLintBaseline(root);
-    assert.deepEqual(baseline.metrics.fileSize.allowances, { [NEW]: 120, 'apps/big.js': 40 }, 'file size is measured per file; the cell delta for the old file is dropped');
-    assert.deepEqual(baseline.metrics.boundaries.allowances, { [`${OLD}->apps/x.js`]: 1, [`${NEW}->apps/x.js`]: 1 }, 'edges are measured per file and stale ones go');
-    assert.deepEqual(baseline.metrics.strays.allowances, {}, 'a stray the lint no longer finds is removed');
+    assert.deepEqual({ ...baseline.metrics.fileSize.allowances }, { [NEW]: 120, 'apps/big.js': 40 }, 'file size is measured per file; the cell delta for the old file is dropped');
+    assert.deepEqual({ ...baseline.metrics.boundaries.allowances }, { [`${OLD}->apps/x.js`]: 1, [`${NEW}->apps/x.js`]: 1 }, 'edges are measured per file and stale ones go');
+    assert.deepEqual({ ...baseline.metrics.strays.allowances }, {}, 'a stray the lint no longer finds is removed');
     assert.equal(baseline.metrics.fileSize.count, 160, 'the index count is the sum of its allowances');
     assert.ok(written.includes(`${LINTS}/index.json`) && written.includes(`${LINTS}/cells/demo.json`), 'the index and cell deltas are rebound');
     assert.ok(rows.every(row => !row.rose), 'no budget rose');
@@ -104,17 +103,6 @@ test('gate.io-test-split.a-split-that-raises-any-budget: a split that raises any
     await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: async () => ({ ...await lints(), effective: effectiveBefore() }), tiers }),
       error => error.code === 'SPLIT_RATCHET' && /waits 1 -> 2 \(sleep\)/u.test(error.message) && Boolean(error.next));
     assert.deepEqual(kept.map(file => read(file).toString('utf8')), before, 'the ceilings and the lint baseline are unchanged');
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('gate.io-test-split.a-split-that-deletes-a-path: a split that deletes a path-map target refuses with the next step [C7]', async () => {
-  const fixture = tree(), { root, write } = fixture;
-  try {
-    rmSync(`${root}/${OLD}`);
-    write(NEW, [LAUNCH, ''].join('\n'));
-    await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: null, tiers }), error => error.code === 'SPLIT_PATH_MAP' && error.next.includes(`keep ${OLD}`));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
