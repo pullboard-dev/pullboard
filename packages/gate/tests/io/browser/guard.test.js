@@ -1,8 +1,8 @@
 /** @pullboard-test-input test-tree */
 /** @pullboard-test-input source-tree */
 /** Scan actual repository debt without private fixtures, native board access or browser launches [C7,CD64]. */
-import { importsIn } from '../../../index.js';
-import { commonJsIn } from '../../../index.js';
+import { importsIn } from '../../../heavy.js';
+import { commonJsIn } from '../../../heavy.js';
 import assert from 'node:assert/strict';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

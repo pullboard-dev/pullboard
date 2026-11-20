@@ -110,7 +110,7 @@ function scenario(seed) {
         message: g.pick(['tests failed', '', '  ', 'killed by SIGKILL', 'got SIG9', LONG]), next: 'fix it', ...g.pick([{}, { signal: '' }, { signal: 'SIGTERM' }, { signal: 9 }]) };
       m.result = flip(g, 6) ? g.pick([undefined, { code: 2 }, { code: 2, error }, { code: 1 }, { code: 1, error: { ...error, code: '' } }, { code: 1, error: { ...error, code: 5 } },
         { code: 1, error: { ...error, message: undefined } }, { code: 1, error: { ...error, next: 3 } }]) : { code: 1, error, lockWaits: waitsOf(g) };
-      m = { ...m, returnToBoard: g.pick([undefined, true, 'yes']), windowSpent: g.pick([undefined, undefined, true, 'yes']) };
+      m = { ...m, returnToBoard: g.pick([undefined, true, 'yes']), boardCodes: g.pick([undefined, true, false, 'yes']), windowSpent: g.pick([undefined, undefined, true, 'yes']) };
     }
     if (flip(g, r)) s.handoff = null;
   }
@@ -246,7 +246,7 @@ function outcome({ table, s, m, engine: { limit, infra } }) {
   }
   const back = s.item.status !== 'submitted' && serves(s, h), by = h.agentId;
   if (back && m.returnToBoard === true) {
-    return { via: ['red-to-board'], patch: { status: 'open', owner: null, leaseUntil: null }, record: red('red'), events: [{ kind: 'release', by, detail: { reasonCode: 'OTHER',
+    return { via: ['red-to-board'], patch: { status: 'open', owner: null, leaseUntil: null }, record: red('red'), events: [{ kind: 'release', by, detail: { reasonCode: m.boardCodes === true ? 'GATE_REFUSED' : 'OTHER',
       reason: `the queued gate was refused (${e.code}); returned to the board for any free seat` } }, { kind: 'submit_handoff_returned', by, detail: { commit: h.commit, returnedToBoard: true } },
     shout('coordinator', by, SAYS[3]), hev(h, 'red')] };
   }
@@ -367,5 +367,15 @@ test('moves.submit.unrelated-events: metamorphic: an unrelated board event, reje
     const s = { ...c.s, history: [...c.s.history, { id: 100, kind: 'note', detail: {} }], rejects: [...c.s.rejects, { commit: 'f'.repeat(40), digest: c.s.item.frozenDigest }],
       receipts: [...c.s.receipts, { kind: 'verify', seat: 'other' }], children: [...c.s.children, { status: 'accepted' }] };
     assert.deepEqual(run(c, s), c.result, `seed ${c.seed} ${c.table}`);
+  }
+});
+
+test('moves.table.red-to-board-code: clause 1: a red-to-board release carries GATE_REFUSED when the move carries boardCodes and OTHER otherwise, with the same prose reason [C7,#12222]', () => {
+  const sample = results.filter(c => !c.result.refused && c.result.via?.includes('red-to-board'));
+  assert.ok(sample.some(c => c.m.boardCodes === true) && sample.some(c => c.m.boardCodes !== true), 'the generated cases cover both settings');
+  for (const c of sample) {
+    const release = c.result.events.find(event => event.kind === 'release');
+    assert.equal(release.detail.reasonCode, c.m.boardCodes === true ? 'GATE_REFUSED' : 'OTHER');
+    assert.match(release.detail.reason, /^the queued gate was refused \(.*\); returned to the board for any free seat$/u);
   }
 });

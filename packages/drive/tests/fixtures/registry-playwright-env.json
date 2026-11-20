@@ -1,0 +1,30 @@
+{
+  "drive.machine-home.playwright-path-passed": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: a host PLAYWRIGHT_BROWSERS_PATH reaches the job environment unchanged."
+    },
+    "why": "A pulled job's HOME is empty, so without this browser tests could not find the host's installed Playwright browsers (GitHub #33).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull/machine-home.test.js"
+    ]
+  },
+  "drive.machine-home.playwright-default-cache": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: with no host value the job gets the host default browser cache folder when it exists."
+    },
+    "why": "A pulled job's HOME is empty, so without this browser tests could not find the host's installed Playwright browsers (GitHub #33).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull/machine-home.test.js"
+    ]
+  }
+}

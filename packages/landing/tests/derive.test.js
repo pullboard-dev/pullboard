@@ -16,8 +16,10 @@ import {
   privateFixtureFiles,
   runFixtureGit,
 } from '../../gate/tests/fixtures/child.js';
+import { deriveJobPatch } from './fixtures/derive-job.js';
 import { commitDerived } from '../src/io/step/derive.js';
 import { composeOnRunner } from '../src/io/step/compose.js';
+import { stageLandingDerived } from '../src/io/derive.js';
 
 const DERIVE = fileURLToPath(new URL('../src/io/derive.js', import.meta.url));
 const COMPOSE = fileURLToPath(new URL('../src/io/compose.js', import.meta.url));
@@ -166,4 +168,46 @@ test('landing.derive.composeonrunner-refuses-a-returned-commit-that: composeOnRu
   const state = { batch: { root, base }, config: {}, say() {}, guardServices: { runStaticChecks: async () => ({ output }) } };
   assert.equal(await composeOnRunner(state, plan), null);
   assert.equal(sh('rev-parse', 'HEAD'), base);
+});
+
+const CEILINGS = 'apps/cli/journeys/imports/closure-budget.json';
+const TIGHTEN = 'apps/cli/journeys/imports/tighten.js';
+/** A stand-in tighten script: lowers the `show` row to 3 and exits with `status`. */
+const standIn = status => `import { readFileSync, writeFileSync } from 'node:fs';\nconst rows = JSON.parse(readFileSync('${CEILINGS}', 'utf8'));\nrows.show = 3;\nwriteFileSync('${CEILINGS}', JSON.stringify(rows, null, 2) + '\\n');\nprocess.exit(${status});\n`;
+
+/** The repo with a committed ceilings file (and, when `status` is given, the stand-in script) on top. */
+function tightenRepo(t, status) {
+  const { root, sh } = repo(t);
+  mkdirSync(join(root, dirname(CEILINGS)), { recursive: true });
+  writeFileSync(join(root, CEILINGS), '{\n  "show": 10,\n  "status": 20\n}\n');
+  if (status !== undefined) writeFileSync(join(root, TIGHTEN), standIn(status));
+  sh('add', '-A');
+  sh('commit', '-q', '-m', 'ceilings');
+  return { root, sh };
+}
+
+test('landing.derive.closure-tighten-staged: stageLandingDerived stages the lowered closure ceilings file when the tighten script lowers a row [C7,#12053]', async t => {
+  const { root, sh } = tightenRepo(t, 0);
+  const { engines } = await stageLandingDerived(root);
+  assert.ok(engines.files.includes(CEILINGS), engines.files.join(','));
+  assert.deepEqual(sh('diff', '--cached', '--name-only').split('\n').filter(Boolean).sort(), [CEILINGS, LEAF].sort());
+  assert.deepEqual(JSON.parse(readFileSync(join(root, CEILINGS), 'utf8')), { show: 3, status: 20 });
+});
+
+test('landing.derive.closure-tighten-absent-or-failing: a tree without the tighten script stages no ceilings file, and a failing script stages nothing and does not fail the derive [C7,#12053]', async t => {
+  for (const status of [undefined, 1]) {
+    const { root, sh } = tightenRepo(t, status);
+    const { engines } = await stageLandingDerived(root);
+    assert.ok(!engines.files.includes(CEILINGS), engines.files.join(','));
+    assert.ok(!sh('diff', '--cached', '--name-only').includes(CEILINGS));
+    assert.deepEqual(JSON.parse(readFileSync(join(root, CEILINGS), 'utf8')), { show: 10, status: 20 }, 'a failed run leaves the ceilings as committed');
+  }
+});
+
+test('landing.derive.closure-tighten-derive-job-patch: the runner derive job prints a patch holding the lowered ceilings file [C7,#12053]', t => {
+  const { root, sh } = tightenRepo(t, 0);
+  const { status, stderr, patch } = deriveJobPatch(root, sh('rev-parse', 'HEAD^{tree}'));
+  assert.equal(status, 0, stderr);
+  assert.match(patch, /closure-budget\.json/u);
+  assert.match(patch, /\+\s+"show": 3/u);
 });

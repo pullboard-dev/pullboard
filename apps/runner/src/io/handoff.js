@@ -1,12 +1,11 @@
 /** The runner job runs the real hand-off stages from its ticket, with every stage line in the runner's own log [C7]. */
-import { appendFileSync } from 'node:fs';
 import { environmentAdapter } from '../../../../packages/env/index.js';
-import { readFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const disk = fileSystemAdapter();
 import { spawn } from 'node:child_process';
 import { runnerGit } from './private/privacy.js';
 import { performance } from 'node:perf_hooks';
@@ -189,15 +188,15 @@ const STAGE_TIMEOUT_MS = 60 * 60 * 1000;
  */
 function shell(root, command, log, scratch, timeoutMs = STAGE_TIMEOUT_MS) {
   return new Promise(resolve => {
-    const directory = mkdtempSync(join(scratch, 'stage-'));
+    const directory = disk.mkdtemp(join(scratch, 'stage-'));
     const outputFile = join(directory, 'output.log');
     const child = spawn(process.execPath, [TIMED_SHELL], { cwd: root, stdio: ['pipe', 'pipe', 'pipe'] });
     let result = '';
     /** End the stage: the worker's own output file is the stage output, and its directory is removed either way. */
     const finish = (status, extra = '') => {
       let output = '';
-      try { output = readFileSync(outputFile, 'utf8'); } catch { /* a worker that never started leaves no output */ }
-      rmSync(directory, { recursive: true, force: true });
+      try { output = disk.readFile(outputFile, 'utf8'); } catch { /* a worker that never started leaves no output */ }
+      disk.rm(directory, { recursive: true, force: true });
       for (const line of output.split(/\r?\n/u).filter(Boolean)) log(`  ${line}`);
       resolve({ status, output: output + extra });
     };
@@ -265,7 +264,7 @@ function defaultStage(name) {
  * @returns {Promise<{ job: string, commit: string, green: boolean, stages: { name: string, ms: number, state: string }[], failed?: { stage: string, code: string, message: string, failures: object[] } }>}
  */
 export async function runHandoffStages(root, input, { logFile, services, stages = {}, now = () => performance.now() }) {
-  const log = line => appendFileSync(logFile, `${new Date().toISOString()} handoff ${input.job} ${line}\n`, { mode: 0o600 });
+  const log = line => disk.appendFile(logFile, `${new Date().toISOString()} handoff ${input.job} ${line}\n`, { mode: 0o600 });
   const done = [];
   for (const name of HANDOFF_STAGES) {
     const started = now();

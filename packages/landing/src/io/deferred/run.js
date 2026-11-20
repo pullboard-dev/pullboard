@@ -1,7 +1,7 @@
 import { getItem } from '../../../../store/index.js';
-import { affectedCommand } from '../../../../gate/index.js';
-import { readGateReceipt } from '../../../../gate/index.js';
-import { receiptStore } from '../../../../gate/index.js';
+import { affectedCommand } from '../../../../gate/heavy.js';
+import { readGateReceipt } from '../../../../gate/heavy.js';
+import { receiptStore } from '../../../../gate/heavy.js';
 import {
   dirname,
   join,
@@ -18,9 +18,9 @@ import {
   runProfiledShellAsync,
   withLandingGateSlot,
   refuseSandboxBlocked,
-} from '../../../../gate/index.js';
-import { testsNeedBrowser } from '../../../../gate/index.js';
-import { testsNeedGui } from '../../../../gate/index.js';
+} from '../../../../gate/heavy.js';
+import { testsNeedBrowser } from '../../../../gate/heavy.js';
+import { testsNeedGui } from '../../../../gate/heavy.js';
 import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/index.js';
 

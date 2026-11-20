@@ -10,7 +10,7 @@ import { environmentAdapter } from '../../../env/index.js';
 import { withEnvironment } from '../../../resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import {
   confirmRunnerProbe,
@@ -290,7 +290,7 @@ export function gateRunnerLoadPolicy(settings) {
  */
 function recordedCapacity(name) {
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return null;
+  if (!fileSystemAdapter().exists(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout = 2000'); // a WAL read waits only on recovery; never stall an admission for it [C7]
