@@ -23,7 +23,7 @@ import {
   project,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('the cockpit fixture inits its board without a model [N26]', () => {
+test('cli.journeys-shout-journeys-fixture-setup.the-cockpit-fixture-inits-its-board: the cockpit fixture inits its board without a model [N26]', () => {
   const box = machine();
   project(box, 'model-free-coordinator');
   const init = box.invocations.find((call) => call.args.length === 1 && call.args[0] === 'init');
@@ -35,7 +35,7 @@ test('the cockpit fixture inits its board without a model [N26]', () => {
   assert.equal(join.model, 'Test Model');
 });
 
-test('clause 1: the view reads its release notes once, not on every state [N26]', async () => {
+test('cli.journeys-shout-journeys-fixture-setup.the-view-reads-its-release-notes: clause 1: the view reads its release notes once, not on every state [N26]', async () => {
   const box = machine();
   const p = project(box, 'release-note-cache');
   await box.runIn(p.repo, 'add', 'web', 'A real board row', '--specs', 'G1');

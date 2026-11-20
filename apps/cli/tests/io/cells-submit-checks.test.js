@@ -4,10 +4,10 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
 import { cellsSnapshotProblems } from '../../src/io/cells-submit-checks.js';
 import { cellsSnapshotPair } from '../fixtures/cells/snapshot.js';
-import { commonJsIn } from '../../../../packages/gate/index.js';
-import { foreignNodeOptions } from '../../../../packages/gate/index.js';
-import { importsIn } from '../../../../packages/gate/index.js';
-import { withImportParseCache } from '../../../../packages/gate/index.js';
+import { commonJsIn } from '../../../../packages/gate/heavy.js';
+import { foreignNodeOptions } from '../../../../packages/gate/heavy.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
+import { withImportParseCache } from '../../../../packages/gate/heavy.js';
 
 const git = (root, ...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } }).trim();
 const files = root => git(root, 'ls-files').split('\n').sort();

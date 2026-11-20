@@ -39,7 +39,7 @@ import {
 async function retryCheckBaselines(root, ...args) {
   // No finished result waiting means nothing to deliver, so the gate stays unloaded.
   if (!baselineReceiptsPending(repoInfo(root).commonDir)) return;
-  return (await import('../../../../packages/gate/index.js')).retryCheckBaselines(root, ...args);
+  return (await import('../../../../packages/gate/heavy.js')).retryCheckBaselines(root, ...args);
 }
 
 /** Codes a checkout with no board refuses with, which the sync around a command keeps quiet. */
