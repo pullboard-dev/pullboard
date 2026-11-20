@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** The production test runner keeps a landing run going through process snapshot failures [C7,V4]. */
 import { copyRunnerPackage } from '../../../fixtures/package.js';
-import { awaitNestedPhase } from '../../../../../gate/index.js';
+import { awaitNestedPhase } from '../../../../../gate/heavy.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
