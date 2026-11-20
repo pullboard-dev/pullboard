@@ -44,7 +44,7 @@ export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
 export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
-export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
+export { testsNeedGui, projectNeedsGui, checkNeedsGui, timingTestFiles } from "./src/io/gui/admission.js";
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
