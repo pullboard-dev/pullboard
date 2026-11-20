@@ -70,7 +70,7 @@ export async function commitDerived(state, merged, hooks) {
     // The coordinator writes the badge documents itself when no runner answered.
     const written = state.landingPorts?.writeBadges(root, state.landingPorts.badgeCounts(state.board)) ?? [];
     if (written.length) git(root, ['add', '--', ...written]);
-    derived = stageLandingDerived(root).engines;
+    derived = (await stageLandingDerived(root)).engines;
     await stageTestRegistries(root, state.batch.base);
     state.say('the runner could not derive this batch; engine numbers and docs were built on the coordinator');
   }
