@@ -1,7 +1,7 @@
 /** The offer path of the runner-store split: a job queued through the board's runs port instead of written to the board [B2,P7]. */
-import { boardRunsHolder } from '../../../store/index.js';
-import { queueRun } from '../../../store/index.js';
-import { runsPort } from '../../../store/index.js';
+import { boardRunsHolder } from './store.js';
+import { queueRun } from './store.js';
+import { runsPort } from './store.js';
 import { jobView } from '../../../jobs/index.js';
 
 /**

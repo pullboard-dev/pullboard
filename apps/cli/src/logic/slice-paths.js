@@ -10,3 +10,15 @@ export function pathsOutsideSlice(changed, declared) {
 export function siblingOwning(path, siblings) {
   return siblings.find(sibling => pathsOutsideSlice([path], sibling.files).length === 0) ?? null;
 }
+
+/**
+ * The refusal code for a verdict on a slice or a parent while slices.composeLanding is on, or null when the verdict may go ahead [C7].
+ * Why: composed slices take one verdict, so a slice is never accepted alone and a parent is not accepted while a slice is still out; a REJECT on a slice stays ordinary and returns only that slice to open.
+ * sliceChildren lists the item's own slices as { id, status }; a slice counts as out until it is submitted or verified.
+ */
+export function sliceVerdictProblem({ decision, isSlice, sliceChildren, composeLanding }) {
+  if (composeLanding !== true || decision !== 'ACCEPT') return null;
+  if (isSlice) return 'SLICE_REVIEWED_WITH_PARENT';
+  const out = (sliceChildren ?? []).some(child => child.status !== 'submitted' && child.status !== 'verified');
+  return out ? 'SLICES_PENDING' : null;
+}
