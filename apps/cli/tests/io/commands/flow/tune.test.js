@@ -90,7 +90,9 @@ test('cli.flow-tune.apply-one-change: clause 1: pullboard flow tune --apply, run
   const events = lineEvents(box);
   assert.equal(events.length, before + 1, 'exactly one line_setting event');
   const record = tuneRecord(choice, { windowMinutes: 240, overTargetMinutes: 70, landed: 1 });
-  assert.deepEqual(events.at(-1), { key: choice.key, value: choice.to, reason: record.reason, window: Object.fromEntries(Object.entries(record.window).sort(([a], [b]) => a.localeCompare(b))) });
+  const { model, ...written } = events.at(-1);
+  assert.equal(typeof model, 'string', 'the event names the writing model');
+  assert.deepEqual(written, { key: choice.key, value: choice.to, reason: record.reason, window: Object.fromEntries(Object.entries(record.window).sort(([a], [b]) => a.localeCompare(b))) });
   const settings = JSON.parse((await box.runLocal(box.repo, 'settings', 'line', '--json')).out);
   assert.equal(settings.lineSettings.wipPerReviewer, 2.25, 'the board value moved to the chosen value, inside its range');
 });
@@ -116,8 +118,11 @@ test('cli.flow-tune.revert-request-and-off: clause 2: the next due cycle records
   assert.match(events.at(-1).reason, /wipPerReviewer 2\.25 to 2$/u);
   // A build constraint in both windows is a request to the person for a seat, never a setting.
   const request = e2e.project();
-  landed(request, 911, { build: 400, wait: 5, review: 5, merge: 5, mergedAgo: 370 });
-  landed(request, 912, { build: 400, wait: 5, review: 5, merge: 5, mergedAgo: 80 });
+  // Eight landings over the two windows make the cycle due without a breach.
+  for (let n = 0; n < 4; n += 1) {
+    landed(request, 911 + n, { build: 400, wait: 5, review: 5, merge: 5, mergedAgo: 370 - n });
+    landed(request, 921 + n, { build: 400, wait: 5, review: 5, merge: 5, mergedAgo: 80 - n });
+  }
   fixtureSettledMachine(request.env.PULLBOARD_MACHINE_HOME, { line: { tune: true } });
   const asked = await request.runLocal(request.repo, 'flow', 'tune', '--apply');
   assert.equal(asked.code, 0, asked.err || asked.out);
