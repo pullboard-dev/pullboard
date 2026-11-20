@@ -1,11 +1,12 @@
 /** @pullboard-test-input source-cell link config */
-/** With canary.directPush on, a canary alert calls the direct push sender; with it off the alert path is unchanged [C7]. */
+/** With canary.directPush on, a canary alert calls the direct push sender; with relay.push on it also posts a sealed wake-up to the relay; with either off the alert path is unchanged [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { canaryDirectPushEnabled } from '../../../../config/index.js';
+import { loadMachineSettings } from '../../../../config/index.js';
 import { observeRelayHealth } from '../../../index.js';
 import { pendingRelayCanaryNotices } from '../../../index.js';
 import { runRelayCanary } from '../../../index.js';
@@ -68,6 +69,39 @@ test('link.canary-push-wire.off-posts-nothing: clause 2: with canary.directPush 
     const recorded = [];
     await runRelayCanary({ enabled: true, root, agentId: 'canary-1', deadlineMs: 1000 }, { probe: async () => FAILED,
       notify: async notice => { recorded.push(notice.id); } });
+    assert.ok(recorded.length > 0, 'the native notice is still recorded exactly as before');
+    assert.deepEqual(posts, []);
+  });
+});
+
+/** The wake ports a canary host passes in: relay.push read from the machine settings, a seal that hides the text, and a post that records. */
+function wakePorts(posts) {
+  return { enabled: () => loadMachineSettings().relay?.push === true, seal: text => Buffer.from(text).toString('base64url'),
+    post: async wake => { posts.push(wake); } };
+}
+
+/** One canary run whose probe fails, with the wake ports and no direct push. */
+function runWake(root, relayWake, notify) {
+  return runRelayCanary({ enabled: true, root, agentId: 'canary-1', deadlineMs: 1000 }, { probe: async () => FAILED, now: () => Date.parse(FAILED.at), notify, relayWake });
+}
+
+test('link.canary-push-wire.relay-wake-sealed: clause 1: with relay.push on, a canary alert is sealed through the seal port and only its kind and sealed blob are posted to the relay push/wake [C7]', async t => {
+  await withAlert(t, { relay: { push: true } }, async root => {
+    const posts = [];
+    await assert.rejects(runWake(root, wakePorts(posts), async () => { throw new Error('relay unreachable'); }), /relay unreachable/u);
+    assert.equal(posts.length, 1);
+    assert.deepEqual(Object.keys(posts[0]).sort(), ['kind', 'sealed']);
+    assert.equal(posts[0].kind, 'alerts');
+    assert.match(Buffer.from(posts[0].sealed, 'base64url').toString(), /^Relay canary alert/u);
+    assert.equal(JSON.stringify(posts).includes('RELAY_READ'), false, 'no alert text leaves unsealed');
+  });
+});
+
+test('link.canary-push-wire.relay-wake-off: clause 2: with relay.push off the alert path is identical to today and nothing is posted [C7]', async t => {
+  await withAlert(t, {}, async root => {
+    const posts = [];
+    const recorded = [];
+    await runWake(root, wakePorts(posts), async notice => { recorded.push(notice.id); });
     assert.ok(recorded.length > 0, 'the native notice is still recorded exactly as before');
     assert.deepEqual(posts, []);
   });
