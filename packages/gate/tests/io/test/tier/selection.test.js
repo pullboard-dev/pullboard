@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell gate */
 /** @pullboard-test-loads packages/gate/src/io/test/tier/selection.js */
 /** @pullboard-test-loads packages/gate/src/io/test/tier/narrow.js */
 /** Tier selection keeps every test for a global change, runs a new tooling test at submit, ignores a project without a path map, and runs the canary at every gate [C7,#4015,#10874]. */
