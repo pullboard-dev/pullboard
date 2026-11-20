@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { receiptBody } from '../../../../index.js';
-import { receiptFields } from '../../../../index.js';
+import { receiptBody } from '../../../../heavy.js';
+import { receiptFields } from '../../../../heavy.js';
 
 /** Explicit synthetic parser input has no native receipt file and cannot authorize a gate event. */
 function input() {

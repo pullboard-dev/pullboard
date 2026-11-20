@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchFolder } from '../../../../../config/index.js';
-import { generateTestTiers } from '../../../../index.js';
-import { selectTestTiers } from '../../../../index.js';
+import { generateTestTiers } from '../../../../heavy.js';
+import { selectTestTiers } from '../../../../heavy.js';
 
 /** Run Git in a checkout, optionally with extra environment, and return trimmed stdout. */
 function git(root, args, env = {}, input) {
