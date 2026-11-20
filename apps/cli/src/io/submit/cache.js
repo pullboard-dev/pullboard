@@ -5,7 +5,7 @@ import { checkReceiptKey } from '../../../../../packages/git/index.js';
 import { readCheckReceipt } from '../../../../../packages/git/index.js';
 import { writeCheckReceipt } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
-import { foreignNodeOptions } from '../../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../../packages/gate/heavy.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
