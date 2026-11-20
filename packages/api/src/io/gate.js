@@ -9,6 +9,7 @@ import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
 import { missingReceiptPart } from './gate/where.js';
 import { recordGateSettled } from './gate/settled.js';
+import { settleWindow } from './gate/settled.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
@@ -907,8 +908,7 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
   else if (compared && !mainOnly) parts.push(...caseReworkLines(board, main, compared));
   const jobs = [...new Set([...(compared?.jobs ?? []), ...(atClaim?.jobs ?? []), ...(byFile?.jobs ?? [])])];
   if (jobs.length) parts.push(`main-test job ${jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
-  // A red main's receipts cannot judge yet (some case or file has none, and main passes none of them) is unknown, not red:
-  // nothing shows it is the item's, and the queued main-test job settles it (settleWaitingGates) [C7].
+  // A red main's receipts cannot judge yet (some case or file has none, and main passes none of them) is unknown, not red: nothing shows it is the item's, and the queued main-test job settles it (settleWaitingGates) [C7].
   const unknown = !trials.refused.length && !routed?.refused && !green && !mainOnly && !waived && !excused
     && (compared ? compared.cases.some(row => row.onMain === null) && compared.cases.every(row => row.onMain !== false)
       : Boolean(byFile?.files.some(row => row.result === null) && byFile.files.every(row => row.result !== 'green')));
@@ -1160,11 +1160,11 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
     if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
-    settleDoneShardGates(board, ports, { now: options.now });
+    settleWindow.run(board, options.now, () => settleDoneShardGates(board, ports, { now: options.now }));
   }
   // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
-  const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
+  const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => (settleWindow.reopen(board), queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports)) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
