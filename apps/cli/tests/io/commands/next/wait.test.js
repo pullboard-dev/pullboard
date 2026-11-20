@@ -59,6 +59,7 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  const began = Date.now();
   const waiting = measured(box, box.web, '--wait', '1');
   // The waiting seat has recorded its idle answer once it is resting on the board.
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -67,9 +68,10 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   assert.equal(added.code, 0, `${added.out}\n${added.err}`);
   const item = JSON.parse(added.out).item;
   const filedAt = Date.now();
+  t.diagnostic(`item ${item.item_id} status ${item.item_status} filed ${(filedAt - began) / 1000} s after the wait began`);
   const result = await waiting;
   const delay = (Date.now() - filedAt) / 1000;
-  assert.equal(result.code, 0, `${result.out}\n${result.err}`);
+  assert.equal(result.code, 0, `filed ${(filedAt - began) / 1000} s in, item ${JSON.stringify(item).slice(0, 400)}: ${result.out}\n${result.err}`);
   assert.match(result.out, new RegExp(`#${item.item_id}\\b`, 'u'), `the wait did not hand over the offered item: ${result.out}`);
   assert.ok(delay < OFFER_WAKE_SECONDS, `the wait returned ${delay} s after the item was filed`); // budget: declared by the bar of #11798 clause 2
 });
