@@ -108,6 +108,7 @@ import { passDecision } from "./board/decision/pass.js";
 import { answerDecision } from "./board/decision/answer.js";
 import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
+import { appendMark } from "./board/mark.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
 import { gateAtHead } from "./board/next.js";
@@ -505,6 +506,7 @@ export {
   answerDecision,
   closeFinishedAsks,
   appendFact,
+  appendMark,
   buildOrder,
   nextFor,
   gateAtHead,

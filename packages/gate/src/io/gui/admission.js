@@ -36,6 +36,31 @@ export function timingTestFiles(root, files) {
   });
 }
 
+/** The paths a test declares it reads, one per `@pullboard-test-reads <path>` line in its leading comments; later code never counts [C7]. */
+export function declaredReads(source) {
+  const paths = [];
+  let remaining = source.replace(/^#![^\n]*(?:\n|$)/u, '').trimStart();
+  while (remaining.startsWith('/*') || remaining.startsWith('//')) {
+    const block = remaining.startsWith('/*');
+    const end = block ? remaining.indexOf('*/', 2) : remaining.indexOf('\n');
+    if (block && end < 0) break;
+    const comment = remaining.slice(2, end < 0 ? remaining.length : end);
+    for (const match of comment.matchAll(/^[ \t]*\*?[ \t]*@pullboard-test-reads[ \t]+(\S+)[ \t]*\r?$/gmu)) paths.push(match[1]);
+    remaining = end < 0 ? '' : remaining.slice(end + (block ? 2 : 1)).trimStart();
+  }
+  return paths;
+}
+
+/** The declared reads of each given test file as a Map of file to paths; a missing file declares none [C7]. */
+export function readsDeclared(root, files) {
+  const reads = new Map();
+  for (const file of files) {
+    try { reads.set(file, declaredReads(readFileSync(resolve(root, file), 'utf8'))); }
+    catch { reads.set(file, []); }
+  }
+  return reads;
+}
+
 /** Read the project's tracked Node test files when an opaque full gate supplies no explicit selection. */
 export function projectNeedsGui(root) {
   const result = spawnSync('git', ['ls-files', '-z', '--', 'test', 'tests'], { cwd: root, encoding: 'utf8', maxBuffer: 8 * 1024 ** 2 });
