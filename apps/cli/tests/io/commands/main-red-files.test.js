@@ -12,6 +12,14 @@ import { coordinatorHelp } from '../../../src/logic/help/coordinator.js';
 const KEY = 'gate_main_red_files';
 const stored = box => store.readBoardMeta(box.board.db, KEY);
 
+/** The printed path lines: every output line before the CLI's closing `next:` hint, which must be the only other line. */
+function listed(out) {
+  const lines = out.trim() ? out.trim().split('\n') : [];
+  const hints = lines.filter(line => line.startsWith('next: '));
+  assert.ok(hints.length <= 1 && (!hints.length || lines.at(-1) === hints[0]), `only a closing next: hint follows the paths: ${out}`);
+  return lines.filter(line => !line.startsWith('next: '));
+}
+
 /** Run the CLI entry without --json, so the printed lines are the plain output. */
 async function plain(box, cwd, args) {
   let out = '', err = '';
@@ -29,7 +37,7 @@ test('cli.main-red-files.coordinator-sets-list: clause 1: as the coordinator, se
   assert.deepEqual(set.document.files, ['apps/a.test.js', 'packages/b/x.test.js']);
   const printed = await plain(box, box.root, ['main-red-files']);
   assert.equal(printed.code, 0, printed.err || printed.out);
-  assert.deepEqual(printed.out.trim().split('\n'), ['apps/a.test.js', 'packages/b/x.test.js'], 'one path per line');
+  assert.deepEqual(listed(printed.out), ['apps/a.test.js', 'packages/b/x.test.js'], 'one path per line');
   const replaced = await cli(box, box.root, ['main-red-files', 'set', 'go/c_test.go']);
   assert.equal(replaced.code, 0, replaced.err || replaced.out);
   assert.equal(stored(box), JSON.stringify(['go/c_test.go']), 'set replaces the list');
@@ -38,7 +46,7 @@ test('cli.main-red-files.coordinator-sets-list: clause 1: as the coordinator, se
   assert.equal(stored(box), '[]', '--clear writes an empty array');
   const empty = await plain(box, box.root, ['main-red-files']);
   assert.equal(empty.code, 0, empty.err || empty.out);
-  assert.equal(empty.out.trim(), '', 'an empty list prints nothing');
+  assert.deepEqual(listed(empty.out), [], 'an empty list prints no path');
 });
 
 test('cli.main-red-files.refuses-unchanged: clause 2: a seat is refused COORDINATOR_ONLY, and an absolute path, a . or .. segment, or a newline or NUL is refused USAGE naming the path, with gate_main_red_files unchanged [C7,#12133]', async t => {
