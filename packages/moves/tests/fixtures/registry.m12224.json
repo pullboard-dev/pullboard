@@ -1,3 +1,0 @@
-{
-  "moves.table.landing-merged-at": {"proves":{"specs":["C7"],"claim":"A finite mergedAt in the move is copied into the detail of the merge, merge-publish and forced merged events; without one the events are unchanged."},"why":"Lets the store writer record the merge commit time on merged events without changing older replays.","kind":"cell unit","inputs":["packages/moves/src/logic/table/landing.table.js"]}
-}
