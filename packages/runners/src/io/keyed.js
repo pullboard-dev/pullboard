@@ -5,6 +5,7 @@
  * caller's; this module names no state root.
  */
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 const fs = fileSystemAdapter();
@@ -95,7 +96,7 @@ const bounded = new Set();
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {string|null}
  */
-export function sharedCacheFolder(name, env = process.env) {
+export function sharedCacheFolder(name, env = environmentAdapter().all()) {
   const root = env[SHARED_CACHE_ENV];
   if (!root || !isAbsolute(root)) return null;
   const folder = join(root, name);

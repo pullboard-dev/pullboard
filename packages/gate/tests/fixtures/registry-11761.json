@@ -1,0 +1,16 @@
+{
+  "gate.io-test-tier-selection.no-plan-same-selection": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: selectTestTiers picks the same tests for one source change with and without a plan folder"
+    },
+    "why": "Plan files are ordinary files; a plan special case in selection would make the gate pick different tests.",
+    "kind": "contract",
+    "inputs": [
+      "packages/gate/tests/io/test/tier/selection.test.js",
+      "packages/gate/src/io/test/tier/selection.js"
+    ]
+  }
+}
