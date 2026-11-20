@@ -202,7 +202,7 @@ test('cli.journeys-release-stale.an-idle-review-reservation-returns-to: an idle 
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.review, true);
-  assert.equal(detail.reasonCode, 'OTHER', 'current automatic idle release retains its coded reason');
+  assert.equal(detail.reasonCode, 'REVIEW_IDLE', 'the automatic idle release carries its closed code');
   assert.equal(detail.stale.reviewer, f.reviewer);
   assert.equal(detail.stale.lastActivity, new Date(lastActivity).toISOString());
   const notice = events.find(event => event.event_kind === 'shout');
