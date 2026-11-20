@@ -13,7 +13,7 @@ import { resolveCommit } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { barReadiness } from '../../../verify/index.js';
 import { revisionReference } from '../../../spec/index.js';
-import { receiptBody } from '../../index.js';
+import { receiptBody } from '../../heavy.js';
 import { requireHandoffActive } from '../../../state/light.js';
 import { preparePersonRequest } from '../../../person/light.js';
 import { closeLandingTestDefect } from '../../../store/index.js';

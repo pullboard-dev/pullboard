@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
@@ -9,6 +8,7 @@ import { machineSettingsFile } from '../../../resources/light.js';
 import { parseMachineSettings } from '../../../queue/light.js';
 import { validateGateQueue } from '../../../queue/light.js';
 const DEFAULT_GATE_SLOTS = 2;
+const fs = fileSystemAdapter();
 
 /**
  * Read the machine settings file as a plain object, or null when there is none.
@@ -18,7 +18,7 @@ const DEFAULT_GATE_SLOTS = 2;
  * @returns {object|null}
  */
 function readMachineSettingsFile(file) {
-  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
+  return parseMachineSettings(fs.exists(file) ? fs.readFile(file, 'utf8') : null, file);
 }
 
 /**
@@ -237,6 +237,9 @@ export function loadMachineSettings() {
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
   }
+  if (value.route?.reservations !== undefined && typeof value.route.reservations !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `route.reservations in ${file} must be true or false`);
+  }
   if (value.items?.barRulesAtAdd !== undefined && typeof value.items.barRulesAtAdd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.barRulesAtAdd in ${file} must be true or false`);
   }
@@ -445,6 +448,9 @@ export function loadMachineSettings() {
   }
   if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);
+  }
+  if (value.review?.builderOffers !== undefined && typeof value.review.builderOffers !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `review.builderOffers in ${file} must be true or false`);
   }
   if (value.review?.starveShout !== undefined && typeof value.review.starveShout !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.starveShout in ${file} must be true or false`);

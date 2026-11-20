@@ -1,17 +1,6 @@
 /** Custody of a runner job's processes: who the job started, proven from its own record, and stopping them [C7]. */
 import { spawnSync } from 'node:child_process';
 import {
-  closeSync,
-  existsSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readdirSync,
-  readSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   delimiter,
   dirname,
   join,
@@ -21,6 +10,9 @@ import { parseProcessCensus } from '../../../../packages/kernel/light.js';
 import { childJournalPreloadSource } from '../../../../packages/gate/light.js';
 import { exactStart } from '../../../../packages/gate/light.js';
 import { environmentAdapter } from '../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const disk = fileSystemAdapter();
 
 const safePath = [dirname(process.execPath), environmentAdapter().get('PATH') || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
 
@@ -39,7 +31,7 @@ export function processIdentity(row) {
   let birth = '';
   let exact = false;
   try {
-    const stat = readFileSync(`/proc/${row.pid}/stat`, 'utf8');
+    const stat = disk.readFile(`/proc/${row.pid}/stat`, 'utf8');
     const close = stat.lastIndexOf(')');
     const fields = stat.slice(close + 2).trim().split(/\s+/u);
     if (close > 0 && Number(fields[1]) === row.ppid && Number(fields[2]) === row.pgid && /^\d+$/u.test(fields[19] ?? '')) {
@@ -57,10 +49,11 @@ export function processIdentity(row) {
  */
 function writeChildJournalPreload(directory) {
   const journalDirectory = join(directory, 'child-journal');
-  mkdirSync(journalDirectory, { mode: 0o700 });
+  disk.mkdir(journalDirectory, { mode: 0o700 });
   const overflowPath = join(journalDirectory, 'overflow');
   const preload = join(directory, 'child-spawn-preload.mjs');
-  writeFileSync(preload, childJournalPreloadSource(directory), { mode: 0o600, flag: 'wx' });
+  const preloadFile = disk.open(preload, 'wx', 0o600);
+  try { disk.write(preloadFile, childJournalPreloadSource(directory)); } finally { disk.close(preloadFile); }
   return { preload, journalDirectory, overflowPath, nodeOptions: `--import=${pathToFileURL(preload).href}` };
 }
 
@@ -136,16 +129,16 @@ export function createDescendantTracker(directory, { census: processCensusHook =
   }
 
   function readJournal() {
-    if (existsSync(overflowPath)) { markUncertain('child spawn journal overflow or write failure'); }
+    if (disk.exists(overflowPath)) { markUncertain('child spawn journal overflow or write failure'); }
     let total = 0;
-    const files = readdirSync(journal.journalDirectory).filter(name => /^children-\d+(?:-\d+)?\.jsonl$/u.test(name)).sort();
+    const files = disk.list(journal.journalDirectory).filter(name => /^children-\d+(?:-\d+)?\.jsonl$/u.test(name)).sort();
     // A full suite creates one journal per Node process; align this count with
     // the event and identity bounds while retaining the byte bounds below.
     if (files.length > 100_000) { markUncertain('child spawn journal file limit exceeded'); return; }
     for (const name of files) {
       const file = join(journal.journalDirectory, name);
       let size;
-      try { size = statSync(file).size; } catch { markUncertain('child spawn journal could not be inspected'); continue; }
+      try { size = disk.stat(file).size; } catch { markUncertain('child spawn journal could not be inspected'); continue; }
       total += size;
       if (!Number.isSafeInteger(size) || size > 131_072 || total > 8 * 1024 * 1024) {
         markUncertain('child spawn journal size limit exceeded'); continue;
@@ -154,14 +147,14 @@ export function createDescendantTracker(directory, { census: processCensusHook =
       if (size < offset) { markUncertain('child spawn journal changed unexpectedly'); continue; }
       if (size === offset) continue;
       const length = size - offset;
-      const fd = openSync(file, 'r');
+      const fd = disk.open(file, 'r');
       let text;
       try {
         const bytes = Buffer.alloc(length);
-        const read = readSync(fd, bytes, 0, length, offset);
+        const read = disk.read(fd, bytes, 0, length, offset);
         if (read !== length) { markUncertain('child spawn journal read was incomplete'); continue; }
         text = (partial.get(name) ?? '') + bytes.toString('utf8');
-      } finally { closeSync(fd); }
+      } finally { disk.close(fd); }
       offsets.set(name, size);
       const lines = text.split('\n');
       partial.set(name, lines.pop() ?? '');

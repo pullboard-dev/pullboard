@@ -1,7 +1,5 @@
 /** CPU-load declarations are source metadata; discovery never executes test code [C7]. */
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { dirname } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -13,6 +11,9 @@ import { cpuRegistrationExportsIn } from '../../../../../codemap/light.js';
 import { cpuCallableExportsIn } from '../../../../../codemap/light.js';
 import { importsIn } from '../../../../../codemap/light.js';
 
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
+
 const MAX_FILES = 256;
 const MAX_BYTES = 4 * 1024 * 1024;
 const MAX_DEPTH = 32;
@@ -21,7 +22,7 @@ const MAX_DEPTH = 32;
 export function testsNeedCpuRunner(root, files) {
   const entries = [];
   try {
-    const boundary = realpathSync(root);
+    const boundary = disk.realpath(root);
     const pending = files.map(file => ({ path: resolve(boundary, file), depth: 0 }));
     const seen = new Set();
     let bytes = 0;
@@ -30,15 +31,15 @@ export function testsNeedCpuRunner(root, files) {
       const readable = [];
       for (const { path, depth } of batch) {
         let actual;
-        try { actual = realpathSync(path); } catch { continue; }
+        try { actual = disk.realpath(path); } catch { continue; }
         const within = relative(boundary, actual);
         if (within === '..' || within.startsWith(`..${sep}`) || seen.has(actual) || depth > MAX_DEPTH) continue;
         seen.add(actual);
-        const info = statSync(actual);
+        const info = disk.stat(actual);
         bytes += info.size;
         if (seen.size > MAX_FILES || bytes > MAX_BYTES) break;
         if (!info.isFile() || !/\.(?:[cm]?js)$/u.test(actual)) continue;
-        const entry = { path: actual, source: readFileSync(actual, 'utf8') };
+        const entry = { path: actual, source: disk.readFile(actual, 'utf8') };
         entries.push(entry);
         readable.push({ entry, depth });
       }

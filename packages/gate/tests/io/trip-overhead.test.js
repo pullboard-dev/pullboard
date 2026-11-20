@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tripOverheadMs } from '../../index.js';
-import { tripOverheadReport } from '../../index.js';
+import { tripOverheadMs } from '../../heavy.js';
+import { tripOverheadReport } from '../../heavy.js';
 
 /** A runner receipt as settleReceipt records it: 2 s admission, 3 s setup, 40 s run of which tests ran 38 s, 1 s evidence. */
 const trip = { at: '2026-11-15T20:00:00.000Z', kind: 'submit', waitMs: 90_000, admissionMs: 2000, setupMs: 3000, runMs: 40_000, evidenceMs: 1000,

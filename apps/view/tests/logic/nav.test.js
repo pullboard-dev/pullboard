@@ -361,11 +361,11 @@ test('view.x-nav.clause-1-items-rows-are-one-card: clause 1: Items rows are one 
 });
 
 test('view.x-nav.clause-1-the-top-right-is-one: clause 1: the top right is one account control, the person\'s initial when signed in and Sign in when not, and its menu holds who they are, Settings, Theme, and Pair a phone; the Sign out row stays hidden until the view has a real sign-out [N26,#6648]', () => {
-  assert.match(accountHtml({ signedIn: true, login: 'coreyolson' }), />C<\/button>$/u, 'the initial, upper-cased');
+  assert.match(accountHtml({ signedIn: true, login: 'alice' }), />A<\/button>$/u, 'the initial, upper-cased');
   assert.match(accountHtml({ signedIn: false }), />Sign in<\/button>$/u);
   const text = (html) => [...html.matchAll(/<(?:b|small|button)[^>]*>(.*?)<\/(?:b|small|button)>/gu)].map((m) => m[1].replace(/<[^>]+>/gu, ''));
-  const signedIn = accountMenuHtml({ signedIn: true, login: 'coreyolson', theme: 'dark' });
-  assert.deepEqual(text(signedIn), ['@coreyolson', 'GitHub', 'Settings', 'ThemeDark', 'Pair a phone']);
+  const signedIn = accountMenuHtml({ signedIn: true, login: 'alice', theme: 'dark' });
+  assert.deepEqual(text(signedIn), ['@alice', 'GitHub', 'Settings', 'ThemeDark', 'Pair a phone']);
   const signedOut = accountMenuHtml({ signedIn: false });
   assert.doesNotMatch(signedOut, /Not signed in|class="who"|<small>/u, 'signed out is one quiet row, no banner block');
   assert.equal(text(signedOut)[0], 'Sign in with GitHub');

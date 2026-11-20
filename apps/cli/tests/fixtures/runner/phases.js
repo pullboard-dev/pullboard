@@ -5,7 +5,7 @@ import { runOnRunnerAsync } from '../../../../../packages/runners/index.js';
 import { copyRunnerPackage } from '../../../../../packages/runners/tests/fixtures/package.js';
 /** Pure registered-runner test helpers: snapshots, phase counting and bounded round-trip waits; nothing here launches the CLI. */
 import { executionServicesSource } from '../gate/execution.js';
-import { awaitNestedRun } from '../../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../../packages/gate/heavy.js';
 import assert from 'node:assert/strict';
 import {
   existsSync,
