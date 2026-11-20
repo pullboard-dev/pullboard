@@ -91,3 +91,17 @@ test('store.io-board-review-family-relax-required.required-guard-refuses-without
   assert.equal(withRelax(true, () => bare.requiredReviewFamily(item))?.code, 'REQUIRED_REVIEW_FAMILY');
   assert.equal(withRelax(true, () => requiredGuard(board, 'core-3')(item))?.code, 'REQUIRED_REVIEW_FAMILY');
 });
+
+/** The familyAllows guard of reviewerChecks for `agentId`, with a relaxationFor that reads the real witness. */
+function familyGuard(board, agentId) {
+  const relaxationFor = item => reviewFamilyRelaxation(board, item, agentId, 2, 'any', 'prefer');
+  return item => store.reviewerChecks(board, { agentId, policy: 'any', familyPolicy: 'prefer', relaxationFor }).familyAllows(item);
+}
+
+test('store.io-board-review-family-relax-required.family-allows-stands-with-witness: clause 1: with review.relaxRequiredFamily on and a relaxation witness for the seat, the familyAllows guard of reviewerChecks returns no refusal for a seat of another family, and still returns O2_FAMILY_MATCH with the setting off [C7,#11333]', t => {
+  const { board, items } = waitingBoard(t);
+  const item = store.getItem(board, items[0]);
+  const guard = familyGuard(board, 'core-2');
+  assert.equal(withRelax(true, () => guard(item)), null);
+  assert.equal(withRelax(false, () => guard(item))?.code, 'O2_FAMILY_MATCH', 'the same board refuses once the setting is off');
+});
