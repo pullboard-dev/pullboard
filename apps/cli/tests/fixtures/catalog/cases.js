@@ -1357,7 +1357,7 @@ catalogCase('[A1,C7] block, expedite and rulings report through real CLI JSON', 
   const expedited = await uncataloguedRootJSON(box, box.repo, 'expedite', [String(ids[0]), '--reason', 'catalog fixture expedite']);
   assert.deepEqual({ id: expedited.id, expedited: expedited.expedited }, { id: ids[0], expedited: true });
   assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'rulings', ['design-choice'])).rulings, [], 'a board with no answers holds no rulings');
-}, ['block', 'expedite', 'init', 'rulings']);
+}, ['add', 'block', 'expedite', 'init', 'rulings']);
 
 catalogCase('[A1,C7] compact reports a dry run through the catalog', ['compact', 'init'], async () => {
   const box = await project();
