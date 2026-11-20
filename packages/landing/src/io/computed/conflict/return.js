@@ -1,4 +1,4 @@
-import { effectiveItemHead } from '../../../../../verify/index.js';
+import { effectiveItemHead } from '../../../../../verify/read.js';
 /** Native computation of automatic submitted-head returns; callers supply no conflict assertion [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
