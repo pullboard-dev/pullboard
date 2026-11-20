@@ -10,6 +10,7 @@ export function itemEditBar(board, item, next, { command, agentId, correction, f
     ...(command !== undefined && next.item_check !== item.item_check ? ['check'] : []),
     ...(next.item_after !== item.item_after ? ['after'] : []),
     ...(next.item_check_timing !== item.item_check_timing ? ['checkTiming'] : []),
+    ...(next.item_spec_ids !== item.item_spec_ids ? ['specs'] : []),
   ];
   const frozen = preserveFrozen ? null : correctedBar(board, item, next, { correction, freeze, sha256 });
   const pendingRefreeze = !preserveFrozen && !frozen && engineAtLeast(board, 8)
