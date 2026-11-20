@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
+import { assertStartupBudgets } from '../../fixtures/budget.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
@@ -29,7 +30,7 @@ test('cli.io-list-thin.the-thin-door-returns-the-same-rows: clause 1: the thin d
     const full = await box.runLocal(box.repo, 'list', ...(all ? ['--all'] : []), '--json');
     assert.equal(full.code, 0, full.err);
     const expected = JSON.parse(full.out);
-    const thin = thinListRows({ cwd: box.repo, all });
+    const thin = await thinListRows({ cwd: box.repo, all });
     assert.ok(thin, 'the door served a current board');
     assert.equal(thin.items.length, expected.items.length);
     assert.deepEqual(JSON.parse(JSON.stringify(thin.items)), expected.items);
@@ -55,4 +56,16 @@ test('cli.io-list-thin.loading-the-thin-door-pulls-in-none: clause 2: loading th
   const seen = files.read('seen.txt').toString('utf8').split('\n').filter(Boolean).map(url => fileURLToPath(url).slice(ROOT.length));
   assert.ok(seen.some(path => path.endsWith('apps/cli/src/io/list/thin.js')), 'the door itself loaded');
   assert.deepEqual(seen.filter(path => BARREL.includes(path) || path.startsWith('packages/board/')), []);
+});
+
+const startupReport = {};
+
+test('cli.io-list-thin.startup-row-holds: clause 1: the real list with list.thinRead on holds the list thin startup row, judged by child CPU time [C7,#10293]', async (t) => {
+  await assertStartupBudgets(t, startupReport, { only: ['list thin'] });
+});
+
+test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', () => {
+  assert.ok(startupReport.cpuMediansMs, 'the startup measurement above did not produce its report');
+  assert.deepEqual(Object.keys(startupReport.cpuMediansMs), ['list thin']);
+  assert.ok(startupReport.floorLines.every(line => line.startsWith('list thin median ')), 'only the list thin row was measured, so the list row is untouched');
 });

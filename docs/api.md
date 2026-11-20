@@ -241,6 +241,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `link` | `version:number`, `link:string`, `parent:object`, `child:object`, `disclosure:string` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
+| `mark` | `version:number`, `mark:object` |
 | `mutate` | `version:number`, `cell:string`, `all:boolean`, `redBefore:array`, `tests:array`, `faults:array`, `caught:number`, `missed:number` |
 | `red` | `version:number`, `file:string` |
 | `replay` | `version:number`, `table:string`, `days:number`, `agreed:number`, `disagreed:number`, `beforeCut:number`, `disagreements:array` |
@@ -255,6 +256,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `stats review` | `version:number`, `review:object` |
 | `stats runners` | `version:number`, `runners:object` |
 | `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
+| `timeline` | `version:number`, `summary:object` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |
 | `update` | `version:number`, `current:boolean`, `from:string`, `to:string` |
 <!-- api-command-shapes:end -->
@@ -288,6 +290,12 @@ When outstanding reviews reach `verify.reviewRatio` times the active reviewers (
 An existing review reservation is offered back to its holder before a fresh build, even below the queue ratio; this preview does not renew the lease. A free seat also receives an eligible normal review once its current submission has waited more than ten minutes for its first reviewer, even below the queue ratio. A repair matched to a failed approved test on current main leads other reviews; remaining reviews use current submission age. These modern review priorities replace milestone, critical-path and scarcity preferences for reviews, while older sealed engines retain their original selection. Held reviews and all eligibility guards still apply. Strict reviews require a different session and declared vendor family; an overdue item never bypasses those rules. Explicit build intent remains available.
 
 For HTTP `next`, a review offer returns success with `event: null`, `offer` and the ordinary CLI `result`. Send `args.build: true` to claim as before and receive the actual claim event. The unattended `run` command always supplies explicit build intent, records it on fresh claims, and prints the review backlog each iteration.
+
+## Suites by folder
+
+`affectedSuites` in `pullboard.json` is for a repo with more than one language. It maps a folder glob to the test suite that covers it, such as `{"api/**": "api/tests", "web/**": "web/tests"}`. It needs the project `affectedTests` runner, and the config check refuses it without one.
+
+For each changed path, the gate runs the suites of every glob that covers it, once each. A path no glob covers, an unreadable glob or no changed path at all selects the full gate, and the reason names the path or glob. The key replaces import-graph selection; without it nothing changes.
 
 ## Board health
 
@@ -494,6 +502,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/cost-analytics?window=today&#124;7d&#124;30d` | Private local Cost analytics for the selected window; unavailable to hosted and relay clients |
 | `GET /api/v1/boards/:board/proofs/:id` | One item’s full flow proof record, authenticated like board state |
 | `GET /api/v1/boards/:board/items/:id` | One item's full detail: the fields its summary leaves out |
+| `GET /api/v1/boards/:board/agents/:id` | One seat read from the agent and item rows, no state build: `agent_id`, `agent_lane`, `agent_route` and `claimed`, the ids it holds with a live lease; `NO_AGENT` when the seat is not registered |
 | `GET /api/v1/boards/:board/items?q=text` | The ids of the items whose id, title, lane, spec ids or criterion contain the text, ignoring case |
 | `GET /api/v1/boards/:board/shouts/:id` | One shout from any point in the board's history, including its decision and answer fields |
 | `GET /api/v1/boards/:board/tokens` | This linked board's agent-token metadata |

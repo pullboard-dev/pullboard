@@ -202,7 +202,7 @@ test('cli.journeys-release-stale.an-idle-review-reservation-returns-to: an idle 
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.review, true);
-  assert.equal(detail.reasonCode, 'OTHER', 'current automatic idle release retains its coded reason');
+  assert.equal(detail.reasonCode, 'REVIEW_IDLE', 'the automatic idle release carries its closed code');
   assert.equal(detail.stale.reviewer, f.reviewer);
   assert.equal(detail.stale.lastActivity, new Date(lastActivity).toISOString());
   const notice = events.find(event => event.event_kind === 'shout');
@@ -616,11 +616,84 @@ test('cli.journeys-release-stale.automatic-idle-review-release-codes-current: au
     const release = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release');
     const detail = JSON.parse(release.event_detail);
     const reason = `Review idle for 30 minutes; last observed activity ${snapshot.reviews[0].lastActivity}.`;
-    const expected = { review: true, reason, ...(historical ? {} : { reasonCode: 'OTHER' }),
+    const expected = { review: true, reason, ...(historical ? {} : { reasonCode: 'REVIEW_IDLE' }),
       stale: { reviewer: snapshot.reviews[0].reviewer, reservedAt: snapshot.reviews[0].reservedAt,
         lastActivity: snapshot.reviews[0].lastActivity } };
     const { model, ...payload } = detail;
     assert.deepEqual(payload, expected);
     assert.equal(Object.hasOwn(detail, 'reasonCode'), !historical);
   }
+});
+
+/** Claim one item for each of the two fixture seats with a ten-minute lease, then let both leases lapse 121 minutes while both seats stay quiet. */
+function deadSeatBoard(f) {
+  f.worktree(store.agentById(f.board, f.builder).agent_path, 'private-dead-seat-builder');
+  f.worktree(store.agentById(f.board, f.reviewer).agent_path, 'private-dead-seat-reviewer');
+  const ids = [f.add('Dead seat claim'), f.add('Second quiet claim')];
+  [f.builder, f.reviewer].forEach((agentId, index) => store.claim(f.board, ids[index], { agentId, lane: 'web', leaseMs: 10 * MINUTE, freeze: f.freeze }));
+  f.advance(131 * MINUTE);
+  return ids[0];
+}
+
+test('cli.journeys-release-stale.dead-seat-claim-survives-busy-board: clause 1: a dead seat claim lapsed past 120 minutes is released by the coordinator after another item event lands during the observation [C7]', async t => {
+  const { captureStaleState } = await import('../../../../packages/health/src/io/stale/state/capture.js');
+  const { machineStalled } = await import('../../../../packages/health/src/logic/stall.js');
+  const { deadSeatClaim, staleObservation } = await import('../../src/io/commands/release.js');
+  const f = fixture(t);
+  const id = deadSeatBoard(f);
+  assert.ok(machineStalled({ claimed: 2, quiet: 2 }), 'both claimed seats are quiet: a machine-stall window');
+  const itemRevision = Math.max(...store.events(f.board, { itemId: id }).map(event => event.event_id));
+  const snapshot = await captureStaleState({ info: { root: f.box.repo }, config: {}, clock: f.clock }, f.board);
+  const row = snapshot.claims.find(entry => entry.id === id);
+  assert.equal(deadSeatClaim(f.board, row, snapshot.observedAt), true);
+  f.add('An unrelated item filed while the observation ran');
+  const note = 'Dead seat: lease lapsed past two hours with no heartbeat';
+  assert.throws(() => store.release(f.board, id, 'coordinator', note, staleObservation(row, snapshot, undefined, {}), 'OTHER'), { code: 'NOT_YOURS' },
+    'the board-wide revision still refuses');
+  store.release(f.board, id, 'coordinator', note, staleObservation(row, snapshot, itemRevision, {}), 'OTHER');
+  const item = store.getItem(f.board, id);
+  assert.equal(item.item_status, 'open');
+  assert.equal(item.item_owner, null);
+  const release = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release');
+  assert.equal(release.event_by, 'coordinator');
+  assert.equal(JSON.parse(release.event_detail).reason, note);
+});
+
+test('cli.journeys-release-stale.live-heartbeat-claim-refused: clause 2: a lapsed claim whose holder heartbeat is live is refused and is not a dead seat claim [C7]', async t => {
+  const { deadSeatClaim, DEAD_SEAT_LAPSE_MS } = await import('../../src/io/commands/release.js');
+  const f = fixture(t);
+  f.worktree(store.agentById(f.board, f.builder).agent_path, 'private-live-seat-builder');
+  const id = f.add('Lapsed claim of a live seat');
+  store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 10 * MINUTE, freeze: f.freeze });
+  f.advance(131 * MINUTE);
+  heartbeatSeat(f.board, f.builder);
+  // A move of its own on the item: a live seat still working, so the idle-release sweep (#3446) leaves the claim to this check.
+  store.appendFact(f.board, id, { agentId: f.builder, kind: 'note', text: 'Still working on the bar' });
+  const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', 'Lapsed but the seat still beats', '--json');
+  assert.equal(result.status, 1, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
+  assert.equal(JSON.parse(result.stdout).error.code, 'NOT_YOURS');
+  // The stored claim row keeps its holder (a lapsed lease reads as unowned through getItem), and no release was written.
+  assert.equal(f.board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id).item_owner, f.builder);
+  assert.ok(!store.events(f.board, { itemId: id }).some(event => event.event_kind === 'release'), 'no release event');
+  const now = f.clock.now().toISOString();
+  assert.equal(deadSeatClaim(f.board, { actor: f.builder, leaseUntil: store.getItem(f.board, id).item_lease_until, heartbeatAt: now }, now), false);
+  const exact = new Date(Date.parse(now) + DEAD_SEAT_LAPSE_MS).toISOString();
+  const past = new Date(Date.parse(exact) + 1).toISOString();
+  assert.equal(deadSeatClaim(f.board, { actor: f.reviewer, leaseUntil: now, heartbeatAt: null }, exact), false, 'a lapse of exactly 120 minutes is not past the limit');
+  assert.equal(deadSeatClaim(f.board, { actor: f.reviewer, leaseUntil: now, heartbeatAt: null }, past), true);
+});
+
+test('cli.journeys-release-stale.dead-seat-real-path: clause 3: the coordinator CLI release --stale frees a dead seat claim lapsed past 120 minutes in a stall window [C7]', async t => {
+  const f = fixture(t);
+  const id = deadSeatBoard(f);
+  const note = 'Dead seat: lease lapsed past two hours with no heartbeat';
+  const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', note, '--json');
+  assert.equal(result.status, 0, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
+  assert.equal(store.getItem(f.board, id).item_status, 'open');
+  assert.equal(store.getItem(f.board, id).item_owner, null);
+  const release = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release');
+  assert.equal(release.event_by, 'coordinator');
+  const detail = JSON.parse(release.event_detail);
+  assert.equal(detail.reason, note);
+  assert.equal(detail.reasonCode, 'OTHER');
 });

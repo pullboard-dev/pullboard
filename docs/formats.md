@@ -37,7 +37,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/logic/grammar.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `274` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `278` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -267,9 +267,6 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_hold_reason` | `TEXT` | `nullable` |
 | `item` | `item_hold_by` | `TEXT` | `nullable` |
 | `item` | `item_hold_at` | `TEXT` | `nullable` |
-| `item` | `item_reservation_holder` | `TEXT` | `nullable` |
-| `item` | `item_reservation_by` | `TEXT` | `nullable` |
-| `item` | `item_reservation_at` | `TEXT` | `nullable` |
 | `item` | `item_created_by` | `TEXT` | `NOT NULL` |
 | `item` | `item_created_at` | `TEXT` | `NOT NULL` |
 | `item` | `item_updated_at` | `TEXT` | `NOT NULL` |
@@ -277,6 +274,9 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `item` | `item_files` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
 | `item` | `item_review_by` | `TEXT` | `nullable` |
 | `item` | `item_review_until` | `TEXT` | `nullable` |
+| `item` | `item_reservation_holder` | `TEXT` | `nullable` |
+| `item` | `item_reservation_by` | `TEXT` | `nullable` |
+| `item` | `item_reservation_at` | `TEXT` | `nullable` |
 | `job` | `job_id` | `TEXT` | `PRIMARY KEY` |
 | `job` | `job_kind` | `TEXT` | `NOT NULL` |
 | `job` | `job_item` | `INTEGER` | `nullable` |
@@ -362,6 +362,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `item_owner_status` | `item` | `item_owner`, `item_status` | no |
+| `job_kind_created` | `job` | `job_kind`, `job_created` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `job_lease_live` | `job` | `job_lease_until` | no |
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
@@ -481,7 +482,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `flake-observation` | reporting agent | `engine`, `observation` |
 | `flake-repair` | reporting agent | `engine`, `key`, `item` |
 | `test-quarantine` | reporting agent | `engine`, `file`, `name`, `tree`, `runs`, ledger `ledger` (true when the typed flake ledger filed it), automatic-Submit `autoSubmit` |
-| `health-scan` | observing agent | `active`, optional `pendingCpu`, `engine` |
+| `health-scan` | observing agent | `active`, optional `pendingCpu`, `digest`, `engine` |
 | `health-failure` | sentinel | `key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine` |
 | `health-resolved` | sentinel | `key`, `cause`, `since`, `subject`, `owner`, `commit`, `engine` |
 | `sentinel-proposal` | proposing agent | `row`, `digest`, `engine` |

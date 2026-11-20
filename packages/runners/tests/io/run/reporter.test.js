@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureChildAsync } from '../../../../gate/tests/fixtures/child.js';
-import { awaitNestedRun } from '../../../../gate/index.js';
+import { awaitNestedRun } from '../../../../gate/heavy.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';

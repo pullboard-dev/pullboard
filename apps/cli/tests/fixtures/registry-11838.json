@@ -1,0 +1,4 @@
+{
+  "cli.io-runner-service.passes-the-job-worker-factor": {"proves":{"specs":["C7"],"claim":"runService passes serveRunner jobWorkerFactor from runners.jobWorkerFactor in the machine settings file, 2 when it is unset."},"why":"Without it, a regression where the installed runner ignores runners.jobWorkerFactor and runs the default test workers would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/service.test.js"]},
+  "cli.io-runner-service.command-passes-the-job-worker-factor": {"proves":{"specs":["C7"],"claim":"pullboard runner serve passes serveRunner the same jobWorkerFactor from the machine settings file."},"why":"Without it, a regression where the foreground runner serve ignores runners.jobWorkerFactor would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/service.test.js"]}
+}

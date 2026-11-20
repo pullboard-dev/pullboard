@@ -1,5 +1,7 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { spawnCaptured } from '../../../../sandbox/light.js';
 import { scratchFolder } from '../../../../config/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 /**
  * Run one shell command in a checkout and keep its output, apart from the gate's queue, runners and receipts. A
  * board read that replays a check baseline needs only this, so it never loads the gate [C7].
@@ -10,10 +12,6 @@ import {
   executionEnvironment,
 } from '../../../../sandbox/light.js';
 import { randomUUID } from 'node:crypto';
-import {
-  readFileSync,
-  rmSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   gitChildEnv,
@@ -33,6 +31,8 @@ import {
 } from './stall.js';
 import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
 
+const fs = fileSystemAdapter();
+
 /**
  * Run a shell command in a checkout for a digest: both streams in one pipe, in order, read whole
  * however long, stdin closed so nothing waits on a person. With `stages`, each top-level stage's
@@ -40,10 +40,11 @@ import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
  *
  * @param {string} root
  * @param {string} command
- * @param {{ pipefail?: boolean, env?: NodeJS.ProcessEnv, stages?: boolean, timeoutMs?: number, captureRuntimes?: boolean, timedShell?: string }} [options] - Gate-only pipefail, additional child environment values and per-stage accounting. A run with `timeoutMs` spawns the bounded-shell program at `timedShell`, which its caller names (the app that owns it), so this package names no app path [C7].
+ * @param {{ pipefail?: boolean, env?: NodeJS.ProcessEnv, stages?: boolean, timeoutMs?: number, captureRuntimes?: boolean, timedShell?: string, environment?: ReturnType<typeof environmentAdapter> }} [options] - Gate-only pipefail, additional child environment values and per-stage accounting. A run with `timeoutMs` spawns the bounded-shell program at `timedShell`, which its caller names (the app that owns it), so this package names no app path [C7].
  * @returns {{ isGreen: boolean, output: string, seconds: number, sandboxBlocked: string|null, stages?: Array<{ status: number|null, output: string, pipeline?: Array<{ status: number|null, output: string|null }> }> | null }}
  */
-function* shellExecution(root, command, { pipefail = false, env = {}, stages = false, timeoutMs, captureRuntimes = false, timedShell = process.env.PULLBOARD_TIMED_SHELL } = {}) {
+function* shellExecution(root, command, { environment = environmentAdapter(), pipefail = false, env = {}, stages = false, timeoutMs, captureRuntimes = false, timedShell = environment.get('PULLBOARD_TIMED_SHELL') } = {}) {
+  const landingCustody = environment.get('PULLBOARD_LANDING_CUSTODY');
   const started = Date.now();
   const diagnostics = [];
   const options = { cwd: root, env: gitChildEnv(root, { env, report: diagnostics.push.bind(diagnostics) }), shell: true,
@@ -67,22 +68,22 @@ function* shellExecution(root, command, { pipefail = false, env = {}, stages = f
     const marker = `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}`;
     const pipes = split?.some((stage) => stage.pipeline.length > 1) ? scratchFolder('pullboard-pipes-') : null;
     // A landing's guardian finds its gate by this token in the shell's command line [Q1,Q3,B3].
-    const custody = process.env.PULLBOARD_LANDING_CUSTODY ? `: --landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}\n` : '';
+    const custody = landingCustody ? `: --landing-custody=${landingCustody}\n` : '';
     // Newlines, not spaces, around the command, so a trailing comment in it cannot swallow the `)`.
     const script = `${custody}${prefix}(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`;
     const timedDirectory = timeoutMs ? scratchFolder('pullboard-timed-output-') : null;
     const outputFile = timedDirectory ? join(timedDirectory, 'output.log') : null;
     if (timeoutMs && !timedShell) throw new Refused('TIMED_SHELL_MISSING', 'a run with a timeout needs the timed shell entry from its caller (options.timedShell or PULLBOARD_TIMED_SHELL); pass it from the app that owns the shell');
-    const timed = timeoutMs ? yield { command: process.execPath, args: [timedShell, ...(process.env.PULLBOARD_LANDING_CUSTODY ? [`--landing-custody=${process.env.PULLBOARD_LANDING_CUSTODY}`] : [])], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
+    const timed = timeoutMs ? yield { command: process.execPath, args: [timedShell, ...(landingCustody ? [`--landing-custody=${landingCustody}`] : [])], options: { ...options, env: { ...callerEnv, ...(runtimes ? { PULLBOARD_RUNTIME_CAPTURE_DIR: runtimes.env.PULLBOARD_RUNTIME_CAPTURE_DIR } : {}) }, shell: false, stdio: ['pipe', 'pipe', 'pipe'], input: JSON.stringify({ command: script, timeoutMs, outputFile }) } } : null;
     if (timed && (timed.status !== 0 || timed.error)) throw new Refused('LAND_TIMEOUT_CUSTODY', 'the timed gate worker did not prove cleanup; inspect its owned processes before landing again');
     const result = timed ? { ...JSON.parse(timed.stdout || '{}'), stdout: '', stderr: timed.stderr } : yield { command: script, args: [], options };
     if (timed && result.error) throw new Refused('LAND_GATE_OUTPUT', `the timed gate stopped and drained after its output failed (${result.error}); inspect free disk space and ${timedDirectory} before landing again`);
-    if (timed) result.stdout = readFileSync(outputFile, 'utf8') + (result.timedOut ? `\n[LAND_GATE_TIMEOUT] landing gate exceeded ${timeoutMs}ms; its owned processes are stopped\n` : '');
-    if (timedDirectory) rmSync(timedDirectory, { recursive: true, force: true });
+    if (timed) result.stdout = fs.readFile(outputFile, 'utf8') + (result.timedOut ? `\n[LAND_GATE_TIMEOUT] landing gate exceeded ${timeoutMs}ms; its owned processes are stopped\n` : '');
+    if (timedDirectory) fs.rm(timedDirectory, { recursive: true, force: true });
     if (result.timedOut || result.overflow || result.error) result.status = 1;
     invalidateGitFacts();
     const pipeStatuses = pipes ? readPipes(split, pipes) : null;
-    if (pipes) rmSync(pipes, { recursive: true, force: true });
+    if (pipes) fs.rm(pipes, { recursive: true, force: true });
     const testRuntimes = runtimes?.finish() ?? null;
     const environment = executionEnvironment();
     const raw = `${diagnostics.join('')}${result.stdout ?? ''}${result.stderr ?? ''}`;

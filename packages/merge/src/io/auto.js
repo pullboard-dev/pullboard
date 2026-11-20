@@ -3,6 +3,7 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /**
  * Merge an exact main commit only when Git reports no conflict, using the invoking builder’s Git identity.
@@ -26,8 +27,9 @@ export function mergeSubmissionMain(root, main, { checkout = true } = {}) {
   }
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(fields[0])) throw new Refused('MERGE_CHECK_FAILED', 'Git did not return a valid merge tree');
   const identityEnv = { ...env };
+  const environment = environmentAdapter();
   for (const key of ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) {
-    if (process.env[key] !== undefined) identityEnv[key] = process.env[key];
+    if (environment.has(key)) identityEnv[key] = environment.get(key);
   }
   if (!checkout) {
     const message = `Merge main ${main.slice(0, 12)} into the submitted source`;

@@ -6,7 +6,7 @@ import { SHARD_JOB_KIND } from '../../../../../packages/api/index.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { configFromSource } from '../../../../../packages/config/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitAndWithdraw } from '../../../src/io/hook/push.js';
 import { pushShardLimitMs } from '../../../src/io/hook/push.js';
 

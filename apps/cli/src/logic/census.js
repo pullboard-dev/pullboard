@@ -263,6 +263,12 @@ export function previousShardMs(rows) {
   return [...byShard.values()];
 }
 
+/**
+ * The measured milliseconds of each file that ran green or red, keyed by file.
+ *
+ * @param {Array} rows
+ * @returns {object}
+ */
 export function rowFileTimes(rows) {
   const measured = {};
   for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);

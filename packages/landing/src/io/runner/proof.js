@@ -1,14 +1,18 @@
 /** The land job's proof: run the items' ledger-proved test files on the merged tree, reusing every ledger hit [P7]. */
+import { environmentAdapter } from '../../../../env/index.js';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { gitSpawn } from '../../../../git/index.js';
 import { timeoutDetail } from './deadline.js';
 import { watchDeadline } from './deadline.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 // The run-tests ledger variable (packages/gate LEDGER_HITS_ENV), named here so the runner bundle stays free of the gate package.
 const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
@@ -42,9 +46,9 @@ const LOG_CHARS = 4_000_000;
 function keepLog(root, command, output, env) {
   try {
     const dir = env.PULLBOARD_LAND_LOG_DIR || join(root, '.git', 'land-red-logs');
-    mkdirSync(dir, { recursive: true });
+    fs.mkdir(dir, { recursive: true });
     const path = join(dir, `proof-${new Date().toISOString().replace(/[:.]/gu, '-')}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.log`);
-    writeFileSync(path, `$ ${command}\n${output}`);
+    fs.writeFile(path, `$ ${command}\n${output}`);
     return path;
   } catch { return null; }
 }
@@ -64,7 +68,7 @@ export function accountedRed(output, root) {
   let active = null, yaml = null, counted = 0, summaries = 0;
   // A test runner may print the checkout's real path (macOS /private/var for /var), so either names a file inside it.
   let real = root;
-  try { real = realpathSync(root); } catch { /* the given root stands */ }
+  try { real = fs.realpath(root); } catch { /* the given root stands */ }
   const inside = path => [root, real].map(base => relative(base, path)).find(file => file && !file.startsWith('../') && !isAbsolute(file)) ?? null;
   for (const line of output.split('\n')) {
     if (REFUSAL.test(line) || /^# cancelled [1-9]/u.test(line)) return null;
@@ -114,7 +118,7 @@ export function waivedRed(failures, waivers, now) {
  */
 export function redSummary(output, root) {
   let real = root;
-  try { real = realpathSync(root); } catch { /* the given root stands */ }
+  try { real = fs.realpath(root); } catch { /* the given root stands */ }
   const files = new Set(), cases = [];
   let waiting = false;
   for (const line of output.split('\n')) {
@@ -149,7 +153,7 @@ function shellWord(word) {
  * failed: a red's failing files and case lines, and the path of the file holding its whole output [#8499].
  * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], failures?: { file: string, name: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
-export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now, deadline = null, reuseGate = false } = {}) {
+export function ledgerProofCheck(proof, { env = environment.all(), waivers = [], now = Date.now, deadline = null, reuseGate = false } = {}) {
   return ({ root }) => new Promise(resolve => {
     // The per-file account: the hit list's size, the files it covered, and whether a dirty tree made run-tests ignore it [C7,#9244].
     const reusedFiles = [];
