@@ -17,11 +17,11 @@ import {
   releaseReceiptFields,
   releaseReceiptProblem,
   releaseParticipationDigest,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 import {
   receiptBody,
   receiptFields,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 
 /** Hash synthetic command and collection data using the native digest format, without claiming they ran. */
 function digest(text) { return createHash('sha256').update(text).digest('hex'); }

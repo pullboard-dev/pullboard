@@ -45,6 +45,7 @@ import { reviewCitations } from '../../../../../packages/gate/heavy.js';
 import { citedReceiptsNote } from '../../../../../packages/gate/heavy.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewWait } from '../verify/wait.js';
+import { sameWorkHeads } from '../verify/merge-ticks.js';
 import { sliceVerdictFacts } from '../submit/slice-paths.js';
 import { sliceVerdictProblem } from '../../logic/slice-paths.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
@@ -411,8 +412,10 @@ export async function verifyHere(ctx, id, { second, values }) {
     // An item with no test check is verified only against its review checklist: the board refuses a line that names
     // no file, link or quoted passage before any accept, and the reviewer judges only what the lines show (#996).
     const thread = decision === 'ACCEPT' ? store.itemThread(board, id) : [];
-    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread); if (problem) throw problem; }
-    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread) : null;
+    // A tick at an earlier head counts when only a merge of main separates it from the submitted head (#11163).
+    const tickHeads = decision === 'ACCEPT' ? { head: item.item_commit, sameWorkHeads: sameWorkHeads(root, item, thread) } : undefined;
+    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread, tickHeads); if (problem) throw problem; }
+    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread, tickHeads) : null;
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
