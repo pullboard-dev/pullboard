@@ -194,3 +194,19 @@ export function quotedPersonProblems(text, names) {
   });
   return problems;
 }
+
+/** Path stems (before the extension) of the files that hold the quote patterns on purpose: the format, its cases and the privacy words case; their added lines are never checked [C7,#11301]. */
+const QUOTE_PATTERN_STEMS = ['packages/commits/src/logic/message', 'packages/commits/tests/logic/message', 'packages/sandbox/tests/privacy/words'];
+
+/**
+ * The refusals for staged added lines that quote a configured person, one per line, naming file and line. Only the
+ * added lines passed in are read, so an older line holding a quote passes; an empty names list checks nothing [C7,#11301].
+ *
+ * @param {{ path: string, line: number, text: string }[]} added - Rows from the staged diff's added lines.
+ * @param {string[]} names - commits.quotedNames.
+ * @returns {string[]}
+ */
+export function quotedAddedLineProblems(added, names) {
+  return added.filter(row => !QUOTE_PATTERN_STEMS.some(stem => row.path.startsWith(`${stem}.`)) && quotedPersonProblems(row.text, names).length)
+    .map(row => `${row.path}:${row.line} quotes a configured person; state the rule itself or cite its item or spec id`);
+}

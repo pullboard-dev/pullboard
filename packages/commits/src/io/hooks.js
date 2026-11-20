@@ -38,6 +38,7 @@ import {
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
 import { quotedPersonProblems } from "../logic/message.js";
+import { quotedAddedLineProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
@@ -555,6 +556,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     }
     problems.push(...secretsIn(added).map((where) => `possible secret: ${where}`));
   }
+  // Added lines only, and no git call when commits.quotedNames is empty [C7,#11301].
+  if (config.commits?.quotedNames?.length) problems.push(...quotedAddedLineProblems(addedLinesInBatches(root, written), config.commits.quotedNames));
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]), ...deletedGateProblems(root, config));
   const rootTests = rootTestRefusal(written, { isTest: path => (config.claim?.barTestFiles ?? []).some(pattern => matchesPattern(pattern.split('/').at(-1), path)), known: path => ['HEAD', 'refs/heads/main'].some(revision => tryGit(root, ['cat-file', '-e', `${revision}:${path}`]).status === 0), read: path => { const shown = tryGit(root, ['show', `:${path}`]); return shown.status === 0 ? shown.stdout : null; } }); if (rootTests) throw new Refused(rootTests.code, rootTests.message, rootTests.next); // #4005
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
