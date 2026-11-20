@@ -21,6 +21,10 @@ import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
 import { relaxRequiredFamilyEnabled } from '../../../../packages/config/index.js';
 import { nextLightShapedStrong } from '../../../../packages/config/index.js';
 import { lightShaped } from '../../../../packages/seats/index.js';
+import { claimCheckCeilingEnabled } from '../../../../packages/config/index.js';
+import { checkVerdict } from '../../../../packages/config/index.js';
+import { frozenCheckCeilingMs } from '../../../../packages/config/index.js';
+import { itemCheckBaseline } from '../../../../packages/store/light.js';
 
 /**
  * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
@@ -356,6 +360,11 @@ export class MainSpecMerged extends Error {
  */
 export function claimFreezer(ctx, board) {
   return (item) => {
+    // With claim.checkCeiling on, an item whose recorded check measured over its ceiling is refused here; a pending or unmeasured baseline claims as before [C7,#1273].
+    if (claimCheckCeilingEnabled()) {
+      const baseline = itemCheckBaseline(board, item);
+      if (baseline) checkVerdict({ measuredMs: typeof baseline.seconds === number ? baseline.seconds * 1000 : undefined, ceilingMs: frozenCheckCeilingMs(ctx.config), remeasurePending: baseline.result === pending, strict: false });
+    }
     return freezer(ctx, { board })(item);
   };
 }
