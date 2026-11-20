@@ -7291,7 +7291,7 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/show/review/tier.test.js",
+      "file": "apps/cli/tests/io/commands/show/tier.test.js",
       "specs": [
         "B26",
         "C7",

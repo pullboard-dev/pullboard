@@ -95,7 +95,7 @@
   "apps/cli/journeys/relay/person/scroll.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/resume/tour.test.js": {
+  "apps/cli/tests/io/resume/tour.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/runner/controller/cpu.test.js": {
@@ -473,7 +473,7 @@
   "apps/cli/journeys/shout/layout/corner.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/show/policy/dependency.test.js": {
+  "apps/cli/tests/io/commands/show/dependency.test.js": {
     "launch": 8
   },
   "apps/cli/journeys/land/landing/prune.test.js": {
@@ -869,7 +869,7 @@
   "apps/cli/journeys/resources/checks.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/resume/tour-demo.test.js": {
+  "apps/cli/tests/io/resume/tour-demo.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/test/runners.test.js": {
@@ -1097,7 +1097,7 @@
   "apps/runner/tests/recovery/idle.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/stats/log.test.js": {
+  "apps/cli/tests/io/commands/stats/log.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/publish/catalog.test.js": {
@@ -1367,7 +1367,7 @@
   "apps/cli/journeys/fact/tests/no.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+  "apps/cli/tests/io/resume/heartbeat.test.js": {
     "launch": 6
   },
   "packages/seats/tests/io/checkout.test.js": {
