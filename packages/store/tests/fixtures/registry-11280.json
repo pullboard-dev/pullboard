@@ -1,0 +1,5 @@
+{
+  "store.blocks.add-and-list": {"proves":{"specs":["C7"],"claim":"addBlock stores a named block of two open items and listBlocks returns it with its members."},"why":"The block slice of #2202 needs a stored record before any command or claim can use it.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]},
+  "store.blocks.refusals": {"proves":{"specs":["C7"],"claim":"addBlock refuses a repeated name with BLOCK_EXISTS, an unknown member with NO_ITEM and a board below BLOCK_ENGINE with ENGINE_VERSION."},"why":"A block name is unique, its members exist and an older engine must not record it.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]},
+  "store.blocks.real-path": {"proves":{"specs":["C7"],"claim":"addBlock called through the store front door records a block that listBlocks reads."},"why":"The operation must be reachable from the store index, not only its module.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js","packages/store/index.js"]}
+}

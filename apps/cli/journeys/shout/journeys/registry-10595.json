@@ -1,0 +1,3 @@
+{
+  "cli.journeys-shout-journeys-registered.nine-files-registered": {"proves":{"specs":["C7"],"claim":"every test in the nine view-owned shout journey files has a cli.journeys-shout-<file>.<slug> title ID and a record in registry-10595.json."},"why":"Without it, a view-owned shout journey could lose its stable ID or record with nothing failing.","kind":"journey","inputs":["apps/cli/journeys/shout/journeys/registered.test.js"]}
+}
