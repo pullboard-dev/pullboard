@@ -68,6 +68,7 @@ const OPTIONS = {
   'runner-only': { type: 'boolean' },
   static: { type: 'boolean' },
   withdraw: { type: 'string' },
+  'stale-before': { type: 'string' },
   after: { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },

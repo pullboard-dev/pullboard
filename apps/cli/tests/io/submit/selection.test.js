@@ -26,7 +26,7 @@ import {
   selectTestTiers,
   testTierReport,
   writeTestTiers,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { namedProofTests } from '../../../src/io/submit.js';
 import { executionServices } from '../../fixtures/gate/execution.js';
