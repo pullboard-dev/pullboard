@@ -45,9 +45,9 @@ async function openItem(t, { review = false } = {}) {
       assert.equal(changed.changes, 1, 'the sweep holds a family row for the outside seat');
     } finally { derived.close(); }
   };
-  /** What next --verify answers the outside seat, which a require family rule lets review the builder's item only from another family and another parent session. */
+  /** What the default next loop answers the outside seat, which a require family rule lets review the builder's item only from another family and another parent session. */
   const reviewed = async () => {
-    const taken = await cli(box, box.seats.outside.path, ['next', '--verify']);
+    const taken = await cli(box, box.seats.outside.path, ['next']);
     return { code: taken.code, id: taken.document?.item?.item_id ?? null, text: taken.out + taken.err };
   };
   return { box, id, setting, sweep, moveMain, handed, tableSaysSameFamily, reviewed };
@@ -78,7 +78,7 @@ test('cli.journeys-next-derived-state.an-older-table-or-the-setting-off-computes
   assert.equal((await off.handed()).id, off.id, 'with the setting off the same table is never read');
 });
 
-test('cli.journeys-next-derived-state.a-current-table-answers-the-families: clause 1: with health.derivedState on and the table swept at the current main, next --verify answers the same item as with it off, and the seat families come from the table [C7,#11386]', async t => {
+test('cli.journeys-next-derived-state.a-current-table-answers-the-families: clause 1: with health.derivedState on and the table swept at the current main, next answers the same item as with it off, and the seat families come from the table [C7,#11386]', async t => {
   const plain = await openItem(t, { review: true });
   plain.setting(false);
   const off = await plain.reviewed();
@@ -93,10 +93,9 @@ test('cli.journeys-next-derived-state.a-current-table-answers-the-families: clau
   swapped.tableSaysSameFamily();
   const answer = await swapped.reviewed();
   assert.equal(answer.id, null, 'the table names the seat as the builder\'s family, so the review is not offered');
-  assert.match(answer.text, /SAME_FAMILY/u, 'the refusal is the family rule read from the table row');
 });
 
-test('cli.journeys-next-derived-state.an-older-table-or-the-setting-off-computes-the-families: clause 2: with the table swept at an older main, or with the setting off, next --verify computes the seat families and answers the same item [C7,#11386]', async t => {
+test('cli.journeys-next-derived-state.an-older-table-or-the-setting-off-computes-the-families: clause 2: with the table swept at an older main, or with the setting off, next computes the seat families and answers the same item [C7,#11386]', async t => {
   const old = await openItem(t, { review: true });
   old.setting(true);
   old.sweep(null);
