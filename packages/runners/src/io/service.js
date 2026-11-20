@@ -22,6 +22,7 @@ import { homedir } from 'node:os';
 import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { posix } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -344,7 +345,9 @@ export async function runnerServiceInstaller() {
     '</dict>', '</plist>', ''].join('\n'));
   // A bootout just before may still be settling; an agent tries the GUI session domain first, then the background user domain.
   let domain = null;
-  const domains = daemon ? uid === 0 ? ['system'] : [] : [`gui/${uid}`, `user/${uid}`];
+  // An agent is not loaded while an older system daemon for the label remains: both would run, so the sudo line removes it first.
+  const pendingRemoval = !daemon && daemonLeft;
+  const domains = daemon ? uid === 0 ? ['system'] : [] : pendingRemoval ? [] : [`gui/${uid}`, `user/${uid}`];
   for (const candidate of domains) {
     for (let attempt = 0; attempt < 5 && !domain; attempt++) {
       if (await launchctl('bootstrap', candidate, plist)) domain = candidate;
@@ -352,7 +355,7 @@ export async function runnerServiceInstaller() {
     }
     if (domain) break;
   }
-  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist, restarted,
+  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, pendingRemoval, domain, plist, restarted,
     ...(daemon ? { daemonPlist, user: uid === 0 ? 'root' : user } : {}), sudo, dir, log, args })}\n`);
 }
 
@@ -414,7 +417,7 @@ function recordService(host, service, file = serviceRecordFile()) {
  * @returns {Promise<object>} What the runner reported: the form, plist, folder and log, whether launchd loaded it, and
  *   the sudo line a person runs when it could not.
  */
-export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = process.env } = {}) {
+export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = environmentAdapter().all() } = {}) {
   const plan = { label: SERVICE_LABEL, root: runner.root ?? '', remove, host: runner.host };
   if (!remove) {
     const target = serviceBoard(board);
@@ -430,6 +433,6 @@ export async function installRunnerService(runner, { board, key, remove = false,
   if (run.status !== 0 || !reply) {
     throw new Refused('RUNNER_SETUP', `runner ${runner.host} did not ${remove ? 'remove' : 'install'} runner serve: ${run.error ?? (run.stderr.trim().slice(-400) || `status ${run.status}`)}`, 'fix the ssh connection or the runner\'s Node, then run the command again');
   }
-  recordService(runner.host, remove ? null : { board: plan.board, form: reply.form, loaded: reply.loaded, sudo: reply.sudo, at: new Date().toISOString() });
+  recordService(runner.host, remove ? null : { board: plan.board, form: reply.form, loaded: reply.loaded, sudo: reply.sudo, ...(reply.pendingRemoval ? { pendingRemoval: true } : {}), at: new Date().toISOString() });
   return { host: runner.host, label: SERVICE_LABEL, ...reply };
 }

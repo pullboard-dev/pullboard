@@ -13,6 +13,7 @@ import { STATIC_CHECKS } from './src/io/static/check/registry.js';
 import { runStaticRegistry } from './src/io/static/check/registry.js';
 import { acceptRelease } from './src/io/release/accept.js';
 import { runAccept } from './src/io/release/accept.js';
+import { conformanceResults } from './src/logic/conformance-setups.js';
 import { diskStoresFrom } from './src/io/stores.js';
 import { storeRegistry } from './src/io/stores.js';
 import { removeTestSandbox } from './src/io/test/cleanup.js';
@@ -490,6 +491,7 @@ import { unregisteredNewTests } from './src/logic/test-registry.js';
 
 export { gateCheckoutPool, exactGateCheckout, discardGateCheckout, borrowGateCheckout, returnGateCheckout, trimGateCheckouts, GATE_CHECKOUT_IDLE_MS };
 export { acceptRelease, runAccept };
+export { conformanceResults };
 export { changedStaticFailures, stagedHookFailures, STATIC_CHECKS, runStaticRegistry, CEILING_ROW_TABLES };
 export { diskStoresFrom, storeRegistry, removeTestSandbox, createInstallCache, createPackCache, CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS };
 export { refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal, machineryRefusal };
