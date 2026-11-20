@@ -1,0 +1,4 @@
+{
+  "cli.journeys-runner-runners-swap.runner-list-prints-swapping-on-the-runner": {"proves":{"specs":["C7"],"claim":"runner list prints swapping used of memory on a runner past half its memory and nothing on one under it."},"why":"Without it, a runner swapping heavily would look as healthy as any other in the listing.","kind":"journey","inputs":["apps/cli/journeys/runner/runners/swap.test.js"]},
+  "cli.journeys-runner-runners-swap.runner-list-json-carries-swapusedmb-on-that": {"proves":{"specs":["C7"],"claim":"runner list --json carries swapUsedMB on the registered runner row."},"why":"Without it, tools reading the JSON listing could not see a runner's swap use.","kind":"journey","inputs":["apps/cli/journeys/runner/runners/swap.test.js"]}
+}
