@@ -33,6 +33,8 @@ import { loadConfig } from '../../../../packages/config/index.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** The review lease's taken mark outlives a release by five seconds on the command clock. */
+const PAST_LEASE_MS = 6_000;
 const HOUR = 3_600_000;
 /** An agent that writes a change in its lane; the runner commits it, and a submit with no change is refused (EMPTY_SUBMIT). */
 const COMMITTING_AGENT = "sh -c 'mkdir -p web && echo built > web/built.txt'";
@@ -206,6 +208,7 @@ test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a r
   const releaseEvent = store.events(box.board, { itemId: released }).at(-1);
   assert.equal(releaseEvent.event_kind, 'release');
   assert.deepEqual(JSON.parse(releaseEvent.event_detail), { review: true, reason: 'checked the wrong tree', reasonCode: 'BLOCKED', model: 'unknown' });
+  box.clock.advance(PAST_LEASE_MS);
   const secondReservation = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(secondReservation.code, 0, secondReservation.stderr);
   assert.equal(secondReservation.data.item.item_id, released);
@@ -228,6 +231,7 @@ test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a r
   const sameReviewer = await run(box, box.reviewer, ['next', '--verify', '--json']);
   assert.equal(sameReviewer.code, 0, sameReviewer.stderr);
   assert.equal(sameReviewer.data.item.item_id, firstReview, 'the same reviewer is offered other eligible work first');
+  box.clock.advance(PAST_LEASE_MS);
   const anotherReviewer = await run(box, box.reviewer2, ['next', '--verify', '--json']);
   assert.equal(anotherReviewer.code, 0, anotherReviewer.stderr);
   assert.equal(anotherReviewer.data.item.item_id, released, 'another reviewer may take the released submission');
@@ -235,6 +239,7 @@ test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a r
   const item = store.getItem(box.board, released);
   store.verify(box.board, released, { agentId: box.reviewer2Id, decision: 'REJECT', reason: 'OTHER', note: 'private fixture rework', clause: 'Every move keeps its evidence.',
     head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' });
+  box.clock.advance(PAST_LEASE_MS);
   const rejectedReserve = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(rejectedReserve.code, 1);
   assert.equal(rejectedReserve.data.error.code, 'NOT_SUBMITTED', 'an old cooldown must not mask the item-state refusal');
@@ -242,6 +247,7 @@ test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a r
     freeze: (current) => ({ text: current.item_frozen, digest: current.item_frozen_digest }) });
   submitFixture(box.board, released, { agentId: box.peerId, commit: createHash('sha1').update('resubmitted review item').digest('hex'),
     tree: createHash('sha1').update('resubmitted review tree').digest('hex') });
+  box.clock.advance(PAST_LEASE_MS);
   const afterResubmit = await run(box, box.reviewer, ['next', '--verify', String(released), '--json']);
   assert.equal(afterResubmit.code, 0, afterResubmit.stderr);
   assert.equal(afterResubmit.data.item.item_id, released, 'a new submission clears the previous release cooldown');
