@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
-import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
+import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { sharedToolsTarget } from '../toolsnapshot.js';
@@ -10,18 +10,18 @@ import { toolsSnapshot } from '../toolsnapshot.js';
 import { runPulledComparison } from '../test/pull.js';
 import { queueAccept } from '../test/accept.js';
 import { queuesAccept } from '../test/accept.js';
-import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
+import { generateTestTiersAt } from '../../../../../packages/gate/heavy.js';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
-import { committedTestOutcomes } from '../../../../../packages/gate/index.js';
-import { submitGateConfig } from '../../../../../packages/gate/index.js';
-import { submitGatePlan } from '../../../../../packages/gate/index.js';
+import { committedTestOutcomes } from '../../../../../packages/gate/heavy.js';
+import { submitGateConfig } from '../../../../../packages/gate/heavy.js';
+import { submitGatePlan } from '../../../../../packages/gate/heavy.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
 import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
-import { selectTestTiers } from '../../../../../packages/gate/index.js';
+import { selectTestTiers } from '../../../../../packages/gate/heavy.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { changedHunks } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
@@ -30,11 +30,11 @@ import { renderVerificationComparison } from '../../../../../packages/verify/ind
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
 import { mainRunnerSource } from '../../../../../packages/landing/index.js';
 import { reviewMainPolicy } from '../../../../../packages/sandbox/index.js';
-import { testTierProofFiles } from '../../../../../packages/gate/index.js';
-import { testTierCommand } from '../../../../../packages/gate/index.js';
-import { testTierReport } from '../../../../../packages/gate/index.js';
-import { reviewCitations } from '../../../../../packages/gate/index.js';
-import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
+import { testTierProofFiles } from '../../../../../packages/gate/heavy.js';
+import { testTierCommand } from '../../../../../packages/gate/heavy.js';
+import { testTierReport } from '../../../../../packages/gate/heavy.js';
+import { reviewCitations } from '../../../../../packages/gate/heavy.js';
+import { citedReceiptsNote } from '../../../../../packages/gate/heavy.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewWait } from '../verify/wait.js';
 import { sliceVerdictFacts } from '../submit/slice-paths.js';
@@ -52,7 +52,7 @@ import {
   retainTestOutput,
   renderTestSummary,
   withTestOutput,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import { checkAtCommit } from '../../../../runner/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
@@ -60,7 +60,7 @@ import { compareMainFailures } from '../../../../../packages/landing/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { committedItemAuthors } from '../../../../../packages/verify/index.js';
 import { earlierHolderProblem } from '../../../../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../../../../packages/sandbox/index.js';
@@ -87,12 +87,12 @@ import {
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   refuseSandboxBlocked,
   timingDigest,
   withGateSlot,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   contains,
   git,
