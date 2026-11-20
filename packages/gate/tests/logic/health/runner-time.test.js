@@ -2,8 +2,8 @@
 /** Runner minutes are summed by purpose, and the share no item and purpose can be charged for is reported [C7,#8184]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runnerTimeLines } from '../../../index.js';
-import { runnerTimeSummary } from '../../../index.js';
+import { runnerTimeLines } from '../../../heavy.js';
+import { runnerTimeSummary } from '../../../heavy.js';
 
 /** One sidecar line. */
 const dispatch = (item, kind, minutes) => ({ v: 1, host: 'runner-a', item, kind, minutes, start: '2026-11-15T12:00:00.000Z', end: '2026-11-15T12:01:00.000Z', outcome: 'ok' });

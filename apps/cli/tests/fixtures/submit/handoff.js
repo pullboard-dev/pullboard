@@ -15,7 +15,6 @@ import { getItem } from '../../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { endedSubmitHandoff } from '../../../../../packages/store/index.js';
 import { fixtureAdd } from '../testkit.js';
-import { driverRecord } from '../gate/driver.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -126,42 +125,11 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
       const current = state(box, id).job;
       return current && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id, 'source'));
     }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
-    if (job) await workerGone(helpers, box, job.id);
     await removeSandboxes(helpers);
   });
   return { ...box, helpers, id, second, third, fourth: fourthId, commit, source, secondFolder, release, releases, started, finished };
 }
 
-
-/**
- * Wait for the job's own supervisor to exit before removing its tree, without blocking the event loop.
- * Why: node:test runs a test's after hooks once run-tests arms its 30 s file-exit ceiling, so teardown that
- * races a still-exiting supervisor must wait for it asynchronously and stay well under that ceiling.
- */
-export async function workerGone(helpers, box, job) {
-  let pid;
-  try { pid = driverRecord(box.boardFile ?? join(box.repo, '.git', 'pullboard', 'board.sqlite'), job)?.pid; } catch { return; /* No launched driver to wait for. */ }
-  if (!Number.isSafeInteger(pid) || pid <= 0) return;
-  await helpers.waitFor(() => { // budget: owned supervisor exit ceiling inside the file-exit window, not a timing assertion.
-    try { process.kill(pid, 0); return false; }
-    catch (error) { return error.code === 'ESRCH'; }
-  }, `queued submit supervisor ${pid} exit before fixture removal`, 10_000);
-}
-
-/**
- * Wait until a fixture's gate process has made its last write: the job's driver has exited.
- * Why: it outlives the job's terminal record by design. The driver ends its drive job and removes its checkout after
- * it records the result. A fixture removed under it got a folder back after rmSync had walked past it, and rmSync then slept
- * in its retry backoff on the root until run-tests killed the file (#3495).
- *
- * @param {any} helpers - The fixture's e2e helpers.
- * @param {{ boardFile?: string, repo: string }} box - The fixture project.
- * @param {string | undefined} job - The hand-off job whose driver must exit, when one was queued.
- */
-export async function gateSettled(helpers, box, job) {
-  const boardFile = box.boardFile ?? join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  if (job) await workerGone(helpers, { ...box, boardFile }, job);
-}
 
 /**
  * Remove this fixture's sandboxes with asynchronous retries and a bound under the file-exit ceiling.

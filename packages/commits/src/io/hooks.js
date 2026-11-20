@@ -13,14 +13,6 @@ import { gitBoardDataPush } from "../logic/board.js";
 import { rootTestRefusal } from './listing.js';
 import { hostname } from 'node:os';
 import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
   relative,
   resolve,
@@ -45,6 +37,8 @@ import {
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
+import { quotedPersonProblems } from "../logic/message.js";
+import { quotedAddedLineProblems } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
@@ -60,6 +54,8 @@ import {
 } from "../../../spec/index.js";
 import { approvedRowProblems } from "../../../spec/index.js";
 import { specGateMoveOnly } from "../../../spec/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit'];
 export const HOOKS_DIR = '.githooks';
@@ -166,6 +162,7 @@ export function commitMsgProblems(raw, { rules, spec, doctrine = null, claimedIt
   }
   if (rules.noEmoji && EMOJI_RE.test(all)) problems.push('remove the emoji');
   if (rules.noCoAuthor && /^\s*co-authored-by\s*:/im.test(all)) problems.push('remove the Co-Authored-By trailer');
+  problems.push(...quotedPersonProblems(all, rules.quotedNames));
   return problems;
 }
 
@@ -470,7 +467,7 @@ export function addedLines(diff) {
  * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
  */
 export function recheckRange(repo, base, head, { rules } = {}) {
-  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const commitRules = rules ?? (fs.exists(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
   const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
   if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
   const findings = [];
@@ -524,6 +521,18 @@ export function preCommitProblems(context) {
   return withSharedReads(context.root, stagedPaths(context.root).touched, () => checkStagedChange(context));
 }
 
+/**
+ * The ITEM_FOLDER_OFF_BRANCH refusal when this checkout is an item folder (a path ending -item-<id>) whose HEAD is not on a `<lane>/item-<id>` branch, else null.
+ * Why: the folder's identity needs that exact branch, so a probe commit on any other branch looked like an unjoined worktree [C7,#10799].
+ */
+function itemFolderOffBranch(root) {
+  const item = /-item-([1-9]\d*)$/u.exec(root)?.[1];
+  if (!item) return null;
+  const branch = tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout.trim();
+  if (branch.endsWith(`/item-${item}`)) return null;
+  return `ITEM_FOLDER_OFF_BRANCH: this is the item folder of #${item} but HEAD is ${branch ? `on ${branch}` : 'detached'}; switch back to <lane>/item-${item}, or probe in a separate worktree (git worktree add <path> <commit> --detach)`;
+}
+
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
 function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
@@ -547,6 +556,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     }
     problems.push(...secretsIn(added).map((where) => `possible secret: ${where}`));
   }
+  // Added lines only, and no git call when commits.quotedNames is empty [C7,#11301].
+  if (config.commits?.quotedNames?.length) problems.push(...quotedAddedLineProblems(addedLinesInBatches(root, written), config.commits.quotedNames));
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]), ...deletedGateProblems(root, config));
   const rootTests = rootTestRefusal(written, { isTest: path => (config.claim?.barTestFiles ?? []).some(pattern => matchesPattern(pattern.split('/').at(-1), path)), known: path => ['HEAD', 'refs/heads/main'].some(revision => tryGit(root, ['cat-file', '-e', `${revision}:${path}`]).status === 0), read: path => { const shown = tryGit(root, ['show', `:${path}`]); return shown.status === 0 ? shown.stdout : null; } }); if (rootTests) throw new Refused(rootTests.code, rootTests.message, rootTests.next); // #4005
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
@@ -568,7 +579,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   }
   if (isMain) return problems;
   if (!agent) {
-    problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
+    const offBranch = itemFolderOffBranch(root);
+    problems.push(offBranch ?? 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
     return problems;
   }
   const mergeHeads = mainMergeHeads(root, preMergeHook);
@@ -713,7 +725,7 @@ function committedLaneConfig(root) {
 /** Report a missing merge check at Git's effective hook path without changing files [L3,A6]. */
 export function preMergeHookProblems(root) {
   const file = gitPath(root, 'hooks/pre-merge-commit');
-  return existsSync(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
+  return fs.exists(file) ? [] : [{ code: 'HOOK_MISSING', message: `merge hook ${file} is missing`, next: 'run pullboard hooks to install pre-merge-commit, then commit the hook files' }];
 }
 
 /** Resolve Git's effective hook directory, letting Git apply core.hooksPath itself.
@@ -829,8 +841,8 @@ export function unwiredHookProblems(root) {
     const file = join(dir, hook);
     let source;
     try {
-      if ((statSync(file).mode & 0o111) === 0) return [];
-      source = readFileSync(file, 'utf8');
+      if ((fs.stat(file).mode & 0o111) === 0) return [];
+      source = fs.readFile(file, 'utf8');
     } catch { return []; }
     if (delegatesHook(source, hook)) return [];
     const path = relative(root, file);
@@ -855,7 +867,7 @@ function mainMergeHeads(root, preMergeHook) {
   try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
   try {
-    if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
+    if (fs.exists(mergeFile)) merges = fs.readFile(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {
       const names = Object.keys(process.env).filter((name) => name.startsWith('GITHEAD_'));
       if (names.some((name) => !/^GITHEAD_(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(name))) return null;
@@ -1028,7 +1040,7 @@ export function applyFixers(root, fixers) {
   const covers = (fixer, path) => (fixer.files ?? ['*']).some((pattern) => matchesPattern(pattern, path));
   const notes = [];
   for (const fixer of fixers) {
-    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && existsSync(join(root, path)));
+    const files = written.filter((path) => covers(fixer, path) && !unstaged.has(path) && fs.exists(join(root, path)));
     if (!files.length) continue;
     const result = spawnSync(`${fixer.run} ${files.map(shellQuote).join(' ')}`, {
       cwd: root,
@@ -1108,7 +1120,7 @@ let cachedInstallerVersion;
 
 /** Read installer metadata only when generating a hook, so importing board helpers needs no package. */
 function installerVersion() {
-  return cachedInstallerVersion ??= JSON.parse(readFileSync(new URL("../../../../package.json", import.meta.url), 'utf8')).version;
+  return cachedInstallerVersion ??= JSON.parse(fs.readFile(new URL("../../../../package.json", import.meta.url), 'utf8')).version;
 }
 
 /**
@@ -1174,11 +1186,11 @@ export function hookScript(hook, version = installerVersion()) {
  */
 export function installHooks(root, onWrite = () => {}) {
   const dir = join(root, HOOKS_DIR);
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   const notes = [];
   for (const hook of HOOKS) {
     const file = join(dir, hook);
-    const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
+    const existing = fs.exists(file) ? fs.readFile(file, 'utf8') : null;
     if (existing !== null && !existing.includes(HOOK_MARK)) {
       const isWired = existing.includes(`hook ${hook}`) && existing.includes('pullboard');
       notes.push(
@@ -1190,15 +1202,15 @@ export function installHooks(root, onWrite = () => {}) {
     }
     const script = hookScript(hook);
     if (existing === script) {
-      if ((statSync(file).mode & 0o777) !== 0o755) {
-        chmodSync(file, 0o755);
+      if ((fs.stat(file).mode & 0o777) !== 0o755) {
+        fs.chmod(file, 0o755);
         onWrite(`${HOOKS_DIR}/${hook}`);
         notes.push(`restored executable mode for ${HOOKS_DIR}/${hook}`);
       } else notes.push(`kept ${HOOKS_DIR}/${hook}`);
       continue;
     }
-    writeFileSync(file, script);
-    chmodSync(file, 0o755);
+    fs.writeFile(file, script);
+    fs.chmod(file, 0o755);
     onWrite(`${HOOKS_DIR}/${hook}`);
     notes.push(`wrote ${HOOKS_DIR}/${hook}`);
   }

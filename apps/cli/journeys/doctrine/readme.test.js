@@ -174,13 +174,10 @@ test('current docs pages and shipped skills use DOCTRINE.md, reserving PRACTICE.
 
   const files = [...markdownFiles('docs'), ...markdownFiles('skills')].sort();
   assert.ok(files.includes('docs/rfcs/0001-standard-doctrine.md'));
-  const specProof = readFileSync(join(ROOT, 'docs/proof/spec.md'), 'utf8');
-  assert.match(specProof, /this repo's `DOCTRINE\.md`\. This audit's S6 proof row records the earlier root `PRACTICE\.md`; other repos that still have only `PRACTICE\.md` keep it as a compatibility fallback/u, 'the proof table labels the old filename as historical while preserving its fallback for other repos');
   for (const file of files) {
     const text = readFileSync(join(ROOT, file), 'utf8');
     for (const [index, line] of text.split('\n').entries()) {
       if (!line.includes('PRACTICE.md')) continue;
-      if (file === 'docs/proof/spec.md' && line.startsWith('| S')) continue; // historical proof rows follow the page's legacy-fallback introduction
       assert.match(line, /legacy|fallback|histor|at the time/i, `${file}:${index + 1} labels PRACTICE.md as legacy, fallback or history`);
     }
   }

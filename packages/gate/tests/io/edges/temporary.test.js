@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree packages/codemap/data/plan/** */
 /** Temporary import debt has an explicit removal owner, UTC expiry and visible shim count [C7]. */
-import { importsIn } from '../../../index.js';
-import { commonJsIn } from '../../../index.js';
+import { importsIn } from '../../../heavy.js';
+import { commonJsIn } from '../../../heavy.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';

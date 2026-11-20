@@ -2098,6 +2098,14 @@
         "packages/commits/src/logic/change/row/plan.js",
         "rule"
       ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/gate-resource.test.js",
+        "packages/gate/tests/io/main/resource.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2475,7 +2483,7 @@
     "codemap->git",
     "codemap->fs",
     "codemap->kernel",
-    "codemap->fs",
+    "config->fs",
     "config->kernel",
     "gate->codemap",
     "runners->config",
@@ -2542,6 +2550,7 @@
     "link->store",
     "merge->git",
     "outbox->store",
+    "outbox->env",
     "pages->store",
     "person->store",
     "sandbox->store",
@@ -2560,6 +2569,7 @@
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
+    "apps/cli->fs",
     "apps/cli->codemap",
     "apps/cli->api",
     "health->state",
@@ -2605,6 +2615,7 @@
     "store->git",
     "store->jobs",
     "store->kernel",
+    "store->fs",
     "github->items",
     "link->kernel",
     "apps/relay->link",

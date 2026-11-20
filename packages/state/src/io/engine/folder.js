@@ -1,7 +1,5 @@
 /** Keep every engine identity in the one engines folder of the state cell, one leaf per engine [C7,V4]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { engineBindings } from '../../../../kernel/light.js';
@@ -51,6 +49,9 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
 /** The state cell's two front doors, either of which may forward an engine leaf. */
 const STATE_DOORS = new Set(['packages/state/index.js', 'packages/state/light.js']);
 
+/** The pure module light.js re-exports its engine numbers from; it forwards leaf numbers the way the doors do [C7,H16]. */
+const ENGINE_NUMBER_DOOR = 'packages/state/src/logic/engine/constants.js';
+
 /** Every name a leaf in the engines folder declares with `export const`, the only source of an engine's identity. */
 function leafEngineNames(sources) {
   const names = new Set();
@@ -81,23 +82,23 @@ function forwardedEngineNumbers(file, code, literals, leaves) {
 function stateEngineExports(sources) {
   const names = new Set();
   const leaves = leafEngineNames(sources);
-  for (const entry of sources.filter(row => STATE_DOORS.has(row.file))) {
-    for (const name of doorEngineExports(sources, entry.source)) names.add(name);
+  for (const entry of sources.filter(row => STATE_DOORS.has(row.file) || row.file === ENGINE_NUMBER_DOOR)) {
+    for (const name of doorEngineExports(sources, entry.source, posix.dirname(entry.file))) names.add(name);
     const { code, strings } = lex(entry.source);
     for (const { name } of forwardedEngineNumbers(entry.file, code, new Map(strings.map(literal => [literal.start, literal.text])), leaves)) names.add(name);
   }
   return names;
 }
 
-/** The engine names one state front door forwards straight from a leaf that declares them. */
-function doorEngineExports(sources, source) {
+/** The engine names one state front door, or the engine-number door, forwards straight from a leaf that declares them; `base` is the folder its relative targets start from. */
+function doorEngineExports(sources, source, base) {
   const { code, strings } = lex(source), names = new Set();
   const literals = new Map(strings.map(literal => [literal.start, literal.text]));
   for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
     const end = list.index + list[0].length, from = /^\s*from\b\s*/u.exec(code.slice(end));
     const target = from ? literals.get(end + from[0].length) : null;
     if (!target || !/^\.{1,2}\//u.test(target) || target.includes('\\')) continue;
-    const file = posix.normalize(posix.join('packages/state', target));
+    const file = posix.normalize(posix.join(base, target));
     if (!HOME.test(file)) continue;
     const definitions = sources.filter(row => row.file === file);
     if (definitions.length !== 1) continue;
@@ -159,13 +160,13 @@ export function engineFolderViolations(sources) {
 /** Read only product source trees; fixture text is lexed without running any module. */
 export function engineFolderProblems(root) {
   const sources = [];
-  const pending = ['src', 'packages', 'apps'].filter(folder => existsSync(join(root, folder)));
+  const pending = ['src', 'packages', 'apps'].filter(folder => fileSystemAdapter().exists(join(root, folder)));
   while (pending.length) {
     const directory = pending.pop();
-    for (const entry of readdirSync(join(root, directory), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    for (const entry of fileSystemAdapter().list(join(root, directory), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const file = `${directory}/${entry.name}`;
       if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') pending.push(file);
-      else if (entry.isFile() && /\.[cm]?js$/u.test(file)) sources.push({ file, source: readFileSync(join(root, file), 'utf8') });
+      else if (entry.isFile() && /\.[cm]?js$/u.test(file)) sources.push({ file, source: fileSystemAdapter().readFile(join(root, file), 'utf8') });
     }
   }
   return engineFolderViolations(sources).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line);

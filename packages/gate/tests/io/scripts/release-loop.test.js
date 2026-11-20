@@ -26,7 +26,8 @@ const ROOT = resolve(import.meta.dirname, '../../../../..');
 const PUBLISHED = ['CHANGELOG.md', 'LICENSE', 'README.md', 'apps', 'docs', 'package.json', 'packages', 'skills'];
 const dirs = [];
 after(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  // The pulled gate settles on the local runner, which can still write into a folder as it is removed (ENOTEMPTY).
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 test('gate.io-scripts-release-loop.a-packed-release-runs-the-builder: clause 2: a packed release runs the builder commit, submit, settle, verify, merge and show loop through the installed bin [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async (t) => {
