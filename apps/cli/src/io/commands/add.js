@@ -137,6 +137,7 @@ export async function run(io, args) {
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
+  const afterGate = dependencyValues(idList(values['after-gate']));
   const title = [second, ...rest].filter(Boolean).join(' ');
   requireSpecRow({ lane: first, title, specIds }, itemsBarRulesAtAdd());
   const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
@@ -156,6 +157,7 @@ export async function run(io, args) {
     specIds,
     parentId,
     after,
+    afterGate,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
@@ -180,7 +182,7 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief, check: item.check });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');

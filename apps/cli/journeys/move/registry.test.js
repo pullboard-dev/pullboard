@@ -34,7 +34,7 @@ const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../../index.js';
 import { REGISTRY_AT } from '../../tests/fixtures/move/registry.js';
 import { registryFixtureBoard } from '../../tests/fixtures/move/registry.js';
-import { importsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
 import { readdirSync } from 'node:fs';
 import { minimumMoveEngine } from '../../../../packages/moves/index.js';
 import { SPEC_REVISION_ENGINE } from '../../../../packages/state/light.js';
@@ -189,7 +189,7 @@ const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
   const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
-  const {importsIn}=await import('./packages/gate/index.js');
+  const {importsIn}=await import('./packages/gate/heavy.js');
   const snapshot=JSON.parse(readFileSync('./apps/cli/tests/fixtures/move/registry/baseline.json','utf8'));
   const boards=new Map();
   try {

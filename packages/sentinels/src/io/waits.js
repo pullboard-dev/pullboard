@@ -7,13 +7,6 @@
  * before anyone looked. No hold, wait, queue or process may now exceed its budget silently.
  */
 import { spawnSync } from 'node:child_process';
-import { closeSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { judgeWaits } from '../logic/budgets.js';
 import { sayAge } from '../logic/budgets.js';
@@ -31,6 +24,9 @@ import { readOrphans } from './surfaces.js';
 import { readPools } from './surfaces.js';
 import { readResourceWriteQueue } from './surfaces.js';
 import { readRunnerJobs } from './surfaces.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The most recent bytes of board-writes.jsonl read: the log grows without bound and a marker is minutes old. */
 const WRITE_LOG_TAIL_BYTES = 4 * 1024 * 1024;
@@ -44,11 +40,11 @@ const RECORDED_HOLDS_MAX = 12;
 export function readBoardWriteLog(file) {
   let fd;
   try {
-    fd = openSync(file, 'r');
-    const { size } = fstatSync(fd);
+    fd = fs.open(file, 'r');
+    const { size } = fs.fstat(fd);
     const start = Math.max(0, size - WRITE_LOG_TAIL_BYTES);
     const buffer = Buffer.alloc(size - start);
-    const text = buffer.subarray(0, readSync(fd, buffer, 0, buffer.length, start)).toString('utf8');
+    const text = buffer.subarray(0, fs.read(fd, buffer, 0, buffer.length, start)).toString('utf8');
     return (start ? text.slice(text.indexOf('\n') + 1) : text).split('\n').filter(Boolean).flatMap(line => {
       try {
         const row = JSON.parse(line);
@@ -56,7 +52,7 @@ export function readBoardWriteLog(file) {
       } catch { return []; }
     });
   } catch { return []; }
-  finally { if (fd !== undefined) try { closeSync(fd); } catch { /* A read-only audit ignores a close failure. */ } }
+  finally { if (fd !== undefined) try { fs.close(fd); } catch { /* A read-only audit ignores a close failure. */ } }
 }
 
 /**
@@ -67,7 +63,7 @@ export function readBoardWriteLog(file) {
 function attachRecordedHolds(rows, now, boardFile, readLog) {
   if (!rows.some(row => row.surface === 'board-write' && row.breach && row.pid)) return rows;
   let here = boardFile;
-  try { here = realpathSync(boardFile); } catch { /* A board file not on disk keeps its given path. */ }
+  try { here = fs.realpath(boardFile); } catch { /* A board file not on disk keeps its given path. */ }
   const log = readLog();
   return rows.map(row => {
     if (row.surface !== 'board-write' || !row.breach || !row.pid) return row;
@@ -144,7 +140,7 @@ function clearedDeadWriter(row) {
 
 /** Remove a file a dead holder left, saying whether it went. */
 function removeDead(file) {
-  try { unlinkSync(file); return true; } catch { return false; }
+  try { fs.unlink(file); return true; } catch { return false; }
 }
 
 /**
@@ -167,7 +163,7 @@ export async function recordWaits(snapshot, { openKey, repeat = async () => {}, 
       }
       if (row.dead?.kind === 'lock') {
         let text = null;
-        try { text = readFileSync(row.dead.file, 'utf8'); } catch { /* Released meanwhile. */ }
+        try { text = fs.readFile(row.dead.file, 'utf8'); } catch { /* Released meanwhile. */ }
         if (text === row.dead.text && !pidAlive(row.dead.pid) && remove(row.dead.file)) { reclaimed.push(`${row.surface}: removed writer.lock of gone pid ${row.dead.pid}`); handled.add(row); }
       }
       const orphanDue = row.surface === 'heartbeat-loop' || row.breach;

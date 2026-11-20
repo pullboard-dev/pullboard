@@ -29,7 +29,7 @@ test('lib.claim-reason.each-release-reason-is-recorded-and-health: each release 
   for (const reason of reasons) {
     const id = addItem(board, { by: 'coordinator', lane: 'web', title: `Release ${reason}`, criterion: 'A recorded reason' });
     claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3600000, freeze: () => ({ text: 'A recorded reason', digest: 'digest' }) });
-    release(board, id, 'web-1', reason === 'OTHER' ? 'A specific explanation' : '', reason);
+    release(board, id, 'web-1', reason === 'OTHER' || reason === 'INELIGIBLE' ? 'A specific explanation' : '', reason);
   }
   const history = events(board);
   assert.deepEqual(history.filter(event => event.event_kind === 'release').map(event => JSON.parse(event.event_detail).reasonCode), reasons);

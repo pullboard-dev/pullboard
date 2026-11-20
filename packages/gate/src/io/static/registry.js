@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { mainCommit } from '../../../../codemap/index.js';
 import { styleSources } from '../../../../codemap/index.js';
-import { importStyleViolations } from '../../../index.js';
+import { importStyleViolations } from '../../../heavy.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
@@ -69,8 +69,8 @@ import {
   readMissingPathBaseline,
 } from '../paths/lint.js';
 import { STATIC_CHECKS } from './check/registry.js';
-import { cliReachRows } from '../../../index.js';
-import { keylessRows } from '../../../index.js';
+import { cliReachRows } from '../../../heavy.js';
+import { keylessRows } from '../../../heavy.js';
 import { repoPath } from '../../../../kernel/light.js';
 import { runChildren } from './children.js';
 import { parallelCap } from './children.js';

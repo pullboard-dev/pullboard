@@ -1,15 +1,11 @@
 /** Fix the one-import-binding-per-line style in the files a commit stages, so the gate never refuses for it [C7]. */
-import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { git } from '../../../../git/index.js';
 import { gitSpawnSync } from '../../../../git/light.js';
 import { splitImportBindings } from '../../logic/bindings.js';
 import { stagedPaths } from '../hooks.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /**
  * Split a partly staged file's import lines in the index and in the working tree alike, so the staged bytes are fixed
@@ -29,8 +25,8 @@ function fixPartlyStaged(root, path) {
   const blob = gitSpawnSync(['hash-object', '-w', '--stdin', `--path=${path}`], { cwd: root, encoding: 'utf8', input: staged.source });
   if (blob.status !== 0) return false;
   git(root, ['update-index', '--cacheinfo', `${mode},${blob.stdout.trim()},${path}`]);
-  const working = splitImportBindings(readFileSync(join(root, path), 'utf8'));
-  if (working.changed) writeFileSync(join(root, path), working.source);
+  const working = splitImportBindings(fs.readFile(join(root, path), 'utf8'));
+  if (working.changed) fs.writeFile(join(root, path), working.source);
   return true;
 }
 
@@ -47,13 +43,13 @@ export function fixStagedImportBindings(root) {
   const fixed = [];
   const partly = [];
   for (const path of written) {
-    if (!/^(?:src|packages|apps)\/.*\.[cm]?js$/u.test(path) || !existsSync(join(root, path))) continue;
-    if (!lstatSync(join(root, path)).isFile()) continue; // Never follow a staged symlink to rewrite its target.
+    if (!/^(?:src|packages|apps)\/.*\.[cm]?js$/u.test(path) || !fs.exists(join(root, path))) continue;
+    if (!fs.lstat(join(root, path)).isFile()) continue; // Never follow a staged symlink to rewrite its target.
     if (unstaged.has(path)) { if (fixPartlyStaged(root, path)) partly.push(path); continue; }
-    const before = readFileSync(join(root, path), 'utf8');
+    const before = fs.readFile(join(root, path), 'utf8');
     const { source, changed } = splitImportBindings(before);
     if (!changed) continue;
-    writeFileSync(join(root, path), source);
+    fs.writeFile(join(root, path), source);
     fixed.push(path);
   }
   if (fixed.length) git(root, ['add', '--', ...fixed]);
