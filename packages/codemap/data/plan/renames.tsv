@@ -3850,7 +3850,7 @@ test/real-board-timing.test.js	apps/cli/journeys/fact/timing.test.js
 test/reclaim-live-seat.test.js	apps/lib/tests/logic/native/seat.test.js
 test/references.test.js	apps/cli/journeys/edit/references.test.js
 test/refreeze.test.js	apps/cli/journeys/refreeze/main.test.js
-test/refusal-next-steps.test.js	apps/cli/journeys/submit/steps.test.js
+test/refusal-next-steps.test.js	apps/cli/tests/io/submit/steps.test.js
 test/refusal-report-only.test.js	apps/cli/journeys/claim/report.test.js
 test/rehome-machine-fixture.js	apps/cli/tests/fixtures/machine/rehome.js
 test/reject-clause-fixture.js	apps/cli/tests/fixtures/clause.js
@@ -4169,7 +4169,7 @@ test/submit-outcome-files.test.js	apps/cli/journeys/submit/outcome.test.js
 test/submit-outcome-fixture.js	apps/cli/tests/fixtures/submit/outcome.js
 test/submit-parallel.test.js	apps/cli/journeys/submit/parallel.test.js
 test/submit-pin-main.test.js	apps/cli/journeys/submit/pin.test.js
-test/submit-placement-compose.test.js	apps/cli/journeys/submit/compose.test.js
+test/submit-placement-compose.test.js	apps/cli/tests/io/submit/compose.test.js
 test/submit-preflight-order.test.js	apps/cli/journeys/submit/preflight/order.test.js
 test/submit-preflight.test.js	apps/cli/journeys/submit/preflight.test.js
 test/submit-proof-reuse.test.js	apps/cli/journeys/submit/reuse.test.js
