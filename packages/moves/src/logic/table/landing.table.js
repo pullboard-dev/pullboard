@@ -144,6 +144,7 @@ const movedEntry = (s) => (s.batch?.items ?? []).map(entry => {
 }).find(Boolean);
 
 const reasonOf = (m) => (typeof m.forced === 'string' ? m.forced.trim() : '');
+const mergedAt = (m) => (Number.isFinite(m.mergedAt) ? { mergedAt: m.mergedAt } : {});
 const dependencyMet = (dep) => Boolean(dep?.mergedCommit) || dep?.status === 'withdrawn';
 const unfinished = (s) => s.batches.findLast(batch => batch.state !== 'landed' && batch.state !== 'blocked');
 /** A blocked batch with no culprit, no held item and a retryable refusal is retried once main moves. */
@@ -315,12 +316,12 @@ function landingTables(inputs) {
     outcomes: Object.freeze([
       { id: 'forced-unfinished', when: 'forcedUnfinished', patch: () => ({ status: 'withdrawn' }), events: (s, m) => [
         { kind: 'withdraw', by: m.actor, detail: { reason: `landed by hand at ${m.commit.slice(0, 12)}: ${reasonOf(m)}` } },
-        { kind: 'merged', by: m.actor, detail: { commit: m.commit, forced: true, reason: reasonOf(m), from: s.item.status } }] },
+        { kind: 'merged', by: m.actor, detail: { commit: m.commit, forced: true, reason: reasonOf(m), from: s.item.status, ...mergedAt(m) } }] },
       { id: 'merge-publish', when: 'strictPublishes', paces: ['strict'], patch: (s, m) => ({ mergedCommit: m.commit }), events: (s, m) => [
-        { kind: 'merged', by: m.actor, detail: { commit: m.commit } },
+        { kind: 'merged', by: m.actor, detail: { commit: m.commit, ...mergedAt(m) } },
         { kind: 'published', by: m.actor, detail: { commit: m.commit } }] },
       { id: 'merge', patch: (s, m) => ({ mergedCommit: m.commit }), events: (s, m) => [
-        { kind: 'merged', by: m.actor, detail: { commit: m.commit, ...(reasonOf(m) ? { forced: true, reason: reasonOf(m), from: s.item.status } : {}) } }] },
+        { kind: 'merged', by: m.actor, detail: { commit: m.commit, ...(reasonOf(m) ? { forced: true, reason: reasonOf(m), from: s.item.status } : {}), ...mergedAt(m) } }] },
     ]),
   });
   const outcome = Object.freeze({

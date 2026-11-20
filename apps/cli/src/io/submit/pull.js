@@ -248,7 +248,7 @@ const deferralOf = (plan, config, mechanical = []) => {
   const said = edits ? report + '; ' + edits : report;
   return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}),
     ...(plan.deferred ? { deferNote: (note || 'full suite deferred to the landing gate') + (edits ? '; ' + edits : '') } : {}),
-    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report: said };
+    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), ...(Array.isArray(plan.owedFiles) && plan.owedFiles.length ? { owedFiles: plan.owedFiles } : {}), report: said };
 };
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };

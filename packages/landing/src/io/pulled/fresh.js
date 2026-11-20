@@ -17,13 +17,13 @@ import { verdictProjector } from '../../../../verify/index.js';
  * @param {string} root - The main checkout.
  * @param {string} main - The main commit the offer lands onto.
  * @param {object[]} all - The board's items, as listItems returns them.
- * @param {{ candidate: (item: object) => boolean, write: (operation: string, args: unknown[]) => Promise<unknown>, say: (line: string) => void, hunkKeyed?: boolean, composeAsObject?: boolean, residualConflicts?: (root: string, tip: string, checked: string) => string[] | null }} ports -
+ * @param {{ candidate: (item: object) => boolean, write: (operation: string, args: unknown[]) => Promise<unknown>, say: (line: string) => void, hunkKeyed?: boolean, composeAsObject?: boolean, residualConflicts?: (root: string, tip: string, checked: string) => string[] | null, derived?: (item: object) => object | null | undefined }} ports -
  *   candidate: the items this offer would take; write: the command's ordered board write; composeAsObject: the caller's submit.composeAsObject setting, which words the reopen note;
- *   residualConflicts: the files a mechanical merge of main and the checked commit cannot resolve, so a conflict it resolves leaves the accept fresh [C7].
+ *   residualConflicts: the files a mechanical merge of main and the checked commit cannot resolve, so a conflict it resolves leaves the accept fresh; derived: the derived-state table's verdict reader, whose row (a state or null) is final and whose missing row (undefined) computes freshness from git as before [C7,#3010].
  * @returns {Promise<object[]>} `all`, with each stale candidate no longer landable.
  */
-export async function withoutStaleVerdicts(board, root, main, all, { candidate, write, say, hunkKeyed = false, composeAsObject = false, residualConflicts }) {
-  const projector = verdictProjector(root, board, { main }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed, residualConflicts });
+export async function withoutStaleVerdicts(board, root, main, all, { candidate, write, say, hunkKeyed = false, composeAsObject = false, residualConflicts, derived }) {
+  const projector = verdictProjector(root, board, { main }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed, residualConflicts, derived });
   const blocked = [];
   for (const item of all) {
     if (item.item_status !== 'verified' || item.item_merged_commit || !candidate(item)) continue;

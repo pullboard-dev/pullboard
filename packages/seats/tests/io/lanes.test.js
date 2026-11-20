@@ -9,6 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { configProblems } from '../../../config/index.js';
 import { defaults } from '../../../config/index.js';
 import { durationMs } from '../../../config/index.js';
@@ -114,4 +115,12 @@ test('seats.lanes.claim-lease-default: a claim\'s lease is 2h unless pullboard.j
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('seats.lanes.view-commits-gate-registry: clause 1: on the committed repo config the view lane may commit the gate style test with the gate registry file, and the docs lane is told only the style test is the view lane\'s [L1,L2]', () => {
+  const config = loadConfig(fileURLToPath(new URL('../../../../', import.meta.url)));
+  const style = 'packages/gate/tests/io/static/style.test.js';
+  const registry = 'packages/gate/tests/fixtures/registry.json';
+  assert.deepEqual(outOfLane(config, 'view', [style, registry]), []);
+  assert.deepEqual(outOfLane(config, 'docs', [style, registry]), [`${style} (view's)`]);
 });
