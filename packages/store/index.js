@@ -49,6 +49,7 @@ export { jsonChunks, writeJsonChunks } from './src/io/chunks.js';
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/io/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/io/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline, knownGreenBaseline, guardGreenCheck } from './src/io/baseline/check.js';
+export { remeasureCandidates } from './src/logic/board/item/baseline.js';
 export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds, mainRedBaselinesToRetake, mainRedItemCases } from './src/logic/known/main/reworks.js';
 export { recordKnownMainStatic } from './src/io/board/fact.js';
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayMachineStateFile, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
