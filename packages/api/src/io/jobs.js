@@ -33,11 +33,24 @@ import { noteLease } from '../../../jobs/index.js';
 import { noteLapse } from '../../../jobs/index.js';
 import { noteClaimKey } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
+import { setWriteHold } from '../../../jobs/index.js';
+import { beginBoardWrite } from '../../../store/index.js';
+import { finishBoardWrite } from '../../../store/index.js';
+import { prepareBoardWriteMarker } from '../../../store/index.js';
+import { discardBoardWriteMarker } from '../../../store/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
 import { freeGateHop } from './hop.js';
 
 export { SHARD_JOB_KIND };
+
+// A job write holds the board lock like any board write, so it is recorded in board-writes.jsonl and marked in the write-holders folder [C7].
+setWriteHold({
+  prepare: (db) => prepareBoardWriteMarker(db, { command: 'api-job' }),
+  begin: (db, marker) => beginBoardWrite(db, { command: 'api-job' }, marker),
+  finish: (record, outcome) => { record.releasedAt = performance.now(); finishBoardWrite(record, true, outcome); },
+  discard: discardBoardWriteMarker,
+});
 // Budget: a runner holds one gate shard per this many cores at a time, as a serve's default slots do (drive's CORES_PER_JOB), however many slots it was set to.
 const CORES_PER_SHARD = 3;
 // Budget: a test job (a builder run, a census job) weighs this many cores against its runner, and a runner holding no test job may always take one, as the builder floor of TEST_FLOOR_CORES.
@@ -139,7 +152,11 @@ function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
 function expeditedGateJobs(db, ordered) {
   const gateKind = ({ row }) => row.job_kind === 'gate' || row.job_kind === SHARD_JOB_KIND;
   if (!ordered.some(gateKind)) return ordered;
-  const expedited = new Set(expeditedItems({ db }));
+  // A runs file holds job rows only; the expedite events live on the board, so a claim made on a runs file orders by age alone.
+  let marked;
+  try { marked = expeditedItems({ db }); }
+  catch (error) { if (!/no such table: event\b/u.test(error?.message ?? '')) throw error; marked = []; }
+  const expedited = new Set(marked);
   if (!expedited.size) return ordered;
   const isExpedited = entry => gateKind(entry) && expedited.has(Number(entry.row.job_item));
   if (!ordered.some(isExpedited)) return ordered;

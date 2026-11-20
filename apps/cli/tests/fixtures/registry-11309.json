@@ -1,0 +1,43 @@
+{
+  "cli.io-landing-pull.step-aside-head-goes-behind": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "offerPulledLanding offers an accepted item with 2 or more infrastructure failures behind the next accepted item"
+    },
+    "why": "Without it a head item whose landings keep failing holds up every item behind it, as the pull path ignored the count.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "apps/cli/tests/fixtures/landing/offer.js"
+    ]
+  },
+  "cli.io-landing-pull.step-aside-one-failure-keeps-order": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an accepted item with one infrastructure failure keeps its accept-order place in the offer"
+    },
+    "why": "Without it a single transient failure would reorder the landing queue.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js",
+      "apps/cli/tests/fixtures/landing/offer.js"
+    ]
+  },
+  "cli.io-landing-pull.step-aside-on-the-real-pull-path": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "the step-aside rule is read in offerPulledLanding on the real pull path"
+    },
+    "why": "Without it the rule could live only in candidates(), which no production path calls.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js"
+    ]
+  }
+}

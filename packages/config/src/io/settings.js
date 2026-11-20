@@ -82,9 +82,9 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
-/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+/** Whether submit.residentChecks is on (#10275): on by default; only an exact `false` turns it off. */
 export function residentChecks() {
-  return loadMachineSettings().submit?.residentChecks === true;
+  return loadMachineSettings().submit?.residentChecks !== false;
 }
 
 /** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
@@ -543,6 +543,11 @@ export function statsRecordCoordinatorUsage() {
 /** Whether a starved green review shouts the coordinator (#9682): off by default; only an exact `true` turns it on. */
 export function reviewStarveShout() {
   return loadMachineSettings().review?.starveShout === true;
+}
+
+/** Whether a builder's next skips reviews while a seat in lane review is alive (#11946): off by default; only an exact `true` turns it on. */
+export function reviewBuilderOffers() {
+  return loadMachineSettings().review?.builderOffers === true;
 }
 
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */

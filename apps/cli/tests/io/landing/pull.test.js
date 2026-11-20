@@ -115,6 +115,39 @@ test('cli.io-landing-pull.offer-unchanged-outside-lock: clause 2: the offered jo
   assert.deepEqual(raced.result.items, [1], 'only #1 is left to this offer');
 });
 
+test('cli.io-landing-pull.step-aside-head-goes-behind: clause 1: offerPulledLanding offers an accepted item with 2 infrastructure failures behind the next accepted item [C7,#3118]', async t => {
+  const { jobs, result } = await offerWithLog(t, { lapses: { 1: 2 } });
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2], [1]], 'the head with two failures goes behind #2');
+  assert.deepEqual(result.items, [2, 1]);
+});
+
+test('cli.io-landing-pull.step-aside-one-failure-keeps-order: clause 2: one infrastructure failure keeps the accept-order place, and named ids keep the order named [C7,#3118]', async t => {
+  const one = await offerWithLog(t, { lapses: { 1: 1 } });
+  assert.deepEqual(one.jobs.map(job => job.items.map(entry => entry.id)), [[1], [2]], 'one failure keeps the place');
+  const none = await offerWithLog(t, { lapses: {} });
+  assert.deepEqual(none.result.items, [1, 2]);
+});
+
+test('cli.io-landing-pull.step-aside-on-the-real-pull-path: clause 3: the step-aside cases drive offerPulledLanding on the real pull path, which reads store.stepAsideCount, not candidates() [C7,#3118]', async t => {
+  // A count past 2 also goes behind; the order comes from the offer's written jobs, so the pull path itself applied the rule.
+  const { jobs } = await offerWithLog(t, { lapses: { 1: 3 } });
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2], [1]]);
+});
+
+test('cli.io-landing-pull.step-aside-says-why: clause 1: offerPulledLanding says one line naming the stepped-aside head and its infrastructure-failure count [C7,#3118]', async t => {
+  const { said } = await offerWithLog(t, { lapses: { 1: 2 } });
+  assert.deepEqual(said.filter(line => /steps aside/u.test(line)), ['#1 steps aside: 2 infrastructure failures, offered behind the next accepted item']);
+  const quiet = await offerWithLog(t, { lapses: { 1: 1 } });
+  assert.deepEqual(quiet.said.filter(line => /steps aside/u.test(line)), [], 'one failure is not a step aside, so nothing is said');
+});
+
+test('cli.io-landing-pull.own-red-head-stays-held: clause 2: a head held after a red on its own tests is not offered and not counted as stepped aside [C7,#3118]', async t => {
+  const { jobs, result, said } = await offerWithLog(t, { held: [1] });
+  assert.deepEqual(result.items, [2], 'the held head is not offered');
+  assert.deepEqual(jobs.map(job => job.items.map(entry => entry.id)), [[2]]);
+  assert.deepEqual(said.filter(line => /steps aside/u.test(line)), []);
+});
+
 test('cli.io-landing-pull.mechanical-only-conflict-stays-verified: clause 1: a mechanical-only conflict keeps the accepted item verified and the offer takes it [C7,#3064]', async t => {
   const { result, said, item } = await offerOverConflict(t, mechanicalOnlyConflictRepo());
   assert.equal(item.item_status, 'verified', said.join('\n'));

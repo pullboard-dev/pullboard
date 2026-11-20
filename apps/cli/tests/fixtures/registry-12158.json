@@ -1,0 +1,46 @@
+{
+  "cli.mark.spool-when-busy": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With the board held busy, pullboard mark exits 0, writes no event and appends one spool line carrying the mark's original at."
+    },
+    "why": "Without it, a mark made while the board is busy or restarting is lost or blocks its caller, and the time becomes UNACCOUNTED.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/mark-spool.js",
+      "apps/cli/src/io/commands/mark.js",
+      "apps/cli/tests/io/mark-spool.test.js"
+    ]
+  },
+  "cli.mark.replay-original-at": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The next mark that writes first replays the spooled mark with its original at, then writes its own, and empties the spool."
+    },
+    "why": "Without it, a spooled mark would never reach the item's timeline, or would land at the replay time instead of the time it names.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/mark-spool.js",
+      "apps/cli/src/io/commands/mark.js",
+      "apps/cli/tests/io/mark-spool.test.js"
+    ]
+  },
+  "cli.mark.replay-no-double": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A spool replayed twice, with a crash after the first write, yields exactly one row per mark."
+    },
+    "why": "Without it, a replay that died halfway would write its first mark twice on the next attempt.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/mark-spool.js",
+      "apps/cli/tests/io/mark-spool.test.js"
+    ]
+  }
+}

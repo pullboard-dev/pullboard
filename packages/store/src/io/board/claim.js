@@ -80,6 +80,7 @@ import {
 import { afterGateIds } from './item/after-gate.js';
 import { afterGateBase } from './item/after-gate.js';
 import { gateGreenParent } from './item/after-gate.js';
+import { recordAfterGateClaim } from './item/after-gate-report.js';
 import { writeBoardMeta } from './meta.js';
 
 /**
@@ -516,7 +517,10 @@ function commitClaim(board, id, prepared, binding, ports) {
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     // A claim that took a gate-green after-gate parent builds on that parent's submitted head: record it for the builder.
     const afterGateBaseRecord = !renewed ? afterGateBase(board, id) : null;
-    if (afterGateBaseRecord) writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
+    if (afterGateBaseRecord) {
+      writeBoardMeta(board.db, `after_gate_base:${id}`, JSON.stringify(afterGateBaseRecord));
+      recordAfterGateClaim(board, id, { ...afterGateBaseRecord, agentId });
+    }
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
     if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
     else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
