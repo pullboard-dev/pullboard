@@ -36,9 +36,11 @@ const BEFORE = [
   'createApiHandler',
   'createLocalApiHandler',
   'createStateSnapshots',
+  'duplicateRunnerPlaces',
   'endGateHop',
   'endJobs',
   'endStaleGateJobs',
+  'endStaleShardOffers',
   'executeMove',
   'failingParts',
   'gateClaimHop',
@@ -78,6 +80,7 @@ const BEFORE = [
   'provideMainRedNotes',
   'provideMainTestRecorder',
   'provideRefusalTrials',
+  'provideScreenStart',
   'provideTimingExcuse',
   'pulledGateReds',
   'queueDraining',
@@ -96,6 +99,7 @@ const BEFORE = [
   'shardClaimCap',
   'shardJobs',
   'shardedResult',
+  'sprintLandable',
   'withLandingPermit',
   'withdrawLandShards',
 ];
@@ -114,4 +118,8 @@ test('api.barrel-shape.barrel-line-passes-120-chars: clause 1: no barrel line pa
 
 test('api.barrel-shape.barrel-exports-exactly-names-did: clause 2: the barrel exports exactly the names it did before the reflow [C7]', () => {
   assert.deepEqual(Object.keys(api).sort(), BEFORE);
+});
+
+test('api.io-barrel-shape.exports-duplicate-runner-places: clause 1: the api front door exports duplicateRunnerPlaces as a function [P7]', () => {
+  assert.equal(typeof api.duplicateRunnerPlaces, 'function');
 });

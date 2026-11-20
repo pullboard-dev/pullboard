@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { join } from 'node:path';
 import { importStyleViolations } from '../style.js';
 import { engineFolderProblems } from '../../../../../state/index.js';
@@ -24,6 +22,8 @@ import { EXPORT_ONLY_CEILINGS } from '../../../logic/export/only.js';
 import { declaredDoorFiles } from '../../../logic/export/only.js';
 import { defaultExportProblems } from '../../../logic/export/only.js';
 import { exportOnlyProblems } from '../../../logic/export/only.js';
+import { CLOSURE_CEILINGS } from '../../../logic/budgets.js';
+import { closureCeilingRaises } from '../../../logic/budgets.js';
 import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
@@ -43,7 +43,7 @@ import { inlineStyleProblems } from '../inline-style.js';
 /** Every cell folder: each directory directly under packages and apps. */
 function cellFolders(root) {
   return ['packages', 'apps'].flatMap(group => {
-    try { return readdirSync(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`); } catch { return []; }
+    try { return fileSystemAdapter().list(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`); } catch { return []; }
   });
 }
 
@@ -70,8 +70,8 @@ function growthCheck(check) {
 function jsdocProblems(root, files, read) {
   return files.filter(file => /\.[cm]?js$/u.test(file) && !isTestSource(file)).flatMap(file => jsdocFindings(scanSource(file, read(file) ?? '').functions
     .filter(fn => fn.exported)
-    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name ?? param.raw),
-      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name).filter(name => !name.includes('.')) } })))
+    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name),
+      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name) } })))
     .map(row => ({ path: row.file, line: 1, text: `exported function ${row.name}: ${row.problem}` })));
 }
 
@@ -121,7 +121,7 @@ function stagedCeilings(text) {
 function loadBearingCheck({ root, files, staged, text, previous }) {
   const present = staged
     ? gitSpawnSync(['cat-file', '-e', `:${LOAD_BEARING_CEILINGS}`], { cwd: root, stdio: 'ignore' }).status === 0
-    : existsSync(join(root, LOAD_BEARING_CEILINGS));
+    : fileSystemAdapter().exists(join(root, LOAD_BEARING_CEILINGS));
   if (!present) return [];
   const ceilings = JSON.parse(text(LOAD_BEARING_CEILINGS));
   const changed = files.filter(loadBearingJudged).map(file => ({ file, source: text(file) }));
@@ -160,7 +160,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'export-only', run: ({ root, sources, text }) => {
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
-    return exportOnlyProblems(sources, allowed, declaredDoorFiles(cellFolders(root), file => existsSync(join(root, file)))).map(row => `${row.path}:${row.line}: ${row.text}`);
+    return exportOnlyProblems(sources, allowed, declaredDoorFiles(cellFolders(root), file => fileSystemAdapter().exists(join(root, file)))).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
   { name: 'markdown-allowlist', run: ({ root, text }) => {
@@ -181,6 +181,15 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
   { name: 'test-inputs', run: context => growthCheck((root, files, read) => testInputProblems(root, files, read, requireDeclaredInputsEnabled()))(context) },
   { name: 'load-bearing', run: loadBearingCheck },
+  // An item's change never raises or drops a closure-budget.json row against accepted main; main lowers rows, the coordinator raises them (packages/gate/src/logic/budgets.js) [C7].
+  { name: 'closure-ceiling', run: ({ files, text, previous }) => {
+    if (!files.includes(CLOSURE_CEILINGS)) return [];
+    const accepted = previous(CLOSURE_CEILINGS);
+    if (!accepted) return []; // a project without main's ceilings file has nothing to judge
+    let candidate;
+    try { candidate = text(CLOSURE_CEILINGS); } catch { candidate = '{}'; } // a deleted ceilings file drops every row
+    return closureCeilingRaises(accepted, candidate).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
@@ -200,7 +209,7 @@ export const STATIC_CHECKS = Object.freeze([
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;
-    try { baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')); } catch { return []; } // a plain project keeps no wait baseline to judge [#6544]
+    try { baseline = JSON.parse(fileSystemAdapter().readFile(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')); } catch { return []; } // a plain project keeps no wait baseline to judge [#6544]
     return files.filter(isTestSource).flatMap(file => testWaitGrowth(testWaitSites(read(file).source, file), baseline).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
 ]);
