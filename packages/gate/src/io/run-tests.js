@@ -1,6 +1,7 @@
 /** @pullboard-module-loads ** */
 // Custom reporters are user-selected: ** covers every committed module, not a finite reporter list.
 /** Run the test suite with a private home, no inherited Git identity or config, and a refusing CLI shim. */
+import { shardPlan } from './run-tests-plan.js';
 import { basename } from 'node:path';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
@@ -1239,15 +1240,15 @@ async function main(args) {
   args = sharding.args;
   const fullSuite = !hasTestFiles(args);
   const shortEligible = namesOnlyTestFiles(args);
-  let browser = fullSuite;
-  if (!browser) {
+  const plan = shardPlan(process.env);
+  let browser = plan ? plan.browser : fullSuite;
+  if (!browser && !plan) {
     const { testsNeedBrowser } = await import('./browser/admission.js');
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('./test/action/cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
   process.stderr.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
-  const { testsNeedGui } = await import('./gui/admission.js');
   let guiFiles;
   try {
     guiFiles = actions.files ?? (fullSuite
@@ -1258,7 +1259,7 @@ async function main(args) {
     process.exitCode = 1;
     return;
   }
-  const gui = testsNeedGui(process.cwd(), guiFiles);
+  const gui = plan ? plan.gui : (await import('./gui/admission.js')).testsNeedGui(process.cwd(), guiFiles);
   const { cpuRunnerRequired } = await import('./admission/cpu/load.js');
   const runnerAdmission = (await import('../../../config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
