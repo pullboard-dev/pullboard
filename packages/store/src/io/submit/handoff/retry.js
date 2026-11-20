@@ -29,6 +29,9 @@ import {
   logEvent,
 } from "../../board/event/log.js";
 import { release } from "../../board.js";
+import { moveItem } from "../../board.js";
+import { IN_STATE } from "../../../../../state/index.js";
+import { BOARD_RELEASE_CODES_ENGINE } from "../../../../../state/index.js";
 import { setItem } from "../../board.js";
 import {
   getItem,
@@ -603,7 +606,15 @@ function returnToBuilder(board, id, job, error) {
  * @param {{ code: string }} error the retained refusal
  */
 function returnToBoard(board, id, job, error) {
-  release(board, id, job.agentId, `the queued gate was refused (${error.code}); returned to the board for any free seat`, undefined, 'OTHER');
+  const reason = `the queued gate was refused (${error.code}); returned to the board for any free seat`;
+  // The board writes its own closed code: release() takes only builder-chosen codes, so at the engine this does what release does for a claimed item with no first-refusal window [C7,#12220].
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_RELEASE_CODES_ENGINE) {
+    moveItem(board, id, 'release', {
+      checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
+      set: () => ({ item_owner: null, item_lease_until: null }),
+    });
+    logEvent(board, job.agentId, 'release', id, { reason, reasonCode: 'GATE_REFUSED' });
+  } else release(board, id, job.agentId, reason, undefined, 'OTHER');
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, returnedToBoard: true });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it went back to the board for any free seat. pullboard show ${id} prints the refusal.`, lanes: [] });
 }

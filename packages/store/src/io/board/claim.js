@@ -27,8 +27,11 @@ import {
   REOPEN_FIRST_REFUSAL_ENGINE,
   VERIFIER_STANDING_ENGINE,
   IN_STATE,
+  MOVES,
+  effectiveGuards,
 } from "../../../../state/index.js";
 import { ITEM_FOLDER_ENGINE } from "../../../../state/light.js";
+import { BLOCK_ENGINE } from "../../../../state/light.js";
 import { AGENT_GRANT_ENGINE } from "../../../../state/light.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
 import {
@@ -436,6 +439,35 @@ function admissionUsedSince(board, since, admissionId) {
 }
 
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
+/**
+ * The checks a block peer's renew passes: the holder check in renewBlockPeers (item exists, this seat owns it, the claim is live) covers most guards of the claim move, so those stay null.
+ * The pending-correction guard is the one it does not cover: a coordinator correction to a held peer's bar must be refrozen before its lease extends, as for any renewal.
+ * Why not the rest: a held item's lane and route cannot be edited, and its bar, route and dependencies change only through that same pending correction.
+ */
+const peerChecks = (board, peer) => ({
+  ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
+  correctionRefrozen: () => pendingRefreezeProblem(board, peer),
+});
+
+/**
+ * Renew every other member the seat holds through a block that names item `id`, to the same lease, each with its own renew event, so a stalled block lapses and is returned as one [C7,#2202].
+ * Why here: a renewal is a claim of a held item, so the one place a renewal is written carries the block along; members keep their own criteria and verdicts.
+ */
+function renewBlockPeers(board, id, agentId, leaseUntil, moveItem) {
+  const peers = new Set();
+  for (const row of board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'block:%'").all()) {
+    const ids = JSON.parse(row.meta_value).ids ?? [];
+    if (ids.includes(id)) for (const member of ids) if (member !== id) peers.add(member);
+  }
+  for (const member of peers) {
+    const held = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(member);
+    if (!held || held.item_owner !== agentId || !isHeld(board, held)) continue;
+    // A peer is already held by this seat, so only the pending-correction guard needs a real check; moveItem writes the lease under its own temp.moving token [C7].
+    moveItem(board, member, 'claim', { checks: peerChecks(board, member), set: () => ({ item_lease_until: leaseUntil }) });
+    logEvent(board, agentId, 'renew', member, { leaseUntil, digest: held.item_frozen_digest, block: true });
+  }
+}
+
 function commitClaim(board, id, prepared, binding, ports) {
   const { moveItem } = ports;
   const options = prepared;
@@ -500,6 +532,7 @@ function commitClaim(board, id, prepared, binding, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
+    if (renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCK_ENGINE) renewBlockPeers(board, id, agentId, leaseUntil, moveItem);
     recordPendingOutcome(outcome);
     if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
     return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };

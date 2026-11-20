@@ -4,11 +4,12 @@ export { itemPatchPaths } from "../../logic/paths.js";
 import { createHash } from 'node:crypto';
 import { gitExecFileSync } from "../../../../git/index.js";
 import { gitSpawnSync } from "../../../../git/index.js";
-import { writeFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { Refused } from "../../../../kernel/index.js";
+
+const fs = fileSystemAdapter();
 
 /** Hash exact bytes, without newline or text normalization. */
 function sha(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
@@ -90,7 +91,7 @@ function mergeFromOrigin(root, isolated, record, origin, directory) {
     const mode = ours.mode === theirs.mode || theirs.mode === base.mode ? ours.mode : ours.mode === base.mode ? theirs.mode : null;
     if (!mode) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk ${hunk}; incompatible file modes; replace it against the current builder head`);
     const files = ['ours', 'base', 'theirs'].map(name => join(directory, `merge-${name}`));
-    [ours, base, theirs].forEach((entry, index) => writeFileSync(files[index], git(root, isolated, ['cat-file', 'blob', entry.oid])));
+    [ours, base, theirs].forEach((entry, index) => fs.writeFile(files[index], git(root, isolated, ['cat-file', 'blob', entry.oid])));
     const merged = gitSpawnSync(['merge-file', '-p', ...files], { cwd: root, env: isolated, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
     if (merged.status !== 0) {
       const diff = git(root, isolated, ['diff', '-U0', '--no-color', base.oid, ours.oid]);
@@ -182,5 +183,5 @@ export function composeItemPatches(root, item, patches, { trunk, baseCommit = it
       GIT_AUTHOR_DATE: '2000-01-01T00:00:00+00:00', GIT_COMMITTER_DATE: '2000-01-01T00:00:00+00:00' };
     const commit = git(root, identity, ['commit-tree', tree, '-p', baseCommit], `Compose item patches\n\nSource: ${base}\nBase: ${baseCommit}\nPatch-set: ${digest}\n\nSigned-off-by: ${identity.GIT_AUTHOR_NAME} <${identity.GIT_AUTHOR_EMAIL}>\n`).trim();
     return Object.freeze({ commit, paths: Object.freeze(paths.sort()), applied: Object.freeze(applied), digest });
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }
