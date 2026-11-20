@@ -596,6 +596,10 @@ export function loadMachineSettings() {
   if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
   }
+  const gateAged = value.gate?.gateAgedMinutes;
+  if (gateAged !== undefined && !(Number.isSafeInteger(gateAged) && gateAged >= 1 && gateAged <= 1440)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.gateAgedMinutes in ${file} must be a whole number of minutes, 1 to 1440; remove it to keep 5`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {

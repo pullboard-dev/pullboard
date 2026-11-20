@@ -9,7 +9,7 @@
     "why": "Without it the runner-composed gate could record a different tree than a direct run and nobody would notice.",
     "kind": "cell unit",
     "inputs": [
-      "apps/cli/tests/io/submit/handoff/compose-on-runner.test.js"
+      "apps/cli/tests/io/submit/handoff/compose-on-runner/merge.test.js"
     ]
   },
   "cli.io-submit-handoff-compose-on-runner.main-moved-after-the-claim-same-tree": {
@@ -22,7 +22,7 @@
     "why": "Without it a moved main could make the two modes prove different trees.",
     "kind": "cell unit",
     "inputs": [
-      "apps/cli/tests/io/submit/handoff/compose-on-runner.test.js"
+      "apps/cli/tests/io/submit/handoff/compose-on-runner/merge.test.js"
     ]
   }
 }
