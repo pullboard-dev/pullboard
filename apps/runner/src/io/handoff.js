@@ -126,13 +126,41 @@ function regenerateComposed(root, input, composed, services, log) {
 }
 
 /**
+ * Replay recorded board-tool output on main when a submit that left composing to the runner conflicts only there (submit.composeOnRunner).
+ * Why here: with the setting on the command skips its own trunk merge, so the replay its MERGE_CONFLICT path makes never runs; the runner is the only composer.
+ * The replayed head descends from main, so it is the composition: it is left checked out and its tree is the one every later stage proves.
+ *
+ * @param {string} root - The runner's checkout, at the submit's head.
+ * @param {{ compositionTriple: { main: string, head: string, tree?: string }, item?: number, regeneratedTree?: string }} input - The ticket.
+ * @param {Error} refused - The COMPOSITION_MISMATCH the plain composition raised.
+ * @param {{ toolRegeneration?: { regenerateToolChange: Function } }} services
+ * @param {(line: string) => void} log
+ * @returns {boolean} True when the replay composed the tree; false when the conflict is not in recorded tool output (the caller refuses as before).
+ */
+function replayRecordedTool(root, input, refused, services, log) {
+  const { main, head, tree } = input.compositionTriple;
+  if (refused.code !== 'COMPOSITION_MISMATCH' || tree || !services.toolRegeneration) return false;
+  const replayed = services.toolRegeneration.regenerateToolChange(root, head, main, { item: input.item ?? null });
+  if (!replayed) return false;
+  input.regeneratedTree = gitOut(root, ['rev-parse', 'HEAD^{tree}']);
+  log(`  replayed recorded board tools on main ${String(main).slice(0, 12)}; proving tree ${input.regeneratedTree}`);
+  return true;
+}
+
+/**
  * Composition: the candidate contains the pinned trunk and proves that same snapshot, when the item requires it. The
  * ticket's claim base rides along as the parent base, so a head already in main's history composes on its parent (#9445).
  */
 async function composition(root, input, log, services) {
   // A submit that composed main as an object (submit.composeAsObject) sends {main, head, tree}: the runner recomputes the tree itself [U159].
   if (input.compositionTriple) {
-    const composed = requireComposedTree(root, input.compositionTriple);
+    let composed;
+    try { composed = requireComposedTree(root, input.compositionTriple); }
+    catch (error) {
+      // Main and head that conflict only in recorded board-tool output compose by replaying the tool on main, as the local submit does when it merges itself [C7,V4,V6].
+      if (!replayRecordedTool(root, input, error, services, log)) throw error;
+      return;
+    }
     if (input.regenerateDeclared === true && services.regenerate) regenerateComposed(root, input, composed, services, log);
     return;
   }
