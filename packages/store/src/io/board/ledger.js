@@ -132,6 +132,31 @@ export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget =
 }
 
 /**
+ * Why a file the runner is offered has no ledger hit, read from the proof rows alone: `none` (no row for it), `red` (its only
+ * rows are fails, or passes shadowed by a fail at the same key and context), or `changed` (it has a recorded pass, so a miss on
+ * the runner means its input key moved). Why rows only: the runner computes input keys, the board never does [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} files
+ * @param {{ command?: string }} [options]
+ * @returns {Record<string, 'none' | 'red' | 'changed'>}
+ */
+export function ledgerMissReasons(db, files, { command = 'proof' } = {}) {
+  const reasons = {};
+  if (!Array.isArray(files)) return reasons;
+  const ledger = !missingLedgerTable(db);
+  const rows = ledger ? db.prepare('SELECT COUNT(*) AS rows FROM test_result WHERE test_result_file = ? AND test_result_command = ?') : null;
+  const passes = ledger ? db.prepare(`SELECT COUNT(*) AS passes FROM test_result pass WHERE pass.test_result_file = ? AND pass.test_result_command = ? AND pass.test_result_status = 'pass'
+    AND NOT EXISTS (SELECT 1 FROM test_result red WHERE red.test_result_input_key = pass.test_result_input_key AND red.test_result_command = pass.test_result_command
+      AND red.test_result_context = pass.test_result_context AND red.test_result_file = pass.test_result_file AND red.test_result_status = 'fail')`) : null;
+  for (const file of new Set(files)) {
+    if (!FILE.test(String(file))) continue;
+    reasons[file] = !ledger || !rows.get(file, command).rows ? 'none' : passes.get(file, command).passes ? 'changed' : 'red';
+  }
+  return reasons;
+}
+
+/**
  * The test files with the newest green proof rows in the ledger, newest first, at most `limit`. Why: a landing's contract
  * files are chosen on the runner after the merge, so the board offers hits for the files it most recently saw pass [C7,#9301].
  *
