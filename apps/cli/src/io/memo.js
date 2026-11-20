@@ -7,6 +7,7 @@ import { deserialize } from 'node:v8';
 import { serialize } from 'node:v8';
 import { gunzipSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -79,7 +80,7 @@ export function absorbFixtureMemo(directory, memo) {
  * The controller's store of shared memos, in this machine's home as gateMachineHome finds it (a machine or account home
  * isolates it in tests). Why here: this module is the runner job's import too, and may name no other cell.
  */
-export function controllerMemoStore(env = process.env) {
+export function controllerMemoStore(env = environmentAdapter().all()) {
   const home = env.PULLBOARD_MACHINE_HOME ? resolve(env.PULLBOARD_MACHINE_HOME) : join(resolve(env.PULLBOARD_ACCOUNT_HOME || homedir()), '.pullboard');
   return join(home, 'cells-cache', 'fixtures-shared');
 }

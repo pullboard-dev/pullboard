@@ -6,6 +6,7 @@ import {
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 import { inflateSync } from 'node:zlib';
 // Use the public browser-safe door to keep the thin resident client from loading the full kernel.
 import {
@@ -21,7 +22,7 @@ const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 /** Read Git without inheriting a caller's alternate index or repository selector. */
 function git(root, args, binary = false) {
-  const env = { ...process.env };
+  const env = environmentAdapter().all();
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
   const result = spawnSync('git', ['--no-replace-objects', ...args], { cwd: root, env,
     encoding: binary ? undefined : 'utf8', maxBuffer: 128 * 1024 * 1024 });
@@ -36,7 +37,7 @@ function git(root, args, binary = false) {
  */
 function fileLocation(cwd) {
   try {
-    for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) if (process.env[name]) return null;
+    for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) if (environmentAdapter().has(name)) return null;
     let top = fs.realpath(cwd);
     while (!fs.exists(join(top, '.git'))) {
       const parent = dirname(top);
@@ -117,7 +118,7 @@ function committedConfigFromObjects(commonDir) {
 export function toolBuildLocation(cwd) {
   // A worktree needs a .git marker in its ancestry unless Git was explicitly pointed elsewhere.
   // Avoid starting Git for ordinary help from a directory that cannot contain a board.
-  if (!process.env.GIT_DIR) {
+  if (!environmentAdapter().get('GIT_DIR')) {
     let directory;
     try { directory = fs.realpath(cwd); } catch { directory = null; }
     while (directory && !fs.exists(join(directory, '.git'))) {
