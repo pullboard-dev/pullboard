@@ -5,7 +5,7 @@ export { criterionCells } from './src/io/criterion.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, readLedgerBytes, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords, allowanceWords } from './src/io/blocks.js';
 export { briefFiles } from './src/logic/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/logic/caught.js';
-export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
+export { newBlock, firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
 export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/logic/order/path.js';
 export { foreignDependencyStates, foreignBlockers } from './src/logic/cross/repo.js';
 export { optionsDigest, decisionHandoffs } from './src/io/decision.js';
@@ -19,6 +19,7 @@ export { setItem } from './src/logic/fields.js';
 /** The stop rules, imported on demand so a command that never asks for returned work loads no module more [C7,#11255]. */
 export const loadStopRules = () => import('./src/logic/stop-reason.js');
 export { contentionScores, orderByContention, conflictRates, quietFiles } from './src/logic/contention.js';
+export { largestDisjointWave } from './src/logic/wave.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
 export { applyItemHold, applyItemHoldRelease } from './src/logic/holds.js';
 export { splitRecent } from './src/logic/hot-split.js';
