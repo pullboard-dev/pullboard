@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** Cockpit fixture opt-out, borrowed presentation and observation ages [N26,H16,A10]. */

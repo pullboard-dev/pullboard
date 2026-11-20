@@ -47,6 +47,7 @@ import { itemFiles } from "../../../items/index.js";
 import { companionWindowProblem } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 export { relaxRequiredFamilyEnabled } from "../../../config/index.js";
+export { routeReservations } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { GUARDS } from "../../../state/index.js";
 import { IN_STATE } from "../../../state/index.js";

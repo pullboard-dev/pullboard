@@ -54,6 +54,9 @@ import { JSON_SHAPES } from '../../../../../packages/config/index.js';
 import { FIXTURE_DISTINCT_ENV } from '../../../src/io/item/duplicate.js';
 import { projectState } from '../../../src/io/view.js';
 import { serveView } from '../../../src/io/commands/view.js';
+import { run as runUpdate } from '../../../src/io/commands/update.js';
+import { linkBoards } from '../../../src/io/commands/link.js';
+import { signedBoard } from '../board/link.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { fetchFresh } from '../http.js';
@@ -1305,7 +1308,7 @@ catalogCase('[A1,B26] slice creates a frozen child of a claimed item through rea
 }, ['add', 'check', 'claim', 'init', 'slice']);
 
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', ['init'], () =>
-  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['gate-health', 'init', 'push-receipts', 'shadow-batch', 'test-value', 'waits']);
+  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['add', 'block', 'expedite', 'gate-health', 'init', 'push-receipts', 'rulings', 'shadow-batch', 'test-value', 'waits']);
 
 catalogCase('[A1,C7] red explain reports absent evidence through the catalog', ['init', 'red'], async () => {
   const box = await project();
@@ -1342,6 +1345,15 @@ catalogCase('[A1,C7,#8842] route suggests light items through the catalog', ['in
   assert.ok(Array.isArray(report.items), 'route lists the strong items that meet the light shape');
 }, ['init', 'route']);
 
+catalogCase('[A1,C7,#12157] mark, timeline, update and link give their catalog shapes', ['add', 'init', 'link', 'mark', 'timeline', 'update'], async (t) => {
+  const box = await project();
+  await json(box, box.repo, 'add', ['coordinator', 'Timeline item', '--check', 'true']);
+  assert.equal((await json(box, box.repo, 'mark', ['1', 'smoke', '--point', '--ref', 'catalog'])).mark.edge, 'point');
+  assert.equal(typeof (await json(box, box.repo, 'timeline', ['1'])).summary.total_ms, 'number');
+  assertRequiredShape(await new Promise((done) => runUpdate({ say: () => {}, result: (value) => done({ version: 1, ...value }) }, [], { latest: () => '1.2.3', scriptPath: () => '/home/u/prefix/lib/node_modules/pullboard/apps/cli/pullboard.js', env: () => ({ npm_config_prefix: '/home/u/prefix', PWD: '/home/u' }), package: () => ({ name: 'pullboard', version: '1.2.3' }) })), shapeFor('update').required, 'update');
+  const sign = (name) => { const side = signedBoard(t, name); return { ...side, signer: { by: side.by, key: side.key } }; };
+  const { linkId: link, parent, child, disclosure } = await linkBoards(sign('catalog-parent'), sign('catalog-child')); assertRequiredShape({ version: 1, link, parent, child, disclosure }, shapeFor('link').required, 'link');
+}, ['add', 'init', 'link', 'mark', 'timeline', 'update']);
 catalogCase('[A1,C7] rules replays the event log through the catalog', ['init', 'rules'], async () => {
   const box = await project();
   const report = await json(box, box.repo, 'rules');
@@ -1457,6 +1469,7 @@ const CATALOG_GROUPS = {
     '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
     '[A1,C7,#8842] route suggests light items through the catalog',
     '[A1,C7] rules replays the event log through the catalog',
+    '[A1,C7,#12157] mark, timeline, update and link give their catalog shapes',
   ],
   'commands-b': [
     '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
