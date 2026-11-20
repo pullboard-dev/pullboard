@@ -1,0 +1,27 @@
+{
+  "api.gate.receipt-file-red-key.whole-file-red-keeps-its-key": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A proof phase that is red only because a file failed as a whole (no case named, the spec footer's failed-file list naming it) gives a ledger whose row for that file is a fail at the same input key a passing run carries, and boardJobQueueCall records that row from the posted gate receipt."
+    },
+    "why": "Without the key the board could not compare a file-level red with main, so mainRedFileExcuse refused it and the item sat on an unknown gate.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/gate/receipt-file-red-key.test.js",
+      "packages/gate/src/io/test/account.js",
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.gate.receipt-file-red-key.no-named-file-no-row": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A red phase that names neither a failing case nor a failed file gives no ledger, so no row is guessed."
+    },
+    "why": "Without the guard a red with no account would mark every keyed file failed or passed on a guess.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/gate/receipt-file-red-key.test.js",
+      "packages/gate/src/io/test/account.js"
+    ]
+  }
+}
