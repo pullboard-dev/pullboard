@@ -383,7 +383,7 @@ export async function watchDigest(file, path, { name, root, config, healthReport
  * @param {any} io
  * @param {{ first?: string, second?: string, rest: string[], values: Record<string, any> }} args
  * @param {{ info: { root: string, commonDir: string }, config: { name?: string }, file: string }} ctx
- * @param {{healthReport: Function}} services Actual upper-layer health observation bound to dispatch.
+ * @param {{healthReport: Function}} ports Actual upper-layer health observation bound to dispatch.
  * @returns {Promise<number>}
  */
 export async function digestCommand(io, { first, second, rest, values }, ctx, ports) {

@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  SLICE_PATHS: 'revert the outside path, or ask the parent holder for a slice that declares it',
   BOARD_LANDS_ACCEPTED: 'check pullboard next for other work; accepted work lands automatically',
   TOOL_BUILD_UNAVAILABLE: 'restore the published build Git objects or ask the coordinator to promote a gated build',
   TOOL_BUILD_REQUIRED: 'ask the coordinator to run pullboard tool-build promote <commit> --gate-receipt <gate-id>',
@@ -638,7 +639,14 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   RUNNER_TOOLCHAIN_MISSING: 'add a runner that has the named toolchain with pullboard runner add, or ask the person to install it on an existing runner',
   AGENT_REQUIRED: 'send agent with the seat name pullboard join gave this clone',
   COORDINATOR_CREDENTIAL: "run the move on the board host with the local CLI, or send the coordinator's own key as x-pullboard-coordinator-key",
-  SPEC_FIELD: 'give the field as a single plain sentence, or leave it out'
+  SPEC_FIELD: 'give the field as a single plain sentence, or leave it out',
+  STATS_OFF: 'the person sets landing.composedEquality to true in the machine settings',
+  HOME_PATH: 'reword that commit\'s message without the path (a merge subject can drop its "of <path>" part), then try again',
+  CO_AUTHOR: 'reword that commit\'s message without the trailer, then try again',
+  LAND_REPROVE_RED: 'read the failure named in the item\'s note, fix it in the reopened item, then submit it again',
+  NO_STORE_WRITER: 'update this pullboard to a build that has the writer for that operation, or ask the coordinator',
+  RULING_CAUSE: 'give --cause one of the causes the refusal lists, or leave it out',
+  REVIEW_RELEASE_TWICE: 'a seat of another model family reviews the item, or ask the coordinator to rule'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

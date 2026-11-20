@@ -78,6 +78,7 @@ const BEFORE = [
   'provideMainRedNotes',
   'provideMainTestRecorder',
   'provideRefusalTrials',
+  'provideScreenStart',
   'provideTimingExcuse',
   'pulledGateReds',
   'queueDraining',
@@ -96,6 +97,7 @@ const BEFORE = [
   'shardClaimCap',
   'shardJobs',
   'shardedResult',
+  'sprintLandable',
   'withLandingPermit',
   'withdrawLandShards',
 ];

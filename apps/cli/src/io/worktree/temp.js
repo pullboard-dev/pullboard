@@ -1,4 +1,3 @@
-import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   basename,
@@ -8,6 +7,9 @@ import {
   relative,
 } from 'node:path';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Refuse a worktree folder inside the operating system's temporary directory, naming the persistent default.
@@ -17,7 +19,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
  * @param {{ worktrees?: string }} config
  */
 export function refuseUnderTemp(folder, config) {
-  const real = (path) => { try { return realpathSync(path); } catch { return path; } };
+  const real = (path) => { try { return fs.realpath(path); } catch { return path; } };
   const temp = real(tmpdir());
   const rel = relative(temp, join(real(dirname(folder)), basename(folder)));
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return;
