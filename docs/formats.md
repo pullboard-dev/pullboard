@@ -362,6 +362,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `item_owner_status` | `item` | `item_owner`, `item_status` | no |
+| `job_kind_created` | `job` | `job_kind`, `job_created` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
 | `job_lease_live` | `job` | `job_lease_until` | no |
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |

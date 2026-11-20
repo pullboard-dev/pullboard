@@ -49,6 +49,8 @@ export const FLAG_MEANINGS = Object.freeze({
   '--port': ['--port <n>', 'the port to listen on; 0 chooses a free port'],
   '--no-open': 'does not open the browser',
   'route --suggest': 'lists the open strong items whose shape meets the light rule, changing none of them',
+  'route --to': ['route <id> --to <seat>', 'reserves the item for that seat or block; needs route.reservations on'],
+  'route --off': 'clears the item reservation; needs route.reservations on',
   '--lan': 'serves a private link for a phone on the local IPv4 network',
   '--export': 'writes a read-only snapshot with event replay into this folder',
   '--public': 'requires a checked public filter before anything is exported',
