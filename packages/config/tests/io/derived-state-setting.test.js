@@ -39,7 +39,7 @@ test('config.io-derived-state-setting.clause-2-health-derivedstate-has-a: clause
   assert.equal(withSettings({ health: { derivedState: false } }, derivedStateEnabled), false);
   const off = row({ health: { derivedState: false } });
   assert.equal(off.value, false);
-  assert.equal(off.origin, 'machine');
+  assert.equal(off.origin, 'configured');
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
   assert.match(described.description ?? JSON.stringify(described), /on by default/u);
