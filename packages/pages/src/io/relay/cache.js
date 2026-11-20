@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { environmentAdapter } from "../../../../env/index.js";
 import { fileSystemAdapter } from "../../../../fs/index.js";
 import { Refused } from "../../../../kernel/index.js";
 import {
@@ -19,9 +20,9 @@ function invalid() { return new Refused('RELAY_PAGE_CACHE', 'Restore private rel
 export function snapshotSourceId(value) { return createHash('sha256').update(value).digest('hex'); }
 
 /** Keep one board and relay origin's immutable cipher objects, private reuse mappings and unfinished uploads. */
-export function createRelayPageCache(state, fs = fileSystemAdapter()) {
+export function createRelayPageCache(state, fs = fileSystemAdapter(), environment = environmentAdapter()) {
   if (!/^[0-9a-f]{32}$/u.test(state?.board ?? '') || typeof state.url !== 'string') throw invalid();
-  const directory = join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'relay-pages');
+  const directory = join(environment.get('PULLBOARD_HOME') || join(homedir(), '.pullboard'), 'relay-pages');
   fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const parent = fs.lstat(directory);
   if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw invalid();

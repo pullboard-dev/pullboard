@@ -11,6 +11,7 @@ import { idArg } from './context.js';
 import { withBoard } from './context.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
+import { leasedOrdered } from './next/review-lease.js';
 import { openItemFolder } from './item/folder.js';
 import { liveFolderRefusal } from './item/folder.js';
 import { claimOrdered } from './claim.js';
@@ -53,8 +54,11 @@ function derivedGateAtHead(root, board) {
   return table ? entry => table.gateAtHead.get(String(entry.item_id)) : null;
 }
 
-export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
-  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
+/** The returned-work rules from the queue and items cells, imported only when next.returnedFirst asks, so show and status never load them through this file [C7,#11255]. */
+const loadReturnedRules = async () => ({ ...(await (await import('../../../../packages/queue/index.js')).loadReturnedFirst()), ...(await (await import('../../../../packages/items/index.js')).loadStopRules()) });
+
+export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered: leasedOrdered(ordered, ctx => ctx.file), claimOrdered, currentReworkRoutingPolicy,
+  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax, loadReturnedRules });
 
 /**
  * One loop of `next` through the moves cell: claim the next free item, or reserve the next review (V15).
@@ -126,6 +130,8 @@ export async function topUpClaims(ctx, values, { most = Infinity } = {}) {
       // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
       for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
+      // A seat whose own gate went red fixes that item first (store.next-own-red-first), so it takes no second build until it resubmits.
+      if (store.queuedReds(board, me).length) return 0;
       return store.claimsPerSeat(board, perSeat, { runs: store.boardRunsReader(board, ctx.file) }).n - heldTop(ctx, board).length;
     });
     if (room <= 0) break;

@@ -1,4 +1,5 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
@@ -30,7 +31,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
-import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/heavy.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -74,8 +75,6 @@ import {
   COORDINATOR,
 } from '../../../../../packages/config/index.js';
 import {
-} from '../../../../../packages/gate/index.js';
-import {
   contains,
   git,
   headCommit,
@@ -88,6 +87,7 @@ import {
   machineNameProblems,
 } from '../../../../../packages/commits/index.js';
 import * as infraNotes from '../../../../../packages/commits/index.js';
+import { checkRangeMessages } from '../../../../../packages/commits/light.js';
 import {
   pairPrefix,
 } from '../../../../../packages/flakes/index.js';
@@ -144,7 +144,7 @@ import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { topUpClaims } from '../next.js';
 import { mainRedBaselinesToRetake } from '../../../../../packages/store/index.js';
 import { mainRedItemCases } from '../../../../../packages/store/index.js';
-import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
+import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/heavy.js';
 import { waitForSubmitGate } from '../submit/wait.js';
 import { runStaticPreflight } from '../submit/preflight.js';
 import { requireStaticPreflight } from '../submit/preflight.js';
@@ -165,7 +165,7 @@ function reportSubmitStage(ctx, name, start) {
 
 /** Write one phase's wall time to stderr when PULLBOARD_SUBMIT_MARKS is set, so a slow submit names the phase that spent it [C7]. */
 export function submitMark(phase, startMs) {
-  if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
+  if (environmentAdapter().get('PULLBOARD_SUBMIT_MARKS')) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
 }
 
 /**
@@ -506,6 +506,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
+  // A home-folder path in any commit message is refused always, and a Co-Authored-By trailer when commits.noCoAuthor is on [C1,C7].
+  await checkRangeMessages(root, `${acceptedMain.commit}..${commit}`, { noCoAuthor: acceptedMain.config.commits.noCoAuthor === true });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
   // Every gate is one runner job row this host writes, whatever gate.runnerDispatch says (the setting is a deprecated no-op here);
@@ -569,7 +571,7 @@ export async function recordCheckTicks(io, itemId) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
  */
-function hostedSubmitRunner(env = process.env) {
+function hostedSubmitRunner(env = environmentAdapter().all()) {
   const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
   if (!host) return null;
   const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);
