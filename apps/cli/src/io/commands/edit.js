@@ -3,6 +3,8 @@ import { requireNonEmptyCheck } from '../item/bar.js';
 import { briefFilesAbsentFromMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
 import { requireAfterNeeded } from '../item/bar.js';
+import { requireChainDepth } from '../item/bar.js';
+import { chainDepthOf } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
@@ -136,6 +138,7 @@ export async function run(io, args) {
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
     requireAfterNeeded(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check },
       { on: itemsBarRulesAtAdd(), after: change.after ?? before.item_after, self: id, items: () => store.listItems(board, { all: true }) });
+    if (itemsBarRulesAtAdd() && change.after !== undefined) requireChainDepth(change.after, chainDepthOf(store.listItems(board, { all: true })), id);
     requireBarInLane(ctx, me, { lane: before.item_lane, criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsBarRulesAtAdd());
     requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
     await requireCellTestFixture(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check, brief: before.item_brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || Boolean(asPerson));
