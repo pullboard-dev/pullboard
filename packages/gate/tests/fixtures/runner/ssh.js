@@ -126,15 +126,23 @@ const holdHere = () => new Promise(() => { setInterval(() => {}, 60_000); });
 let skipAgent = false;
 const holdWorker = async () => { if (pullEnqueue) skipAgent = true; else await holdHere(); };
 const launchesWorker = remoteCommand.startsWith(configuredNode) || pullEnqueue;
-const withoutAgent = command => {
-  const start = command.indexOf('\\n( nohup'), marker = '\\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\\necho "queued');
-  return start >= 0 && end > start ? command.slice(0, start) + command.slice(end + marker.length) : command;
+const AGENT_TAIL = '\\n) </dev/null >/dev/null 2>&1 &', QUEUED = '\\necho "queued';
+const SHELL_HEAD = '\\n/bin/sh -c ', SHELL_TAIL = ' </dev/null >/dev/null 2>&1';
+// The enqueue's agent start: the bare '( nohup' line, or since #10985 that same text as one quoted /bin/sh -c word.
+const agentSpan = command => {
+  const shell = command.indexOf(SHELL_HEAD + "'( ");
+  if (shell >= 0) {
+    const end = command.indexOf(QUEUED, shell), line = end > shell ? command.slice(shell, end) : '';
+    if (!line.endsWith("'" + SHELL_TAIL)) return null;
+    const inner = line.slice(SHELL_HEAD.length + 1, -SHELL_TAIL.length - 1).split("'\\\\''").join("'");
+    return inner.endsWith(AGENT_TAIL) ? { start: shell, end, agent: inner.slice(2, -AGENT_TAIL.length) } : null;
+  }
+  const start = command.indexOf('\\n( nohup'), end = command.indexOf(AGENT_TAIL + QUEUED);
+  return start >= 0 && end > start ? { start, end: end + AGENT_TAIL.length, agent: command.slice(start + 3, end) } : null;
 };
+const withoutAgent = command => { const span = agentSpan(command); return span ? command.slice(0, span.start) + command.slice(span.end) : command; };
 /** The enqueue's agent start line, without its trailing '&', for the box's agent host to run as its child. */
-const agentLine = command => {
-  const start = command.indexOf('\\n( nohup'), marker = '\\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\\necho "queued');
-  return start >= 0 && end > start ? command.slice(start + 3, end).replace(/\\s*&\\s*$/u, '') : '';
-};
+const agentLine = command => (agentSpan(command)?.agent ?? '').replace(/\\s*&\\s*$/u, '');
 if (hold === 'dispatch') await holdHere();
 appendFileSync(phases, 'dispatched\\n');
 if (hold === 'run') await holdHere();
