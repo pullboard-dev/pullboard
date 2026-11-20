@@ -83,7 +83,7 @@ test('cli.journeys-spec-e2e-submit.next-claims-the-next-free-item: next claims t
   assert.match((await box.runIn(box.repo, 'next', '--verify')).err, /MAIN_IS_COORDINATOR/);
   const named = (await box.runIn(box.repo, 'next', '--verify', '--as', 'coordinator')).out;
   assert.match(named, /next to verify: #1 Page, built by web-1/);
-  assert.match(named, new RegExp(`check out exactly that commit, here: cd ${box.repo} && git switch --detach [0-9a-f]{40}`));
+  assert.match(named, /review folder at that commit: \S+ \(read it there; this checkout is untouched\)/);
   assert.match(named, /pullboard verify 1 accept --as coordinator --note/);
   assert.match((await box.runIn(box.web, 'next', '--verify')).err, /NOTHING_FREE/);
 });
