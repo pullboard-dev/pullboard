@@ -1,14 +1,4 @@
 /** Machine-wide settings shared by every Pullboard checkout on this machine. */
-import {
-  chmodSync,
-  existsSync,
-  statSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
 import { dirname } from 'node:path';
@@ -44,6 +34,8 @@ import {
 } from '../../../queue/index.js';
 import { machineSettingsFile } from '../../../resources/light.js';
 import { machineHome } from '../../../resources/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };
@@ -136,14 +128,29 @@ export function recaptureHandoffEnabled() {
   return loadMachineSettings().gate?.recaptureHandoff === true;
 }
 
+/** Rerun a gate's new reds once on the board only when this machine opted in [C7]; off by default, and only an exact true turns it on. */
+export function retryNewRedsOnceEnabled() {
+  return loadMachineSettings().gate?.retryNewRedsOnce === true;
+}
+
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
+export function failFastShardsEnabled() {
+  return loadMachineSettings().gate?.failFastShards === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
+}
+
+/** Cores one gate shard weighs on a runner, from the flat key "runners.coresPerShard": 3 when unset, a whole number from 1 through 5 otherwise [C7,#11866]. */
+export function runnersCoresPerShard() {
+  return loadMachineSettings()['runners.coresPerShard'] ?? 3;
 }
 
 /** Name the trunk main commit in every runner claim answer, only when this machine opted in (stored flat as "runners.reportCommit") [C7,#10819]. */
@@ -172,6 +179,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
@@ -191,6 +199,11 @@ export function requireDeclaredInputsEnabled() {
 /** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
 export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
+}
+
+/** Whether the static check refuses new direct signing outside the signing adapter: off by default; only an exact `true` turns it on [C7,#1428]. */
+export function adapterLintSigningEnabled() {
+  return loadMachineSettings().gate?.adapterLintSigning === true;
 }
 
 /** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
@@ -221,6 +234,16 @@ export function viewTimerLayoutEnabled() {
 /** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
 export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
+}
+
+/** Whether the static check refuses new direct GitHub network access outside the GitHub adapter: off by default; only an exact `true` turns it on [C7,#1429]. */
+export function adapterLintGithubEnabled() {
+  return loadMachineSettings().gate?.adapterLintGithub === true;
+}
+
+/** Whether the static check refuses new SSH runner access outside the adapter: off by default; only an exact `true` turns it on [C7,#11369]. */
+export function adapterLintSshEnabled() {
+  return loadMachineSettings().gate?.adapterLintSsh === true;
 }
 
 /** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
@@ -554,10 +577,6 @@ export function nameBehindDeviceEnabled() {
   return loadMachineSettings().engine?.nameBehindDevice === true;
 }
 
-/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
-export function typedFieldsEnabled() {
-  return loadMachineSettings().items?.typedFields === true;
-}
 
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
@@ -609,6 +628,11 @@ export function strictFullSuiteEnabled() {
   return loadMachineSettings().landing?.strictFullSuite === true;
 }
 
+/** Whether builder advice reaches agents through next instead of shouts (#11703): off by default; only an exact `true` turns it on. */
+export function adviceThroughNextEnabled() {
+  return loadMachineSettings().health?.adviceThroughNext === true;
+}
+
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
 export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
@@ -617,6 +641,11 @@ export function lapsedSweepEnabled() {
 /** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
 export function docsRegenerateOnCommit() {
   return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
+/** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
+export function itemsBarRulesAtAdd() {
+  return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
@@ -744,6 +773,11 @@ export function nextOneGitRead() {
  */
 export function nextReadinessCache() {
   return loadMachineSettings().next?.readinessCache === true;
+}
+
+/** Whether next puts returned work (an abandoned or reworked item) ahead of untouched work (#11241): off by default; only an exact `true` turns it on. */
+export function nextReturnedFirst() {
+  return loadMachineSettings().next?.returnedFirst === true;
 }
 
 /**
@@ -875,12 +909,12 @@ export function relayOfferEnabled() {
 /** Atomically replace machine settings without exposing a partial JSON file. */
 function writeMachineSettings(settings) {
   const file = machineSettingsFile();
-  mkdirSync(dirname(file), { recursive: true });
+  fileSystem.mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
+    fileSystem.writeFile(temporary, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
+    fileSystem.rename(temporary, file);
+  } finally { fileSystem.rm(temporary, { force: true }); }
 }
 
 /**
@@ -889,7 +923,7 @@ function writeMachineSettings(settings) {
  */
 export function setPersonSetting(key, text) {
   const value = parsePersonSet(key, text);
-  if (PERSON_SET[key] === 'folder' && value !== undefined && !statSync(value, { throwIfNoEntry: false })?.isDirectory()) {
+  if (PERSON_SET[key] === 'folder' && value !== undefined && !fileSystem.stat(value, { throwIfNoEntry: false })?.isDirectory()) {
     throw new Refused('BAD_MACHINE_SETTINGS', `scratch must be an absolute folder that exists, or off; run pullboard settings scratch <folder>|off`);
   }
   const settings = structuredClone(loadMachineSettings());
@@ -897,10 +931,10 @@ export function setPersonSetting(key, text) {
   const parents = names.slice(0, -1).reduce((node, name) => (node[name] = node[name] && typeof node[name] === 'object' ? node[name] : {}), settings);
   if (value === undefined) delete parents[names.at(-1)]; else parents[names.at(-1)] = value;
   const file = machineSettingsFile();
-  const before = existsSync(file) ? readFileSync(file) : null;
+  const before = fileSystem.exists(file) ? fileSystem.readFile(file, null) : null;
   writeMachineSettings(settings);
   try { loadMachineSettings(); } catch (error) {
-    if (before) writeFileSync(file, before, { mode: 0o600 }); else rmSync(file, { force: true });
+    if (before) fileSystem.writeFile(file, before, { mode: 0o600 }); else fileSystem.rm(file, { force: true });
     throw error;
   }
   return settings;
@@ -1144,15 +1178,15 @@ export function boardKeyFile() {
 export function boardKey() {
   const file = boardKeyFile();
   let key;
-  try { key = readFileSync(file, 'utf8').trim(); }
+  try { key = fileSystem.readFile(file, 'utf8').trim(); }
   catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    mkdirSync(machineHome(), { recursive: true, mode: 0o700 });
-    try { writeFileSync(file, `${randomBytes(24).toString('base64url')}\n`, { mode: 0o600, flag: 'wx' }); }
+    fileSystem.mkdir(machineHome(), { recursive: true, mode: 0o700 });
+    try { fileSystem.writeFile(file, `${randomBytes(24).toString('base64url')}\n`, { mode: 0o600, flag: 'wx' }); }
     catch (raced) { if (raced.code !== 'EEXIST') throw raced; }
-    key = readFileSync(file, 'utf8').trim();
+    key = fileSystem.readFile(file, 'utf8').trim();
   }
-  chmodSync(file, 0o600);
+  fileSystem.chmod(file, 0o600);
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
 }
@@ -1230,4 +1264,9 @@ export function reuseGateReceiptsEnabled() {
 /** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
 export function relaxRequiredFamilyEnabled() {
   return loadMachineSettings().review?.relaxRequiredFamily === true;
+}
+
+/** Whether line.tune is on (#1099): off by default; only an exact `true` lets the line controller tune its own knobs, until the replay bench proves it better. */
+export function lineTuneEnabled() {
+  return loadMachineSettings().line?.tune === true;
 }

@@ -26,7 +26,8 @@ export function tapCaseErrors(text, root, { cases = Infinity, errorBytes = 600 }
   for (let index = 0; index < lines.length && rows.length < cases; index++) {
     const failed = /^(\s*)not ok\s+\d+\s+-\s+(.*)$/u.exec(lines[index]);
     if (!failed) continue;
-    const row = { file: null, name: failed[2].replace(/\s+#.*$/u, ''), error: '' };
+    // Node's reporter writes # in a name as \# and a backslash as \\; undo that after the directive is cut, so the name matches the outcomes record.
+    const row = { file: null, name: failed[2].replace(/\s+#.*$/u, '').replace(/\\([\\#])/gu, '$1'), error: '' };
     let aggregate = false;
     const open = /^(\s*)---\s*$/u.exec(lines[index + 1] ?? '');
     if (open) {

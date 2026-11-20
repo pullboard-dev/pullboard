@@ -1,0 +1,16 @@
+{
+  "cli.io-commands-runner-discover.registration-probe-answering-after-four-seconds-registers": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Runner add with an ssh stand-in that waits 4 seconds before it answers registers the runner and exits 0."
+    },
+    "why": "Without it, the 3 second probe default could bound registration again and fail on a loaded runner.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/runner-discover.test.js",
+      "apps/cli/src/io/commands/runner.js"
+    ]
+  }
+}

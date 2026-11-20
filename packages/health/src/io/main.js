@@ -24,6 +24,7 @@ import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../items/index.js';
 import { dependencyLabel } from '../../../items/index.js';
 import { itemFileCollisions } from '../../../items/index.js';
+import { toolTreeRoomProblem } from '../../../items/index.js';
 /**
  * `pullboard health`: every stuck item on the board, why it is stuck, since when, the one next step
  * and who takes it [A6]. Doctor checks a board's integrity; health checks its flow, so nobody has
@@ -42,6 +43,7 @@ import { missedJobFindings } from '../../../store/index.js';
 import {
   COORDINATOR,
   durationMs,
+  scratchRoot,
 } from '../../../config/index.js';
 import {
   mainCheckout,
@@ -118,16 +120,26 @@ export function boardHealth(file, { root, config, now, dispatchHealth, machineSe
 /**
  * Every stuck finding on an open board connection, and the rework that waits for a later release.
  *
- * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
+ * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function, room?: () => ({ freeMb: number, minFreeMb: number, temp: string } | null) }} options Explicit upper-layer dispatch observation; room reads the scratch-space floor and defaults to the real volume.
  * @returns {{ asOf: string, thresholds: { stuck: string, holds: string, release: string }, stuck: Finding[], waiting: Finding[] }}
  */
-export function healthReport({ db, root, config, now, dispatchHealth, machineSettings }) {
+export function healthReport({ db, root, config, now, dispatchHealth, machineSettings, room = () => toolTreeRoomProblem({ temp: scratchRoot(machineSettings) }) }) {
   const limits = healthThresholds(config);
   const asOf = now.toISOString();
   const report = { asOf, thresholds: { stuck: limits.stuck, holds: limits.holds, release: limits.release }, stuck: [], waiting: [] };
   // Gate alarms read the git directory, so they report even before a board exists (U41).
   report.stuck.push(...gateControlFindings(root, config ?? {}, now));
   report.stuck.push(...unavailableRunnerFindings(now));
+  const lowRoom = room();
+  if (lowRoom) {
+    report.stuck.push(finding('TOOL_TREE_DISK_LOW', null, {
+      subject: 'scratch space', key: 'TOOL_TREE_DISK_LOW:machine', since: asOf, now: now.getTime(),
+      title: 'scratch space is under the tool-tree floor',
+      why: `${lowRoom.freeMb} MB free in ${lowRoom.temp}, under the ${lowRoom.minFreeMb} MB floor; review packets lose their main comparison until space is freed`,
+      next: 'free space in the scratch folder or move it to a larger volume',
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: lowRoom,
+    }));
+  }
   const canary = readRelayHealth(root);
   if (typeof canary.alertSince === 'string' && Number.isFinite(Date.parse(canary.alertSince))) {
     const step = typeof canary.step === 'string' ? canary.step : 'unknown';
@@ -206,6 +218,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
 
+  report.stuck.push(...unansweredShoutFindings(db, limits.ms.stuck, now, finding));
   report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
@@ -853,6 +866,28 @@ function ageText(minutes) {
   if (minutes < 60) return `${minutes}m`;
   if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h`;
   return `${Math.floor(minutes / 1440)}d`;
+}
+
+/**
+ * One finding per seat shout to the coordinator that nobody answered within the stuck threshold. Why: a builder's own
+ * free-text blocker matches none of the sentinel phrasings the next footer counts, so it was never escalated [C7].
+ *
+ * @param {any} db An open board connection.
+ * @param {number} limitMs The health.stuck threshold in milliseconds.
+ * @param {Date} now
+ * @param {typeof finding} make
+ * @returns {Finding[]}
+ */
+function unansweredShoutFindings(db, limitMs, now, make) {
+  const rows = db.prepare(`SELECT shout_id, shout_from, shout_text, shout_at, shout_evidence_item FROM shout
+    WHERE shout_to = ? AND shout_from NOT IN (?, ?) AND shout_answers IS NULL AND shout_decision = 0
+      AND NOT EXISTS (SELECT 1 FROM shout reply WHERE reply.shout_answers = shout.shout_id) ORDER BY shout_id`).all(COORDINATOR, COORDINATOR, PERSON);
+  return rows.filter(row => now.getTime() - Date.parse(row.shout_at) >= limitMs).map(row => make('SHOUT_UNANSWERED', row.shout_evidence_item === null ? null : { item_id: row.shout_evidence_item }, {
+    subject: `shout #${row.shout_id} from ${row.shout_from}${row.shout_evidence_item === null ? '' : ` about #${row.shout_evidence_item}`}`, key: `SHOUT_UNANSWERED:shout:${row.shout_id}`, since: row.shout_at, now: now.getTime(),
+    title: 'unanswered shout to the coordinator',
+    why: `${row.shout_from} shouted to the coordinator and nobody has answered: ${capText(row.shout_text).slice(0, 200)}`,
+    next: `answer shout #${row.shout_id} with pullboard answer`, owner: { role: 'coordinator', who: COORDINATOR }, detail: { shout: row.shout_id, from: row.shout_from, item: row.shout_evidence_item },
+  }));
 }
 
 /**

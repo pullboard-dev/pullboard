@@ -33,9 +33,6 @@ import {
 } from '../../../../../packages/spec/index.js';
 import { originRepository } from '../../../../../packages/seats/light.js';
 import {
-  loadSpec,
-} from '../../../../../packages/spec/index.js';
-import {
   signingLine,
 } from '../../../../../packages/person/light.js';
 import {
@@ -126,6 +123,7 @@ export async function run(io, { values }) {
   const format = { capacityLines, usefulBuilderLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
   for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
   if (Object.keys(ctx.config.products).length) {
+    const { loadSpec, productLine, productSummaries } = await import('../../../../../packages/spec/index.js');
     const all = await withBoardRead(ctx, (board) => store.listItems(board, { all: true }));
     productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
   }

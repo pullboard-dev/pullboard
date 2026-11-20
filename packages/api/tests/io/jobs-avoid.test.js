@@ -1,7 +1,7 @@
 /** A job offered with an avoid list is never given to a runner on it, behind jobs.avoidRunners; off, the list is ignored [C7,#9273]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { claimJob } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { describeSetting } from '../../../config/index.js';

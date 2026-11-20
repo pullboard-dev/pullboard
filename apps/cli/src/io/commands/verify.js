@@ -1,3 +1,6 @@
+/** @pullboard-module-loads packages/git/src/io/review-folder.js */
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
@@ -34,6 +37,8 @@ import { reviewCitations } from '../../../../../packages/gate/index.js';
 import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewWait } from '../verify/wait.js';
+import { sliceVerdictFacts } from '../submit/slice-paths.js';
+import { sliceVerdictProblem } from '../../logic/slice-paths.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
@@ -178,6 +183,9 @@ import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
+/** Loads the review folder module at the call, so cold paths through this command never pay for it. */
+const requireModule = createRequire(import.meta.url);
+
 /** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
 export function trunkMovedOverlapText(paths, hunks = []) {
   const named = hunks.length ? `, at ${hunks.map(({ file, header }) => `${JSON.stringify(file)} ${JSON.stringify(header)}`).join(', ')}` : '';
@@ -288,7 +296,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   if (!decision) throw new Refused('USAGE', VERIFY_WORDS.usage);
   const runnerAdmission = decision === 'ACCEPT' ? gateRunnerAdmission() : {};
   const implies = parseImplies(values.implies);
-  const { root } = ctx.info;
+  let { root } = ctx.info;
   let verificationProfile = null;
   let verificationOutput = null;
   let verificationQuarantine = null;
@@ -342,6 +350,13 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
+    // With slices.composeLanding on, a slice is accepted only through its parent and a parent only once its slices are in [C7].
+    const composedProblem = sliceVerdictProblem({ decision, ...sliceVerdictFacts(board, item.item_id), composeLanding: ctx.config.slices?.composeLanding });
+    if (composedProblem) {
+      throw new Refused(composedProblem, composedProblem === 'SLICE_REVIEWED_WITH_PARENT'
+        ? `item #${id} is a slice: its parent's ACCEPT covers it; reject it alone, or accept the parent`
+        : `item #${id} has slices that are not submitted yet; accept it once they are`);
+    }
     if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
     // Refuse a bad --read before composition, gate admission or any test run: it is pure input, and a full proof that
     // ends in USAGE wastes minutes and leaves nothing recorded (#3085).
@@ -358,6 +373,10 @@ export async function verifyHere(ctx, id, { second, values }) {
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+    // verify.reviewFolder (off by default): a seat checkout not at the submitted commit is left alone, and the checks run in the detached review folder instead [C7,#8931].
+    if (!fromPacket && ctx.config.verify?.reviewFolder === true && !contains(root, commit, headCommit(root) ?? '')) {
+      root = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
+    }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
     if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
     const head = fromPacket ? item.item_commit : headCommit(root) ?? '';

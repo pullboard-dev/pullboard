@@ -14,14 +14,17 @@ import { healthTargets } from "../../logic/board/receipts.js";
 import { deliverHealthNotices } from "../../logic/board/receipts.js";
 import { HEALTH_SENTINEL_ENGINE } from "../../logic/board/receipts.js";
 import { COORDINATOR } from "../../../../config/index.js";
+import { adviceThroughNextEnabled } from "../../../../config/index.js";
 import { PERSON } from "./query.js";
 import { agentModel } from "./query.js";
 
 import { CPU_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { hasPendingCpuNotices } from "../../logic/board/receipts.js";
 import { REJECTED_WORK_RETURN_ENGINE } from "../../../../state/light.js";
+import { HEALTH_EPISODE_ENGINE } from "../../../../state/light.js";
+import { FLAP_WINDOW_MS } from "../../logic/board/receipts.js";
 /** Record one current health snapshot atomically, notifying each new or resolved episode once [A6]. */
-export function applyHealthFindings(board, { agentId, observedRevision, findings, dispatch, returnRejected = false }, { atomic, insertShout, normalizedDispatch, rejectedWorkReturns }) {
+export function applyHealthFindings(board, { agentId, observedRevision, findings, dispatch, returnRejected = false, adviceThroughNext }, { atomic, insertShout, normalizedDispatch, rejectedWorkReturns }) {
   return atomic(board, () => {
     const existingMinimum = dispatch !== undefined || hasPendingDispatchNotices(board) ? AUTOMATIC_DISPATCH_ENGINE
       : hasPendingCpuNotices(board) || (Array.isArray(findings) && findings.some(finding => finding?.cause === 'AGENT_CPU')) ? CPU_SENTINEL_ENGINE : HEALTH_SENTINEL_ENGINE;
@@ -40,7 +43,9 @@ export function applyHealthFindings(board, { agentId, observedRevision, findings
     if (returnRejected && agentId !== COORDINATOR) {
       throw new Refused('COORDINATOR_ONLY', 'the coordinator returns unattended rejects; ask it to run pullboard sentinel run');
     }
-    const active = normalizedHealthFindings(findings);
+    // The setting is read once here and frozen into the health-scan event below, so a replica or a replay needs no local setting [#2330].
+    const advice = (adviceThroughNext ?? adviceThroughNextEnabled()) === true;
+    const active = normalizedHealthFindings(findings, { ownerRole: advice });
     const returns = returnRejected ? rejectedWorkReturns(board, findings) : [];
     const last = board.db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const previous = last ? JSON.parse(last.event_detail).active : [];
@@ -66,14 +71,30 @@ export function applyHealthFindings(board, { agentId, observedRevision, findings
         owner: finding.owner, commit: item?.item_commit ?? null, engine: HEALTH_SENTINEL_ENGINE, model,
       });
     };
-    const deferred = deliverHealthNotices({ resolved, added, pending, engine, log, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes, detail: { model } }),
+    const now = board.clock.now();
+    const recentlyResolved = engine >= HEALTH_EPISODE_ENGINE && added.length ? recentlyResolvedKeys(board, now) : new Map();
+    const deferred = deliverHealthNotices({ resolved, added, pending, recentlyResolved, now, engine, log, adviceThroughNext: advice, coordinator: COORDINATOR, shout: (to, text) => insertShout(board, { from: 'sentinel', to, text, lanes, detail: { model } }),
       targets: finding => healthTargets(finding, { engine, coordinator: COORDINATOR, person: PERSON, lanes, agents }) });
     for (const returned of returns) {
       const { item, ...detail } = returned;
       logEvent(board, agentId, 'reject_returned', item, { ...detail, engine: REJECTED_WORK_RETURN_ENGINE });
     }
-    logEvent(board, agentId, 'health-scan', null, { active, ...(prospective === undefined ? {} : { dispatch: prospective }), ...(deferred === undefined ? {} : { pendingCpu: deferred.filter(finding => finding.cause === 'AGENT_CPU') }),
+    logEvent(board, agentId, 'health-scan', null, { active, ...(advice ? { adviceThroughNext: true } : {}), ...(prospective === undefined ? {} : { dispatch: prospective }), ...(deferred === undefined ? {} : { pendingCpu: deferred.filter(finding => finding.cause === 'AGENT_CPU') }),
       ...(deferred?.some(finding => finding.cause === 'UNPAIRED_WORK') || last && JSON.parse(last.event_detail).pendingDispatch ? { pendingDispatch: deferred?.filter(finding => finding.cause === 'UNPAIRED_WORK') ?? [] } : {}), engine: HEALTH_SENTINEL_ENGINE });
     return { added: added.map(finding => finding.key), resolved: resolved.map(finding => finding.key) };
   });
+}
+
+/**
+ * Each finding key that a health-resolved event closed in the FLAP_WINDOW_MS before `now`, with the instant it resolved, by the board clock [C7,#1479].
+ * Why: a finding that clears and returns inside the window is the same episode, so the sentinel does not shout it a second time.
+ *
+ * @param {any} board
+ * @param {Date} now
+ * @returns {Map<string, string>}
+ */
+export function recentlyResolvedKeys(board, now) {
+  const since = new Date(now.getTime() - FLAP_WINDOW_MS).toISOString();
+  const rows = board.db.prepare("SELECT event_at, event_detail FROM event WHERE event_kind = 'health-resolved' AND event_at >= ? ORDER BY event_id").all(since);
+  return new Map(rows.map(row => [JSON.parse(row.event_detail).key, row.event_at]));
 }
