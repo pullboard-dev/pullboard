@@ -180,7 +180,7 @@ export const MACHINE_DEFAULTS = {
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
-  'route.reservations': false,
+  'route.reservations': true,
   'runner.packCache': false,
   runnerRates: {},
   runners: [],

@@ -203,7 +203,9 @@ function deferredFilesOf(db, items) {
     let proof = null;
     try { proof = JSON.parse(row?.event_detail ?? 'null')?.submissionProof; } catch { /* an unreadable detail defers nothing */ }
     // The files the submit ran (its invariants) run again beside the deferred ones, on the merged tree.
-    if (Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...proof.deferredFiles, ...(Array.isArray(proof.files) ? proof.files : [])])];
+    const owed = Array.isArray(proof?.owedFiles) ? proof.owedFiles : [];
+    // Cell tests a narrowed gate dropped (confinedImportSelection) run on the merged tree: a narrowed receipt is never the landing proof [C7].
+    if (owed.length || Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...owed, ...(proof.deferredFiles ?? []), ...(Array.isArray(proof.files) ? proof.files : [])])];
   }
   return Object.keys(found).length ? found : null;
 }
@@ -222,6 +224,26 @@ function landingFlakes(root, policy, item, head, pairPrefix) {
 
 /** A changed file that is a test, for telling which accepted items share an affected test [C7,#9836]. */
 const TEST_PATH = /(?:^|\/)(?:tests|journeys)\//u;
+
+/**
+ * The commands a land job carries for the runner's Sprint proof, read from the config at the landing base [C7,#12229].
+ * Why: the runner has no host config, so the static check and the affected-tests command ride on the payload as argv. A project with no static check gets
+ * static null; one with no affected-tests command gets a test command that fails, so a test file it cannot run is red and says so rather than green unproven.
+ *
+ * @param {{ staticChecks?: string, affectedTests?: string }} config
+ * @returns {{ static: string[]|null, testCommand: string[], testFiles: string }}
+ */
+export function sprintPlan(config) {
+  const staticChecks = config.staticChecks?.trim();
+  const affected = config.affectedTests?.trim();
+  // Each file reaches the command as a `./` path, as the host's affected-tests command builder quotes it.
+  const dotted = 'for file in "$@"; do shift; set -- "$@" "./$file"; done; ';
+  return {
+    static: staticChecks ? ['sh', '-c', staticChecks] : null,
+    testCommand: affected ? ['sh', '-c', `${dotted}${affected} "$@"`, 'sh'] : ['false'],
+    testFiles: TEST_PATH.source,
+  };
+}
 
 /**
  * The batches one offer cuts `free` into, in offer order: with `parallel` off, `free` sliced into batches of `size` as the offer always cut it;
@@ -353,7 +375,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const flakes = flakesOf.get(batch[0].id) ?? null;
         // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
         const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk, forced, deferred, flakes, hops, mainReds, reofferTrunkBusy: settings.landing?.reofferTrunkBusy === true, squash: settings.landing?.squash === true, reuseGateReceipts: settings.landing?.reuseGateReceipts === true, reuseContractResults: settings.landing?.reuseContractResults === true, stallStop: settings.landing?.stallStop === true, staticAffectedOnly: settings.landing?.staticAffectedOnly === true, ...(shardGate ? { shardGate } : {}), badges, ...(queue ? { queue } : {}),
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk, forced, deferred, flakes, hops, mainReds, sprint: batch.some(entry => entry.pace === 'sprint') ? sprintPlan(policy.config) : null, reofferTrunkBusy: settings.landing?.reofferTrunkBusy === true, squash: settings.landing?.squash === true, reuseGateReceipts: settings.landing?.reuseGateReceipts === true, reuseContractResults: settings.landing?.reuseContractResults === true, stallStop: settings.landing?.stallStop === true, staticAffectedOnly: settings.landing?.staticAffectedOnly === true, ...(shardGate ? { shardGate } : {}), badges, ...(queue ? { queue } : {}),
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);

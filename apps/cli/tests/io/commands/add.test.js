@@ -64,6 +64,10 @@ test('cli.io-commands-add.accepts-a-registry-record-or-a-cell-without-one: claus
   await requireTestMirror(ctx, { criterion: '1. packages/plain/src/io/a.js is proved by packages/plain/tests/io/a.test.js [test]' }, true);
 });
 
+test('cli.io-commands-add.accepts-a-registry-json-kept-in-the-cell-tests-folder: clause 1: a bar naming a registry.json directly under the cell tests folder as the record is accepted, not refused REGISTRY_TEST_ID [C7,U148,#12423]', async () => {
+  await requireTestMirror(mainWith(true), bar('packages/demo/tests/io/thing.test.js packages/demo/tests/registry.json'), true);
+});
+
 test('cli.io-commands-add.accepts-a-registry-cell-test-with-the-setting-off: clause 3: with the setting off, the same bar naming a strict-registry cell test without its record is accepted [C7,U148,#10677]', async () => {
   await requireTestMirror(mainWith(true), bar('packages/demo/tests/io/thing.test.js'), false);
 });

@@ -2,7 +2,7 @@
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
 import { performance } from 'node:perf_hooks';
-import { testFileLoadScale } from '../../../../packages/gate/index.js';
+import { testFileLoadScale } from '../../../../packages/gate/heavy.js';
 
 /**
  * Start a clock; calling the returned stop function gives the wall time, the runner load scale over the span and the

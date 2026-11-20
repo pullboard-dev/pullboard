@@ -186,7 +186,7 @@ const BEFORE = {
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
-  'route.reservations': false,
+  'route.reservations': true,
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
@@ -446,10 +446,10 @@ async function reservationsWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('config.io-settings-machine-defaults.route-reservations-exact-true: clause 1: route.reservations defaults false and routeReservations() is true only for an exact true [C7,#9177]', async () => {
-  assert.equal(BEFORE['route.reservations'], false);
-  assert.equal(MACHINE_DEFAULTS['route.reservations'], false);
-  assert.equal(await reservationsWith({}), false);
+test('config.io-settings-machine-defaults.route-reservations-exact-true: clause 1: route.reservations defaults true and routeReservations() is false only for an exact false [C7,#9177,#11306]', async () => {
+  assert.equal(BEFORE['route.reservations'], true);
+  assert.equal(MACHINE_DEFAULTS['route.reservations'], true);
+  assert.equal(await reservationsWith({}), true);
   assert.equal(await reservationsWith({ route: { reservations: false } }), false);
   assert.equal(await reservationsWith({ route: { reservations: true } }), true);
 });
