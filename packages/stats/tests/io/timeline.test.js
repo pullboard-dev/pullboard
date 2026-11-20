@@ -3,18 +3,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
-import { claim } from '../../../store/index.js';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { readItemTimeline } from '../../index.js';
 
 test('stats.io-timeline.real-board: clause 2: readItemTimeline on a real board after an add, claim and submit returns those stages in order, then the gate job stages [C7,#12143]', t => {
-  const board = cellBoard(t, ':memory:');
+  const repo = cellRepo(t);
+  const board = cellBoard(t, repo.boardFile);
   const seat = cellSeat(board, { lane: 'core', path: '/builder' });
   const id = cellItem(board, { lane: 'core', title: 'Timeline fixture item' }).item_id;
-  claim(board, id, { agentId: seat.id, lane: 'core', leaseMs: 60 * 60 * 1000, freeze: row => ({ text: row.item_title, digest: `digest:${row.item_title}` }) });
+  cellClaim(board, id, seat, { root: repo.root });
   const hash = '3'.repeat(40);
   submitFixture(board, id, { agentId: seat.id, commit: hash, tree: hash });
   const later = Date.now() + 5000;
