@@ -51,12 +51,13 @@ async function linked(t) {
   return { board, receive };
 }
 
-/** A claimed parent item that waits on kid#id; a merged commit marks it as already landed. The claim comes first because a foreign prerequisite would refuse it. */
-function waiting(board, id, { merged = null } = {}) {
+/** A claimed parent item that waits on kid#id; a merged commit marks it as already landed, and `submitted` marks it as in review. The claim comes first because a foreign prerequisite would refuse it. */
+function waiting(board, id, { merged = null, submitted = false } = {}) {
   const seat = cellSeat(board, { lane: 'core', path: `/seat-${id}` });
   const item = addItem(board, { by: 'coordinator', lane: 'core', title: `waits on kid#${id}` });
   claim(board, item, { agentId: seat.id, lane: 'core', leaseMs: 3_600_000, freeze: row => ({ text: row.item_title, digest: `digest:${row.item_title}` }) });
   board.db.prepare('UPDATE item SET item_after=?, item_merged_commit=? WHERE item_id=?').run(`kid#${id}`, merged, item);
+  if (submitted) board.db.prepare("UPDATE item SET item_status='submitted' WHERE item_id=?").run(item);
   return item;
 }
 
@@ -84,6 +85,21 @@ test('store.io-board-link-regress.landed-dependent-gets-notice: clause 2: a depe
   assert.equal(notices.length, 1);
   assert.equal(notices[0].item_id, done);
   assert.match(notices[0].event_detail, /kid#8/u);
+});
+
+test('store.io-board-link-regress.submitted-dependent-gets-notice: clause 1: a submitted dependent gets a notice fact naming repo#id and no hold, beside a claimed dependent that is held [XB1,#11045]', async t => {
+  const { board, receive } = await linked(t);
+  const reviewing = waiting(board, 8, { submitted: true });
+  const building = waiting(board, 9);
+  await receive([[8, 'verified'], [9, 'verified']]);
+  await receive([[8, 'open'], [9, 'open']]);
+  assert.equal(getItem(board, reviewing).item_status, 'submitted');
+  assert.equal(getItem(board, reviewing).item_hold_reason, null);
+  const notices = events(board, 'board_link_regress_notice');
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].item_id, reviewing);
+  assert.match(notices[0].event_detail, /kid#8/u);
+  assert.match(getItem(board, building).item_hold_reason, /kid#9/u);
 });
 
 test('store.io-board-link-regress.first-state-and-other-moves-hold-nothing: clause 1: a first received state, and a state that only moves open to claimed, hold no dependent [XB1,#11045]', async t => {
