@@ -25,15 +25,18 @@ import { itemFolderRenewalRefusal } from './item/folder/identity.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { join as joinPath } from 'node:path';
 import { sep } from 'node:path';
+import { environmentAdapter } from '../../../../packages/env/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Whether a root is one of the private worktrees publish makes under .git/pullboard/publish for its push (GitHub #25). */
 function isPublishWorktree(info) {
   try {
-    const folder = realpathSync(joinPath(info.commonDir, 'pullboard', 'publish'));
-    return realpathSync(info.root).startsWith(folder + sep);
+    const folder = fs.realpath(joinPath(info.commonDir, 'pullboard', 'publish'));
+    return fs.realpath(info.root).startsWith(folder + sep);
   } catch { return false; }
 }
 
@@ -128,7 +131,7 @@ export async function adoptItemFolderSession(folder, me, prior) {
 }
 
 /** Choose an explicitly supplied model or the standard environment fallback, refusing an unknown identity. */
-export function requiredModel(value, env = process.env, commandNext) {
+export function requiredModel(value, env = environmentAdapter().all(), commandNext) {
   const model = (value ?? env.PULLBOARD_MODEL ?? '').trim();
   if (!model || /[\u0000-\u001f\u007f-\u009f]/u.test(model)) {
     const suffix = commandNext ? `; run pullboard ${commandNext} --model "<model name>"` : '';
@@ -141,7 +144,7 @@ export function requiredModel(value, env = process.env, commandNext) {
 }
 
 /** Resolve an optional coordinator declaration while preserving the legacy unknown identity. */
-export function optionalModel(value, env = process.env) {
+export function optionalModel(value, env = environmentAdapter().all()) {
   if (value === undefined && !env.PULLBOARD_MODEL) return undefined;
   return requiredModel(value, env);
 }

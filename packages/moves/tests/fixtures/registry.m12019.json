@@ -1,0 +1,30 @@
+{
+  "moves.io-selection.gate-item-pins-lane": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a seat whose built item is submitted, in the gate or in review is not moved to another lane, and the idle line names the item."
+    },
+    "why": "A seat moved away from the lane its submitted item was built in could not fix that item's files when it was rejected, because the pre-commit hook enforces the seat's lane (#12019).",
+    "kind": "contract",
+    "inputs": [
+      "packages/moves/src/io/selection.js",
+      "packages/moves/tests/io/selection.test.js"
+    ]
+  },
+  "moves.io-selection.landed-item-frees-lane": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "once the item lands or is released, the same seat is moved to the lane with work as before."
+    },
+    "why": "The hold on the lane must end with the item, or a seat would never move again (#12019).",
+    "kind": "contract",
+    "inputs": [
+      "packages/moves/src/io/selection.js",
+      "packages/moves/tests/io/selection.test.js"
+    ]
+  }
+}

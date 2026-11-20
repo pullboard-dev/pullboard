@@ -34,7 +34,7 @@ import { main as cli } from '../../tests/fixtures/native.js';
 import {
   digestOf,
   testConcurrency,
-} from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
 import {
   createE2eHelpers,
 } from '../../tests/fixtures/e2e.js';
