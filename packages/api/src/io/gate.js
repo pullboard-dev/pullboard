@@ -1018,10 +1018,11 @@ function startPulledComparison(board, id, agentId) {
 let landingStarter = null;
 
 /**
- * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }).
+ * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }); item is
+ * null when a settled land job starts the lander for every waiting item (#12185).
  * Why a provider: offering a land job publishes the item's ref and reads the trunk with git from the CLI's lander, so
  * `pullboard serve` hands it in and the board API keeps no import of the CLI [C7,#7948].
- * @param {((request: { root: string, item: number }) => unknown) | null} start
+ * @param {((request: { root: string, item: number | null }) => unknown) | null} start
  */
 export function provideLandingStart(start) {
   landingStarter = typeof start === 'function' ? start : null;
@@ -1033,14 +1034,26 @@ export function provideLandingStart(start) {
  * so nothing offered its land job and it waited accepted for good (#7948). A failed start is logged with its next
  * step; the coordinator's `pullboard land` then offers the job.
  */
-function startReceiptLanding(board, id) {
+function startReceiptLanding(board, id, what = `land job for #${id} not offered after its gate receipt`) {
   if (!landingStarter || !board.gitRoot) return;
   const start = landingStarter, root = board.gitRoot;
   setImmediate(() => {
     Promise.resolve().then(() => start({ root, item: id })).catch(error => {
-      process.stderr.write(`${new Date().toISOString()} land job for #${id} not offered after its gate receipt: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
+      process.stderr.write(`${new Date().toISOString()} ${what}: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
     });
   });
+}
+
+/**
+ * Whether the board's line settings batch landings: line.landingBatchSize above 1 or line.collisionFreeBatch on. Why:
+ * with batching on the lander waits while a land job is open, so the job's settle must start it again for the items
+ * accepted meanwhile [C7,#12185]. A line setting that cannot be read leaves batching off, as the defaults do.
+ */
+function batchesLandings(board) {
+  let line;
+  try { line = store.lineSettings(board); }
+  catch { return false; }
+  return (Number.isSafeInteger(line.landingBatchSize) && line.landingBatchSize > 1) || line.collisionFreeBatch === true;
 }
 
 /** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */
@@ -1419,7 +1432,16 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
  * @param {{ job: string, receipt: Record<string, any> }} posted
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
-export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
+export function applyLandingReceipt(board, posted, ports = {}) {
+  const answer = applyLandingOutcome(board, posted, ports);
+  // With landing batches on, the settled job starts the lander once more, after main-moved, so the items accepted while
+  // it ran go out together as the next job; with the line defaults nothing more runs [C7,#12185].
+  if (landingStarter && board.gitRoot && batchesLandings(board)) startReceiptLanding(board, null, `land offer after land job ${posted.job} settled not started`);
+  return answer;
+}
+
+/** Apply one land job's receipt to its items: returned reds, retries, merged items and the main-moved receipt. */
+function applyLandingOutcome(board, { job, receipt }, ports) {
   // With runs_store on the job's offered row is in the runs file, which the queue holds [B2,P7,#9114].
   const offered = JSON.parse((ports.queue ? ports.queue.runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
