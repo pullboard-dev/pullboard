@@ -76,7 +76,7 @@ test('cli.io-submit-pull.runner-note-item-policy: clause 2: the note names the i
   assert.equal(proofRunnerNote({}, { commit: MAIN_SHA, config: {} }, ITEM_SHA), 'test runner: none set (named .js files run under node --test)');
 });
 
-test('cli.io-submit-pull.ack-prints-runner-note: clause 3: the submit acknowledgment says the runner note right after the in-the-gate line [C7,#11753]', () => {
+test('cli.io-submit-pull.ack-prints-runner-note: clause 2: the submit acknowledgment says the runner note right after the in-the-gate line [C7,#11753]', () => {
   const main = { commit: MAIN_SHA, config: { affectedTests: 'npx jest' } };
   const lines = submitAckLines({ id: 1, jobId: `gate:1:${'d'.repeat(12)}:abc`, local: { started: true, pid: 4242 }, config: { affectedTests: 'npx jest' }, main, source: ITEM_SHA });
   assert.equal(lines.length, 2);
