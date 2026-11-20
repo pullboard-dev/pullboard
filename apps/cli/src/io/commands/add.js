@@ -25,9 +25,11 @@ import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireSpecRow } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
+import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
+import { requireLinkedForeign } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
@@ -165,6 +167,8 @@ export async function run(io, args) {
   };
   const sealed = executingBarEffect(ctx, board, 'add');
   if (sealed) item = { ...sealed };
+  // A prerequisite on another repository needs a live link to it, so the refusal comes before anything is filed [XB1].
+  if (item.after?.length) requireLinkedForeign(board, item.after);
   if (sealed) {
     const sealedProblems = idProblems(loadSpec(ctx.info.root, ctx.config), item.specIds, ctx.doctrine);
     if (sealedProblems.length) throw new Refused('UNKNOWN_SPEC', sealedProblems.join('; '));
@@ -197,7 +201,7 @@ export async function run(io, args) {
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
-  if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) item.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() ? { strict: true } : {}) };
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
@@ -261,7 +265,7 @@ async function fileCoordinatorPiece(ctx, board, { id, item, split, title, specId
   const { command, brief } = store.validateItemAddition(board, piece);
   piece.brief = brief;
   if (command) refuseCheckSyntax(command);
-  if (command) piece.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) piece.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() ? { strict: true } : {}) };
   try { return await ordered(ctx, board, 'addItem', [piece]); }
   catch (error) {
     if (!String(error?.code).startsWith('AGENT_GRANT_')) throw error;

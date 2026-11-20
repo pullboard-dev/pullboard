@@ -29,6 +29,7 @@ import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { noteLapse } from '../../../jobs/index.js';
+import { noteClaimKey } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
@@ -168,6 +169,46 @@ const PROGRESS_STATES = new Set(['waiting', 'running', 'green', 'red']);
 /** The sha256 hex of a lease token: the board keeps only this, so its rows never hold a usable token. */
 function tokenHash(token) {
   return createHash('sha256').update(String(token)).digest('hex');
+}
+
+/** A claim key: the runner's own random name for one claim call, sent again unchanged when it retries that call. */
+const CLAIM_KEY = /^[A-Za-z0-9_-]{8,128}$/u;
+
+/** Refuse a claim key that is not a plain random name; return it, or null for a claim sent without one. */
+function claimKey(key) {
+  if (key === null || key === undefined) return null;
+  if (typeof key !== 'string' || !CLAIM_KEY.test(key)) throw new Refused('JOB_CLAIM_KEY', 'a claim key is 8 to 128 letters, digits, dashes or underscores, new for each claim call and sent again unchanged on its retry; pass { key }');
+  return key;
+}
+
+/** The note step a keyed claim leaves on the job it took: one row per runner, key and attempt, found by name on the step name index. */
+function claimKeyStep(runner, key) {
+  return `note:claim-key.${createHash('sha256').update(`${runner}\0${key}`).digest('hex')}`;
+}
+
+/** A keyed claim's token, derived from its key, so a retry with the same key gets the same token without the board keeping one. */
+function keyedToken(runner, key, job, attempt) {
+  return createHash('sha256').update(`claim-token\0${runner}\0${key}\0${job}\0${attempt}`).digest('base64url');
+}
+
+/** The claim answer for a job taken at this attempt and lease. */
+function claimAnswer(row, offer, { attempt, leaseUntil, token }) {
+  const { needs = [], run = [], payload = null } = offer;
+  return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil, token };
+}
+
+/**
+ * The live lease this runner already holds from a claim with this key, as that claim answered it, or null.
+ * Why: the board can commit a claim after the runner's call timed out; the runner never saw the answer and claimed again,
+ * and the first lease held its job and a share of the runner's cores until it lapsed. One indexed read: the step name holds runner and key, and CROSS JOIN keeps the planner on the step name index rather than every live lease.
+ */
+function keyedLease(db, runner, key, now) {
+  const row = db.prepare(`SELECT job.job_id, job.job_kind, job.job_item, job.job_candidate, job.job_base, job.job_attempt, job.job_lease_until, offered.job_step_payload AS offer
+    FROM job_step AS keyed CROSS JOIN job ON job.job_id = keyed.job_step_job AND job.job_attempt = keyed.job_step_seq
+    JOIN job_step AS offered ON offered.job_step_job = job.job_id AND offered.job_step_name = 'offered' AND offered.job_step_seq = 0
+    WHERE keyed.job_step_name = ? AND job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed')`).get(claimKeyStep(runner, key), runner, now);
+  if (!row) return null;
+  return claimAnswer(row, readPayload(db, row.offer), { attempt: row.job_attempt, leaseUntil: row.job_lease_until, token: keyedToken(runner, key, row.job_id, row.job_attempt) });
 }
 
 /** Refuse a list that is not plain names; return it sorted and without repeats. */
@@ -367,12 +408,15 @@ export function boardQueueMode(db, wanted) {
  * share of the runner's `jobs` slots; with none, pre-push gate shards first (#7790), then landing jobs, test runs and the rest, each by age (claimableJobs) [C7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
+ * @param {{ runner: string, key?: string | null, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS, place = null }) {
+export function claimJob(db, { runner, key = null, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS, place = null }) {
   runnerId(runner);
+  // A retried claim with the same key gets the live lease its first call took, never a second job [C7].
+  const keyed = claimKey(key);
+  if (keyed !== null) { const held = keyedLease(db, runner, keyed, now); if (held) return held; }
   // Two runner ids claiming from one host and runner folder within the gap are one machine split in two [C7].
   notePlace(runner, place, now);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
@@ -409,7 +453,6 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
     // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
     const offered = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
     for (const { row, offer } of offered) {
-      const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
@@ -424,11 +467,12 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
       if (taken.changes !== 1) continue;
       if (lapsed) noteLapse(db, row.job_id, lapsed, now);
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
-      const token = randomBytes(24).toString('base64url');
+      const token = keyed === null ? randomBytes(24).toString('base64url') : keyedToken(runner, keyed, row.job_id, attempt);
       writeStep(db, row.job_id, 'claimed', { runner, ...(held ? { hopEpoch: held.epoch } : {}), capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
       noteLease(db, row.job_id, 'lease.grant', { owner: runner, until: now + leaseMs }, now);
+      if (keyed !== null) noteClaimKey(db, row.job_id, claimKeyStep(runner, keyed), attempt, now);
       noteRepeatClaims(db, row, { now, repeated });
-      return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
+      return claimAnswer(row, offer, { attempt, leaseUntil: now + leaseMs, token });
     }
     return null;
   });
@@ -1012,9 +1056,9 @@ function reportedCommit(read) {
  */
 export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
-  const { action, runner, place, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
+  const { action, runner, key, place, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
+    const claim = claimJob(db, { runner, key: key ?? null, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
     const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }
