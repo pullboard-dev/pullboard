@@ -1,0 +1,3 @@
+{
+  "api.io-claim-key.retry-after-abort-returns-same-lease": {"proves":{"specs":["C7"],"claim":"A claim retried with the same key after its first answer was lost returns the same job, attempt, token and lease, takes no second job and lapses no lease, while another key takes another job."},"why":"Without this test a runner whose claim call timed out after the board committed claims again, and the first lease holds its job and cores until it lapses.","kind":"contract","inputs":["packages/api/src/io/jobs.js","packages/api/src/io/http.js"]}
+}

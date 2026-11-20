@@ -8,6 +8,7 @@ import { coordinatorOnly } from "../board.js";
 import { setItem } from "../board.js";
 import { closeItemAsks } from "./decision/answer.js";
 import { withdraw } from "./withdraw.js";
+import { endItemGateJobs } from "../../../../jobs/index.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/index.js";
 import { mergedDecision } from "./merged-table.js";
 import { strictFacts } from "./merged-table.js";
@@ -27,9 +28,9 @@ import { strictFacts } from "./merged-table.js";
  * With `composeLanding`, the parent's landed commit already holds its composed slices, so each submitted slice child of the parent is
  * withdrawn in the same atomic write as the merged record, with the reason "landed with parent #<parent> at <sha12>" [C7,#2397].
  *
- * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string, composeLanding?: boolean }} merge
+ * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string, composeLanding?: boolean, endGateJobs?: boolean }} merge
  */
-export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof, composeLanding }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof, composeLanding, endGateJobs = false }) {
   coordinatorOnly(agentId, 'records merges');
   const reason = typeof forced === 'string' ? forced.trim() : '';
   if (forced !== undefined && !reason) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
@@ -62,7 +63,7 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
     if (!reason) requireOutsideOwner(board, item);
     // A forced landing closes an unfinished item by the ordinary withdraw move; the merged event then reads it as landed.
     if (reason && ['open', 'claimed', 'submitted'].includes(item.item_status)) {
-      withdraw(board, id, { agentId, reason: withdrawal?.detail.reason ?? `landed by hand at ${commit.slice(0, 12)}: ${reason}` });
+      withdraw(board, id, { agentId, reason: withdrawal?.detail.reason ?? `landed by hand at ${commit.slice(0, 12)}: ${reason}`, endGateJobs });
     }
     setItem(board, id, { item_merged_commit: commit });
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
@@ -75,5 +76,6 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
       const slices = board.db.prepare("SELECT item_id FROM item WHERE item_parent_id = ? AND item_status = 'submitted' AND EXISTS (SELECT 1 FROM board_meta WHERE meta_key = 'item-slice:' || item_id) ORDER BY item_id").all(id);
       for (const slice of slices) withdraw(board, slice.item_id, { agentId, reason: `landed with parent #${id} at ${commit.slice(0, 12)}` });
     }
+    if (endGateJobs === true) endItemGateJobs(board.db, { item: id, reason: 'the item landed' });
   });
 }

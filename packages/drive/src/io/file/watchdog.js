@@ -7,11 +7,12 @@ import { Worker } from 'node:worker_threads';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { join } from 'node:path';
-import { realpathSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { loadavg } from 'node:os';
 import { fileWatchdogLimits } from '../../logic/policy.js';
 import { environmentAdapter } from '../../../../env/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** The per-file watchdog's worker module, for callers that start or inspect it without loading drive's shell. */
 export const FILE_WATCHDOG_WORKER = new URL('./watchdog/worker.js', import.meta.url);
@@ -19,7 +20,7 @@ export const FILE_WATCHDOG_WORKER = new URL('./watchdog/worker.js', import.meta.
 /** Observe real writes and return a lifecycle reporter for the current test-file process. */
 export function installFileWatchdog(file) {
   const environment = environmentAdapter();
-  const path = relative(realpathSync(process.cwd()), realpathSync(resolve(file))).replaceAll('\\', '/');
+  const path = relative(fs.realpath(process.cwd()), fs.realpath(resolve(file))).replaceAll('\\', '/');
   const limits = fileWatchdogLimits(path, environment.all(), { load: loadavg()[0], cores: cpus().length });
   // The limit this file actually ran under, kept in its own output beside the results.
   if (limits.loadFactor > 1) process.stderr.write(`# run-tests: wall limit ${limits.wallMs}ms (${limits.baseWallMs}ms x ${limits.loadFactor.toFixed(2)} for machine load)\n`);
