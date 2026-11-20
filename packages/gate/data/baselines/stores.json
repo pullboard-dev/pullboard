@@ -884,6 +884,10 @@
       "kind": "repo-data",
       "owner": "packages/stats/src/logic/pipeline.js"
     },
+    "new-package.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/logic/new-package.js"
+    },
     "no-runtime-assumptions.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/no-runtime-assumptions.js"
