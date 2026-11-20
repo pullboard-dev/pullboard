@@ -147,6 +147,7 @@ export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } fro
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
 export { mergedDecision } from './src/io/board/merged-table.js';
+export { itemPace } from './src/io/board/sprint-pace.js';
 export { recordPulled, pullingLanding } from './src/io/board/pulled.js';
 export { readShadows } from './src/io/board/shadow-record.js';
 export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction, dueEscalations, escalateEntries } from './src/logic/board/entries.js';

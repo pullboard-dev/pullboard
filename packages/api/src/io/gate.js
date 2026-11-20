@@ -22,6 +22,7 @@ import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
 import { applyRunReceipt } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
+import { proofBuckets } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
@@ -31,6 +32,8 @@ import { queueFor } from './queue.js';
 import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
+import { startReceiptScreen } from './gate/screen-start.js';
+import { sprintLandable } from './gate/sprint-land.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
@@ -292,10 +295,17 @@ export function shardJobs(db, job, { runs = null } = {}) {
   return (runs ? runs.db : db).prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
 }
 
+/** The note's words for the shards that hold a runner alone; none when no file is timing. */
+const timed = buckets => {
+  const alone = buckets.filter(bucket => bucket.timing).length;
+  return alone ? ` (${alone} of them a timing file holding its runner alone)` : '';
+};
+
 /**
  * Offer a gate's proof as shard jobs: its plan's files split round-robin into one shard per runner's worth of cores,
  * each a job any runner pulls and runs through the gate's own bootstrap and entry. Null when the plan is not one the
  * board can split. Why the board offers them: it already holds the queue, so runners never need offer credentials [P7].
+ * Each file the plan names under timing runs as a shard of its own whose data carries checkTiming, so its runner holds it alone (proofBuckets) [C7].
  *
  * @returns {{ applied: true, outcome: 'sharded', shards: string[] } | null}
  */
@@ -305,29 +315,29 @@ export function offerProofShards(board, { job, receipt, offered }) {
   const files = Array.isArray(plan?.files) ? plan.files : [];
   const cores = Number.isSafeInteger(plan?.cores) && plan.cores > 0 ? plan.cores : 0;
   if (receipt?.status === undefined || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || (gate.phases ?? []).some(phase => phase.status !== 0)
-    || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores || files.length <= cores
+    || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores
     || files.some(file => typeof file !== 'string' || !PROJECT_FILE.test(file))) return null;
+  const buckets = proofBuckets(files, cores, plan.timing, MAX_SHARDS);
+  if (!buckets.length) return null;
   // With runs_store on the gate job and its shards live in the runs file; the ledger stays on the board [B2,P7].
   const queue = queueFor(board, 'coordinator');
   const request = offeredStep(queue ? queue.runs.db : board.db, job);
   const gateRequest = request?.request;
   if (!Array.isArray(gateRequest?.run) || typeof gateRequest.input?.entry !== 'string') return null;
-  const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
-  const buckets = Array.from({ length: count }, () => []);
-  files.forEach((file, at) => buckets[at % count].push(file));
+  const count = buckets.length;
   // A plan that names the files needing a browser or a GUI lets each shard carry its own need, so the board hands the runner what it must hold [C7].
   const needs = plan.needs && typeof plan.needs === 'object' ? plan.needs : null;
   const needing = (list, part) => Array.isArray(list) && part.some(file => list.includes(file));
-  const ids = buckets.map((part, index) => {
+  const ids = buckets.map(({ files: part, timing }, index) => {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
     // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
     const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, ...(timing ? { checkTiming: true } : {}), shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
-    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });
+    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls${timed(buckets)}, and the gate result applies when the last one posts.` });
   return { applied: true, outcome: 'sharded', shards: ids };
 }
 
@@ -951,7 +961,11 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
       // A carried merge-only accept leaves the item verified with no verify command to offer its land job (#7948).
-      if (store.getItem(board, id)?.item_status === 'verified') startReceiptLanding(board, id);
+      // A submitted sprint item lands before its verdict: a green screen on the trunk tip stands in for the accept, else its screen
+      // starts here and, once it applies green, starts the lander; both read the row already loaded [V2,M1,#12176].
+      const held = store.getItem(board, id);
+      if (held?.item_status === 'verified' || sprintLandable(board, held)) startReceiptLanding(board, id);
+      else startReceiptScreen(board, held, main, () => startReceiptLanding(board, id, `land job for #${id} not offered after its green screen`));
       return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.failures, knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -1464,7 +1478,8 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
     const item = store.getItem(board, id);
-    if (item?.item_status !== 'verified' || item.item_merged_commit) continue;
+    // A submitted sprint item lands on a green screen on the trunk the job was offered on, as a verified one does [V2,M1,#12176].
+    if (item?.item_merged_commit || (item?.item_status !== 'verified' && !sprintLandable(board, item, offered.payload?.expect ?? null))) continue;
     // Each item lands at its own first-containing merge when the receipt names one; trunk already held the rest [B3,R3,#7506].
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
     store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });

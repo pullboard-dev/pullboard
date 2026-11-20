@@ -1,9 +1,10 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireBarInLane } from '../item/bar.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { requireNoCoordinatorPath } from '../item/bar.js';
-import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
@@ -90,6 +91,7 @@ export async function run(io, args) {
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
+    ...(values.needs === undefined ? {} : { needs: values.needs.split(',').map(need => need.trim()).filter(Boolean) }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     route: values.route,
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
@@ -121,6 +123,7 @@ export async function run(io, args) {
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
+    requireBarInLane(ctx, me, { lane: before.item_lane, criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsBarRulesAtAdd());
     requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
