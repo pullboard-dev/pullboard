@@ -30,7 +30,6 @@
     "apps/view/src/io/star.js": 1,
     "apps/view/src/io/styles.js": 1,
     "packages/api/src/io/state/materializer/worker.js": 2,
-    "packages/board/src/io/seal.js": 1,
     "packages/codemap/src/io/cells/backlog.js": 1,
     "packages/codemap/src/io/main/lints.js": 3,
     "packages/codemap/src/io/map.js": 1,
