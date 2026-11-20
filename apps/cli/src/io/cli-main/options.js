@@ -70,6 +70,7 @@ const OPTIONS = {
   static: { type: 'boolean' },
   withdraw: { type: 'string' },
   after: { type: 'string', multiple: true },
+  'after-gate': { type: 'string', multiple: true },
   'stale-before': { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },
@@ -120,6 +121,7 @@ const OPTIONS = {
   yes: { type: 'boolean' },
   diagnostics: { type: 'boolean' },
   hosts: { type: 'boolean' },
+  reconcile: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
   due: { type: 'boolean' },
@@ -135,6 +137,7 @@ const OPTIONS = {
   deadline: { type: 'string' },
   take: { type: 'string' },
   stuck: { type: 'string' },
+  done: { type: 'boolean' },
   agent: { type: 'string' },
   'agent-light': { type: 'string' },
   'agent-mid': { type: 'string' },
@@ -229,7 +232,7 @@ export function parseCommandArgs(argv) {
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), ...(argv[0] === 'flow' ? { apply: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
@@ -245,7 +248,7 @@ export function parseCommandArgs(argv) {
     ...(['add', 'edit'].includes(command) ? { review: { type: 'string' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
-  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
+  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' }, apply: { type: 'boolean' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
   foldLevelIntoRoute(parsed.values);
   if (['add', 'edit'].includes(command)) foldReviewIntoReviewTier(parsed.values);
