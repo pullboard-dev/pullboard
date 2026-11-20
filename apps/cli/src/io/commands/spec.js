@@ -1,4 +1,5 @@
 /** The pullboard spec command, in its own module so an item adding another command never edits these lines. */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { answerQuestion } from '../../../../../packages/spec/index.js';
 import { rowDrafts } from '../../../../../packages/store/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
@@ -206,6 +207,11 @@ export async function specCommand(io, { first, second, rest, values }) {
     const rows = spec.rows.filter(row => row.id === second);
     if (rows.length !== 1) throw new Refused('NO_ROW', `no unique row ${second}; read pullboard spec --json`);
     const source = readFileSync(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
+    // With spec.requireFactQuote on, an accept of a source-backed row must cite the row's quote in its reason, so the verifier read the words it rests on [C7,#11250].
+    const quote = rows[0].quote?.trim();
+    if (rest[0] === 'accepted' && requireFactQuoteEnabled() && rows[0].source?.trim() && quote && !String(values.reason ?? '').includes(quote)) {
+      throw new Refused('FACT_QUOTE_UNCITED', `${second} rests on the quote "${quote}"; does this quote say what the row claims?`, 'if it does, run the accept again with that quote inside --reason');
+    }
     return withBoard(ctx, async board => {
       const me = whoAmI(ctx, board);
       const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason,
@@ -353,7 +359,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       return requireSignedPerson(ctx, board, whoAmI(ctx, board), { verb: 'spec-answer', args: { row: second, answer: rest.join(' ').trim() } }, shownDecisionRows(ctx.info.root, ctx.config, [row.id], { loadDoctrine, standardDecisionLine }));
     }) : null;
     if (completed !== null) return completed;
-    requirePersonChannel(io.personChannel, process.env, { command: personCommand(primaryCheckoutRoot(ctx.info) ?? ctx.info.root, ['spec', 'answer', second, rest.join(' ')]) });
+    requirePersonChannel(io.personChannel, environmentAdapter().all(), { command: personCommand(primaryCheckoutRoot(ctx.info) ?? ctx.info.root, ['spec', 'answer', second, rest.join(' ')]) });
     return withBoard(ctx, async (board) => {
       const me = whoAmI(ctx, board);
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person answers a pending question, from the main checkout or the view', 'ask the person to answer it in pullboard view, or in their own terminal at the main checkout');
