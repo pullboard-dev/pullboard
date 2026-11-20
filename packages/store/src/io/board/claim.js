@@ -439,8 +439,15 @@ function admissionUsedSince(board, since, admissionId) {
 }
 
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
-/** Every guard of the claim move, each with no check: the peer's holder was verified before the lease moves. */
-const peerChecks = () => Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null]));
+/**
+ * The checks a block peer's renew passes: the holder check in renewBlockPeers (item exists, this seat owns it, the claim is live) covers most guards of the claim move, so those stay null.
+ * The pending-correction guard is the one it does not cover: a coordinator correction to a held peer's bar must be refrozen before its lease extends, as for any renewal.
+ * Why not the rest: a held item's lane and route cannot be edited, and its bar, route and dependencies change only through that same pending correction.
+ */
+const peerChecks = (board, peer) => ({
+  ...Object.fromEntries(effectiveGuards(MOVES.find((entry) => entry.verb === 'claim')).map((guard) => [guard, null])),
+  correctionRefrozen: () => pendingRefreezeProblem(board, peer),
+});
 
 /**
  * Renew every other member the seat holds through a block that names item `id`, to the same lease, each with its own renew event, so a stalled block lapses and is returned as one [C7,#2202].
@@ -455,8 +462,8 @@ function renewBlockPeers(board, id, agentId, leaseUntil, moveItem) {
   for (const member of peers) {
     const held = board.db.prepare('SELECT * FROM item WHERE item_id = ?').get(member);
     if (!held || held.item_owner !== agentId || !isHeld(board, held)) continue;
-    // A peer is already held by this seat, so each guard of the claim move is named with no extra check; moveItem writes the lease under its own temp.moving token [C7].
-    moveItem(board, member, 'claim', { checks: peerChecks(), set: () => ({ item_lease_until: leaseUntil }) });
+    // A peer is already held by this seat, so only the pending-correction guard needs a real check; moveItem writes the lease under its own temp.moving token [C7].
+    moveItem(board, member, 'claim', { checks: peerChecks(board, member), set: () => ({ item_lease_until: leaseUntil }) });
     logEvent(board, agentId, 'renew', member, { leaseUntil, digest: held.item_frozen_digest, block: true });
   }
 }
