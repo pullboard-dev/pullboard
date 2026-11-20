@@ -45,6 +45,10 @@ function submittedLanding(t, pace, options = {}, status = 'submitted') {
   store.board_ensureCoordinator(board, repo.root);
   const builder = cellSeat(board, { lane: 'core', path: `${repo.root}/seat` }).id;
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
+  if (status === 'verified') {
+    board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+      VALUES (7, 'core-2', 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, ?)`).run(commit, 'd'.repeat(64), commit, STAMP);
+  }
   board.db.exec('INSERT INTO temp.moving VALUES (1)');
   board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=?, item_verified_by=?, item_verdict=? WHERE item_id=7`)
     .run(status, commit, builder, JSON.stringify(pace === 'steady' ? {} : { pace }), 'd'.repeat(64), builder, status === 'verified' ? 'core-2' : null, status === 'verified' ? 'ACCEPT' : null);
