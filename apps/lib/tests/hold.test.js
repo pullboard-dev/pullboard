@@ -21,7 +21,7 @@ test('lib.hold.two-releases-hold-the-item-until-coordinator: two releases hold t
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'strong' });
   const claim = agentId => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7200000,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
-  claim(first); store.release(board, id, first, '', 'INELIGIBLE');
+  claim(first); store.release(board, id, first, 'not buildable as written', 'INELIGIBLE');
   assert.equal(store.getItem(board, id).item_hold_reason, null);
   claim(second); store.release(board, id, second, '', 'BLOCKED');
   const held = store.getItem(board, id);
@@ -47,7 +47,7 @@ test('lib.hold.old-engine-releases-retain-their-pre-hold: old-engine releases re
   board.executionEngineVersion = RELEASE_TWICE_HOLD_ENGINE - 1;
   const claim = agentId => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7200000,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
-  claim(first); store.release(board, id, first, '', 'INELIGIBLE');
+  claim(first); store.release(board, id, first, 'not buildable as written', 'INELIGIBLE');
   claim(second); store.release(board, id, second, '', 'BLOCKED');
   assert.equal(store.getItem(board, id).item_hold_reason, null);
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 0);
@@ -121,18 +121,18 @@ test('lib.hold.after-the-move-the-release-count-starts: after the move the relea
 
 test('lib.hold.a-strong-item-still-takes-the-released: clause 2: a strong item still takes the Released-twice hold and shout [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'strong', 'pullboard-release-route-strong-');
-  claim(first); store.release(board, id, first, '', 'INELIGIBLE');
+  claim(first); store.release(board, id, first, 'not buildable as written', 'INELIGIBLE');
   claim(second); store.release(board, id, second, '', 'BLOCKED');
   const held = store.getItem(board, id);
   assert.equal(held.item_route, 'strong');
-  assert.equal(held.item_hold_reason, `Released twice: ${first}: INELIGIBLE; ${second}: BLOCKED`);
+  assert.equal(held.item_hold_reason, `Released twice: ${first}: INELIGIBLE (not buildable as written); ${second}: BLOCKED`);
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 1);
 });
 
 test('lib.hold.before-the-route-engine-a-mid-item: clause 3: before the route engine a mid item is still held [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'mid', 'pullboard-release-route-old-', 'strong');
   board.executionEngineVersion = RELEASE_TWICE_ROUTE_ENGINE - 1;
-  claim(first); store.release(board, id, first, '', 'INELIGIBLE');
+  claim(first); store.release(board, id, first, 'not buildable as written', 'INELIGIBLE');
   claim(second); store.release(board, id, second, '', 'BLOCKED');
   assert.match(store.getItem(board, id).item_hold_reason, /Released twice/);
   assert.equal(store.getItem(board, id).item_route, 'mid');

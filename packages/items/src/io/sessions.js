@@ -4,15 +4,11 @@
  * record the session's digest beside the board, in this repository's own Git directory, never on the shared board or
  * the relay, and a verdict from a session that built or submitted the item is refused.
  */
-import { accessSync } from 'node:fs';
-import { appendFileSync } from 'node:fs';
-import { constants } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { Refused } from "../../../kernel/index.js";
+
+const fs = fileSystemAdapter();
 
 /** A caller must explicitly capture a native digest or the no-agent null result, never omit identity [V1,B3]. */
 function requireCapturedSession(digest) {
@@ -38,8 +34,8 @@ export function requireLedger(info, digest) {
   requireCapturedSession(digest);
   if (!digest) return;
   try {
-    mkdirSync(join(info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
-    accessSync(existsSync(ledgerFile(info)) ? ledgerFile(info) : join(info.commonDir, 'pullboard'), constants.W_OK);
+    fs.mkdir(join(info.commonDir, 'pullboard'), { recursive: true, mode: 0o700 });
+    fs.access(fs.exists(ledgerFile(info)) ? ledgerFile(info) : join(info.commonDir, 'pullboard'), fs.constants.W_OK);
   } catch (error) { throw ledgerRefusal(info, error); }
 }
 
@@ -48,16 +44,16 @@ export function recordItemSession(info, item, move, digest) {
   requireCapturedSession(digest);
   if (!digest || !Number.isInteger(Number(item))) return;
   try {
-    appendFileSync(ledgerFile(info), JSON.stringify({ item: Number(item), move, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
+    fs.appendFile(ledgerFile(info), JSON.stringify({ item: Number(item), move, digest, at: new Date().toISOString() }) + '\n', { mode: 0o600 });
   } catch (error) { throw ledgerRefusal(info, error); }
 }
 
 /** The digests recorded for one item's claims and submits. */
 function ledgerDigests(info, item, commitOnly = false) {
   const file = ledgerFile(info);
-  if (!existsSync(file)) return new Set();
+  if (!fs.exists(file)) return new Set();
   let text;
-  try { text = readFileSync(file, 'utf8'); }
+  try { text = fs.readFile(file, 'utf8'); }
   catch (error) {
     throw new Refused('SESSION_LEDGER', `the agent-session ledger ${file} cannot be read (${error.code ?? error.message}), so this verdict's independence from the builder cannot be checked`,
       `make it readable by this user (chmod u+r ${file}), then verify again`);
@@ -74,15 +70,15 @@ function ledgerDigests(info, item, commitOnly = false) {
 function boundSeats(info, digest) {
   const files = [join(info.commonDir, 'pullboard-checkout-session.json')];
   const worktrees = join(info.commonDir, 'worktrees');
-  if (existsSync(worktrees)) {
-    for (const entry of readdirSync(worktrees, { withFileTypes: true })) {
+  if (fs.exists(worktrees)) {
+    for (const entry of fs.list(worktrees, { withFileTypes: true })) {
       if (entry.isDirectory()) files.push(join(worktrees, entry.name, 'pullboard-checkout-session.json'));
     }
   }
   const seats = new Set();
   for (const file of files) {
     try {
-      const binding = JSON.parse(readFileSync(file, 'utf8'));
+      const binding = JSON.parse(fs.readFile(file, 'utf8'));
       if (binding.digest === digest && typeof binding.agent === 'string') seats.add(binding.agent);
     } catch { /* A missing or damaged peer binding names no seat. */ }
   }

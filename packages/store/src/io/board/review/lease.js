@@ -4,6 +4,7 @@ import { logEvent } from "../event/log.js";
 import { setItem } from "../../board.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { RELEASE_REASONS_ENGINE } from "../../../../../state/index.js";
+import { BOARD_RELEASE_CODES_ENGINE } from "../../../../../state/index.js";
 
 /**
  * Clear every review reservation whose jobs-cell lease lapsed: the reviewer sent no heartbeat and no renewal for the
@@ -29,7 +30,7 @@ export function sweepLapsedReviews(board, heartbeats) {
     const reason = `Review silent for ${Math.round((nowMs - (seen(lapse.reviewer) ?? nowMs - lapse.lapsedMs)) / 60_000)} minutes; its reservation lease lapsed.`;
     setItem(board, lapse.item, { item_review_by: null, item_review_until: null });
     logEvent(board, 'coordinator', 'release', lapse.item, { review: true, reason,
-      ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
+      ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: (board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_RELEASE_CODES_ENGINE ? 'REVIEW_LEASE_LAPSED' : 'OTHER' } : {}),
       lapsed: { reviewer: lapse.reviewer, lapsedMs: lapse.lapsedMs } });
     cleared.push(lapse.item);
   }

@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cpuLoadOptionsIn } from '../../../../index.js';
+import { cpuLoadOptionsIn } from '../../../../heavy.js';
 import { testsNeedCpuRunner } from '../../../../src/io/admission/cpu/load.js';
 
 test('gate.io-admission-cpu-load.batched-literals-retain-escaped-registration-and: batched literals retain escaped registration and option authority [C7]', () => {

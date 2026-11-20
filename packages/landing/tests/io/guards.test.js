@@ -166,3 +166,26 @@ test('landing.guards.a-clean-candidate-passes-every-landing: a clean candidate p
   assert.equal(sh('rev-parse', 'HEAD^{tree}'), tree, 'the candidate tree is unchanged');
   assert.equal(sh('status', '--porcelain'), '', 'the guards write nothing');
 });
+
+test('landing.io-guards.rename-without-path-map: a composed landing that renames a tracked file lands without a path-map row, and a missing module target is still refused [C7]', async t => {
+  const body = Array.from({ length: 30 }, (_, line) => `export const row${line} = ${line};`).join('\n') + '\n';
+  const { root, sh, base, candidate } = secretRepo(t, { 'a.js': body, 'use.js': "import { row1 } from './a.js';\nexport const use = row1;\n" });
+  sh('mv', 'a.js', 'b.js');
+  const renamed = candidate({ 'use.js': "import { row1 } from './b.js';\nexport const use = row1;\n" });
+  await requireLandingModuleResolution(root, base, renamed);
+  const broken = candidate({ 'use.js': "import { row1 } from './gone.js';\nexport const use = row1;\n" });
+  await assert.rejects(requireLandingModuleResolution(root, base, broken), error => error.code === 'LAND_MODULE_RESOLUTION' && error.message.includes('./gone.js'));
+});
+
+test('landing.io-guards.parse-broken-at-base-not-refused: a changed .js file that already failed to parse at the landing base is not refused LAND_MODULE_PARSE [C7]', async t => {
+  const jsx = 'export const View = () => <div />;\n';
+  const { root, base, candidate } = secretRepo(t, { 'view.js': jsx, 'a.js': 'export const a = 1;\n' });
+  const edited = candidate({ 'view.js': jsx + 'export const more = 1;\n' });
+  await requireLandingModuleResolution(root, base, edited);
+});
+
+test('landing.io-guards.parse-broken-by-composition-refused: a module that parses at the base but not at the composed tip is still refused, naming it [C7]', async t => {
+  const { root, base, candidate } = secretRepo(t, { 'a.js': 'export const a = 1;\n' });
+  const broken = candidate({ 'a.js': 'export const a = 1;\nexport const a = 2;\n' });
+  await assert.rejects(requireLandingModuleResolution(root, base, broken), error => error.code === 'LAND_MODULE_PARSE' && error.broken.includes('a.js'));
+});

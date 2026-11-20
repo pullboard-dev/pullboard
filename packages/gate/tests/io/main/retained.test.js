@@ -12,8 +12,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { HANDOFF_FOLDER_KEEP_MS } from '../../../../resources/index.js';
 import { pruneFinishedHandoffs } from '../../../../resources/index.js';
-import { failedAssertionLines } from '../../../index.js';
-import { retainedGateAssertions } from '../../../index.js';
+import { failedAssertionLines } from '../../../heavy.js';
+import { retainedGateAssertions } from '../../../heavy.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 
 const LOG = [

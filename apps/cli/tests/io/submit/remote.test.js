@@ -26,6 +26,7 @@ test('cli.io-submit-remote.remote-cells-loads-pinned-main-tooling-and: remote ce
     put('package.json', '{"type":"module"}\n');
     put('packages/codemap/data/plan/cells.json', '{"version":1,"cells":[]}\n');
     const trustedGate = 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }; export function readAcceptedCells(){}; export function warmAcceptedCells(){}\n';
+    put('packages/gate/heavy.js', "export * from './index.js';\n");
     put('packages/gate/index.js', trustedGate);
     put('packages/landing/index.js', 'export function withMainCheckout(){}\n');
     put('apps/cli/src/io/cells/cache.js', 'export {};\n');
