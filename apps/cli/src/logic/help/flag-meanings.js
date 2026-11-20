@@ -82,6 +82,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--no-hooks': 'skips the agent nudges',
   'init --yes': 'commits only setup\'s own files with your Git identity, without asking',
   'check --yes': 'confirms running a check someone else set',
+  'join --abilities': ['--abilities browser,gui', 'declares the slots this seat can serve; items that need one go to such a seat'],
   'join --role': ['--role advisor', 'joins the seat as an advisor, a role the board records'],
   'join --parent': ['--parent <session-id>', 'the session that started this worktree'],
   'add --parent': ['--parent <id>', 'the item this one is a child of'],

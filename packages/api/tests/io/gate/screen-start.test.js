@@ -78,9 +78,10 @@ test('api.gate.screen-start.steady-unchanged: clause 2: a steady or strict item,
   }
   provideScreenStart(null);
   const bare = pulledSubmit(t, 'sprint');
-  const run = statements(bare.board, () => bare.post(green(bare.head)));
-  assert.equal(run.value.applied.outcome, 'review', 'with no starter the sprint submission is recorded as before');
+  assert.equal(bare.post(green(bare.head)).applied.outcome, 'review', 'with no starter the sprint submission is recorded as before');
+  // The pace is read from the item row the apply already loads: a steady apply with no starter prepares the statements one with a starter does.
+  const plain = pulledSubmit(t, 'steady');
+  const run = statements(plain.board, () => plain.post(green(plain.head)));
   await settled();
-  // The pace is read from the item row the apply already loads: a sprint apply with no starter and a steady apply prepare the same statements.
-  assert.equal(run.count, counts.steady, 'no board statement is added');
+  assert.equal(run.count, counts.steady, 'no board statement is added for a steady item');
 });
