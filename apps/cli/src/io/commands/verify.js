@@ -37,6 +37,8 @@ import { reviewCitations } from '../../../../../packages/gate/index.js';
 import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewWait } from '../verify/wait.js';
+import { sliceVerdictFacts } from '../submit/slice-paths.js';
+import { sliceVerdictProblem } from '../../logic/slice-paths.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
 import { boundProofReceipt } from '../../../../../packages/store/index.js';
@@ -347,6 +349,13 @@ export async function verifyHere(ctx, id, { second, values }) {
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
+    }
+    // With slices.composeLanding on, a slice is accepted only through its parent and a parent only once its slices are in [C7].
+    const composedProblem = sliceVerdictProblem({ decision, ...sliceVerdictFacts(board, item.item_id), composeLanding: ctx.config.slices?.composeLanding });
+    if (composedProblem) {
+      throw new Refused(composedProblem, composedProblem === 'SLICE_REVIEWED_WITH_PARENT'
+        ? `item #${id} is a slice: its parent's ACCEPT covers it; reject it alone, or accept the parent`
+        : `item #${id} has slices that are not submitted yet; accept it once they are`);
     }
     if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
     // Refuse a bad --read before composition, gate admission or any test run: it is pure input, and a full proof that
