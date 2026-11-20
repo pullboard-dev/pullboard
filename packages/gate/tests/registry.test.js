@@ -246,13 +246,13 @@ test('gate.registry.derived-counts: clause 1: [C7] the expected test count is re
 
 /** The two view-lane test files left out of the whole-folder check, each with the item that holds its registration: a named exclusion that cannot grow [#10189,#10297]. */
 const VIEW_LANE_EXCLUSIONS = new Map([['stable.test.js', '#10189'], ['io/static/style.test.js', '#10297']]);
-/** A test title anywhere in a file, at any indent, in single quotes or a template literal. */
-const ANY_TITLE = /^[ \t]*(?:test|it)\(\s*[`']([^`':\s]+): /gmu;
+/** A test title anywhere in a file, at any indent, in single or double quotes or a template literal. */
+const ANY_TITLE = /^[ \t]*(?:test|it)\(\s*[`'"]([^`'":\s]+): /gmu;
 /** A title written out in a quote or template; a title computed from a variable, as a generated fixture's probes do, names no ID to check. */
 const ANY_TEST = /^[ \t]*(?:test|it)\(\s*[`'"]/gmu;
 
 test('gate.registry.all: clause 1: [C7,U148,#10739] every test file under the gate tests folder, the two view-lane files excepted, carries an ID in every test title and no record names no test; an unregistered test fails only with tests.registryStrict on', (t) => {
-  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const { records } = loadRecords(DIR);
   const left = testFiles(DIR).filter((file) => !VIEW_LANE_EXCLUSIONS.has(relative(DIR, file)));
   assert.equal(testFiles(DIR).length - left.length, VIEW_LANE_EXCLUSIONS.size, 'exactly the named view-lane files are excluded');
   const findings = [];
