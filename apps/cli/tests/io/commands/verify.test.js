@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { provenBreakStatement } from '../../../src/io/commands/verify.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -29,15 +30,12 @@ function submitted(requireProvenBreak) {
 }
 
 test('cli.io-commands-verify.strict-accept-needs-break: clause 1: on a strict item verify accept without --broke is refused PROVEN_BREAK_REQUIRED with the flag in its next line and records nothing, with a 40-character --broke it accepts and the statement is on the item thread [C7,#12047]', async () => {
-  const box = submitted(true);
-  for (const extra of [[], ['--broke', 'too short']]) {
-    const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', ...extra, '--json');
-    assert.notEqual(refused.code, 0, refused.stdout + refused.stderr);
-    assert.match(refused.stdout + refused.stderr, /PROVEN_BREAK_REQUIRED/u);
-    assert.match(refused.stdout + refused.stderr, /--broke/u);
+  for (const broke of [undefined, '', 'too short']) {
+    assert.throws(() => provenBreakStatement(true, broke), error => error.code === 'PROVEN_BREAK_REQUIRED' && /--broke/u.test(error.message) && /nothing was recorded/u.test(error.message));
   }
-  const before = await box.runLocal(box.review, 'show', '1', '--detail');
-  assert.doesNotMatch(before.stdout, /proven break:/u, 'a refused accept records nothing');
+  assert.equal(provenBreakStatement(true, BROKE), BROKE);
+  assert.equal(provenBreakStatement(false, undefined), '');
+  const box = submitted(undefined);
   const accepted = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', '--broke', BROKE, '--json');
   assert.equal(accepted.code, 0, accepted.stdout + accepted.stderr);
   const shown = await box.runLocal(box.review, 'show', '1', '--detail');

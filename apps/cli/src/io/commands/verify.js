@@ -311,7 +311,7 @@ const PROVEN_BREAK_MIN = 40;
  * @param {unknown} broke the --broke text, if any
  * @returns {string}
  */
-function provenBreakStatement(required, broke) {
+export function provenBreakStatement(required, broke) {
   const text = typeof broke === 'string' ? broke.trim() : '';
   if (required && text.length < PROVEN_BREAK_MIN) {
     throw new Refused('PROVEN_BREAK_REQUIRED', `a strict item's accept states what the reviewer broke: add --broke "<the file, command or case you broke and the failure it showed>" (at least ${PROVEN_BREAK_MIN} characters); nothing was recorded`);
