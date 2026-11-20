@@ -39,7 +39,7 @@ test('api.io-claim-replay.real-path: replayClaims over a scratch board prints on
 
 const CODE = new URL('../../../../', import.meta.url).pathname;
 
-test('api.io-claim-replay.compare-with-main: compareClaimsWithMain returns { candidate, main, verdict }, worse for a candidate with a 50 ms delay and same for an unchanged one [C7,#12385]', t => {
+test('api.io-claim-replay.compare-with-main: compareClaimsWithMain returns { candidate, main, verdict }, worse for a candidate with a 50 ms delay and same for an unchanged one [C7,#12385]', async t => {
   const repo = cellRepo(t, { real: true });
   cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   const mainFigures = { p50: 4, p95: 8, max: 9 };
@@ -48,21 +48,21 @@ test('api.io-claim-replay.compare-with-main: compareClaimsWithMain returns { can
     exportMain: () => 'main-tree',
     replay: ({ codeRoot }) => (codeRoot === 'main-tree' ? mainFigures : candidateFigures),
   });
-  const same = run({ p50: 4, p95: 9, max: 10 });
+  const same = await run({ p50: 4, p95: 9, max: 10 });
   assert.deepEqual(Object.keys(same).sort(), ['candidate', 'main', 'verdict']);
   assert.equal(same.verdict, 'same');
-  const delayed = run({ p50: 54, p95: 58.5, max: 60 });
+  const delayed = await run({ p50: 54, p95: 58.5, max: 60 });
   assert.equal(delayed.verdict, 'worse', 'a 50 ms delay is over main p95 + 50 ms');
-  assert.equal(run({ p50: 1, p95: 1001, max: 1001 }).verdict, 'worse', 'over 1 s is worse');
-  const slowMain = compareClaimsWithMain({ db: repo.boardFile, root: repo.root, code: 'c', exportMain: () => 'm', replay: ({ codeRoot }) => (codeRoot === 'm' ? { p50: 300, p95: 400, max: 400 } : { p50: 300, p95: 499, max: 499 }) });
+  assert.equal((await run({ p50: 1, p95: 1001, max: 1001 })).verdict, 'worse', 'over 1 s is worse');
+  const slowMain = await compareClaimsWithMain({ db: repo.boardFile, root: repo.root, code: 'c', exportMain: () => 'm', replay: ({ codeRoot }) => (codeRoot === 'm' ? { p50: 300, p95: 400, max: 400 } : { p50: 300, p95: 499, max: 499 }) });
   assert.equal(slowMain.verdict, 'same', 'under 1.25 x main p95 is same');
   assert.equal(slowMain.main.p95, 400);
 });
 
-test('api.io-claim-replay.compare-real-path: compareClaimsWithMain over a scratch board with main against main reports same and prints both p95s [C7,#12385]', t => {
+test('api.io-claim-replay.compare-real-path: compareClaimsWithMain over a scratch board with main against main reports same and prints both p95s [C7,#12385]', async t => {
   const repo = cellRepo(t, { real: true });
   cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
-  const result = compareClaimsWithMain({ db: repo.boardFile, root: repo.root, code: CODE, exportMain: () => CODE, count: 20 });
+  const result = await compareClaimsWithMain({ db: repo.boardFile, root: repo.root, code: CODE, exportMain: () => CODE, count: 20 });
   console.log(`claim compare: main p95 ${result.main.p95.toFixed(2)} ms, candidate p95 ${result.candidate.p95.toFixed(2)} ms, verdict ${result.verdict}`);
   assert.ok(result.main.p95 >= 0 && result.candidate.p95 >= 0);
   assert.equal(result.verdict, 'same');
