@@ -1,0 +1,4 @@
+{
+  "landing.io-guards.parse-broken-at-base-not-refused": {"proves":{"specs":["C7"],"claim":"a changed .js file that already failed to parse at the landing base is not refused LAND_MODULE_PARSE."},"why":"Without it a repo with JSX or Flow in .js files could never land a change to such a file.","kind":"journey","inputs":["packages/landing/index.js","packages/landing/src/io/guards.js","packages/gate/index.js"]},
+  "landing.io-guards.parse-broken-by-composition-refused": {"proves":{"specs":["C7"],"claim":"a module that parses at the base but not at the composed tip is still refused, naming it."},"why":"Without it the composition could land a module it broke.","kind":"journey","inputs":["packages/landing/index.js","packages/landing/src/io/guards.js","packages/gate/index.js"]}
+}

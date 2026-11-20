@@ -19,8 +19,20 @@ const SCOPE_INSTALLER = 'packages/resources/src/io/environment.js';
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const ENV_READ = /(?<![\w$.])process\.env\b|(?<![\w$])(['"`])(?:[^'"`\n]*\/)?(?:[\w.-]*(?:config|settings)\.json|\.env(?:\.[\w-]+)?|\.pullboardrc)\1/gu;
 
-/** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test. */
-export const coveredByEnvLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && path !== SCOPE_INSTALLER
+/**
+ * The three files whose environment reads sit inside generated child-script strings (BOOTSTRAP, ANALYSIS_ENTRY, GATE_JOB_ENTRY and the stringified
+ * remoteCells). A child node process runs those strings and cannot import the adapter, so the lint skips these exact paths and no others.
+ */
+export const ENV_GENERATED_SCRIPT_FILES = [
+  'apps/cli/src/io/submit/gate.js',
+  'apps/cli/src/io/submit/pull.js',
+  'apps/cli/src/io/submit/remote.js',
+];
+
+/** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not a generated child-script file. */
+export const coveredByEnvLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL)
+  && !ENV_GENERATED_SCRIPT_FILES.includes(path)
+  && path !== SCOPE_INSTALLER
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**

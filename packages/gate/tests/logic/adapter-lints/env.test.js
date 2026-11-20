@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import {
   ENV_CEILING_FILE,
+  ENV_GENERATED_SCRIPT_FILES,
   coveredByEnvLint,
   envFindings,
   envLintRows,
@@ -69,4 +70,17 @@ test('gate.logic-adapter-lints-env.scope-installer-is-exempt: clause 1: the scop
 test('gate.logic-adapter-lints-env.real-tree-scope-installer: clause 3: the lint over this checkout with the setting on returns no row naming the scope installer [C7,#11917]', () => {
   const rows = envLintRows(join(import.meta.dirname, '..', '..', '..', '..', '..'), { enabled: true });
   assert.deepEqual(rows.filter(row => row.startsWith(`${SCOPE_INSTALLER}:`)), []);
+});
+
+test('gate.logic-adapter-lints-env.generated-script-files-exempt: clause 1: the three generated child-script files are listed by exact path and not covered by the lint [C7,#12205]', () => {
+  assert.deepEqual(ENV_GENERATED_SCRIPT_FILES, ['apps/cli/src/io/submit/gate.js', 'apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js']);
+  for (const path of ENV_GENERATED_SCRIPT_FILES) assert.equal(coveredByEnvLint(path), false, path);
+  assert.equal(coveredByEnvLint('apps/cli/src/io/submit/other.js'), true);
+});
+
+test('gate.logic-adapter-lints-env.listed-file-without-ceiling-reports-nothing: clause 2: a listed file holding process.env reads with no ceiling row reports nothing while an unlisted file with the same reads is reported [C7,#12205]', () => {
+  const reads = 'process.env.A;\nprocess.env.B;\n';
+  const root = repo({ 'apps/cli/src/io/submit/gate.js': reads, 'apps/cli/src/io/submit/other.js': reads });
+  const rows = envLintRows(root, { enabled: true });
+  assert.ok(rows.length > 0 && rows.every(row => row.startsWith('apps/cli/src/io/submit/other.js:')), 'only the unlisted file is reported');
 });
