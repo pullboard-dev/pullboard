@@ -1415,11 +1415,11 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
 } else if (process.argv[1]) {
   environment.set('PULLBOARD_TEST_FILE', process.argv[1]);
   (await import('./test/action/cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
-  const fileTimes = process.env[LANDING_FILE_TIMES_ENV];
+  const fileTimes = environment.get(LANDING_FILE_TIMES_ENV);
   let tokenWaitMs = 0;
   // Only this test file reports; anything it starts is not one of the shard's files.
-  delete process.env[LANDING_FILE_TIMES_ENV];
-  if (fileTimes && process.env.NODE_TEST_CONTEXT === 'child-v8') {
+  environment.delete(LANDING_FILE_TIMES_ENV);
+  if (fileTimes && environment.get('NODE_TEST_CONTEXT') === 'child-v8') {
     // One line per test file process: its wall time from start to exit, for the next shard plan.
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
     process.once('exit', (code) => {
@@ -1428,8 +1428,8 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }
-  const startsPath = process.env[LANDING_WORKER_STARTS_ENV];
-  const attempt = process.env[LANDING_ATTEMPT_ENV];
+  const startsPath = environment.get(LANDING_WORKER_STARTS_ENV);
+  const attempt = environment.get(LANDING_ATTEMPT_ENV);
   const landingWorker = Boolean(startsPath && attempt);
   let cleanupWatchdog;
   if (landingWorker) {
@@ -1456,12 +1456,12 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     if (identityAvailable) watchLandingChildSpawns(startsPath, attempt, file);
     else watchLandingChildCustody(startsPath, attempt);
   }
-  if (process.env.PULLBOARD_TEST_BROWSER_RESOURCE && process.env.NODE_TEST_CONTEXT === 'child-v8'
-      && !process.env.PULLBOARD_TEST_BROWSER_OWNER_PID) {
+  if (environment.get('PULLBOARD_TEST_BROWSER_RESOURCE') && environment.get('NODE_TEST_CONTEXT') === 'child-v8'
+      && !environment.get('PULLBOARD_TEST_BROWSER_OWNER_PID')) {
     // The worker is announced to #589 before it can wait here; admission remains before file import/body.
-    process.env.PULLBOARD_TEST_BROWSER_OWNER_PID = String(process.pid);
+    environment.set('PULLBOARD_TEST_BROWSER_OWNER_PID', String(process.pid));
     // The test body never sees the setting itself; the file's first-line declaration alone decides its lease [C7].
-    delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;
+    environment.delete('PULLBOARD_TEST_BROWSER_BY_LAUNCH');
     const { testsNeedBrowser } = await import('./browser/admission.js');
     if (await testsNeedBrowser(process.cwd(), [process.argv[1]])) {
       const { takeResource } = await import('../../../resources/index.js');
