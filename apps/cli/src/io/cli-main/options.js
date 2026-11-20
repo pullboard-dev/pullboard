@@ -52,6 +52,7 @@ const OPTIONS = {
   'no-next': { type: 'boolean' },
   lan: { type: 'boolean' },
   suggest: { type: 'boolean' },
+  to: { type: 'string' },
   'no-permissions': { type: 'boolean' },
   'no-hooks': { type: 'boolean' },
   note: { type: 'string' },

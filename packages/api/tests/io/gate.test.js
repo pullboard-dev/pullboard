@@ -291,7 +291,7 @@ test('api.io-gate.seed-claim-path-no-git: clause 1: with gate.seedWideMainTests 
 });
 
 /** A claimed item with one unsharded gate job `parent`; `post` posts a receipt for it through the production jobs route. */
-function oneGate(t) {
+function oneGate(t, options = {}) {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
@@ -304,7 +304,7 @@ function oneGate(t) {
   offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
     request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files: [] } } });
   const lease = claimJob(board.db, { runner: 'r-gate', capabilities: [], now: 2 });
-  const post = receipt => boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-gate', token: lease.token, receipt }, { mode: 'pull', now: 3 }).applied;
+  const post = receipt => boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-gate', token: lease.token, receipt }, { mode: 'pull', now: 3, ...options }).applied;
   return { board, item, head, parent, post };
 }
 
@@ -333,4 +333,21 @@ test('api.io-gate.settled-once-per-job: clause 2: a sharded gate settled by sett
   assert.equal(again.post(receipt).outcome, 'red');
   assert.equal(applyGateReceipt(again.board, { job: again.parent, receipt }).outcome, 'red', 'the same receipt applies a second time');
   assert.equal(settledEvents(again.board).length, 1, 'the twice-applied receipt leaves one event');
+});
+
+test('api.io-gate.settled-class-main-red-stale-infra: clause 1: receipts posted through the jobs route append gate_settled with (red, main-red) for a red only in a case main also fails, (stale, stale-base) for a gate with a newer job, and (unknown, infra) for a receipt with gate.analysis.infra [C7,#12315]', t => {
+  const kinds = gate => settledEvents(gate.board).map(({ job, outcome, class: kind }) => ({ job, outcome, class: kind }));
+  const main = oneGate(t, { compareWithMain: mainFails() });
+  const answer = main.post({ version: 1, status: 1, gate: { source: main.head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: 'web/a.test.js', name: 'loads under load' }], failureSignatures: SIGNED, tail: 'not ok' }] } });
+  assert.equal(answer.outcome, 'review', JSON.stringify(answer));
+  assert.ok('mainOwned' in answer, 'the settle names the red as main-owned');
+  assert.deepEqual(kinds(main), [{ job: main.parent, outcome: 'red', class: 'main-red' }]);
+  const stale = oneGate(t);
+  offerJob(stale.board.db, { id: `gate:${stale.item.item_id}:newer`, kind: 'gate', needs: [], item: stale.item.item_id, candidate: stale.head, base: stale.head, now: 2, request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
+  const late = stale.post({ version: 1, status: 0, gate: { source: stale.head, green: true, phases: [{ role: 'proof', status: 0 }] } });
+  assert.equal(late.outcome, 'stale', JSON.stringify(late));
+  assert.deepEqual(kinds(stale), [{ job: stale.parent, outcome: 'stale', class: 'stale-base' }]);
+  const infra = oneGate(t);
+  infra.post({ version: 1, status: 1, gate: { source: infra.head, green: false, analysis: { infra: 'the runner lost its checkout' }, phases: [{ role: 'proof', status: 1, failures: [], tail: 'not ok' }] } });
+  assert.deepEqual(kinds(infra), [{ job: infra.parent, outcome: 'unknown', class: 'infra' }]);
 });

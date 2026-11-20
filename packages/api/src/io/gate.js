@@ -818,7 +818,7 @@ function submitOvertaken(board, id, options) {
  */
 export function applyGateReceipt(board, posted, ports = {}) {
   // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
-  const applied = recordGateSettled(board, posted?.job, withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports)));
+  const applied = recordGateSettled(board, posted?.job, withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports)), posted?.receipt);
   // A settled gate carries the timing profiles its runner kept, as the inline submit's gate does [C7,#9615].
   const gate = applied.outcome === 'stale' || applied.outcome === 'not-gate' ? null : pulledProfilePaths(posted?.receipt);
   return gate ? { ...applied, gate } : applied;
