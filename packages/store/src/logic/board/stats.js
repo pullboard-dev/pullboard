@@ -1,5 +1,5 @@
 /** Item status and verdict totals for board summaries. */
-import { NEXT_IDLE_ENGINE } from "../../../../state/light.js";
+import { NEXT_IDLE_ENGINE } from "../../../../state/browser.js";
 import { Refused } from "../../../../kernel/light.js";
 import { stageCounts } from "../item/stage.js";
 

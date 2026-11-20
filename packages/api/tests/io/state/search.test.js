@@ -11,6 +11,9 @@ import { pathToFileURL } from 'node:url';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const MATERIALIZER = fileURLToPath(new URL('../../../src/io/state/materializer.js', import.meta.url));
+const ENV_FRONT_DOOR = fileURLToPath(new URL('../../../../env/index.js', import.meta.url));
+const ENV_ADAPTER = fileURLToPath(new URL('../../../../env/src/io/env.js', import.meta.url));
+const STATE_DIR = 'packages/api/src/io/state';
 /** How long the stub worker takes over each build, standing in for a big board's build. */
 const BUILD_MS = 400;
 
@@ -18,8 +21,10 @@ const BUILD_MS = 400;
 async function stubBoard(t) {
   const files = privateFixtureFiles('pullboard-search-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
-  files.write('materializer.js', readFileSync(MATERIALIZER));
-  files.write('materializer/worker.js', `import { parentPort } from 'node:worker_threads';
+  files.write(`${STATE_DIR}/materializer.js`, readFileSync(MATERIALIZER));
+  files.write('packages/env/index.js', readFileSync(ENV_FRONT_DOOR));
+  files.write('packages/env/src/io/env.js', readFileSync(ENV_ADAPTER));
+  files.write(`${STATE_DIR}/materializer/worker.js`, `import { parentPort } from 'node:worker_threads';
 let built = 0;
 parentPort.on('message', (message) => {
   if (message.type === 'close') return process.exit(0);
@@ -33,7 +38,7 @@ parentPort.on('message', (message) => {
   }, ${BUILD_MS});
 });
 `);
-  const { startStateMaterializer } = await import(pathToFileURL(join(files.root, 'materializer.js')).href);
+  const { startStateMaterializer } = await import(pathToFileURL(join(files.root, STATE_DIR, 'materializer.js')).href);
   const watched = { revision: 'r1' };
   const landed = [];
   const heard = new Set();

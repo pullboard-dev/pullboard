@@ -68,6 +68,7 @@ import {
   itemLine,
   sayBrief,
 } from '../read.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import { relayStateExists } from '../../../../../packages/store/light.js';
 import { readableRigorText } from '../../../../../packages/store/browser.js';
 import { itemCost } from '../../../../../packages/stats/light.js';
@@ -158,6 +159,9 @@ export async function run(io, { first, values }) {
     const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts, ...(table ? { derived: table.derived } : {}) }).project(stored);
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
+    // The coordinator-set timing flag lives in board_meta, not on the item row, so read it for the exclusive-slot line [C7,#11108].
+    const timing = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key=?").get(`item_check_timing:${id}`);
+    if (timing?.meta_value === 'true') item.item_check_timing = true;
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
     const landingPhases = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`landing_phases:${id}`);
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
@@ -174,8 +178,7 @@ export async function run(io, { first, values }) {
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
-    const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
-    const panel = job ? jobsCell().gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
+    const panel = job ? jobsCell().gatePanel(board.db, job.id) : null;
     // The landed-from-main reader lives in the roadmap barrel, which loads only with landing.landedFromMain on, so a cold show reaches the barrel only when it calls it [C7,#11918].
     const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
@@ -223,7 +226,7 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText, checkTiming: item.item_check_timing === true || frozenCheckTiming(item) });
   io.say(core.item);
   const reserved = reservationLine(item, routeReservations());
   if (reserved) io.say(reserved);

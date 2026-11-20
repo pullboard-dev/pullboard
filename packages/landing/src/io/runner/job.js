@@ -1,9 +1,6 @@
 /** The runner side of a landing job: fetch trunk, merge the accepted items, check, and push only if trunk has not moved [P7]. */
 import { environmentAdapter } from '../../../../env/index.js';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { availableParallelism } from 'node:os';
@@ -28,6 +25,9 @@ import { IDENTITY } from '../land/merge-args.js';
 import { citedIds } from '../land/merge-args.js';
 import { landingMergeArgs } from '../land/merge-args.js';
 import { commitUnionedMerge } from '../land/registry-union.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The environment this file reads, through the one adapter [C7]. */
 const environment = environmentAdapter();
@@ -131,8 +131,8 @@ async function timed(phases, name, work) {
 
 /** The runner's landing checkout: a cache it can rebuild, never a durable home for work. */
 export function landingCheckout(workdir) {
-  mkdirSync(workdir, { recursive: true });
-  if (!existsSync(join(workdir, '.git'))) must(workdir, ['init', '-q']);
+  fs.mkdir(workdir, { recursive: true });
+  if (!fs.exists(join(workdir, '.git'))) must(workdir, ['init', '-q']);
   return workdir;
 }
 
@@ -194,7 +194,7 @@ export function admitTrunk(root, { trunk, base }) {
   if (!/^refs\/heads\/[\w./-]+$/u.test(trunk) || trunk.includes('..')) return;
   must(root, ['update-ref', trunk, base]);
   const record = runnerPolicyRecord({ id: randomUUID(), commit: must(root, ['rev-parse', 'HEAD']), tree: must(root, ['rev-parse', 'HEAD^{tree}']), trunk: { ref: trunk, commit: base } });
-  writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600 });
+  fs.writeFile(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600 });
 }
 
 // A failing test's first line in TAP ("not ok 3 - name") or the spec reporter ("✖ name"), and the lines after it.
@@ -274,7 +274,7 @@ async function landingCheck(payload, env, phases = null, shards = null) {
   return async context => {
     if (limit !== null) deadlineAt = Date.now() + limit;
     const merged = new Set(context.items);
-    const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
+    const files = (payload.proof?.files ?? []).filter(file => fs.exists(join(context.root, file)));
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
     const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline }), { affectedOnly: payload.staticAffectedOnly === true }) : null;
@@ -294,8 +294,8 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
     const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
     if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
-      const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
-      if (owed.length) parts.push(['proof', phaseOf('proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })), deferred.runner]);
+      const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => fs.exists(join(context.root, file)));
+      if (owed.length) parts.push(['proof', phaseOf('proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline }))]);
     }
     // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
     const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;

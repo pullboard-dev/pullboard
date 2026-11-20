@@ -2,6 +2,10 @@
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { TIMELINE_STAGES } from '../../../../../packages/stats/index.js';
 import { WAIT_REASONS } from '../../../../../packages/stats/index.js';
+import { randomUUID } from 'node:crypto';
+import { replaySpool } from '../mark-spool.js';
+import { spoolMark } from '../mark-spool.js';
+import { spoolable } from '../mark-spool.js';
 import {
   actOn,
   idArg,
@@ -38,7 +42,19 @@ export async function run(io, { first, second, rest, values }) {
     if (reason !== null && !WAIT_REASONS.includes(reason)) throw new Refused('MARK_REASON', `${reason} is not a wait reason`, `reasons: ${WAIT_REASONS.join(', ')}`);
     const at = markedAt(values.at, ctx.clock.now().getTime());
     const mark = { agentId: me.id, stage: second, edge: edges[0], reason, ref: values.ref === undefined ? null : String(values.ref), at };
-    await ordered(ctx, board, 'appendMark', [id, mark]);
+    const line = { id: randomUUID(), item: id, ...mark };
+    const write = ({ item, id: markId, agentId, stage, edge, reason: why, ref, at: markAt }) => ordered(ctx, board, 'appendMark', [item, { id: markId, agentId, stage, edge, reason: why, ref, at: markAt }]);
+    try {
+      await replaySpool(ctx.file, board, write);
+      await write(line);
+    } catch (error) {
+      if (!spoolable(error)) throw error;
+      // The board is busy or unreachable: keep the mark with its own time, never lose it and never block the caller.
+      spoolMark(ctx.file, line);
+      io.result?.({ item: id, mark, spooled: true });
+      io.say(`spooled #${id} ${second} ${edges[0]}: the board is busy, the mark is replayed by the next mark that writes`);
+      return 0;
+    }
     io.result?.({ item: id, mark });
     io.say(`marked #${id} ${second} ${edges[0]}`);
     return 0;

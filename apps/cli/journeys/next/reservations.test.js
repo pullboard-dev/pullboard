@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { reserveItem } from '../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
 import { main } from '../../tests/fixtures/native.js';
+import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 
 /** Turn route.reservations on or off for this fixture's machine, keeping the settings the fixture wrote. */
@@ -42,4 +43,28 @@ test('cli.journeys-next-reservations.with-route-reservations-on-show-prints-the-
 test('cli.journeys-next-reservations.with-route-reservations-off-show-prints-nothing-new: clause 2: with route.reservations off, show prints no reservation line on a reserved item [C7,#9178]', async t => {
   const { reserved } = await shown(t, false);
   assert.doesNotMatch(reserved, /reserved for/u);
+});
+
+/** One item reserved for `holder` ('actor' stands for the building seat itself), the setting as asked, then one next --take by that seat. */
+async function taken(t, on, holder) {
+  const box = await fixture(t);
+  const id = box.add('Reserved item');
+  reserveItem(box.board, id, { agentId: 'coordinator', holder: holder === 'actor' ? box.seats.actor.id : holder });
+  reservations(on);
+  return { id, result: await cli(box, box.seats.actor.path, ['next', '--take']) };
+}
+
+test('cli.journeys-next-reservations.next-skips-an-item-reserved-for-another-seat: clause 1: with route.reservations on, next --take skips an item reserved for another seat and names the holder, and offers it to the holder [C7,#9161]', async t => {
+  const other = await taken(t, true, 'web-7');
+  assert.notEqual(other.result.code, 0, other.result.out);
+  assert.match(other.result.out + other.result.err, new RegExp(`#${other.id} is reserved for web-7`, 'u'));
+  const own = await taken(t, true, 'actor');
+  assert.equal(own.result.code, 0, own.result.out + own.result.err);
+  assert.equal(own.result.document.item.item_id, own.id);
+});
+
+test('cli.journeys-next-reservations.with-route-reservations-off-next-ignores-a-reservation: clause 2: with route.reservations off, next --take offers a reserved item exactly as without a reservation [C7,#9161]', async t => {
+  const off = await taken(t, false, 'web-7');
+  assert.equal(off.result.code, 0, off.result.out + off.result.err);
+  assert.equal(off.result.document.item.item_id, off.id);
 });
