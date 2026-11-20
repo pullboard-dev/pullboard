@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { generateTestTiers } from '../../../../index.js';
+import { generateTestTiers } from '../../../../heavy.js';
 import { fixtureCommittedGraph } from '../../../fixtures/testkit.js';
 
 /** Write only synthetic sources in a private Git repository, never running those candidate modules. */
