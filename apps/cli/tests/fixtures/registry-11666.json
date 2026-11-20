@@ -1,0 +1,4 @@
+{
+  "cli.io-cli-main-run-command.rejection-echo-first": {"proves":{"specs":["C7"],"claim":"With next.returnedFirst on, runCommand for next, claim, submit, show and fact says one line per returned rejection of the calling seat before the command's own lines, and none once a seat has claimed the item."},"why":"Without it a builder whose work was sent back would not see the reason until it ran show by hand.","kind":"cell unit","inputs":["apps/cli/tests/io/cli-main/run/command.test.js","apps/cli/src/io/cli-main/run/command.js"]},
+  "cli.io-cli-main-run-command.rejection-echo-off": {"proves":{"specs":["C7"],"claim":"With next.returnedFirst off or unset, and for every other command, runCommand says exactly the lines it said before the echo."},"why":"Without it the echo would change every seat's output with the setting off.","kind":"cell unit","inputs":["apps/cli/tests/io/cli-main/run/command.test.js","apps/cli/src/io/cli-main/run/command.js"]}
+}

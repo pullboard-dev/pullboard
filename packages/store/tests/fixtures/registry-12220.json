@@ -1,0 +1,4 @@
+{
+  "store.handoff-retry.gate-refused-code": {"proves":{"specs":["C7"],"claim":"At the board-release-codes engine a queued gate that finishes refused with returnToBoard set, reached through completeSubmitHandoff, leaves the item open with no owner and writes a release event with reasonCode GATE_REFUSED and the reason text unchanged."},"why":"Board-written releases are counted by closed code; a gate refusal returned to the board as OTHER hides why claims return.","kind":"cell unit","inputs":["packages/store/src/io/submit/handoff/retry.js"]},
+  "store.handoff-retry.gate-refused-code-below-engine": {"proves":{"specs":["C7"],"claim":"Below the board-release-codes engine the same returned release still carries reasonCode OTHER with the same text, so older boards replay unchanged."},"why":"A board below the engine must replay its history exactly as before.","kind":"cell unit","inputs":["packages/store/src/io/submit/handoff/retry.js"]}
+}

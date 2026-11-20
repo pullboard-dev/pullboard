@@ -29,7 +29,7 @@ const BUILT_IN_ROOTS = {
   go: { 'go.mod': 'module example.com/m\n' },
   rust: { 'Cargo.toml': '' },
   python: { 'pytest.ini': '' },
-  php: { 'composer.json': '{}' },
+  php: { 'composer.json': '{"scripts":{"test":"phpunit"}}' },
   elixir: { 'mix.exs': '' },
   csharp: { 'app.sln': '' },
   cmake: { 'CMakeLists.txt': '' },

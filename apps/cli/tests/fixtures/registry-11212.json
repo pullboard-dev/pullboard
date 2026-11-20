@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-status-closure.status-closure-holds-no-store-index": {"proves":{"specs":["C7"],"claim":"The static closure of status reaches none of the four board-read modules behind the full store door, which status loads with await import."},"why":"Without it, a static import of the full store door in status would put the four board-read modules back in every status start.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/status-closure.test.js"]}
+}

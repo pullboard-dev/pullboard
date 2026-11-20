@@ -1,6 +1,6 @@
 {
   "name": "route",
-  "help": "  pullboard route --suggest           the open strong items whose shape meets the light rule (a check, a brief, at most 3 tagged clauses and 3 files); read-only\n",
+  "help": "  pullboard route --suggest           the open strong items whose shape meets the light rule (a check, a brief, at most 3 tagged clauses and 3 files); read-only\n  pullboard route <id> --to <seat>    reserve an open or claimed item for a seat or block (coordinator; needs route.reservations)\n  pullboard route <id> --off          clear that reservation\n",
   "required": {
     "suggest": "string",
     "items": "array"

@@ -1,7 +1,4 @@
 /** Locate only the caller's native session and keep transcript bytes on its machine [N2]. */
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
@@ -10,6 +7,9 @@ import { SPLIT_COUNTS } from './usage.js';
 import { unknownInputSplit } from './usage.js';
 import { allowanceFromRows } from './usage.js';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The variables a seat wrapper exports to name the transcript its tokens land in: one file, or a folder whose newest transcript is meant. */
 export const AGENT_TRANSCRIPT_ENV = Object.freeze(['PULLBOARD_SESSION_LOG', 'PULLBOARD_SESSION_DIR']);
@@ -17,7 +17,7 @@ export const AGENT_TRANSCRIPT_ENV = Object.freeze(['PULLBOARD_SESSION_LOG', 'PUL
 /** Search native directories without following symlinks or reading other sessions' contents. */
 function findSession(directory, identity, provider) {
   let entries;
-  try { entries = readdirSync(directory, { withFileTypes: true }); } catch { return null; }
+  try { entries = fs.list(directory, { withFileTypes: true }); } catch { return null; }
   for (const entry of entries) {
     const file = join(directory, entry.name);
     if (entry.isDirectory()) {
@@ -36,7 +36,7 @@ function declaredProvider(environment) {
 /** The regular, unlinked file at an absolute path, or null. */
 function regularFile(file) {
   try {
-    const stat = lstatSync(file);
+    const stat = fs.lstat(file);
     return stat.isFile() && !stat.isSymbolicLink() ? stat : null;
   } catch { return null; }
 }
@@ -45,7 +45,7 @@ function regularFile(file) {
 function newestTranscript(directory) {
   let newest = null;
   let entries;
-  try { entries = readdirSync(directory, { withFileTypes: true }); } catch { return null; }
+  try { entries = fs.list(directory, { withFileTypes: true }); } catch { return null; }
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
     const file = join(directory, entry.name);
@@ -98,7 +98,7 @@ export function missingSessionReason(environment = process.env) {
 export function sessionSnapshot(source, previous, cutoff = Infinity, cursors) {
   if (!source) return null;
   try {
-    const stat = lstatSync(source.file);
+    const stat = fs.lstat(source.file);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
     if (previous && (stat.dev !== previous.dev || stat.ino !== previous.ino || stat.size < previous.bytes)) return null;
     // Readable bytes without a native usage record establish no counter baseline, including an empty file.
@@ -125,7 +125,7 @@ export function usageDifference(before, after, fallbackModel) {
 /** A seat's allowance read from its Codex session file; an unreadable file or one without rate limits is unknown [C7]. */
 export function seatAllowance(file) {
   let text;
-  try { text = readFileSync(file, 'utf8'); } catch { return { known: false }; }
+  try { text = fs.readFile(file, 'utf8'); } catch { return { known: false }; }
   const rows = [];
   for (const line of text.split('\n')) {
     try { rows.push(JSON.parse(line)); } catch { /* a torn or blank line carries no allowance */ }

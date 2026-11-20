@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { refuseEmptyBar } from '../../../config/index.js';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
-import { foreignNodeOptions } from '../../../gate/index.js';
+import { foreignNodeOptions } from '../../../gate/heavy.js';
 import { headCommit } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
