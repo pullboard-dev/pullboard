@@ -1,0 +1,4 @@
+{
+  "cli.block.add-and-list": {"proves": {"specs": ["C7"], "claim": "block add names a block of two items with a tier and prints it, and block list prints one row per block with its name, tier and member ids."}, "why": "Without it a recorded block would have no command that creates it or shows it.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/block.js", "apps/cli/tests/fixtures/e2e.js"]},
+  "cli.block.refusals": {"proves": {"specs": ["C7"], "claim": "block add with one id or an unknown tier is refused USAGE naming the valid tiers and records no block."}, "why": "Without it a malformed block could reach the board through the command line.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/block.js", "apps/cli/tests/fixtures/e2e.js"]}
+}

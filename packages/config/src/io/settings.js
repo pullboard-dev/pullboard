@@ -138,6 +138,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
+export function failFastShardsEnabled() {
+  return loadMachineSettings().gate?.failFastShards === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -201,9 +206,9 @@ export function adapterLintSigningEnabled() {
   return loadMachineSettings().gate?.adapterLintSigning === true;
 }
 
-/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
+/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: on by default; only an exact `false` turns it off [C7,#1807]. */
 export function jsdocCheckEnabled() {
-  return loadMachineSettings().gate?.jsdocCheck === true;
+  return loadMachineSettings().gate?.jsdocCheck !== false;
 }
 
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
@@ -486,6 +491,11 @@ export function refuseTempWorktree() {
 /** Whether claim.keepWhileRunning is on: off by default; only an exact `true` keeps a claim whose holder has a test run, test or gate job in flight from being released as idle or stalled [C7,#9498]. */
 export function claimKeepWhileRunning() {
   return loadMachineSettings().claim?.keepWhileRunning === true;
+}
+
+/** Whether claim.checkCeiling is on: off by default; only an exact `true` makes claim refuse a check whose measured time is over its ceiling [C7,#1273]. */
+export function claimCheckCeilingEnabled() {
+  return loadMachineSettings().claim?.checkCeiling === true;
 }
 
 /** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
@@ -1123,6 +1133,11 @@ export function setRunnerDrain(host, drain) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/** How long a queued gate job waits, in milliseconds, before it outranks shard jobs (gate.gateAgedMinutes, 5 minutes by default) [C7]. */
+export function gateAgedMs() {
+  return (loadMachineSettings().gate?.gateAgedMinutes ?? 5) * 60_000;
 }
 
 /**

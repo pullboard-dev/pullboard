@@ -1,21 +1,14 @@
 /** Share one compile-only V8 process across a cell-lint command's bounded batches [C7,P3]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
-import { lstatSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchBase } from '../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const parsers = new AsyncLocalStorage();
 const MAX_BYTES = 2 ** 26;
@@ -27,26 +20,26 @@ function failure() { return new Error('cell binding compiler setup failed: inval
 function compilerStderr(directory) {
   let fd;
   try {
-    const file = join(directory, 'stderr.log'), stat = lstatSync(file);
+    const file = join(directory, 'stderr.log'), stat = fs.lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink()) return '';
-    fd = openSync(file, 'r');
+    fd = fs.open(file, 'r');
     const head = Buffer.alloc(Math.min(stat.size, 2048));
-    readSync(fd, head, 0, head.length, 0);
+    fs.read(fd, head, 0, head.length, 0);
     if (stat.size <= head.length) return head.toString('utf8').trim();
     const tail = Buffer.alloc(Math.min(stat.size - head.length, 2048));
-    readSync(fd, tail, 0, tail.length, stat.size - tail.length);
+    fs.read(fd, tail, 0, tail.length, stat.size - tail.length);
     return `${head.toString('utf8')}\n…\n${tail.toString('utf8')}`.trim();
   } catch { return ''; }
-  finally { if (fd !== undefined) closeSync(fd); }
+  finally { if (fd !== undefined) fs.close(fd); }
 }
 
 /** A supervisor's atomically published exit is a failure even if the compiler exited zero without a reply. */
 function compilerExit(directory) {
   let stat;
   const file = join(directory, 'exit.json');
-  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  try { stat = fs.lstat(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) throw failure();
-  const exit = JSON.parse(readFileSync(file, 'utf8'));
+  const exit = JSON.parse(fs.readFile(file, 'utf8'));
   if (exit?.version !== 1 || !(exit.code === null || Number.isInteger(exit.code))
     || !(exit.signal === null || typeof exit.signal === 'string')) throw failure();
   const stderr = compilerStderr(directory);
@@ -58,9 +51,9 @@ function compilerExit(directory) {
 function supervisorRotation(directory, pid) {
   const file = join(directory, 'supervisor-rotation.json');
   let stat;
-  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  try { stat = fs.lstat(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) throw failure();
-  const rotation = JSON.parse(readFileSync(file, 'utf8'));
+  const rotation = JSON.parse(fs.readFile(file, 'utf8'));
   if (rotation?.version !== 1 || rotation.pid !== pid || !Number.isSafeInteger(rotation.sequence) || rotation.sequence < 1) throw failure();
   return rotation;
 }
@@ -68,9 +61,9 @@ function supervisorRotation(directory, pid) {
 /** Read an atomically published, bounded ordinary reply; absence means this batch is still compiling. */
 function replyAt(file, id, count) {
   let stat;
-  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  try { stat = fs.lstat(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_BYTES) throw failure();
-  const reply = JSON.parse(readFileSync(file, 'utf8'));
+  const reply = JSON.parse(fs.readFile(file, 'utf8'));
   if (reply?.version !== 1 || reply.id !== id || !Array.isArray(reply.results) || reply.results.length !== count
     || reply.results.some(row => typeof row?.compiles !== 'boolean' || !Array.isArray(row.imports)
       || row.imports.some(value => typeof value !== 'string') || !row.compiles && row.imports.length)) throw failure();
@@ -117,7 +110,7 @@ export function withCellLintParser(work, { directory: cacheDirectory, waits, sup
         throw new Error(message);
       }
     }
-    if (directory) { rmSync(directory, { recursive: true, force: true }); directory = null; }
+    if (directory) { fs.rm(directory, { recursive: true, force: true }); directory = null; }
   }
   /** Start an owned supervisor at the last completed sequence, never before a rotation witness. */
   function startSupervisor(previous) {
@@ -135,7 +128,7 @@ export function withCellLintParser(work, { directory: cacheDirectory, waits, sup
     if (rotation.sequence !== expected) throw failure();
     child.unref();
     child = null;
-    rmSync(join(directory, 'supervisor-rotation.json'));
+    fs.rm(join(directory, 'supervisor-rotation.json'));
     startSupervisor(expected);
     return true;
   }
@@ -147,8 +140,8 @@ export function withCellLintParser(work, { directory: cacheDirectory, waits, sup
     const input = JSON.stringify({ version: 1, id, sources });
     if (Buffer.byteLength(input) > MAX_BYTES) throw failure();
     if (!child) {
-      if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
-      directory = mkdtempSync(join(cacheDirectory ?? scratchBase(), 'pullboard-cell-parser-'));
+      if (cacheDirectory) fs.mkdir(cacheDirectory, { recursive: true, mode: 0o700 });
+      directory = fs.mkdtemp(join(cacheDirectory ?? scratchBase(), 'pullboard-cell-parser-'));
       startSupervisor(id - 1);
     }
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);
@@ -158,8 +151,8 @@ export function withCellLintParser(work, { directory: cacheDirectory, waits, sup
     const extension = waits?.extensionMs ?? Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
     const deadline = process.hrtime.bigint() + BigInt(base + extension) * 1_000_000n;
     try {
-      writeFileSync(temporary, input, { flag: 'wx', mode: 0o600 });
-      renameSync(temporary, request);
+      fs.writeFile(temporary, input, { flag: 'wx', mode: 0o600 });
+      fs.rename(temporary, request);
       while (process.hrtime.bigint() < deadline) {
         const results = replyAt(reply, id, sources.length);
         if (results) return results;
@@ -171,7 +164,7 @@ export function withCellLintParser(work, { directory: cacheDirectory, waits, sup
       }
       throw Object.assign(new Error(`cell binding compiler timeout after extended batch wait (${base + extension} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
     } catch (error) { failed = error; throw error; }
-    finally { rmSync(request, { force: true }); rmSync(reply, { force: true }); }
+    finally { fs.rm(request, { force: true }); fs.rm(reply, { force: true }); }
   }
   /** Keep the import scanner's expanded variants in bounded requests without changing result order. */
   function parse(sources) {

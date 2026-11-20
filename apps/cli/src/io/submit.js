@@ -9,7 +9,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { checkoutHead } from '../../../../packages/git/index.js';
 import { commandObservation } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { selectTestTiers } from '../../../../packages/gate/index.js';
+import { selectTestTiers } from '../../../../packages/gate/heavy.js';
 import { junitCases } from '../../../../packages/gate/index.js';
 import { junitClauseTicks } from '../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../packages/verify/index.js';
