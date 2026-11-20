@@ -4,12 +4,14 @@ import { requireTestMirror } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { requireNoCoordinatorPath } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
+import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
+import { requireLinkedForeign } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
@@ -88,6 +90,7 @@ export async function run(io, args) {
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
+    ...(values.needs === undefined ? {} : { needs: values.needs.split(',').map(need => need.trim()).filter(Boolean) }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     route: values.route,
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
@@ -99,6 +102,8 @@ export async function run(io, args) {
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
+  // A prerequisite on another repository needs a live link to it; items already filed stay as they are [XB1].
+  if (change.after?.length) requireLinkedForeign(board, change.after);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'edit', item: id,
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
   if (confirmed !== null) return confirmed;
@@ -125,7 +130,7 @@ export async function run(io, args) {
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
   }
   if (command && command !== item.item_check) refuseCheckSyntax(command);
-  if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() && command !== item.item_check ? { strict: true } : {}) };
   if (command && command !== item.item_check && !sealed) store.guardGreenCheck(board, change.checkBaseline, values['accept-green']);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
   await ordered(ctx, board, 'editItem', [id, change]);
