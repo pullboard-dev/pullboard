@@ -343,7 +343,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // A red with no named case keeps its first diagnostic and an omission count, which the tail and exit lines alone drop [C7,V10].
   let digest = null;
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
-  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
+  return { role, command: String(command).slice(0, 500), status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
     ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
