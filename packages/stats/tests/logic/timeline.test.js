@@ -165,3 +165,49 @@ test('stats.timeline.merged-without-merged-at: clause 1: a merged event with no 
   assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'merged']);
   assert.equal(rows[2].at, T0 + 20 * MIN);
 });
+
+/** One submitted item whose gate job ends red at 16 min and whose builder is back at 40 min, with an optional gate_settled event. */
+function settledTimeline(settled) {
+  const gate = job('gate:7', 'gate', 10 * MIN, [['claimed', 11 * MIN], ['red', 16 * MIN]]);
+  const events = [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit'), event(4, 20 * MIN, 'release', { reasonCode: 'GATE_REFUSED' }), event(5, 40 * MIN, 'claim')];
+  if (settled) events.push(event(6, 16 * MIN + SEC, 'gate_settled', { job: 'gate:7', ...settled }));
+  return timelineOf({ events, jobs: [gate.job], steps: gate.steps });
+}
+
+test('stats.timeline.gate-settled-class: clause 1: a gate_settled event sets the gate-settled row reason and class, is not unmapped, and the stretch after a main-red or stale-base settle is that wait, not rework [C7,#12316]', () => {
+  const main = settledTimeline({ outcome: 'red', class: 'main-red' });
+  const row = main.rows.find(entry => entry.stage === 'gate-settled');
+  assert.equal(row.reason, 'red');
+  assert.equal(row.class, 'main-red');
+  assert.deepEqual(main.unmapped, []);
+  assert.equal(main.summary.waits.MAIN_RED, 24 * MIN);
+  assert.equal(main.summary.buckets.rework, 0);
+  const stale = settledTimeline({ outcome: 'red', class: 'stale-base' });
+  assert.equal(stale.summary.waits.STALE_BASE, 24 * MIN);
+  assert.equal(stale.summary.waits.MAIN_RED, 0);
+  const own = settledTimeline({ outcome: 'red', class: 'item' });
+  assert.equal(own.summary.waits.MAIN_RED + own.summary.waits.STALE_BASE, 0);
+  assert.equal(own.summary.buckets.rework, 24 * MIN, 'every other class keeps the rework bucket');
+});
+
+test('stats.timeline.gate-settled-absent-unchanged: clause 2: the same job with no gate_settled event keeps the step-derived reason, class null and the rework bucket [C7,#12316]', () => {
+  const { rows, summary } = settledTimeline(null);
+  const row = rows.find(entry => entry.stage === 'gate-settled');
+  assert.equal(row.reason, 'red');
+  assert.equal(row.class, null);
+  assert.equal(summary.buckets.rework, 24 * MIN);
+  assert.equal(summary.waits.MAIN_RED + summary.waits.STALE_BASE, 0);
+});
+
+test('stats.timeline.released-lease-lapsed: clause 1: a release event whose detail carries reasonCode LEASE_LAPSED and the sweep prose reason, then a second claim, gives a released row with reason LEASE_LAPSED followed by a re-claimed row [C7,#12401]', () => {
+  const { rows, unmapped } = timelineOf({
+    events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim', {}, 'core-1'),
+      event(3, 10 * MIN, 'release', { reasonCode: 'LEASE_LAPSED', reason: 'Seat core-1 has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.' }, 'sentinel'),
+      event(4, 12 * MIN, 'claim', {}, 'core-2')],
+  });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'released', 're-claimed']);
+  assert.equal(rows[2].reason, 'LEASE_LAPSED');
+  assert.equal(rows[2].actor, 'sentinel');
+  assert.equal(rows[3].actor, 'core-2');
+  assert.deepEqual(unmapped, []);
+});

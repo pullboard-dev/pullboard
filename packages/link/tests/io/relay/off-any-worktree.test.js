@@ -8,7 +8,7 @@ import { excludeRelayByPerson } from '../../../src/io/relay/exclusion.js';
 import { readRelayMachine } from '../../../src/io/relay/machine.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
-import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 
 const IO = { personChannel: 'view' };

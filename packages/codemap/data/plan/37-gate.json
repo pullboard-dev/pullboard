@@ -74,7 +74,6 @@
   ["src/timed-shell-worker.js","packages/gate/src/io/timed.js","seed"],
   ["src/timing.js","packages/gate/src/io/timing.js","seed"],
   ["test/cpu-callable-options.test.js","packages/gate/tests/io/admission/cpu/load.test.js","seed"],
-  ["test/gate-resource.test.js","packages/gate/tests/io/main/resource.test.js","seed"],
   ["test/gate-timing-output.test.js","packages/gate/tests/io/main/output.test.js","seed"],
   ["test/gui-admission.test.js","packages/gate/tests/io/gui/admission.test.js","seed"],
   ["test/gui-marker-guard.test.js","packages/gate/tests/io/gui/admission/guard.test.js","seed"],

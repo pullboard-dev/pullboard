@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/git/src/io/review-folder.js */
+/** @pullboard-module-loads packages/git/src/io/review-folder.js packages/git/src/io/review-folder-deps.js */
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { announcePorts } from '../link/ports.js';
@@ -10,6 +10,7 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { sharedToolsTarget } from '../toolsnapshot.js';
@@ -44,6 +45,7 @@ import { reviewCitations } from '../../../../../packages/gate/heavy.js';
 import { citedReceiptsNote } from '../../../../../packages/gate/heavy.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewWait } from '../verify/wait.js';
+import { sameWorkHeads } from '../verify/merge-ticks.js';
 import { sliceVerdictFacts } from '../submit/slice-paths.js';
 import { sliceVerdictProblem } from '../../logic/slice-paths.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
@@ -292,6 +294,30 @@ function sameVerdictNote(recorded, given) {
   return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
 }
 
+/**
+ * Whether a verdict's check ran isolated from the reviewer's own checkout [C7,#1112].
+ * Why: a verdict that ran in a seat's working tree can pass on files the commit does not hold; a verdict that ran in the board-made review folder at the submitted commit, or that comes from a runner receipt at that commit, cannot.
+ *
+ * @param {{ folder?: string|null, reviewFolder?: string|null, commit?: string|null, receipt?: { commit?: string|null }|null }} facts - The folder the check ran in, the board-made review folder (if one was made at the submitted commit), the submitted commit, and the runner receipt the verdict rests on (if any).
+ * @returns {boolean} True for a check run in the review folder, or one proven by a receipt at the submitted commit; false otherwise.
+ */
+export function verdictIsolation({ folder, reviewFolder, commit, receipt } = {}) {
+  if (typeof reviewFolder === 'string' && reviewFolder !== '' && folder === reviewFolder) return true;
+  return typeof commit === 'string' && commit !== '' && receipt?.commit === commit;
+}
+
+/**
+ * Refuse a folder whose dependencies link outside it, before a check runs there [C7,#1112].
+ * Why: a symlinked dependency makes the check read code that is not the commit under review.
+ *
+ * @param {string} folder - The folder the frozen check runs in.
+ * @returns {void}
+ */
+export function refuseLinkedDependencies(folder) {
+  const linked = requireModule('../../../../../packages/git/src/io/review-folder-deps.js').linkedDependencies(folder);
+  if (linked.length) throw new Refused('DEPS_OUTSIDE_TREE', `node_modules links outside the review folder: ${linked.join(', ')}; reinstall them inside it (npm ci) and verify again`);
+}
+
 /** Tell each linked parent board that waits on this item its new state; a failed delivery stays queued and never undoes the verdict [E32,B24,#11039]. */
 async function announceVerdictState(ctx, board, id) {
   const open = (root) => ctx.nativeBoard.openBoard(boardFilePath(join(root, '.git')), ctx.clock, { isMain: false, gitRoot: root });
@@ -342,6 +368,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let acceptedLandingCommit = null;
   let landedVerdict = false;
   let provenBreak = '';
+  let madeReviewFolder = null;
   let reviewedPace = null;
   let approvalRows = [];
   /** Record one verdict on the open board. */
@@ -410,14 +437,16 @@ export async function verifyHere(ctx, id, { second, values }) {
     // An item with no test check is verified only against its review checklist: the board refuses a line that names
     // no file, link or quoted passage before any accept, and the reviewer judges only what the lines show (#996).
     const thread = decision === 'ACCEPT' ? store.itemThread(board, id) : [];
-    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread); if (problem) throw problem; }
-    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread) : null;
+    // A tick at an earlier head counts when only a merge of main separates it from the submitted head (#11163).
+    const tickHeads = decision === 'ACCEPT' ? { head: item.item_commit, sameWorkHeads: sameWorkHeads(root, item, thread) } : undefined;
+    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread, tickHeads); if (problem) throw problem; }
+    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread, tickHeads) : null;
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
     // verify.reviewFolder (off by default): a seat checkout not at the submitted commit is left alone, and the checks run in the detached review folder instead [C7,#8931].
     if (!fromPacket && ctx.config.verify?.reviewFolder === true && !contains(root, commit, headCommit(root) ?? '')) {
-      root = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
+      root = madeReviewFolder = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
     }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
     if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
@@ -513,6 +542,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           check = { state: 'pass', checked: true, reused: true, environment: reused.environment ?? null, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
         } else if (frozenCheck(item) || supplement) {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
+          refuseLinkedDependencies(root);
           const { browser, gui, shortEligible } = await privateCheckAdmission(root, [frozenCheck(item), supplement], {
             commit: checkedCommit, allowBrowserFreeChecks: browserFreeChecksEnabled(),
             onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
@@ -536,6 +566,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           }
         } else {
           ctx.io.say(`submit proof not reused: ${reused.reason}`);
+          refuseLinkedDependencies(root);
           check = checkAtCommit(root, checkedItem);
         }
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
@@ -624,6 +655,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
       digest,
+      isolated: verdictIsolation({ folder: root, reviewFolder: madeReviewFolder, commit, receipt: fromPacket || check?.reused ? { commit } : null }),
       policy: ctx.config.verify.policy,
       familyPolicy: ctx.config.verify.family,
       sourceAdvanceHead: item.item_effective_head ?? null,
@@ -722,8 +754,9 @@ export async function run(io, args) {
     const item = withBoardRead(ctx, board => store.getItem(board, id));
     const policy = reviewMainPolicy(ctx.info.root);
     const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
-    if (process.env.PULLBOARD_COMPARE_SOURCE && (process.env.PULLBOARD_COMPARE_SOURCE !== item.item_commit
-      || process.env.PULLBOARD_COMPARE_DIGEST !== item.item_frozen_digest)) {
+    const compare = environmentAdapter();
+    if (compare.get('PULLBOARD_COMPARE_SOURCE') && (compare.get('PULLBOARD_COMPARE_SOURCE') !== item.item_commit
+      || compare.get('PULLBOARD_COMPARE_DIGEST') !== item.item_frozen_digest)) {
       io.result?.({ item: id, status: 'superseded' }); return 0;
     }
     let compared;

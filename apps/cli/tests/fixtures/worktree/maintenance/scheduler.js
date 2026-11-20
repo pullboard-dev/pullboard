@@ -17,7 +17,7 @@ import { createE2eHelpers } from '../../e2e.js';
 import { copyCommittedPackageFiles } from '../../copy.js';
 import { privateFixtureFiles } from '../../child.js';
 import { runFixtureChild } from '../../child.js';
-import { isolateTestMachine } from '../../../../../../packages/gate/index.js';
+import { isolateTestMachine } from '../../../../../../packages/gate/heavy.js';
 import { processCensus } from '../../../../../runner/index.js';
 import { maintenanceGit } from '../../../../src/io/worktree/maintenance/archive.js';
 import { scheduleWorktreeMaintenance } from '../../../../src/io/worktree/maintenance/scheduler.js';

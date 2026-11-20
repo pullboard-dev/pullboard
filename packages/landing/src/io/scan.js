@@ -1,10 +1,12 @@
 /** The scans of a named landing that used to run on the coordinator: module resolution, now one runner job [C7,#5559]. */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { requireLandingModuleResolution } from './guards.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Printed instead of rows when this checkout lacks the batch's objects, so the coordinator scans locally. */
 export const SCAN_UNAVAILABLE = 'LANDING_SCAN_UNAVAILABLE';
@@ -13,7 +15,7 @@ const SCAN_PATH = 'packages/landing/src/io/scan.js';
 
 /** Whether this named batch's scans ride the runner job: only where the project carries this script and has a static command to chain it to. */
 export function scanRidesRunner(state) {
-  return state.batch.external === true && Boolean(state.config.staticChecks?.trim()) && existsSync(join(state.batch.root, SCAN_PATH));
+  return state.batch.external === true && Boolean(state.config.staticChecks?.trim()) && fs.exists(join(state.batch.root, SCAN_PATH));
 }
 
 /** The `file:line: text` rows the static-check reader attributes to items, from a module-resolution refusal. */

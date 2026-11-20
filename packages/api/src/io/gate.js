@@ -1,6 +1,5 @@
 /**
- * A posted runner job receipt applied to the board: a gate's receipt becomes its item's gate result (green submits it for
- * review, red hands it back to its builder), and a landing's receipt marks its items merged at the pushed commit [P7].
+ * A posted runner job receipt applied to the board: a gate's receipt becomes its item's gate result (green to review, red to its builder), a landing's marks its items merged [P7].
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
@@ -9,6 +8,7 @@ import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
 import { missingReceiptPart } from './gate/where.js';
+import { recordGateSettled } from './gate/settled.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
@@ -818,7 +818,7 @@ function submitOvertaken(board, id, options) {
  */
 export function applyGateReceipt(board, posted, ports = {}) {
   // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
-  const applied = withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  const applied = recordGateSettled(board, posted?.job, withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports)), posted?.receipt);
   // A settled gate carries the timing profiles its runner kept, as the inline submit's gate does [C7,#9615].
   const gate = applied.outcome === 'stale' || applied.outcome === 'not-gate' ? null : pulledProfilePaths(posted?.receipt);
   return gate ? { ...applied, gate } : applied;
@@ -920,7 +920,7 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
     if (filed) owners = mainOwnership(board, id, compared, main);
     // A red only in cases main fails the same way, in the check or the proof, is a green gate naming them main-owned [C7,#3534].
     const gateGreen = green || Boolean(owners);
-    // Deferral is the plan's own: the runner's receipt carries it, as the controller's gate returns it [C7].
+    // Deferral and the cell tests a narrowed gate owed are the plan's own: the runner's receipt carries them, as the controller's gate returns them [C7].
     const deferred = receipt.gate?.deferred === true;
     const deferredFiles = deferred && Array.isArray(receipt.gate.deferredFiles) && receipt.gate.deferredFiles.every(file => typeof file === 'string' && PROJECT_FILE.test(file)) ? receipt.gate.deferredFiles : null;
     try {
@@ -931,7 +931,7 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       submitOvertaken(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
         ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files, full: receipt.gate?.full === true, deferred, deferredFiles } } : {}),
-        submissionProof: { version: 1, files, full: receipt.gate?.full === true, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
+        submissionProof: { version: 1, files, full: receipt.gate?.full === true, deferred, ...(deferredFiles ? { deferredFiles } : {}), ...(Array.isArray(receipt.gate?.owedFiles) && receipt.gate.owedFiles.length && receipt.gate.owedFiles.every(file => typeof file === 'string' && PROJECT_FILE.test(file)) ? { owedFiles: receipt.gate.owedFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
           ...(owners?.known ? { knownMainFailures: owners.known } : {}), ...(owners?.ambiguous.length ? { knownMainAmbiguous: owners.ambiguous } : {}) } });
       if (waived) store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} at ${candidate.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waiverLines(waived).join('\n')}`.slice(0, 2000) });
       if (mainOnly) {

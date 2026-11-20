@@ -7,7 +7,6 @@ import { withDerivedFamily } from '../../../../items/index.js';
  * agent; the session reads that board's sealed snapshot with the key and then works as that agent. The link it saves
  * holds neither the token nor the key, so nothing secret lands on disk, and its scope is the token's one board.
  */
-import { join } from 'node:path';
 import { repoInfo } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/light.js';
 import { DEFAULT_RELAY } from '../relay.js';
@@ -19,6 +18,8 @@ import { saveLink } from '../relay.js';
 import { readBoardKey } from '../../../../keys/index.js';
 import { appliedSequence } from '../../../../state/index.js';
 import { importBoard } from '../../../../store/index.js';
+import { relayFiles } from '../../../../store/index.js';
+import { environmentAgent as linkEnvironmentAgent } from './link.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -85,16 +86,10 @@ export async function environmentLink(root, file, io) {
 
 /**
  * The agent an environment session works as, when this clone's link came from its environment and the token is still
- * there, or null. Reading the link file directly keeps this a pure read with no relay contact.
+ * there, or null. The read itself lives in relay/link.js; this passes the cells it needs.
  *
  * @param {string} root
  * @param {{ db: any }} board
  * @returns {object | null} the agent row
  */
-export function environmentAgent(root, board) {
-  if (!environmentAdapter().has('PULLBOARD_RELAY_TOKEN')) return null;
-  let state;
-  try { state = JSON.parse(fs.readFile(join(repoInfo(root).commonDir, 'pullboard', 'relay.json'), 'utf8')); } catch { return null; }
-  const agent = state?.environment?.agent;
-  return typeof agent === 'string' ? withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agent)) ?? null : null;
-}
+export function environmentAgent(root, board) { return linkEnvironmentAgent(root, board, { repoInfo, relayFiles, withDerivedFamily }); }

@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
-import { handoffQueueDirectory } from '../../../../../packages/resources/index.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
 import { cli } from '../../../tests/fixtures/next/take.js';
@@ -22,9 +22,10 @@ test('cli.journeys-shout-sentinel-model.a-sentinel-shout-from-waits-record: clau
   const box = await fixture(t);
   const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
   assert.equal(joined.code, 0, joined.out + joined.err);
-  // A reservation held by a gone submitter is reclaimed at once, and a reclaim is what the audit shouts about.
-  mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '000000000002-job-b.reserved'), JSON.stringify({ pid: 4194301, started: 'x' }));
+  // A resource write lock held by a gone process is reclaimed at once, and a reclaim is what the audit shouts about.
+  const queue = join(resolve(box.root, box.git(box.root, 'rev-parse', '--git-common-dir').trim()), 'pullboard', 'resources.sqlite.writes');
+  mkdirSync(queue, { recursive: true });
+  writeFileSync(join(queue, 'writer.lock'), `4194301 ${Date.now() - 4_000} owner`);
   const recorded = await cli(box, box.root, ['waits', 'record']);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   const shouts = sentinelShouts(box);

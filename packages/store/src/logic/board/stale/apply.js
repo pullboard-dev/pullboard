@@ -239,12 +239,13 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
       const reviewFrom = lastEvent();
       const reviewFacts = { item: { status: item.item_status, reviewer: item.item_review_by, commit: item.item_commit, reviewUntil: item.item_review_until },
         reserve: { id: reservation.event_id, at: reservation.event_at }, lastSubmitId: submitted.event_id };
-      const reviewMove = { kind: 'review-idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString() };
+      const reviewBoardCodes = (board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_RELEASE_CODES_ENGINE;
+      const reviewMove = { kind: 'review-idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString(), ...(reviewBoardCodes ? { boardCodes: true } : {}) };
       const reviewDecided = live ? decided(reviewFacts, reviewMove) : null;
       setItem(board, row.id, { item_review_by: null, item_review_until: null });
       if (reviewDecided) logDecided(reviewDecided, row.id);
       else logEvent(board, agentId, 'release', row.id, { review: true, reason,
-        ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
+        ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: reviewBoardCodes ? 'REVIEW_IDLE' : 'OTHER' } : {}),
         stale: { reviewer: row.reviewer, reservedAt: row.reservedAt, lastActivity: row.lastActivity } });
       compare(row.id, reviewFrom, reviewFacts, reviewMove);
       notice(row.reviewer, `Released your idle review reservation on #${row.id}: ${reason} The item is available for independent review.`, row.id);

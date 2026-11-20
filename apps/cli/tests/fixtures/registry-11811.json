@@ -1,0 +1,4 @@
+{
+  "cli.commands-show.after-gate-measure-line": {"proves": {"specs": ["C7"], "claim": "show prints one 'after-gate: N min saved, M rebuilds' line right after the after-gate line, summed from the after-gate notes on the listed parents."}, "why": "A reader of show must see what the after-gate flow saved and how often it rebuilt.", "kind": "cell unit", "inputs": ["apps/cli/tests/io/commands/show.test.js", "apps/cli/src/io/commands/show.js"]},
+  "cli.commands-show.no-after-gate-measure-line": {"proves": {"specs": ["C7"], "claim": "show prints no 'min saved' line for a plain --after or for an after-gate list whose parent has no after-gate notes."}, "why": "The line appears only when a listed parent carries a measurement.", "kind": "cell unit", "inputs": ["apps/cli/tests/io/commands/show.test.js", "apps/cli/src/io/commands/show.js"]}
+}

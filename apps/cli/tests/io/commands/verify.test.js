@@ -2,12 +2,18 @@
 /** A strict item's accept states what the reviewer broke: refused without --broke, recorded with it, and unchanged for reject and for items that do not require it [C7,#12047]. */
 import assert from 'node:assert/strict';
 import { copyFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { provenBreakStatement } from '../../../src/io/commands/verify.js';
+import { refuseLinkedDependencies } from '../../../src/io/commands/verify.js';
+import { verdictIsolation } from '../../../src/io/commands/verify.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -53,4 +59,24 @@ test('cli.io-commands-verify.steady-accept-unchanged: clause 1: a steady item wi
   const box = submitted(undefined);
   const accepted = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', '--json');
   assert.equal(accepted.code, 0, accepted.stdout + accepted.stderr);
+});
+
+test('cli.io-commands-verify.deps-outside-tree-refused: refuseLinkedDependencies throws DEPS_OUTSIDE_TREE naming each linked package and returns quietly for an in-tree entry [C7,#1112]', (t) => {
+  const dir = privateFixtureFiles('verify-deps-').root;
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const folder = join(dir, 'review');
+  const outside = join(dir, 'elsewhere');
+  mkdirSync(join(folder, 'node_modules', 'kept-pkg'), { recursive: true });
+  mkdirSync(outside);
+  refuseLinkedDependencies(folder);
+  symlinkSync(outside, join(folder, 'node_modules', 'left-pad'));
+  assert.throws(() => refuseLinkedDependencies(folder), (error) => error.code === 'DEPS_OUTSIDE_TREE' && error.message.includes('left-pad') && !error.message.includes('kept-pkg'));
+});
+
+test('cli.io-commands-verify.isolated-flag: verdictIsolation is true for a check run in the board-made review folder or one proven by a runner receipt at the submitted commit, and false otherwise [C7,#1112]', () => {
+  const commit = 'a'.repeat(40);
+  assert.equal(verdictIsolation({ folder: '/review/one', reviewFolder: '/review/one', commit, receipt: null }), true);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: { commit } }), true);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: null }), false);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: '/review/one', commit, receipt: { commit: 'b'.repeat(40) } }), false);
 });

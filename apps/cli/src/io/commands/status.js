@@ -8,13 +8,14 @@ import { capacityLines } from '../../../../../packages/stats/light.js';
 import { statusShowUsefulBuilders } from '../../../../../packages/config/index.js';
 import { readMaxUsefulBuilders } from '../../../../../packages/stats/light.js';
 import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
+import { staffingSeats } from '../../../../../packages/stats/light.js';
+import { staffingLines } from '../../../../../packages/stats/light.js';
 import { lineSettings } from '../../../../../packages/state/light.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
 import { foreignBlockers } from '../../../../../packages/items/light.js';
 import { readReceivedBoardState } from '../../../../../packages/store/light.js';
 import { relayMachineDirectory } from '../../../../../packages/store/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
-import { handoffWorkerAlive } from '../alive.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { diskLines } from '../disk/use.js';
@@ -101,7 +102,7 @@ export async function run(io, { values }) {
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
     batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
-    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && fs.exists(relayMachineDirectory())) {
@@ -109,6 +110,7 @@ export async function run(io, { values }) {
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
   summary.reclaim = reclaim;
+  summary.staffing = staffingSeats({ ready: summary.capacity.readyItems, maxUseful: summary.usefulBuilders?.max ?? null });
   summary.landingBatch = batchLine;
   summary.memoryHeld = store.memoryHeldRuns();
   // These status readers load here, not through the packages' light doors: those doors are the runner worker's, and a status reader in them widens the worker bundle [C7].
@@ -124,7 +126,7 @@ export async function run(io, { values }) {
   }
   if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
   const originHint = !summary.relay.linked && !originRepository(ctx.info.root, { optional: true });
-  const format = { capacityLines, usefulBuilderLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
+  const format = { capacityLines, usefulBuilderLines, staffingLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
   for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
   if (Object.keys(ctx.config.products).length) {
     const { loadSpec, productLine, productSummaries } = await import('../../../../../packages/spec/index.js');

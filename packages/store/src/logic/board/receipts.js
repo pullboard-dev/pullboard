@@ -1,17 +1,15 @@
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/browser.js";
 /** Durable work-health observations, separate from the person's decisions [A6,H16]. */
 import { Refused } from "../../../../kernel/light.js";
-import { CPU_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { CPU_SENTINEL_ENGINE } from "../../../../state/browser.js";
 
 /** The allocated engine for ordered sentinel observations; earlier moves keep their meaning. */
-import { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
-export { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { HEALTH_SENTINEL_ENGINE } from "../../../../state/browser.js";
 
-import { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
-export { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
+import { HEALTH_CAP_ENGINE } from "../../../../state/browser.js";
 
-import { HEALTH_QUIET_ENGINE } from "../../../../state/light.js";
-import { HEALTH_EPISODE_ENGINE } from "../../../../state/light.js";
+import { HEALTH_QUIET_ENGINE } from "../../../../state/browser.js";
+import { HEALTH_EPISODE_ENGINE } from "../../../../state/browser.js";
 
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;
