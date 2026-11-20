@@ -193,6 +193,7 @@ import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { provenBreakRequired } from '../../../../../packages/config/index.js';
 import { itemPace } from '../../../../../packages/moves/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
+import { soloLowStakesEnabled } from '../../../../../packages/config/index.js';
 
 const fs = fileSystemAdapter();
 /** Loads the review folder module at the call, so cold paths through this command never pay for it. */
@@ -329,6 +330,22 @@ async function announceVerdictState(ctx, board, id) {
 
 /** The shortest statement of a broken thing that names a file, command or case and the failure it showed. */
 const PROVEN_BREAK_MIN = 40;
+
+/**
+ * The solo low-stakes facts a verify call carries (#966): `{}` unless `enabled` is exactly true, and `{}` when the item froze no
+ * parseable rows. Otherwise `{ soloLowStakes: true, rows }`, one `{ id, stakes }` per frozen row, a row without stakes read as team.
+ * Why: the move rule compares these rows with the item's frozen record, so the rows come from that record and never from the caller.
+ * @param {{ item_frozen?: string | null }} item
+ * @param {unknown} enabled
+ * @returns {{ soloLowStakes: true, rows: { id: string, stakes: string }[] } | {}}
+ */
+export function soloLowStakesFacts(item, enabled) {
+  if (enabled !== true) return {};
+  let record;
+  try { record = JSON.parse(item?.item_frozen ?? ''); } catch { return {}; }
+  if (!Array.isArray(record?.rows) || record.rows.length === 0) return {};
+  return { soloLowStakes: true, rows: record.rows.map((row) => ({ id: row.id, stakes: row.stakes ?? 'team' })) };
+}
 
 /**
  * The reviewer's stated break for an accept: required on a strict item, kept when given on any other.
@@ -666,6 +683,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(knownMain ? { knownMainFailures: knownMain } : {}),
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
+      ...soloLowStakesFacts(item, decision === 'ACCEPT' && soloLowStakesEnabled()),
     }]);
   };
   const result = await withBoard(ctx, async (board) => {
