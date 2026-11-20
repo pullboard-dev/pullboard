@@ -9,7 +9,7 @@ import { withFixtureBoard } from '../../../fixtures/board.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { startBoardWriter } from '../../../fixtures/board-writer.js';
 import { createFixtureWorktree } from '../../../fixtures/testkit.js';
-import { fileFixtureItem } from '../../../fixtures/testkit.js';
+import { fixtureAdd } from '../../../fixtures/testkit.js';
 
 const WAIT_MINUTES = '0.1';
 const OFFER_WAKE_SECONDS = 1;
@@ -63,8 +63,9 @@ test('cli.io-commands-next-wait.wakes-on-offer: clause 2: the same waiting next 
   // The waiting seat has recorded its idle answer once it is resting on the board.
   const board = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   while (!withFixtureBoard(board, open => open.db.prepare("SELECT 1 AS found FROM event WHERE event_kind = 'next-idle'").get())) await yieldEventLoop();
-  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Offered while a seat waits', wait: true, run: box.runLocal,
-    brief: 'Files: web/offered-while-waiting.js\nChange: build the fixture item\nTest: the check proves the fixture', args: ['--specs', 'G1'] });
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Offered while a seat waits', '--specs', 'G1', '--criterion', 'renders', '--json');
+  assert.equal(added.code, 0, `${added.out}\n${added.err}`);
+  const item = JSON.parse(added.out).item;
   const filedAt = Date.now();
   const result = await waiting;
   const delay = (Date.now() - filedAt) / 1000;
