@@ -1,8 +1,4 @@
 /** Routine maintenance compacts the board once a day and reports the file's bytes before and after [C7]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { archiveOldEvents } from '../../../../../../packages/store/index.js';
@@ -10,6 +6,9 @@ import { compactJobSteps } from '../../../../../../packages/store/index.js';
 import { archiveEventsEnabled } from '../../../../../../packages/config/index.js';
 import { withBoard } from '../../entry.js';
 import { maintenanceDirectory } from './observation.js';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** One day: the least time between two compactions of the same board. */
 export const COMPACTION_EVERY_MS = 86_400_000;
@@ -18,7 +17,7 @@ const FILE = 'board-compaction.json';
 /** The last compaction this repository recorded, or null when none ran or the record is unreadable. */
 function lastCompaction(directory) {
   try {
-    const value = JSON.parse(readFileSync(join(directory, FILE), 'utf8'));
+    const value = JSON.parse(fs.readFile(join(directory, FILE), 'utf8'));
     return Number.isFinite(Date.parse(value?.at)) ? value : null;
   } catch { return null; }
 }
@@ -47,8 +46,9 @@ export function dailyBoardCompaction(ctx, { now = Date.now(), compact = board =>
     const record = { ran: true, at: new Date(now).toISOString(), nextAt: new Date(now + COMPACTION_EVERY_MS).toISOString(),
       rows: result.rows, jobs: result.jobs, before: result.before, after: result.after, archiveBytes: result.archiveBytes, events: result.events };
     const temporary = join(directory, `${randomUUID()}.tmp`);
-    writeFileSync(temporary, JSON.stringify(record) + '\n', { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, join(directory, FILE));
+    const descriptor = fs.open(temporary, 'wx', 0o600);
+    try { fs.write(descriptor, JSON.stringify(record) + '\n'); } finally { fs.close(descriptor); }
+    fs.rename(temporary, join(directory, FILE));
     return record;
   } catch (error) {
     return { ran: false, at: new Date(now).toISOString(), nextAt: new Date(now + 3_600_000).toISOString(), error: String(error?.message ?? error).slice(0, 300) };

@@ -7,12 +7,6 @@
  * `lock` (a directory, taken with mkdir) and one cache per board.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { basename } from 'node:path';
 import { join } from 'node:path';
@@ -21,6 +15,8 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { spawnReachable } from '../../../jobs/index.js';
 import { heldKinds } from './pull.js';
 import { serveRunner } from './pull.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** The capability only a runner on the board host has: it reaches the board host's own repository by its path. */
 export const BOARD_HOST = 'board-host';
@@ -48,14 +44,14 @@ function homeFile(name, home) {
 
 /** Read a JSON file, or the fallback when it is missing or damaged. */
 function readJson(file, fallback) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return fallback; }
+  try { return JSON.parse(fs.readFile(file, 'utf8')); } catch { return fallback; }
 }
 
 /** Write a JSON file whole: a reader sees the old text or the new, never half. */
 function writeJson(file, value) {
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(value), { mode: 0o600 });
+  fs.rename(temporary, file);
 }
 
 /** True while a process with this pid exists. */
@@ -86,7 +82,7 @@ export function localRunnerState(folder, now = Date.now(), home = null) {
  */
 export function wakeLocalRunner(folder) {
   if (!localRunnerState(folder)) return false;
-  try { writeFileSync(join(folder, WAKE_FILE), `${process.pid} ${Date.now()}\n`); return true; } catch { return false; }
+  try { fs.writeFile(join(folder, WAKE_FILE), `${process.pid} ${Date.now()}\n`); return true; } catch { return false; }
 }
 
 /**
@@ -97,20 +93,20 @@ export function wakeLocalRunner(folder) {
 export function localRunnerStatus(folder, home = null) {
   const live = localRunnerState(folder, Date.now(), home);
   if (live) return { state: 'live', pid: live.pid };
-  return existsSync(join(folder, homeFile('state.json', home))) ? { state: 'stopped' } : null;
+  return fs.exists(join(folder, homeFile('state.json', home))) ? { state: 'stopped' } : null;
 }
 
 /** The board roots the local runner serves, those still on disk. */
 export function localBoards(folder) {
   const roots = readJson(join(folder, 'boards.json'), []);
-  return Array.isArray(roots) ? roots.filter(root => typeof root === 'string' && existsSync(root)) : [];
+  return Array.isArray(roots) ? roots.filter(root => typeof root === 'string' && fs.exists(root)) : [];
 }
 
 /** Add a board root to the ones the local runner serves; a running local runner picks it up at its next heartbeat. */
 export function addLocalBoard(folder, root) {
   const board = resolve(root), roots = localBoards(folder);
   if (roots.includes(board)) return;
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
   writeJson(join(folder, 'boards.json'), [...roots, board]);
 }
 
@@ -124,7 +120,7 @@ export function addLocalBoard(folder, root) {
  * @returns {Promise<number | null>}
  */
 export async function startLocalRunner(folder, argv, { cwd, env, home = null, spawn = spawnReachable }) {
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
   const { pid } = await spawn(process.execPath, argv, { cwd, env, log: join(folder, 'runner.log') });
   // The new process writes its state only once it has loaded and taken the lock; until then this marker says it is on its way [P7,C7].
   if (Number.isSafeInteger(pid)) writeJson(join(folder, homeFile(STARTING_FILE, home)), { pid, startedAt: Date.now() });
@@ -151,9 +147,9 @@ export function localRunnerStarting(folder, now = Date.now(), home = null) {
 function takeLock(folder, home) {
   const lock = join(folder, homeFile('lock', home));
   for (let attempt = 0; attempt < 2; attempt++) {
-    try { mkdirSync(lock); return true; } catch (error) { if (error?.code !== 'EEXIST') throw error; }
+    try { fs.mkdir(lock); return true; } catch (error) { if (error?.code !== 'EEXIST') throw error; }
     if (localRunnerState(folder, Date.now(), home)) return false;
-    rmSync(lock, { recursive: true, force: true });
+    fs.rm(lock, { recursive: true, force: true });
   }
   return false;
 }
@@ -203,7 +199,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  */
 export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, git, signal, say = () => {}, timing = {}, wakeOnOffer = false, home = null }) {
   const { heartbeatMs = HEARTBEAT_MS } = timing;
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
   if (!takeLock(folder, home)) {
     return { served: false, pid: localRunnerState(folder, Date.now(), home)?.pid ?? null, code: 'LOCAL_RUNNER_RUNNING', next: 'a local runner of this home already runs; pullboard runner list shows it' };
   }
@@ -234,8 +230,8 @@ export async function serveLocalRunner({ folder, open, capabilities, handlers = 
   } finally {
     clearInterval(heartbeat);
     await api?.close().catch(() => { /* already closed */ });
-    rmSync(stateFile, { force: true });
-    rmSync(join(folder, homeFile('lock', home)), { recursive: true, force: true });
+    fs.rm(stateFile, { force: true });
+    fs.rm(join(folder, homeFile('lock', home)), { recursive: true, force: true });
     say('stopped');
   }
 }

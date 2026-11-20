@@ -2,6 +2,7 @@
 import { SPEC_RULES } from '../spec.js';
 import { flushStdout } from './command.js';
 import { safeGitDiagnostic } from './git.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { executionEnvironment } from '../../../../../packages/sandbox/light.js';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
@@ -30,9 +31,10 @@ export async function receipt(spec, fields, sink) {
     ...(spec.stageMarker ? { pipeStatuses: fields.pipeStatuses ?? null } : {}), ...(fields.timedOut ? { timedOut: true } : {}), ...(fields.refused ? { refused: fields.refused } : {}), ...(fields.browserRefused ? { browserRefused: true } : {}), ...(fields.denial ? { denial: fields.denial } : {}) };
   let completed = body;
   if (spec.runnerPublicKey) {
-    const configuredHome = process.env.PULLBOARD_MACHINE_HOME;
+    const environment = environmentAdapter();
+    const configuredHome = environment.get('PULLBOARD_MACHINE_HOME');
     if (configuredHome !== undefined && !isAbsolute(configuredHome)) throw new Error('runner signing home is invalid');
-    const signingHome = configuredHome ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard');
+    const signingHome = configuredHome ?? join(isAbsolute(environment.get('HOME', '')) ? environment.get('HOME') : userInfo().homedir, '.pullboard');
     completed = { ...body, signature: signRunnerReceipt(body, readRunnerSigningKey(signingHome, spec.runnerPublicKey)) };
   }
   const encoded = Buffer.from(JSON.stringify(completed)).toString('base64');
@@ -66,7 +68,7 @@ export function safeSetupMessage(S, error, step) {
   const category = message.includes('npm') || message.includes('dependency') ? 'committed dependencies are unavailable'
     : message.includes('capacity') || message.includes('queue') ? 'remote capacity is unavailable' : 'source checkout could not be prepared';
   const code = /^[A-Z][A-Z0-9_]{0,63}$/u.test(error?.code ?? '') ? ` (${error.code})` : '';
-  const cause = safeGitDiagnostic(S, message, '', { HOME: process.env.HOME, TMPDIR: process.env.TMPDIR });
+  const cause = safeGitDiagnostic(S, message, '', { HOME: environmentAdapter().get('HOME'), TMPDIR: environmentAdapter().get('TMPDIR') });
   return `runner setup refused: ${category}; step: ${error?.runnerSetupStep ?? step}${code}\ncause: ${cause || '(unavailable)'}`;
 }
 

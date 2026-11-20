@@ -23,7 +23,7 @@ export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
 export { boardLinkEnvelope, boardLinkEnvelopeDigest, boardLinkDeliveryReceipt, createBoardLinkCapability } from './src/io/board/link/envelope.js';
 export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, resendPendingBoardStates, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
-export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
+export { createSshBoardLinkAuthority, boardHasSigner } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
