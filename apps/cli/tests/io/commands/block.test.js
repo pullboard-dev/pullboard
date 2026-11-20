@@ -11,8 +11,8 @@ after(e2e.cleanup);
 
 test('cli.block.add-and-list: clause 1: block add web-batch <id1> <id2> --tier mid prints the block, and block list prints one row web-batch mid #<id1> #<id2> [C7,#2202]', async () => {
   const box = e2e.project();
-  const first = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'First block member', criterion: 'the first page exists', check: 'test -f web/first.js', run: box.runLocal });
-  const second = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Second block member', criterion: 'the second page exists', check: 'test -f web/second.js', run: box.runLocal });
+  const { item_id: first } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'First block member', criterion: 'the first page exists', check: 'test -f web/first.js', wait: true, run: box.runLocal });
+  const { item_id: second } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Second block member', criterion: 'the second page exists', check: 'test -f web/second.js', wait: true, run: box.runLocal });
   const added = await box.runLocal(box.repo, 'block', 'add', 'web-batch', String(first), String(second), '--tier', 'mid');
   assert.equal(added.code, 0, added.err || added.out);
   assert.ok(added.out.includes(`web-batch mid #${first} #${second}`), added.out);
@@ -26,8 +26,8 @@ test('cli.block.add-and-list: clause 1: block add web-batch <id1> <id2> --tier m
 
 test('cli.block.refusals: clause 2: block add with one id or --tier gpt refuses USAGE naming light, mid and strong [C7,#2202]', async () => {
   const box = e2e.project();
-  const first = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Lone block member', criterion: 'the lone page exists', check: 'test -f web/lone.js', run: box.runLocal });
-  const second = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Other block member', criterion: 'the other page exists', check: 'test -f web/other.js', run: box.runLocal });
+  const { item_id: first } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Lone block member', criterion: 'the lone page exists', check: 'test -f web/lone.js', wait: true, run: box.runLocal });
+  const { item_id: second } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Other block member', criterion: 'the other page exists', check: 'test -f web/other.js', wait: true, run: box.runLocal });
   const lone = await box.runLocal(box.repo, 'block', 'add', 'solo', String(first), '--tier', 'mid');
   assert.notEqual(lone.code, 0, 'a block of one item is refused');
   assert.match(lone.err + lone.out, /USAGE/u);
