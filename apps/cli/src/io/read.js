@@ -58,7 +58,8 @@ import { sessionRoute } from './route.js';
  * @param {string | undefined} text
  * @returns {string[]}
  */
-export const idList = (text) => (text ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+/** Ids from text or from a repeated option's texts, each piece split on commas and whitespace. */
+export const idList = (text) => (Array.isArray(text) ? text : [text ?? '']).flatMap((piece) => String(piece).split(/[\s,]+/u)).filter(Boolean);
 
 /**
  * The start of a command an agent can paste anywhere: agent shells often start each command in the
@@ -517,9 +518,11 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
 /** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
 export function editAfter(text) {
   if (text === undefined) return undefined;
-  if (text.trim() === 'none') return [];
-  const parts = text.split(',').map((part) => part.trim());
-  if (!text.trim() || parts.some((part) => !part || part === 'none')) {
+  const pieces = Array.isArray(text) ? text : [text];
+  if (pieces.length === 1 && pieces[0].trim() === 'none') return [];
+  const joined = pieces.join(',');
+  const parts = joined.split(/[\s,]+/u).filter(Boolean);
+  if (!joined.trim() || !parts.length || parts.includes('none')) {
     throw new Refused('USAGE', 'use --after <id>[,<id>...] or --after none');
   }
   return dependencyValues(parts);
