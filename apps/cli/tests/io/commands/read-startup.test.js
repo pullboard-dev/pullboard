@@ -80,8 +80,8 @@ test('cli.io-commands-read-startup.the-list-thin-row-is-200-ms: clause 2: the li
 });
 
 const startupReport = {};
-test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', async (t) => {
-  await assertStartupBudgets(t, startupReport);
+test('cli.io-commands-read-startup.the-version-show-status-and-list-rows-hold: clause 1: the version, show, status and list rows hold their startup rows; list thin is measured in apps/cli/tests/io/list/thin.test.js [C7,#10293]', async (t) => {
+  await assertStartupBudgets(t, startupReport, { only: ['version', 'show', 'status', 'list'] });
 });
 
 test('cli.io-commands-read-startup.the-version-row-reports-its-median-the: clause 1: the version row reports its median, the bare node median and the overhead as a diagnostic line [C7]', () => {
