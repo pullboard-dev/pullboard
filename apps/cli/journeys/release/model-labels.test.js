@@ -187,7 +187,8 @@ test('cli.journeys-release-model-labels.model-names-label-cli-actors-without: mo
     assert.equal(selected.code, 0, selected.err || selected.out);
     assert.ok(selected.out.includes('1 item is held by coordinator'), selected.out); // next folds held reasons to a count; the full reason stays in --json below
     const freeId = JSON.parse(available.out).item.item_id;
-    assert.equal((await box.inProcess(second.path, 'release', String(freeId), '--reason', 'INELIGIBLE')).code, 0);
+    const released = await box.inProcess(second.path, 'release', String(freeId), '--reason', 'INELIGIBLE');
+    assert.equal(released.code, 0, released.err || released.out);
     const selectedJson = await box.inProcess(second.path, 'next', '--build', '--json');
     // An INELIGIBLE release is never offered back to the releasing seat, even when nothing else is open (a plain cooldown falls back to it, #3014), so only the held item's count folds into the refusal.
     const selectedError = JSON.parse(selectedJson.out).error;
