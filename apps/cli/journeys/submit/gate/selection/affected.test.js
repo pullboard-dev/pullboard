@@ -18,15 +18,15 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { SPEC } from '../../../../tests/fixtures/submit/gate.js';
-import { coordinatorLocal } from '../local.js';
-import { runLocal } from '../local.js';
-import { submitWithEnv } from '../local.js';
+import { coordinatorLocal } from '../../../../tests/fixtures/submit/local.js';
+import { runLocal } from '../../../../tests/fixtures/submit/local.js';
+import { submitWithEnv } from '../../../../tests/fixtures/submit/local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
 import { commitAll } from '../../../../tests/fixtures/submit/gate.js';
 
-test('submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', async (t) => {
+test('cli.journeys-submit-gate-selection-affected.submit-runs-the-frozen-check-and: submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, \'check\')"';
   const checkMarker = join(box.dir, 'item-check.log');

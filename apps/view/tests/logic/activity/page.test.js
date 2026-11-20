@@ -33,7 +33,7 @@ const draw = (landed, extra) => {
   return { flow, html: activityPageHtml(flow, activityStart(flow), { width: 740 }) };
 };
 
-test('clause 1: the page draws Since you left, Bottlenecks, By hour and the Agents, Runners, Queue and Main rail in the mockup order, from the board [N26,#6916]', () => {
+test('view.activity-page.clause-1-the-page-draws-since-you: clause 1: the page draws Since you left, Bottlenecks, By hour and the Agents, Runners, Queue and Main rail in the mockup order, from the board [N26,#6916]', () => {
   const { html } = draw(4);
   const order = ['act-since', 'Bottlenecks · now', 'act-resec', 'By hour · 24 h', 'act-hoursec', 'act-rail'].map(marker => html.indexOf(marker));
   assert.ok(order.every((at, index) => at > 0 && (index === 0 || at > order[index - 1])), 'sections appear in order: ' + order);
@@ -42,7 +42,7 @@ test('clause 1: the page draws Since you left, Bottlenecks, By hour and the Agen
   assert.doesNotMatch(html, / style="/u, 'no inline style attribute');
 });
 
-test('clause 1: every count reads from the board: more landings move every landed figure, and the stuck count follows the stay against its limit [N26,#6916]', () => {
+test('view.activity-page.clause-1-every-count-reads-from-the: clause 1: every count reads from the board: more landings move every landed figure, and the stuck count follows the stay against its limit [N26,#6916]', () => {
   const few = draw(2).flow, many = draw(9).flow;
   assert.equal(few.counts.landed, 2); assert.equal(many.counts.landed, 9);
   assert.equal(few.since.landed, few.events.filter(entry => entry.kind === 'landed' && entry.at >= now - 14 * MIN).length);
@@ -56,7 +56,7 @@ test('clause 1: every count reads from the board: more landings move every lande
   assert.match(activityPageHtml(paged, activityStart(paged), { width: 740 }), /Earlier 3 hours/u);
 });
 
-test('clause 2: one slot per page holds an Events tab, then after a bar click an Item tab; only one tab shows; x and Esc close the item [N26,#6916]', () => {
+test('view.activity-page.clause-2-one-slot-per-page-holds: clause 2: one slot per page holds an Events tab, then after a bar click an Item tab; only one tab shows; x and Esc close the item [N26,#6916]', () => {
   const { flow } = draw(12);
   const newest = flow.hours.find(hour => hour.events.length);
   let ui = activityStart(flow);
@@ -80,7 +80,7 @@ test('clause 2: one slot per page holds an Events tab, then after a bar click an
   assert.equal(ui.item, null, 'a second click on the open bar closes it');
 });
 
-test('clause 1: at 390 the Runners cell holds its jobs text inside its own value, draws a load bar not a dash chart, and the legend ends in an ellipsis [N26,#7308]', () => {
+test('view.activity-page.clause-1-at-390-the-runners-cell: clause 1: at 390 the Runners cell holds its jobs text inside its own value, draws a load bar not a dash chart, and the legend ends in an ellipsis [N26,#7308]', () => {
   const { html } = draw(4);
   const cell = html.slice(html.indexOf('data-act-res="1"'), html.indexOf('data-act-res="2"'));
   assert.match(cell, /<span class="rv"><svg class="load"[^]*<span>2 jobs<\/span><\/span><\/button>/u, 'the jobs text sits inside the cell value, next to the load bar');
@@ -88,7 +88,7 @@ test('clause 1: at 390 the Runners cell holds its jobs text inside its own value
   assert.match(cell, /class="lo" x="0" width="50"/u, 'the bar is the mean load: 50 percent');
 });
 
-test('clause 2: the you-left marker is drawn only with the Since you left line, and the now label never shares a row with a tick [N26,#7308]', () => {
+test('view.activity-page.clause-2-the-you-left-marker-is: clause 2: the you-left marker is drawn only with the Since you left line, and the now label never shares a row with a tick [N26,#7308]', () => {
   const { flow } = draw(4);
   const withLeft = activityPageHtml(flow, activityStart(flow), { width: 740, leftKnown: true });
   const without = activityPageHtml(flow, activityStart(flow), { width: 740, leftKnown: false });
@@ -101,7 +101,7 @@ test('clause 2: the you-left marker is drawn only with the Since you left line, 
   assert.ok(ys.filter(y => Math.abs(y - 13) < 12).length === 1, 'only the now label sits at the top: ' + ys);
 });
 
-test('clause 1: every board stage limit applies under the chart stage it names [N26,#7559]', () => {
+test('view.activity-page.clause-1-every-board-stage-limit-applies: clause 1: every board stage limit applies under the chart stage it names [N26,#7559]', () => {
   const stay = (kind, limits) => {
     const events = [event(200, 'add', 7, 'coordinator'), event(200, 'claim', 7, 'core-1'), event(150, 'submit', 7), event(140, 'gate-run', 7, 'core-1', { run: { green: true } }), event(100, 'reserve', 7, 'rev-1')];
     const items = [{ id: 7, title: 'Slow', status: 'submitted', reviewer: 'rev-1', progress: { holder: 'rev-1' }, reviewUntil: new Date(now + HOUR).toISOString(), blockedBy: [] }];
@@ -111,14 +111,14 @@ test('clause 1: every board stage limit applies under the chart stage it names [
   for (const [kind, minutes] of [['build', 11], ['gate', 12], ['pend', 13], ['rev', 14], ['land', 15]]) assert.equal(stay(kind, all), minutes, kind + ' reads its board limit');
 });
 
-test('clause 2: a stage with no board limit, such as Ready, is never drawn past limit [N26,#7559]', () => {
+test('view.activity-page.clause-2-a-stage-with-no-board: clause 2: a stage with no board limit, such as Ready, is never drawn past limit [N26,#7559]', () => {
   const flow = activityFlow({ stageLimits: {}, items: [{ id: 8, title: 'Waiting', status: 'open', blockedBy: [] }], agents: [], shouts: [] }, [event(600, 'add', 8, 'coordinator')], { now });
   assert.deepEqual(flow.limits, {}, 'no placeholder limits remain');
   assert.equal(flow.journeyById.get(8).segs.some(seg => seg.over), false, 'ten hours in Ready is not past limit');
   assert.equal(flow.journeyById.get(8).stuck, false);
 });
 
-test('clause 1: Activity rows show each item title and a withdrawn item shows as withdrawn, never only Ready [N26,#7756]', () => {
+test('view.activity-page.clause-1-activity-rows-show-each-item: clause 1: Activity rows show each item title and a withdrawn item shows as withdrawn, never only Ready [N26,#7756]', () => {
   const events = [event(50, 'add', 4, 'coordinator'), event(30, 'withdraw', 4, 'coordinator', { reason: 'duplicate' }), event(20, 'add', 5, 'coordinator')];
   const items = [{ id: 4, title: 'Dropped work', status: 'withdrawn', updatedAt: new Date(now - 30 * MIN).toISOString(), blockedBy: [] }, { id: 5, title: 'Fresh work', status: 'open', blockedBy: [] }];
   const flow = activityFlow({ stageLimits: {}, items, agents: [], shouts: [] }, events, { now });
@@ -131,6 +131,6 @@ test('clause 1: Activity rows show each item title and a withdrawn item shows as
   assert.doesNotMatch(html, /A message/u, 'no item row is titled A message');
 });
 
-test('clause 1: the Activity tab loads the finished and withdrawn items an open-first state left out, so its rows have titles [N26,#7756,#6697]', () => {
+test('view.activity-page.clause-1-the-activity-tab-loads-the: clause 1: the Activity tab loads the finished and withdrawn items an open-first state left out, so its rows have titles [N26,#7756,#6697]', () => {
   assert.match(pageRenderScript(), /view\.tab === 'activity'[^;]*\)\) ensureFinished\(data\.project\)/u, 'the Activity tab reads the finished items');
 });

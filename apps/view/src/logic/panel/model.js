@@ -67,15 +67,23 @@ export function shoutsModel({ messages, openIds = [], personAskIds = [], queueAs
     }
     return null;
   };
+  // A reply with no item sits in its question's thread: the sender thread is the one of the first message in its chain.
+  const rootOf = (message) => {
+    const visited = new Set();
+    let entry = message;
+    while (!visited.has(entry.id) && byId.has(entry.answers)) { visited.add(entry.id); entry = byId.get(entry.answers); }
+    return entry;
+  };
   const groups = new Map();
   for (const message of byId.values()) {
-    const item = itemOf(message), key = item ? 'item:' + item : 'none';
-    if (!groups.has(key)) groups.set(key, { key, item, list: [] });
+    // A shout with no item belongs to its sender's own thread, never to one shared No item thread.
+    const item = itemOf(message), key = item ? 'item:' + item : 'from:' + rootOf(message).from;
+    if (!groups.has(key)) groups.set(key, { key, item, sender: message.from, list: [] });
     groups.get(key).list.push(message);
   }
   const openedKey = openKey ?? (foundId === null ? null : [...groups.values()].find((group) => group.list.some((message) => message.id === foundId))?.key ?? null);
   const floorOf = (key) => seen.base === null || seen.base === undefined ? Infinity : Math.max(seen.base, seen.read?.[key] ?? 0);
-  const threads = [...groups.values()].map(({ key, item, list }) => {
+  const threads = [...groups.values()].map(({ key, item, sender, list }) => {
     const messagesOf = [...list].sort((a, b) => a.id - b.id);
     const last = messagesOf.at(-1), info = item ? items[item] : null;
     const askId = messagesOf.map((message) => message.id).find((id) => personAskIds.includes(id)) ?? null;
@@ -84,8 +92,8 @@ export function shoutsModel({ messages, openIds = [], personAskIds = [], queueAs
     // What the person has not read: what others said after the viewer's mark, the thread's own read mark and the person's last word in it.
     const floor = Math.max(floorOf(key), ...messagesOf.filter((message) => kindOf(message.from) === 'you').map((message) => message.ms), -Infinity);
     const unreadCount = messagesOf.filter((message) => kindOf(message.from) !== 'you' && message.ms > floor).length;
-    return { key, item, title: item ? info?.title || 'Item #' + item : quiet ? 'Notices with no item' : 'Shouts with no item',
-      chip: item ? info?.chip ?? null : { tone: 'none', label: 'No item' }, href: item ? info?.href ?? '' : '', lane: item ? info?.lane ?? '' : '',
+    return { key, item, title: item ? info?.title || 'Item #' + item : sender,
+      chip: item ? info?.chip ?? null : null, href: item ? info?.href ?? '' : '', lane: item ? info?.lane ?? '' : '',
       unread: unreadCount > 0, unreadCount, quiet, open: key === openedKey,
       toYou: messagesOf.some((message) => message.to === 'person' || message.to === 'coordinator+person'),
       hasAsk: messagesOf.some((message) => open.has(message.id)),

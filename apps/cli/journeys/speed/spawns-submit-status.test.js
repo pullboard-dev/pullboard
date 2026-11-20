@@ -34,7 +34,7 @@ function lines(log, name, rest = '') {
   return readFileSync(log, 'utf8').split('\n').filter(line => new RegExp(`\\sgit ${name}\\b.*${rest}`, 'u').test(line));
 }
 
-test('one status scan per submit [C7]', async t => {
+test('cli.journeys-speed-spawns-submit-status.one-status-scan-per-submit-c7: one status scan per submit [C7]', async t => {
   const { box, id, log } = await claimed(t);
   const submit = box.run(box.web, 'submit', String(id), '--no-next');
   assert.equal(submit.code, 0, submit.err + submit.out);
@@ -45,7 +45,7 @@ test('one status scan per submit [C7]', async t => {
   assert.ok(untracked.length <= 2, `git ls-files --others ran ${untracked.length} times`);
 });
 
-test('uncommitted file still refused [C7]', async t => {
+test('cli.journeys-speed-spawns-submit-status.uncommitted-file-still-refused-c7: uncommitted file still refused [C7]', async t => {
   const { box, id } = await claimed(t);
   writeFileSync(join(box.web, 'web', 'dirty.js'), 'export const dirty = 1;\n');
   const submit = await box.runLocal(box.web, 'submit', String(id), '--no-next');

@@ -1,0 +1,3 @@
+{
+  "cli.logic-show-gate.show-prints-queuewaitseconds-in-under-200-ms": {"proves":{"specs":["C7"],"claim":"Show prints queueWaitSeconds from a gate receipt in under 200 ms."},"why":"Without it, the queue wait would be recorded but unreadable from show.","kind":"cell unit","inputs":["apps/cli/tests/logic/show/gate.test.js"]}
+}

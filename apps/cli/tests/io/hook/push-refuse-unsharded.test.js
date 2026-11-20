@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { pushShardGate } from '../../../src/io/hook/push.js';
 
-test('clause 1: with push.refuseUnsharded on and a dirty checkout, the push gate throws PUSH_UNSHARDED with the reason and a next step [C7,#9369]', async t => {
+test('cli.io-hook-push-refuse-unsharded.with-push-refuseunsharded-on-and-a-dirty: clause 1: with push.refuseUnsharded on and a dirty checkout, the push gate throws PUSH_UNSHARDED with the reason and a next step [C7,#9369]', async t => {
   const { root } = cellRepo(t, { real: true });
   writeFileSync(join(root, 'loose.txt'), 'x');
   await assert.rejects(
@@ -20,7 +20,7 @@ test('clause 1: with push.refuseUnsharded on and a dirty checkout, the push gate
   );
 });
 
-test('clause 2: with the setting off the hook still falls back to the one-command gate and says why [C7,#9369]', async t => {
+test('cli.io-hook-push-refuse-unsharded.with-the-setting-off-the-hook-still: clause 2: with the setting off the hook still falls back to the one-command gate and says why [C7,#9369]', async t => {
   const { root } = cellRepo(t, { real: true });
   writeFileSync(join(root, 'loose.txt'), 'x');
   const said = [];
@@ -29,7 +29,7 @@ test('clause 2: with the setting off the hook still falls back to the one-comman
   assert.match(said.join('\n'), /one-command gate/u);
 });
 
-test('clause 2: with the setting on but a plan available the push shards as before [C7,#9369]', async () => {
+test('cli.io-hook-push-refuse-unsharded.with-the-setting-on-but-a-plan: clause 2: with the setting on but a plan available the push shards as before [C7,#9369]', async () => {
   const plan = { source: 'a'.repeat(40), main: 'b'.repeat(40), limitMs: 1, shards: [{ files: ['x.test.js'], command: 'c' }] };
   const result = await pushShardGate({ info: { root: '/nonexistent' }, config: {} }, {
     refuse: true,

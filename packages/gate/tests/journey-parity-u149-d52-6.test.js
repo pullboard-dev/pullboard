@@ -14,7 +14,7 @@ const SAMPLES = [
   { journey: 'apps/cli/journeys/publish/agent.test.js', cases: ['pullboard publish from an agent shell pushes the green head [GH25]'] },
 ];
 
-test('clause 1: a sample of the add bar-lint and publish agent journeys gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-u149-d52-6.sample-add-bar-lint-and-publish: clause 1: a sample of the add bar-lint and publish agent journeys gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });

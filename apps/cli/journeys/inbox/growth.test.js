@@ -12,7 +12,7 @@ after(helpers.cleanup);
 
 const { measure, mainTree, ratchetProblems, seeded } = createBudgetMeasure(helpers);
 
-test('clause 1: every measured command prints within its main size on a seeded board [C7,N26]', async () => {
+test('cli.journeys-inbox-growth.every-measured-command-prints-within-its: clause 1: every measured command prints within its main size on a seeded board [C7,N26]', async () => {
   const box = seeded();
   const main = mainTree();
   try {

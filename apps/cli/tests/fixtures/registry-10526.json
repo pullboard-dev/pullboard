@@ -1,0 +1,4 @@
+{
+  "cli.io-test-census-idle-slots.a-recorded-two-host-census-prints-idle": {"proves":{"specs":["C7"],"claim":"A census prints, per host, the minutes its slots sat idle while jobs were still queued."},"why":"Without it, a slow census cannot be told from runner slots that sat idle.","kind":"cell unit","inputs":["apps/cli/tests/io/test/census.test.js"]},
+  "cli.io-test-census-idle-slots.a-census-with-no-host-prints-nothing": {"proves":{"specs":["C7"],"claim":"A census whose rows ran on no host prints no idle line."},"why":"Without it, a census with no runner would print a made-up host.","kind":"cell unit","inputs":["apps/cli/tests/io/test/census.test.js"]}
+}

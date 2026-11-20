@@ -29,7 +29,7 @@ import {
   plainCommand,
 } from '../../tests/fixtures/relay/setup.js';
 
-test('relay help lists every relay command, with a whole example [H17]', async () => {
+test('cli.journeys-relay-setup.relay-help-lists-every-relay-command: relay help lists every relay command, with a whole example [H17]', async () => {
   const printed = await runCliInProcess(['relay', '--help'], { cwd: tmpdir() });
   assert.equal(printed.status, 0, printed.stderr);
   const [usage, rest] = printed.stdout.split('\nFlags:\n');
@@ -42,7 +42,7 @@ test('relay help lists every relay command, with a whole example [H17]', async (
   assert.ok(!/--all \[/u.test(rest), 'flags name --all alone');
 });
 
-test('relay pair labels the code for a computer and the QR for a phone [H17]', async (t) => {
+test('cli.journeys-relay-setup.relay-pair-labels-the-code-for: relay pair labels the code for a computer and the QR for a phone [H17]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/native.js')).href;
@@ -69,7 +69,7 @@ process.stdout.write(JSON.stringify({ code, lines: output.split('\\n') }));
   assert.ok(!lines.join('\n').includes('app.pullboard.dev'), 'a board on another relay never points at the hosted default');
 });
 
-test('the approval wait names the phone in local time once [H17]', async (t) => {
+test('cli.journeys-relay-setup.the-approval-wait-names-the-phone: the approval wait names the phone in local time once [H17]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   const linkModule = JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href);
@@ -125,7 +125,7 @@ process.stdout.write(JSON.stringify({ codes, lines: errors.split('\\n').filter(l
   assert.ok(!lines[0].includes(iso), 'the expiry is never printed in UTC');
 });
 
-test('relay on --all says who signed in, what it linked and what it waits for [H5,I1]', async (t) => {
+test('cli.journeys-relay-setup.relay-on-all-says-who-signed: relay on --all says who signed in, what it linked and what it waits for [H5,I1]', async (t) => {
   const box = await relayClientFixture(t);
   const second = join(dirname(box.root), 'second-board');
   mkdirSync(second);

@@ -33,7 +33,7 @@ function seededCalls() {
   return [...personNeeds({ blocks }), relay, pending];
 }
 
-test('every Needs you entry from the seeded board is free of codes, commands, tokens and relay terms [C6,N26]', () => {
+test('view.needs-surfaces.every-needs-you-entry-from-the-seeded: every Needs you entry from the seeded board is free of codes, commands, tokens and relay terms [C6,N26]', () => {
   const calls = seededCalls();
   assert.ok(calls.length > 100, 'one block per catalog refusal, never hand-listed');
   const shown = [
@@ -45,7 +45,7 @@ test('every Needs you entry from the seeded board is free of codes, commands, to
   assert.deepEqual([...new Set(leaks)], []);
 });
 
-test('an entry already in plain words is shown as it was written [C6,N26]', () => {
+test('view.needs-surfaces.an-entry-already-in-plain-words-is: an entry already in plain words is shown as it was written [C6,N26]', () => {
   const calls = [{ kind: 'block', id: 'block:a', ref: 'blocked', at: AT, text: 'Pullboard stopped a request that only you can clear: spend is high', what: 'Raise the budget in the machine settings.' }];
   assert.deepEqual(needsEntries(calls, []), [[null, 'blocked', calls[0].text, calls[0].what, AT, 'block']]);
 });

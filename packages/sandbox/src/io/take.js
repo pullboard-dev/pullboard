@@ -47,7 +47,7 @@ function selected(ctx, board, values, services) {
   // Items this call already passed over (an unbuildable bar, #5786) are never selected again.
   const omitted = values.omitIds ?? [];
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omitted.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
-    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
+    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return withCover({ item: routing.item, reasons: routing.reasons, review: false, held: false });
     return { ...routing, review: false, held: false };
@@ -69,7 +69,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
     if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
       skipIds: agentSessionDigest ? ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) : [] })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes, pendingFromJobRow: pendingFromJobRow(),
-      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
+      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)) });
   });
 }
 
@@ -79,7 +79,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
  */
 export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
   if (!passingMainRedItems) return;
-  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
+  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, () => store.listItems(board)));
   if (!passing.length) return;
   await withBoard(ctx, async board => {
     const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));
@@ -158,10 +158,16 @@ export async function nextTake(ctx, values = {}, services) {
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true, retryDetail: { phase: 'review reservation', item: looked.item.item_id, code: 'NO_REVIEW_RESERVED' } };
     }
     try {
+      ctx.io.nextPhase?.('claim freezer', looked.item.item_id);
+      const freeze = claimFreezer(ctx, board);
+      ctx.io.nextPhase?.('claim head', looked.item.item_id);
+      const head = headCommit(ctx.info.root);
+      ctx.io.nextPhase?.('claim write', looked.item.item_id);
       await claimOrdered(ctx, board, [looked.item.item_id, {
-        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, leaseMs: ctx.config.leaseMs,
-        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
+        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, laneOff, leaseMs: ctx.config.leaseMs,
+        freeze, head, autoNext: true,
       }]);
+      ctx.io.nextPhase?.('claim cover-stuck', looked.item.item_id);
       if (!looked.held) await services.shoutReviewCoverStuck?.(ctx, board, (c, b, op, args) => ordered(c, b, op, args), me);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: looked.item.item_id, rows: error.rows } };
@@ -190,11 +196,17 @@ export const takeSelection = {
   reviewOffer: (board, who) => store.reviewOffer(board, who),
 };
 
+/** The phases a next enters right before its claim or review reservation is written; a run through one may hand an item. */
+const COMMITTING = new Set(['claim', 'review reservation']);
+
 /** Bound active routing retries while yielding so native progress and peer work can run [C7,1811]. */
 export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetries = 16, now = () => performance.now(), monitor = null } = {}) {
   // Budget: #1811 allows one minute of active routing and names a phase after ten seconds.
   let started = now(), lastIdleNotice = -Infinity;
   let phase = 'startup', item = null, phaseStarted = started, timer = null, warned = false, retries = 0;
+  // Custody: once a run that entered a committing phase returns its item, that claim is this next's answer, so the budget
+  // never refuses after it; the seat would keep the claim, hear NEXT_TIMEOUT, and claim again on its retry (#10690).
+  let committing = false, custody = false;
   const repeated = new Map();
   // Profile: every millisecond since started belongs to exactly one named span, so the spans add up to the wall time [N2].
   const spans = []; let cursor = started, label = 'startup';
@@ -211,21 +223,29 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   function stop() { if (timer) clearTimeout(timer); timer = null; monitor?.stop(); }
   /** Name the next real phase and its item before entering potentially slow work. */
   function enter(name, id = null) {
+    // A claim sub-step is a profile cut only: a written claim keeps custody, so it never refuses, restarts the timer or changes the phase [N2,#10690].
+    if (name.startsWith('claim ')) { cut(name); return; }
     check();
     cut(name); stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
+    if (COMMITTING.has(name)) committing = true;
     if (monitor) monitor.enter(phase, item);
     else { timer = setTimeout(warn, phaseMs); timer.unref?.(); }
   }
   /** Refuse only between completed native attempts, preserving any committed claim's custody. */
   function check() {
     if (now() - phaseStarted >= phaseMs) warn();
-    if (now() - started >= timeoutMs) throw new Refused('NEXT_TIMEOUT',
+    if (!custody && now() - started >= timeoutMs) throw new Refused('NEXT_TIMEOUT',
       `next exceeded its active routing budget in ${phase}; item ${item === null ? 'not yet selected' : '#' + item}; inspect your current claim or review before retrying`);
   }
   /** Observe an actual phase and check its completed result; never race an ordered write against a timer. */
   async function run(name, id, work) {
+    committing = false;
     enter(name, id);
-    try { const value = await work(); check(); return value; }
+    try {
+      const value = await work();
+      if (committing && value?.item && !value.retry) custody = true;
+      check(); return value;
+    }
     finally { stop(); cut('between phases'); }
   }
   /** Retry transient peer races finitely; an unchanged refusal cannot create a microtask/SQLite spin. */

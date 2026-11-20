@@ -21,7 +21,7 @@ function commit(root, name, message) {
   return git(root, 'rev-parse', 'HEAD');
 }
 
-test('clause 1 and clause 2: the analysis step reads the actual trunk and pins the policy to main, so both trees pack [C7]', async (t) => {
+test('cli.io-submit-gate-pack.clause-1-and-clause-2-the-analysis: clause 1 and clause 2: the analysis step reads the actual trunk and pins the policy to main, so both trees pack [C7]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'remote-gate-trunk-'));
   t.after(() => execFileSync('rm', ['-rf', root]));
   git(root, 'init', '-q', '-b', 'main');

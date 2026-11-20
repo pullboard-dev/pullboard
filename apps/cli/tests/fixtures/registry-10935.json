@@ -1,0 +1,4 @@
+{
+  "cli.io-verify-wait.start-and-still-waiting-lines-then-quiet": {"proves":{"specs":["C7"],"claim":"a review accept wait says what it waits on and its deadline, says it is still waiting each minute, and is quiet with no timer once the action settles"},"why":"Without it verify 10149 accept waited 9+ minutes on a runner check with no line, and the reviewer could not tell a slow check from a hang.","kind":"contract","inputs":["apps/cli/src/io/verify/wait.js","apps/cli/tests/io/verify/wait.test.js"]},
+  "cli.io-verify-wait.deadline-aborts-the-signal-and-refuses": {"proves":{"specs":["C7"],"claim":"a review accept wait past its deadline aborts the action's signal and refuses REVIEW_WAIT_DEADLINE, even when the action ignores the signal"},"why":"Without it an accept queued behind held runners blocks with no end and no verdict.","kind":"contract","inputs":["apps/cli/src/io/verify/wait.js","apps/cli/tests/io/verify/wait.test.js"]}
+}

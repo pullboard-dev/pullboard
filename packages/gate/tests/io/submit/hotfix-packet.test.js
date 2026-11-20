@@ -39,7 +39,7 @@ function inputs(repo) {
   };
 }
 
-test('clause 1: for a head that is an ancestor of main, the review packet diffs head against its own parent and is not empty [C7,#9446]', t => {
+test('gate.io-submit-hotfix-packet.for-a-head-that-is-an: clause 1: for a head that is an ancestor of main, the review packet diffs head against its own parent and is not empty [C7,#9446]', t => {
   const repo = history(t, { merge: false });
   const packet = buildReviewPacket(repo.root, inputs(repo));
   assert.equal(packet.base, repo.parent, 'the base is the head\'s parent, not the head itself');
@@ -47,7 +47,7 @@ test('clause 1: for a head that is an ancestor of main, the review packet diffs 
   assert.match(packet.diff.patch, /\+fixed/u);
 });
 
-test('clause 2: a hotfix merge citing the item builds a non-empty packet, so it submits for review with no EMPTY_SUBMIT [C7,#9446]', t => {
+test('gate.io-submit-hotfix-packet.a-hotfix-merge-citing-the-item: clause 2: a hotfix merge citing the item builds a non-empty packet, so it submits for review with no EMPTY_SUBMIT [C7,#9446]', t => {
   const repo = history(t, { merge: true });
   const packet = buildReviewPacket(repo.root, inputs(repo));
   assert.equal(packet.base, repo.parent, 'a merge is read against its first parent');

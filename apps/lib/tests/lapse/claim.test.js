@@ -80,7 +80,7 @@ function pin(board, ids, name = 'Now') {
     JSON.stringify([{ name, items: ids, order: ids, reasons: Object.fromEntries(ids.map(id => [String(id), 'blocks the order'])) }]));
 }
 
-test('a claim on a pinned item idle for 30 minutes lapses to open [C7]', t => {
+test('lib.lapse-claim.a-claim-on-a-pinned-item: a claim on a pinned item idle for 30 minutes lapses to open [C7]', t => {
   const f = fixture(t);
   const a = f.add();
   pin(f.board, [a]);
@@ -98,7 +98,7 @@ test('a claim on a pinned item idle for 30 minutes lapses to open [C7]', t => {
   assert.equal(store.getItem(f.board, a).item_owner, f.second, 'another seat takes the lapsed item');
 });
 
-test('an unpinned claim idle for 30 minutes keeps its seat until 40 [C7]', t => {
+test('lib.lapse-claim.an-unpinned-claim-idle-for-30: an unpinned claim idle for 30 minutes keeps its seat until 40 [C7]', t => {
   const f = fixture(t);
   const a = f.add();
   f.claim(a, f.first);

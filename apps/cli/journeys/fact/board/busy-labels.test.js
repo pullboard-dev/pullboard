@@ -45,7 +45,7 @@ function longWrites(stderr) {
     .map(line => JSON.parse(line.slice('pullboard: long board write '.length)));
 }
 
-test('a real CLI writer labels its long transaction without changing JSON or native counts [C7,P4,B2]', () => {
+test('cli.journeys-fact-board-busy-labels.a-real-cli-writer-labels-its: a real CLI writer labels its long transaction without changing JSON or native counts [C7,P4,B2]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -90,7 +90,7 @@ test('a real CLI writer labels its long transaction without changing JSON or nat
   assert.equal(boardWriteHolderText(file), '');
 });
 
-test('opening an older board names and logs its genuine index-building write [C7,P4,B2]', async (t) => {
+test('cli.journeys-fact-board-busy-labels.opening-an-older-board-names-and: opening an older board names and logs its genuine index-building write [C7,P4,B2]', async (t) => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   // Installed source may own a main-board migration without entering the small project's Git history.

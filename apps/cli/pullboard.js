@@ -26,11 +26,27 @@ if (major < 22 || (major === 22 && minor < 13)) {
 }
 
 // `--version --json` is a scripted version check that needs only the release metadata: it runs before the compile cache below,
-// so the probe loads nothing but package.json and touches no machine-home folder, and the plain `--version` keeps the cache [C7].
+// so the probe loads nothing but package.json and touches no machine-home folder, and the plain `--version` below it does the same [C7].
 const versionJson = process.argv.length === 4 && process.argv[2] === '--version' && process.argv[3] === '--json';
 if (versionJson) {
   const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
   process.stdout.write(`${JSON.stringify({ version: 1, release: packageData.version }, null, 2)}\n`);
+  process.exit(0);
+}
+
+// The installed post-commit hook has no rule to run, yet every commit starts it: answer before any module loads,
+// not after the dispatcher's ~400 modules decide it is not an agent nudge [C7].
+if (process.argv.length === 4 && process.argv[2] === 'hook' && process.argv[3] === 'post-commit') process.exit(0);
+
+// The plain version probe needs only the release metadata, so it runs before the compile cache too: each git hook asks it first, three times a
+// commit, and the cache step alone loaded the kernel light door [C7].
+if (process.argv.length === 3 && process.argv[2] === '--version') {
+  const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
+  // A hook one release back is told its own version, so an upgrade never stops a seat's commit (#7760).
+  const { hookProbeVersion } = process.env.GIT_EXEC_PATH ? await import('./src/io/hook/probe.js') : { hookProbeVersion: (release) => release };
+  let cwd = '/';
+  try { cwd = process.cwd(); } catch { /* A removed working folder has no hooks to read. */ }
+  process.stdout.write(`${hookProbeVersion(packageData.version, { cwd, env: process.env })}\n`);
   process.exit(0);
 }
 
@@ -65,15 +81,6 @@ process.stdout.on('error', (error) => {
 
 // A shell left standing in a removed item folder starts here with no working directory: move to the seat checkout (#2456).
 try { process.cwd(); } catch { (await import('./src/io/cli-main/live-cwd.js')).liveCwd(undefined); }
-
-// The common version probe needs only the release metadata, not the command dispatcher.
-if (process.argv.length === 3 && process.argv[2] === '--version') {
-  const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
-  // A hook one release back is told its own version, so an upgrade never stops a seat's commit (#7760).
-  const { hookProbeVersion } = process.env.GIT_EXEC_PATH ? await import('./src/io/hook/probe.js') : { hookProbeVersion: (release) => release };
-  process.stdout.write(`${hookProbeVersion(packageData.version, { cwd: process.cwd(), env: process.env })}\n`);
-  process.exit(0);
-}
 
 // A commit hook runs as a child of the shim, which times it from process start and stops it after 120 s (#5719).
 if (process.argv[2] === 'hook') {

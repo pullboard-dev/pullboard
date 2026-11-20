@@ -13,7 +13,7 @@ function section(html, name) {
   return html.slice(start, html.indexOf('</section>', start));
 }
 
-test('clause 3: How work moved, Now, Release, the pace strip, Agents, the four lists, Your lanes and Runners, in order [N26]', () => {
+test('view.x-render-dashboard-order.clause-3-how-work-moved-now-release: clause 3: How work moved, Now, Release, the pace strip, Agents, the four lists, Your lanes and Runners, in order [N26]', () => {
   const { project, events } = board();
   const html = dashboardHtml(dashboardModel(project, events, { now, complete: true }));
   const order = [...html.matchAll(/<section class="[^"]*" (?:id="[^"]*" )?aria-label="([^"]+)"/gu)].map(([, name]) => name);

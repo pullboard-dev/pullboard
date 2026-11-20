@@ -36,7 +36,7 @@ function stepsOf({ file }) {
   return withFixtureBoard(file, board => ({ board: step(board.db), runs: existsSync(runsFilePath(file)) ? step(boardRunsHolder(board, file)?.db ?? board.db) : null }));
 }
 
-test('clause 1: with runs_store on, status reclaims the lapsed gate job in the runs file [P7,#9113]', async () => {
+test('cli.io-reclaim-runs.with-runs-store-on-status-reclaims-the: clause 1: with runs_store on, status reclaims the lapsed gate job in the runs file [P7,#9113]', async () => {
   const given = lapsedBox(true);
   const status = await given.box.inProcess(given.box.repo, 'status');
   assert.equal(status.code, 0, `${status.out}${status.err}`);
@@ -45,7 +45,7 @@ test('clause 1: with runs_store on, status reclaims the lapsed gate job in the r
   assert.notEqual(steps.runs, 'queued', 'the runs file job was ended by the fallback');
 });
 
-test('clause 1: with runs_store off, status reclaims on the board and opens no runs file [P7,#9113]', async () => {
+test('cli.io-reclaim-runs.with-runs-store-off-status-reclaims-on: clause 1: with runs_store off, status reclaims on the board and opens no runs file [P7,#9113]', async () => {
   const given = lapsedBox(false);
   const status = await given.box.inProcess(given.box.repo, 'status');
   assert.equal(status.code, 0, `${status.out}${status.err}`);

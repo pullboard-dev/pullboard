@@ -37,7 +37,7 @@ function rows(html, table) {
 /** A table's colgroup markup. */
 const colgroupOf = (html, table) => new RegExp(`<table class="lr lr-${table}">(<colgroup>[\\s\\S]*?</colgroup>)`, 'u').exec(html)[1];
 
-test('#5885 clause 2: each runner row renders cpu, ram, fire and item progress in fixed-width columns that do not change size between refreshes [N26]', () => {
+test('view.live-widget.n-5885-clause-2-each-runner-row-renders: #5885 clause 2: each runner row renders cpu, ram, fire and item progress in fixed-width columns that do not change size between refreshes [N26]', () => {
   const first = renderRunnersWidget(quiet), second = renderRunnersWidget(busier);
   const runnerRows = rows(first, 'runners');
   assert.equal(runnerRows.length, 4);
@@ -60,7 +60,7 @@ test('#5885 clause 2: each runner row renders cpu, ram, fire and item progress i
   assert.equal(/gradient|border-left|border-right/u.test(first), false, 'no gradients and no accent edge');
 });
 
-test('#5885 clause 3: the widget counts agents per task and shows a progress bar that fills with test progress [N26]', () => {
+test('view.live-widget.n-5885-clause-3-the-widget-counts-agents: #5885 clause 3: the widget counts agents per task and shows a progress bar that fills with test progress [N26]', () => {
   const first = rows(renderRunnersWidget(quiet), 'tasks'), second = rows(renderRunnersWidget(busier), 'tasks');
   for (const cells of [...first, ...second]) assert.equal(cells.length, TASK_COLUMNS.length);
   const agents = TASK_COLUMNS.findIndex(([key]) => key === 'agents'), barAt = TASK_COLUMNS.findIndex(([key]) => key === 'bar');

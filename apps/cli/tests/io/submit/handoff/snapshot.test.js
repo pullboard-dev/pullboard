@@ -38,7 +38,7 @@ function sandbox(t) {
 /** The shared snapshot folders in a temp dir. */
 function snapshots(temp) { return readdirSync(temp).filter(name => /^pullboard-handoff-tools-[0-9a-f]{40}$/u.test(name)); }
 
-test('clause 1: a commit that changes only tests shares the tools snapshot of the commit before it [C7]', t => {
+test('cli.io-submit-handoff-snapshot.a-commit-that-changes-only-tests-shares: clause 1: a commit that changes only tests shares the tools snapshot of the commit before it [C7]', t => {
   const { temp, repo } = sandbox(t);
   const first = toolsSnapshot(repo, 'job-1');
   writeFileSync(join(repo, 'test/a.test.js'), '// two\n');
@@ -51,7 +51,7 @@ test('clause 1: a commit that changes only tests shares the tools snapshot of th
   assert.equal(snapshots(temp).length, 2);
 });
 
-test('clause 2: snapshots older than 24 h with no running worker are removed and fresh ones stay [C7]', t => {
+test('cli.io-submit-handoff-snapshot.snapshots-older-than-24-h-with-no: clause 2: snapshots older than 24 h with no running worker are removed and fresh ones stay [C7]', t => {
   const { temp } = sandbox(t);
   const old = 'pullboard-handoff-tools-' + 'a'.repeat(40);
   const fresh = 'pullboard-handoff-tools-' + 'b'.repeat(40);
@@ -62,7 +62,7 @@ test('clause 2: snapshots older than 24 h with no running worker are removed and
   assert.deepEqual(snapshots(temp), [fresh]);
 });
 
-test('clause 2: a submit that reuses the shared snapshot still removes a stale unowned one [C7]', t => {
+test('cli.io-submit-handoff-snapshot.a-submit-that-reuses-the-shared-snapshot: clause 2: a submit that reuses the shared snapshot still removes a stale unowned one [C7]', t => {
   const { temp, repo } = sandbox(t);
   const shared = toolsSnapshot(repo, 'job-1');
   const old = join(temp, 'pullboard-handoff-tools-' + 'c'.repeat(40));

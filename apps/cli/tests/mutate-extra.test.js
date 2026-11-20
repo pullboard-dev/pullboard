@@ -46,7 +46,7 @@ async function run(repo, tmp, options) {
   }
 }
 
-test('an extra test outside the cell runs against each fault, catching what the cell tests miss, and one red before is left out [C7]', async () => {
+test('cli.mutate-extra.an-extra-test-outside-the-cell-runs: an extra test outside the cell runs against each fault, catching what the cell tests miss, and one red before is left out [C7]', async () => {
   const { repo, tmp } = fixture();
   const report = await run(repo, tmp, { extra: ['journeys/adult.test.js', 'journeys/broken.test.js'] });
   assert.deepEqual(report.redBefore, ['journeys/broken.test.js']);
@@ -57,7 +57,7 @@ test('an extra test outside the cell runs against each fault, catching what the 
   assert.deepEqual(readdirSync(tmp), [], 'the copy is removed');
 });
 
-test('without an extra the cell tests alone score, and sample caps the faults seeded per source file [C7]', async () => {
+test('cli.mutate-extra.without-an-extra-the-cell-tests-alone: without an extra the cell tests alone score, and sample caps the faults seeded per source file [C7]', async () => {
   const { repo, tmp } = fixture();
   const alone = await run(repo, tmp, {});
   assert.ok(alone.faults.every(fault => !fault.caughtBy.some(file => file.startsWith('journeys/'))));
@@ -66,7 +66,7 @@ test('without an extra the cell tests alone score, and sample caps the faults se
   assert.equal(sampled.faults.length, 1);
 });
 
-test('with reach, a fault runs only the tests whose imports reach the seeded file, and a test reaching nothing seeded is never run [C7]', async () => {
+test('cli.mutate-extra.with-reach-a-fault-runs-only-the: with reach, a fault runs only the tests whose imports reach the seeded file, and a test reaching nothing seeded is never run [C7]', async () => {
   const { repo, tmp } = fixture();
   const reach = { 'cells/calc/calc.test.js': ['cells/calc/calc.js'], 'journeys/adult.test.js': ['cells/calc/calc.js'], 'journeys/broken.test.js': [] };
   const report = await run(repo, tmp, { extra: ['journeys/adult.test.js', 'journeys/broken.test.js'], reach });

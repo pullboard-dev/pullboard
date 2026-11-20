@@ -6,13 +6,8 @@
  * checkout reads it from the primary branch plus the person's applied row decisions, so an old
  * worktree sees it without moving its branch, and each checkout's next resume names it once.
  */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import {
   dirname,
   join,
@@ -28,16 +23,18 @@ import {
   loadDoctrine,
 } from './main.js';
 import {
-  git,
   tryGit,
 } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { writeRowApply } from '../../../spec/index.js';
 import { mainCriterionFacts } from './main-criterion-facts.js';
+import { primaryCheckoutPath } from './main-criterion-facts.js';
 import {
   loadSpec,
   parseSpec,
 } from '../../../spec/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Read one doctrine file at a commit, falling back to the other default name the way loadDoctrine
@@ -72,10 +69,9 @@ export function agentDoctrine(ctx, board, { facts = mainCriterionFacts(ctx.info.
   const root = ctx.info.root;
   let doctrine = facts?.doctrine ?? ctx.doctrine;
   let name = doctrine.name;
-  const entry = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0')[0];
-  const primaryRoot = entry.startsWith('worktree ') ? entry.slice('worktree '.length) : null;
+  const primaryRoot = primaryCheckoutPath(root);
   const file = primaryRoot && join(primaryRoot, name);
-  const current = file && existsSync(file) ? readFileSync(file, 'utf8') : null;
+  const current = file && fs.exists(file) ? fs.readFile(file) : null;
   return appliedDoctrine(doctrine, decisions, current, { standard: facts?.standard });
 }
 
@@ -115,15 +111,15 @@ export function staleDoctrineRows(ctx, doctrine, { headDoctrine } = {}) {
 export function resumeDoctrineNotes(info, doctrine) {
   const record = join(info.gitDir, 'pullboard-checkout', 'resume-doctrine.json');
   let previous = {};
-  try { previous = JSON.parse(readFileSync(record, 'utf8')); } catch { /* First doctrine resume. */ }
+  try { previous = JSON.parse(fs.readFile(record)); } catch { /* First doctrine resume. */ }
   if (!previous || typeof previous !== 'object' || Array.isArray(previous)) previous = {};
   const approved = doctrine.rows.filter(row => row.origin === 'repo' && row.status === 'approved');
   /** Identify the exact approved guidance this checkout has already displayed. */
   const fingerprint = row => createHash('sha256').update(JSON.stringify([row.text, row.gate])).digest('hex');
   const notes = approved.filter(row => previous[row.id] !== fingerprint(row))
     .map(row => ({ id: 'doctrine:' + row.id, text: row.text, gate: row.gate }));
-  mkdirSync(dirname(record), { recursive: true });
-  writeFileSync(record, JSON.stringify({ ...previous, ...Object.fromEntries(approved.map(row => [row.id, fingerprint(row)])) }) + '\n', { mode: 0o600 });
+  fs.mkdir(dirname(record), { recursive: true });
+  fs.writeFile(record, JSON.stringify({ ...previous, ...Object.fromEntries(approved.map(row => [row.id, fingerprint(row)])) }) + '\n', { mode: 0o600 });
   return notes;
 }
 
@@ -156,7 +152,7 @@ export function proposeDoctrine(ctx, values, text, { id: fixed, reserved = [], w
   const row = `- ${id} [draft, ${tier}] ${ruling} | gate: ${gate}`;
   const planned = { id: 'doctrine:' + id, row: { id, status: 'draft', tier, text: ruling, gate, section: section?.name ?? 'DR · Rulings' } };
   if (!write) return planned;
-  const source = readFileSync(doctrine.repo.file, 'utf8');
+  const source = fs.readFile(doctrine.repo.file);
   // Two identical callers may share the reservation. Check the bytes actually read, not a stale planning context.
   const existing = fixed ? parseSpec(source).rows.filter(row => row.id === fixed) : [];
   if (existing.length) {

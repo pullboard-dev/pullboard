@@ -6,7 +6,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../packages/store/index.js';
+import { submitFixture } from './board/submit.js';
 import { onBoard } from './land/board.js';
+import { succeeds } from './verdict-check.js';
 
 /**
  * Write a pass receipt for a claimed item's committed head, record it on the board as a gate would, and return its id.
@@ -43,4 +45,36 @@ export function gateJobCount(box, id) {
   // @pullboard-board-file journey: a read-only count of the gate jobs the fixture board holds for one item
   const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
   try { return db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = 'gate' AND job_item = ?").get(id).n; } finally { db.close(); }
+}
+
+/**
+ * Submit a claimed item at its committed head with a hand-written pass receipt and no runner gate job, and return the receipt id.
+ * Why: a journey about a move after the submit needs the item submitted, and a pulled gate settle costs a runner round trip; the
+ * board submit move runs for real after `passReceipt` recorded the receipt, so `pullboard show` reads the item submitted at that head [C7,#9873].
+ *
+ * @param {{ repo: string, git: (cwd: string, ...args: string[]) => string }} box - The e2e project box.
+ * @param {string} cwd - The claimed item's folder; its HEAD is the committed head the submit covers.
+ * @param {number} id - A claimed item.
+ * @returns {string} The receipt id.
+ */
+export function submittedWithoutGate(box, cwd, id) {
+  const receiptId = passReceipt(box, id, cwd);
+  const commit = String(box.git(cwd, 'rev-parse', 'HEAD')).trim();
+  const tree = String(box.git(cwd, 'rev-parse', 'HEAD^{tree}')).trim();
+  onBoard(box, board => submitFixture(board, id, { agentId: store.getItem(board, id).item_owner, commit, tree }));
+  return receiptId;
+}
+
+/** A fixture item claimed, committed in its seat and submitted through the seam, with the repo left on the trunk a verifier reads. */
+export async function seamSubmittedItem(box, repo, web) {
+  const added = await succeeds(box, repo, 'add', 'web', 'Accept after the seam', '--specs', 'G1', '--criterion', 'The fixture item is complete.', '--route', 'strong', '--brief', 'Files: web/fixture.txt\nTest: the fixture item is accepted with its recorded check');
+  const id = Number(/#(\d+)/.exec(added)?.[1]);
+  await succeeds(box, web, 'claim', String(id));
+  mkdirSync(join(web, 'web'), { recursive: true });
+  writeFileSync(join(web, 'web', `item-${id}.js`), 'export const complete = true;\n');
+  box.git(web, 'add', '-A');
+  box.git(web, 'commit', '-q', '-m', `feat(web): complete fixture ${id} [G1]`);
+  submittedWithoutGate({ repo, git: box.git }, web, id);
+  box.git(repo, 'switch', '--detach', 'web/one');
+  return id;
 }

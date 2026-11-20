@@ -129,10 +129,15 @@ export function pendingRefreezeProblem(board, id) {
 export function milestonePriorities(board) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < 8) return () => 0;
   const ordered = milestones(board);
-  const items = new Map(listItems(board, { all: true }).map((entry) => [entry.item_id, entry]));
+  // Only whether each listed item is verified matters: one read of those ids, never a copy of every item [C7,#10795].
+  const listed = [...new Set(ordered.flatMap(milestone => milestone.items.filter(id => typeof id === 'number')))];
+  const verified = new Set(listed.length ? board.db.prepare(`SELECT item_id FROM item WHERE item_status='verified'
+    AND item_id IN (SELECT value FROM json_each(?))
+    AND NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)`)
+    .all(JSON.stringify(listed)).map(row => row.item_id) : []);
   const priorities = new Map();
   for (const [index, milestone] of ordered.entries()) {
-    const unfinished = milestone.items.some((id) => typeof id !== 'number' || items.get(id)?.item_status !== 'verified');
+    const unfinished = milestone.items.some((id) => typeof id !== 'number' || !verified.has(id));
     if (!unfinished) continue;
     for (const id of milestone.items) if (!priorities.has(id)) priorities.set(id, index);
   }

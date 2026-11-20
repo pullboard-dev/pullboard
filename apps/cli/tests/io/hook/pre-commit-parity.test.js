@@ -74,7 +74,7 @@ for (const state of STATES) {
   });
 }
 
-test('clause 1: runPreCommitInProcess returns the hook status and stderr, and names the same static check as .githooks/pre-commit [C7,#9211]', async () => {
+test('cli.io-hook-pre-commit-parity.runprecommitinprocess-returns-the-hook-status-and-stderr: clause 1: runPreCommitInProcess returns the hook status and stderr, and names the same static check as .githooks/pre-commit [C7,#9211]', async () => {
   const box = e2e.project('true');
   stage(box, box.web, { files: { 'api/outside.txt': 'x\n' } });
   const answer = await runPreCommitInProcess(box, box.web, { staticCheck: '' });

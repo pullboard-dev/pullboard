@@ -7,7 +7,7 @@ import { endJobs } from '../../../../packages/api/index.js';
 import { jobViews } from '../../../../packages/api/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { postReceipt } from '../../../../packages/api/index.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitPushShards } from '../../src/io/hook/push.js';
 
 const green = { status: 0, gate: { green: true, phases: [] } };
@@ -29,7 +29,7 @@ function setup(t) {
   return { db, clock, jobs, offers, reoffer, on };
 }
 
-test('clause 1: with push.rerunFailedShardOnce on, a shard whose runner lapsed is re-offered once with that runner on its avoid list [C7,#9274]', async t => {
+test('cli.io-push-shard-rerun-once.with-push-rerunfailedshardonce-on-a-shard-whose: clause 1: with push.rerunFailedShardOnce on, a shard whose runner lapsed is re-offered once with that runner on its avoid list [C7,#9274]', async t => {
   const { db, clock, jobs, offers, reoffer, on } = setup(t);
   const first = claimJob(db, { runner: 'r1', now: clock.at });
   let polls = 0;
@@ -51,7 +51,7 @@ test('clause 1: with push.rerunFailedShardOnce on, a shard whose runner lapsed i
   assert.equal(jobViews(db, ['push:abc:tag:shard:1'])[0].step, 'done');
 });
 
-test('clause 1: a shard that posts an infrastructure failure is re-offered once the same way [C7,#9274]', async t => {
+test('cli.io-push-shard-rerun-once.a-shard-that-posts-an-infrastructure-failure: clause 1: a shard that posts an infrastructure failure is re-offered once the same way [C7,#9274]', async t => {
   const { db, clock, jobs, offers, reoffer, on } = setup(t);
   const first = claimJob(db, { runner: 'r1', now: clock.at });
   postReceipt(db, { job: first.job, runner: 'r1', token: first.token, receipt: infraRed, now: clock.at });
@@ -67,7 +67,7 @@ test('clause 1: a shard that posts an infrastructure failure is re-offered once 
   assert.equal(settled[0].posted.receipt.status, 0);
 });
 
-test('clause 2: a second lapse of the same shard refuses and offers no third job; a second infrastructure failure ends it as failed [C7,#9274]', async t => {
+test('cli.io-push-shard-rerun-once.a-second-lapse-of-the-same-shard: clause 2: a second lapse of the same shard refuses and offers no third job; a second infrastructure failure ends it as failed [C7,#9274]', async t => {
   const { db, clock, jobs, offers, reoffer, on } = setup(t);
   let held = claimJob(db, { runner: 'r1', now: clock.at });
   let polls = 0;
@@ -96,7 +96,7 @@ test('clause 2: a second lapse of the same shard refuses and offers no third job
   assert.equal(settled[0].posted.receipt.status, 1, 'the second failure ends the shard red');
 });
 
-test('clause 2: with the setting off nothing is re-offered, and the setting is described [C7,#9274]', async t => {
+test('cli.io-push-shard-rerun-once.with-the-setting-off-nothing-is-re: clause 2: with the setting off nothing is re-offered, and the setting is described [C7,#9274]', async t => {
   const { db, clock, jobs, reoffer, on } = setup(t);
   const first = claimJob(db, { runner: 'r1', now: clock.at });
   postReceipt(db, { job: first.job, runner: 'r1', token: first.token, receipt: infraRed, now: clock.at });

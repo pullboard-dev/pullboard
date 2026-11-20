@@ -1,0 +1,44 @@
+{
+  "cli.item-folder-spare.existing-folder-set-aside": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "When the item folder path already exists, a claim keeps that folder beside it and moves the spare to the path, never inside the folder."
+    },
+    "why": "Without it, a regression that nests the spare inside an existing item folder, crashing every later claim at archive.js, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder/spare.test.js",
+      "apps/cli/src/io/item/folder/spare.js"
+    ]
+  },
+  "cli.item-folder-spare.no-nested-checkout": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "After a claim over an existing checkout at the item folder path, the item folder holds no nested checkout with its own .git."
+    },
+    "why": "Without it, a regression that leaves a nested .git inside an item folder would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder/spare.test.js",
+      "apps/cli/src/io/item/folder/spare.js"
+    ]
+  },
+  "cli.item-folder-spare.no-existing-folder-unchanged": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With no folder at the item path, a claim on a real repository moves the spare into place on the item branch and sets nothing aside."
+    },
+    "why": "Without it, a regression in the ordinary spare move would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder/spare.test.js",
+      "apps/cli/src/io/item/folder/spare.js"
+    ]
+  }
+}

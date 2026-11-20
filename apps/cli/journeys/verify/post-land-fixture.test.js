@@ -10,7 +10,7 @@ import {
 
 const FAMILY = 'Fixture Build Vendor';
 
-test('clause 1: the helper records a forced landing whose builder seat has the chosen family and returns its item id [C7,#9862]', async t => {
+test('cli.journeys-verify-post-land-fixture.the-helper-records-a-forced-landing: clause 1: the helper records a forced landing whose builder seat has the chosen family and returns its item id [C7,#9862]', async t => {
   const box = await fixture(t);
   const id = await landedBy(box, t, { family: FAMILY });
   assert.equal(Number.isInteger(id), true, 'the helper returns the landing item id');
@@ -21,7 +21,7 @@ test('clause 1: the helper records a forced landing whose builder seat has the c
   assert.equal(seat?.agent_family, FAMILY, 'the builder seat declared the chosen family');
 });
 
-test('clause 2: the recorded landing has that family as its builder and no verdict [C7,#9862]', async t => {
+test('cli.journeys-verify-post-land-fixture.the-recorded-landing-has-that-family: clause 2: the recorded landing has that family as its builder and no verdict [C7,#9862]', async t => {
   const box = await fixture(t);
   const id = await landedBy(box, t, { family: FAMILY });
   const row = box.itemOf(id);

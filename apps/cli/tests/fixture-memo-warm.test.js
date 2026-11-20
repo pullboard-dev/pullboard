@@ -49,14 +49,14 @@ function history(t) {
   return { root: graph.root, ordinary, planned, analyzer };
 }
 
-test('clause 1: only a main that changes the fixture analyzer closure or the cells plan needs a warm [C7]', t => {
+test('cli.fixture-memo-warm.only-a-main-that-changes-the-fixture: clause 1: only a main that changes the fixture analyzer closure or the cells plan needs a warm [C7]', t => {
   const repo = history(t);
   assert.equal(changesFixtureAnalyzer(repo.root, repo.ordinary), false);
   assert.equal(changesFixtureAnalyzer(repo.root, repo.planned), true);
   assert.equal(changesFixtureAnalyzer(repo.root, repo.analyzer), true);
 });
 
-test('clause 1: an analyzer change runs one pinned runner job and keeps its memo in the store; any other main runs none [C7]', async t => {
+test('cli.fixture-memo-warm.an-analyzer-change-runs-one-pinned-runner: clause 1: an analyzer change runs one pinned runner job and keeps its memo in the store; any other main runs none [C7]', async t => {
   const repo = history(t), store = folder(t, 'fixture-memo-warm-store-');
   absorbFixtureMemo(store, memo(['shared']));
   const slots = [], steps = [];
@@ -78,7 +78,7 @@ test('clause 1: an analyzer change runs one pinned runner job and keeps its memo
   assert.deepEqual(storedKeys(store), ['shared', 'warmed']);
 });
 
-test('clause 2: a warm that fails or finds no runner leaves the shared store as it was [C7]', async t => {
+test('cli.fixture-memo-warm.a-warm-that-fails-or-finds-no: clause 2: a warm that fails or finds no runner leaves the shared store as it was [C7]', async t => {
   const repo = history(t), store = folder(t, 'fixture-memo-warm-kept-');
   absorbFixtureMemo(store, memo(['before']));
   const executionServices = { runners: {}, landing: {} };

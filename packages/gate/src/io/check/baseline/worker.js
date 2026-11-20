@@ -1,15 +1,6 @@
 /** Detached baseline measurements and durable completion receipts use the ordered board engine [V2,H16]. */
 import { spawn } from 'node:child_process';
 import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   isAbsolute,
   join,
 } from 'node:path';
@@ -35,7 +26,15 @@ import {
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
+import { checkTestFiles } from '../../../../../items/index.js';
+import { missingCheckFiles } from '../../../../../items/index.js';
 import { storeName } from '../../store-names.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
+
+/** The longest a baseline may hold its gate slot on a runner: the runners' own 20-minute run ceiling, which starts only once a run is READY. */
+export const BASELINE_CAP_MS = 20 * 60_000;
 
 /** Resolve private completion storage beside this repository's shared board. */
 function locations(root) {
@@ -56,10 +55,30 @@ function holdsProvesNothing(root) {
   try { return mainPolicy(root).config?.checks?.provesNothing === 'hold'; } catch { return false; }
 }
 
+/**
+ * The argument fragment that makes a green baseline hold its item: main's policy asks for the hold and the check's
+ * named test file already exists on main. A check naming a file main lacks is expected red until the item creates it,
+ * so a green there reads an empty suite and holds nothing; a check naming no file, or a tree that cannot be read, keeps
+ * the hold as before. One git ls-tree reads main's tree.
+ *
+ * @param {string} root
+ * @param {{ command: string, main: string }} expected
+ * @param {{ result?: string }} baseline
+ * @returns {{ holdProvesNothing: true }|{}}
+ */
+function holdFlag(root, expected, baseline) {
+  if (baseline?.result !== 'green' || !holdsProvesNothing(root)) return {};
+  if (checkTestFiles(expected?.command).length === 0) return { holdProvesNothing: true };
+  const tree = tryGit(root, ['ls-tree', '-r', '--name-only', expected.main], { env: gitChildEnv(root) });
+  if (tree.status !== 0) return { holdProvesNothing: true };
+  const onMain = new Set(tree.stdout.split('\n'));
+  return missingCheckFiles(expected.command, file => onMain.has(file.replace(/^\.\//u, ''))).length === 0 ? { holdProvesNothing: true } : {};
+}
+
 /** Apply captured data through the same local or linked engine as the original add/edit. */
 async function complete(root, receipt, io, services) {
   const args = [receipt.id, { agentId: 'coordinator', expected: receipt.expected, baseline: receipt.baseline,
-    ...(receipt.baseline?.result === 'green' && holdsProvesNothing(root) ? { holdProvesNothing: true } : {}) }];
+    ...holdFlag(root, receipt.expected, receipt.baseline) }];
   return relayLinked(root) ? relayOperation(root, 'completeCheckBaseline', args, io)
     : withBoard(root, (board) => store.completeCheckBaseline(board, ...args), services);
 }
@@ -67,24 +86,24 @@ async function complete(root, receipt, io, services) {
 /** Persist a completed observation before attempting relay delivery; retries never rerun its shell. */
 function saveReceipt(root, receipt) {
   const directory = locations(root).receipts;
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const file = join(directory, storeName(receipt.expected.request));
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(receipt), { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(receipt), { mode: 0o600 });
+  fs.rename(temporary, file);
   return file;
 }
 
 /** Retry only finished observations, retaining a receipt if the relay cannot acknowledge it yet. */
 export async function retryCheckBaselines(root, io, services) {
   const directory = locations(root).receipts;
-  if (!existsSync(directory)) return;
-  for (const name of readdirSync(directory).filter((name) => BASELINE_RECEIPT.test(name))) {
+  if (!fs.exists(directory)) return;
+  for (const name of fs.list(directory).filter((name) => BASELINE_RECEIPT.test(name))) {
     const file = join(directory, name);
     try {
-      const receipt = JSON.parse(readFileSync(file, 'utf8'));
+      const receipt = JSON.parse(fs.readFile(file, 'utf8'));
       await complete(root, receipt, io, services);
-      rmSync(file, { force: true });
+      fs.rm(file, { force: true });
     } catch (error) {
       if (error.code === 'ENOENT') continue; // Another delivery may have removed this same receipt.
       io.err(`pullboard: baseline completion pending; retry with pullboard show (${error instanceof Refused ? error.code : 'BASELINE_RECEIPT'})`);
@@ -103,7 +122,7 @@ export async function retryCheckBaselines(root, io, services) {
 export function recordPulledBaseline(board, { item, expected, run, seconds }) {
   const baseline = runnerBaseline(expected, run, seconds);
   return store.completeCheckBaseline(board, item, { agentId: 'coordinator', expected, baseline,
-    ...(baseline.result === 'green' && board.gitRoot && holdsProvesNothing(board.gitRoot) ? { holdProvesNothing: true } : {}) });
+    ...(board.gitRoot ? holdFlag(board.gitRoot, expected, baseline) : {}) });
 }
 
 /**
@@ -144,9 +163,10 @@ function mainSource(root, commit) {
  * @param {number} id
  * @param {{ command: string, main: string }} expected
  * @param {{ gateExecutionServices?: () => Promise<{ runners: object, landing: object }> }} services
+ * @param {{ capMs?: number }} [options] - How long the runner call may hold its gate slot; BASELINE_CAP_MS by default.
  * @returns {Promise<object|null>} The observation, or null when no runner can take it.
  */
-export async function measureBaseline(root, id, expected, services) {
+export async function measureBaseline(root, id, expected, services, { capMs = BASELINE_CAP_MS } = {}) {
   const executionServices = await services.gateExecutionServices?.();
   if (!executionServices || !runnersRegistered(executionServices)) return null;
   const source = mainSource(root, expected.main);
@@ -154,9 +174,19 @@ export async function measureBaseline(root, id, expected, services) {
   return withGateSlot(root, async lease => {
     const started = Date.now();
     const command = runnerBaselineCommand(root, expected);
-    const run = await lease.executionServices.runners.runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source,
-      browser: lease.browser, metadata: lease.runMetadata });
-    return runnerBaseline(expected, run, (Date.now() - started) / 1000);
+    const controller = new AbortController();
+    let capped = false;
+    const timer = setTimeout(() => { capped = true; controller.abort(); }, capMs);
+    try {
+      const run = await lease.executionServices.runners.runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source,
+        browser: lease.browser, metadata: lease.runMetadata, signal: controller.signal });
+      return runnerBaseline(expected, run, (Date.now() - started) / 1000);
+    } catch (error) {
+      // Return, never throw, at the cap: a thrown RunnerDropped makes withGateSlot requeue for its 30-minute window.
+      if (!capped) throw error;
+      return { command: expected.command, main: expected.main, result: 'unavailable',
+        reason: `baseline exceeded ${Math.round(capMs / 1000)} s on the runner; set --check again from the coordinator` };
+    } finally { clearTimeout(timer); }
   }, { executionServices, runnerOnly: true, remote: true,
     agent: 'coordinator', item: String(id), kind: 'check-baseline', pinnedSource: source });
 }
@@ -213,6 +243,6 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   };
   try {
     await complete(root, receipt, io, services);
-    rmSync(file, { force: true });
+    fs.rm(file, { force: true });
   } catch { /* The next CLI command retries the durable captured result. */ }
 }

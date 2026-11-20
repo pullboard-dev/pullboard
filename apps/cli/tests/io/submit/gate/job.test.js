@@ -36,6 +36,7 @@ function fixture(t, red = []) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('packages/items/index.js', `import { writeFileSync } from 'node:fs';\nexport function requireSubmitComposition(root, candidate, trunk, main, parentBase) { writeFileSync('parent-base.txt', String(parentBase)); ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { ${refuse('selection', 'SELECTION_RED')}
@@ -88,7 +89,7 @@ async function submitStages(box, runner, artifacts) {
   return { settled, leases };
 }
 
-test('clause 1: the four analysis parts make one remoteSubmitAnalysis call, one lease and one runner controller instead of four [C7]', async t => {
+test('cli.io-submit-gate-job.the-four-analysis-parts-make-one-remotesubmitanalysis: clause 1: the four analysis parts make one remoteSubmitAnalysis call, one lease and one runner controller instead of four [C7]', async t => {
   const box = fixture(t), artifacts = join(box.dir, 'artifacts');
   const before = countingRunner(box);
   for (const part of PARTS) await remoteSubmitAnalysis(box.controller, { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'x', criterion: 'c',
@@ -103,7 +104,7 @@ test('clause 1: the four analysis parts make one remoteSubmitAnalysis call, one 
   assert.deepEqual(settled[1].value.plan.proofFiles, ['test/a.test.js']);
 });
 
-test('clause 2: a red part refuses with its own code and message, unchanged, while the other parts stay green [C7]', async t => {
+test('cli.io-submit-gate-job.a-red-part-refuses-with-its-own: clause 2: a red part refuses with its own code and message, unchanged, while the other parts stay green [C7]', async t => {
   const expected = { preflight: ['COMPOSITION_RED', /preflight is red/u], selection: ['SELECTION_RED', /selection is red/u],
     cells: ['CELLS_SUBMIT', /cells is red/u], static: ['GATE_RED', /static checks are red.*static is red/su] };
   for (const part of PARTS) {
@@ -121,7 +122,7 @@ test('clause 2: a red part refuses with its own code and message, unchanged, whi
   }
 });
 
-test('clause 1: the preflight passes the request base to requireSubmitComposition as the parent base [C7]', async t => {
+test('cli.io-submit-gate-job.the-preflight-passes-the-request-base-to: clause 1: the preflight passes the request base to requireSubmitComposition as the parent base [C7]', async t => {
   const box = fixture(t), runner = countingRunner(box);
   const base = box.main;
   await remoteSubmitAnalysis(box.controller, { main: box.main, source: box.source, trunk: box.main, base, check: 'x', criterion: 'c',

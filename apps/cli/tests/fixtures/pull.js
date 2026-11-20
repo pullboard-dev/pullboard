@@ -39,6 +39,7 @@ export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTUR
   'packages/items/index.js': `import { record } from '../../bin/record.js';
 export function requireSubmitComposition(root) { record(root, 'composition'); }
 `,
+  'packages/gate/heavy.js': "export * from './index.js';\n",
   'packages/gate/index.js': `import { record } from '../../bin/record.js';
 export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
@@ -62,10 +63,10 @@ export async function holdDoctrineAsync(root) { record(root, 'doctrine'); return
   'apps/cli/src/io/static/checks.js': `import { record } from '../../../../../bin/record.js';
 record(process.cwd(), 'static');
 `,
-  // A phase's timing profile sits beside its kept log, named for it, as the gate's own does: `<log>.profile.json` in the runner's kept folder, which a loopback runner makes the job's checkout; written only under a loopback runner's job, so an item add or inline gate leaves no file [C7,#7301].
+  // A phase's timing profile sits beside its kept log, named for it, as the gate's own does: `<log>.profile.json` in the runner's kept folder, which a loopback runner makes the job's checkout; written only in a pulled job (the gate entry sets PULLBOARD_PULLED_JOB for its phases), so an item add or inline gate leaves no file [C7,#7301].
   'bin/profile.js': `import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-export function writeProfile(role) { if (process.env.PULLBOARD_FIXTURE_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
+export function writeProfile(role) { if (process.env.PULLBOARD_PULLED_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
 `,
   // The proof holds its job open a moment, so the host is sampled while all the gates run at once; it writes the ACCEPT timing profile.
   'bin/proof.js': `import { record } from './record.js';
@@ -78,7 +79,7 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
 };
 
 /** The item check that makes the stand-in gate write the check phase's timing profile; pass it as pullProject's `check`. Why inline: a bar naming a file path must be one a lane owns, so the check names none. */
-export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_FIXTURE_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
+export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_PULLED_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
 
 /** Processes on this host whose command line names the board's sandbox: a dispatcher, driver or worker the submit left behind. */
 export function hostProcesses(dir) {
@@ -245,6 +246,34 @@ export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_0
     // Each new process is its own pause: its startup takes longer than a seat takes to offer its job.
     if (served.code !== 0 || !/nothing to claim/u.test(served.output) || Date.now() > until) return served;
   }
+}
+
+/**
+ * Start `pullboard runner serve <url> --as <runner>` as its own process that keeps serving, for a journey that acts while it serves.
+ * Resolves once the serve prints its first line (its stop handlers are on by then) with the runner's pid and environment, a
+ * stop() that signals that one pid, and closed, which resolves with the serve's exit code after it ends. The environment is
+ * runnerEnv's, so machineSettings reach the runner process as serveOnce passes them [P7,#7301,#9880].
+ *
+ * @param {object} box - The fixture box.
+ * @param {string} url - The board URL the runner is given.
+ * @param {string} runner - The runner name.
+ * @param {Record<string, string>} [env] - Extra variables.
+ * @param {{ machineSettings?: object, readyMs?: number }} [options]
+ * @returns {Promise<{ pid: number, env: Record<string, string>, output: () => string, stop: () => void, closed: Promise<number | null> }>}
+ */
+export async function serveBackground(box, url, runner, env = {}, { machineSettings, readyMs = 60_000 } = {}) {
+  const clean = runnerEnv(box, runner, env, machineSettings);
+  const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--as', runner, '--directory', join(box.runnerHome, runner)],
+    { cwd: box.runnerHome, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  const closed = new Promise(done => child.once('close', code => done(code)));
+  const first = new Promise(done => {
+    const heard = chunk => { output += chunk; done(); };
+    child.stdout.on('data', heard); child.stderr.on('data', heard);
+    child.once('close', done);
+  });
+  await Promise.race([first, new Promise(done => setTimeout(done, readyMs).unref())]);
+  return { pid: child.pid, env: clean, output: () => output, stop: () => { try { process.kill(child.pid, 'SIGTERM'); } catch { /* it already exited */ } }, closed };
 }
 
 /**

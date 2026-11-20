@@ -340,15 +340,15 @@ function holdByHand(db, id, owner) {
     .run(owner, new Date(Date.now() + 3_600_000).toISOString(), id);
 }
 
-test('the declared lifecycle is sound: reachable, no traps, no second door, every refusal with a next step [M1, M2, M4]', () => {
+test('cli.journeys-verify-machine.the-declared-lifecycle-is-sound-reachable: the declared lifecycle is sound: reachable, no traps, no second door, every refusal with a next step [M1, M2, M4]', () => {
   assert.deepEqual(machineRules.machineProblems(), []);
   assert.deepEqual(machineRules.MACHINE.states.map((state) => state.id), ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(machineRules.MACHINE.states.filter((state) => state.final).map((state) => state.id), ['withdrawn']);
-  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-objected', 'patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
+  assert.deepEqual(machineRules.MACHINE.moves.map((move) => move.verb), ['patch-objected', 'patch-claimed', 'patch', 'rehomeImport', 'intake', 'claim', 'release', 'lapse', 'submit', 'submit-merge', 'reserve', 'accept', 'reject', 'reopen', 'reland', 'escalate', 'refreeze', 'refreeze', 'withdraw']);
   assert.deepEqual(machineRules.MACHINE.moves.find((move) => move.verb === 'rehomeImport').sets, ['item_verified_by', 'item_commit']);
 });
 
-test('a door declared without its exit guards still passes them [M2]', () => {
+test('cli.journeys-verify-machine.a-door-declared-without-its-exit: a door declared without its exit guards still passes them [M2]', () => {
   const machine = copy();
   const land = { verb: 'land', from: ['submitted'], to: 'verified', by: ['agent', 'coordinator'], refuse: 'NOT_SUBMITTED', guards: ['joined', 'itemExists', machineRules.IN_STATE] };
   machine.moves.push(land);
@@ -358,14 +358,14 @@ test('a door declared without its exit guards still passes them [M2]', () => {
   assert.deepEqual(machineRules.effectiveGuards(moveOf(machineRules.MACHINE, 'accept')), moveOf(machineRules.MACHINE, 'accept').guards, 'accept names them all already, so nothing is added');
 });
 
-test('verified and withdrawn keep the exit guards their rules need, and a copy that drops one fails [V1, V3, V5, V7, M2, M4]', () => {
+test('cli.journeys-verify-machine.verified-and-withdrawn-keep-the-exit: verified and withdrawn keep the exit guards their rules need, and a copy that drops one fails [V1, V3, V5, V7, M2, M4]', () => {
   assert.deepEqual(unpinned(machineRules.MACHINE), []);
   const broken = copy();
   broken.exitGuards.verified = broken.exitGuards.verified.filter((id) => id !== 'notBuilder');
   assert.deepEqual(unpinned(broken), ['verified no longer requires notBuilder (V1) of every move into it']);
 });
 
-test('accept and reject hold a verifier to the same checks until the verdict, and a copy that splits them fails [M1, M4]', () => {
+test('cli.journeys-verify-machine.accept-and-reject-hold-a-verifier: accept and reject hold a verifier to the same checks until the verdict, and a copy that splits them fails [M1, M4]', () => {
   assert.deepEqual(verdictsDiverge(machineRules.MACHINE), []);
   const broken = copy();
   const accept = moveOf(broken, 'accept');
@@ -373,7 +373,7 @@ test('accept and reject hold a verifier to the same checks until the verdict, an
   assert.equal(verdictsDiverge(broken).length, 1);
 });
 
-test('the board file refuses, written by hand: an unknown state, an undeclared move, an unproven verified, a reasonless withdrawal, an edited record [M3]', () => {
+test('cli.journeys-verify-machine.the-board-file-refuses-written-by: the board file refuses, written by hand: an unknown state, an undeclared move, an unproven verified, a reasonless withdrawal, an edited record [M3]', () => {
   const lab = boardOnDisk();
   try {
     const open = store.addItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' });
@@ -409,7 +409,7 @@ test('the board file refuses, written by hand: an unknown state, an undeclared m
   }
 });
 
-test('every move the board makes passes the triggers: claim, submit, accept, reject, rework, release, escalate, refreeze, withdraw [M3]', t => {
+test('cli.journeys-verify-machine.every-move-the-board-makes-passes: every move the board makes passes the triggers: claim, submit, accept, reject, rework, release, escalate, refreeze, withdraw [M3]', t => {
   const lab = memoryBoardLab(t);
   const { board } = lab;
   const accepted = submittedItem(board);
@@ -427,7 +427,7 @@ test('every move the board makes passes the triggers: claim, submit, accept, rej
   assert.deepEqual([accepted, rejected, dropped].map((id) => store.getItem(board, id).item_status), ['verified', 'open', 'withdrawn']);
 });
 
-test('an older board gets the triggers quietly on its next open; one dropped by hand comes back, and the log says so [M3]', () => {
+test('cli.journeys-verify-machine.an-older-board-gets-the-triggers: an older board gets the triggers quietly on its next open; one dropped by hand comes back, and the log says so [M3]', () => {
   const lab = boardOnDisk();
   try {
     const id = store.addItem(lab.board, { by: 'coordinator', lane: 'web', title: 'Page' });
@@ -468,11 +468,11 @@ test('an older board gets the triggers quietly on its next open; one dropped by 
   }
 });
 
-test('the triggers come from the declaration, so a changed declaration changes them [M1, M3]', () => {
+test('cli.journeys-verify-machine.the-triggers-come-from-the-declaration: the triggers come from the declaration, so a changed declaration changes them [M1, M3]', () => {
   assertRehomeTriggerDeclaration();
 });
 
-test("a verified item's proof cannot be rewritten afterwards: its commit, builder, verifier or criterion [M3]", () => {
+test('cli.journeys-verify-machine.a-verified-item-s-proof-cannot: a verified item\'s proof cannot be rewritten afterwards: its commit, builder, verifier or criterion [M3]', () => {
   const lab = boardOnDisk();
   try {
     const id = submittedItem(lab.board);
@@ -491,7 +491,7 @@ test("a verified item's proof cannot be rewritten afterwards: its commit, builde
   }
 });
 
-test('a field a state needs cannot be blanked, on the way in or while the item stays, with any whitespace [M3]', () => {
+test('cli.journeys-verify-machine.a-field-a-state-needs-cannot: a field a state needs cannot be blanked, on the way in or while the item stays, with any whitespace [M3]', () => {
   const lab = boardOnDisk();
   try {
     const { board } = lab;
@@ -519,13 +519,13 @@ test('a field a state needs cannot be blanked, on the way in or while the item s
   }
 });
 
-test("a blank field in the board file is exactly what JavaScript's trim removes [M3]", () => {
+test('cli.journeys-verify-machine.a-blank-field-in-the-board: a blank field in the board file is exactly what JavaScript\'s trim removes [M3]', () => {
   const trimmed = [];
   for (let code = 0; code <= 0xffff; code += 1) if (String.fromCharCode(code).trim() === '') trimmed.push(code);
   assert.deepEqual(machineRules.BLANKS, trimmed);
 });
 
-test('claim refuses in the declared order, one failure peeled at a time, on a real board [M1, M2]', () => {
+test('cli.journeys-verify-machine.claim-refuses-in-the-declared-order: claim refuses in the declared order, one failure peeled at a time, on a real board [M1, M2]', () => {
   const lab = boardOnDisk();
   try {
     const { board } = lab;
@@ -578,7 +578,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
   }
 });
 
-test('submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', t => {
+test('cli.journeys-verify-machine.submit-accept-and-reject-refuse-in: submit, accept and reject refuse in the declared order, one failure peeled at a time [M1, M2]', t => {
   const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
@@ -650,7 +650,7 @@ test('submit, accept and reject refuse in the declared order, one failure peeled
   }
 });
 
-test('reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', t => {
+test('cli.journeys-verify-machine.reserve-refuses-in-the-declared-order: reserve refuses in the declared order, one failure peeled at a time [V15, M1, M2]', t => {
   const lab = memoryBoardLab(t, undefined, { reviewerFamily: 'REQUIRED REVIEW' }); // Declared once: a family is one derived value (#1783).
   const { board } = lab;
   const light = store.register(board, { lane: 'web', path: '/repo-web-light', route: 'light' });
@@ -675,7 +675,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'GATE_PENDING', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'SAME_FAMILY', 'REVIEW_HELD', 'ok']);
 });
 
-test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', t => {
+test('cli.journeys-verify-machine.a-reserved-review-refuses-every-other: a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', t => {
   let at = Date.parse('2026-10-06T12:00:00.000Z');
   const lab = memoryBoardLab(t, { now: () => new Date(at) });
   const { board } = lab;
@@ -747,7 +747,7 @@ test('a reserved review refuses every other verdict while its lease lives, and o
   ]);
 });
 
-test('next --verify looks outside the lock and rechecks inside it, so no other verifier takes the review in between [V15]', () => {
+test('cli.journeys-verify-machine.next-verify-looks-outside-the-lock: next --verify looks outside the lock and rechecks inside it, so no other verifier takes the review in between [V15]', () => {
   const lab = boardOnDisk();
   const others = [];
   try {
@@ -791,15 +791,15 @@ test('next --verify looks outside the lock and rechecks inside it, so no other v
   }
 });
 
-test('the review lease is reviewLease in pullboard.json, 30 minutes unless the repo says otherwise [V15]', () => {
+test('cli.journeys-verify-machine.the-review-lease-is-reviewlease-in: the review lease is reviewLease in pullboard.json, 30 minutes unless the repo says otherwise [V15]', () => {
   assertConfiguredReviewLease(loadConfig);
 });
 
-test('the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
+test('cli.journeys-verify-machine.the-lifecycle-page-and-the-help: the lifecycle page and the help show the reservation: reserve, and reviewFree on every verdict [V15, M1]', () => {
   assertLifecycleReservation(machineRules, HELP);
 });
 
-test('the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', t => {
+test('cli.journeys-verify-machine.the-two-conditional-guards-behave-as: the two conditional guards behave as declared: a renewal passes a held lane, and only a freeze checks the rows [M1, M2]', t => {
   const lab = memoryBoardLab(t);
   const { board } = lab;
   const claimAs = (id, agentId, freezer) => outcome(() => store.claim(board, id, { agentId, lane: 'web', leaseMs: 7_200_000, freeze: freezer }));
@@ -824,7 +824,7 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
   assert.equal(outcome(() => store.refreeze(board, mine, { agentId: 'coordinator', freeze: retiredFreeze })), 'UNKNOWN_SPEC', 'refreeze freezes, so it checks');
 });
 
-test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {
+test('cli.journeys-verify-machine.the-board-refuses-a-status-written: the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {
   const lab = memoryBoardLab(t);
   const { board } = lab;
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
@@ -843,7 +843,7 @@ test('the board refuses a status written outside moveItem at run time, however i
   assert.equal(store.getItem(board, id).item_status, 'open', 'a move through moveItem still writes');
 });
 
-test('a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
+test('cli.journeys-verify-machine.a-helper-added-to-the-board: a helper added to the board that changes a status outside moveItem is refused when it runs [M1]', async () => {
   const dir = fs.mkdtempSync(join(tmpdir(), 'pullboard-planted-'));
   try {
     copyPackageFiles(join(import.meta.dirname, '../../../..'), dir);

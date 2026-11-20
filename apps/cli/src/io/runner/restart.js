@@ -16,7 +16,9 @@ import { ensureLocalRunner } from './local.js';
  */
 export async function restartDeadRunner(ctx, local = ensureLocalRunner) {
   try {
-    const waiting = await withBoardRead(ctx, board => listItems(board).filter(item => item.item_stage === 'in the gate').map(item => item.item_id));
+    // Only a claimed item can sit in its gate, and the in-flight list holds every claim, read the same way; the open list
+    // cost a full board read on this command's own connection, about 30 ms of every next on a 2,500-item board [C7,#10852].
+    const waiting = await withBoardRead(ctx, board => listItems(board, { inFlight: true }).filter(item => item.item_stage === 'in the gate').map(item => item.item_id));
     const host = waiting.length ? primaryCheckoutRoot(ctx.info) : null;
     if (!host) return null;
     const runner = await local(host);

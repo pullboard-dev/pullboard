@@ -1,11 +1,14 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
 export * from "./light.js";
 export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
+export { LISTING as TEST_CELL_LISTING } from "./src/io/test/cells.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
 export { createInstallCache } from "./src/io/scripts/pack-cache.js";
 export { createPackCache } from "./src/io/scripts/pack-cache.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
+export { splitByMain } from "./src/logic/static/findings.js";
+export { staticFindingsOnMain } from "./src/io/static/main-findings.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/io/main/verdict.js";
 export { testClosures, codeMapGraph, cliReachRows, keylessRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
@@ -22,8 +25,7 @@ export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseChec
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
-export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere, detectLanguages } from "./src/io/config.js";
-export { languageToolchains } from "./src/logic/language-toolchains.js";
+export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere, detectLanguages, languageToolchains } from "./src/io/config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { runClauseBaseComparison } from "./src/io/clause-base.js";
@@ -43,7 +45,7 @@ export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
 export { PULLED_JOB_ENV } from "./src/io/test/concurrency.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/io/main.js";
-export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admission.js";
+export { testsNeedGui, projectNeedsGui, checkNeedsGui, timingTestFiles, readsDeclared } from "./src/io/gui/admission.js";
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
@@ -52,10 +54,11 @@ export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds,
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";
 export { importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "../codemap/index.js";
-export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/logic/budgets.js";
+export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS, CLOSURE_CEILINGS } from "./src/logic/budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, releaseTiming, RELEASE_BUDGET_SECONDS, RELEASE_RECEIPT_MAX_BYTES } from "./src/io/release/receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/io/release.js";
 export { ReleaseTransportError, unpackReleaseReceipt, GitHubReleaseTransport, readGitHubReleaseReceipt, latestGitHubReleaseRun } from "./src/io/release/transport.js";
+export { conformanceResults } from "./src/logic/conformance-setups.js";
 export { importStyleViolations } from "./src/io/static/style.js";
 export { tapTests, committedTest, singleFileTapOutcomes } from "./src/io/tap.js";
 export { testActionKeys, testResultStore, reusableResult, suiteProven, planTestActions, preQueueReuse, reuseReceipt, RECORD_ONLY_PREFIX, TEST_REUSE_RECORD, settleTestActions, recordTestAction, LEDGER_HITS_ENV, TEST_ACTIONS_ENV, TEST_STAGE_ENV } from "./src/io/test/action/cache.js";

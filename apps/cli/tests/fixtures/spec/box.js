@@ -74,7 +74,7 @@ function prepareBox(t, { separateGitDir = false } = {}) {
     PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: `${root}-home`,
     PULLBOARD_MACHINE_HOME: `${root}-home`,
   };
-  t.after(() => rmSync(`${root}-home`, { recursive: true, force: true }));
+  t.after(() => rmSync(`${root}-home`, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })); // A late compile-cache write is retried, never ENOTEMPTY [C7]
   delete env.PULLBOARD_RELAY_TOKEN;
   // These isolated signoff fixtures model the same person terminal as the suite runner.
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];

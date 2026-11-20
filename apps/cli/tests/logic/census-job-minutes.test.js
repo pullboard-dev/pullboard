@@ -14,7 +14,7 @@ const ALL = [...FILES, SLOW];
 const WITH_SLOW = { ...TIMES, [SLOW]: 5 * MIN };
 const total = list => list.reduce((sum, ms) => sum + ms, 0);
 
-test('clause 1: with census.jobMinutes set to 3 and known file times, no planned job weighs over the larger of 3 min and its slowest file, and the job count is at least ceil(total / 3 min) [C7]', () => {
+test('cli.logic-census-job-minutes.with-census-jobminutes-set-to-3-and: clause 1: with census.jobMinutes set to 3 and known file times, no planned job weighs over the larger of 3 min and its slowest file, and the job count is at least ceil(total / 3 min) [C7]', () => {
   const jobs = censusPlan(ALL, 4, WITH_SLOW, false, () => assert.fail('the landing planner is not used'), 3);
   for (const job of jobs) assert.ok(job.weight <= Math.max(3 * MIN, ...job.files.map(file => WITH_SLOW[file])), `job of ${job.files.length} files weighs ${job.weight}`);
   const timed = timeBoundJobs(FILES, TIMES, 3 * MIN);
@@ -26,7 +26,7 @@ test('clause 1: with census.jobMinutes set to 3 and known file times, no planned
   assert.deepEqual(timeBoundJobs(ALL, WITH_SLOW, 3 * MIN), jobs, 'the same plan every time, whatever count the caller holds');
 });
 
-test('clause 2: with census.jobMinutes unset, the default, pulledShardCount is unchanged and jobs keep 40 files [C7]', () => {
+test('cli.logic-census-job-minutes.with-census-jobminutes-unset-the-default-pulledshardcount: clause 2: with census.jobMinutes unset, the default, pulledShardCount is unchanged and jobs keep 40 files [C7]', () => {
   assert.equal(PULLED_FILES_PER_JOB, 40);
   assert.equal(pulledShardCount(1694, 10), Math.ceil(1694 / 40));
   assert.equal(pulledShardCount(100, 10), 10);

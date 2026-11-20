@@ -35,7 +35,7 @@ function sandbox(t) {
   return { temp, repo };
 }
 
-test('clause 1: a tool root with an uncommitted bin edit gets the shared snapshot, whose copy of that file is the committed one, and no private copy [C7]', t => {
+test('cli.io-submit-handoff-root.a-tool-root-with-an-uncommitted-bin: clause 1: a tool root with an uncommitted bin edit gets the shared snapshot, whose copy of that file is the committed one, and no private copy [C7]', t => {
   const { temp, repo } = sandbox(t);
   writeFileSync(join(repo, 'bin/a.js'), 'export const bin = "uncommitted";\n');
   writeFileSync(join(repo, 'bin/untracked.js'), 'export const stray = 1;\n');
@@ -47,7 +47,7 @@ test('clause 1: a tool root with an uncommitted bin edit gets the shared snapsho
   assert.equal(toolsSnapshot(repo, 'job-again'), folder, 'a second dirty submit reuses the same folder');
 });
 
-test('clause 2: a tool root that is not a git checkout at all still gets a private per-job copy [C7]', t => {
+test('cli.io-submit-handoff-root.a-tool-root-that-is-not-a: clause 2: a tool root that is not a git checkout at all still gets a private per-job copy [C7]', t => {
   const { temp } = sandbox(t);
   const plain = temporaryDirectory('pullboard-plain-tools-');
   t.after(() => rmSync(plain, { recursive: true, force: true }));

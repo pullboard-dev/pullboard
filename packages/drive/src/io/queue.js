@@ -3,15 +3,12 @@
  * a job lease, and `pullboard next` hands the result back [C7].
  *
  * Why: since gate.runnersOnly a test run queues on runners for minutes, and seats sat 16-54 min in sleep-and-pgrep
- * loops. Corey, 9 Nov: "waiting is an error". The board holds the run; the seat takes other work.
+ * loops. A seat never waits on a test run: the board holds the run and the seat takes other work.
  */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { openSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
@@ -24,6 +21,7 @@ import { takeJob } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** The job kind of a queued test run; the drive cell's gate reclaim never touches it. */
 export const TEST_RUN_KIND = 'test-run';
@@ -67,7 +65,7 @@ const RENEW_MS = 30_000;
  *   at least one live build claim.
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
+export function queuesTestRun(ctx, agent, values, environment = environmentAdapter().all(), { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
   if (values['test-run'] !== undefined || ctx.info.isMain || agent === undefined) return false;
   if (machineContext(environment, { alive, pid }) !== null) return false;
   if (claimed) return true;
@@ -149,16 +147,16 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
     writeStep(runs?.db ?? board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, noFileLimit: run.noFileLimit === true, root: ctx.info.root, log }, { now });
   });
-  mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
-  const out = openSync(log, 'a', 0o600);
+  disk.mkdir(dirname(log), { recursive: true, mode: 0o700 });
+  const out = disk.open(log, 'a', 0o600);
   try {
     const args = [bin, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
-      env: { ...process.env, PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
+      env: { ...environmentAdapter().all(), PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
     child.unref();
-  } finally { closeSync(out); }
+  } finally { disk.close(out); }
   return { id, status: 'queued', log, files: run.files };
 }
 
@@ -260,10 +258,29 @@ function pulledResult(pulled, queued, { recording = false } = {}) {
   const { receipt } = pulled;
   const gate = receipt.gate ?? {};
   const phase = gate.phases?.[0] ?? null;
-  return { green: receipt.status === 0 && gate.green === true && phase?.status === 0, runner: pulled.runner ?? 'a pulled runner',
+  const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
+  const failures = Array.isArray(phase?.failures) ? phase.failures : [];
+  return { green, runner: pulled.runner ?? 'a pulled runner',
     seconds: Number.isFinite(receipt.durationMs) ? Math.round(receipt.durationMs / 1000) : null, counts: null,
-    failures: Array.isArray(phase?.failures) ? phase.failures : [], logPath: queued.log ?? null, files: queued.files ?? [],
-    notices: [`result read from the runner receipt of test job ${pulled.job}: ${recording ? 'the worker is still recording it' : 'the worker stopped before recording it'}`] };
+    failures, logPath: queued.log ?? null, files: queued.files ?? [],
+    notices: [`result read from the runner receipt of test job ${pulled.job}: ${recording ? 'the worker is still recording it' : 'the worker stopped before recording it'}`,
+      ...(green || failures.length ? [] : receiptVerdictLines(gate.verdicts))] };
+}
+
+/**
+ * One line per file a red receipt's verdicts name, with its first case, for a receipt whose phase lists no failures.
+ * Why: 37 red runs on 17 Nov were read from the receipt with no failing file printed, so builders reran or opened the log;
+ * these are notices only, so the main comparison that reads `failures` is unchanged (#10678).
+ *
+ * @param {unknown} verdicts - The receipt's gate.verdicts: test file -> its failing case names.
+ * @returns {string[]}
+ */
+function receiptVerdictLines(verdicts) {
+  if (!verdicts || typeof verdicts !== 'object' || Array.isArray(verdicts)) return [];
+  return Object.entries(verdicts).map(([file, cases]) => {
+    const first = Array.isArray(cases) && typeof cases[0] === 'string' ? cases[0] : null;
+    return `failing (from the receipt): ${file}${first && first !== file && !first.endsWith(`/${file}`) ? `: ${first}` : ''}`;
+  });
 }
 
 /**
@@ -276,13 +293,13 @@ export function readFinalLine(path) {
   if (!path) return null;
   let fd;
   try {
-    fd = openSync(path, 'r');
-    const size = fstatSync(fd).size;
+    fd = disk.open(path, 'r');
+    const size = disk.fstat(fd).size;
     const buffer = Buffer.alloc(Math.min(size, 8192));
-    readSync(fd, buffer, 0, buffer.length, size - buffer.length);
+    disk.read(fd, buffer, 0, buffer.length, size - buffer.length);
     const match = FINAL_LINE.exec(buffer.toString('utf8'));
     return match ? { green: match[1] === 'green', runner: match[2], seconds: Number(match[3]) } : null;
-  } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
+  } catch { return null; } finally { if (fd !== undefined) disk.close(fd); }
 }
 
 /**

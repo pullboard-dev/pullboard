@@ -10,13 +10,13 @@ const present = new Set(['apps/cli/tests/fixtures/data.json', 'apps/cli/tests/fi
 const exists = path => present.has(path);
 const run = source => rebasePathMath(source, FROM, TO, exists);
 
-test('new URL path math is rewritten to the same target from the new folder [C7]', () => {
+test('gate.logic-test-freeze-paths.new-url-path-math-is: new URL path math is rewritten to the same target from the new folder [C7]', () => {
   const { source, problems } = run("const f = new URL('../../tests/fixtures/data.json', import.meta.url);\n");
   assert.deepEqual(problems, []);
   assert.equal(source, "const f = new URL('../../../../../apps/cli/tests/fixtures/data.json', import.meta.url);\n");
 });
 
-test('join and resolve on the file directory are rewritten, through a variable or inline [C7]', () => {
+test('gate.logic-test-freeze-paths.join-and-resolve-on-the: join and resolve on the file directory are rewritten, through a variable or inline [C7]', () => {
   const text = [
     "import { dirname, join, resolve } from 'node:path';",
     "const here = dirname(fileURLToPath(import.meta.url));",
@@ -32,7 +32,7 @@ test('join and resolve on the file directory are rewritten, through a variable o
   assert.match(source, /join\(__dirname, '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/apps\/cli\/tests\/fixtures'\)/u);
 });
 
-test('a target that no longer resolves is named with its line [C7]', () => {
+test('gate.logic-test-freeze-paths.a-target-that-no-longer: a target that no longer resolves is named with its line [C7]', () => {
   const { source, problems } = run("x;\nconst f = new URL('./missing.json', import.meta.url);\n");
   assert.equal(problems.length, 1);
   assert.equal(problems[0].line, 2);
@@ -40,12 +40,12 @@ test('a target that no longer resolves is named with its line [C7]', () => {
   assert.equal(source, "x;\nconst f = new URL('./missing.json', import.meta.url);\n");
 });
 
-test('path math that is not literal join or resolve is named with its line [C7]', () => {
+test('gate.logic-test-freeze-paths.path-math-that-is-not: path math that is not literal join or resolve is named with its line [C7]', () => {
   const { problems } = run("const here = dirname(fileURLToPath(import.meta.url));\nconst p = here + '/x';\nconst q = fileURLToPath(import.meta.url);\n");
   assert.deepEqual(problems.map(entry => entry.line), [2, 3]);
 });
 
-test('a file that stays in its folder, or has no path math, is left as it is [C7]', () => {
+test('gate.logic-test-freeze-paths.a-file-that-stays-in: a file that stays in its folder, or has no path math, is left as it is [C7]', () => {
   assert.deepEqual(rebasePathMath("new URL('./x', import.meta.url)", FROM, 'apps/cli/journeys/add/other.test.js', () => false), { source: "new URL('./x', import.meta.url)", problems: [] });
   assert.deepEqual(run('const x = 1;\n'), { source: 'const x = 1;\n', problems: [] });
 });

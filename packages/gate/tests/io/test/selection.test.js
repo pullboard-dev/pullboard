@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../../../index.js';
-import { testClosures } from '../../../index.js';
+import { selectAffectedTests } from '../../../heavy.js';
+import { testClosures } from '../../../heavy.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 
 /** Build actual immutable Git trees; no fixture module is imported or executed by selection. */
@@ -192,31 +192,46 @@ test('gate.io-test-selection.declaration-text-inside-executable-strings-cannot: 
   assert.match(result.reason, /hidden\.json/u);
 });
 
-for (const [field, value] of Object.entries({ type: 'commonjs', imports: { '#alias': './src/value.js' },
-  exports: './src/value.js', dependencies: { opaque: '1.0.0' }, scripts: { test: 'node different.js' }, engines: { node: '>=24' } })) {
-  test(`package ${field} effects cannot be narrowed by an explicit package reader [V4,C7]`, t => {
-    const box = graph(t);
-    box.put('packages/gate/tests/logic/reach.test.js', '/** @pullboard-test-input package.json */\n');
-    const base = box.commit();
-    box.put('package.json', JSON.stringify({ type: 'module', private: true, [field]: value }) + '\n');
-    const commit = box.commit();
-    const result = selectAffectedTests(box.root, { base, commit });
-    assert.equal(result.full, true, 'declared data reads cannot erase implicit runtime effects');
-    assert.match(result.reason, /package|CommonJS/u);
-  });
+/** An explicit package.json reader cannot narrow away an implicit runtime effect of the named package field. */
+function packageFieldEffect(t, field, value) {
+  const box = graph(t);
+  box.put('packages/gate/tests/logic/reach.test.js', '/** @pullboard-test-input package.json */\n');
+  const base = box.commit();
+  box.put('package.json', JSON.stringify({ type: 'module', private: true, [field]: value }) + '\n');
+  const commit = box.commit();
+  const result = selectAffectedTests(box.root, { base, commit });
+  assert.equal(result.full, true, 'declared data reads cannot erase implicit runtime effects');
+  assert.match(result.reason, /package|CommonJS/u);
 }
 
-for (const path of ['pullboard.json', 'package-lock.json', '.githooks/pre-commit']) {
-  test(`implicit ${path} effects retain their named full fallback [V4,C7]`, t => {
-    const box = graph(t);
-    const base = box.commit();
-    box.put(path, '{}\n');
-    const after = box.commit();
-    const result = selectAffectedTests(box.root, { base, commit: after });
-    assert.equal(result.full, true);
-    assert.ok(result.reason.includes(path), result.reason);
-  });
+/** A change to an implicit root file keeps its named full fallback. */
+function implicitFileEffect(t, path) {
+  const box = graph(t);
+  const base = box.commit();
+  box.put(path, '{}\n');
+  const after = box.commit();
+  const result = selectAffectedTests(box.root, { base, commit: after });
+  assert.equal(result.full, true);
+  assert.ok(result.reason.includes(path), result.reason);
 }
+
+test('gate.io-test-selection.package-type-effects-cannot-be-narrowed: package type effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'type', 'commonjs'));
+
+test('gate.io-test-selection.package-imports-effects-cannot-be-narrowed: package imports effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'imports', { '#alias': './src/value.js' }));
+
+test('gate.io-test-selection.package-exports-effects-cannot-be-narrowed: package exports effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'exports', './src/value.js'));
+
+test('gate.io-test-selection.package-dependencies-effects-cannot-be-narrowed: package dependencies effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'dependencies', { opaque: '1.0.0' }));
+
+test('gate.io-test-selection.package-scripts-effects-cannot-be-narrowed: package scripts effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'scripts', { test: 'node different.js' }));
+
+test('gate.io-test-selection.package-engines-effects-cannot-be-narrowed: package engines effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'engines', { node: '>=24' }));
+
+test('gate.io-test-selection.implicit-pullboardjson-effects-retain-their: implicit pullboard.json effects retain their named full fallback [V4,C7]', t => implicitFileEffect(t, 'pullboard.json'));
+
+test('gate.io-test-selection.implicit-package-lockjson-effects-retain-their: implicit package-lock.json effects retain their named full fallback [V4,C7]', t => implicitFileEffect(t, 'package-lock.json'));
+
+test('gate.io-test-selection.implicit-githooks-pre-commit-effects-retain-their: implicit .githooks/pre-commit effects retain their named full fallback [V4,C7]', t => implicitFileEffect(t, '.githooks/pre-commit'));
 
 test('gate.io-test-selection.a-declared-data-symlink-cannot-supply: a declared data symlink cannot supply complete in-repository reader custody [V4,C7]', t => {
   const box = graph(t);

@@ -1,7 +1,7 @@
 /** Shell scripts a pull-mode runner runs for enqueue, status, pack upload and file fetch; shell and git only, no node [5465,5468]. */
-import { mkdtempSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** The job ids a runner namespace accepts; anything else could escape the queue folders or the shell word. */
 const JOB_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
@@ -21,6 +21,16 @@ export function pullJobId(id) {
 
 /** The runner root as a shell word: its configured folder, or the home default the worker launch uses. */
 export function rootWord(runner) { return runner?.root ? pullWord(runner.root) : '"$HOME/.pullboard-runner"'; }
+
+/**
+ * The enqueue line that starts the runner agent: the agent snippet backgrounded inside /bin/sh, never in the login shell.
+ * Why: ssh runs the enqueue script in the runner account's login shell; zsh (the macOS default) renices every
+ * background job by 5 (BG_NICE), so the two background levels here started the agent at nice 10, and every
+ * review job it ran inherited 10 while pulled jobs ran at 0 (#10985).
+ * @param {string} agent The shell snippet that starts the agent.
+ * @returns {string} One POSIX command that returns at once.
+ */
+function agentLaunch(agent) { return `/bin/sh -c ${pullWord(`( ${agent}\n) </dev/null >/dev/null 2>&1 &`)} </dev/null >/dev/null 2>&1`; }
 
 /**
  * Build the enqueue script: stdin is one JSON line (row.json) then the frame bytes.
@@ -52,7 +62,7 @@ N=$(wc -c < "$T/input" | tr -d ' ')
 if [ "$N" != ${frameBytes} ]; then rm -rf "$T"; echo "frame was cut short" >&2; exit 3; fi
 ${command ? `printf '%s\\n' ${pullWord(command)} > "$T/command"\n` : ''}: > "$T/wanted"
 mv "$T" "$R/queue/${id}"
-${agent ? `( ${agent}\n) </dev/null >/dev/null 2>&1 &\n` : ''}echo "queued ${id}"
+${agent ? `${agentLaunch(agent)}\n` : ''}echo "queued ${id}"
 `;
 }
 
@@ -175,11 +185,11 @@ echo end
  */
 export function stageRunnerJob({ id, row, frame, command = '', now = Date.now(), parent }) {
   pullJobId(id);
-  const dir = mkdtempSync(join(parent, 'job-'));
+  const dir = fileSystem.mkdtemp(join(parent, 'job-'));
   const rowBytes = Buffer.from(`${JSON.stringify({ version: 1, id, enqueuedAt: now, ...row })}\n`);
-  writeFileSync(join(dir, 'row.json'), rowBytes, { mode: 0o600 });
-  writeFileSync(join(dir, 'input'), frame, { mode: 0o600 });
-  if (command) writeFileSync(join(dir, 'command'), `${command}\n`, { mode: 0o600 });
-  writeFileSync(join(dir, 'wanted'), '', { mode: 0o600 });
+  fileSystem.writeFile(join(dir, 'row.json'), rowBytes, { mode: 0o600 });
+  fileSystem.writeFile(join(dir, 'input'), frame, { mode: 0o600 });
+  if (command) fileSystem.writeFile(join(dir, 'command'), `${command}\n`, { mode: 0o600 });
+  fileSystem.writeFile(join(dir, 'wanted'), '', { mode: 0o600 });
   return { dir, files: ['row.json', 'input', ...(command ? ['command'] : []), 'wanted'], rowBytes };
 }

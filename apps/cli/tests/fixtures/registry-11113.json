@@ -1,0 +1,4 @@
+{
+  "cli.io-read.itemline-landed-names-main-sha": {"proves":{"specs":["C7"],"claim":"itemLine for a withdrawn item at stage landed with a merged commit prints on main at the first 12 characters of the commit, not landed."},"why":"Without it, builders read withdrawn (landed) as not on main and release dependents of hand-landed items as blocked.","kind":"cell unit","inputs":["apps/cli/src/io/read.js"]},
+  "cli.io-read.itemline-withdrawn-unmerged-unchanged": {"proves":{"specs":["C7"],"claim":"itemLine for a withdrawn item with no merged commit, and for a verified item, prints the same line as before."},"why":"Without it, the new wording could leak onto items that did not land by hand.","kind":"cell unit","inputs":["apps/cli/src/io/read.js"]}
+}

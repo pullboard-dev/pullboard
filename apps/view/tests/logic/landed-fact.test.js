@@ -19,7 +19,7 @@ const project = () => ({
   milestones: [{ name: '0.9.5: x', items: [1, 2, 3, 4, 5].map(id => ({ id })), summary: { total: 5, left: 3, landed: 2 } }],
 });
 
-test('clause 1: a withdrawn item with a merge commit counts as landed in the totals, stage counts and roadmap rows [C7]', () => {
+test('view.x-landed-fact.clause-1-a-withdrawn-item-with-a: clause 1: a withdrawn item with a merge commit counts as landed in the totals, stage counts and roadmap rows [C7]', () => {
   const state = project();
   assert.equal(landedCounts(state, now).total, 3, 'every item with a merge commit counts, withdrawn or not');
   const model = dashboardModel(state, [], { now, complete: true });
@@ -29,7 +29,7 @@ test('clause 1: a withdrawn item with a merge commit counts as landed in the tot
   assert.deepEqual(read.rows.map(row => row.label), ['#1'], 'a landed row stays; a plain withdrawn row drops');
 });
 
-test('clause 2: a landed item still marked claimed or submitted is absent from In flight [C7]', () => {
+test('view.x-landed-fact.clause-2-a-landed-item-still-marked: clause 2: a landed item still marked claimed or submitted is absent from In flight [C7]', () => {
   const model = dashboardModel(project(), [], { now, complete: true });
   assert.deepEqual(model.inFlight.building.map(entry => entry.id), [5]);
   assert.deepEqual(model.inFlight.review.map(entry => entry.id), []);

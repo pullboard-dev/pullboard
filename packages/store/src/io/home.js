@@ -3,16 +3,13 @@
  * exists. A command around which none exists has no relay or baseline work to do, so it never loads those modules
  * [C7].
  */
-import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  readdirSync,
-} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { repoInfo } from "../../../git/light.js";
 import { Refused } from "../../../kernel/light.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A pending baseline result's file name: one per request id. */
 export const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;
@@ -25,6 +22,11 @@ export function pullboardHome() {
 /** The machine's relay settings folder. */
 export function relayMachineDirectory() {
   return join(pullboardHome(), 'relay-machine');
+}
+
+/** The relay machine state file, inside the machine's relay settings folder. */
+export function relayMachineStateFile() {
+  return join(relayMachineDirectory(), 'state.json');
 }
 
 /** The machine's relay key folder. */
@@ -50,7 +52,7 @@ export function gitSyncMarkerFile(commonDir) {
 export function gitSyncLinked(root) {
   const marker = gitSyncMarkerFile(repoInfo(root).commonDir);
   let stat;
-  try { stat = lstatSync(marker); }
+  try { stat = fs.lstat(marker); }
   catch (error) {
     if (error.code === 'ENOENT' || error.code === 'ELOOP') return false;
     if (error.code === 'ENOTDIR') throw new Refused('GIT_SYNC_FOLDER', `${join(marker, '..')} is not a directory, so the board folder is damaged`,
@@ -59,7 +61,7 @@ export function gitSyncLinked(root) {
   }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) return false;
   let value;
-  try { value = JSON.parse(readFileSync(marker, 'utf8')); } catch { return false; }
+  try { value = JSON.parse(fs.readFile(marker, 'utf8')); } catch { return false; }
   const writer = value?.writer;
   const validWriter = writer === undefined || writer && typeof writer === 'object'
     && writer.command === 'sync' && Number.isSafeInteger(writer.pid) && writer.pid > 0
@@ -79,7 +81,7 @@ export function relayFiles(commonDir) {
 
 /** Whether a repository has relay state to read: a link, or the notice of a deleted copy. */
 export function relayStateExists(commonDir) {
-  return existsSync(relayLinkFile(commonDir)) || existsSync(relayDeletedFile(commonDir));
+  return fs.exists(relayLinkFile(commonDir)) || fs.exists(relayDeletedFile(commonDir));
 }
 
 /** A repository's baseline results that finished after their command exited. */
@@ -88,28 +90,46 @@ export function baselineReceiptDirectory(commonDir) {
 }
 
 /**
+ * Whether the machine's relay state file records nothing due: no linked board, no pending request and no auto-link.
+ * One small file is parsed, with no relay import. Why false on any doubt: a missing, unreadable or odd file is left to the
+ * full path to report [C7].
+ *
+ * @returns {boolean}
+ */
+function relayMachineStateEmpty() {
+  const file = relayMachineStateFile();
+  if (!fs.exists(file)) return false;
+  let state;
+  try { state = JSON.parse(fs.readFile(file, 'utf8')); } catch { return false; }
+  const none = (value) => value === undefined || Array.isArray(value) && value.length === 0;
+  return Boolean(state && typeof state === 'object' && [1, 2].includes(state.v) && state.autoLink === false
+    && (state.owner ?? null) === null && (state.pending ?? null) === null
+    && none(state.devices) && none(state.revocations) && none(state.approvals));
+}
+
+/**
  * Whether the relay sync, auto-link, person requests or baseline delivery around a command could do anything here:
- * a relay token in the environment, relay state on this machine, a relay link, or a pending baseline result. False
- * only when each of them would return without acting, so skipping them changes nothing.
+ * a relay token in the environment, relay state on this machine that records anything, a relay link, or a pending
+ * baseline result. False only when each of them would return without acting, so skipping them changes nothing.
  *
  * @param {string} cwd
  * @returns {boolean}
  */
 export function syncMayAct(cwd) {
   if (process.env.PULLBOARD_RELAY_TOKEN !== undefined && process.env.PULLBOARD_RELAY_KEY !== undefined) return true;
-  if (existsSync(relayMachineDirectory()) || existsSync(relayKeyDirectory())) return true;
+  if (fs.exists(relayKeyDirectory()) || (fs.exists(relayMachineDirectory()) && !relayMachineStateEmpty())) return true;
   let info;
   try { info = repoInfo(cwd); }
   catch (error) {
     // Outside a repository every step refuses quietly with these codes; any other failure takes the full path.
     return !(error instanceof Refused && ['NOT_A_REPO', 'CORE_BARE'].includes(error.code));
   }
-  if (existsSync(relayLinkFile(info.commonDir)) || existsSync(gitSyncMarkerFile(info.commonDir))) return true;
+  if (fs.exists(relayLinkFile(info.commonDir)) || fs.exists(gitSyncMarkerFile(info.commonDir))) return true;
   return baselineReceiptsPending(info.commonDir);
 }
 
 /** Whether a finished baseline result waits in this repository's shared Git directory for delivery. */
 export function baselineReceiptsPending(commonDir) {
   const receipts = baselineReceiptDirectory(commonDir);
-  return existsSync(receipts) && readdirSync(receipts).some((name) => BASELINE_RECEIPT.test(name));
+  return fs.exists(receipts) && fs.list(receipts).some((name) => BASELINE_RECEIPT.test(name));
 }

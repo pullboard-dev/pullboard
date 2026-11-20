@@ -25,7 +25,7 @@ const { sandbox, project } = e2e;
 const CLAUDE_MODEL = 'Claude';
 const OTHER_MODEL = 'Another Model';
 
-test('model names label CLI actors without changing IDs, messages, or the context prompt [O8,O3]', async () => {
+test('cli.journeys-release-model-labels.model-names-label-cli-actors-without: model names label CLI actors without changing IDs, messages, or the context prompt [O8,O3]', async () => {
   for (const style of ['suffix', 'prefix']) {
     const box = sandbox();
     box.env.PULLBOARD_MODEL = 'Claude';

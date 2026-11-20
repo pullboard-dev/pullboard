@@ -8,8 +8,7 @@
  *
  * @file-local Reads the config and the sources under the root, through the engine.
  */
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assumptionCounts } from '../../../codemap/index.js';
@@ -19,9 +18,12 @@ import { writeAssumptionBaseline } from '../../../codemap/index.js';
 import { report } from './scan.js';
 import { runCheck } from './scan.js';
 
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
+
 export { assumptionProblems, assumptionsIn, writeAssumptionBaseline };
 
-const MAIN = Boolean(process.argv[1]) && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+const MAIN = Boolean(process.argv[1]) && disk.exists(process.argv[1]) && disk.realpath(process.argv[1]) === disk.realpath(fileURLToPath(import.meta.url));
 const rootArgument = () => resolve(process.argv.slice(2).find(argument => !argument.startsWith('--')) ?? '.');
 
 if (MAIN && process.argv.includes('--counts')) console.log(JSON.stringify(assumptionCounts(rootArgument()), null, 2));

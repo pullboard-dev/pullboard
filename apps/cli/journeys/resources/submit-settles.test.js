@@ -10,7 +10,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { registerStandInAfterAdd } from '../../tests/fixtures/runner/registered.js';
-import { serveBoardQueue } from '../../tests/fixtures/runner/registered.js';
+import { serveRegisteredRunner } from '../../tests/fixtures/runner/registered.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
@@ -76,7 +76,7 @@ function succeeded(result) {
   return result;
 }
 
-test('clause 1: a runner-only submit --wait with the ssh stand-in registered returns and its pulled gate settles green in under 60 s each [C7,V4]', async () => {
+test('cli.journeys-resources-submit-settles.a-runner-only-submit-wait-with: clause 1: a runner-only submit --wait with the ssh stand-in registered returns and its pulled gate settles green in under 60 s each [C7,V4]', async t => {
   const t0 = Date.now(), tick = label => process.stderr.write(`TIMING ${((Date.now() - t0) / 1000).toFixed(1)}s ${label}\n`);
   const box = helpers.project('true');
   const requests = join(box.dir, 'runner-only-requests.jsonl');
@@ -95,8 +95,8 @@ test('clause 1: a runner-only submit --wait with the ssh stand-in registered ret
   const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
   assert.equal(built.status, 0, built.failure ?? built.stderr);
   succeeded(await box.runAsync(box.repo, 'settings', 'gate.runnersOnly', 'on'));
-  serveBoardQueue(box);
-  tick('after claim, commit, settings and local runner');
+  const runner = await serveRegisteredRunner(t, box, registered);
+  tick('after claim, commit, settings and registered runner');
   const submitted = await step(box, 'submit', box.web, ['submit', String(id), '--wait', '--no-next', '--json'], snapshot);
   tick('after submit --wait');
   assert.ok(!submitted.capped, submitted.err);
@@ -108,6 +108,8 @@ test('clause 1: a runner-only submit --wait with the ssh stand-in registered ret
   tick('after gate settled');
   assert.equal(job.id, queued.gateJob, 'the job the submit offered is the one that settled');
   assert.equal(job.gate?.green, true, JSON.stringify(job).slice(0, 2000));
+  assert.equal(job.gate.logRunner, runner.name, 'the registered runner served the job, not the board host local runner');
+  assert.ok(job.gate.logPath.startsWith(`${runner.folder}/`), `the job ran under the registered runner home ${runner.folder}: ${job.gate.logPath}`);
   assert.equal(job.gate.check?.command, 'printf RUNNER_ONLY_FROZEN_BODY');
   assert.ok(job.gate.phases.some(phase => phase.role === 'check' && phase.tail.includes('RUNNER_ONLY_FROZEN_BODY')), 'the frozen check body ran');
   assert.deepEqual(jobRows(box).filter(row => row.job_step !== 'done'), [], 'no job row is left for the fixture settle to wait on');

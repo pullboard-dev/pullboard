@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-cell apps/cli */
 /** @pullboard-test-gui */
 /** The tab-speed fixture prints each stage's elapsed milliseconds only when PULLBOARD_TAB_SPEED_TRACE is set, using a stub board and stub Chrome [C7]. */
@@ -45,7 +46,7 @@ async function traceLines(value, tabs) {
   return lines;
 }
 
-test('clause 1: with PULLBOARD_TAB_SPEED_TRACE=1 measureTabSpeed prints one line per stage with elapsed ms [C7]', async () => {
+test('cli.journeys-spec-cockpit-tab-speed-trace.with-pullboard-tab-speed-trace-1: clause 1: with PULLBOARD_TAB_SPEED_TRACE=1 measureTabSpeed prints one line per stage with elapsed ms [C7]', async () => {
   const lines = await traceLines('1', ['items', 'roadmap']);
   const labels = lines.map(line => line.slice(PREFIX.length).replace(/ \d+ ms$/, ''));
   assert.deepEqual(labels, ['server start', 'chrome start', 'first load',
@@ -54,11 +55,11 @@ test('clause 1: with PULLBOARD_TAB_SPEED_TRACE=1 measureTabSpeed prints one line
   for (const line of lines) assert.match(line, /^tab-speed-trace: .+ \d+ ms$/);
 });
 
-test('clause 1: with the variable unset measureTabSpeed prints no trace line [C7]', async () => {
+test('cli.journeys-spec-cockpit-tab-speed-trace.with-the-variable-unset-measuretabspeed-prints: clause 1: with the variable unset measureTabSpeed prints no trace line [C7]', async () => {
   assert.deepEqual(await traceLines(undefined, ['items']), []);
 });
 
-test('clause 1: a stage prints its line even when it throws, so board generation and a failed wait are named [C7]', async () => {
+test('cli.journeys-spec-cockpit-tab-speed-trace.a-stage-prints-its-line-even: clause 1: a stage prints its line even when it throws, so board generation and a failed wait are named [C7]', async () => {
   const lines = [], stage = tabSpeedTrace({ PULLBOARD_TAB_SPEED_TRACE: '1' }, line => lines.push(line));
   assert.equal(await stage('board generation', async () => 7), 7);
   await assert.rejects(stage('first load', async () => { throw new Error('boom'); }), /boom/);

@@ -65,7 +65,7 @@ async function costProject(model) {
   return { ...box, web };
 }
 
-test('clause 1: an item records the tokens and cost its seats spent when a checkpoint fails [N2]', async () => {
+test('cli.journeys-stats-cost-sessions.an-item-records-the-tokens-and: clause 1: an item records the tokens and cost its seats spent when a checkpoint fails [N2]', async () => {
   const box = await costProject('fixture-claude');
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
@@ -128,7 +128,7 @@ test('clause 1: an item records the tokens and cost its seats spent when a check
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out).usage.knownInputTokens, 105, 'closed replay is idempotent');
 });
 
-test('clause 2: an item records the tokens and cost its seats spent with a shared native session [N2]', async () => {
+test('cli.journeys-stats-cost-sessions.an-item-records-the-tokens-and-2: clause 2: an item records the tokens and cost its seats spent with a shared native session [N2]', async () => {
   const box = await costProject('fixture-codex');
   const second = join(box.dir, 'overlap-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
@@ -199,7 +199,7 @@ test('clause 2: an item records the tokens and cost its seats spent with a share
 });
 
 
-test('clause 3: an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', async () => {
+test('cli.journeys-stats-cost-sessions.an-item-records-the-tokens-and-3: clause 3: an item records the tokens and cost its seats spent across an actual claim switch without dollar output [N2]', async () => {
   const box = await costProject('fixture-claude');
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));

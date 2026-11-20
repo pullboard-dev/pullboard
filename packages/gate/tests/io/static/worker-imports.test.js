@@ -23,7 +23,7 @@ function writeTree(prefix, files, units) {
   return tree;
 }
 
-test('#8461 clause 1: the worker-imports check refuses a worker that reaches a package outside its reviewed list [C7]', t => {
+test('gate.io-static-worker-imports.case-8461-clause-1-the-worker-imports: #8461 clause 1: the worker-imports check refuses a worker that reaches a package outside its reviewed list [C7]', t => {
   const tree = writeTree('pb-worker-imports-out-', ['packages/kernel/a.js', 'packages/search/b.js'], ['packages/kernel']);
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   const rows = importsCheck.run(tree.root);
@@ -31,7 +31,7 @@ test('#8461 clause 1: the worker-imports check refuses a worker that reaches a p
   assert.match(rows[0], /^packages\/gate\/data\/baselines\/worker-imports\.json:1: the runner worker now reaches packages\/search, outside its reviewed list/u);
 });
 
-test('#8461 clause 2: the worker-imports check gives no finding for a worker that stays inside its reviewed list [C7]', t => {
+test('gate.io-static-worker-imports.case-8461-clause-2-the-worker-imports: #8461 clause 2: the worker-imports check gives no finding for a worker that stays inside its reviewed list [C7]', t => {
   const tree = writeTree('pb-worker-imports-in-', ['packages/kernel/a.js', 'packages/kernel/b.js', 'apps/runner/w.js'], ['packages/kernel', 'apps/runner', 'packages/queue']);
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   assert.deepEqual(importsCheck.run(tree.root), []);

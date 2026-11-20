@@ -25,7 +25,7 @@ async function fixture(t, on) {
   return { box, id, field };
 }
 
-test('clause 1: field declare priority choice --choices low,high then field set priority high succeeds and the value is in the board [C7,#9351]', async t => {
+test('cli.journeys-show-field-set.field-declare-priority-choice-choices-low: clause 1: field declare priority choice --choices low,high then field set priority high succeeds and the value is in the board [C7,#9351]', async t => {
   const { box, id, field } = await fixture(t, true);
   const declared = await field('declare', 'priority', 'choice', '--choices', 'low,high');
   assert.equal(declared.status, 0, declared.stdout + declared.stderr);
@@ -35,7 +35,7 @@ test('clause 1: field declare priority choice --choices low,high then field set 
   assert.deepEqual(stored.map(row => ({ ...row })), [{ name: 'priority', value: 'high' }]);
 });
 
-test('clause 2: a value of the wrong type is refused with FIELD_TYPE, and with items.typedFields off the command names the setting to turn on [C7,#9351]', async t => {
+test('cli.journeys-show-field-set.a-value-of-the-wrong-type: clause 2: a value of the wrong type is refused with FIELD_TYPE, and with items.typedFields off the command names the setting to turn on [C7,#9351]', async t => {
   const on = await fixture(t, true);
   assert.equal((await on.field('declare', 'priority', 'choice', '--choices', 'low,high')).status, 0);
   const wrong = await on.field('set', String(on.id), 'priority', 'urgent');

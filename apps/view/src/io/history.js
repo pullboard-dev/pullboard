@@ -128,7 +128,7 @@ async function historyNextPage(kind) {
       await refresh();
     }
   } catch (error) {
-    $('live').textContent = 'offline: ' + (error.message || error);
+    $('live').textContent = offlineLine(error);
   } finally { historyAsking = false; }
 }
 `;

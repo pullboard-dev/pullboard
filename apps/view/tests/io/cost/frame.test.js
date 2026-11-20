@@ -11,7 +11,7 @@ const css = name => readFileSync(new URL('../../../src/io/' + name, import.meta.
 
 /** The page script's Cost reader and pane, run against a request that never answers and an in-memory keep(). */
 function costPage(stored = {}) {
-  const script = pageScriptPart3({ applyStateDelta: function applyStateDelta() {}, expandItemSummaries: function expandItemSummaries() {}, costPrices: null, costTabScript: () => '', privateCost: true });
+  const script = pageScriptPart3({ applyStateDelta: function applyStateDelta() {}, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, expandItemSummaries: function expandItemSummaries() {}, costPrices: null, costTabScript: () => '', privateCost: true });
   const names = ['privateCost', 'snapshot', 'hosted', 'readOnly', 'data', 'view', 'keep', 'api', 'boardPath', 'render', 'modelTables', 'costOverviewHtml'];
   const kept = new Map(Object.entries(stored));
   const calls = { api: 0, render: 0 };
@@ -22,7 +22,7 @@ function costPage(stored = {}) {
   return { ...page, kept, calls };
 }
 
-test('clause 1: Cost with nothing read yet draws its frame at once, with no heading and no period buttons of its own, not a blank Loading page [N26]', () => {
+test('view.x-io-cost-frame.clause-1-cost-with-nothing-read-yet: clause 1: Cost with nothing read yet draws its frame at once, with no heading and no period buttons of its own, not a blank Loading page [N26]', () => {
   const { readCostHistory, costPaneHtml, calls } = costPage();
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
   assert.equal(calls.api, 1, 'the read starts');
@@ -32,7 +32,7 @@ test('clause 1: Cost with nothing read yet draws its frame at once, with no head
   assert.doesNotMatch(html, /Loading cost history/u, 'no blank loading page');
 });
 
-test('clause 1: Cost draws the last numbers this browser read while the fresh read is on its way [N26]', () => {
+test('view.x-io-cost-frame.clause-1-cost-draws-the-last-numbers: clause 1: Cost draws the last numbers this browser read while the fresh read is on its way [N26]', () => {
   const last = { window: '7d', totals: { agentMs: 7_200_000, itemCount: 12 }, days: [], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 12 };
   const { readCostHistory, costPaneHtml, calls } = costPage({ 'pb.cost./repo\n7d': JSON.stringify(last) });
   const html = costPaneHtml(readCostHistory({ sequence: 1, events: [] }), {});
@@ -43,18 +43,18 @@ test('clause 1: Cost draws the last numbers this browser read while the fresh re
   assert.doesNotMatch(costOverviewHtml(last, null, { updating: false }), /cost-updating/u, 'a settled page says nothing');
 });
 
-test('clause 2: Cost and Settings take the page width [N26]', () => {
+test('view.x-io-cost-frame.clause-2-cost-and-settings-take-the: clause 2: Cost and Settings take the page width [N26]', () => {
   assert.doesNotMatch(css('cost.css'), /\.cost-page\s*\{[^}]*max-width/u, 'Cost has no width cap');
   assert.doesNotMatch(css('main.css'), /#settings-pane\s*\{[^}]*(?:max-width|margin-inline)/u, 'Settings has no width cap and is not centred');
 });
 
 const panelData = { window: '7d', totals: { agentMs: 7_200_000, itemCount: 2, medianItemMs: 3_600_000, sentBack: { itemShare: 0.5, agentMsShare: 0.5, agentMs: 3_600_000 } }, days: [{ date: '2026-10-30', firstTimeMs: 3_600_000, sentBackMs: 3_600_000, items: 2 }], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 2 };
 
-test('clause 1: Cost shows no line about agent time or adding model prices [N26]', () => {
+test('view.x-io-cost-frame.clause-1-cost-shows-no-line-about: clause 1: Cost shows no line about agent time or adding model prices [N26]', () => {
   for (const hasPrices of [false, true]) assert.doesNotMatch(costOverviewHtml(panelData, null, { hasPrices }), /Showing agent time|Want dollars|Add model prices|cost-prices|data-cost-copy/u);
 });
 
-test('clause 2: Agent time and Agent time each day share one panel under one level-1 header, below Models, summary beside the chart at equal height [N26]', () => {
+test('view.x-io-cost-frame.clause-2-agent-time-and-agent-time: clause 2: Agent time and Agent time each day share one panel under one level-1 header, below Models, summary beside the chart at equal height [N26]', () => {
   const html = costOverviewHtml(panelData);
   const panel = /<h2 class="hd1">Agent time<\/h2><\/div><div class="cost-card cost-overview">(.*?)<\/div><\/section><\/section>$/su.exec(html)?.[1] ?? '';
   assert.match(panel, /^<article class="cost-summary">/u, 'the summary opens the panel');
@@ -64,7 +64,7 @@ test('clause 2: Agent time and Agent time each day share one panel under one lev
   assert.doesNotMatch(css('cost.css'), /\.cost-summary\s*\{[^}]*align-self: start/u, 'the summary is not shortened beside the chart');
 });
 
-test('clause 1: an opened item scrolls to just below the two-row phone nav, so its chips are not cut under it [N26]', () => {
+test('view.x-io-cost-frame.clause-1-an-opened-item-scrolls-to: clause 1: an opened item scrolls to just below the two-row phone nav, so its chips are not cut under it [N26]', () => {
   const top = Number(/#detail \{ scroll-margin-top: (\d+)px; \}/u.exec(css('main.css'))?.[1]);
   assert.ok(top >= 88, 'the margin clears the sticky two-row nav (about 72 px) with room for a gap, not the old 60 px');
 });

@@ -21,7 +21,7 @@ const draw = (movers, waiters) => {
   return { html, svg: html.match(/<svg class="act-wfsvg"[^]*?<\/svg>(<p class="act-wfnote">[^<]*<\/p>)?/u)[0] };
 };
 
-test('clause 1: a column per moved item only, capped at 60 with an and N more moved line and a count of items that only waited [N26,#7567]', () => {
+test('view.activity-chart.clause-1-a-column-per-moved-item: clause 1: a column per moved item only, capped at 60 with an and N more moved line and a count of items that only waited [N26,#7567]', () => {
   const { svg } = draw(70, 9);
   assert.equal([...svg.matchAll(/<g data-id="(\d+)"/gu)].length, 60, 'sixty columns');
   assert.ok(![...svg.matchAll(/<g data-id="(\d+)"/gu)].some(match => Number(match[1]) >= 500), 'a waiting item has no column');
@@ -31,7 +31,7 @@ test('clause 1: a column per moved item only, capped at 60 with an and N more mo
   assert.doesNotMatch(draw(3, 0).svg, /and \d+ more moved|only waited/u, 'no note when nothing is hidden');
 });
 
-test('clause 2: past limit is a thin red cap, the bar keeps its stage colour, and the columns fill the card width [N26,#7567]', () => {
+test('view.activity-chart.clause-2-past-limit-is-a-thin: clause 2: past limit is a thin red cap, the bar keeps its stage colour, and the columns fill the card width [N26,#7567]', () => {
   const { svg } = draw(8, 0);
   assert.match(svg, /<rect class="m-cap"/u, 'a cap is drawn where the 20 minute limit was crossed');
   assert.doesNotMatch(svg, /s-over/u, 'no hatched fill');

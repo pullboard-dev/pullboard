@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { test } from 'node:test';
 
-test("the view's refresh re-renders only what changed [N26,A2]", async () => {
+test('cli.journeys-view-e2e-refresh.the-view-s-refresh-re-renders: the view\'s refresh re-renders only what changed [N26,A2]', async () => {
   const page = cockpitSource();
   const start = page.indexOf('async function refresh(');
   const end = page.indexOf('\n// The local view follows', start);

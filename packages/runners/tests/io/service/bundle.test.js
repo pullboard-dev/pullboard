@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { serviceFiles } from '../../../src/io/service.js';
+import { trustedEntries } from '../../../src/io/service.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
@@ -58,4 +59,38 @@ test('runners.bundle.n8734-clause-2-a-runner-started: #8734 clause 2: a runner s
     assert.equal(jobs.length, 1, JSON.stringify(jobs));
     assert.equal(jobs[0].outcome, 'posted', JSON.stringify(jobs[0]));
     assert.ok(receipt, 'the board got the receipt');
+  });
+
+/** Every repo file a trusted entry imports that the bundle lacks; the imports of those files are walked by serviceFiles(), which refuses a bundle with one missing. */
+function missingFromBundle(bundle, entries) {
+  return [...new Set(entries.flatMap(entry => entry.imports))].filter(path => bundle[path] === undefined);
+}
+
+test('runners.bundle.trusted-entries-closed: clause 1: the bundle holds every repo file the trusted job entries import, gate analysis entry included, and one without the cells cache module is reported [P7,#10826]', () => {
+  const bundle = serviceFiles();
+  const entries = trustedEntries();
+  const analysis = entries.find(entry => entry.name === 'ANALYSIS_ENTRY');
+  assert.ok(analysis, 'the gate analysis entry is found');
+  for (const path of ['apps/cli/src/io/cells/cache.js', 'apps/cli/src/io/cells-submit-checks.js', 'apps/cli/src/io/memo.js']) {
+    assert.ok(analysis.imports.includes(path), `${path} is imported by the analysis entry`);
+  }
+  assert.deepEqual(missingFromBundle(bundle, entries), []);
+  const { 'apps/cli/src/io/cells/cache.js': _dropped, ...without } = bundle;
+  assert.deepEqual(missingFromBundle(without, entries), ['apps/cli/src/io/cells/cache.js']);
+});
+
+test('runners.bundle.analysis-entry-links-from-bundle: clause 2: every module the gate analysis entry imports links from a bundle folder holding no packages/items of the board repo, with no missing module [P7,#10826]', { timeout: 120_000 }, // budget: one bundle write and the analysis entry's imports linked once.
+  async t => {
+    const { root: app } = privateFixtureFiles('pullboard-service-entry-');
+    t.after(() => rmSync(app, { recursive: true, force: true }));
+    for (const [path, text] of Object.entries(serviceFiles())) {
+      mkdirSync(dirname(join(app, path)), { recursive: true });
+      writeFileSync(join(app, path), text);
+    }
+    writeFileSync(join(app, 'package.json'), '{ "type": "module" }\n');
+    const analysis = trustedEntries().find(entry => entry.name === 'ANALYSIS_ENTRY');
+    assert.ok(analysis.imports.length >= 6, analysis.imports.join(' '));
+    for (const path of analysis.imports) {
+      await assert.doesNotReject(import(pathToFileURL(join(app, path)).href), path);
+    }
   });

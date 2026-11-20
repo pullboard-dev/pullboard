@@ -14,7 +14,7 @@ import { placeRunner } from '../../runner/index.js';
 import { readRunnerStage } from '../../runner/index.js';
 import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
 
-test('GUI placement uses the common stage and excludes false or unknown desktop sessions [C7,O5,V4]', t => {
+test('lib.stage.gui-placement-uses-the-common-stage-and: GUI placement uses the common stage and excludes false or unknown desktop sessions [C7,O5,V4]', t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gui-stage-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });

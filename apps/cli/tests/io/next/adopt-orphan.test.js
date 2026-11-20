@@ -43,7 +43,7 @@ async function returned(t, { setting }) {
   return { box, id, head, pin, fresh, file };
 }
 
-test('cli.next.adopt-orphan.with-next-adoptpreserved-on-next-take: clause 1: with next.adoptPreserved on, next --take of a returned item checks the new folder out at its pinned commit [C7,#9689]', async t => {
+test('cli.io-next-adopt-orphan.cli-next-adopt-orphan-with-next-adoptpreserved: cli.next.adopt-orphan.with-next-adoptpreserved-on-next-take: clause 1: with next.adoptPreserved on, next --take of a returned item checks the new folder out at its pinned commit [C7,#9689]', async t => {
   const f = await returned(t, { setting: true });
   const taken = await f.box.runLocal(f.fresh, 'next', '--take');
   assert.equal(taken.code, 0, taken.err + taken.out);
@@ -56,7 +56,7 @@ test('cli.next.adopt-orphan.with-next-adoptpreserved-on-next-take: clause 1: wit
   assert.match(shown.out, /Adopted the orphaned claim of web-1 .*credit to web-1/u);
 });
 
-test('cli.next.adopt-orphan.with-next-adoptpreserved-off-the-default: clause 2: with next.adoptPreserved off, the default, next --take claims the returned item exactly as before [C7,#9689]', async t => {
+test('cli.io-next-adopt-orphan.cli-next-adopt-orphan-with-next-adoptpreserved-2: cli.next.adopt-orphan.with-next-adoptpreserved-off-the-default: clause 2: with next.adoptPreserved off, the default, next --take claims the returned item exactly as before [C7,#9689]', async t => {
   const f = await returned(t, { setting: false });
   const taken = await f.box.runLocal(f.fresh, 'next', '--take');
   assert.equal(taken.code, 0, taken.err + taken.out);

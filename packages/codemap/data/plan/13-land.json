@@ -1,0 +1,25 @@
+{
+ "order": 13,
+ "name": "land",
+ "kind": "package",
+ "root": "packages/land",
+ "frontDoor": "packages/land/index.js",
+ "paths": [],
+ "reexports": [],
+ "imports": [
+  {"cell":"kernel","imports":2,"before":true},
+  {"cell":"jobs","imports":6,"before":true},
+  {"cell":"pin","imports":4,"before":true},
+  {"cell":"receipt","imports":3,"before":true}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": 0,
+  "shims": 0,
+  "boundaries": 0,
+  "strays": 0,
+  "documents": 0,
+  "cyclesIfUncut": 0,
+  "assetReads": 0
+ }
+}

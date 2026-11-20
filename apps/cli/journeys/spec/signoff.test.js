@@ -127,7 +127,7 @@ async function succeeds(box, ...args) {
   return result;
 }
 
-test('[S18,S19] spec check requires every row signer to be listed', async (t) => {
+test('cli.journeys-spec-signoff.s18-s19-spec-check-requires-every: [S18,S19] spec check requires every row signer to be listed', async (t) => {
   const box = await fixture(t);
   const missingList = await box.go('spec', 'check');
   assert.notEqual(missingList.status, 0);
@@ -147,7 +147,7 @@ test('[S18,S19] spec check requires every row signer to be listed', async (t) =>
   assert.match(listed.stdout, /SPEC\.md: 1 rows, 0 errors/u);
 });
 
-test('[S17,S18,S19,S20,S21] signed rows require every named principal and survive a shallow clone', async (t) => {
+test('cli.journeys-spec-signoff.s17-s18-s19-s20-s21-signed: [S17,S18,S19,S20,S21] signed rows require every named principal and survive a shallow clone', async (t) => {
   const box = await fixture(t);
   const first = box.git('rev-list', '--max-parents=0', 'HEAD');
   assert.equal((await succeeds(box, 'signers', 'add', '--key', box.co.publicKey, '--by', 'CO')).status, 0);
@@ -210,7 +210,7 @@ test('[S17,S18,S19,S20,S21] signed rows require every named principal and surviv
   assert.equal(signedCheck.status, 0, `${signedCheck.stdout}${signedCheck.stderr}`);
 });
 
-test('[S19,S20] changed signatures, signer labels and unsigned signer-list edits are refused', async (t) => {
+test('cli.journeys-spec-signoff.s19-s20-changed-signatures-signer-labels: [S19,S20] changed signatures, signer labels and unsigned signer-list edits are refused', async (t) => {
   const box = await fixture(t);
   await succeeds(box, 'signers', 'add', '--key', box.co.publicKey, '--by', 'CO');
   await succeeds(box, 'signoff', 'G1', '--by', 'CO');
@@ -263,7 +263,7 @@ test('[S19,S20] changed signatures, signer labels and unsigned signer-list edits
   assert.match(unsignedListChange.stderr, /UNAUTHORIZED_SIGNERS_CHANGE/);
 });
 
-test('[S19] an unknown signer label never verifies against the authorized key', async (t) => {
+test('cli.journeys-spec-signoff.s19-an-unknown-signer-label-never: [S19] an unknown signer label never verifies against the authorized key', async (t) => {
   const box = await fixture(t);
   await succeeds(box, 'signers', 'add', '--key', box.co.publicKey, '--by', 'CO');
   await succeeds(box, 'signoff', 'G1', '--by', 'CO');
@@ -276,7 +276,7 @@ test('[S19] an unknown signer label never verifies against the authorized key', 
   assert.match(check.stderr, /UNLISTED_SIGNER/);
 });
 
-test('[S21] signer setup defaults to the configured Git key and email principal and explains the initial commit', async (t) => {
+test('cli.journeys-spec-signoff.s21-signer-setup-defaults-to-the: [S21] signer setup defaults to the configured Git key and email principal and explains the initial commit', async (t) => {
   const box = await fixture(t);
   const home = join(box.dir, 'git-home');
   const ssh = join(home, '.ssh');
@@ -301,7 +301,7 @@ test('[S21] signer setup defaults to the configured Git key and email principal 
   assert.match(readFileSync(join(box.root, '.pullboard/signoffs.jsonl'), 'utf8'), /"by":"global@example\.invalid"/);
 });
 
-test('[S21] signer setup falls back to ~/.ssh/id_ed25519.pub when Git has no signing key', async (t) => {
+test('cli.journeys-spec-signoff.s21-signer-setup-falls-back-to: [S21] signer setup falls back to ~/.ssh/id_ed25519.pub when Git has no signing key', async (t) => {
   const box = await fixture(t);
   box.git('config', '--unset', 'user.signingkey');
   const home = join(box.dir, 'home');
@@ -314,7 +314,7 @@ test('[S21] signer setup falls back to ~/.ssh/id_ed25519.pub when Git has no sig
   assert.match(readFileSync(join(box.root, '.pullboard/signers'), 'utf8'), new RegExp(readFileSync(fallback.publicKey, 'utf8').trim().replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')));
 });
 
-test('[S5,S18] legacy receipts preserve their shape and cannot meet required SSH signers', async (t) => {
+test('cli.journeys-spec-signoff.s5-s18-legacy-receipts-preserve-their: [S5,S18] legacy receipts preserve their shape and cannot meet required SSH signers', async (t) => {
   const box = await fixture(t);
   await succeeds(box, 'signoff', 'G1', '--by', 'CO', '--note', 'legacy evidence');
   await succeeds(box, 'signoff', 'G1', '--by', 'AB');
@@ -345,7 +345,7 @@ test('[S5,S18] legacy receipts preserve their shape and cannot meet required SSH
   await succeeds(box, 'check');
 });
 
-test('[S17,S19] an existing empty signer file cannot silently fall back to unsigned sign-offs', async (t) => {
+test('cli.journeys-spec-signoff.s17-s19-an-existing-empty-signer: [S17,S19] an existing empty signer file cannot silently fall back to unsigned sign-offs', async (t) => {
   const box = await fixture(t);
   const signerFile = join(box.root, '.pullboard/signers');
   mkdirSync(join(box.root, '.pullboard'), { recursive: true });
@@ -368,7 +368,7 @@ test('[S17,S19] an existing empty signer file cannot silently fall back to unsig
   assert.equal(readFileSync(receiptFile, 'utf8'), receipt);
 });
 
-test('[S20] every signer-list transition is bound to its prior list, hash and authorized key', async (t) => {
+test('cli.journeys-spec-signoff.s20-every-signer-list-transition-is: [S20] every signer-list transition is bound to its prior list, hash and authorized key', async (t) => {
   const box = await fixture(t);
   await succeeds(box, 'signers', 'add', '--by', 'CO');
   await succeeds(box, 'signers', 'add', '--by', 'AB', '--key', box.ab.publicKey);
@@ -394,7 +394,7 @@ test('[S20] every signer-list transition is bound to its prior list, hash and au
   await succeeds(box, 'check');
 });
 
-test('[S21] setup refuses inline key data and files containing a GPG public key', async (t) => {
+test('cli.journeys-spec-signoff.s21-setup-refuses-inline-key-data: [S21] setup refuses inline key data and files containing a GPG public key', async (t) => {
   const box = await fixture(t);
   const publicLine = readFileSync(box.co.publicKey, 'utf8').trim();
   box.git('config', 'user.signingkey', publicLine);
@@ -409,7 +409,7 @@ test('[S21] setup refuses inline key data and files containing a GPG public key'
   assert.equal(existsSync(join(box.root, '.pullboard/signers')), false);
 });
 
-test('[S21] setup chooses the oldest root with a hash tie-break and refuses an unanchored shallow clone', async (t) => {
+test('cli.journeys-spec-signoff.s21-setup-chooses-the-oldest-root: [S21] setup chooses the oldest root with a hash tie-break and refuses an unanchored shallow clone', async (t) => {
   const box = await fixture(t);
   box.env.GIT_COMMITTER_DATE = '2000-01-01T00:00:00Z';
   const roots = ['first unrelated root', 'second unrelated root'].map((message) => box.git('commit-tree', 'HEAD^{tree}', '-m', message));
@@ -490,7 +490,7 @@ for (const rotated of [false, true]) {
   });
 }
 
-test('[S20] a signer-change signature binds its initial-list hash', async (t) => {
+test('cli.journeys-spec-signoff.s20-a-signer-change-signature-binds: [S20] a signer-change signature binds its initial-list hash', async (t) => {
   const box = await fixture(t);
   await succeeds(box, 'signers', 'add', '--by', 'CO');
   await succeeds(box, 'signers', 'add', '--key', box.ab.publicKey, '--by', 'AB');

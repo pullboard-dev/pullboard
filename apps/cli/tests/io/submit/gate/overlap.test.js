@@ -46,6 +46,7 @@ function fixture(t, { red = false } = {}) {
   put('package.json', '{"type":"module"}\n');
   put('bin/mark.js', MARK);
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', `import { mark } from '../../bin/mark.js';
 export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
@@ -98,7 +99,7 @@ function marks(box) {
   return existsSync(file) ? Object.fromEntries(readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line)).map(row => [row.name, row.at])) : {};
 }
 
-test('clause 1: per part, cells and selection run while the static checks run [C7]', async t => {
+test('cli.io-submit-gate-overlap.per-part-cells-and-selection-run-while: clause 1: per part, cells and selection run while the static checks run [C7]', async t => {
   const box = fixture(t);
   const value = await remoteSubmitAnalysis(box.controller, request(box, true), runnerLease(box), join(box.dir, 'artifacts'));
   const at = marks(box);
@@ -109,7 +110,7 @@ test('clause 1: per part, cells and selection run while the static checks run [C
   assert.deepEqual(value.plan.proofFiles, ['test/a.test.js']);
 });
 
-test('clause 1: per part, a static red is its own refusal with the output tail while cells and selection stay green [C7]', async t => {
+test('cli.io-submit-gate-overlap.per-part-a-static-red-is-its: clause 1: per part, a static red is its own refusal with the output tail while cells and selection stay green [C7]', async t => {
   const box = fixture(t, { red: true });
   const value = await remoteSubmitAnalysis(box.controller, request(box, true), runnerLease(box), join(box.dir, 'artifacts'));
   assert.equal(value.outcomes.static.refused.code, 'GATE_RED');
@@ -118,7 +119,7 @@ test('clause 1: per part, a static red is its own refusal with the output tail w
   assert.deepEqual(value.plan.proofFiles, ['test/a.test.js']);
 });
 
-test('clause 2: without per-part outcomes a static red ends the analysis before cells runs [C7]', async t => {
+test('cli.io-submit-gate-overlap.without-per-part-outcomes-a-static-red: clause 2: without per-part outcomes a static red ends the analysis before cells runs [C7]', async t => {
   const box = fixture(t, { red: true });
   await assert.rejects(remoteSubmitAnalysis(box.controller, request(box, false), runnerLease(box), join(box.dir, 'artifacts')),
     error => error.code === 'GATE_RED' && /one import binding per line/u.test(error.message));

@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/store/src/io/home.js */
+/** @pullboard-test-input packages/store/src/io/home.js packages/store/index.js */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -6,6 +6,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { syncMayAct } from '../../src/io/home.js';
+import { relayMachineDirectory } from '../../src/io/home.js';
+import * as door from '../../index.js';
 import { cellRepo } from '../fixtures/cell.js';
 
 /** A fresh repository with no relay link (cellRepo), and a pullboard home inside it whose files the test chooses; PULLBOARD_HOME points there until the test ends. */
@@ -55,4 +57,23 @@ test('store.io-home.syncmayact-stays-true-for-a-runner: syncMayAct stays true fo
   const repo = machine(t, RUNNER_HOME);
   writeFileSync(join(repo, '.git', 'pullboard', 'relay.json'), '{}\n');
   assert.equal(syncMayAct(repo), true);
+});
+
+test('store.io-home.relaymachinestatefile-names-state-json: relayMachineStateFile returns state.json inside relayMachineDirectory and the store door exports it [C7,#9586]', t => {
+  machine(t, {});
+  assert.equal(door.relayMachineStateFile(), join(relayMachineDirectory(), 'state.json'));
+  assert.equal(typeof door.relayMachineStateFile, 'function');
+});
+
+test('store.io-home.syncmayact-is-false-for-an-empty-machine-state: syncMayAct is false when relay-machine/state.json holds no linked board and no pending request, and true with one linked board [C7,#9583]', t => {
+  const empty = { v: 2, autoLink: false, owner: null, machine: 'machine-1', devices: [], excluded: [], pending: null, revocations: [], approvals: [] };
+  const repo = machine(t, { ...RUNNER_HOME, 'relay-machine/state.json': JSON.stringify(empty) + '\n' });
+  assert.equal(syncMayAct(repo), false);
+  const linked = { ...empty, devices: [{ deviceId: 'device-' + '0'.repeat(32), account: 'a', url: 'https://relay.example' }] };
+  writeFileSync(join(relayMachineDirectory(), 'state.json'), JSON.stringify(linked) + '\n');
+  assert.equal(syncMayAct(repo), true);
+  writeFileSync(join(relayMachineDirectory(), 'state.json'), JSON.stringify({ ...empty, pending: { code: 'x' } }) + '\n');
+  assert.equal(syncMayAct(repo), true, 'a pending request keeps the sync');
+  writeFileSync(join(relayMachineDirectory(), 'state.json'), 'not json');
+  assert.equal(syncMayAct(repo), true, 'an unreadable state keeps the sync');
 });

@@ -28,7 +28,7 @@ import {
 import { join } from 'node:path';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../../../../../packages/state/light.js';
 
-test('an item waits across repos [B24,H16]', async t => {
+test('cli.journeys-fact-team-repo.an-item-waits-across-repos: an item waits across repos [B24,H16]', async t => {
   /** A private board clock makes exact canonical replay comparisons deterministic. */
   const clock = { now: () => new Date('2026-10-25T00:00:00Z') };
   const parent = signedBoard(t, 'app', clock);

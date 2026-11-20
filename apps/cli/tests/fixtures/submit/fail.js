@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runCliInProcess } from '../process.js';
 import { settleSubmit } from './settle.js';
+import { JOURNEY_MODE } from '../e2e.js';
 import { builderRepo } from './gate.js';
 import { commitAll } from './gate.js';
 import { privateRepo } from './gate.js';
@@ -18,6 +19,14 @@ const GATE_FRONT_DOOR = fileURLToPath(new URL('../../../../../packages/gate/inde
 export async function inProcess(box, cwd, ...args) {
   const result = await runCliInProcess(withBrief(...args), { cwd, env: box.env });
   return { code: result.status, out: result.stdout, err: result.stderr };
+}
+
+/**
+ * One submit from the builder's folder: answered in this process, or a real child under PULLBOARD_JOURNEY_MODE=process.
+ * Why: a submit as its own node process costs a start-up per call; the static preflight and the gate job do not need one [C7,#10458].
+ */
+export async function submitStep(box, ...args) {
+  return JOURNEY_MODE === 'process' ? box.run(...args) : inProcess(box, box.root, ...args);
 }
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
@@ -54,7 +63,7 @@ if (failures.length) process.exitCode = 1;
 
 /** Submit item 1 and settle it: a pull submit returns queued at once, then the machine's local runner serves the gate job [P7,C7]. */
 export async function submitAndSettle(t, box, ...extra) {
-  const queued = box.run('submit', '1', '--json', '--no-next', '--infra', 'the fail-fast fixture', ...extra);
+  const queued = await submitStep(box, 'submit', '1', '--json', '--no-next', '--infra', 'the fail-fast fixture', ...extra);
   assert.equal(queued.code, 0, JSON.stringify(queued));
   const settleBox = { repo: box.root, env: box.env, run: (cwd, ...args) => inProcess(box, cwd, ...args) };
   return settleSubmit(t, settleBox, JSON.parse(queued.out));

@@ -9,7 +9,7 @@ const STDERR = ['Error: ENOSPC: no space left on device, write', '    at writeSy
 const error = `${LEAD}${JSON.stringify(FILES)}\n${STDERR.join('\n')}`;
 const receipt = { status: 1, gate: { green: false, error } };
 
-test('clause 1: with the setting on, a worker that exits 1 with stderr and no receipt yields a part holding the last stderr lines [C7]', () => {
+test('gate.io-receipt-missing-cause.with-the-setting-on-a: clause 1: with the setting on, a worker that exits 1 with stderr and no receipt yields a part holding the last stderr lines [C7]', () => {
   const [part, ...rest] = failingParts(receipt, { receiptMissingCause: true });
   assert.equal(rest.length, 0);
   assert.ok(part.startsWith('gate: the gate job printed no PULLBOARD_GATE_RECEIPT line (exit 1); worker output ended: '));
@@ -17,14 +17,14 @@ test('clause 1: with the setting on, a worker that exits 1 with stderr and no re
   assert.ok(part.indexOf('worker stopped: disk full') < part.indexOf('proof files:'), 'the worker error leads the file list');
 });
 
-test('clause 2: the proof file list in that part is cut to its first 5 names plus a count [C7]', () => {
+test('gate.io-receipt-missing-cause.the-proof-file-list-in: clause 2: the proof file list in that part is cut to its first 5 names plus a count [C7]', () => {
   const [part] = failingParts(receipt, { receiptMissingCause: true });
   assert.ok(part.includes('generated-4.test.js'));
   assert.ok(!part.includes('generated-5.test.js'));
   assert.ok(part.endsWith('(+35 more)'));
 });
 
-test('clause 3: with the setting off the part text is as before [C7]', () => {
+test('gate.io-receipt-missing-cause.with-the-setting-off-the: clause 3: with the setting off the part text is as before [C7]', () => {
   const [part] = failingParts(receipt);
   assert.deepEqual(failingParts(receipt, { receiptMissingCause: false }), [part]);
   assert.ok(part.startsWith(`gate: ${LEAD}["packages/gate/tests/generated-0.test.js"`));

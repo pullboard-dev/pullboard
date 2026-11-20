@@ -46,9 +46,16 @@ export function estimateLeft({ files = null, selected = null, finished = null, l
   return { totalMs, leftMs, overMs: byFiles === null ? Math.max(0, elapsedMs - totalMs) : 0 };
 }
 
-/** A repo-relative test path, or null for anything absolute, upward or unusual that could name the machine. */
+/**
+ * A repo-relative test path, or null for anything absolute, upward or unusual that could name the machine, and for a name the
+ * public export's secret check would refuse: a segment of 40 or more characters, a 32 or more hex run or a uuid. Such a file leaves
+ * the list (and the selected count) alone, and one long name never blanks the whole runners pane.
+ */
 function relativeFile(file) {
-  return typeof file === 'string' && /^[\w@+-][\w.@+-]*(?:\/[\w@+-][\w.@+-]*)*$/u.test(file) && !file.split('/').includes('..') ? file : null;
+  if (typeof file !== 'string' || !/^[\w@+-][\w.@+-]*(?:\/[\w@+-][\w.@+-]*)*$/u.test(file) || file.split('/').includes('..')) return null;
+  const refused = file.split('/').some(segment => segment.length >= 40) || /[a-f0-9]{32,}/iu.test(file.replace(/[^A-Za-z0-9]/gu, ''))
+    || /[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/iu.test(file);
+  return refused ? null : file;
 }
 
 /** A whole number from a record, or null when it is not one. */

@@ -1,0 +1,3 @@
+{
+  "cli.journeys-hold-lane.hold-pauses-a-lane-next-names-who-held": {"proves":{"specs":["N22","C7"],"claim":"Hold pauses a lane: next names who held it and why; --off lets it go."},"why":"Without it, a regression where this no longer holds would pass unnoticed: hold pauses a lane: next names who held it and why; --off lets it go.","kind":"journey","inputs":["apps/cli/journeys/hold/lane.test.js"]}
+}

@@ -8,7 +8,6 @@ import { requireHandoffActive } from "../../../../../state/light.js";
 import { eventKindRefusal } from "../../../../../state/light.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from "../../../../../state/index.js";
-import { writeSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Refused } from "../../../../../kernel/index.js";
 import { agentModel } from "../query.js";
@@ -29,6 +28,8 @@ import {
 import { BOARD_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { suspendStoreGuards } from "../guards.js";
 import { notifyUnblocked } from '../../../logic/board/notices.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 const OWN_FILE = fileURLToPath(import.meta.url);
 
@@ -169,7 +170,7 @@ export function atomic(board, work, { reviewPolicy = true, writePolicy = true } 
     try { capture?.close(); }
     catch {
       // Cleanup must never discard a committed move's replication intent or replace its original failure.
-      try { writeSync(2, 'pullboard: capture session cleanup failed; original transaction outcome retained\n'); }
+      try { fileSystem.write(2, 'pullboard: capture session cleanup failed; original transaction outcome retained\n'); }
       catch { /* A closed diagnostic stream cannot change the committed result or original refusal. */ }
     }
     finally {

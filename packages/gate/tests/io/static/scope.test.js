@@ -41,7 +41,7 @@ function repo() {
   return { root, git, commit, main };
 }
 
-test('clause 1: a change of sources is judged on its paths alone; a whole-repo input or a deletion runs the whole tree [C7]', () => {
+test('gate.io-static-scope.a-change-of-sources-is-judged: clause 1: a change of sources is judged on its paths alone; a whole-repo input or a deletion runs the whole tree [C7]', () => {
   assert.deepEqual(analysisScope([{ path: 'src/b.js', status: 'M' }, { path: 'src/a.js', status: 'A' }]), { full: false, files: ['src/a.js', 'src/b.js'] });
   for (const path of ['pullboard.json', 'package.json', 'DOCTRINE.md', 'packages/gate/data/baselines/test-waits-baseline.json']) {
     assert.equal(analysisScope([{ path: 'src/a.js', status: 'M' }, { path, status: 'M' }]).full, true, path);
@@ -53,7 +53,7 @@ test('clause 1: a change of sources is judged on its paths alone; a whole-repo i
   assert.equal(staticScopeFromEnv({ PULLBOARD_STATIC_SCOPE: '{}' }), null);
 });
 
-test('clause 1: given changed paths, a static class that reads none of them is not run, and doctrine runs only touched rules [C7]', () => {
+test('gate.io-static-scope.given-changed-paths-a-static-class: clause 1: given changed paths, a static class that reads none of them is not run, and doctrine runs only touched rules [C7]', () => {
   const named = Object.fromEntries(STATIC_TREE_CHECKS.map(check => [check.name, check]));
   assert.ok(STATIC_TREE_CHECKS.every(check => typeof check.reads === 'function'), 'every class names what it reads');
   // A source-only change skips the test-file classes and the CLI catalog check; a docs change skips every source class.
@@ -69,7 +69,7 @@ test('clause 1: given changed paths, a static class that reads none of them is n
   assert.deepEqual(read, ['src/b.js']);
 });
 
-test('clause 2: a kept result is found again for the same head and retired when the head or main under a changed path moves [C7]', () => {
+test('gate.io-static-scope.a-kept-result-is-found-again: clause 2: a kept result is found again for the same head and retired when the head or main under a changed path moves [C7]', () => {
   const box = repo(), home = sandbox('pullboard-analysis-memo-').root;
   box.git('checkout', '-q', '-b', 'item');
   const head = box.commit({ 'src/a.js': 'export const a = 2;\n' }, 'item');

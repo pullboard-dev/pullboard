@@ -20,6 +20,7 @@ import { getItem } from '../../../../../packages/store/index.js';
 import { proofRunReceipt } from '../../../../../packages/store/index.js';
 import { storeTestReceipt } from '../../../../../packages/store/index.js';
 import { recordNativeProof } from '../../../../../packages/verify/index.js';
+import { testRetryStaleRecordEnabled } from '../../../../../packages/config/index.js';
 
 /**
  * Record a green run as a proof-run on each item the seat proves: the receipt names the item, the checkout's HEAD and the runner.
@@ -37,6 +38,23 @@ export async function recordTestProofs(io, ctx, { items, files, result }) {
     }
     return 0;
   });
+}
+
+/**
+ * Run one post-run record write, and with test.retryStaleRecord on run it again when it is refused POLICY_SNAPSHOT_STALE.
+ * Why: main moving during the write rolls that write back, so the worker recorded a green run red and builders reran whole
+ * files on a busy main (#10650); writing again reads the new main. Three stale refusals in a row, or any other refusal, are thrown [C7,#10663].
+ *
+ * @template T
+ * @param {() => Promise<T>} write
+ * @param {{ enabled?: boolean, attempts?: number }} [options]
+ * @returns {Promise<T>}
+ */
+export async function recordAgainstMain(write, { enabled = testRetryStaleRecordEnabled(), attempts = 3 } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await write(); }
+    catch (error) { if (!enabled || error?.code !== 'POLICY_SNAPSHOT_STALE' || attempt >= attempts) throw error; }
+  }
 }
 
 /** Run the files here and block for the result: the person's, the script's and a queued run's worker path. */
@@ -71,8 +89,8 @@ export async function runHere(io, ctx, { agent, item, items = [], files, values 
   if (!values.json && result.output) io.say(result.output.trimEnd());
   // A red run that names no cases proves nothing about which files failed, so it neither files nor closes.
   if (result.green || named) await updateMainReds(io, ctx, { green: result.green, files: result.files, cases });
-  if (result.green && item !== undefined) await recordClauseTicks(io, item, files);
-  if (result.green && !values.diagnose && items.length) await recordTestProofs(io, ctx, { items, files: result.files ?? files, result });
+  if (result.green && item !== undefined) await recordAgainstMain(() => recordClauseTicks(io, item, files, { run: values['test-run'], logPath: result.logPath }));
+  if (result.green && !values.diagnose && items.length) await recordAgainstMain(() => recordTestProofs(io, ctx, { items, files: result.files ?? files, result }));
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
   if (result.mainSkipped) io.err(`main comparison skipped: ${result.mainSkipped}`);
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);

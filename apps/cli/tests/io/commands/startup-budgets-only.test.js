@@ -9,13 +9,13 @@ import { assertStartupBudgets } from '../../fixtures/budget.js';
 import { startupCommands } from '../../fixtures/budget.js';
 import { STARTUP_COMMANDS } from '../../fixtures/budget.js';
 
-test('clause 1: with no option every one of the five commands is measured, as before [C7]', () => {
+test('cli.io-commands-startup-budgets-only.with-no-option-every-one-of-the: clause 1: with no option every one of the five commands is measured, as before [C7]', () => {
   assert.deepEqual(startupCommands(), ['version', 'show', 'status', 'list', 'list thin']);
   assert.deepEqual(startupCommands({}), STARTUP_COMMANDS);
   assert.throws(() => startupCommands({ only: ['nope'] }), /unknown command nope/u);
 });
 
-test('clause 1: only list thin spawns list thin and the bare node floor, and reports that command alone [C7]', async (t) => {
+test('cli.io-commands-startup-budgets-only.only-list-thin-spawns-list-thin-and: clause 1: only list thin spawns list thin and the bare node floor, and reports that command alone [C7]', async (t) => {
   assert.deepEqual(startupCommands({ only: ['list thin'] }), ['list thin']);
   const sink = {};
   // The row's own ceiling is #9477's to settle on a quiet runner; this case proves what is measured, so a ceiling miss is read, not failed.

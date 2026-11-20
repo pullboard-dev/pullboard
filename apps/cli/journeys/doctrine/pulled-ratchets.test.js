@@ -14,6 +14,7 @@ import {
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
@@ -30,6 +31,8 @@ const UNCOUNTABLE = '- Q4 [approved, must] The keep file stays. | gate: check te
  */
 async function checkedProject(fields, extraRows = []) {
   const box = project();
+  // Its web commits run both hooks in this process instead of a node process per hook; tryGit answers a promise, awaited below [C7,#10414].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   appendFileSync(join(box.repo, 'DOCTRINE.md'), `\n## Q · Quality\n${[`${RULE} | ${fields}`, ...extraRows].join('\n')}\n`);
   mkdirSync(join(box.repo, 'web'));
   writeFileSync(join(box.repo, 'web', 'a.html'), 'TODO one\nTODO two\n');
@@ -43,10 +46,10 @@ async function checkedProject(fields, extraRows = []) {
 }
 
 /** Write web files in the worktree and commit them through its hooks. */
-function commitWeb(box, files, message) {
+async function commitWeb(box, files, message) {
   for (const [name, text] of Object.entries(files)) writeFileSync(join(box.web, 'web', name), text);
   box.git(box.web, 'add', '-A');
-  const committed = box.tryGit(box.web, 'commit', '-q', '-m', message);
+  const committed = await box.tryGit(box.web, 'commit', '-q', '-m', message);
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
@@ -65,10 +68,10 @@ async function nextWebItem(box, title) {
 }
 
 /** Write a scenario's files in its own native item worktree and commit them through hooks. */
-function commitWebAt(box, web, files, message) {
+async function commitWebAt(box, web, files, message) {
   for (const [name, text] of Object.entries(files)) writeFileSync(join(web, 'web', name), text);
   box.git(web, 'add', '-A');
-  const committed = box.tryGit(web, 'commit', '-q', '-m', message);
+  const committed = await box.tryGit(web, 'commit', '-q', '-m', message);
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
@@ -85,7 +88,7 @@ async function threadText(box, id) {
   return shown.thread.map(row => row.text ?? '').join('\n');
 }
 
-test("a pulled gate refuses an uncountable check and reports rises during the report-only trial [D1,D3,C7]", async t => {
+test('cli.journeys-doctrine-pulled-ratchets.a-pulled-gate-refuses-an-uncountable: a pulled gate refuses an uncountable check and reports rises during the report-only trial [D1,D3,C7]', async t => {
   const box = await checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
 
   // A check that exits other than 0 or 1 cannot count, so it refuses by name.
@@ -99,7 +102,7 @@ test("a pulled gate refuses an uncountable check and reports rises during the re
   assert.match(refusal.message, /Q4 The keep file stays\. cannot count: its check exited 3/);
 
   // A rise reports what it would refuse during this rule's twenty-clean-gate trial; the red pulled gate left item 1 claimed.
-  commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
+  await commitWeb(box, { 'b.html': 'TODO three\n', 'keep.txt': 'keep\n' }, 'feat(web): add a page [G1]');
   const rose = await settled(t, box, box.web, 1);
   const roseOutput = `${rose.gate.analysis.notes.join('\n')}\n${await threadText(box, 1)}`;
   assert.doesNotMatch(roseOutput, /Q3 Api work/, 'files: api keeps a web-only change from running the rule');
@@ -111,7 +114,7 @@ test("a pulled gate refuses an uncountable check and reports rises during the re
 
   // A later gate reports a new per-file problem even when the total falls.
   const gainedItem = await nextWebItem(box, 'Clear the old markers');
-  commitWebAt(box, gainedItem.web, { 'a.html': 'done\n', 'b.html': 'TODO three\n' }, 'feat(web): clear the old markers [G1]');
+  await commitWebAt(box, gainedItem.web, { 'a.html': 'done\n', 'b.html': 'TODO three\n' }, 'feat(web): clear the old markers [G1]');
   const gained = await settled(t, box, gainedItem.web, gainedItem.id);
   const gainedOutput = await threadText(box, gainedItem.id);
   assert.equal(gained.gate.green, true, JSON.stringify(gained.gate.analysis));

@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -47,7 +48,7 @@ function foreignGitScript(box, name, { fixer = false } = {}) {
   return { file, ordinary, bare };
 }
 
-test('decisions default up the chain, pass to the person, and return to the original asker [B25, B26, B27]', async () => {
+test('cli.journeys-spec-e2e-gates.decisions-default-up-the-chain-pass: decisions default up the chain, pass to the person, and return to the original asker [B25, B26, B27]', async () => {
   const box = project();
   const asked = await box.runIn(box.web, 'shout', 'Ship the patch?', '--kind', 'question', '--decision');
   assert.equal(asked.code, 0, asked.err);
@@ -93,7 +94,7 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.equal((await box.runIn(box.repo, 'answer', personDecision, 'Yes.', '--as', 'person')).code, 0);
 });
 
-test('clause 1: pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
+test('cli.journeys-spec-e2e-gates.pullboard-worktree-makes-a-joined-worktree: clause 1: pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
   const box = project();
   const made = await box.runIn(box.repo, 'worktree', 'api');
   assert.equal(made.code, 0, made.err);
@@ -106,7 +107,7 @@ test('clause 1: pullboard worktree makes a joined worktree for a lane in one com
   assert.match((await box.runIn(box.repo, 'worktree', 'nope')).err, /NO_LANE/);
 });
 
-test('a worktree without config names uncommitted init files and committed main guidance [I1,I2]', async () => {
+test('cli.journeys-spec-e2e-gates.a-worktree-without-config-names-uncommitted: a worktree without config names uncommitted init files and committed main guidance [I1,I2]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
@@ -138,7 +139,7 @@ test('a worktree without config names uncommitted init files and committed main 
   assert.match((await box.runIn(plain, 'next')).err, /\[NO_CONFIG\] no pullboard\.json in .*; run: pullboard init/, 'a repo with no pullboard is still told to init');
 });
 
-test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', async () => {
+test('cli.journeys-spec-e2e-gates.unsupported-spec-grammar-keeps-claim-refreeze: unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', async t => {
   const marker = '<!-- pullboard-grammar 2 -->\n';
   const setup = async () => {
     const box = project();
@@ -177,7 +178,10 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
   const verifyBox = await setup();
   assert.equal((await verifyBox.runIn(verifyBox.web, 'claim', '1')).code, 0);
   await commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
-  assert.equal((await verifyBox.runIn(verifyBox.web, 'submit', '1')).code, 0);
+  // A pulled submit returns queued; settle its gate so the item is submitted before verify reads it, or verify answers NOT_SUBMITTED [A5,C7,#10520].
+  const queued = await verifyBox.runIn(verifyBox.web, 'submit', '1', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  await settleSubmit(t, { repo: verifyBox.repo, env: verifyBox.env, run: verifyBox.runIn }, JSON.parse(queued.out));
   verifyBox.git(verifyBox.repo, 'switch', '--detach', 'web/one');
   writeFileSync(join(verifyBox.repo, 'SPEC.md'), marker + SPEC);
   const verify = await verifyBox.runIn(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked');
@@ -189,7 +193,7 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
 });
 
 // Process-level: git itself runs the installed pre-push hook, which starts the CLI through the PATH shim.
-test('a linked-worktree push isolates the gate from Git hook variables and leaves both repos intact [C3]', () => {
+test('cli.journeys-spec-e2e-gates.a-linked-worktree-push-isolates-the: a linked-worktree push isolates the gate from Git hook variables and leaves both repos intact [C3]', () => {
   const box = project();
   const probe = foreignGitScript(box, 'gate');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: `node ${JSON.stringify(probe.file)}` }));
@@ -210,7 +214,7 @@ test('a linked-worktree push isolates the gate from Git hook variables and leave
 });
 
 // Process-level: git itself runs the installed pre-commit hook, which starts the CLI through the PATH shim.
-test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', async () => {
+test('cli.journeys-spec-e2e-gates.a-linked-worktree-commit-isolates-fixers: a linked-worktree commit isolates fixers while its own staged index still works [C5]', async () => {
   const box = project();
   const probe = foreignGitScript(box, 'fixer', { fixer: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, fix: [{ run: `node ${JSON.stringify(probe.file)}`, files: ['*.js'] }] }));

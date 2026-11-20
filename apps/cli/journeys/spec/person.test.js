@@ -137,7 +137,7 @@ function lastAnswerDetail(file) {
   }
 }
 
-test('[B26] person answers refuse agent environments without writes and record terminal channel', async (t) => {
+test('cli.journeys-spec-person.b26-person-answers-refuse-agent-environments: [B26] person answers refuse agent environments without writes and record terminal channel', async (t) => {
   t.after(() => {
     for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
   });
@@ -241,7 +241,7 @@ async function startView(t, box, extraEnv = {}) {
   return request;
 }
 
-test('[B26,B3] person actions over SSH refuse terminals while the authenticated view remains available', async (t) => {
+test('cli.journeys-spec-person.b26-b3-person-actions-over-ssh: [B26,B3] person actions over SSH refuse terminals while the authenticated view remains available', async (t) => {
   const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   /** Create a real person decision by passing a worktree agent's request. */
@@ -286,7 +286,7 @@ test('[B26,B3] person actions over SSH refuse terminals while the authenticated 
   assert.equal(JSON.parse(answer.event.event_detail).channel, 'view');
 });
 
-test('[B26,B27] a view launched by an agent records view on both person answer receipts', async (t) => {
+test('cli.journeys-spec-person.b26-b27-a-view-launched-by: [B26,B27] a view launched by an agent records view on both person answer receipts', async (t) => {
   const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const asked = await box.go(box.web, ['shout', 'coordinator', 'Ship from the view?', '--kind', 'question', '--decision', '--json']);
@@ -326,7 +326,7 @@ test('[B26,B27] a view launched by an agent records view on both person answer r
 });
 
 
-test('[B26,S5] an agent shell cannot append a person sign-off but a plain shell can', async (t) => {
+test('cli.journeys-spec-person.b26-s5-an-agent-shell-cannot: [B26,S5] an agent shell cannot append a person sign-off but a plain shell can', async (t) => {
   const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   mkdirSync(join(box.repo, 'test'));
@@ -350,7 +350,7 @@ test('[B26,S5] an agent shell cannot append a person sign-off but a plain shell 
   }
 });
 
-test('[B26,S18] signer enrollment refuses agent shells without creating or changing trust files', async (t) => {
+test('cli.journeys-spec-person.b26-s18-signer-enrollment-refuses-agent: [B26,S18] signer enrollment refuses agent shells without creating or changing trust files', async (t) => {
   const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const key = join(box.dir, 'fixture-signing-key');
@@ -378,7 +378,7 @@ test('[B26,S18] signer enrollment refuses agent shells without creating or chang
 });
 
 
-test('[B26,S19] row approvals and declines refuse agent shells and preserve terminal or view channels', async (t) => {
+test('cli.journeys-spec-person.b26-s19-row-approvals-and-declines: [B26,S19] row approvals and declines refuse agent shells and preserve terminal or view channels', async (t) => {
   const box = await project();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   const file = join(box.repo, 'SPEC.md');

@@ -15,6 +15,7 @@ import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../../../../packages/state/light.
 import { syntheticFlakeObservation } from '../../../../apps/cli/tests/fixtures/observation.js';
 import { reviewDefaultEventContract } from '../../../../apps/lib/tests/fixtures/generated/doc/default.js';
 import { pipelineEventContract } from '../../../../apps/lib/tests/fixtures/generated/doc/pipeline.js';
+import { mainMovedFixture } from '../../tests/fixtures/main/moved.js';
 import { sourceAdvanceEventContract } from '../../../../packages/runners/tests/fixtures/advance.js';
 import { recordFlakeObservation } from '../../../../apps/lib/index.js';
 import { openBoard } from '../../../../apps/lib/index.js';
@@ -456,7 +457,7 @@ function exerciseUpgrade() {
   }
 }
 
-test('clause 1: [A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
+test('cli.journeys-formats-live.a5-schema-versions-event-kinds-and: clause 1: [A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
   const board = openBoard(':memory:');
   try {
     const version = board.db.prepare('PRAGMA user_version').get().user_version;
@@ -491,7 +492,7 @@ test('clause 1: [A5] schema, versions, event kinds and event detail fields match
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...pipelineEventContract(), ...placementEventContract()];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t, mainMovedFixture), ...reviewDefaultEventContract(), ...pipelineEventContract(), ...placementEventContract()];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { itemLine } from '../../../src/io/read.js';
 
-test('a held item prints who holds it and why on its show and list line [N2,N22,M1]', () => {
+test('cli.io-commands-hold.a-held-item-prints-who-holds-it: a held item prints who holds it and why on its show and list line [N2,N22,M1]', () => {
   for (const lane of ['web', 'api']) {
     const reason = `waiting for the person in ${lane}`;
     const item = { item_id: 1, item_status: 'open', item_lane: lane, item_title: `Held ${lane} item`, item_route: 'mid',

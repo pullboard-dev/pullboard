@@ -15,13 +15,13 @@ after(e2e.cleanup);
 
 const source = readFileSync(new URL('../../../src/io/commands/stats.js', import.meta.url), 'utf8');
 
-test('clause 1: the stats command builds the history path through statsHistoryFile and names stats-history.jsonl nowhere [C7]', () => {
+test('cli.io-commands-stats-history-path.the-stats-command-builds-the-history-path: clause 1: the stats command builds the history path through statsHistoryFile and names stats-history.jsonl nowhere [C7]', () => {
   assert.match(source, /statsHistoryFile\(ctx\.info\.commonDir\)/u);
   assert.doesNotMatch(source, /stats-history\.jsonl/u);
   assert.doesNotMatch(source, /STATS_HISTORY_FILE/u);
 });
 
-test('clause 2: stats time --checkpoint release writes the file statsHistoryFile names [C7]', async () => {
+test('cli.io-commands-stats-history-path.stats-time-checkpoint-release-writes-the-file: clause 2: stats time --checkpoint release writes the file statsHistoryFile names [C7]', async () => {
   const box = e2e.project();
   const common = (box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).trim();
   const file = statsHistoryFile(common);

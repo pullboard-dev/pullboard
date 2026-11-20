@@ -38,6 +38,8 @@ import {
   withoutPullboardEnv,
 } from '../e2e.js';
 import { runCliInProcess } from '../process.js';
+import { commitInProcess } from '../hook/commit.js';
+import { inProcessHooksOn } from '../hook/mode.js';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 
@@ -159,6 +161,8 @@ function machine() {
   // The background opt-out merges into those settings, so it goes second.
   disableFixtureBackgroundView(env, dir);
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  /** git that reports its status: with test.inProcessHooks on, a plain commit runs its hooks in this process and answers with a promise; otherwise real git [C7,#9215]. */
+  const tryGit = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? spawnSync('git', args, { cwd, env, encoding: 'utf8' });
   const invocations = [];
   /** Run the CLI with an explicit environment and retain facts used by fixture checks. */
   const runWithEnv = (cwd, commandEnv, ...args) => {
@@ -261,7 +265,7 @@ function machine() {
     }
     return Object.freeze({ root, readFile, files });
   }
-  return { dir, env, git, run, runIn, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
+  return { dir, env, git, tryGit, run, runIn, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
 }
 
 /**

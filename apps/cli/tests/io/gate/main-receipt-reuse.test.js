@@ -1,7 +1,7 @@
 /** A gate reads main's receipt from an earlier main whose inputs to the test file are the same; a missing one reads unknown [C7,SC11]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -63,7 +63,7 @@ function mainTests(board) {
   return board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = 'main-test'").get().n;
 }
 
-test('clause 1: a main that moved only outside the test file\'s import closure answers from the earlier main\'s receipt and queues no job [C7,SC11]', { timeout: 60_000 }, // budget: one fixture repo, three input-key reads, no runner.
+test('cli.io-gate-main-receipt-reuse.a-main-that-moved-only-outside-the: clause 1: a main that moved only outside the test file\'s import closure answers from the earlier main\'s receipt and queues no job [C7,SC11]', { timeout: 60_000 }, // budget: one fixture repo, three input-key reads, no runner.
 async t => {
   const { repo, earlier, moved, keys } = await movingMain(t);
   assert.match(keys.earlier ?? '', /^[0-9a-f]{64}$/u, 'the test file has an input key');
@@ -78,7 +78,7 @@ async t => {
   assert.equal(mainTests(board), 0, 'no main-test job was queued');
 });
 
-test('clause 2: a main that changed a module inside the closure does not reuse the earlier receipt [C7,SC11]', { timeout: 60_000 }, // budget: one fixture repo, three input-key reads, no runner.
+test('cli.io-gate-main-receipt-reuse.a-main-that-changed-a-module-inside: clause 2: a main that changed a module inside the closure does not reuse the earlier receipt [C7,SC11]', { timeout: 60_000 }, // budget: one fixture repo, three input-key reads, no runner.
 async t => {
   const { repo, earlier, changed, keys } = await movingMain(t);
   assert.notEqual(keys.changed, keys.earlier, 'editing an imported module changes the key');
@@ -91,7 +91,7 @@ async t => {
   assert.equal(mainTests(board), 1);
 });
 
-test('clause 3: a gate red only where main\'s receipt is still missing is recorded as unknown, not red, and keeps the item claimed [C7]', { timeout: 60_000 }, // budget: one fixture repo, three input-key reads, no runner.
+test('cli.io-gate-main-receipt-reuse.a-gate-red-only-where-main-s: clause 3: a gate red only where main\'s receipt is still missing is recorded as unknown, not red, and keeps the item claimed [C7]', { timeout: 60_000 }, // budget: one fixture repo, three input-key reads, no runner.
 async t => {
   const { repo, changed, keys } = await movingMain(t);
   const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root });

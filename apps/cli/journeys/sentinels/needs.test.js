@@ -11,6 +11,7 @@ import {
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { describe } from 'node:test';
 import { test } from 'node:test';
 import {
   SPEC,
@@ -28,6 +29,7 @@ import {
   fetchLive,
   serveFolder,
   press,
+  pressedInto,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -54,9 +56,11 @@ async function confirmBaseline(view, repo) {
   assert.equal(reply.status, 200, 'the real private view confirms the baseline G1/G2 approvals');
 }
 
+// Each case builds its own private board, view and Chrome profile, so the cases run side by side on one runner [N26].
+describe('Rulings cases [N26]', { concurrency: true }, () => {
 test('every Rulings surface follows the shared builder [N26,A9]', async () => {
   const box = machine();
-  const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`);
+  const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`, {}, { bare: true });
   await box.inProcess(alpha.repo, 'shout', 'person', 'Raw board decision?', '--decision');
   await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Raw board hold');
   const view = await startView(box);
@@ -109,7 +113,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the relay-health Rulings inspection check.');
   const box = machine();
-  project(box, 'relay health inspection');
+  project(box, 'relay health inspection', undefined, {}, { bare: true });
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-relay-health-needs-'));
   let chrome;
@@ -164,7 +168,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
 
 test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
   const box = machine();
-  const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`);
+  const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`, {}, { plumbing: true });
   await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
   await box.inProcess(alpha.web, 'shout', 'coordinator', 'An agent-only question?', '--decision', '--kind', 'question');
   await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Wait for the greeting decision');
@@ -250,7 +254,7 @@ test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_00
 
 test('a person-only block shows in Rulings with its one step [N26]', async () => {
   const box = machine();
-  const alpha = project(box, 'person block');
+  const alpha = project(box, 'person block', undefined, {}, { bare: true });
   box.env.CLAUDECODE = '1';
   const refused = await runCliInProcess(['answer', '1', 'yes', '--as', 'person'], { cwd: alpha.repo, env: box.env });
   delete box.env.CLAUDECODE;
@@ -296,7 +300,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Rulings and Shouts checks.');
   const box = machine();
   const spec = `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n- G5 [draft, aim] The header stays put. | gate: web test\n`;
-  const alpha = project(box, 'asks', spec);
+  const alpha = project(box, 'asks', spec, {}, { plumbing: true });
   await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   await box.inProcess(alpha.web, 'claim', '1');
@@ -345,6 +349,32 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     }
     return press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   };
+  // A shout with no item has one thread per sender (5084b13705), so the three questions sit in three threads: open each in turn
+  // and read its messages, in the order they were said.
+  const readConversations = async () => {
+    const seen = new Map(), visited = [];
+    for (;;) {
+      // A row that asks for an answer also follows its answer link when pressed, so each thread opens through the page's own opener.
+      const key = await chrome.stable(`[...document.querySelectorAll('#feed .sx-th')].map((row) => row.dataset.shoutThread).find((key) => !${JSON.stringify(visited)}.includes(key)) ?? null`);
+      if (key === null) break;
+      visited.push(key);
+      await chrome.stable(`openShoutThread(${JSON.stringify(key)})`);
+      await chrome.waitFor(`!!document.querySelector('#feed [data-thread-panel=' + ${JSON.stringify(JSON.stringify(key))} + ']')`);
+      const cards = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .sx-msg')].map((card) => [Number(card.dataset.shoutId), [...card.querySelector('.sx-tx').childNodes].filter((node) => !node.classList?.contains('sx-mk')).map((node) => node.textContent).join('')]))`));
+      for (const [id, text] of cards) seen.set(id, text);
+    }
+    const said = [...seen].sort((a, b) => a[0] - b[0]);
+    said.threads = visited;
+    return said;
+  };
+  // The reply below answers the ruling, so the thread that holds the passed ask is the one left open.
+  const openPassed = async () => {
+    const key = await chrome.stable(`[...document.querySelectorAll('#feed .sx-th')].find((row) => row.querySelector('.sx-tx').textContent.includes('Passed up from web-1'))?.dataset.shoutThread ?? null`);
+    assert.ok(key, 'the passed ask has its thread in the feed');
+    // Pressing the row would follow its answer link into the item and leave Items showing that item, so open it as the readers do.
+    await chrome.stable(`openShoutThread(${JSON.stringify(key)})`);
+    await chrome.waitFor(`!!document.querySelector('#feed [data-thread-panel=' + ${JSON.stringify(JSON.stringify(key))} + ']')`);
+  };
   try {
     await confirmBaseline(view, alpha.repo);
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -374,14 +404,14 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         await click('[data-tab=shouts]');
         await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .sx-th')");
         await click('[data-page-ctl=shouts][data-value=questions]');
-        await click('#feed [data-shout-thread=\"none\"]');
-        await chrome.waitFor("document.querySelectorAll('#feed .sx-msg').length === data.project.shouts.length");
+        const said = await readConversations();
+        assert.equal(said.length, await chrome.stable('data.project.shouts.length'), `${at}: every shout is in one of the threads ${JSON.stringify(said.threads)}`);
         r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
         // The original native questions now share the Questions segment and an actual conversation.
         assert.ok(r.wallsHidden, `${at}: the replaced decisions walls carry no content`);
         assert.deepEqual([r.questions, r.selected], ['Questions2', 'true'], `${at}: both native questions are counted in the shared segment`);
-        assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
+        assert.deepEqual(said.map(([, text]) => text), ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
         assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
         assert.ok(r.panelShown, `${at}: the agents rail shows beside the feed`);
         // An agent's row: the item it holds in ink, its seat and when it last moved.
@@ -395,9 +425,10 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
     await click('[data-page-ctl=shouts][data-value=all]');
-    await click('#feed [data-shout-thread="none"]');
+    const all = await readConversations();
+    await openPassed();
     let r = await read();
-    assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
+    assert.deepEqual(all.map(([, text]) => text), ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward, each in its sender\'s thread');
     // A reply sent from the open thread shows in it; no note pushes into a composer's line.
     await chrome.stable("document.querySelector('#feed [data-reply] input').focus()");
     await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
@@ -422,9 +453,18 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     assert.match(await chrome.stable("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
     await click('#feed [data-unread]');
     assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
-    // Under In review, or a lane, the list is narrowed and Rulings steps aside.
+    // Under In review, or a lane, the list is narrowed and Rulings steps aside. The first press of Items closes any item the
+    // shout threads left open, the second shows the list.
+    await click('[data-tab=items]');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:verify');
+    // The control answers at once and the page draws on the next turn, so wait for the draw before reading Rulings.
+    try {
+      await pressedInto(chrome, "document.querySelector('[data-page-ctl=state][data-value=verify]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#needs').hidden");
+    } catch (error) {
+      const held = await chrome.stable('JSON.stringify({ dialogs: pageDialogs.size, held: heldClickPointer, deferred: deferredClickRender })').catch((failure) => failure.message);
+      throw new Error(`${error.message}; the page holds ${held}; exceptions ${JSON.stringify(chrome.exceptions)}`, { cause: error });
+    }
     assert.equal((await read()).needsShown, false, 'under In review, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
@@ -434,4 +474,5 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     rmSync(profile, { recursive: true, force: true });
     await view.stop();
   }
+});
 });

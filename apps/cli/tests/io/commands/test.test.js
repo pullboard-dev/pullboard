@@ -30,7 +30,7 @@ import { runResident } from '../../../src/io/resident/client.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { withFixtureBoard } from '../../fixtures/board.js';
 
-test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
+test('cli.io-commands-test.tests-run-without-inherited-git-identity-or: tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');
   assert.equal(process.env.GIT_CONFIG_NOSYSTEM, '1');
   assert.equal(process.env.GIT_CONFIG_COUNT, '3');
@@ -83,14 +83,14 @@ test('tests run without inherited Git identity or config and refuse ambient pull
   assert.match(preferred.stdout, /fixture shim first/);
 });
 
-test('runner removes its private home after test workers exit [C7, S13]', (t) => {
+test('cli.io-commands-test.runner-removes-its-private-home-after-test: runner removes its private home after test workers exit [C7, S13]', (t) => {
   const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-cleanup-'));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const probe = join(scratch, 'runner-probe.test.js');
   const report = join(scratch, 'sandbox-path');
   writeFileSync(probe, `import { test } from 'node:test';
 import { writeFileSync } from 'node:fs';
-test('reports its sandbox and person-terminal markers', () => writeFileSync(${JSON.stringify(report)}, JSON.stringify({ sandbox: process.env.TMPDIR, ssh: [process.env.SSH_CONNECTION, process.env.SSH_CLIENT, process.env.SSH_TTY] })));
+test('cli.io-commands-test.reports-its-sandbox-and-person-terminal-markers: reports its sandbox and person-terminal markers', () => writeFileSync(${JSON.stringify(report)}, JSON.stringify({ sandbox: process.env.TMPDIR, ssh: [process.env.SSH_CONNECTION, process.env.SSH_CLIENT, process.env.SSH_TTY] })));
 `);
   const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
   const launchEnv = { ...process.env };
@@ -127,7 +127,7 @@ function queuedRunBoard() {
   return { box, run, commonDir };
 }
 
-test('clause 1: test --status prints the run state without spawning the resident board [C7,#5888]', async () => {
+test('cli.io-commands-test.test-status-prints-the-run-state-without: clause 1: test --status prints the run state without spawning the resident board [C7,#5888]', async () => {
   const { box, run, commonDir } = queuedRunBoard();
   const env = { ...box.env, PULLBOARD_RESIDENT: '1' };
   const quiet = { write() { return true; }, isTTY: false };
@@ -140,11 +140,12 @@ test('clause 1: test --status prints the run state without spawning the resident
   const status = await box.inProcess(box.repo, 'test', '--status', run.id);
   assert.equal(status.code, 0, `${status.out}${status.err}`);
   assert.match(status.out, new RegExp(`test run ${run.id} queued: test/a\\.test\\.js`, 'u'));
-  const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => name.startsWith('resident-'));
+  // The control above takes the slot start lock (resident-*.starting, #10770) though its fake starter never runs; only a pid or socket records a process.
+  const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => /^resident-.*\.(pid|sock)$/u.test(name));
   assert.deepEqual(residents, [], 'no resident board process recorded itself');
 });
 
-test('clause 2: test --status of an unknown run id still refuses with a next step [C7,#5888]', async () => {
+test('cli.io-commands-test.test-status-of-an-unknown-run-id: clause 2: test --status of an unknown run id still refuses with a next step [C7,#5888]', async () => {
   const { box } = queuedRunBoard();
   const refused = await box.inProcess(box.repo, 'test', '--status', '00000000-0000-4000-8000-000000000000');
   assert.equal(refused.code, 1, `${refused.out}${refused.err}`);
@@ -152,7 +153,7 @@ test('clause 2: test --status of an unknown run id still refuses with a next ste
   assert.match(refused.err, /^next: /mu);
 });
 
-test('pullboard test given a folder expands it to the test files under it, never ERR_UNSUPPORTED_DIR_IMPORT [C7,S13]', (t) => {
+test('cli.io-commands-test.pullboard-test-given-a-folder-expands-it: pullboard test given a folder expands it to the test files under it, never ERR_UNSUPPORTED_DIR_IMPORT [C7,S13]', (t) => {
   const box = privateFixtureFiles('pullboard-test-folders-');
   const root = box.root;
   t.after(() => box.cleanup?.());

@@ -36,7 +36,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('a block clears when its audience completes the same move [C6,N26]', async t => {
+test('cli.journeys-health-blocks.a-block-clears-when-its-audience: a block clears when its audience completes the same move [C6,N26]', async t => {
   const box = e2e.project();
   const ask = async text => {
     const result = await box.runLocal(box.repo, 'shout', 'person', text, '--decision', '--json');
@@ -116,7 +116,7 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
   assert.deepEqual(readBlocks(milestoneInfo.commonDir), [], 'the matching named milestone success clears it');
 });
 
-test('a successful edit clears only its own item [C6]', async () => {
+test('cli.journeys-health-blocks.a-successful-edit-clears-only-its: a successful edit clears only its own item [C6]', async () => {
   const box = e2e.project();
   const add = async title => {
     const result = await fixtureAdd(box.runLocal, box.repo, 'web', title, '--json');
@@ -147,7 +147,7 @@ async function apiNeeds(api, root) {
   return { needs: state.needs.filter(row => row.kind === 'block'), blocks: state.blocks };
 }
 
-test('a Pullboard block reaches whoever can clear it and repeats are counted [C6,N26]', {
+test('cli.journeys-health-blocks.a-pullboard-block-reaches-whoever-can: a Pullboard block reaches whoever can clear it and repeats are counted [C6,N26]', {
   timeout: 240_000, // budget: about 60 real CLI subprocess spawns on a loaded runner (89 s green, 174 s red at load 19), never a hang allowance.
 }, async (t) => {
   const box = e2e.project();
@@ -246,7 +246,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.ok((await apiNeeds(api, box.repo)).needs.some(row => row.id.startsWith('block:B26_PERSON_APPROVAL ')));
 });
 
-test('clause 1: readBlocks with a since bound parses no line older than the bound and reads a 20 MB ledger in under 20 ms [C7]', t => {
+test('cli.journeys-health-blocks.readblocks-with-a-since-bound-parses: clause 1: readBlocks with a since bound parses no line older than the bound and reads a 20 MB ledger in under 20 ms [C7]', t => {
   const commonDir = privateFixtureFiles('pullboard-blocks-tail-').root;
   t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
   fs.mkdirSync(join(commonDir, 'pullboard'));
@@ -275,7 +275,7 @@ test('clause 1: readBlocks with a since bound parses no line older than the boun
   assert.equal(readBlocks(commonDir).length, 90_002, 'no bound still reads the whole ledger');
 });
 
-test('clause 1: a ledger that names none of a completed move\'s keys is never parsed, and one that names a key reads as before [C7]', t => {
+test('cli.journeys-health-blocks.a-ledger-that-names-none-of: clause 1: a ledger that names none of a completed move\'s keys is never parsed, and one that names a key reads as before [C7]', t => {
   const commonDir = privateFixtureFiles('pullboard-blocks-mention-').root;
   t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
   fs.mkdirSync(join(commonDir, 'pullboard'));
@@ -314,7 +314,7 @@ function largeLedger(t) {
   return { commonDir, key: `${'c'.repeat(63)}7` };
 }
 
-test('clause 1: readBlocks with mentioning returns the same blocks for a ledger over 256 KB as a read that walks the windows from the end [C7]', t => {
+test('cli.journeys-health-blocks.readblocks-with-mentioning-returns-the-same: clause 1: readBlocks with mentioning returns the same blocks for a ledger over 256 KB as a read that walks the windows from the end [C7]', t => {
   const { commonDir, key } = largeLedger(t);
   const once = readBlocks(commonDir, { mentioning: [key] });
   assert.equal(once.length, 399, 'the 400 blocks naming the key, less the cleared one');
@@ -322,7 +322,7 @@ test('clause 1: readBlocks with mentioning returns the same blocks for a ledger 
   assert.deepEqual(readBlocks(commonDir, { mentioning: ['f'.repeat(64)] }), []);
 });
 
-test('clause 2: readBlocks with mentioning and no since reads the ledger file once [C7]', t => {
+test('cli.journeys-health-blocks.readblocks-with-mentioning-and-no-since: clause 2: readBlocks with mentioning and no since reads the ledger file once [C7]', t => {
   const { commonDir, key } = largeLedger(t);
   let reads = 0;
   const read = (file, offset) => { reads += 1; return readLedgerBytes(file, offset); };

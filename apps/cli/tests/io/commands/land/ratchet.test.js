@@ -5,7 +5,7 @@ import { Refused } from '../../../../../../packages/kernel/index.js';
 
 const STALE = 'flake evidence or repair status changed before the landing snapshot was recorded; retry the landing';
 
-test('prepareFlakeLanding recomputes the snapshot when the board moved under it, and gives up after a bound [C7]', async () => {
+test('cli.io-commands-land-ratchet.prepareflakelanding-recomputes-the-snapshot-when-the-board: prepareFlakeLanding recomputes the snapshot when the board moved under it, and gives up after a bound [C7]', async () => {
   let boundary = 0;
   const written = [];
   const state = {

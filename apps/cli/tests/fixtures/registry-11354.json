@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-merged.compose-landing-on": {"proves":{"specs":["C7"],"claim":"With slices.composeLanding on, pullboard merged records the parent landed and withdraws its submitted slice as landed with the parent."},"why":"Without it, the store's slice closing is never reached from a real landing and every slice stays submitted.","kind":"cell unit","inputs":["apps/cli/src/io/commands/merged.js"]},
+  "cli.io-commands-merged.compose-landing-off": {"proves":{"specs":["C7"],"claim":"With slices.composeLanding off, a parent's landing leaves its slice submitted."},"why":"Without it, the setting could close slices for repos that never turned it on.","kind":"cell unit","inputs":["apps/cli/src/io/commands/merged.js"]}
+}

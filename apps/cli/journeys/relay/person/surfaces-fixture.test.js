@@ -5,7 +5,7 @@ import { personSurfaceLeaks } from '../../../tests/fixtures/person-surfaces.js';
 import { seededPersonBoard } from '../../../tests/fixtures/person-surfaces.js';
 import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/light.js';
 
-test('the detector flags a bracketed code, a command line, a token and a relay term [H23]', () => {
+test('cli.journeys-relay-person-surfaces-fixture.the-detector-flags-a-bracketed-code: the detector flags a bracketed code, a command line, a token and a relay term [H23]', () => {
   assert.deepEqual(personSurfaceLeaks('Failed [RELAY_UNAVAILABLE] today').map((l) => l.kind), ['bracketed code']);
   assert.deepEqual(personSurfaceLeaks('Run pullboard next to continue').map((l) => l.kind), ['shell command line']);
   assert.deepEqual(personSurfaceLeaks('key sk-abcdefghijklmnop1234').map((l) => l.kind), ['token or key']);
@@ -14,13 +14,13 @@ test('the detector flags a bracketed code, a command line, a token and a relay t
   }
 });
 
-test('the detector passes plain person text [H23]', () => {
+test('cli.journeys-relay-person-surfaces-fixture.the-detector-passes-plain-person-text: the detector passes plain person text [H23]', () => {
   for (const text of ['Your agents are working. Nothing needs you.', 'Which design should we keep?', '', undefined]) {
     assert.deepEqual(personSurfaceLeaks(text), [], String(text));
   }
 });
 
-test('the seeded board holds a case for every catalog refusal [H23]', () => {
+test('cli.journeys-relay-person-surfaces-fixture.the-seeded-board-holds-a-case: the seeded board holds a case for every catalog refusal [H23]', () => {
   const board = seededPersonBoard();
   const codes = Object.keys(DEFAULT_NEXT_STEPS);
   assert.ok(codes.length > 0);

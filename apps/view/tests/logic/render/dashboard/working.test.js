@@ -25,7 +25,7 @@ const shown = model => {
   return { heading: /title="Agents at work">(\d+)<\/button>/u.exec(html)?.[1], rows: [...html.matchAll(/data-dashboard-agent="([^"]+)"/gu)].map(([, id]) => id).sort() };
 };
 
-test('clause 1: the Dashboard Agents count and its rows follow the list the notch counts [N26]', () => {
+test('view.x-render-dashboard-working.clause-1-the-dashboard-agents-count-and: clause 1: the Dashboard Agents count and its rows follow the list the notch counts [N26]', () => {
   // Alone, the model reads its own list: both holders and the agent that moved ten minutes ago.
   const own = dashboardModel(project, [], { now, complete: false });
   assert.deepEqual(shown(own), { heading: '3', rows: ['builder-1', 'recent-1', 'reviewer-1'] });
@@ -39,7 +39,7 @@ test('clause 1: the Dashboard Agents count and its rows follow the list the notc
   assert.equal(none.totals.working, 0);
 });
 
-test('clause 1: the page hands the Dashboard the notch\'s list, from the same memoised nav numbers [N26]', () => {
+test('view.x-render-dashboard-working.clause-1-the-page-hands-the-dashboard: clause 1: the page hands the Dashboard the notch\'s list, from the same memoised nav numbers [N26]', () => {
   const sidebar = cockpitSidebar(new Proxy({}, { get: () => function stub() { return {}; } }));
   assert.match(sidebar, /return \{ agents: busy\.length, agentIds: busy\.map\(\(a\) => a\.agent_id\),/u, 'the nav numbers carry the ids behind the notch count');
   assert.match(sidebar, /drawNav\(shown, store\.select\('nav-numbers', \[shown, view\.allAgents, Math\.floor\(Date\.now\(\) \/ 60_000\)\], navNumbers\)\)/u, 'the notch draws from them');

@@ -3,8 +3,9 @@ import { SOURCE_STATE_REFUSAL } from '../shared.js';
 import { PATCH_METADATA_REFUSAL } from '../shared.js';
 
 /**
- * The `reopen` lifecycle move, declared in its own module so a change to one move's
+ * The `reopen` lifecycle move and its `reland` counterpart, declared in its own module so a change to one move's
  * guards never edits the file every other move shares; packages/state/src/io/machine.js lists every move in order [M1,C7].
+ * `reland` returns an open landing-failure item to verified when its own accept and green gate still hold; it sits here so it adds no module to every command's load closure.
  *
  * @type {import('../../../io/machine.js').Move[]}
  */
@@ -16,4 +17,8 @@ export const MOVES = [
     sets: ['item_verdict', 'item_verified_by', 'item_owner', 'item_lease_until', 'item_review_by', 'item_review_until'],
     command: 'pullboard reopen <id> [--withdraw-verdict] --note "why" | --conflict <file> [--conflict <file>]',
   },
+  { verb: 'reland', from: ['open'], to: 'verified', by: ['coordinator'], refuse: 'RELAND_NOT_ELIGIBLE',
+    guards: ['coordinatorOnly', 'itemExists', IN_STATE, 'atSubmittedCommit', 'notBuilder', 'criterionUnchanged', 'proofNoted'],
+    sets: ['item_verified_by', 'item_commit'],
+    command: 'landing, from the main checkout (no verb of its own)' },
 ];

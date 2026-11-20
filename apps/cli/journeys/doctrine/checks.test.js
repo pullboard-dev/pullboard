@@ -24,7 +24,7 @@ async function settled(t, box, web, id) {
   return settleSubmit(t, box, JSON.parse(sent.out));
 }
 
-test("a doctrine rule's check holds its count in watch mode and nightly at submit [D1,D3,C7]", async t => {
+test('cli.journeys-doctrine-checks.a-doctrine-rule-s-check-holds: a doctrine rule\'s check holds its count in watch mode and nightly at submit [D1,D3,C7]', async t => {
   const box = await checkedProject('count: 0 | mode: watch',
     ['- Q2 [approved, must] Web pages stay TODO-free overnight. | gate: check grep -rn TODO web | count: 3 | runs: nightly']);
   commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');

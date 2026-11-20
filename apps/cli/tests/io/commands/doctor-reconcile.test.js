@@ -30,16 +30,23 @@ function runState(box) {
   try { return boardRun(board.db, 'gate:lost').run_state; } finally { closeBoard(board); }
 }
 
-test('clause 1: doctor on a board with the runs_store flag on and one lost job runs one reconciler tick and prints the job it settled [B2,P7]', async t => {
+test('cli.io-commands-doctor-reconcile.doctor-on-a-board-with-the-runs: clause 1: doctor on a board with the runs_store flag on and one lost job runs one reconciler tick and prints the job it settled [B2,P7]', async t => {
   const box = projectWithLostRun(t, { flag: true });
-  const ran = await runCliInProcess(['doctor'], { cwd: box.root, env: box.env });
+  const ran = await runCliInProcess(['doctor', '--reconcile'], { cwd: box.root, env: box.env });
   assert.match(ran.stdout, /reconciler: settled gate:lost \(lost\)/u, ran.stdout + ran.stderr);
   assert.equal(runState(box), 'lost', 'the tick moved the board run');
 });
 
-test('clause 2: doctor on a board with the flag off prints no reconciler line [B2,P7]', async t => {
+test('cli.io-commands-doctor-reconcile.doctor-on-a-board-with-the-flag: clause 2: doctor on a board with the flag off prints no reconciler line [B2,P7]', async t => {
   const box = projectWithLostRun(t, { flag: false });
   const ran = await runCliInProcess(['doctor'], { cwd: box.root, env: box.env });
   assert.doesNotMatch(ran.stdout + ran.stderr, /reconciler/u);
   assert.equal(runState(box), 'queued', 'with the flag off the run is left alone');
+});
+
+test('cli.io-commands-doctor-reconcile.default-doctor-takes-no-write: clause 1: a default doctor on a board with the flag on and one lost job prints no reconciler line and leaves the job unsettled [B2,P7]', async t => {
+  const box = projectWithLostRun(t, { flag: true });
+  const ran = await runCliInProcess(['doctor'], { cwd: box.root, env: box.env });
+  assert.doesNotMatch(ran.stdout + ran.stderr, /reconciler/u);
+  assert.equal(runState(box), 'queued', 'a default doctor takes no write lock and settles nothing');
 });

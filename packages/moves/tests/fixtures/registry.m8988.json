@@ -1,0 +1,4 @@
+{
+  "moves.logic-recapture-handoff.descriptor-routes-at-the-recapture-engine": {"proves":{"specs":["C7","H16"],"claim":"The recaptureSubmitHandoff descriptor has operation recaptureSubmitHandoff and minimumEngine RECAPTURE_SUBMIT_HANDOFF_ENGINE."},"why":"A queued recapture hand-off must never replay under an engine older than its own leaf.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/recaptureSubmitHandoff.js","packages/moves/tests/logic/moves/recaptureSubmitHandoff.test.js"]},
+  "moves.logic-recapture-handoff.actor-is-the-sender": {"proves":{"specs":["C7","H16"],"claim":"The recaptureSubmitHandoff actor is the sender in args[1].agentId, as for queueSubmitHandoff."},"why":"The sender-to-actor binding must not change for the recapture hand-off.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/recaptureSubmitHandoff.js","packages/moves/tests/logic/moves/recaptureSubmitHandoff.test.js"]}
+}

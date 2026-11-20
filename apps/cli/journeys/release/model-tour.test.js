@@ -90,7 +90,7 @@ function runTour(box, harness, variant = '') {
   return runFixtureChild(process.execPath, args, { cwd: box.dir, env, encoding: 'utf8', input: '' });
 }
 
-test('the scripted tour names its model without PULLBOARD_MODEL [N10,O8]', () => {
+test('cli.journeys-release-model-tour.the-scripted-tour-names-its-model: the scripted tour names its model without PULLBOARD_MODEL [N10,O8]', () => {
   const box = sandbox();
   const result = runTour(box);
   assert.deepEqual(tourSteps(result.stdout), TOUR_STEPS, result.failure ?? result.stdout);

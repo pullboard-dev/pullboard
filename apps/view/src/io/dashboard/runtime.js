@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null, gateTrace = null, eventBatch = 50000 }) {
   const histories = new Map();
   // The Agents table's between-items rows stay open across live redraws once the person opens them (#6847).
   let quietOpen = false;
@@ -12,6 +12,9 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
   // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
   const tour = { index: 0, auto: true, timer: null };
   let drawnFloor = null;
+  // The In the gate row whose trace panel is open, and the regions already listening for its clicks (one listener per page region, never one per redraw).
+  let openGate = null;
+  const listening = new WeakSet();
   let lastNeeds = { root: null, html: '', header: '' };
   /** Whether the events hold every id from 1 to the prefix, by the position of the prefix's last event (ids are strictly rising). */
   function covers(events, prefix) {
@@ -35,8 +38,17 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     if (held.pending || held.prefix >= prefix || held.failedPrefix === prefix && Date.now() - held.failedAt < 5000) return held;
     held.pending = true; held.observedPrefix = prefix;
     const after = held.events.at(-1)?.event_id ?? 0;
-    api(boardPath(root) + '/events?after=' + after).then(reply => {
+    // History reads in pages of eventBatch: one unbounded read of a 600k-event board is past what the API can send.
+    const fetched = [];
+    const page = from => api(boardPath(root) + '/events?after=' + from + '&limit=' + eventBatch).then(reply => {
       if (!Array.isArray(reply.events)) throw new Error('The board did not return its event history.');
+      for (const event of reply.events) fetched.push(event);
+      const end = reply.events.at(-1)?.event_id;
+      // A full page may have more behind it; a short page, or one that does not move past its cursor, is the end.
+      if (reply.events.length >= eventBatch && end > from) return page(end);
+    });
+    page(after).then(() => {
+      const reply = { events: fetched };
       const last = held.events.at(-1)?.event_id ?? 0;
       // New events arrive after the held ones in id order, so they are appended; the folded totals stay valid. Anything else rebuilds the history.
       if (reply.events.every((event, index) => event.event_id > (index ? reply.events[index - 1].event_id : last))) for (const event of reply.events) held.events.push(event);
@@ -102,7 +114,18 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, seen(held, prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
-    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor'), gate: gateTrace ? { open: openGate, trace: gateTrace } : null });
+    // A click on a gate row opens its trace panel, a second click (or Close) shuts it; the redraw paints the panel from the held model at once.
+    if (gateTrace && !listening.has(region) && region.addEventListener) {
+      listening.add(region);
+      region.addEventListener('click', event => {
+        const row = event.target?.closest?.('[data-gate-trace]');
+        if (!row) return;
+        const id = Number(row.dataset?.gateTrace ?? row.getAttribute?.('data-gate-trace'));
+        openGate = openGate === id ? null : id;
+        redraw();
+      });
+    }
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
     if (showFirstRun) startTour();

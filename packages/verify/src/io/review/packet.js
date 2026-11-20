@@ -7,15 +7,12 @@
  * never by checking anything out. The packet is stored under the board's directory, keyed by item
  * and head, so `show --review` and `next --verify` print it without a checkout or a test process.
  */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { gitExecFileSync } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { testOutcomeFields } from '../../../light.js';
 import { frozenBar } from '../../logic/frozen.js';
 import { frozenRowGates } from '../../logic/frozen.js';
@@ -25,6 +22,9 @@ import { criterionClauses } from '../../../../state/index.js';
 import { earlierHeadFacts } from '../../../../state/index.js';
 import { linkEarlierFacts } from '../../../../state/index.js';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -36,7 +36,7 @@ const PATCH_LIMIT = 4 * 1024 * 1024;
 
 /** Run git with repository overrides stripped, so a hook's environment never redirects the read. */
 function gitRead(root, args, input) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  const env = Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !key.startsWith('GIT_')));
   return gitExecFileSync(['-C', root, ...args], { env, maxBuffer: 64 * 1024 * 1024, ...(input === undefined ? { encoding: 'utf8' } : { input }) });
 }
 
@@ -71,7 +71,7 @@ function reviewPacketPath(commonDir, id, head) {
 function readReviewPacket(commonDir, id, head, criterionDigest) {
   try {
     const path = reviewPacketPath(commonDir, id, head);
-    const packet = path && JSON.parse(readFileSync(path, 'utf8'));
+    const packet = path && JSON.parse(fs.readFile(path, 'utf8'));
     return packet?.version === VERSION && packet.item === Number(id) && packet.head === head
       && packet.criterionDigest === criterionDigest ? packet : null;
   } catch { return null; }
@@ -81,10 +81,10 @@ function readReviewPacket(commonDir, id, head, criterionDigest) {
 function storeReviewPacket(commonDir, packet) {
   const path = reviewPacketPath(commonDir, packet.item, packet.head);
   if (!path) return null;
-  mkdirSync(dirname(path), { recursive: true });
+  fs.mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(packet) + '\n');
-  renameSync(temporary, path);
+  fs.writeFile(temporary, JSON.stringify(packet) + '\n');
+  fs.rename(temporary, path);
   return path;
 }
 
@@ -140,7 +140,7 @@ function mainReceiptFor(commonDir, ids, main, failure) {
   for (const id of new Set(ids)) {
     if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
     try {
-      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
+      const stored = JSON.parse(fs.readFile(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
       if (stored.id === id && stored.kind === 'main-red' && stored.head === main
         && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
     } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
@@ -148,12 +148,34 @@ function mainReceiptFor(commonDir, ids, main, failure) {
   return null;
 }
 
+const CLAUSE_KIND = /\[(test|command|screenshot|measurement|reasoning)\]\s*[.;]?\s*$/u;
+
+/**
+ * A criterion that opens "1." split by sequence: a marker counts only when its number is the next one expected, so
+ * prose such as "c is 3. Not 4." stays inside its clause. [] for free text or a bar with no clause 1 [V4,C7].
+ */
+function sequenceClauses(criterion) {
+  const source = String(criterion ?? '').trim();
+  if (!/^1[.)]\s/u.test(source)) return [];
+  const marks = [];
+  for (const match of source.matchAll(/(?:^|\s)(\d+)[.)]\s+/gu)) {
+    if (Number(match[1]) === marks.length + 1) marks.push({ start: match.index, end: match.index + match[0].length });
+  }
+  const clauses = marks.map((mark, index) => {
+    const text = source.slice(mark.end, index + 1 < marks.length ? marks[index + 1].start : source.length).trim().replace(/[;,]\s*$/u, '').trim();
+    return { n: index + 1, text, ...(CLAUSE_KIND.exec(text) ? { kind: CLAUSE_KIND.exec(text)[1] } : {}) };
+  });
+  return clauses.every(clause => clause.text) ? clauses : [];
+}
+
 /** Split the frozen bar into numbered clauses: the criterion's sentences, then each frozen row. */
 function packetClauses(item) {
   const bar = frozenBar(item);
   const criterion = bar.criterion || wording(item.item_criterion);
   const numbered = criterionClauses(item.item_criterion ?? criterion);
+  const bySequence = numbered.length ? [] : sequenceClauses(item.item_criterion ?? criterion);
   const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text, ...(clause.kind ? { kind: clause.kind } : {}) }))
+    : bySequence.length ? bySequence
     : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
   const gates = new Map(frozenRowGates(item).map(row => [row.id, row.file]));
   return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}`, ...(gates.has(row.id) ? { gate: gates.get(row.id) } : {}) }))]
@@ -173,7 +195,7 @@ function words(text) {
 function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
   try {
-    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
+    const stored = JSON.parse(fs.readFile(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
     if (stored.id !== receipt.id || stored.head !== head) return [];
     return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => declared || !row.skipped);
   } catch { return []; }

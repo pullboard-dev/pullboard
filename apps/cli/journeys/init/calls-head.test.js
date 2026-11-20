@@ -25,7 +25,7 @@ import { GIT_MODULE } from '../../tests/fixtures/init/calls.js';
 const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/runners/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/config/src/io/main.js')).href;
 
-test('a runner sees the new HEAD after it commits its item [C7]', async (t) => {
+test('cli.journeys-init-calls-head.a-runner-sees-the-new-head: a runner sees the new HEAD after it commits its item [C7]', async (t) => {
   const box = await fixture(t);
   fileFixtureItem(box, box.repo, { lane: 'core', title: 'Refresh cached HEAD', route: 'mid',
     criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
@@ -67,7 +67,7 @@ async function readServedBranchCode(api, branch) {
   return document.code.commit;
 }
 
-test('a live serve request sees a commit made while the server stays open [C7]', async (t) => {
+test('cli.journeys-init-calls-head.a-live-serve-request-sees-a: a live serve request sees a commit made while the server stays open [C7]', async (t) => {
   const box = await fixture(t);
   const branch = 'a1b2c3d4e5f6';
   box.git(box.repo, 'branch', '-m', branch);
@@ -86,7 +86,7 @@ test('a live serve request sees a commit made while the server stays open [C7]',
   });
 });
 
-test('the runner invalidates cached HEAD immediately after its own commit [C7]', async (t) => {
+test('cli.journeys-init-calls-head.the-runner-invalidates-cached-head-immediately: the runner invalidates cached HEAD immediately after its own commit [C7]', async (t) => {
   const box = await fixture(t);
   const before = box.git(box.worker, 'rev-parse', 'HEAD');
   mkdirSync(join(box.worker, 'src'));
@@ -108,7 +108,7 @@ console.log(JSON.stringify(result));`;
   assert.equal(committed.commit, box.git(box.worker, 'rev-parse', 'HEAD'));
 });
 
-test('settled and concurrent commands do not share Git-fact caches [C7]', async (t) => {
+test('cli.journeys-init-calls-head.settled-and-concurrent-commands-do-not: settled and concurrent commands do not share Git-fact caches [C7]', async (t) => {
   const box = await fixture(t);
   const settledRead = deferred();
   const releaseSettled = deferred();

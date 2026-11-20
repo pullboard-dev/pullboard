@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  SLICE_PATHS: 'revert the outside path, or ask the parent holder for a slice that declares it',
   BOARD_LANDS_ACCEPTED: 'check pullboard next for other work; accepted work lands automatically',
   TOOL_BUILD_UNAVAILABLE: 'restore the published build Git objects or ask the coordinator to promote a gated build',
   TOOL_BUILD_REQUIRED: 'ask the coordinator to run pullboard tool-build promote <commit> --gate-receipt <gate-id>',
@@ -37,7 +38,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   BOARD_TOO_OLD: 'open this board with pullboard 0.9.3 first, then open it with this version',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
   GATE_PENDING: 'take your next item now with pullboard next --take; the board holds the gate and next brings its result, or fix and resubmit if the gate went red',
-  MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit, merge main, then submit again',
+  MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit and submit again (submit composes current main)',
+  TICK_FORMAT: 'write the note as clause N [kind]: evidence, or run pullboard test <the clause test file> from the item folder so a green run ticks the [test] clause itself',
   CROSS_OWNERSHIP: 'split the item so each piece names only its own lane’s folders, or shout the owning lane to build the other paths',
   ITEM_WORK_IN_SEAT: 'move the change to the item folder that pullboard claim <id> opens, commit there, and switch this seat checkout off the item branch',
   MERGED_ALREADY: 'run pullboard show <id> to read the recorded merge commit; nothing more is needed unless a different commit must land through a new item',
@@ -45,6 +47,11 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_FOLDER_UNREGISTERED: 'commit or move the changes out of that folder yourself, or shout the coordinator to archive it, then claim the item again',
   COMPANION_WINDOW: 'take other work with pullboard next --take, and run the command again after the objection deadline named in the message',
   LAND_RUNNER_FAULT: 'no action needed: the landing retries on its own; if it repeats, run pullboard runner list to find the unhealthy runner',
+  ITEM_FOLDER_ARCHIVE_UNREACHABLE: 'reconnect the archive volume the link points to, or shout the coordinator to repoint the archive folder; the item folder was kept untouched',
+  LAND_EXACT_RED: 'fix the cell the message names, commit, merge main, and submit again; main did not move',
+  LAND_EXACT_TREE: 'prove the tree with pullboard land, which records the exact-tree proof before main moves; run pullboard resume if the batch has no tree',
+  LAND_RUNNER_REQUIRED: 'fix the runner with pullboard runner list, then let the landing retry; or turn landing.runnerOnlyCompose off to merge on the coordinator',
+  LAND_YIELDED: 'no action needed: the landing restages on its own; run pullboard resume if it does not start again',
   LAND_CODE_STALE: 'no action needed: a fresh lander takes over; run pullboard resume if none starts',
   LAND_MAIN_COMPARISON: 'retry the landing once main can run the named files; run pullboard resume to start it',
   LAND_MAIN_MOVED: 'run pullboard resume so landing restarts from the new main tip',
@@ -299,6 +306,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "EVENT_LOG_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "EXPORT_EXISTS": "name an empty folder for the export",
   "FLAG_NOT_ALLOWED": "drop the flag; pullboard help spec lists what each spec command takes",
+  "FACT_QUOTE_UNCITED": "if the quote says what the row claims, run the accept again with that quote inside --reason",
+  "FOREIGN_UNLINKED": "link the named repository with pullboard link <repo>, or drop that repo#id from --after",
   "GATE_ARGUMENT": "use pullboard resources for status, or pullboard gate with no extra words to run the gate",
   "GATE_SLOT_LEASE_LOST": "let the parent process take the gate slot again, then restart the child",
   "GATE_SLOT_LEASE_REQUIRED": "start the child test process with the live gate lease",
@@ -630,7 +639,17 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   FIELD_FILTER: 'write --field <name><op><value>, such as --field priority=high or --field points>=3',
   FIELD_UNKNOWN: 'declare the field first with pullboard field declare <name> <text|choice|number>, or use a field already declared',
   RUNNER_TOOLCHAIN_MISSING: 'add a runner that has the named toolchain with pullboard runner add, or ask the person to install it on an existing runner',
-  SPEC_FIELD: 'give the field as a single plain sentence, or leave it out'
+  AGENT_REQUIRED: 'send agent with the seat name pullboard join gave this clone',
+  COORDINATOR_CREDENTIAL: "run the move on the board host with the local CLI, or send the coordinator's own key as x-pullboard-coordinator-key",
+  SPEC_FIELD: 'give the field as a single plain sentence, or leave it out',
+  STATS_OFF: 'the person sets landing.composedEquality to true in the machine settings',
+  HOME_PATH: 'reword that commit\'s message without the path (a merge subject can drop its "of <path>" part), then try again',
+  CO_AUTHOR: 'reword that commit\'s message without the trailer, then try again',
+  LAND_REPROVE_RED: 'read the failure named in the item\'s note, fix it in the reopened item, then submit it again',
+  NO_STORE_WRITER: 'update this pullboard to a build that has the writer for that operation, or ask the coordinator',
+  RULING_CAUSE: 'give --cause one of the causes the refusal lists, or leave it out',
+  REVIEW_RELEASE_TWICE: 'a seat of another model family reviews the item, or ask the coordinator to rule',
+  PROVEN_BREAK_REQUIRED: 'run pullboard verify <id> accept again with --broke "<the file, command or case you broke and the failure it showed>"'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

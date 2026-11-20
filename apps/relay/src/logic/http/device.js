@@ -127,7 +127,7 @@ export function createDeviceHandler({ authenticate, authorizeBoard, boardsFor, d
       }
       if (who.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'Sign in as a person to pair or revoke a device.');
       if (url.pathname === '/api/v1/devices/session' && req.method === 'GET') {
-        apiJson(res, 200, { account }); return true;
+        apiJson(res, 200, { account, knownDevice: devices.knownSession?.(who) === true }); return true;
       }
       const enrollment = /^\/api\/v1\/devices\/enrollments\/([A-Za-z0-9_-]{22})$/.exec(url.pathname);
       if (enrollment) {

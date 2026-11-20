@@ -1,14 +1,8 @@
 /** Export runner controllers from immutable Git objects, independently of checkout edits [O5,C7]. */
+import { gitSpawn } from '../../../../git/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -21,6 +15,9 @@ import { touchKeyedFolder } from '../keyed.js';
 import { writeKeyedLease } from '../keyed.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
@@ -45,9 +42,9 @@ function toolingGit(root, args, binary = false) {
 /** Retain exact Git provenance for an owned archive without treating its metadata as byte authority. */
 export function archivedToolingSource(root) {
   const file = join(root, MANIFEST);
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   let source;
-  try { source = JSON.parse(readFileSync(file, 'utf8')); } catch { source = null; }
+  try { source = JSON.parse(fs.readFile(file, 'utf8')); } catch { source = null; }
   if (!source || Object.keys(source).sort().join(',') !== 'commit,root,tree,version' || source.version !== 1
     || typeof source.root !== 'string' || !isAbsolute(source.root) || !OID.test(source.commit ?? '') || !OID.test(source.tree ?? '')
     || toolingGit(source.root, ['rev-parse', `${source.commit}^{tree}`]) !== source.tree) {
@@ -86,14 +83,14 @@ function heldElsewhere(directory) {
   const folder = join(dirname(directory), LEASES);
   const key = `${basename(directory).slice(PREFIX.length)}.`;
   let names = [];
-  try { names = readdirSync(folder); } catch { return false; }
+  try { names = fs.list(folder); } catch { return false; }
   for (const name of names) {
     if (!name.startsWith(key)) continue;
     const pid = Number(name.slice(key.length));
     if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue;
     try { process.kill(pid, 0); return true; } catch (error) {
       if (error.code === 'EPERM') return true;
-      try { rmSync(join(folder, name), { force: true }); } catch { /* another sweep */ }
+      try { fs.rm(join(folder, name), { force: true }); } catch { /* another sweep */ }
     }
   }
   return false;
@@ -114,7 +111,7 @@ function unlease(directory) {
   const left = (inUse.get(directory) ?? 1) - 1;
   if (left > 0) { inUse.set(directory, left); return left; }
   inUse.delete(directory);
-  rmSync(leaseFile(directory), { force: true });
+  fs.rm(leaseFile(directory), { force: true });
   return 0;
 }
 
@@ -124,7 +121,7 @@ function unlease(directory) {
  */
 function release(directory) {
   if (unlease(directory) > 0 || heldElsewhere(directory)) return;
-  rmSync(directory, { recursive: true, force: true });
+  fs.rm(directory, { recursive: true, force: true });
 }
 
 /**
@@ -133,11 +130,11 @@ function release(directory) {
  */
 function sharedExport(directory, root, commit, tree) {
   try {
-    const state = statSync(directory);
+    const state = fs.stat(directory);
     if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o022) !== 0) return null;
-    const source = JSON.parse(readFileSync(join(directory, MANIFEST), 'utf8'));
+    const source = JSON.parse(fs.readFile(join(directory, MANIFEST), 'utf8'));
     if (source.version !== 1 || source.root !== resolve(root) || source.commit !== commit || source.tree !== tree
-      || !existsSync(join(directory, 'apps/runner/src/io/controller.js'))) return null;
+      || !fs.exists(join(directory, 'apps/runner/src/io/controller.js'))) return null;
     touchKeyedFolder(directory);
     return directory;
   } catch { return null; }
@@ -147,17 +144,17 @@ function sharedExport(directory, root, commit, tree) {
 export function pruneSharedExports(keep, parent = scratchRoot()) {
   const shared = new RegExp(`^${PREFIX}[a-f0-9]{32}$`, 'u');
   let names = [];
-  try { names = readdirSync(parent); } catch { return []; }
+  try { names = fs.list(parent); } catch { return []; }
   const found = [];
   for (const name of names) {
     if (!shared.test(name)) continue;
-    try { found.push({ path: join(parent, name), name, mtime: statSync(join(parent, name)).mtimeMs }); } catch { /* gone */ }
+    try { found.push({ path: join(parent, name), name, mtime: fs.stat(join(parent, name)).mtimeMs }); } catch { /* gone */ }
   }
   found.sort((x, y) => y.mtime - x.mtime);
   const removed = [];
   for (const { path, name } of found.slice(SHARED_KEEP_COUNT)) {
     if (path === keep || inUse.has(path) || heldElsewhere(path)) continue;
-    try { rmSync(path, { recursive: true, force: true }); removed.push(name); } catch { /* another sweep */ }
+    try { fs.rm(path, { recursive: true, force: true }); removed.push(name); } catch { /* another sweep */ }
   }
   return removed;
 }
@@ -170,7 +167,7 @@ export function pruneSharedExports(keep, parent = scratchRoot()) {
  * @returns {{ commit: string, tree: string }|null}
  */
 export function committedToolingId(root) {
-  if (!existsSync(join(root, '.git'))) return null;
+  if (!fs.exists(join(root, '.git'))) return null;
   const commit = toolingGit(root, ['rev-parse', '--verify', 'HEAD']);
   const tree = toolingGit(root, ['rev-parse', `${commit}^{tree}`]);
   if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
@@ -223,18 +220,18 @@ export function committedRunnerController(root, { shared = false } = {}) {
     const objects = toolingGit(root, ['rev-parse', '--path-format=absolute', '--git-path', 'objects']);
     const metadata = join(directory, '.objects');
     toolingGit(root, ['init', '--quiet', '--bare', metadata]);
-    writeFileSync(join(metadata, 'objects/info/alternates'), `${objects}\n`, { flag: 'wx' });
-    mkdirSync(join(metadata, 'info'), { recursive: true });
-    writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\n', { flag: 'wx' });
+    fs.writeFile(join(metadata, 'objects/info/alternates'), `${objects}\n`, { flag: 'wx' });
+    fs.mkdir(join(metadata, 'info'), { recursive: true });
+    fs.writeFile(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\n', { flag: 'wx' });
     // A path the commit lacks (a package without docs or skills) would fail the whole archive, so only the present ones are named.
     const present = new Set(toolingGit(root, ['ls-tree', '--name-only', commit]).split('\n'));
     const archive = toolingGit(root, ['--git-dir', metadata, '-c', 'core.autocrlf=false',
       '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', commit, '--', ...SHIPPED_PATHS.filter(path => path.startsWith(':') || present.has(path))], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', directory], { input: archive, encoding: 'utf8' });
-    if (unpacked.status !== 0 || !existsSync(join(directory, 'apps/runner/src/io/controller.js'))) {
+    if (unpacked.status !== 0 || !fs.exists(join(directory, 'apps/runner/src/io/controller.js'))) {
       throw new Refused('RUNNER_TOOLING_FILES', 'the selected Git archive has no runner controller; restore committed tooling');
     }
-    writeFileSync(join(directory, MANIFEST), JSON.stringify({ version: 1, root: resolve(root), commit, tree }), { flag: 'wx', mode: 0o400 });
+    fs.writeFile(join(directory, MANIFEST), JSON.stringify({ version: 1, root: resolve(root), commit, tree }), { flag: 'wx', mode: 0o400 });
     if (target) {
       // Renamed into place whole, so no dispatch sees half an export; a concurrent export that won the rename is the
       // same commit. A folder in the way that is not this commit's own leaves this export private, as before.
@@ -250,10 +247,28 @@ export function committedRunnerController(root, { shared = false } = {}) {
       unlease(target);
     }
     return { root: directory, entry: join(directory, 'apps/runner/src/io/controller.js'), commit, tree,
-      cleanup() { rmSync(directory, { recursive: true, force: true }); } };
+      cleanup() { fs.rm(directory, { recursive: true, force: true }); } };
   } catch (error) {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
     if (target && inUse.has(target)) unlease(target);
     throw error;
   }
+}
+
+/**
+ * Run git against a runner's trunk store through the Git adapter; a non-zero exit, a stop or a launch error rejects with git's own words.
+ * Why: the service refresh archives a trunk commit with it, and a literal launch there grew the launch allowance (#10824, #10882) [C7].
+ * @param {string} store The trunk git directory.
+ * @param {string[]} args The git arguments after --git-dir.
+ * @param {number} timeout Milliseconds before git is stopped.
+ * @returns {Promise<void>}
+ */
+export function trunkGit(store, args, timeout) {
+  return new Promise((done, fail) => {
+    let stderr = '';
+    const child = gitSpawn(['--git-dir', store, ...args], { timeout, stdio: ['ignore', 'ignore', 'pipe'] });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.on('error', error => fail(new Error(String(error.message).trim())));
+    child.on('close', (code, signal) => code === 0 ? done() : fail(new Error(stderr.trim() || `git ${args[0]} ${signal ? `was stopped by ${signal}` : `exited ${code}`}`)));
+  });
 }

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { observeDirtyRunnerTooling } from '../../../packages/runners/index.js';
 import { cellSandbox } from '../../../packages/store/tests/fixtures/cell.js';
 
-test('a dirty apps/lib/src edit warns and an unrelated path does not [O5,C7]', t => {
+test('lib.tooling.a-dirty-apps-lib-src-edit-warns: a dirty apps/lib/src edit warns and an unrelated path does not [O5,C7]', t => {
   const box = cellSandbox(t), root = join(box.dir, 'tooling');
   mkdirSync(join(root, 'apps/lib/src'), { recursive: true });
   mkdirSync(join(root, 'docs'));

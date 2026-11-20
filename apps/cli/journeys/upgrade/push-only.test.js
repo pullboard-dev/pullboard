@@ -10,10 +10,10 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { loadConfig } from '../../../../packages/config/index.js';
-import { pushOnlyTests } from '../../../../packages/gate/index.js';
-import { selectTestTiers } from '../../../../packages/gate/index.js';
-import { submitGatePlan } from '../../../../packages/gate/index.js';
-import { writeTestTiers } from '../../../../packages/gate/index.js';
+import { pushOnlyTests } from '../../../../packages/gate/heavy.js';
+import { selectTestTiers } from '../../../../packages/gate/heavy.js';
+import { submitGatePlan } from '../../../../packages/gate/heavy.js';
+import { writeTestTiers } from '../../../../packages/gate/heavy.js';
 import { git } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { frozen } from '../../../../packages/gate/tests/io/test/tier/frozen.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -28,11 +28,11 @@ after(() => e2e.cleanup());
 const CONTROL = 'apps/cli/journeys/upgrade/control.test.js';
 const REACHES = "import { size } from '../../../../packages/gate/src/io/size.js';\nvoid size;\n";
 
-test('the push-only listing names the upgrade journey [R4,C7]', () => {
+test('cli.journeys-upgrade-push-only.the-push-only-listing-names-the: the push-only listing names the upgrade journey [R4,C7]', () => {
   assert.deepEqual(pushOnlyTests(), [JOURNEY]);
 });
 
-test('an item gate that does not touch the upgrade journey leaves it out, and without the listing it would run [R4,C7]', t => {
+test('cli.journeys-upgrade-push-only.an-item-gate-that-does-not: an item gate that does not touch the upgrade journey leaves it out, and without the listing it would run [R4,C7]', t => {
   const box = frozen(t);
   // The journey sits in the base, untouched by the change under test, and reaches the changed module.
   box.put(JOURNEY, REACHES);
@@ -59,7 +59,7 @@ test('an item gate that does not touch the upgrade journey leaves it out, and wi
   assert.ok(!composed.proofFiles.includes(JOURNEY), 'the submit gate runs none of it');
 });
 
-test('the pre-push full gate still plans the upgrade journey into a shard [R4,C7]', t => {
+test('cli.journeys-upgrade-push-only.the-pre-push-full-gate-still: the pre-push full gate still plans the upgrade journey into a shard [R4,C7]', t => {
   const box = e2e.project('node --test', undefined, { withWorktree: false });
   const settings = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;

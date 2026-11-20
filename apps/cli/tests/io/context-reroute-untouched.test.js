@@ -20,11 +20,11 @@ async function rerouteUntouched(t, setting) {
   return withBoard(ctx, board => board.rerouteUntouched);
 }
 
-test('clause 1: a board opened by the CLI context has rerouteUntouched true with release.rerouteUntouched on [C7,#2970]', async t => {
+test('cli.io-context-reroute-untouched.a-board-opened-by-the-cli-context: clause 1: a board opened by the CLI context has rerouteUntouched true with release.rerouteUntouched on [C7,#2970]', async t => {
   assert.equal(await rerouteUntouched(t, true), true);
 });
 
-test('clause 2: the same board has rerouteUntouched false with the setting off or unset [C7,#2970]', async t => {
+test('cli.io-context-reroute-untouched.the-same-board-has-rerouteuntouched-false-with: clause 2: the same board has rerouteUntouched false with the setting off or unset [C7,#2970]', async t => {
   assert.equal(await rerouteUntouched(t, false), false);
   assert.equal(await rerouteUntouched(t, undefined), false);
 });

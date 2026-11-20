@@ -19,7 +19,7 @@ async function joinWith(box, name, family) {
   return agents.find(agent => agent.agent_id === joined.agent).agent_family;
 }
 
-test('clause 1: with review.canonicalFamilies on, OpenAI and openai are one family and Claude and anthropic are one family [C7,#9681]', async t => {
+test('cli.journeys-queue-family-canonical.with-review-canonicalfamilies-on-openai-and: clause 1: with review.canonicalFamilies on, OpenAI and openai are one family and Claude and anthropic are one family [C7,#9681]', async t => {
   const box = crossLaneFixture(t);
   const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const kept = JSON.parse(readFileSync(file, 'utf8'));
@@ -34,7 +34,7 @@ test('clause 1: with review.canonicalFamilies on, OpenAI and openai are one fami
   assert.equal(stored.claude, 'anthropic');
 });
 
-test('clause 2: with review.canonicalFamilies off, the stored labels are read as typed [C7,#9681]', async t => {
+test('cli.journeys-queue-family-canonical.with-review-canonicalfamilies-off-the-stored: clause 2: with review.canonicalFamilies off, the stored labels are read as typed [C7,#9681]', async t => {
   const box = crossLaneFixture(t);
   const upper = await joinWith(box, 'upper', 'OpenAI');
   const claude = await joinWith(box, 'claude', 'Claude');

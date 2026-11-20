@@ -34,19 +34,19 @@ async function offer(root, replay) {
   return { calls, outcome };
 }
 
-test('clause 1: with gate.tableReplay on, the pulled gate job of a submit that changes a move table runs the replay [C7,#8121]', async t => {
+test('cli.io-submit-gate-pull-replay.with-gate-tablereplay-on-the-pulled-gate: clause 1: with gate.tableReplay on, the pulled gate job of a submit that changes a move table runs the replay [C7,#8121]', async t => {
   const root = fixture(t, true);
   const { calls } = await offer(root);
   assert.deepEqual(calls, [{ tree: root, changed: FILES }]);
 });
 
-test('clause 1: with gate.tableReplay on, a replay disagreement refuses the pulled submit before any job is offered [C7,#8121]', async t => {
+test('cli.io-submit-gate-pull-replay.with-gate-tablereplay-on-a-replay-disagreement: clause 1: with gate.tableReplay on, a replay disagreement refuses the pulled submit before any job is offered [C7,#8121]', async t => {
   const root = fixture(t, true);
   const { outcome } = await offer(root, () => { throw Object.assign(new Error('hop disagrees with the board on 2 recorded moves'), { code: 'TABLE_REPLAY' }); });
   assert.equal(outcome.code, 'TABLE_REPLAY');
 });
 
-test('clause 2: with gate.tableReplay off, the pulled gate job runs no replay [C7,#8121]', async t => {
+test('cli.io-submit-gate-pull-replay.with-gate-tablereplay-off-the-pulled-gate: clause 2: with gate.tableReplay off, the pulled gate job runs no replay [C7,#8121]', async t => {
   const root = fixture(t, false);
   const { calls, outcome } = await offer(root);
   assert.deepEqual(calls, []);

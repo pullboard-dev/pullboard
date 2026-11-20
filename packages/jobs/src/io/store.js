@@ -1,4 +1,5 @@
 /** Read and write job rows on the board's SQLite handle [C7]. */
+import { createHash } from "node:crypto";
 import { Refused } from "../../../kernel/light.js";
 import { viewOf } from "../logic/view.js";
 import { parseStub } from "./blobs.js";
@@ -7,34 +8,115 @@ import { blobDirOf } from "./blobs.js";
 import { readPayload } from "./blobs.js";
 import { storableText } from "./blobs.js";
 
+/** The write-hold port the api fills so a job write is recorded like any board write; none set leaves atomically() as it was [C7]. */
+let writeHold = null;
+
+/**
+ * Set the write-hold port: { prepare(db), begin(db, marker), finish(record, outcome), discard(marker) }, or null to clear it.
+ * Why: the jobs cell may not import the store that owns the board-write markers, so the api passes those functions in.
+ *
+ * @param {{ prepare: (db: object) => unknown, begin: (db: object, marker: unknown) => unknown, finish: (record: unknown, outcome: 'released' | 'rolled-back') => void, discard: (marker: unknown) => void } | null} hold
+ * @returns {void}
+ */
+export function setWriteHold(hold) {
+  writeHold = hold ?? null;
+}
+
+/** How long atomically() keeps retrying a busy board before it refuses with BOARD_BUSY, in ms [C7]. */
+const BUSY_BOUND_MS = 30000;
+/** The first and the longest busy_timeout a retry of a busy BEGIN waits in SQLite, in ms; it doubles from the first to the longest [C7]. */
+const BUSY_FIRST_PAUSE_MS = 50;
+const BUSY_LONGEST_PAUSE_MS = 500;
+
+/**
+ * Whether a SQLite error says another connection holds the database (SQLITE_BUSY or SQLITE_LOCKED).
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isBusy(error) {
+  const code = Number(error?.errcode);
+  if (Number.isInteger(code) && ((code & 0xff) === 5 || (code & 0xff) === 6)) return true;
+  return error?.code === 'SQLITE_BUSY' || error?.code === 'SQLITE_LOCKED' || /database (table )?is locked/u.test(String(error?.message));
+}
+
+/**
+ * Take the write lock with BEGIN IMMEDIATE. A busy board is retried with a short busy_timeout that doubles each time (SQLite itself waits, so the thread parks nowhere else) until
+ * `boundMs` has passed in all, then refused as BOARD_BUSY; the handle's own busy_timeout is restored after.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} boundMs
+ * @returns {void}
+ */
+function beginImmediate(db, boundMs) {
+  const started = Date.now();
+  try {
+    db.exec('BEGIN IMMEDIATE');
+    return;
+  } catch (error) {
+    if (!isBusy(error)) throw error;
+  }
+  const own = db.prepare('PRAGMA busy_timeout').get().timeout;
+  let delay = BUSY_FIRST_PAUSE_MS;
+  try {
+    for (;;) {
+      const left = boundMs - (Date.now() - started);
+      if (left <= 0) throw new Refused('BOARD_BUSY', `job store is held by another process after ${Date.now() - started}ms; wait for it to finish and retry`);
+      db.exec(`PRAGMA busy_timeout = ${Math.max(1, Math.min(delay, left))}`);
+      delay = Math.min(delay * 2, BUSY_LONGEST_PAUSE_MS);
+      try {
+        db.exec('BEGIN IMMEDIATE');
+        return;
+      } catch (error) {
+        if (!isBusy(error)) throw error;
+      }
+    }
+  } finally {
+    db.exec(`PRAGMA busy_timeout = ${own}`);
+  }
+}
+
 /**
  * Run `work` so its statements land together or not at all: in its own write transaction, or inside a savepoint
  * when the caller already holds a transaction.
  *
  * Why: `work` reads before it writes. A deferred transaction that read first cannot upgrade to a write once another
  * process committed, and SQLite answers "database is locked" at once without waiting; two drivers writing steps for
- * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn.
+ * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn; when the board
+ * stays held past the handle's busy_timeout it retries with a backoff for up to `boundMs`, then throws Refused BOARD_BUSY
+ * instead of a raw SQLite error.
+ * With a write hold set, its prepare runs before BEGIN, begin after it, and finish after COMMIT ('released') or ROLLBACK ('rolled-back');
+ * a BEGIN that fails other than inside a caller's transaction discards the marker. A nested call touches none of them.
  *
  * @template T
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {() => T} work
+ * @param {{ boundMs?: number }} [options] - boundMs: the total wait on a busy board; 30 s by default.
  * @returns {T}
  */
-export function atomically(db, work) {
+export function atomically(db, work, { boundMs = BUSY_BOUND_MS } = {}) {
+  const hold = writeHold;
+  if (hold && db.isTransaction) return inSavepoint(db, work);
+  const marker = hold ? hold.prepare(db) : undefined;
   try {
-    db.exec('BEGIN IMMEDIATE');
+    beginImmediate(db, boundMs);
   } catch (error) {
+    if (hold) hold.discard(marker);
     if (!/within a transaction/u.test(String(error?.message))) throw error;
     return inSavepoint(db, work);
   }
+  const record = hold ? hold.begin(db, marker) : undefined;
+  let result;
   try {
-    const result = work();
+    result = work();
     db.exec('COMMIT');
-    return result;
   } catch (error) {
     db.exec('ROLLBACK');
+    if (hold) hold.finish(record, 'rolled-back');
     throw error;
   }
+  if (hold) hold.finish(record, 'released');
+  return result;
 }
 
 /**
@@ -153,6 +235,20 @@ export function noteLease(db, job, what, payload, now) {
 export function noteLapse(db, job, lapse, now) {
   db.prepare('INSERT OR IGNORE INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)')
     .run(job, 'lapsed', lapse.attempt, JSON.stringify(lapse), now);
+}
+
+/**
+ * Write a keyed claim note: a note: step named for the runner and claim key, at the attempt the claim took, so a retried
+ * claim with the same key finds that live lease by name. It never changes the job's current step [C7,#12144].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} name - The note step name, starting note:.
+ * @param {number} attempt
+ * @param {number} now
+ */
+export function noteClaimKey(db, job, name, attempt, now) {
+  db.prepare("INSERT OR IGNORE INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, '{}', ?)").run(job, name, attempt, now);
 }
 
 /**
@@ -286,4 +382,76 @@ export function leasedJobs(db, { kind, now = Date.now() }) {
   if (!kind) throw new Refused('JOB_FIELDS', 'Listing leased jobs needs a kind: pass { kind }.');
   return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done' ORDER BY job_created, job_id")
     .all(kind, now).map(row => jobView(db, row.job_id));
+}
+
+/** The runs file's program table: offered program text stored once, keyed by its sha256 [B2,P7]. */
+export const PROGRAM_SCHEMA_SQL = 'CREATE TABLE IF NOT EXISTS program (program_sha256 TEXT PRIMARY KEY, program_text TEXT NOT NULL)';
+
+/** A request string of at least this many characters, in its argv or entry, is program text the runs file stores once by hash [B2,P7]. */
+export const PROGRAM_MIN_CHARS = 256;
+
+/**
+ * Store program text once in the runs file's program table, keyed by its sha256; a text already there is left as it is.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The runs file's handle.
+ * @param {string} text
+ * @returns {string} The sha256 of the text.
+ */
+export function putProgram(db, text) {
+  const sha = createHash('sha256').update(text).digest('hex');
+  db.prepare('INSERT OR IGNORE INTO program (program_sha256, program_text) VALUES (?, ?)').run(sha, text);
+  return sha;
+}
+
+/**
+ * The program text stored under a hash, or null when the table holds none.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} sha
+ * @returns {string | null}
+ */
+export function readProgram(db, sha) {
+  return db.prepare('SELECT program_text AS text FROM program WHERE program_sha256 = ?').get(sha)?.text ?? null;
+}
+
+/** The hash a program stub holds, or null when the value is no stub. */
+const stubHash = value => (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 1 && /^[0-9a-f]{64}$/u.test(value.$program ?? '') ? value.$program : null);
+
+/**
+ * A copy of a job request whose program text (each long string of its `run` argv and its `input.entry`) is stored once in the
+ * runs file and replaced by `{ $program: sha256 }`, so an offer holds only the hash.
+ * Why: 214 MB of offered rows held 36 distinct program texts; the table keeps each once [B2,P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The runs file's handle.
+ * @param {Record<string, unknown> | null} request
+ * @returns {Record<string, unknown> | null}
+ */
+export function dehydrateRequest(db, request) {
+  if (!request) return request;
+  const long = value => typeof value === 'string' && value.length >= PROGRAM_MIN_CHARS;
+  const copy = { ...request };
+  if (Array.isArray(copy.run)) copy.run = copy.run.map(part => (long(part) ? { $program: putProgram(db, part) } : part));
+  if (copy.input && typeof copy.input === 'object' && long(copy.input.entry)) copy.input = { ...copy.input, entry: { $program: putProgram(db, copy.input.entry) } };
+  return copy;
+}
+
+/**
+ * The request as it was offered: each program stub of its `run` argv and `input.entry` read back from the program table.
+ * A request with no stub comes back as it is.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The handle the request was read from.
+ * @param {Record<string, unknown> | null} request
+ * @returns {Record<string, unknown> | null}
+ */
+export function hydrateRequest(db, request) {
+  if (!request) return request;
+  const text = stub => {
+    const body = readProgram(db, stubHash(stub));
+    if (body === null) throw new Refused('JOB_REQUEST', `an offered program ${stubHash(stub)} is no longer in the runs file; resubmit the item for a new job`);
+    return body;
+  };
+  const copy = { ...request };
+  if (Array.isArray(copy.run) && copy.run.some(stubHash)) copy.run = copy.run.map(part => (stubHash(part) ? text(part) : part));
+  if (stubHash(copy.input?.entry)) copy.input = { ...copy.input, entry: text(copy.input.entry) };
+  return copy;
 }

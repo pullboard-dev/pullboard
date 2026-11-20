@@ -14,14 +14,14 @@ import { shardFileKillMs } from '../../../src/logic/census.js';
 
 const TIMES = { 'a.test.js': 20_000, 'b.test.js': 179_000, 'c.test.js': 180_000 };
 
-test('clause 1: with census.fileKillSeconds at 180, a job whose files all have a record under 180 s carries a 180 s file kill, and a job with an unrecorded file or one recorded at 180 s keeps the 600 s stop [C7,#10350]', () => {
+test('cli.io-test-census-file-kill.with-census-filekillseconds-at-180-a-job: clause 1: with census.fileKillSeconds at 180, a job whose files all have a record under 180 s carries a 180 s file kill, and a job with an unrecorded file or one recorded at 180 s keeps the 600 s stop [C7,#10350]', () => {
   assert.equal(shardFileKillMs(['a.test.js', 'b.test.js'], TIMES, 180), 180_000);
   assert.equal(shardFileKillMs(['a.test.js', 'c.test.js'], TIMES, 180), null);
   assert.equal(shardFileKillMs(['a.test.js', 'new.test.js'], TIMES, 180), null);
   assert.equal(fileLimitEnv({ fileBudgetMs: 180_000 }).PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS, '180000');
 });
 
-test('clause 2: with census.fileKillSeconds unset every job carries no kill of its own, and a file killed under it reads hung in its row [C7,#10350]', async (t) => {
+test('cli.io-test-census-file-kill.with-census-filekillseconds-unset-every-job-carries: clause 2: with census.fileKillSeconds unset every job carries no kill of its own, and a file killed under it reads hung in its row [C7,#10350]', async (t) => {
   assert.equal(shardFileKillMs(['a.test.js'], TIMES, null), null);
   const box = privateFixtureFiles('pullboard-census-kill-');
   const repo = join(box.root, 'repo'), home = join(box.root, 'machine-home');

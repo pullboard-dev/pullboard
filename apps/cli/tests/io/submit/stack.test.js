@@ -44,13 +44,13 @@ function stacked(t, baseStatus) {
   return { root, board, trunk: { ref: 'main', commit: trunk }, base, head, candidate: { item_id: 2 } };
 }
 
-test('stack refusal: a head containing another item\'s unverified submitted commit is refused with that item named [H3,H16,V1,V17]', t => {
+test('cli.io-submit-stack.stack-refusal-a-head-containing-another-item: stack refusal: a head containing another item\'s unverified submitted commit is refused with that item named [H3,H16,V1,V17]', t => {
   const { root, board, trunk, base, head, candidate } = stacked(t, 'submitted');
   assert.throws(() => refuseUnsubmittableStack(root, board, candidate, head, trunk),
     error => error.code === 'STACKED_ON_UNVERIFIED' && error.message.includes('#1') && error.message.includes(base));
 });
 
-test('stack refusal: a base never submitted, or a head that does not contain it, is not a stack [H3,H16,V1,V17]', t => {
+test('cli.io-submit-stack.stack-refusal-a-base-never-submitted-or: stack refusal: a base never submitted, or a head that does not contain it, is not a stack [H3,H16,V1,V17]', t => {
   const unsubmitted = stacked(t, 'claimed');
   assert.doesNotThrow(() => refuseUnsubmittableStack(unsubmitted.root, unsubmitted.board, unsubmitted.candidate, unsubmitted.head, unsubmitted.trunk),
     'a base that was never submitted holds no unverified commit');
@@ -59,13 +59,13 @@ test('stack refusal: a base never submitted, or a head that does not contain it,
     'a head at main contains no unverified commit');
 });
 
-test('stack refusal: the base item itself is never refused for its own commit, and a trunk that cannot be read refuses with its own code [H3,H16,V1,V17]', t => {
+test('cli.io-submit-stack.stack-refusal-the-base-item-itself-is: stack refusal: the base item itself is never refused for its own commit, and a trunk that cannot be read refuses with its own code [H3,H16,V1,V17]', t => {
   const { root, board, trunk, head } = stacked(t, 'submitted');
   assert.doesNotThrow(() => refuseUnsubmittableStack(root, board, { item_id: 1 }, head, trunk));
   assert.throws(() => refuseUnsubmittableStack(root, board, { item_id: 2 }, head, { ref: 'main', commit: 'e'.repeat(40) }), error => error.code === 'NO_POLICY');
 });
 
-test('stack refusal: an unverified commit already merged into trunk is outside the candidate range, so a head above it is not stacked [V17,V1]', t => {
+test('cli.io-submit-stack.stack-refusal-an-unverified-commit-already-merged: stack refusal: an unverified commit already merged into trunk is outside the candidate range, so a head above it is not stacked [V17,V1]', t => {
   const { root, board, base, head, candidate } = stacked(t, 'submitted');
   assert.doesNotThrow(() => refuseUnsubmittableStack(root, board, candidate, head, { ref: 'main', commit: base }));
 });

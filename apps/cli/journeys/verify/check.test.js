@@ -11,7 +11,7 @@ import { submitSettled } from '../../tests/fixtures/verdict-check.js';
 import { clean } from '../../tests/fixtures/verdict-check.js';
 import { legacyAccept } from '../../tests/fixtures/verdict-check.js';
 
-test('accept says when no frozen check ran and records none in its event and JSON [V19,V8]', async () => {
+test('cli.journeys-verify-check.accept-says-when-no-frozen-check: accept says when no frozen check ran and records none in its event and JSON [V19,V8]', async () => {
   const box = sandbox();
   try {
     const { repo, web } = await project(box);
@@ -31,7 +31,7 @@ test('accept says when no frozen check ran and records none in its event and JSO
   } finally { clean(box); }
 });
 
-test('rework keeps historical rejection unknown and shows the latest accept check [V19,V8]', async () => {
+test('cli.journeys-verify-check.rework-keeps-historical-rejection-unknown-and: rework keeps historical rejection unknown and shows the latest accept check [V19,V8]', async () => {
   const box = sandbox();
   try {
     const { repo, web } = await project(box);
@@ -61,7 +61,7 @@ test('rework keeps historical rejection unknown and shows the latest accept chec
   } finally { clean(box); }
 });
 
-test('historical accepts read unknown in show and unchecked accepts are marked in ledger [V19,V8]', async () => {
+test('cli.journeys-verify-check.historical-accepts-read-unknown-in-show: historical accepts read unknown in show and unchecked accepts are marked in ledger [V19,V8]', async () => {
   const box = sandbox();
   try {
     const { repo, web } = await project(box);

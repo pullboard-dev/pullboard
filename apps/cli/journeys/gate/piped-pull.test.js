@@ -6,7 +6,7 @@ import { pullProject } from '../../tests/fixtures/pull.js';
 import { submitOne } from '../../tests/fixtures/pull.js';
 import { TOOLING } from '../../tests/fixtures/pull.js';
 
-test('a pulled gate of a piped command settles red on the runner when an early stage fails [V16,C7]', async t => {
+test('cli.journeys-gate-piped-pull.a-pulled-gate-of-a-piped: a pulled gate of a piped command settles red on the runner when an early stage fails [V16,C7]', async t => {
   // The stand-in gate plan names the piped gate as its proof, so the runner's own entry runs it as the repo gate.
   const plan = TOOLING['packages/gate/index.js'].replace("proofCommand: 'node bin/proof.js ./web'", `proofCommand: ${JSON.stringify('sh -c "exit 7" | tail -1')}`);
   assert.notEqual(plan, TOOLING['packages/gate/index.js'], 'the stand-in plan names the piped proof');

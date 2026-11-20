@@ -63,7 +63,7 @@ function receiver(t, prefix) {
 const order = { sequence: 1, at: '2026-10-27T00:00:00.000Z', kind: 'move',
   sender: { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' } };
 
-test('draft omissions replay identically while ordinary and frozen citations refreeze [S1,V2,H16]', t => {
+test('lib.refreeze.draft-omissions-replay-identically-while-ordinary-and: draft omissions replay identically while ordinary and frozen citations refreeze [S1,V2,H16]', t => {
   const box = setup(t), replica = receiver(t, box.prefix);
   const beforeClaim = store.getItem(replica, box.claimed);
   assert.ok(box.move.engine >= SPEC_DRAFT_REFREEZE_ENGINE, 'the move carries at least the draft refreeze engine');
@@ -85,7 +85,7 @@ test('draft omissions replay identically while ordinary and frozen citations ref
   assert.deepEqual(exportBoard(replica), after, 'a duplicate neither refreezes nor notifies twice');
 });
 
-test('draft omission replay refuses forged stale and old-engine omissions without domain mutation [V2,H16]', t => {
+test('lib.refreeze.draft-omission-replay-refuses-forged-stale-and: draft omission replay refuses forged stale and old-engine omissions without domain mutation [V2,H16]', t => {
   const box = setup(t);
   const mutations = [
     move => { delete move.args[0].skippedDrafts; },

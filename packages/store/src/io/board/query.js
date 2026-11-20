@@ -34,6 +34,7 @@ import { workerInboxQuery } from "../../logic/board/worker.js";
 import { verdictWithdrawals } from "../../../../verify/read.js";
 import { reopenCauseCorrection } from "../../../../items/light.js";
 import { COORDINATOR } from "../../../../queue/light.js";
+export { validateNeeds } from "../../../../queue/light.js";
 import { itemFiles } from "../../../../items/light.js";
 import { parseSpec } from "../../../../spec/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
@@ -398,7 +399,7 @@ export function agentModel(board, id) {
 
 /** Attach an agent's model to a row from the legacy stable agent table. */
 export function withModel(board, agent) {
-  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
+  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_role: board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_role:${agent.agent_id}`)?.meta_value ?? null, agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
 }
 
 /**

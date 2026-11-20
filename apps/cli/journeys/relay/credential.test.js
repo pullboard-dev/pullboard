@@ -126,7 +126,8 @@ function credentialCases(box) {
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
     // An automatic source advance, like a gate receipt, requires private native origin custody before transport.
     // A queue without an immutable captured job is refused by the genuine origin sealer before transport.
-    if (operation === 'queueSubmitHandoff') return { operation, args, kind, sent: false, expected: 'BAD_SUBMIT_HANDOFF' };
+    // A recapture seals through the same hand-off step as a queue, so it is refused the same way before transport.
+    if (['queueSubmitHandoff', 'recaptureSubmitHandoff'].includes(operation)) return { operation, args, kind, sent: false, expected: 'BAD_SUBMIT_HANDOFF' };
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
     // An owner wait seals its proved source natively, so a missing item stops at that preparation before transport.
     if (operation === 'deferOwnership') return { operation, args, kind, sent: false, expected: 'NO_ITEM' };
@@ -180,7 +181,7 @@ function credentialCases(box) {
 }
 
 
-test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
+test('cli.journeys-relay-credential.every-current-operation-selects-its-native: every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
   const actor = 'coordinator';
   const boxes = await Promise.all(Array.from({ length: BOARDS }, () => linkedBox(t)));
   const [first] = boxes;
@@ -272,7 +273,7 @@ test('every current operation selects its native actor credential without a seco
 });
 
 
-test('a person-only move is refused before the relay is asked [H2,H9,H16]', async (t) => {
+test('cli.journeys-relay-credential.a-person-only-move-is-refused: a person-only move is refused before the relay is asked [H2,H9,H16]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
 

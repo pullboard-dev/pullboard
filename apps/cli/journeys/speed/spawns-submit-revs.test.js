@@ -16,7 +16,7 @@ function lines(log, name, rest = '') {
   return readFileSync(log, 'utf8').split('\n').filter(line => new RegExp(`\\sgit ${name}\\b.*${rest}`, 'u').test(line));
 }
 
-test('submit resolves revisions once [C7]', async t => {
+test('cli.journeys-speed-spawns-submit-revs.submit-resolves-revisions-once-c7: submit resolves revisions once [C7]', async t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');

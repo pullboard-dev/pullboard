@@ -61,8 +61,8 @@ test('health.reclaim-live.refusal-kept: clause 1: with moves.live.reclaim on, a 
   assert.deepEqual(after(board), before, 'a refused pass writes nothing');
 });
 
-test('health.reclaim-live.unset-shadow-only: clause 2: with moves.live.reclaim unset, the writer\'s own decision stands and the table runs only as the shadow compare [C7,#9374]', t => {
-  const { board, pass } = quietSeat(t, { shadow: true });
+test('health.reclaim-live.unset-shadow-only: clause 2: with moves.live.reclaim set false, the writer\'s own decision stands and the table runs only as the shadow compare [C7,#9374]', t => {
+  const { board, pass } = quietSeat(t, { live: false, shadow: true });
   const result = pass();
   assert.deepEqual(result.claims, [7], 'the writer released the item');
   const shadow = readShadow(board, 'reclaim');

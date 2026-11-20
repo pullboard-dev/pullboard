@@ -53,7 +53,10 @@ const ENTRY_POINTS = [
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
 // The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
-const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js'];
+// The same services hand the gate its cell checks (requireSubmitCells), which read the cell plan and raise its refusals.
+const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js', '../apps/cli/src/io/cells-submit-checks.js'];
+// next and status load the drive cell with await import only when a gate job lapsed (#11941), which the walk does not follow; its reclaim pass still raises the drive refusals.
+const LAZY_RAISER_FILES = ['../packages/drive/src/io/reclaim.js'];
 // The move tables raise the lease refusals from data the walk does not follow; these files raise them as code, and the audit worker raises STALE_MAIN_RED on withdraw.
 const TABLE_RAISER_FILES = ['../packages/store/src/logic/board/landing/lease.js', '../packages/landing/src/io/worker.js', '../packages/landing/src/io/resource.js', '../packages/gate/src/io/main/audit/worker.js'];
 const NON_MOVE_ENTRY_POINTS = [
@@ -84,10 +87,12 @@ const CAUGHT = {
   '../packages/verify/src/logic/review/reachability.js#unreviewableStrict': ['../packages/verify/src/logic/review/eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
+  // linkFor reads each link record inside its own catch and skips an invalid one.
+  '../packages/items/src/logic/cross/repo.js#linkFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
-  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/index.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
+  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/light.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
   // Machine-verified submit lands after its record, and that landing call is caught like verify's; the same catches as reached at the CLI's moved source (#2886).
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/io/commands/verify.js#verifyHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure'],
@@ -145,6 +150,11 @@ function lazyCallees(file, body, source) {
       const [original, local = original] = part.split(/\s*:\s*/);
       if (new RegExp(String.raw`(?<![\w.])${local}\(`).test(body)) callees.push(`${under(specifier)}#${original}`);
     }
+  }
+  // A memoized loader, `const store = () => (cache ??= load('./x.js'))`, then `store().name(...)`: the board opener loads the store barrel this way on its first write open.
+  const memo = String.raw`^const (\w+) = \(\) => \(\w+ \?\?= (?:${[...loaders].join('|')})\(\s*['"](\.{1,2}\/[^'"]+\.js)['"]\s*\)\);$`;
+  for (const [, wrapper, specifier] of source.matchAll(new RegExp(memo, 'gm'))) {
+    for (const [, name] of body.matchAll(new RegExp(String.raw`(?<![\w.])${wrapper}\(\)\.(\w+)\(`, 'g'))) callees.push(`${under(specifier)}#${name}`);
   }
   return callees;
 }
@@ -342,7 +352,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...LAZY_RAISER_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   // A code a move's own entry reaches is raised by the code, whichever file holds the entry (the pulled submit gate's table replay, for one).
   for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
@@ -407,6 +417,8 @@ function statusWriters(read) {
       if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
     }
     for (const match of source.matchAll(/(?:\[\s*)?(['"`]?)item_status\1(?:\s*\])?\s*:|\b(?:update|replace\s+into|insert\s+or\s+replace\s+into)\s+(?:main\.)?item\b/gi)) {
+      // A JSDoc line (` * @param {{ item_status: string }}`) describes a row's type and never writes one.
+      if (/^\s*\*/u.test(source.slice(source.lastIndexOf('\n', match.index) + 1, match.index))) continue;
       if (!spans.some(([start, end]) => match.index >= start && match.index < end)) {
         const before = source.slice(0, match.index);
         const owner = [...functionsIn(source).entries()].find(([, body]) => source.indexOf(body) <= match.index && match.index < source.indexOf(body) + body.length);
@@ -417,7 +429,7 @@ function statusWriters(read) {
   return writers;
 }
 
-test('clause 1: every refusal code that submit and release raise is declared on that move, and every declared code is raised [C7,M1]', () => {
+test('cli.journeys-verify-machine-walk.every-refusal-code-that-submit-and: clause 1: every refusal code that submit and release raise is declared on that move, and every declared code is raised [C7,M1]', () => {
   const problems = codeProblems(machineRules.MACHINE);
   assert.deepEqual(problems, []);
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
@@ -438,12 +450,12 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   assert.deepEqual(unraised, [], 'every code listed as not a move is raised by a move or setup code path');
 });
 
-test('clause 1: submit refusals are declared or classified as setup [M1]', () => {
+test('cli.journeys-verify-machine-walk.submit-refusals-are-declared-or-classified: clause 1: submit refusals are declared or classified as setup [M1]', () => {
   const declared = declaredCodes(machineRules.MACHINE, ['submit']);
   for (const code of SUBMIT_REFUSALS) assert.ok(declared.has(code) || code in NOT_MOVES, `${code} is covered by M1`);
   assert.deepEqual(codeProblems(machineRules.MACHINE), [], 'no submit refusal is raised but undeclared');
 });
-test('clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
+test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-declaration: clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
   for (const move of noLaneHold.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
@@ -489,7 +501,7 @@ test('clause 1: a broken copy of the declaration fails the check against the cod
   assert.deepEqual(codeProblems(invented), ['WRONG_MOON is declared but the board, CLI and spec parser never raise it']);
 });
 
-test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
+test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
     ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
     ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
@@ -561,7 +573,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ]);
 });
 
-test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
+test('cli.journeys-verify-machine-walk.only-moveitem-writes-an-item-s: only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
   assert.deepEqual(statusWriters(fromDisk), []);
   const besideSetter = editedSource('../packages/items/src/logic/fields.js', /^export function setItem/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
@@ -582,7 +594,7 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(besideShim), ['../packages/config/src/io/main.js#reopenByKey'], 'the moved body of the old config shim stays scanned');
 });
 
-test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.transport-boundaries-keep-a-new-item: transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
   const inDispatch = editedSource('../apps/cli/src/io/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args(?:, \{ prepareInWriter \} = \{\})?\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
@@ -591,7 +603,7 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
 });
 
-test('bootstrap refusals remain visible on their own operation [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.bootstrap-refusals-remain-visible-on-their: bootstrap refusals remain visible on their own operation [M1,M4,H16]', () => {
   const source = editedSource('../packages/store/src/io/baseline/spec/approval.js', /^export function recordSpecApprovalBaseline\(board, \{ agentId, baseline \}\) \{$/m,
     "$&\n  throw new Refused('BOOTSTRAP_PROBE', 'repair the baseline');");
   const walk = codeWalk(source, { caught: true });
@@ -599,21 +611,21 @@ test('bootstrap refusals remain visible on their own operation [M1,M4,H16]', () 
   assert.ok(!walk.refusalsOf('../apps/cli/src/io/claim.js#ordered').has('BOOTSTRAP_PROBE'));
 });
 
-test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
+test('cli.journeys-verify-machine-walk.same-file-runner-controller-bridges-retain: same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
   assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
-test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
+test('cli.journeys-verify-machine-walk.rigor-historical-data-boundaries-do-not: Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
   const broken = editedSource('../packages/rigor/src/logic/counter.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 
-test('clause 2: a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
+test('cli.journeys-verify-machine-walk.a-source-walk-scans-local-facts: clause 2: a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
 });
 
 
-test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.lifecycle-audit-follows-extracted-package-guards: lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
   assertCommitShimRefusals(codeWalk, fromDisk, editedSource, codeProblems, machineRules.MACHINE);
   const file = '../packages/state/src/logic/handoff.js';
   const walk = codeWalk(fromDisk);
@@ -624,7 +636,7 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
 });
 
 /** The exact native guard binding remains audited after the canonical root supplies it. */
-test('native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
+test('cli.journeys-verify-machine-walk.native-landing-ports-retain-guard-refusals: native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
   const planted = editedSource('../packages/landing/src/logic/environment.js', /^export function requireVerdict\([^\n]+\) \{$/m,
     "$&\n  throw new Refused('NATIVE_PORT_PROBE', 'planted native guard');");
   const reaches = codeProblems(machineRules.MACHINE, planted);
@@ -633,16 +645,16 @@ test('native landing ports retain guard refusals without trusting unrelated chai
   assert.ok(!codeProblems(machineRules.MACHINE, unrelated).some(problem => problem.startsWith('NATIVE_PORT_PROBE is raised by ')), 'an unrelated property chain does not inherit the real binding');
 });
 
-test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.lifecycle-source-walks-follow-sync-shims: lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
   assertSyncFacadeAudit(codeWalk, fromDisk, editedSource);
 });
 
-test('lifecycle source walks follow Git shims and catch a planted body refusal [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.lifecycle-source-walks-follow-git-shims: lifecycle source walks follow Git shims and catch a planted body refusal [M1,M4,H16]', () => {
   assertGitFacadeAudit(codeWalk, fromDisk, editedSource);
 });
 
 /** The bound storage callback must reach its real body through the moved public facade. */
-test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
+test('cli.journeys-verify-machine-walk.native-store-setup-keeps-the-exact: native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
   const entry = '../apps/lib/src/logic/native.js#openBoard';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
   const planted = editedSource('../packages/store/src/io/board/read/snapshot.js',
@@ -655,11 +667,11 @@ test('native store setup keeps the exact event-log callback refusal reachable [C
   assert.ok(!codeWalk(beside).refusalsOf(entry).has('STORE_ADJACENT_PROBE'));
 });
 
-test('post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE, { land: '../apps/cli/src/io/commands/land.js', verify: '../apps/cli/src/io/commands/verify.js' }));
+test('cli.journeys-verify-machine-walk.post-verdict-landing-catches-do-not: post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE, { land: '../apps/cli/src/io/commands/land.js', verify: '../apps/cli/src/io/commands/verify.js' }));
 
 
 /** Claim's freezer and the move tables load at the call (#7081) and run through engines the board root injects; the walk follows both [C7,M1,M4]. */
-test('the walk follows a writer into its move table and the freezer it requires, and finds a planted refusal there [C7,M1,M4]', () => {
+test('cli.journeys-verify-machine-walk.the-walk-follows-a-writer-into: the walk follows a writer into its move table and the freezer it requires, and finds a planted refusal there [C7,M1,M4]', () => {
   const walk = codeWalk(fromDisk);
   assert.ok(walk.refusalsOf('../apps/cli/src/io/claim.js#freezer').has('UNKNOWN_SPEC'), 'the CLI freezer reaches the moves freezer it requires at the call');
   assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#claim').has('CLAIM_TABLE_INPUTS'), 'claim reaches the claim table the board root injects');

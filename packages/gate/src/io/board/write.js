@@ -4,6 +4,8 @@ import { scanSource } from '../../../../codemap/index.js';
 import { lex } from '../../../../kernel/index.js';
 
 const EXTERNAL_IO = /^(?:(?:node:)?(?:fs(?:\/promises)?|child_process|https?|net|tls|dns(?:\/promises)?|dgram)|global:network)$/u;
+// The runs store is a separate file from the board: opening it inside an atomic board write holds the write lock across a second database [C7,#7430].
+const RUNS_OPENER = Object.freeze({ file: 'packages/store/src/io/board/sqlite.js', barrel: 'packages/store/index.js', name: 'openRunsStore' });
 // These builtin address/header validators perform no network operation.
 const PURE_NETWORK_CALLS = new Set(['net#isIP', 'net#isIPv4', 'net#isIPv6',
   'http#validateHeaderName', 'http#validateHeaderValue']);
@@ -214,10 +216,17 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
     const repair = pending[key] ?? pending[writeIdentity(key)];
     return typeof repair === 'number' || Boolean(repair && chain.some(identity => writeIdentity(identity) === repair.via));
   }
+  /** Package barrels are not read in this graph, so the store's front door is matched by its import binding to the runs opener. */
+  function barrelTargets(file, model, name) {
+    const binding = model.imports.get(name);
+    const viaBarrel = binding?.imported === RUNS_OPENER.name && binding.from.startsWith('.')
+      && posix.normalize(posix.join(posix.dirname(file), binding.from)) === RUNS_OPENER.barrel;
+    return viaBarrel ? [{ file: RUNS_OPENER.file, name: RUNS_OPENER.name }] : null;
+  }
   /** Keep direct source and its causal imported-call chain, without board data or private arguments. */
   function inspect(file, start, end, chain, visited) {
     const model = modules.get(file), body = model.code.slice(start, end);
-    for (const call of calls(body, model.source.slice(start, end))) for (const target of targets(file, call.name)) {
+    for (const call of calls(body, model.source.slice(start, end))) for (const target of barrelTargets(file, model, call.name) ?? targets(file, call.name)) {
       const key = target.file + '#' + target.name;
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
         if (PURE_NETWORK_CALLS.has(target.builtin.replace(/^node:/u, '') + '#' + target.name)) continue;
@@ -234,6 +243,9 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
 
         const detail = { file, line: model.source.slice(0, start + call.at).split('\n').length,
           call: target.builtin + '#' + target.name, chain };
+        problems.set(chain[0] + ':' + detail.file + ':' + detail.line + ':' + detail.call, detail);
+      } else if (target.file === RUNS_OPENER.file && target.name === RUNS_OPENER.name) {
+        const detail = { file, line: model.source.slice(0, start + call.at).split('\n').length, call: RUNS_OPENER.name, chain };
         problems.set(chain[0] + ':' + detail.file + ':' + detail.line + ':' + detail.call, detail);
       } else if (target.file && !visited.has(key) && !pendingRepair(key, chain)
           && writeIdentity(key) !== 'packages/store/src/io/board/event/log.js#atomic') {

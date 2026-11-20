@@ -19,7 +19,7 @@ async function landed(box, title) {
   return item.item_id;
 }
 
-test('earlier 1: next --verify offers the forced-landed items with no verdict newest landing first, and with the setting off offers none [C7]', async t => {
+test('cli.journeys-verify-post-land.next-verify-offers-the-forced-landed: earlier 1: next --verify offers the forced-landed items with no verdict newest landing first, and with the setting off offers none [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
@@ -42,7 +42,7 @@ test('earlier 1: next --verify offers the forced-landed items with no verdict ne
   assert.equal(JSON.parse(second.out).item.item_id, older, 'the item that has a verdict is not offered again');
 });
 
-test('earlier 2: an item that already has a verdict is never offered again, and an unforced or submitted item is not a landed review [C7]', () => {
+test('cli.journeys-verify-post-land.an-item-that-already-has-a: earlier 2: an item that already has a verdict is never offered again, and an unforced or submitted item is not a landed review [C7]', () => {
   const merge = (id, forced) => ({ event_id: id, event_kind: 'merged', event_detail: JSON.stringify({ forced }) });
   const items = [
     { item_id: 1, item_status: 'withdrawn', item_merged_commit: 'a', item_verdict: null },

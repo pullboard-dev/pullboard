@@ -47,6 +47,14 @@ async function clockFixture(t) {
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects: () => [{ root: box.root, name: 'clock-parity' }],
     scope: { projectRoot: box.root }, isMain: true, stateDetail: 'full', now: () => clock.value, onStateBuild: () => { builds++; } });
   t.after(api.close);
+  /** The view reads row ages off the request path, so a build made before they land is never current (#10869): read until they have landed, then count builds from here. */
+  for (let attempt = 0; ; attempt++) {
+    assert.ok(attempt < 500, 'the row ages of the fixture commit landed');
+    const warm = await fetch(`http://127.0.0.1:${api.port}/api/v1/boards/${id}/state?detail=full`, { headers: { 'x-pullboard-key': secret } });
+    assert.equal(warm.status, 200);
+    if (!Object.values((await warm.json()).state.rowAgesAt ?? {}).some(at => at === null)) break;
+  }
+  builds = 0;
   /** Compare the complete authenticated native response with the uncached production reader at exactly its clock.
    * This additional cache witness makes no API2/decryption claim; that transport has its separate real oracle.
    */
@@ -63,7 +71,7 @@ async function clockFixture(t) {
   return { ...box, board, base, clock, read, builds: () => builds };
 }
 
-test('native and relay readers expire a person block at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, HTTP and cleanup; clock advancement never sleeps.
+test('cli.journeys-relay-parity-clock.native-and-relay-readers-expire-a: native and relay readers expire a person block at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, HTTP and cleanup; clock advancement never sleeps.
   const box = await clockFixture(t);
   recordBlock(join(box.root, '.git'), { at: new Date(box.base).toISOString(), code: 'PARITY_CLOCK_FIXTURE', command: 'synthetic projection input',
     by: 'coordinator', path: box.root, audience: 'person', reason: 'A private fixture block expires after a day.', step: 'Inspect the unchanged board.' });
@@ -99,7 +107,7 @@ function seedLandingPace(box) {
   addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Clock pace', items: [pending] });
 }
 
-test('native and relay readers cross a landing pace window at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, native lifecycle inputs, HTTP and cleanup; no timed wait.
+test('cli.journeys-relay-parity-clock.native-and-relay-readers-cross-a: native and relay readers cross a landing pace window at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, native lifecycle inputs, HTTP and cleanup; no timed wait.
   const box = await clockFixture(t);
   seedLandingPace(box);
   box.clock.value = box.base + 2 * HOUR - 1;
@@ -115,7 +123,7 @@ test('native and relay readers cross a landing pace window at the same observedA
 });
 
 
-test('clock windows retain cached reads and refresh exact boundaries and backwards time [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup and bounded HTTP reads; all clock shifts are immediate.
+test('cli.journeys-relay-parity-clock.clock-windows-retain-cached-reads-and: clock windows retain cached reads and refresh exact boundaries and backwards time [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup and bounded HTTP reads; all clock shifts are immediate.
   const box = await clockFixture(t);
   seedLandingPace(box);
   recordBlock(join(box.root, '.git'), { at: new Date(box.base).toISOString(), code: 'PARITY_BOUNDARY_FIXTURE', command: 'synthetic boundary input',

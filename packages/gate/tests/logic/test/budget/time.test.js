@@ -33,7 +33,7 @@ const HISTORY = [
 ];
 const NOW = T0 + 200 * MIN;
 
-test('every phase sums to each landed item clock time [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.every-phase-sums-to-each-landed: every phase sums to each landed item clock time [R1,R2,C7]', () => {
   const stats = timeStats(HISTORY, { now: NOW, days: 7 });
   assert.equal(stats.landed, 2);
   for (const item of stats.items) {
@@ -43,7 +43,7 @@ test('every phase sums to each landed item clock time [R1,R2,C7]', () => {
   assert.deepEqual(stats.items.map(item => item.clockMs / MIN), [65, 120]);
 });
 
-test('queued, building, review and landing minutes match the known events [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.queued-building-review-and-landing-minutes: queued, building, review and landing minutes match the known events [R1,R2,C7]', () => {
   const [one, two] = timeStats(HISTORY, { now: NOW, days: 7 }).items;
   assert.deepEqual([one.phases.queued, one.phases.building, one.phases.reviewWait, one.phases.reviewing, one.phases.landing].map(ms => ms / MIN), [10, 30, 10, 10, 5]);
   assert.equal(two.phases.idleHold / MIN, 0, 'unclaimed time is not an idle hold');
@@ -52,14 +52,14 @@ test('queued, building, review and landing minutes match the known events [R1,R2
   assert.equal(two.phases.rejectRebuilding / MIN, 15, 'the next claim to submit rebuilds');
 });
 
-test('recorded gate phases and seat time split building without changing the total [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.recorded-gate-phases-and-seat-time: recorded gate phases and seat time split building without changing the total [R1,R2,C7]', () => {
   const [, two] = timeStats(HISTORY, { now: NOW, days: 7 }).items;
   assert.deepEqual(['static', 'doctrine', 'check', 'test', 'conflict'].map(phase => two.phases[phase] / MIN), [1, 2, 3, 4, 0]);
   assert.equal(two.phases.tool / MIN, 4);
   assert.equal(two.phases.thinking / MIN, 2);
 });
 
-test('malformed and unrelated measurements do not invent seat time [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.malformed-and-unrelated-measurements-do-not: malformed and unrelated measurements do not invent seat time [R1,R2,C7]', () => {
   for (const text of ['not JSON', 'null', '[]', '{"kind":"cost","toolMs":240000}',
     '{"kind":"seat-time","toolMs":-1,"thinkingMs":"120000"}']) {
     const history = [ev(1, 0, 'add'), ev(1, 10, 'claim'), ev(1, 15, 'fact', { kind: 'measurement', text }),
@@ -72,7 +72,7 @@ test('malformed and unrelated measurements do not invent seat time [R1,R2,C7]', 
   }
 });
 
-test('medians and totals cover the window and drop items that landed outside it [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.medians-and-totals-cover-the-window: medians and totals cover the window and drop items that landed outside it [R1,R2,C7]', () => {
   const stats = timeStats(HISTORY, { now: NOW, days: 7 });
   assert.equal(stats.phases.queued.totalMs / MIN, 25);
   assert.equal(stats.phases.queued.medianMs / MIN, 12.5);
@@ -80,7 +80,7 @@ test('medians and totals cover the window and drop items that landed outside it 
   assert.equal(timeLines(stats).length, TIME_PHASES.length + 1, 'each phase gets a median and total row, including zero');
 });
 
-test('a stalled claim charges idle time through the holder’s next real activity [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.a-stalled-claim-charges-idle-time: a stalled claim charges idle time through the holder’s next real activity [R1,R2,C7]', () => {
   const holder = 'core-1';
   const history = [ev(11, 0, 'add'), { ...ev(11, 5, 'claim'), event_by: holder },
     { ...ev(11, 30, 'claim_stalled', { holder, lastActivity: new Date(T0 + 10 * MIN).toISOString(), observedAt: new Date(T0 + 30 * MIN).toISOString(), idleMinutes: 20 }), event_by: 'sentinel' },
@@ -93,7 +93,7 @@ test('a stalled claim charges idle time through the holder’s next real activit
   assert.equal(TIME_PHASES.reduce((sum, phase) => sum + item.phases[phase], 0), item.clockMs);
 });
 
-test('repeated stall notices do not double count and a release closes the idle span [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.repeated-stall-notices-do-not-double: repeated stall notices do not double count and a release closes the idle span [R1,R2,C7]', () => {
   const holder = 'core-1';
   const notice = minute => ({ ...ev(12, minute, 'claim_stalled', { holder, lastActivity: new Date(T0 + 20 * MIN).toISOString(), observedAt: new Date(T0 + minute * MIN).toISOString() }), event_by: 'sentinel' });
   const history = [ev(12, 0, 'add'), { ...ev(12, 1, 'claim'), event_by: holder }, ev(12, 5, 'submit'), ev(12, 6, 'reject'),
@@ -106,7 +106,7 @@ test('repeated stall notices do not double count and a release closes the idle s
   assert.equal(TIME_PHASES.reduce((sum, phase) => sum + item.phases[phase], 0), item.clockMs);
 });
 
-test('a checkpoint is one dated JSON line and a weekly one is due only after seven days [R1,C7]', () => {
+test('gate.logic-test-budget-time.a-checkpoint-is-one-dated-json: a checkpoint is one dated JSON line and a weekly one is due only after seven days [R1,C7]', () => {
   const stats = timeStats(HISTORY, { now: NOW, days: 7 });
   const line = checkpointLine(stats, { reason: 'weekly', retainedReceipts, events });
   assert.equal(JSON.parse(line).landed, 2);
@@ -116,7 +116,7 @@ test('a checkpoint is one dated JSON line and a weekly one is due only after sev
   assert.equal(weeklyDue(`${checkpointLine(stats, { reason: 'release' })}\n`, NOW), true, 'a release does not replace a weekly checkpoint');
 });
 
-test('a production check receipt of 60000 ms shows as 60000 ms of check time, not a matching sum [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.a-production-check-receipt-of-60000: a production check receipt of 60000 ms shows as 60000 ms of check time, not a matching sum [R1,R2,C7]', () => {
   const proof = { item: 3, frozenDigest: null, environment: null, seat: 'core-1', runner: null, exitCode: 0,
     counts: { passed: 1, failed: 0, skipped: 0 }, durationMs: 60000, sourceClean: true };
   assert.ok(proofFields(proof), 'the production validator accepts these receipt fields');
@@ -129,7 +129,7 @@ test('a production check receipt of 60000 ms shows as 60000 ms of check time, no
   assert.equal(stats.items[0].clockMs, 15 * MIN);
 });
 
-test('a native submit criterion receipt contributes check time [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.a-native-submit-criterion-receipt-contributes: a native submit criterion receipt contributes check time [R1,R2,C7]', () => {
   const proof = proofFields({ item: 4, frozenDigest: null, environment: null, seat: 'core-1', runner: null,
     exitCode: 0, counts: { passed: 1, failed: 0, skipped: 0 }, durationMs: MIN, sourceClean: true,
     submitPhase: 'criterion', submitAdmission: '11111111-1111-4111-8111-111111111111' });
@@ -141,7 +141,7 @@ test('a native submit criterion receipt contributes check time [R1,R2,C7]', () =
   assert.equal(stats.items[0].clockMs, 7 * MIN);
 });
 
-test('a receipt without a commit is an unattributed check without changing the item clock [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.a-receipt-without-a-commit-is: a receipt without a commit is an unattributed check without changing the item clock [R1,R2,C7]', () => {
   const history = [ev(10, 0, 'add'), ev(10, 1, 'claim'), ev(10, 3, 'proof-run', { receipt: { kind: 'check', durationMs: MIN } }),
     ev(10, 4, 'submit'), ev(10, 5, 'accept'), ev(10, 6, 'merged')];
   const stats = timeStats(history, { now: NOW });
@@ -149,7 +149,7 @@ test('a receipt without a commit is an unattributed check without changing the i
   assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 6 * MIN);
 });
 
-test('only item-attributed gate receipts contribute static and doctrine time [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.only-item-attributed-gate-receipts-contribute: only item-attributed gate receipts contribute static and doctrine time [R1,R2,C7]', () => {
   const history = [ev(5, 0, 'add'), ev(5, 1, 'claim'), ev(5, 10, 'submit'), ev(5, 11, 'reserve'), ev(5, 12, 'accept'), ev(5, 13, 'merged')];
   const receipts = [
     { item: 5, commit: 'a'.repeat(40), kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: MIN },
@@ -164,7 +164,7 @@ test('only item-attributed gate receipts contribute static and doctrine time [R1
   assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 13 * MIN);
 });
 
-test('item-linked gate receipts without a commit stay unattributed [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.item-linked-gate-receipts-without-a: item-linked gate receipts without a commit stay unattributed [R1,R2,C7]', () => {
   const history = [ev(5, 0, 'add'), ev(5, 1, 'claim'), ev(5, 10, 'submit'), ev(5, 11, 'reserve'), ev(5, 12, 'accept'), ev(5, 13, 'merged')];
   const receipts = ['static', 'doctrine', 'conflict'].map((kind, index) => ({
     item: 5, kind, at: new Date(T0 + (4 + index) * MIN).toISOString(), runMs: MIN,
@@ -176,7 +176,7 @@ test('item-linked gate receipts without a commit stay unattributed [R1,R2,C7]', 
   assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 13 * MIN);
 });
 
-test('a claim renewal does not truncate a measured gate phase [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.a-claim-renewal-does-not-truncate: a claim renewal does not truncate a measured gate phase [R1,R2,C7]', () => {
   const history = [ev(9, 0, 'add'), ev(9, 1, 'claim'), ev(9, 3, 'renew'), ev(9, 5, 'submit'), ev(9, 6, 'accept'), ev(9, 7, 'merged')];
   const receipts = [{ item: 9, commit: 'a'.repeat(40), kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 3 * MIN }];
   const stats = timeStats(history, { now: NOW, receipts });
@@ -185,7 +185,7 @@ test('a claim renewal does not truncate a measured gate phase [R1,R2,C7]', () =>
   assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 7 * MIN);
 });
 
-test('a receipt commit is attributed only to a unique submitted item [R1,R2,C7]', () => {
+test('gate.logic-test-budget-time.a-receipt-commit-is-attributed-only: a receipt commit is attributed only to a unique submitted item [R1,R2,C7]', () => {
   const commit = 'a'.repeat(40), at = new Date(T0 + 4 * MIN).toISOString();
   const history = [ev(7, 0, 'add'), ev(7, 1, 'claim'), ev(7, 5, 'submit', { commit }), ev(7, 6, 'accept'), ev(7, 7, 'merged')];
   const receipts = [{ kind: 'static', commit, at, runMs: MIN }];
@@ -196,7 +196,7 @@ test('a receipt commit is attributed only to a unique submitted item [R1,R2,C7]'
   assert.equal(ambiguous.unattributedReceipts, 1);
 });
 
-test('weekly and release checkpoints append without replacing earlier history [R1,R2,C7]', t => {
+test('gate.logic-test-budget-time.weekly-and-release-checkpoints-append-without: weekly and release checkpoints append without replacing earlier history [R1,R2,C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'time-checkpoints-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q'], { cwd: root });

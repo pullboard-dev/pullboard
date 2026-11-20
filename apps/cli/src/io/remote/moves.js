@@ -9,6 +9,7 @@ import { boardPath } from './board.js';
 import { reportRemoteRefusal } from './board.js';
 import { requestJson } from './board.js';
 import { seatAgent } from './board.js';
+import { seatKey } from './board.js';
 
 // Budget: a move runs one CLI command on the board host, a submit's gate handoff included; slower is unreachable.
 const MOVE_TIMEOUT_MS = 120_000;
@@ -89,7 +90,7 @@ export async function runRemoteMove(io, parsed, remote) {
     // Off by default: board.commits bundle sends the clone's commits with its submit, and pushed names the commit it pushed [P7,C7].
     const commits = await (await import('../submit/push-ref.js')).carriedCommits(remote, body, io.cwd);
     if (commits) body.commits = commits;
-    const moved = await requestJson(remote, `${await boardPath(remote)}/moves`, body, MOVE_TIMEOUT_MS);
+    const moved = await requestJson({ ...remote, seatKey: seatKey(io.cwd, agent) }, `${await boardPath(remote)}/moves`, body, MOVE_TIMEOUT_MS);
     const board = new URL(remote.url).origin;
     io.result?.(moved.result ?? moved);
     sayResult(io, body.verb, body.item, moved.result ?? moved, board);
@@ -99,4 +100,23 @@ export async function runRemoteMove(io, parsed, remote) {
   const status = io.exitCode(0);
   io.flush(status);
   return status;
+}
+
+/**
+ * Beat a URL-joined seat once: post {verb: heartbeat, args: {}, agent} to the board host's /moves; true while the host holds the seat,
+ * false once it refuses the beat. An unreachable host reads as held, so one network blip never ends the beater [P7,B3].
+ * Why: a seat with board.url set has no local board for the claim beater to beat, and each CLI command exits after its move,
+ * so without this its claim is swept two minutes after it is taken. heartbeat stays out of POSITIONS: `pullboard heartbeat` is local.
+ * @param {{ url: string, token: string, agent: string, seatKey?: string }} remote
+ */
+export async function sendRemoteHeartbeat(remote) {
+  const { agent, ...host } = remote;
+  try {
+    await requestJson(host, `${await boardPath(host)}/moves`, { verb: 'heartbeat', args: {}, agent }, MOVE_TIMEOUT_MS);
+    return true;
+  } catch (error) {
+    if (error instanceof Refused && error.code === 'BOARD_UNREACHABLE') return true;
+    if (error instanceof Refused) return false;
+    throw error;
+  }
 }

@@ -1,0 +1,4 @@
+{
+  "cli.logic-help-setup.worktree-and-join-usage-show-level-not-route": {"proves":{"specs":["C7"],"claim":"The worktree and join usage lines in the setup help show [--level light] and no [--route light]."},"why":"Without it, help would keep teaching the old flag name after the approved rename to level.","kind":"cell unit","inputs":["apps/cli/tests/logic/help/setup.test.js","apps/cli/src/logic/help/setup.js"]},
+  "cli.logic-help-setup.the-flag-table-describes-level-not-route": {"proves":{"specs":["C7"],"claim":"The help flag table describes --level with the text it gave --route."},"why":"Without it, a join usage line naming --level would print no explanation for it.","kind":"cell unit","inputs":["apps/cli/tests/logic/help/setup.test.js","apps/cli/src/logic/help.js"]}
+}

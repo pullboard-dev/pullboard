@@ -25,7 +25,7 @@ function board(outcomes) {
   return { db };
 }
 
-test('clause 1: with landing.adaptiveBatch on, status prints the landing batch size and the clean batches behind it [C7,#9018]', async t => {
+test('cli.io-landing-adaptive-status.with-landing-adaptivebatch-on-status-prints-the: clause 1: with landing.adaptiveBatch on, status prints the landing batch size and the clean batches behind it [C7,#9018]', async t => {
   assert.equal(adaptiveBatchLine(board([]), true), 'landing batch size: 1 (0 clean batches in a row)');
   assert.equal(adaptiveBatchLine(board(Array(4).fill('landed')), true), 'landing batch size: 2 (4 clean batches in a row)');
   assert.equal(adaptiveBatchLine(board(['landed', 'landed', 'landed', 'red', 'landed']), true), 'landing batch size: 1 (1 clean batch in a row)');
@@ -36,7 +36,7 @@ test('clause 1: with landing.adaptiveBatch on, status prints the landing batch s
   assert.match(ran.stdout, /^landing batch size: 1 \(0 clean batches in a row\)$/mu);
 });
 
-test('clause 2: with landing.adaptiveBatch off, status prints no landing batch size line [C7,#9018]', async t => {
+test('cli.io-landing-adaptive-status.with-landing-adaptivebatch-off-status-prints-no: clause 2: with landing.adaptiveBatch off, status prints no landing batch size line [C7,#9018]', async t => {
   assert.equal(adaptiveBatchLine(board(Array(9).fill('landed')), false), null);
   const box = apiHttpFixture(t);
   const ran = await runCliInProcess(['status'], { cwd: box.root, env: box.env });

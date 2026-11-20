@@ -58,7 +58,7 @@ test('health.derived-gates.five-kinds-one-transaction: clause 3: one sweep write
   assert.deepEqual(Object.keys(written.counts).sort(), ['accept-order', 'gate-at-head', 'hold', 'seat-family', 'verdict']);
   assert.deepEqual(rows(file, 'hold').map(row => row[0]), [String(ids[2])], 'the held item is the one hold row');
   const derived = new DatabaseSync(derivedStatePath(file), { readOnly: true });
-  try { assert.equal(derived.prepare('SELECT COUNT(*) AS n FROM derived_state WHERE main_commit = ?').get(MAIN).n, Object.values(written.counts).reduce((a, b) => a + b, 0)); }
+  try { assert.equal(derived.prepare('SELECT COUNT(*) AS n FROM derived_state WHERE main_commit = ?').get(MAIN).n, Object.values(written.counts).reduce((a, b) => a + b, 1)); } // the 1 is the swept marker row [#10568]
   finally { derived.close(); }
   const NEXT = 'f'.repeat(40);
   assert.throws(() => sweepDerivedState(board, { mainCommit: NEXT, enabled: true, listItems, verdictState: () => null, gateAtHead: () => { throw new Error('gate reader down'); } }), /gate reader down/u);

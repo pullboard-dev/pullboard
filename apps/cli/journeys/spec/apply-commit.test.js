@@ -37,7 +37,7 @@ async function approvedProposal(box, target, text) {
   return draft.id;
 }
 
-test('clause 1: spec apply --row G1 --commit --json on a clean checkout with spec.commitOnApply on returns applied { committed: true, commit } and git log shows that commit [C7,#9624]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-commit.spec-apply-row-g1-commit-json: clause 1: spec apply --row G1 --commit --json on a clean checkout with spec.commitOnApply on returns applied { committed: true, commit } and git log shows that commit [C7,#9624]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await approvedProposal(box, 'G1', 'The page renders accessibly.');
   commitOnApply(box, true);
@@ -52,7 +52,7 @@ test('clause 1: spec apply --row G1 --commit --json on a clean checkout with spe
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '', 'the checkout is clean again');
 });
 
-test('clause 2: with a dirty checkout spec apply --row --commit refuses APPLY_NOT_COMMITTED naming the one command left and leaves the row file untouched [C7,#9624]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-commit.with-a-dirty-checkout-spec-apply: clause 2: with a dirty checkout spec apply --row --commit refuses APPLY_NOT_COMMITTED naming the one command left and leaves the row file untouched [C7,#9624]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await approvedProposal(box, 'G1', 'The page renders accessibly.');
   commitOnApply(box, true);
@@ -68,7 +68,7 @@ test('clause 2: with a dirty checkout spec apply --row --commit refuses APPLY_NO
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), head, 'nothing was committed');
 });
 
-test('clause 3: with spec.commitOnApply off, --commit applies the row exactly as spec apply --row does and commits nothing [C7,#9624]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-commit.with-spec-commitonapply-off-commit-applies: clause 3: with spec.commitOnApply off, --commit applies the row exactly as spec apply --row does and commits nothing [C7,#9624]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await approvedProposal(box, 'G1', 'The page renders accessibly.');
   commitOnApply(box, false);
