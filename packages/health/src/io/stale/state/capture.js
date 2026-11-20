@@ -22,6 +22,7 @@ import { claimKeepWhileRunning } from '../../../../../config/index.js';
 import { machineStalled } from '../../../logic/stall.js';
 import { claimFolderActive } from '../../claim/activity.js';
 import { claimFolderCommitAt } from '../../claim/activity.js';
+import { claimFolder } from '../../claim/activity.js';
 import { redReturnLeaseHolds } from '../../../../../store/index.js';
 import { itemWorkInFlight } from '../../../../../store/index.js';
 import { itemPinned } from '../../../../../store/index.js';
@@ -64,6 +65,37 @@ export function pinClaimHandoff(board, row, item, workRoot = null) {
     ? [...new Set([...committed.stdout.split('\n'), ...dirty.stdout.split('\n').map(line => line.slice(3))].filter(Boolean))].sort() : [];
   return { head: commit, pin, changedFiles: all.slice(0, HANDOFF_FILES), changedCount: all.length,
     uncommitted: dirty.status === 0 ? dirty.stdout.split('\n').filter(Boolean).length : null };
+}
+
+/**
+ * Save a claim's work before it is released: the branch keep/<id> at the item folder's HEAD, and, when the folder has
+ * uncommitted changes, a handoffs ref made with git stash create. Nothing here throws; `unsaved` says why nothing was
+ * saved. The folder is found as pinClaimHandoff finds it.
+ */
+export function keepClaimWork(board, row, workRoot = null) {
+  const unsaved = why => ({ head: null, branch: null, dirtyRef: null, unsaved: why });
+  try {
+    const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor);
+    const root = workRoot ?? seat?.agent_path;
+    if (!root) return unsaved('the seat has no registered worktree');
+    const folder = claimFolder(root, row.id);
+    if (!fileSystemAdapter().exists(folder)) return unsaved('the item folder is missing');
+    const env = cleanGitEnvironment();
+    const head = tryGit(folder, ['rev-parse', '--verify', 'HEAD^{commit}'], { env });
+    if (head.status !== 0) return unsaved('the item folder has no readable commit');
+    const commit = head.stdout.trim();
+    const branch = `keep/${row.id}`;
+    if (tryGit(folder, ['branch', '-f', branch, commit], { env }).status !== 0) return unsaved(`the branch ${branch} could not be written`);
+    const dirty = tryGit(folder, ['status', '--porcelain'], { env });
+    let dirtyRef = null;
+    if (dirty.status === 0 && dirty.stdout.trim()) {
+      const stash = tryGit(folder, ['-c', 'user.name=pullboard', '-c', 'user.email=pullboard@localhost', 'stash', 'create'], { env });
+      const sha = stash.status === 0 ? stash.stdout.trim() : '';
+      const ref = `refs/pullboard/handoffs/${row.id}/dirty-${commit.slice(0, 12)}`;
+      if (sha && tryGit(folder, ['update-ref', ref, sha], { env }).status === 0) dirtyRef = ref;
+    }
+    return { head: commit, branch, dirtyRef, unsaved: null };
+  } catch (error) { return unsaved(`the work could not be read: ${error?.message ?? error}`); }
 }
 
 /**
@@ -239,7 +271,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       const workActivity = lapsedWorkAt(board, row, path, at.getTime());
       const idleMs = workActivity === null ? null : at.getTime() - Date.parse(workActivity);
       if (idleMs === null || idleMs < CLAIM_IDLE_RELEASE_MS) return [];
-      return [{ ...row, idle: 'release', workActivity, idleMs, handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
+      return [{ ...row, idle: 'release', workActivity, idleMs, handoff: pinClaimHandoff(board, row, byId.get(row.id)), kept: keepClaimWork(board, row) }];
     }
     // An expired lease follows the lease-lapse path only after a quiet heartbeat; a live seat still vetoes expiry.
     if (lapsed.has(row.id)) {
@@ -254,7 +286,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       const work = observeDependencyWork(board, item);
       if (!work) return [];
       const dependency = strandedDependency(board, item, row, at.getTime(), snapshot.limits.dependency, work);
-      if (dependency) return [{ ...dependency, handoff: pinClaimHandoff(board, dependency, item, dependency.workRoot) }];
+      if (dependency) return [{ ...dependency, handoff: pinClaimHandoff(board, dependency, item, dependency.workRoot), kept: keepClaimWork(board, dependency, dependency.workRoot) }];
       // A measured dependency has its own configured interval; generic forty-minute idle expiry cannot shorten it.
       return [];
     }
@@ -262,7 +294,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
       && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {
       if (lapsedOnly) return [];
-      return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
+      return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)), kept: keepClaimWork(board, row) }];
     }
     // A live seat's claim waiting on an unlanded item is returned by background maintenance, never by another seat's write.
     if (row.health === 'waiting') return lapsedOnly ? [] : [{ ...row, idle: 'waiting' }];
@@ -271,7 +303,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     const pinnedLapse = (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, row.id);
     if (row.idleMs >= (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS)) {
       // Nothing keeps a claim stalled past 30 minutes; the handoff says what was pinned, or why nothing could be.
-      return [{ ...row, idle: 'release', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
+      return [{ ...row, idle: 'release', handoff: pinClaimHandoff(board, row, byId.get(row.id)), kept: keepClaimWork(board, row) }];
     }
     const told = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_stalled:${row.id}`)?.meta_value;
     return told === String(row.episodeEventId) ? [] : [{ ...row, idle: 'stall' }];

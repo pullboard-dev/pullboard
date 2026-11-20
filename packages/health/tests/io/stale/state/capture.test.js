@@ -20,6 +20,7 @@ import { testRunItem } from '../../../../../drive/index.js';
 import { captureLapsedClaims } from '../../../../index.js';
 import { withdraw } from '../../../../../store/index.js';
 import { dependencyWaiters } from '../../../../../items/index.js';
+import { keepClaimWork } from '../../../../index.js';
 import { dependencyWaitedIds } from '../../../../src/io/stale/state/capture.js';
 
 const MINUTE = 60_000;
@@ -240,7 +241,7 @@ function idleFixture(t, claimedAgo) {
   now = Date.now();
   logEvent(board, holder, 'heartbeat', id, {});
   const rows = () => (captureLapsedClaims({ clock: { now: () => new Date(now) }, config: {} }, board, helper)?.claims ?? []);
-  return { id, rows };
+  return { id, rows, board, holder, seat: join(files.root, 'seat') };
 }
 
 test('health.io-stale-state-capture.idle-30-releases: clause 2: a claim whose seat heartbeats but made no non-renewal move or commit for 31 minutes is captured as an idle release with a handoff, and none at 29 minutes [C7,#12468,clause 2]', t => {
@@ -318,4 +319,51 @@ test('health.io-stale-state.progressing-job-keeps-claim: clause 2: a lapsed clai
   assert.deepEqual(progressed.rows(), [], 'a test job that moved 10 minutes ago holds the claim');
   const event = stalledFixture(t, { factAgo: 10 });
   assert.deepEqual(event.rows(), [], 'a seat event 10 minutes ago holds the claim');
+});
+
+/** The fixture's seat becomes a real git repository whose last commit is older than the idle limit, with an item folder beside it when asked. */
+function seatRepository(seat, { itemId = null } = {}) {
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.test', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.test' };
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  policyRepository(seat);
+  writeFileSync(join(seat, 'work.txt'), 'base\n');
+  git(seat, 'add', '.');
+  git(seat, 'commit', '-q', '-m', 'fixture');
+  let folder = seat;
+  if (itemId !== null) {
+    folder = `${seat}-item-${itemId}`;
+    git(seat, 'worktree', 'add', '-q', '--detach', folder);
+  }
+  const old = new Date(Date.now() - 90 * MINUTE);
+  utimesSync(git(folder, 'rev-parse', '--path-format=absolute', '--git-path', 'logs/HEAD').trim(), old, old);
+  return { folder, head: git(folder, 'rev-parse', 'HEAD').trim(), git };
+}
+
+test('health.io-stale-state-capture.keep-writes-branch: clause 1: keepClaimWork writes keep/<id> at the item folder HEAD and a dirty ref for uncommitted changes, and reports unsaved without throwing [C7,#12114,clause 1]', t => {
+  const fixtureIdle = idleFixture(t, 31);
+  const row = { actor: fixtureIdle.holder, id: fixtureIdle.id };
+  const missing = keepClaimWork(fixtureIdle.board, row);
+  assert.equal(missing.branch, null, 'no repository: nothing saved');
+  assert.match(missing.unsaved, /no readable commit|missing/u, 'the reason is named');
+  const { folder, head, git } = seatRepository(fixtureIdle.seat, { itemId: fixtureIdle.id });
+  const clean = keepClaimWork(fixtureIdle.board, row);
+  assert.deepEqual(clean, { head, branch: `keep/${row.id}`, dirtyRef: null, unsaved: null }, 'a clean folder keeps only the branch');
+  assert.equal(git(folder, 'rev-parse', `keep/${row.id}`).trim(), head);
+  writeFileSync(join(folder, 'work.txt'), 'changed\n');
+  const dirty = keepClaimWork(fixtureIdle.board, row);
+  assert.equal(dirty.dirtyRef, `refs/pullboard/handoffs/${row.id}/dirty-${head.slice(0, 12)}`, 'a dirty folder also gets a ref');
+  assert.equal(git(folder, 'show', `${dirty.dirtyRef}:work.txt`).trim(), 'changed', 'the ref holds the uncommitted change');
+  rmSync(folder, { recursive: true, force: true });
+  const gone = keepClaimWork(fixtureIdle.board, row);
+  assert.equal(gone.branch, null);
+  assert.ok(gone.unsaved, 'a missing folder is reported, not thrown');
+});
+
+test('health.io-stale-state-capture.keep-on-release-row: clause 2: captureLapsedClaims puts keepClaimWork next to the handoff on an idle release row [C7,#12114,clause 2]', t => {
+  const idle = idleFixture(t, 31);
+  const { head } = seatRepository(idle.seat);
+  const [released] = idle.rows();
+  assert.equal(released.idle, 'release');
+  assert.ok(released.handoff.head, 'the handoff is pinned');
+  assert.deepEqual(released.kept, { head, branch: `keep/${idle.id}`, dirtyRef: null, unsaved: null }, 'the same row names the saved branch');
 });
