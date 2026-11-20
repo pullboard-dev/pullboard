@@ -5,7 +5,7 @@ import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkBaseline } from '../../../packages/gate/index.js';
+import { checkBaseline } from '../../../packages/gate/heavy.js';
 import { captureTestRuntimes } from '../../../packages/sandbox/index.js';
 import { privateFixtureFiles } from '../../../packages/gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../packages/gate/tests/fixtures/child.js';
