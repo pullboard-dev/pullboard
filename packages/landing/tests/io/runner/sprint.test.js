@@ -37,7 +37,7 @@ test('landing.runner-sprint.ports-run-payload-commands: clause 1: the ports list
   try {
     const tip = t.tipWith({ 'packages/alpha/src/a.js': 'export const a = 2;\n', 'packages/beta/tests/b.test.js': FAIL });
     const ports = runnerSprintPorts(t.root, { base: t.base, tip, sprint: sprint(), check: commandCheck });
-    assert.deepEqual(ports.changedFiles().sort(), ['packages/alpha/src/a.js', 'packages/beta/tests/b.test.js']);
+    assert.deepEqual((await ports.changedFiles()).sort(), ['packages/alpha/src/a.js', 'packages/beta/tests/b.test.js']);
     assert.equal(ports.pin(), tip);
     assert.equal((await ports.runStatic()).isGreen, true);
     const redStatic = runnerSprintPorts(t.root, { base: t.base, tip, sprint: sprint({ static: [NODE, '-e', 'process.exit(3)'] }), check: commandCheck });
