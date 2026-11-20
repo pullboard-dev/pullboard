@@ -12,6 +12,7 @@ import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import * as store from '../../../../store/index.js';
 import { realGitAdapter } from '../../../../git/index.js';
 import { withGitAdapter } from '../../../../git/index.js';
@@ -25,6 +26,8 @@ import { firstContainingCommit } from '../../../src/io/step/merge.js';
 import { save } from '../../../src/io/step/merge.js';
 import { validateLandingBatch } from '../../../../items/index.js';
 import { fixture } from '../../fixtures/plan.js';
+import { verifiedThenMainMoves } from '../../fixtures/stale-verdict.js';
+import { formatJson } from '../../../../codemap/index.js';
 import { git as planGit } from '../../fixtures/plan.js';
 
 /** Locate the actual Git executable before installing the fixture's counting shim. */
@@ -223,6 +226,63 @@ test('landing.merge.composed-equality-off-records-nothing: clause 2: with the se
     items: [], owner: 'coordinator', logPath: '/dev/null' };
   const tree = 'a'.repeat(40);
   assert.doesNotThrow(() => validateLandingBatch({ ...batch, exactTree: { tree, composedEqual: true } }, 0));
+});
+
+/** The plan shard the mechanical merge composes by entry, and a row for it. */
+const SHARD = 'packages/codemap/data/plan/14-state.json';
+const shardOf = rows => formatJson({ order: 8, name: 'state', paths: rows.map(n => [`src/m-${n}.js`, `packages/state/src/m-${n}.js`, 'rule']) }) + '\n';
+
+/**
+ * A verified item whose reviewed file main has since changed, merged by mergeGroup onto a batch base at that main: the item's accept was
+ * checked before main moved, so the merge step's stale check decides whether it still lands (a batch that is not external, which skips no check). Returns the group's run and what it said.
+ */
+function staleCheckedGroup(t, mainFile, shape) {
+  const { board, repo, item, main } = verifiedThenMainMoves(t, mainFile, cellBoard, shape);
+  const { root: dir } = privateFixtureFiles('pullboard-merge-mechanical-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = `${dir}/machine-home`;
+  mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, {});
+  const identity = { GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const before = Object.fromEntries(Object.keys(identity).map(key => [key, process.env[key]]));
+  Object.assign(process.env, identity);
+  const batchRoot = `${dir}/batch`;
+  runFixtureGit(['worktree', 'add', '-q', '--detach', batchRoot, main], { cwd: repo.root });
+  t.after(() => {
+    rmSync(batchRoot, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+    for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  });
+  const commit = store.getItem(board, item).item_commit;
+  const said = [];
+  const state = {
+    board, config: { ...loadConfig(repo.root), staticChecks: 'true' }, say: line => said.push(line), onWait() {}, checkLease: async () => {}, root: repo.root,
+    guardServices: { runStaticChecks: async () => ({ output: '' }) },
+    landingPorts: { badgeCounts: () => ({}), writeBadges: () => [] },
+    write: async (_name, [{ batch }]) => batch,
+    batch: { id: 'b1', root: batchRoot, base: main, items: [], conflicts: [], resolutions: [] },
+  };
+  return { said, item, run: () => mergeGroup(state, [{ id: item, commit }]) };
+}
+
+test('landing.merge.mechanical-only-conflict-stays-fresh: clause 1: an accepted item whose merge onto the batch base conflicts only in a plan shard the mechanical merge resolves passes the merge step stale check and is merged [C7]', async t => {
+  const group = staleCheckedGroup(t, SHARD, { file: SHARD, base: shardOf([1]), reviewed: shardOf([1, 2]), changed: shardOf([1, 3]) });
+  const result = await group.run();
+  assert.deepEqual(result.items.map(row => row.id), [group.item]);
+  assert.match(group.said.join('\n'), new RegExp(`mechanical merge #${group.item}: ${SHARD.replaceAll('.', '\\.')}`, 'u'));
+});
+
+test('landing.merge.unresolvable-conflict-still-stale: clause 2: an accepted item whose merge onto the batch base conflicts in a file the mechanical merge cannot resolve still refuses STALE_VERDICT naming the file [C7]', async t => {
+  const group = staleCheckedGroup(t, 'web/x.js', {});
+  await assert.rejects(() => group.run(), error => error.code === 'STALE_VERDICT' && /web\/x\.js/u.test(error.message));
+});
+
+test('landing.merge.stale-check-asks-the-mechanical-port: clause 3: the merge step stale check consults mechanicalConflictFiles through baseVerdicts, so a plan-shard-only conflict neither refuses STALE_VERDICT nor leaves an unresolved conflict [C7]', async t => {
+  const group = staleCheckedGroup(t, SHARD, { file: SHARD, base: shardOf([1]), reviewed: shardOf([1, 2]), changed: shardOf([1, 3]) });
+  const result = await group.run();
+  assert.deepEqual(result.conflicts, []);
+  assert.doesNotMatch(group.said.join('\n'), /STALE_VERDICT|conflict #/u);
 });
 
 test('landing.merge.refuses-own-commit-trailer-or-path: clause 2: a batch whose item commit carries a Co-Authored-By trailer or a home-folder path is refused LAND_HEADER with nothing merged, and a clean item merges [C7,#11265]', async t => {
