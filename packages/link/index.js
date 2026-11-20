@@ -12,7 +12,7 @@ export { orderedMoveCommand } from './src/logic/relay/order.js';
 export { createdItemAt, createdItems, createsItems, entryCreatedItems, rememberCreatedItems } from './src/logic/relay/created.js';
 export { environmentAgent, environmentLink } from './src/io/relay/environment.js';
 export { clearRelayExclusion, excludeRelayByPerson, recordRelayExclusionIntent, relayExclusion, reportClearedExclusion, withRelayExclusion } from './src/io/relay/exclusion.js';
-export { githubKeys, handOverBoardKeys, handOverKeys, requestBoardKey, statementBytes } from './src/io/relay/handover.js';
+export { handOverBoardKeys, handOverKeys, requestBoardKey, statementBytes } from './src/io/relay/handover.js';
 export { PAIR_ENVELOPE_BYTES, PAIR_PACKAGE_BODY_BYTES, PAIR_PACKAGE_BYTES, PAIR_STORED_BYTES, SEALED_SNAPSHOT_BYTES, SNAPSHOT_BODY_BYTES } from './src/logic/relay/limits.js';
 export { relayIo } from './src/io/relay-io.js';
 export { readRelayLink } from './src/io/relay/read.js';
