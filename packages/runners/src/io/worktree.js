@@ -1,14 +1,11 @@
 /** Builder item folders hosted on a registered runner over SSH, so git and hooks leave the coordinator [C7]. */
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitSpawn } from '../../../git/light.js';
 import { shellWord } from './tooling/remote.js';
 import { sshEnvironment } from './tooling/remote.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const HOST = /^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u;
 const ITEM = /^[1-9]\d{0,8}$/u;
@@ -184,7 +181,7 @@ function packObjects(repo, commit, file) {
     child.once('error', reject);
     child.once('close', status => {
       if (status !== 0) return reject(new Error(`pack-objects failed: ${stderr.trim() || `status ${status}`}`));
-      try { writeFileSync(file, Buffer.concat(chunks)); resolve(); } catch (failure) { reject(failure); }
+      try { fs.writeFile(file, Buffer.concat(chunks)); resolve(); } catch (failure) { reject(failure); }
     });
     child.stdin.end(`${commit}\n`);
   });
@@ -202,14 +199,14 @@ function packObjects(repo, commit, file) {
 export function cachedTrunkPack(repo, commit, { dir }) {
   if (!COMMIT.test(commit ?? '')) throw new Error('trunk pack needs a full commit id');
   const key = `${dir}\0${commit}`, file = join(dir, `trunk-${commit}.pack`);
-  if (existsSync(file)) return Promise.resolve({ file, built: false });
+  if (fs.exists(file)) return Promise.resolve({ file, built: false });
   if (FLIGHTS.has(key)) return FLIGHTS.get(key).then(() => ({ file, built: false }));
-  mkdirSync(dir, { recursive: true });
+  fs.mkdir(dir, { recursive: true });
   const partial = `${file}.${process.pid}.tmp`;
   const flight = packObjects(repo, commit, partial).then(() => {
-    renameSync(partial, file);
-    for (const name of readdirSync(dir)) if (/^trunk-[0-9a-f]+\.pack$/u.test(name) && name !== `trunk-${commit}.pack`) rmSync(join(dir, name), { force: true });
-  }).finally(() => { FLIGHTS.delete(key); rmSync(partial, { force: true }); });
+    fs.rename(partial, file);
+    for (const name of fs.list(dir)) if (/^trunk-[0-9a-f]+\.pack$/u.test(name) && name !== `trunk-${commit}.pack`) fs.rm(join(dir, name), { force: true });
+  }).finally(() => { FLIGHTS.delete(key); fs.rm(partial, { force: true }); });
   FLIGHTS.set(key, flight);
   return flight.then(() => ({ file, built: true }));
 }

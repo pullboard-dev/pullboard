@@ -4,12 +4,11 @@ import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../light.js';
 import { retryReviewCommit } from '../logic/verdict/retry.js';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { COMPARISON_WORKER_RECORD } from './comparison.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export const VERIFICATION_COMPARISON_PREFIX = 'Review comparison: ';
 /** A comparison whose worker died is started again this many times before it is recorded unavailable [C7]. */
@@ -17,7 +16,7 @@ export const COMPARISON_RESTART_LIMIT = 3;
 
 /** Read one small JSON file, or null when it is absent or half-written. */
 function readJson(file) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFile(file, 'utf8')); } catch { return null; }
 }
 
 /** Whether a process still exists; a process owned by another user still counts as alive. */
@@ -38,7 +37,7 @@ export function comparisonRestartPlan({ commonDir, item, thread, alive = process
   if (recorded?.status !== 'pending') return { action: 'none' };
   const base = join(commonDir, 'pullboard', 'review-comparisons');
   let names = [];
-  try { names = readdirSync(base); } catch { return { action: 'none' }; }
+  try { names = fs.list(base); } catch { return { action: 'none' }; }
   const jobs = names.map(name => ({ request: readJson(join(base, name, 'request.json')), worker: readJson(join(base, name, COMPARISON_WORKER_RECORD)) }))
     .filter(({ request }) => request && request.item === item.item_id && request.source === item.item_commit && request.digest === item.item_frozen_digest);
   // A job with no worker record is still being launched; a worker with a result file has already finished.
@@ -100,7 +99,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
   const originalHead = git(root, ['rev-parse', `${item.item_commit}^{commit}`]);
   const originalBase = git(root, ['merge-base', originalHead, main]);
   const directory = join(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']), 'pullboard', 'check-output');
-  mkdirSync(directory, { recursive: true });
+  fs.mkdir(directory, { recursive: true });
   /** Give each actual execution a durable source-bound identity beside its native timing profile. */
   const runAt = async (commit, files) => {
     if (!files.length) return { id: null, files: [], tests: [], skipped: 'no tests at source' };
@@ -110,7 +109,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
     if (run.unavailable) throw new Error(run.unavailable);
     const id = run.id;
     if (!/^[a-f0-9-]{36}$/u.test(id ?? '')) throw new Error('comparison execution has no native run identity');
-    writeFileSync(join(directory, `compare-${id}.json`), JSON.stringify({ id, commit, files, profileFile,
+    fs.writeFile(join(directory, `compare-${id}.json`), JSON.stringify({ id, commit, files, profileFile,
       green: run.isGreen, runner: run.executionRunner ?? run.profile?.receipt?.runner?.id ?? null }) + '\n');
     return { ...run, id, files, profileFile };
   };

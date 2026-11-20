@@ -4,8 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
@@ -35,6 +34,8 @@ import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { startReceiptScreen } from './gate/screen-start.js';
+import { applyPostLandReceipt } from './gate/post-land-main-test.js';
+import { postLandJob } from './gate/post-land-main-test.js';
 import { queuePostLandMainTest } from './gate/post-land-main-test.js';
 import { sprintLandable } from './gate/sprint-land.js';
 import { applyMainTestReceipt } from './recheck.js';
@@ -43,6 +44,7 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
+import { seedWideMainTestsAtMain } from './recheck.js';
 import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
@@ -66,6 +68,7 @@ import { companionInherits } from './gate/companion.js';
 import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
 
+const fs = fileSystemAdapter();
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
 
@@ -202,8 +205,8 @@ export function recordPhaseReceipts(board, { job, receipt, id, candidate, main, 
     if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
     if (!body && testRuntimes) { delete run.proof.testRuntimes; body = receiptBody(run); }
     if (!body) continue;
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
+    fs.writeFile(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
     store.recordProofRun(board, { agentId: submit.agentId, itemId: id, receiptId: run.id });
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }
@@ -334,7 +337,11 @@ export function offerProofShards(board, { job, receipt, offered }) {
   const ids = buckets.map(({ files: part, timing }, index) => {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
     // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
-    const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
+    const hits = store.ledgerHits(board.db, part, { budget: 16_000 });
+    // Why each file without a hit has none, for the shard's reader only: the runner takes contexts and files, so reasons change nothing it runs.
+    const hit = new Set((hits?.files ?? []).map(([file]) => file));
+    const reasons = store.ledgerMissReasons(board.db, part.filter(file => !hit.has(file)));
+    const ledger = hits || Object.values(reasons).some(reason => reason !== 'none') ? { ...(hits ?? {}), reasons } : null;
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
         input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, ...(timing ? { checkTiming: true } : {}), shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
@@ -1144,10 +1151,12 @@ export function provideMainComparison(lookup) {
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, seedWideMainTests: seedWide = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
+    // With gate.seedWideMainTests on, wide-failing files get main's receipt queued once per board root and main sha (#12094).
+    if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
     settleDoneShardGates(board, ports, { now: options.now });
@@ -1249,10 +1258,8 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted, ports);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
-  if (kind === 'test') {
-    const accept = settleQueuedAccept(board, posted);
-    return accept.applied ? accept : applyTestReceipt(board, posted);
-  }
+  if (kind === 'test' && postLandJob(posted.job)) return applyPostLandReceipt(board, posted, ports);
+  if (kind === 'test') { const accept = settleQueuedAccept(board, posted); return accept.applied ? accept : applyTestReceipt(board, posted); }
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
