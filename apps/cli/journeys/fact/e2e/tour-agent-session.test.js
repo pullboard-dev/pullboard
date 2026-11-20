@@ -76,7 +76,7 @@ test('cli.journeys-fact-e2e-tour.the-tour-finishes-when-an-agent: clause 1: the 
     const woke = log.split('\n').filter(line => /^\S+ runner-woke-on-offer$/u.test(line)).map(line => Date.parse(line.split(' ')[0]));
     if (wake) {
       assert.ok(claims.length > 0, `${name}: the demo runner claimed jobs`);
-      assert.ok(woke.some(at => at >= claims[0].offered && at <= claims[0].claimed), `${name}: with runners.localWake on the first claim follows its offer through a runner wake marker, offer then marker then claim: ${JSON.stringify({ first: claims[0], woke })}`);
+      assert.ok(woke.some(at => at >= claims[0].offered && at <= claims[0].claimed), `${name}: with runners.localWake on the first claim follows its offer through a runner wake marker, offer then marker then claim: ${JSON.stringify({ first: claims[0], woke, runnerLogTail: log.split('\n').slice(-12) })}`);
     } else assert.deepEqual(woke, [], `${name}: with runners.localWake off the runner records no wake marker`);
     t.diagnostic(`offer-to-claim ms (runners.localWake ${wake ? 'on' : 'off'}, ${name}): ${JSON.stringify(claims.map(({ offered, claimed }) => claimed - offered))}`);
     const settings = join(machine, 'settings.json');
