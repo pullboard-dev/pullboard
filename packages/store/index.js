@@ -91,7 +91,9 @@ export { applyStaleState } from './src/logic/board/stale/apply.js';
 export { readableRigorText, automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
 export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance.js';
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
-export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission, runnerSlotsSnapshot } from './src/io/board/claim.js';
+export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission, runnerSlotsSnapshot, claimRows } from './src/io/board/claim.js';
+/** The verdict reads a verify prepares before the write lock, loaded at the call so the front door does not load verify.js for every importer [C7,#10868]. */
+export async function prepareVerdictFacts(...call) { return (await import('./src/io/board/verify.js')).prepareVerdictFacts(...call); }
 export { writeBoardCommand } from './src/io/board/write.js';
 export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
@@ -149,3 +151,4 @@ export { recordPulled, pullingLanding } from './src/io/board/pulled.js';
 export { readShadows } from './src/io/board/shadow-record.js';
 export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction, dueEscalations, escalateEntries } from './src/logic/board/entries.js';
 export { spoolFile, spoolInboxMarks, drainInboxMarks } from './src/io/inbox-marks.js';
+export { commitMove, connectBoardWriter, createBoardWriter, serveBoardWriter } from './src/io/board/writer.js';

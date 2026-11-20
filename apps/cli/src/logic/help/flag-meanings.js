@@ -261,6 +261,8 @@ export const FLAG_MEANINGS = Object.freeze({
   'test --cancel': 'cancels the queued or running test run with this id',
   'gate --static': 'runs only the gate static stage here and prints each finding with its rule code',
   'gate --withdraw': 'takes this item\'s submission out of the gate queue',
+  'gate --stale-before': ['--stale-before <sha>', 'with --withdraw shards: the main commit a gate\'s candidate must contain to keep its offered shards'],
+  'gate --dry-run': 'lists the offered shards gate --withdraw shards would end without ending them',
   'runner install-serve --board': 'the board URL the runner pulls jobs from',
   'stats agents --window': ['--window <duration>', 'how far back to measure, such as 6h or 1d'],
   'stats agents --until': ['--until <ISO time>', 'ends the window at this time instead of now'],
