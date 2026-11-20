@@ -192,6 +192,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--waive': ['--waive <test>', 'the test whose failures stop blocking landings'],
   'land --until': ['--until <date>', 'the date the waiver expires'],
   'hold --until': ['--until <verified|landed>', 'holds the item until it is verified or landed'],
+  'hold --list': ['--list [--owner <value>]', 'prints the open holds recorded with that owner, oldest deadline first; changes nothing'],
   'hold --deadline': ['--deadline <ISO time>', 'when the named owner must answer for the hold; defaults to a day out'],
   '--for': ['--for <item>', 'shows the one-hop slice for this item'],
   '--withdraw-verdict': 'withdraws your own accept before landing',
