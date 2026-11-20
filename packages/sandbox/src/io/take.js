@@ -102,7 +102,7 @@ export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard
 export const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
 
 /**
- * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
+ * Tell the coordinator once that next passed over an item no builder can satisfy, and hold it for a re-bar [B7,B25,C7].
  *
  * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
  * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
@@ -112,6 +112,11 @@ export async function reportUnbuildableOnce(ctx, board, item, holder, refusal, o
   if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
   try {
     await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    // Hold the item for a re-bar so no seat is offered it again; a hold already on it is left as it is [B7,C7].
+    if (!store.itemHold(board, item.item_id)) {
+      await ordered(ctx, board, 'holdItem', [item.item_id, { agentId: COORDINATOR,
+        reason: `re-bar: ${refusal.code}: ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}` }]);
+    }
     await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
       // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
       text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);
