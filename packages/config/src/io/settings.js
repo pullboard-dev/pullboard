@@ -179,6 +179,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { derivedStateEnabled } from '../logic/settings.js';
 export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -582,11 +583,6 @@ export function nameBehindDeviceEnabled() {
   return loadMachineSettings().engine?.nameBehindDevice === true;
 }
 
-
-/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
-export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
-}
 
 /** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
 export function reofferTrunkBusyEnabled() {
