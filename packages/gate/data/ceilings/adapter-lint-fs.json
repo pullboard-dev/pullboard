@@ -2,8 +2,6 @@
   "version": 1,
   "files": {
     "apps/cli/src/io/submit/gate.js": 10,
-    "apps/cli/src/io/submit/pull.js": 7,
-    "apps/cli/src/io/submit/remote.js": 6,
     "apps/runner/src/io/chrome.js": 7,
     "apps/runner/src/io/controller.js": 1,
     "apps/runner/src/io/custody.js": 1,
