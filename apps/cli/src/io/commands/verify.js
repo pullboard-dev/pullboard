@@ -193,6 +193,7 @@ import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { provenBreakRequired } from '../../../../../packages/config/index.js';
 import { itemPace } from '../../../../../packages/moves/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
+import { soloLowStakesEnabled } from '../../../../../packages/config/index.js';
 
 const fs = fileSystemAdapter();
 /** Loads the review folder module at the call, so cold paths through this command never pay for it. */
@@ -331,6 +332,22 @@ async function announceVerdictState(ctx, board, id) {
 const PROVEN_BREAK_MIN = 40;
 
 /**
+ * The solo low-stakes facts a verify call carries (#966): `{}` unless `enabled` is exactly true, and `{}` when the item froze no
+ * parseable rows. Otherwise `{ soloLowStakes: true, rows }`, one `{ id, stakes }` per frozen row, a row without stakes read as team.
+ * Why: the move rule compares these rows with the item's frozen record, so the rows come from that record and never from the caller.
+ * @param {{ item_frozen?: string | null }} item
+ * @param {unknown} enabled
+ * @returns {{ soloLowStakes: true, rows: { id: string, stakes: string }[] } | {}}
+ */
+export function soloLowStakesFacts(item, enabled) {
+  if (enabled !== true) return {};
+  let record;
+  try { record = JSON.parse(item?.item_frozen ?? ''); } catch { return {}; }
+  if (!Array.isArray(record?.rows) || record.rows.length === 0) return {};
+  return { soloLowStakes: true, rows: record.rows.map((row) => ({ id: row.id, stakes: row.stakes ?? 'team' })) };
+}
+
+/**
  * The reviewer's stated break for an accept: required on a strict item, kept when given on any other.
  *
  * @param {boolean} required whether the item's pace needs a proven break
@@ -444,8 +461,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
-    // verify.reviewFolder (off by default): a seat checkout not at the submitted commit is left alone, and the checks run in the detached review folder instead [C7,#8931].
-    if (!fromPacket && ctx.config.verify?.reviewFolder === true && !contains(root, commit, headCommit(root) ?? '')) {
+    // verify.reviewFolder (off by default): a seat checkout not at the submitted commit, or one holding a modified or untracked file, is left alone, and the checks run in the detached review folder instead [C7,#8931].
+    if (!fromPacket && ctx.config.verify?.reviewFolder === true && (!contains(root, commit, headCommit(root) ?? '') || !isClean(root) || untracked(root).length)) {
       root = madeReviewFolder = requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')).folder;
     }
     // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
@@ -666,6 +683,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(knownMain ? { knownMainFailures: knownMain } : {}),
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
+      ...soloLowStakesFacts(item, decision === 'ACCEPT' && soloLowStakesEnabled()),
     }]);
   };
   const result = await withBoard(ctx, async (board) => {

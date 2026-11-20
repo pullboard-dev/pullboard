@@ -101,3 +101,79 @@ test('cli.journeys-speed-release-median.profile: clause 1: [C7] the same five in
     console.log(`# release profile ${(ms / RUNS).toFixed(1)} ms per release ${name} ${file}:${line}`);
   }
 });
+
+/** Whether a profiled frame is the test-run browser-slot wrapper or a node child_process frame, a blocking child spawn that has no repo caller of its own. */
+function inChildSpawn(frame) {
+  return /\/packages\/gate\/src\/io\/browser\/guard\.js$/u.test(frame.url) || /^node:(internal\/)?child_process/u.test(frame.url);
+}
+
+/**
+ * The self time in ms of each caller of a child spawn, from the sampled nodes and their time deltas. A sample with guard.js or a node:
+ * child_process frame in its stack is charged to the nearest caller frame outside guard.js that is repo source; any other sample is charged as in selfTimes.
+ * `methods` names, per row, the outermost child_process function the caller reached, with its ms, so the fact can say spawnSync or execFileSync.
+ */
+function selfTimesByCaller(profile) {
+  const byId = new Map(profile.nodes.map((node) => [node.id, node]));
+  const parent = new Map();
+  for (const node of profile.nodes) for (const child of node.children ?? []) parent.set(child, node.id);
+  const totals = new Map();
+  profile.samples.forEach((id, index) => {
+    const frame = byId.get(id).callFrame;
+    if (frame.url.startsWith('node:inspector')) return;
+    const stack = [];
+    for (let up = id; up !== undefined; up = parent.get(up)) stack.push(byId.get(up).callFrame);
+    const spawned = stack.some(inChildSpawn);
+    const owner = stack.find((candidate) => inRepo(candidate) && !(spawned && inChildSpawn(candidate))) ?? frame;
+    const outer = spawned ? stack.filter((candidate) => /^node:(internal\/)?child_process/u.test(candidate.url)).at(-1) : undefined;
+    const name = (frame.functionName || '(anonymous)') + (owner === frame ? '' : ` via ${owner.functionName || '(anonymous)'}`);
+    const key = `${owner.url}\t${spawned ? owner.functionName || '(anonymous)' : name}\t${owner.lineNumber + 1}`;
+    const row = totals.get(key) ?? { ms: 0, methods: new Map() };
+    const ms = (profile.timeDeltas[index] ?? 0) / 1000;
+    row.ms += ms;
+    if (outer) row.methods.set(outer.functionName, (row.methods.get(outer.functionName) ?? 0) + ms);
+    totals.set(key, row);
+  });
+  return totals;
+}
+
+test('cli.journeys-speed-release-median.profile-by-caller: clause 1: [C7] the same five in-process releases run under the profiler and print the ten largest self-time rows, with every child spawn sample charged to the nearest caller outside guard.js', async (t) => {
+  const box = largeBoard(t);
+  const db = new DatabaseSync(box.board, { readOnly: true });
+  const ids = db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT ?").all(RUNS).map((row) => Number(row.id));
+  db.close();
+  assert.equal(ids.length, RUNS);
+  const session = new Session();
+  session.connect();
+  await session.post('Profiler.enable');
+  await session.post('Profiler.setSamplingInterval', { interval: 200 });
+  const samples = [];
+  const totals = new Map();
+  for (const id of ids) {
+    const claimed = await box.inProcess(box.web, 'claim', String(id), '--no-next');
+    assert.equal(claimed.code, 0, `claim ${id}: ${claimed.err}${claimed.out}`);
+    await session.post('Profiler.start');
+    const started = performance.now();
+    const released = await box.inProcess(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'Fixture release', '--no-next');
+    samples.push(performance.now() - started);
+    const { profile } = await session.post('Profiler.stop');
+    assert.equal(released.code, 0, `release ${id}: ${released.err}${released.out}`);
+    for (const [key, { ms, methods }] of selfTimesByCaller(profile)) {
+      const row = totals.get(key) ?? { ms: 0, methods: new Map() };
+      row.ms += ms;
+      for (const [method, spent] of methods) row.methods.set(method, (row.methods.get(method) ?? 0) + spent);
+      totals.set(key, row);
+    }
+  }
+  await session.post('Profiler.disable');
+  session.disconnect();
+  assert.equal(samples.length, RUNS, 'five releases succeeded');
+  const top = [...totals.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 10);
+  assert.equal(top.length, 10, 'the profile prints ten rows');
+  console.log(`# release by-caller median ${median(samples).toFixed(0)} ms (${samples.map((ms) => ms.toFixed(0)).join(', ')})`);
+  for (const [key, { ms, methods }] of top) {
+    const [url, name, line] = key.split('\t');
+    const file = url.replace(/^file:\/\//u, '').replace(/^.*\/(?=(apps|packages)\/)/u, '') || '(native)';
+    const spawn = [...methods].sort((a, b) => b[1] - a[1]).map(([method, spent]) => `${method} ${(spent / RUNS).toFixed(1)} ms`).join(', ');
+    console.log(`# release by-caller ${(ms / RUNS).toFixed(1)} ms per release ${name} ${file}:${line}${spawn ? ` (child_process: ${spawn})` : ''}`);
+  }
+});

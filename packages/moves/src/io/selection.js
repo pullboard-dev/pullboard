@@ -24,9 +24,6 @@ import { rejectionReturnEnabled } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
-import { mainRedReviewItems } from '../../../landing/index.js';
-import { computedReturnArgs } from '../../../landing/index.js';
-import { mainRedReworkItems } from '../../../landing/index.js';
 import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
@@ -60,6 +57,16 @@ const PASSED_OVER = new Set([...UNBUILDABLE, 'CROSS_OWNERSHIP']);
 
 /** The health cell loads only when a fresh claim shouts a stuck review cover [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
+
+/** The landing barrel, loaded on the first main-red or return helper call and kept for the process [C7]. */
+let landingBarrel = null;
+const landing = () => landingBarrel ??= requireModule('../../../landing/index.js');
+/** Main-red review items of the landing cell. */
+function mainRedReviewItems(...args) { return landing().mainRedReviewItems(...args); }
+/** Main-red rework items of the landing cell. */
+function mainRedReworkItems(...args) { return landing().mainRedReworkItems(...args); }
+/** The arguments a computed return reopens with. */
+function computedReturnArgs(...args) { return landing().computedReturnArgs(...args); }
 
 /**
  * The command line functions one next loop calls: board access, the seat lookup, the claim and item-folder helpers.
