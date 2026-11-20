@@ -2,7 +2,7 @@
 /** A runner registered with no browser slots runs browser-free test files and never browser-bound ones [C7]. */
 import { executionServicesSource } from '../../gate/execution.js';
 import { copyPackageFiles } from '../../../../../../packages/runners/index.js';
-import { awaitNestedRun } from '../../../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../../../packages/gate/heavy.js';
 import assert from 'node:assert/strict';
 import { fixtureMachineSettings } from '../../testkit.js';
 import {

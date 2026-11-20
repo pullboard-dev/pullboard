@@ -1,8 +1,6 @@
 /** Source-owned semantic descriptions complement facts derived directly from runtime declarations [C7,A5]. */
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { docTable } from '../../logic/generated/doc/blocks.js';
 import { ID_RE } from '../../../../../packages/spec/index.js';
 import { STATUSES } from '../../../../../packages/spec/index.js';
@@ -10,14 +8,16 @@ import { TIERS } from '../../../../../packages/spec/index.js';
 import { parseSpec } from '../../../../../packages/spec/index.js';
 import { storeName } from '../store-names.js';
 
+const files = fileSystemAdapter();
+
 /** The declaration files whose names the layout move shortened; the table names stay as the guides cite them. */
 const DECLARATION_FILES = { 'parser-fields': 'fields', 'upgrade-rules': 'rules', 'snapshot-files': 'snapshot' };
 
 /** Read data-only source declarations, never Markdown output as generator input. */
 function declaration(root, name) {
   const path = join(root, `apps/cli/src/io/documentation/${storeName(DECLARATION_FILES[name] ?? name)}`);
-  if (!lstatSync(path).isFile()) throw new Error(`${name} documentation must be a regular source declaration`);
-  return JSON.parse(readFileSync(path, 'utf8'));
+  if (!files.lstat(path).isFile()) throw new Error(`${name} documentation must be a regular source declaration`);
+  return JSON.parse(files.readFile(path, 'utf8'));
 }
 
 /** Pair source descriptions with actual parser identities; missing documentation fails generation. */
@@ -32,16 +32,16 @@ function namedTable(root, name, heading, names) {
   return docTable(heading, rows);
 }
 
-/** The current and frozen legacy roots identify an event declaration by its full path [A5,C7]. */
+/** The current root and the data of old store names that moved identify an event declaration by its full path [A5,C7]. */
 const EVENT_DIRECTORY = 'apps/cli/src/io/documentation/events';
-const LEGACY_EVENT_DIRECTORY = 'apps/cli/src/shell/documentation/events';
+const EVENT_MOVES = 'apps/cli/src/io/documentation/event-moves.json';
 
 /** Collect nested declaration files without following symlinks or accepting malformed directories. */
 function eventFiles(root, relative = '') {
   const directory = join(root, EVENT_DIRECTORY, relative);
-  return readdirSync(directory).sort().flatMap(name => {
+  return files.list(directory).sort().flatMap(name => {
     const file = relative ? `${relative}/${name}` : name;
-    const stat = lstatSync(join(directory, name));
+    const stat = files.lstat(join(directory, name));
     if (stat.isSymbolicLink()) throw new Error(`invalid event declaration ${file}`);
     if (stat.isDirectory()) {
       if (!/^[a-z][a-z0-9_-]*$/u.test(name)) throw new Error(`invalid event declaration ${file}`);
@@ -56,15 +56,15 @@ function eventFiles(root, relative = '') {
 /** Render event descriptions from independent per-kind files, retaining historical version annotations. */
 function eventTable(root) {
   const directory = join(root, EVENT_DIRECTORY);
-  const map = JSON.parse(readFileSync(join(root, 'packages/codemap/data/plan/path-map/freeze.json'), 'utf8'));
+  const map = JSON.parse(files.readFile(join(root, EVENT_MOVES), 'utf8'));
   if (!map || typeof map !== 'object' || Array.isArray(map)) throw new Error('invalid frozen event path map');
   const kinds = new Set();
   const entries = eventFiles(root).flatMap(file => {
-    const row = JSON.parse(readFileSync(join(directory, file), 'utf8'));
+    const row = JSON.parse(files.readFile(join(directory, file), 'utf8'));
     const kind = row?.kind;
     if (typeof kind !== 'string' || !/^[a-z][a-z0-9_-]*$/u.test(kind)) throw new Error(`invalid event identity ${file}`);
-    const oldPath = `${LEGACY_EVENT_DIRECTORY}/${storeName(kind)}`;
-    const expected = Object.hasOwn(map, oldPath) ? map[oldPath] : `${EVENT_DIRECTORY}/${storeName(kind)}`;
+    const old = storeName(kind);
+    const expected = `${EVENT_DIRECTORY}/${Object.hasOwn(map, old) ? map[old] : old}`;
     const actual = `${EVENT_DIRECTORY}/${file}`;
     if (typeof expected !== 'string' || !expected.startsWith(`${EVENT_DIRECTORY}/`) || expected.split('/').some(part => !part || part === '.' || part === '..')
       || actual !== expected || kinds.has(kind) || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${file}`);

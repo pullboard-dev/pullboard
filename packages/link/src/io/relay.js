@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../env/index.js';
 import { relayFetch } from '../../../person/index.js';
 import { operationIntent } from '../../../state/index.js';
 import { orderedMoveCommand } from '../logic/relay/order.js';
@@ -31,12 +32,6 @@ import { uploadRetryReady } from './relay/pause.js';
 /** Opt-in, sealed relay ordering, with crash-safe migration from the older mirror [H1,H3,H5,H16,H17,P5]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { SEALED_SNAPSHOT_BYTES as SEALED_SNAPSHOT_LIMIT } from '../logic/relay/limits.js';
 import { basename } from 'node:path';
@@ -117,8 +112,15 @@ import { relaySnapshotRequest } from '../../../pages/index.js';
 import { relayStorage } from '../../../pages/index.js';
 import { relayStorageLine } from '../../../pages/index.js';
 export { relayOrigin, relayStorageLine };
-import { readCommonDir } from './relay/common-dir.js';
 import { loadLink } from './relay/link.js';
+import { deletedLink as deletedLinkOf } from './relay/link.js';
+import { deletedLinkFile as deletedLinkFileOf } from './relay/link.js';
+import { deletedRecovery as deletedRecoveryOf } from './relay/link.js';
+import { linkFile as linkFileOf } from './relay/link.js';
+import { localRecords as localRecordsOf } from './relay/link.js';
+import { relayLinked as relayLinkedOf } from './relay/link.js';
+import { relayMachineContext as relayMachineContextOf } from './relay/link.js';
+import { relayRecovered as relayRecoveredOf } from './relay/link.js';
 import { saveLink } from './relay/link.js';
 import { STATE_FILES } from './relay/link.js';
 import { revokeRelayPersonSession } from './relay/device.js';
@@ -139,6 +141,9 @@ import { acceptBaseline } from './relay/baseline.js';
 import { decideBaseline } from './relay/baseline.js';
 import { keepMoveForLaterBaseline } from './relay/baseline.js';
 import { BASELINE_FAILURES } from './relay/baseline.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 export { saveLink };
 export { relayDeviceRequest, revokeRelayPersonSession } from './relay/device.js';
 export { relayRosterRead } from './relay/device.js';
@@ -152,9 +157,9 @@ const DELETION_NOTICES = new WeakSet();
 
 /** Refuse a re-home that names an ID still owned by an unacknowledged local add. */
 async function requireAuthoritativeRehomeItem(file, state, itemId, io) {
-  if (!state || !Number.isSafeInteger(itemId) || itemId < 1 || !existsSync(outboxFile(file))) return;
+  if (!state || !Number.isSafeInteger(itemId) || itemId < 1 || !fs.exists(outboxFile(file))) return;
   await io.withOutboxGuard(file, async () => {
-    if (!existsSync(outboxFile(file))) return;
+    if (!fs.exists(outboxFile(file))) return;
     if (await io.outboxHasPendingCreatedItem(outboxFile(file), readBoardKey(state.board), state.board, itemId)) {
       throw new Refused('RELAY_OUTBOX_UNBOUND', `item #${itemId} is still waiting for relay order; run pullboard status until it is sent, look up the current item ID, then retry the move`);
     }
@@ -166,33 +171,20 @@ export async function assertRehomeSourceItemOrdered(root, itemId, io) {
   const file = linkFile(root);
   await locked(file, async () => requireAuthoritativeRehomeItem(file, loadLink(file), itemId, io), io);
 }
-/** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
-function linkFile(root) { return relayFiles(quickCommonDir(root)).link; }
+/** The cells the moved link-state reads need, handed to relay/link.js so it imports none of them [C7,#12003]. */
+function linkPorts() {
+  return { repoInfo, relayFiles, boardFilePath: store.boardFilePath, codeIsFromMain, closeBoard: store.closeBoard, engineReceipt,
+    withProjectGitTimeout, Refused };
+}
 
-/** The shared git directory, read straight from `.git` when possible and from git otherwise [C7]. */
-function quickCommonDir(root) { return readCommonDir(root) ?? repoInfo(root).commonDir; }
+/** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
+function linkFile(root) { return linkFileOf(root, linkPorts()); }
 
 /** Locate the credential-free reason an independently deleted copy no longer syncs. */
-function deletedLinkFile(root) { return relayFiles(repoInfo(root).commonDir).deleted; }
+function deletedLinkFile(root) { return deletedLinkFileOf(root, linkPorts()); }
 
 /** Read only a private, bounded deletion marker; it never supplies credentials or an outbound destination. */
-function deletedLink(root) {
-  const file = deletedLinkFile(root);
-  if (!existsSync(file)) return null;
-  const stat = lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 4096) throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status');
-  let value;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new Refused('RELAY_STORAGE', 'restore the private deleted-copy notice before reading relay status'); }
-  if (value?.version !== 1 || !/^[0-9a-f]{32}$/u.test(value.board ?? '') || typeof value.url !== 'string') throw new Refused('RELAY_STORAGE', 'restore the supported deleted-copy notice before reading relay status');
-  relayOrigin(value.url);
-  const recovered = value.recovered;
-  if (recovered !== undefined && (!recovered || !/^[A-Za-z0-9_-]{1,80}$/u.test(recovered.id ?? '')
-      || !/^[0-9a-f]{64}$/u.test(recovered.intent ?? '')
-      || (recovered.commandIntent !== undefined && !/^[0-9a-f]{64}$/u.test(recovered.commandIntent)))) {
-    throw new Refused('RELAY_STORAGE', 'restore the private interrupted-move receipt pointer before retrying');
-  }
-  return value;
-}
+function deletedLink(root) { return deletedLinkOf(root, linkPorts()); }
 
 /** Accept deletion only from the configured versioned relay for this credential's own board. */
 function confirmedDeletion(state, error) {
@@ -207,9 +199,9 @@ function saveDeletedLink(root, value) {
   const encoded = JSON.stringify(value) + '\n';
   if (Buffer.byteLength(encoded) > 4096) throw new Refused('RELAY_STORAGE', 'restore a bounded deleted-copy notice before retrying');
   try {
-    writeFileSync(temporary, encoded, { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, marker);
-  } finally { rmSync(temporary, { force: true }); }
+    fs.writeFile(temporary, encoded, { flag: 'wx', mode: 0o600 });
+    fs.rename(temporary, marker);
+  } finally { fs.rm(temporary, { force: true }); }
 }
 
 /** Compare an interrupted intent without retaining command arguments or credentials in the notice. */
@@ -239,17 +231,7 @@ function retainDeletedMove(root, state, io) {
 }
 
 /** Resolve the private pointer only through the exact durable native receipt, never a remote key. */
-function deletedRecovery(root, io) {
-  const marker = deletedLink(root);
-  if (!marker?.recovered) return null;
-  const receipt = localRecords(io.openBoard, root, board => engineReceipt(board, marker.recovered.id));
-  let move;
-  try { move = receipt && JSON.parse(receipt.move); } catch { /* Refuse a corrupt receipt below. */ }
-  if (!move || move.id !== marker.recovered.id || !receipt.outcome) {
-    throw new Refused('RELAY_STORAGE', 'restore the interrupted native receipt before retrying its command');
-  }
-  return { marker, receipt, move };
-}
+function deletedRecovery(root, io) { return deletedRecoveryOf(root, io, linkPorts()); }
 
 /** Consume only the reported receipt, preserving the truthful deleted-copy notice. */
 function clearDeletedRecovery(root, marker) {
@@ -277,7 +259,7 @@ function forgetDeletedCopy(root, file, state, io) {
   saveDeletedLink(root, { version: 1, board: state.board, url: state.url, ...(recovered ? { recovered } : {}) });
   rememberRelink(root, state.board);
   archiveRelinkOutbox(root, state);
-  rmSync(file, { force: true });
+  fs.rm(file, { force: true });
   try { forgetBoardKey(state.board, state.keyStorage); } catch { /* An unavailable key store cannot block completed local opt-out. */ }
   if (!DELETION_NOTICES.has(io)) {
     DELETION_NOTICES.add(io);
@@ -300,7 +282,7 @@ export async function request(state, path, options = {}, io) {
 async function rawRequest(state, path, { method = 'GET', body, allowMissing = false, initialBaseline = false, signal } = {}, io) {
   signal ??= io?.relaySignal;
   io?.onRelayRequest?.({ method, path });
-  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : process.env.PULLBOARD_RELAY_TOKEN;
+  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : environmentAdapter().get('PULLBOARD_RELAY_TOKEN');
   const readToken = method === 'GET' && /^\/api\/v[12]\/boards\//u.test(path) ? supplied : undefined;
   if (readToken !== undefined && !/^pa_[A-Za-z0-9_-]{43}$/.test(readToken)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token without including it in command arguments');
   const token = readToken ?? state.token;
@@ -361,11 +343,7 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
 }
 
 /** Read durable local event rows; their ids are the crash-safe outbox after the saved cursor. */
-export function localRecords(openBoard, root, work) {
-  const info = repoInfo(root);
-  const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain(), gitRoot: root });
-  try { return work(board); } finally { store.closeBoard(board); }
-}
+export function localRecords(openBoard, root, work) { return localRecordsOf(openBoard, root, work, linkPorts()); }
 
 /** Fingerprint native board contents so async recovery can refuse concurrent local writes. */
 function nativeBoardDigest(board) {
@@ -619,7 +597,7 @@ async function flushMirror(root, file, state, io) {
 }
 
 /** A saved link is the opt-in boundary; unlinked callers neither read keys nor contact the relay. */
-export function relayLinked(root) { return Boolean(loadLink(linkFile(root))); }
+export function relayLinked(root) { return relayLinkedOf(root, linkPorts()); }
 
 /** Read validated View eligibility without decoding snapshots, opening a board or contacting the relay. */
 export function relayLinkAvailability(root) {
@@ -843,7 +821,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     moves.add(state.board);
     let requestedMove;
     try {
-      const requiresAcknowledgment = process.env.PULLBOARD_RELAY_TOKEN !== undefined || state.environment || io.relayCanary;
+      const requiresAcknowledgment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || state.environment || io.relayCanary;
       let ordered;
       const queue = guarded.queue;
       try { ordered = await ensureOrdered(root, file, state, io); }
@@ -940,7 +918,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
         }
       }
       if (receipt.outcome.error) throw refusalFromReceipt(receipt.outcome.error);
-      if (existsSync(file) && ['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
+      if (fs.exists(file) && ['register', 'ensureCoordinator'].includes(operation)) await actorTransport(root, file, state, receipt.outcome.result, io);
       io.onOrderedMove?.({ operation, events: receipt.outcome.events ?? [] });
       for (const event of receipt.outcome.events ?? []) io.onEvent?.(event);
       return receipt.outcome.result;
@@ -970,7 +948,7 @@ export async function syncRelay(root, io) {
   const files = LINK_FILES.get(io) ?? LINK_FILES.set(io, new Map()).get(io);
   const file = files.get(root) ?? linkFile(root);
   files.set(root, file);
-  if (!await environmentLink(root, file, io) && !existsSync(file)) return null; // a CI or cloud session links from its environment [E18]
+  if (!await environmentLink(root, file, io) && !fs.exists(file)) return null; // a CI or cloud session links from its environment [E18]
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state) return null;
@@ -1139,10 +1117,7 @@ export async function relayCommandReceiptReported(root, moveId, io) {
 }
 
 /** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
-export function relayRecovered(root, { includePending = false } = {}, io) {
-  const state = loadLink(linkFile(root));
-  return state ? state.recovered?.move ?? (includePending ? state.pending?.move : null) ?? null : deletedRecovery(root, io)?.move ?? null;
-}
+export function relayRecovered(root, { includePending = false } = {}, io) { return relayRecoveredOf(root, { includePending }, io, linkPorts()); }
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
 export async function relayRecover(root, skip, io) {
@@ -1320,7 +1295,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
       if (signed.linkConfirmed && signed.linkedBoard !== state.board) throw new Refused('RELAY_RESPONSE', 'the relay confirmed a different board; sign in again');
       // Another board is the repository's: forget this never-linked intent so relay on can join it [E12].
       if (!reusableCredential && !signed.linkConfirmed) await (await import('./relay/relink.js')).linkReplacing((replaces) => request({ ...state, token: signed.token }, '/auth/boards/link', { method: 'POST', body: { board: state.board, repository, ...(replaces ? { replaces } : {}) } }, io), state.replaces)
-        .catch((error) => { if (error.code === 'BOARD_REPO_LINKED') restoreConfig(() => { rmSync(file, { force: true }); forgetBoardKey(state.board, state.keyStorage); }); throw error; });
+        .catch((error) => { if (error.code === 'BOARD_REPO_LINKED') restoreConfig(() => { fs.rm(file, { force: true }); forgetBoardKey(state.board, state.keyStorage); }); throw error; });
       delete state.linkPending; delete state.replaces;
       saveLink(file, state);
     }
@@ -1357,7 +1332,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
       }
       if (ready) ready = await ensureOrdered(root, file, state, io);
       if (ready) {
-        rmSync(deletedLinkFile(root), { force: true });
+        fs.rm(deletedLinkFile(root), { force: true });
         await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy));
         await catchUp(root, file, state, io, senderPolicy);
         await deliverDeviceWraps(root, io);
@@ -1403,7 +1378,7 @@ export async function relayOff(root, io) {
     rememberRelink(root, state.board);
     // A local-first move queues under the outbox guard, so the outbox is set aside under it too (#1013).
     await io.withOutboxGuard(file, () => archiveRelinkOutbox(root, state));
-    rmSync(file, { force: true });
+    fs.rm(file, { force: true });
     try { forgetBoardKey(state.board, state.keyStorage); }
     catch { /* The local opt-out is complete even when secure key storage is temporarily locked. */ }
     await publishOffExclusions(state, io, { loadLink, linkFile, request: relayDeviceRequest });
@@ -1426,7 +1401,7 @@ export async function relayOff(root, io) {
 /** Keep the elected native executor stable across processes while other worktrees share its link. */
 export async function relayRequestDevice(root) {
   const file = linkFile(root);
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state || state.unlinking) return null;
@@ -1474,7 +1449,7 @@ export async function deliverDeviceWraps(root, io) {
 }
 
 /** Expose board-scoped machine context only to the native setup/approval adapter. */
-export function relayMachineContext(root) { return withProjectGitTimeout(root, () => loadLink(linkFile(root))); }
+export function relayMachineContext(root) { return relayMachineContextOf(root, linkPorts()); }
 
 /** Require one exact phone approval before revoking and removing a device from the trusted roster. */
 export async function relayRevokeDevice(root, deviceId, io) {

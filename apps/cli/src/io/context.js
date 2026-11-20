@@ -4,6 +4,7 @@ import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { holdsLiftSettled } from '../../../../packages/config/index.js';
 import { releaseRerouteUntouched } from '../../../../packages/config/index.js';
+import { reviewHoldAfterTwoReleases } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
 import {
@@ -47,7 +48,7 @@ const receiveCommits = async (...args) => (await import('./submit/pushed.js')).r
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
   const { openBoard, openBoardForRead } = io.nativeBoard;
-  return { moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
+  return { moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, githubKeys: io.githubKeys, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
 }
 
 /** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */
@@ -72,7 +73,7 @@ export function personCommandContext(io, { main, ordered } = {}) {
     withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord,
     remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure,
     decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher,
-    relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground,
+    relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, githubKeys: io.githubKeys,
     scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck,
     checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts,
     outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox,
@@ -122,8 +123,10 @@ function openAndRun(ctx, work, opened) {
   board.liftSettledHolds = holdsLiftSettled();
   // release.rerouteUntouched (off by default): an untouched release counts toward the route-up rule [C7,#2970].
   board.rerouteUntouched = releaseRerouteUntouched();
+  // review.holdAfterTwoReleases (off by default): a second review release by one model family holds the item for the coordinator [C7,#10933].
+  board.holdAfterTwoReleases = reviewHoldAfterTwoReleases();
   // claims.fileLease (off by default): live claims lease their predicted files, hub files excepted [C7,#8521].
-  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [] } : null;
+  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [], quietThreshold: ctx.config.queue?.contentionThreshold ?? 1 } : null;
   // inbox.keepUntilActed (off by default): shouts record their kind and stay listed until an allowed action is recorded [C7,#8519].
   board.inboxKeep = ctx.config.inbox?.keepUntilActed === true;
   return withOpenedBoard(ctx, work, board);

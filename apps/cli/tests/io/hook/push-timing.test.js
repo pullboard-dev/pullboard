@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readBoardMeta } from '../../../../../packages/store/index.js';
 import { listBoardMetaWithPrefix } from '../../../../../packages/store/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { PUSH_TIMING_KEPT } from '../../../src/io/hook/push.js';
 import { pushTimingRow } from '../../../src/io/hook/push.js';
 import { recordPushTiming } from '../../../src/io/hook/push.js';

@@ -2,12 +2,12 @@
 /** A gate holder whose process is gone or replaced is freed and its captured request re-run once; the OS decides [C7]. */
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Set in the environment of a re-dispatched request so its own holder is never requeued a second time. */
 export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
@@ -107,8 +107,8 @@ function identityGone(row, identity) {
  */
 export function sourceCacheJobGone({ kind, agent, repo }) {
   const id = kind === 'source-cache' ? /^pullboard-ssh-(?:pin|cache|return)-(.+)$/u.exec(agent)?.[1] : null;
-  if (!id || !isAbsolute(repo) || !existsSync(join(repo, 'jobs'))) return false;
-  try { return !readdirSync(join(repo, 'jobs')).some(name => name.startsWith(`${id}-`)); }
+  if (!id || !isAbsolute(repo) || !fs.exists(join(repo, 'jobs'))) return false;
+  try { return !fs.list(join(repo, 'jobs')).some(name => name.startsWith(`${id}-`)); }
   catch { return false; }
 }
 
@@ -171,9 +171,9 @@ export function differentStart(identity, started) {
 export function platformIdentity(pid) {
   try {
     if (process.platform === 'linux') {
-      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      const stat = fs.readFile(`/proc/${pid}/stat`, 'utf8');
       const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
-      const boot = Number(/^btime (\d+)$/mu.exec(readFileSync('/proc/stat', 'utf8'))?.[1]);
+      const boot = Number(/^btime (\d+)$/mu.exec(fs.readFile('/proc/stat', 'utf8'))?.[1]);
       return Number.isFinite(boot) ? { started: `linux:${boot}:${fields[19]}`, zombie: fields[0] === 'Z' } : null;
     }
     if (process.platform === 'win32') {

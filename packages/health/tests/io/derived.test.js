@@ -6,6 +6,7 @@ import * as store from '../../../store/index.js';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { sweepDerivedState } from '../../index.js';
 import { readDerivedState } from '../../index.js';
+import { sweepDerivedAtMain } from '../../index.js';
 
 const MAIN = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
@@ -52,4 +53,17 @@ test('health.derived-read.null-unless-current: clause 2: it returns null for a n
   const state = readDerivedState(emptied.board, { mainCommit: MAIN, enabled: true });
   assert.ok(state, 'swept with every kind empty still reads as current');
   assert.equal(state.verdicts.size + state.holds.size + state.acceptOrder.size + state.seatFamilies.size + state.gateAtHead.size, 0);
+});
+
+test('health.derived-read.sweeps-only-when-not-current: clause 1: sweepDerivedAtMain runs sweepDerivedState when readDerivedState is null at the main commit and returns its counts, and sweeps nothing once the table is current there [C7,#3010]', t => {
+  const { board, ids } = sweptBoard(t);
+  const listItems = () => board.db.prepare('SELECT * FROM item ORDER BY item_id').all().map((item, index) => (index === 1 ? { ...item, item_status: 'verified' } : item));
+  const readers = { listItems, verdictState: () => ({ code: 'STALE_VERDICT' }), gateAtHead: () => null };
+  assert.equal(sweepDerivedAtMain(board, { mainCommit: MAIN, enabled: false, readers }), null, 'setting off sweeps nothing');
+  assert.equal(readDerivedState(board, { mainCommit: MAIN, enabled: true }), null, 'not current before the sweep');
+  const swept = sweepDerivedAtMain(board, { mainCommit: MAIN, enabled: true, readers });
+  assert.deepEqual(swept.counts, { hold: 1, verdict: 1, 'accept-order': 1, 'seat-family': 1, 'gate-at-head': 0 });
+  assert.deepEqual([...readDerivedState(board, { mainCommit: MAIN, enabled: true }).holds.keys()], [String(ids[0])]);
+  assert.equal(sweepDerivedAtMain(board, { mainCommit: MAIN, enabled: true, readers }), null, 'already current at this commit: nothing is swept');
+  assert.notEqual(sweepDerivedAtMain(board, { mainCommit: OTHER, enabled: true, readers }), null, 'a moved-on commit is swept');
 });

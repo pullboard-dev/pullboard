@@ -20,13 +20,6 @@ import { controllerRegistrationPorts } from './controller/custody.js';
 import { consumeControllerDisposition } from './controller/disposition.js';
 import { settleControllerCancellation } from './controller/disposition.js';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
 import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
@@ -45,6 +38,7 @@ import {
   withMachineHomeWrite,
 } from './home.js';
 import { Refused } from '../../../kernel/light.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { capturedRequestOf } from './liveness.js';
 import { dispatchRelaunch } from './liveness.js';
 import { LIVENESS_RELAUNCH_ENV } from './liveness.js';
@@ -93,6 +87,9 @@ import {
   queueClass,
   releaseOrderInEffect,
 } from '../../../queue/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/light.js';
 
 const LEASE_MS = 20_000;
@@ -120,8 +117,9 @@ export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
 export const GATE_SLOT_POOL_ENV = 'PULLBOARD_GATE_SLOT_POOL';
 export const GATE_SLOT_TOKEN_ENV = 'PULLBOARD_GATE_SLOT_TOKEN';
 export const BROWSER_SLOT_HELD_ENV = 'PULLBOARD_BROWSER_SLOT_HELD';
-/** Where a runner asks the lease guard to record its own browser-slot refusal (#1043). */
+/** Where a runner asks the lease guard to record its own browser-slot refusal (#1043), and that receipt file name, its one home [CD2]. */
 export const BROWSER_REFUSAL_FILE_ENV = 'PULLBOARD_BROWSER_REFUSAL_FILE';
+export const BROWSER_REFUSAL_FILE = 'browser-refusal.json';
 /** Reserve a distinct resource row for each configured remote host. */
 function runnerResourceName(host) { return `runner:${host}`; }
 
@@ -157,7 +155,7 @@ function canonicalResourceFile(file) {
   const missing = [];
   while (true) {
     try {
-      return resolve(realpathSync(candidate), ...missing);
+      return resolve(fs.realpath(candidate), ...missing);
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
       const parent = dirname(candidate);
@@ -209,7 +207,7 @@ function adoptLegacyRows(db) {
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   queueFiles.set(db, file);
   let transaction = false, leave;
@@ -310,7 +308,7 @@ function openQueue(file) {
 
 /** The configured slot-database lock deadline, or the default when unset or invalid. */
 function slotLockDeadlineMs() {
-  const value = Number(process.env[SLOT_DB_LOCK_ENV]);
+  const value = Number(environmentAdapter().get(SLOT_DB_LOCK_ENV));
   return Number.isSafeInteger(value) && value > 0 ? value : SLOT_DB_LOCK_DEADLINE_MS;
 }
 /** How long one synchronous attempt may wait for its queue turn: a blocked thread also freezes the process's timers. */
@@ -324,7 +322,7 @@ function slotDatabaseLocked(error) {
 
 /** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine; it gets 2 s, and names whoever it found by then. */
 async function slotDatabaseOpeners(file) {
-  const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
+  const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => fs.exists(path));
   if (!lsof) return [];
   // Asynchronous, so the scan never freezes this process's timers; a failed or timed-out scan still yields what it printed.
   const output = await new Promise(resolve => {
@@ -479,7 +477,7 @@ function removeEmptyViewPortResources(db) {
 function queueOrder(scope) {
   if (scope !== 'machine') return ARRIVAL_ORDER;
   const file = machineSettingsFile();
-  const { reviewsFirst, currentReleaseFirst, agingMinutes } = gateQueueSettings(parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file), file);
+  const { reviewsFirst, currentReleaseFirst, agingMinutes } = gateQueueSettings(parseMachineSettings(fs.exists(file) ? fs.readFile(file, 'utf8') : null, file), file);
   return { reviewsFirst, currentReleaseFirst, ageMs: agingMinutes * 60_000 };
 }
 
@@ -880,7 +878,7 @@ export function runnerResourceStatus(runners) {
   } finally { db.close(); }
 }
 
-export const recoverIdleRunners = async (r, o = {}) => { const db = open(o.file ?? machineResourceFile()); return recoverUnavailableRunners(db, validatedRunners(r), o).finally(() => db.close()); };
+/** Try to bring back every runner marked unavailable on the machine resource file. @param {any} r the validated runner pool @param {{ file?: string }} [o] options; file overrides the machine resource file */ export const recoverIdleRunners = async (r, o = {}) => { const db = open(o.file ?? machineResourceFile()); return recoverUnavailableRunners(db, validatedRunners(r), o).finally(() => db.close()); };
 /** Persist a configured host's authenticated GUI observation; unknown replaces stale positive capability. */
 export function recordRunnerGui(host, gui) {
   if (typeof host !== 'string' || !host.trim() || ![true, false, null].includes(gui)) throw new Refused('BAD_RUNNER_POOL', 'runner GUI observations require a host and true, false, or unknown');
@@ -1033,7 +1031,7 @@ async function takeResourceIn(options) {
   const infrastructureAttempts = [...(resume?.infrastructureAttempts ?? [])];
   const infrastructureRetryCount = resume?.infrastructureRetryCount ?? 0;
   const pid = process.pid;
-  const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
+  const agent = options.agent ?? environmentAdapter().get('PULLBOARD_AGENT') ?? `pid-${pid}`;
   const started = processStarted(pid);
   let repo;
   try { repo = isSeatTest(kind) ? seatTestRepo(root, options.repo ?? repoRoot(root)) : options.repo ?? repoRoot(root); } catch (error) { db.close(); throw error; }
@@ -1190,7 +1188,7 @@ async function takeResourceIn(options) {
           db.prepare('DELETE FROM waiter WHERE token = ?').run(token);
           const acquiredAt = new Date().toISOString();
           const holderName = executor.host ? runnerResourceName(executor.host) : name;
-          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, runner, short_slot, timing, timing_aware, request, relaunched) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, holderName, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, executor.host, Number(executor.shortSlot === true), Number(timing), 1, capturedRequest, Number(process.env[LIVENESS_RELAUNCH_ENV] === '1'));
+          db.prepare('INSERT INTO holder(token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, runner, short_slot, timing, timing_aware, request, relaunched) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(token, holderName, pid, started, agent, repo, acquiredAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, executor.host, Number(executor.shortSlot === true), Number(timing), 1, capturedRequest, Number(environmentAdapter().get(LIVENESS_RELAUNCH_ENV) === '1'));
           db.prepare('UPDATE holder SET runner_execution = ? WHERE token = ?').run(Number(options.runnerExecution === true), token);
           return { acquired: true, state: { ...spot, position: 0, ...(runnerDeadline ? { runnerDeadline } : {}) }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, lateRunnerDispatch: lateDispatch, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
         }
@@ -1398,21 +1396,20 @@ function dropWaiterRow(db, token) {
 }
 
 /** Reuse a same-machine gate lease in a child without queueing or acquiring a partial browser slot.
- * The live holder row says whether the lease is a short slot; only a run that names its test files
- * (namedFiles) may reuse one, so a whole suite started under a short check queues for a real slot.
+ * The live holder row says whether the lease is a short slot; only a run that names its test files (namedFiles) may reuse one, so a whole suite started under a short check queues for a real slot.
  */
 export function inheritedGateSlot({ root = process.cwd(), browser = false, namedFiles = false, timing = false } = {}) {
   // Taken by the first guard in this process, so nothing it starts (a test body) can write the receipt.
-  const refusalFile = process.env[BROWSER_REFUSAL_FILE_ENV] ?? '';
-  delete process.env[BROWSER_REFUSAL_FILE_ENV];
-  const markedPool = process.env[GATE_SLOT_POOL_ENV] ?? '';
-  const token = process.env[GATE_SLOT_TOKEN_ENV] ?? '';
+  const refusalFile = environmentAdapter().get(BROWSER_REFUSAL_FILE_ENV, '');
+  environmentAdapter().delete(BROWSER_REFUSAL_FILE_ENV);
+  const markedPool = environmentAdapter().get(GATE_SLOT_POOL_ENV, '');
+  const token = environmentAdapter().get(GATE_SLOT_TOKEN_ENV, '');
   if (!markedPool && !token) return null;
   if (!markedPool) throw new Refused('GATE_SLOT_MARKER_INVALID', 'the inherited gate token has no pool marker; start the child with gateSlotEnvironment(lease)');
   const pool = canonicalResourceFile(machineResourceFile());
   // A process with a different PULLBOARD_MACHINE_HOME is independent and must join its own queue.
   if (canonicalResourceFile(markedPool) !== pool) return null;
-  if (process.env[GATE_SLOT_HELD_ENV] !== '1') throw new Refused('GATE_SLOT_MARKER_INVALID', 'the inherited gate lease is missing its legacy held marker; start the child with gateSlotEnvironment(lease)');
+  if (environmentAdapter().get(GATE_SLOT_HELD_ENV) !== '1') throw new Refused('GATE_SLOT_MARKER_INVALID', 'the inherited gate lease is missing its legacy held marker; start the child with gateSlotEnvironment(lease)');
   if (!token) throw new Refused('GATE_SLOT_TOKEN_REQUIRED', 'the inherited gate pool marker has no lease token; restart the child with gateSlotEnvironment(lease)');
   const db = open(pool, true);
   let holder;
@@ -1424,8 +1421,8 @@ export function inheritedGateSlot({ root = process.cwd(), browser = false, named
   const slotClass = holder.shortSlot === 1 ? 'short' : 'gate';
   if (slotClass === 'short' && !namedFiles) throw new Refused('SHORT_SLOT_FULL_SUITE', 'a run that does not name its test files cannot reuse a short gate slot; start it outside the short check so it queues for an ordinary slot');
   const expectedBrowserMarker = holder.browser === 1 ? '1' : '';
-  if (process.env[BROWSER_SLOT_HELD_ENV] !== expectedBrowserMarker) throw new Refused('GATE_SLOT_MARKER_INVALID', 'the inherited browser marker does not match its live gate lease; restart the child with gateSlotEnvironment(lease)');
-  if (browser && holder.browser !== 1 && refusalFile) writeFileSync(refusalFile, '{"code":"BROWSER_SLOT_REQUIRED"}\n', { mode: 0o600 });
+  if (environmentAdapter().get(BROWSER_SLOT_HELD_ENV) !== expectedBrowserMarker) throw new Refused('GATE_SLOT_MARKER_INVALID', 'the inherited browser marker does not match its live gate lease; restart the child with gateSlotEnvironment(lease)');
+  if (browser && holder.browser !== 1 && refusalFile) fs.writeFile(refusalFile, '{"code":"BROWSER_SLOT_REQUIRED"}\n', { mode: 0o600 });
   if (browser && holder.browser !== 1) throw new Refused('BROWSER_SLOT_REQUIRED', 'the inherited gate lease does not hold the browser slot; release it and reacquire gate with browser: true before launching Chrome');
   return {
     name: 'gate', scope: 'machine', token, pool, runnerExecution: holder.runnerExecution === 1, browser: holder.browser === 1, timing: holder.timing === 1, slotClass, waitMs: 0,

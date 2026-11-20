@@ -1,22 +1,31 @@
-/** The live claim table and the claim writer give one answer for a seat that never joined: both refuse it, and a joined seat is allowed [C7,#10952]. */
+/** @pullboard-test-input packages/store/src/io/board/claim-table.js packages/store/src/io/needs.js */
+/** The live claim snapshot carries an item's needs and a seat's abilities, so the claim table refuses a seat whose abilities lack a need [U136,C7,#1888]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
+import { claimDecision } from '../../../src/io/board/claim-table.js';
+import { saveItemNeeds } from '../../../src/io/needs.js';
+import { saveAgentAbilities } from '../../../src/io/needs.js';
 import { cellBoard } from '../../fixtures/cell.js';
+import { cellClaim } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
+import { cellProject } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
 
-const freeze = () => ({ text: '{}', digest: 'claim-table-fixture' });
-
-test('store.io-board-claim-table.unjoined-seat-refused-joined-allowed: clause 2: with moves.live.claim on, the claim refuses NOT_JOINED for a seat that never joined and writes nothing, and the same claim by a joined seat is written [C7]', t => {
-  const board = cellBoard(t, ':memory:');
-  board.movesLive = { claim: true };
-  cellSeat(board, { lane: 'coordinator', path: '/seat/coordinator' });
-  const joined = cellSeat(board, { lane: 'core', path: '/seat/builder' });
-  const { item_id: id } = cellItem(board, { lane: 'core', title: 'Unjoined claim', criterion: '1. the claim is recorded [test].', route: 'strong', check: 'true' });
-  const claim = agentId => store.claim(board, id, { agentId, lane: 'core', leaseMs: 60 * 60_000, freeze });
-  assert.throws(() => claim('core-99'), error => error.code === 'NOT_JOINED', 'a seat with no agent row is refused');
-  assert.equal(board.db.prepare("SELECT COUNT(*) n FROM event WHERE item_id=? AND event_kind='claim'").get(id).n, 0, 'the refusal wrote no claim');
-  claim(joined.id);
-  assert.equal(board.db.prepare('SELECT item_owner owner FROM item WHERE item_id=?').get(id).owner, joined.id, 'the joined seat holds the item');
+test('store.io-board-claim-table.needs-ability-real-path: clause 1: an item with needs [browser] is refused NEEDS_ABILITY to a seat with no saved abilities and stays open, and a seat given [browser] is not refused NEEDS_ABILITY [U136,C7,#1888]', (t) => {
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
+  board.movesLive = { ...(board.movesLive ?? {}), claim: true };
+  // fixture-subject: claimDecision
+  assert.equal(typeof claimDecision, 'function');
+  const id = cellItem(board, { lane: 'core', title: 'Needs fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
+  saveItemNeeds(board, id, ['browser']);
+  const bare = cellSeat(board, { lane: 'core', path: project.repo });
+  assert.throws(() => cellClaim(board, id, bare, { root: project.repo }), { code: 'NEEDS_ABILITY' });
+  assert.equal(board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(id).item_status, 'open', 'nothing is written');
+  const able = cellSeat(board, { lane: 'core', path: project.repo });
+  saveAgentAbilities(board, able.id, ['browser']);
+  let code = null;
+  try { cellClaim(board, id, able, { root: project.repo }); } catch (error) { code = error.code ?? error.name; }
+  assert.notEqual(code, 'NEEDS_ABILITY', 'a seat whose abilities cover the need is not refused for it');
+  assert.equal(code, null, 'the claim is written');
 });

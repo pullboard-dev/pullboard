@@ -12,8 +12,8 @@ import {
   resolve,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { cpuLoadOptionsIn } from '../../../../../packages/gate/index.js';
-import { testsNeedCpuRunner } from '../../../../../packages/gate/index.js';
+import { cpuLoadOptionsIn } from '../../../../../packages/gate/heavy.js';
+import { testsNeedCpuRunner } from '../../../../../packages/gate/heavy.js';
 import { runFixtureChild } from '../child.js';
 
 /** Exercise both ordinary executable shapes and explicit positive/negative declarations. */

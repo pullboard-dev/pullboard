@@ -1,7 +1,7 @@
 /** A hand landing and a batch landing run through the one finish sequence and are idempotent by their job id [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { jobView } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';

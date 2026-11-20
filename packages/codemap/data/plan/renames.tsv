@@ -938,7 +938,6 @@ docs/case-study/0.9.4.md	docs/case-study/0.9.4.md
 docs/changelog.test.js	docs/changelog.test.js
 docs/cli-help.txt	docs/cli-help.txt
 docs/commits.md	docs/commits.md
-docs/contributing-runbook.md	docs/contributing-runbook.md
 docs/contributing.test.js	docs/contributing.test.js
 docs/demo/api/v1/boards.json	docs/demo/api/v1/boards.json
 docs/demo/api/v1/boards/demo-board/events.json	docs/demo/api/v1/boards/demo-board/events.json
@@ -947,7 +946,6 @@ docs/demo/index.html	docs/demo/index.html
 docs/demo/view.css	docs/demo/view.css
 docs/formats.md	docs/formats.md
 docs/formats.test.js	docs/formats.test.js
-docs/handoff.md	docs/handoff.md
 docs/handoff.test.js	docs/handoff.test.js
 docs/img/agent-start-dark.svg	docs/img/agent-start-dark.svg
 docs/img/agent-start.svg	docs/img/agent-start.svg
@@ -976,20 +974,15 @@ docs/img/what.svg	docs/img/what.svg
 docs/img/why-dark.svg	docs/img/why-dark.svg
 docs/img/why.svg	docs/img/why.svg
 docs/lifecycle.md	docs/lifecycle.md
-docs/method.md	docs/method.md
 docs/privacy.test.js	docs/privacy.test.js
 docs/proof/board-mutants.mjs	docs/proof/board-mutants.mjs
-docs/proof/board.md	docs/proof/board.md
 docs/proof/harness.mjs	docs/proof/harness.mjs
 docs/proof/lanes-and-commits-mutants.mjs	docs/proof/lanes-and-commits-mutants.mjs
-docs/proof/lanes-and-commits.md	docs/proof/lanes-and-commits.md
 docs/proof/readme-mutants.mjs	docs/proof/readme-mutants.mjs
 docs/proof/run-mutants.mjs	docs/proof/run-mutants.mjs
 docs/proof/shouts-mutants.mjs	docs/proof/shouts-mutants.mjs
 docs/proof/spec-mutants.mjs	docs/proof/spec-mutants.mjs
-docs/proof/spec.md	docs/proof/spec.md
 docs/proof/verification-mutants.mjs	docs/proof/verification-mutants.mjs
-docs/proof/verification.md	docs/proof/verification.md
 docs/pullboard-run-guide.test.js	docs/pullboard-run-guide.test.js
 docs/readme-badges.test.js	docs/readme-badges.test.js
 docs/rfcs.test.js	docs/rfcs.test.js
@@ -1003,9 +996,7 @@ docs/rfcs/0007-sealed-cells-and-proof-that-travels.md	docs/rfcs/0007-sealed-cell
 docs/rfcs/0008-durable-jobs-and-runner-protocol.md	docs/rfcs/0008-durable-jobs-and-runner-protocol.md
 docs/rfcs/0009-contribution-records.md	docs/rfcs/0009-contribution-records.md
 docs/rfcs/README.md	docs/rfcs/README.md
-docs/rigor.md	docs/rigor.md
 docs/run-skill.test.js	docs/run-skill.test.js
-docs/sentinels.md	docs/sentinels.md
 docs/shots/capture-browser.mjs	docs/shots/capture-browser.mjs
 docs/shots/capture-browser.test.js	docs/shots/capture-browser.test.js
 docs/shots/demo-env.mjs	docs/shots/demo-env.mjs
@@ -4162,10 +4153,10 @@ test/submit-guard-rename.test.js	apps/cli/journeys/submit/rename.test.js
 test/submit-handoff-cells.test.js	apps/cli/journeys/submit/handoff/cells.test.js
 test/submit-handoff-fixture.js	apps/cli/tests/fixtures/submit/handoff.js
 test/submit-handoff-main-move.test.js	apps/cli/journeys/submit/handoff/move.test.js
-test/submit-handoff-recovery.test.js	apps/cli/journeys/submit/handoff/recovery.test.js
+test/submit-handoff-recovery.test.js	apps/cli/tests/io/submit/handoff-recovery.test.js
 test/submit-handoff-worker-gone.test.js	apps/cli/journeys/submit/handoff/worker/gone.test.js
 test/submit-handoff-worker.test.js	apps/cli/journeys/submit/handoff/worker.test.js
-test/submit-handoff.test.js	apps/cli/journeys/submit/handoff.test.js
+test/submit-handoff.test.js	apps/cli/tests/io/submit/handoff.test.js
 test/submit-infra-cli.test.js	apps/cli/journeys/submit/infra.test.js
 test/submit-invariants.test.js	apps/cli/journeys/submit/invariants.test.js
 test/submit-known-main-red-item.test.js	apps/cli/journeys/submit/red.test.js
@@ -4183,7 +4174,7 @@ test/submit-preflight-order.test.js	apps/cli/journeys/submit/preflight/order.tes
 test/submit-preflight.test.js	apps/cli/journeys/submit/preflight.test.js
 test/submit-proof-reuse.test.js	apps/cli/journeys/submit/reuse.test.js
 test/submit-red-loop.test.js	apps/cli/journeys/submit/loop.test.js
-test/submit-registry-guards-cli.test.js	apps/cli/journeys/submit/guards.test.js
+test/submit-registry-guards-cli.test.js	apps/cli/tests/io/submit/guards.test.js
 test/submit-remote-gate.test.js	apps/lib/tests/io/submit/requeue/gate.test.js
 test/submit-replaces-gate.test.js	apps/cli/journeys/submit/replaces.test.js
 test/submit-size-cli.test.js	apps/cli/journeys/submit/size.test.js
@@ -4207,7 +4198,7 @@ test/team-owner-fence.test.js	apps/cli/journeys/fact/team/owner/fence.test.js
 test/team-people.test.js	apps/cli/journeys/shout/people.test.js
 test/team-person-signing.test.js	apps/cli/journeys/fact/team/signing.test.js
 test/team-private-board.test.js	apps/cli/journeys/export/team/board.test.js
-test/team-project-decisions.test.js	apps/cli/journeys/decisions/project.test.js
+test/team-project-decisions.test.js	apps/cli/tests/io/commands/decisions/project.test.js
 test/team-queue-freshness.test.js	apps/cli/journeys/queue/team/freshness.test.js
 test/team-queue-policy.test.js	apps/cli/journeys/queue/team/policy.test.js
 test/team-receipt-replay.test.js	apps/cli/journeys/fact/team/replay.test.js

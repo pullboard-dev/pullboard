@@ -115,3 +115,39 @@ export function perfBudgetTable(result) {
   }
   return lines.join('\n');
 }
+
+/**
+ * Closure ceilings only fall through main [C7]: apps/cli/journeys/imports/closure-budget.json holds one cold-start module ceiling
+ * per CLI command, main lowers a row to its measured count after landings, and an item's change never raises or drops a row.
+ * Why: each row keeps a fixed headroom above its ceiling, so an item that raised its own ceiling would carry the headroom up with it
+ * and the cold path would creep without anyone deciding it. Raising a ceiling is a coordinator item that states its reason and the
+ * measured cold-start time before and after.
+ */
+/** The closure ceilings file, relative to the checkout root [C7]. */
+export const CLOSURE_CEILINGS = 'apps/cli/journeys/imports/closure-budget.json';
+
+/** The 1-based line of a row's key in the file text, or 1 when the key is not there. */
+function rowLine(source, row) {
+  const at = source.split('\n').findIndex(line => line.includes(JSON.stringify(row)));
+  return at < 0 ? 1 : at + 1;
+}
+
+/**
+ * The rows a change raises or drops against accepted main, one per row, in main's order; a new row is allowed, since it only adds a ceiling.
+ *
+ * @param {string} accepted - The file's text on accepted main.
+ * @param {string} candidate - The file's text in the change.
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function closureCeilingRaises(accepted, candidate) {
+  const before = JSON.parse(accepted);
+  let after;
+  try { after = JSON.parse(candidate); } catch { return [{ path: CLOSURE_CEILINGS, line: 1, text: 'closure ceilings are not valid JSON' }]; }
+  const advice = 'an item never raises a closure ceiling; raising one is a coordinator item with its reason and the measured cold-start time before and after';
+  const rows = [];
+  for (const [row, ceiling] of Object.entries(before)) {
+    if (!Object.hasOwn(after, row)) rows.push({ path: CLOSURE_CEILINGS, line: 1, text: `closure ceiling "${row}" is dropped (main holds ${ceiling}): ${advice}` });
+    else if (typeof after[row] !== 'number' || after[row] > ceiling) rows.push({ path: CLOSURE_CEILINGS, line: rowLine(candidate, row), text: `closure ceiling "${row}" rises from ${ceiling} to ${after[row]}: ${advice}` });
+  }
+  return rows;
+}

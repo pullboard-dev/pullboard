@@ -1,0 +1,28 @@
+{
+  "api.io-gate-rebuild.rebuilt-on-trunk": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "rebuildOnTrunk returns a commit whose tree equals git merge-tree of trunk and candidate, with both as parents, and leaves refs, index and work tree unchanged."
+    },
+    "why": "Without this test a gate candidate rebuilt on trunk could carry a wrong tree or move the caller's checkout.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate/rebuild.js"
+    ]
+  },
+  "api.io-gate-rebuild.conflict-names-files": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "When the merge conflicts rebuildOnTrunk returns the sorted conflicting paths and creates no commit."
+    },
+    "why": "A rebuild that hid its conflicts would hand a gate a candidate that never merged with trunk.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate/rebuild.js"
+    ]
+  }
+}

@@ -1,11 +1,6 @@
 /**
  * `pullboard.json`: repo settings, merged over defaults and checked once per command.
  */
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
 import { registryGuardsProblem } from '../../../kernel/light.js';
@@ -25,6 +20,9 @@ export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
+const fileSystem = fileSystemAdapter();
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
@@ -80,15 +78,17 @@ export function defaults() {
     families: {},
     labels: {},
     // The route table is data: data/ceilings/model-tiers.json [P5].
-    modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
+    modelTiers: JSON.parse(fileSystem.readFile(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
-    slices: { enforcePaths: false },
+    // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
+    slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
-    next: { wholeItemsFirst: false },
+    // next.idleMinutes bounds how long a seat's next waits with nothing for it; the person sets it, no agent flag [C7,#12041].
+    next: { wholeItemsFirst: false, idleMinutes: 10 },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
-    cells: { cache: false, shimMaxAgeDays: 7 },
+    cells: { cache: false, shimMaxAgeDays: 7, plan: null },
     agents: { names: 'suffix' },
     // Off by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
     inbox: { tokenBudget: 8192, batchedMarks: false },
@@ -106,6 +106,7 @@ export function defaults() {
       maxHeader: 72,
       requireIds: ['feat', 'fix'],
       banned: [],
+      quotedNames: [],
       noEmoji: false,
       noCoAuthor: false,
       // Refuse a submit whose new commits name this machine; false only warns (C1).
@@ -174,6 +175,7 @@ function merge(base, raw) {
       ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
     pushGate: section(raw.pushGate, base.pushGate),
     inbox: section(raw.inbox, base.inbox),
+    next: section(raw.next, base.next),
     agents: section(raw.agents, base.agents),
     claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
       ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
@@ -198,7 +200,21 @@ const notPlain = value => !value || typeof value !== 'object' || Array.isArray(v
 
 /** Whether a repo-relative path names a folder in the repo. */
 function isFolder(root, entry) {
-  try { return statSync(join(root, entry)).isDirectory(); } catch { return false; }
+  try { return fileSystem.stat(join(root, entry)).isDirectory(); } catch { return false; }
+}
+
+/**
+ * Give every owns entry that names a folder without a trailing slash its slash, so it matches the files in it.
+ *
+ * @param {any} lanes the merged lanes
+ * @param {string} [root] the repo folder, when known
+ */
+function slashFolderOwns(lanes, root) {
+  if (!root || notPlain(lanes)) return;
+  for (const lane of Object.values(lanes)) {
+    if (!isStringList(lane?.owns)) continue;
+    lane.owns = lane.owns.map(entry => (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry) ? entry + '/' : entry));
+  }
 }
 
 /**
@@ -206,7 +222,7 @@ function isFolder(root, entry) {
  *
  * @param {string} name
  * @param {any} lane
- * @param {string} [root] the repo folder, when known: owns entries are checked against it
+ * @param {string} [root] the repo folder, when known
  * @returns {string[]}
  */
 function laneProblems(name, lane, root) {
@@ -215,13 +231,6 @@ function laneProblems(name, lane, root) {
   }
   const problems = [];
   if (!isStringList(lane?.owns)) problems.push(`lane "${name}": "owns" is a list of path prefixes`);
-  if (root && isStringList(lane?.owns)) {
-    for (const entry of lane.owns) {
-      if (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry)) {
-        problems.push(`lane "${name}": owns entry "${entry}" names a folder and matches no file in it; write "${entry}/"`);
-      }
-    }
-  }
   if (lane?.specs !== undefined && !isStringList(lane.specs)) {
     problems.push(`lane "${name}": "specs" is a list of spec ids or prefixes`);
   }
@@ -288,7 +297,8 @@ export function configProblems(config, root) {
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
   if (config.cells !== undefined && (notPlain(config.cells)
       || typeof config.cells.cache !== 'boolean' || !Number.isSafeInteger(config.cells.shimMaxAgeDays) || config.cells.shimMaxAgeDays < 0
-      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
+      || config.cells.plan !== null && (typeof config.cells.plan !== 'string' || !config.cells.plan.trim())
+      || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays', 'plan'].includes(key)))) problems.push('"cells" has only boolean "cache", nonnegative whole-number "shimMaxAgeDays" (default 7) and "plan", the nonempty path of the cells plan (absent means a project with no cells)');
   if (config.rigor !== undefined && (notPlain(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || config.rigor.autoDraft !== undefined && typeof config.rigor.autoDraft !== 'boolean'
@@ -319,6 +329,9 @@ export function configProblems(config, root) {
   }
   if (config.submitDeferAbove !== undefined && (!Number.isSafeInteger(config.submitDeferAbove) || config.submitDeferAbove < 1 || config.submitGate !== 'landing')) {
     problems.push('"submitDeferAbove" is a whole number, 1 or more, with "submitGate": "landing": a submit whose affected selection names more test files runs only its check, static checks and submitInvariants, and the landing gate runs the selection; leave it out to run every selected file at submit');
+  }
+  if (config.confinedImportSelection !== undefined && !['off', 'tests', 'all'].includes(config.confinedImportSelection)) {
+    problems.push('"confinedImportSelection" is "off", "tests" or "all": how far the gate narrows its proof for a change confined to one import closure; off by default');
   }
   if (config.landingShards !== undefined && (!Number.isSafeInteger(config.landingShards) || config.landingShards < 1 || config.landingShards > 64)) {
     problems.push('"landingShards" is a whole number from 1 to 64: how many shards the landing gate splits its test files into');
@@ -500,11 +513,17 @@ export function configProblems(config, root) {
   if (config.next?.wholeItemsFirst !== undefined && typeof config.next.wholeItemsFirst !== 'boolean') {
     problems.push('"next.wholeItemsFirst" is true or false');
   }
+  if (config.next?.idleMinutes !== undefined && (!Number.isSafeInteger(config.next.idleMinutes) || config.next.idleMinutes < 1)) {
+    problems.push('"next.idleMinutes" is a positive whole number of minutes, such as 10 (how long a seat\'s next waits when nothing is offered)');
+  }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
   }
+  if (config.slices?.composeLanding !== undefined && typeof config.slices.composeLanding !== 'boolean') {
+    problems.push('"slices.composeLanding" is true or false');
+  }
   if (notPlain(config.review)
-    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))
+    || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders', 'requireProvenBreak'].includes(key))
     || !Number.isFinite(config.review.starveMinutes) || config.review.starveMinutes <= 0) {
     problems.push('"review.starveMinutes" is a positive number of minutes');
   }
@@ -513,6 +532,9 @@ export function configProblems(config, root) {
   }
   if (!['sprint', 'steady', 'strict'].includes(config.pace)) {
     problems.push('"pace" is "sprint", "steady" (default: land after a green gate and an accept) or "strict"');
+  }
+  if (config.review?.requireProvenBreak !== undefined && typeof config.review.requireProvenBreak !== 'boolean') {
+    problems.push('"review.requireProvenBreak" is true or false; unset means on for strict pace and off for steady and sprint');
   }
   if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
     problems.push('"review.excludeEarlierHolders" is true or false');
@@ -546,6 +568,7 @@ export function configProblems(config, root) {
   if (!isStringList(config.commits.types)) problems.push('"commits.types" is a list of words');
   if (!isStringList(config.commits.requireIds)) problems.push('"commits.requireIds" is a list of types');
   if (!isStringList(config.commits.banned)) problems.push('"commits.banned" is a list of words');
+  if (!isStringList(config.commits.quotedNames)) problems.push('"commits.quotedNames" is a list of names');
   if (typeof config.commits.noHostName !== 'boolean') problems.push('"commits.noHostName" is true or false: whether a submit naming this machine is refused');
   if (!isStringList(config.protect.blocked) || !isStringList(config.protect.allowed)) {
     problems.push('"protect.blocked" and "protect.allowed" are lists of file patterns');
@@ -562,23 +585,42 @@ export function configProblems(config, root) {
  */
 export function loadConfig(root) {
   const file = join(root, CONFIG_FILE);
-  if (!existsSync(file)) {
+  if (!fileSystem.exists(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  const config = configFromSource(readFileSync(file, 'utf8'), root);
+  const config = configFromSource(fileSystem.readFile(file, 'utf8'), root);
   return { ...config, practice: doctrineFile(root, config.practice) };
 }
 
 /** Resolve the doctrine's current name while preserving legacy and explicitly configured paths. */
 export function doctrineFile(root, name = DOCTRINE_FILE) {
   if (![DOCTRINE_FILE, LEGACY_DOCTRINE_FILE].includes(name)) return name;
-  const current = existsSync(join(root, DOCTRINE_FILE));
-  const legacy = existsSync(join(root, LEGACY_DOCTRINE_FILE));
+  const current = fileSystem.exists(join(root, DOCTRINE_FILE));
+  const legacy = fileSystem.exists(join(root, LEGACY_DOCTRINE_FILE));
   if (current && legacy) {
     throw new Refused('BAD_CONFIG', `${DOCTRINE_FILE} and ${LEGACY_DOCTRINE_FILE} both define the repo doctrine; restore one doctrine file: merge their rules into ${DOCTRINE_FILE} and remove ${LEGACY_DOCTRINE_FILE}`);
   }
   return current ? DOCTRINE_FILE : legacy ? LEGACY_DOCTRINE_FILE : name;
 }
+
+/**
+ * Whether an accept must state a proven break at the item's pace.
+ * Unset means on for strict and off for steady and sprint; an explicit true or false wins for every pace [C7].
+ *
+ * @param {any} config the loaded configuration
+ * @param {string} pace the item's frozen pace
+ * @returns {boolean}
+ */
+export function provenBreakRequired(config, pace) {
+  const set = config?.review?.requireProvenBreak;
+  if (set === undefined) return pace === 'strict';
+  if (typeof set !== 'boolean') throw new Refused('BAD_CONFIG', '"review.requireProvenBreak" is true or false; unset means on for strict pace and off for steady and sprint');
+  return set;
+}
+
+/** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
+/** The minutes a seat's next waits with nothing offered: next.idleMinutes, 10 when unset [C7,#12041]. */
+export function nextIdleMinutes(config) { return config?.next?.idleMinutes ?? 10; }
 
 /** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
 export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
@@ -591,6 +633,7 @@ export function configFromSource(source, root) {
   if (notPlain(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
   const base = defaults();
   const config = merge(base, knownConfigKeys(raw, base));
+  slashFolderOwns(config.lanes, root);
   const problems = configProblems(config, root);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
   const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);
@@ -635,8 +678,8 @@ function cadenceProblem(value) {
 export const DEFAULT_VIEW_PORT = 4890;
 
 /** Resolve an omitted --port; explicit command-line ports take precedence over this setting. */
-export function defaultViewPort(env = process.env) {
-  const value = env.PULLBOARD_VIEW_PORT;
+export function defaultViewPort(env) {
+  const value = environmentAdapter(env).get('PULLBOARD_VIEW_PORT');
   if (value === undefined) return DEFAULT_VIEW_PORT;
   if (!/^\d+$/u.test(value) || Number(value) > 65535) {
     throw new Refused('USAGE', 'PULLBOARD_VIEW_PORT is a number from 0 to 65535; unset it to use the default port');

@@ -1,11 +1,11 @@
 /** The file walk the Rigor checks share: repo-relative sorted paths, narrowable to the files an item changed [D1,C7]. */
-import { lstatSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 const SKIPPED = new Set(['node_modules', 'work']);
 
@@ -23,7 +23,7 @@ export function walk(root, pattern) {
   const pending = [resolve(root)];
   while (pending.length) {
     const directory = pending.pop();
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    for (const entry of fileSystem.list(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) {
         if (!SKIPPED.has(entry.name) && !entry.name.startsWith('.')) pending.push(path);
@@ -62,7 +62,7 @@ function restrictedFiles() {
 /** True when a narrowed path is a regular file the full walk would also have visited. */
 function isWalkable(root, name) {
   if (name.split('/').some(part => SKIPPED.has(part) || part.startsWith('.'))) return false;
-  try { return lstatSync(join(root, name)).isFile(); } catch { return false; } // a deleted file has nothing to scan
+  try { return fileSystem.lstat(join(root, name)).isFile(); } catch { return false; } // a deleted file has nothing to scan
 }
 
 /** Compare by UTF-16 code units, so the order never depends on the machine's locale. */
@@ -78,7 +78,7 @@ function byText(left, right) {
  * @returns {string}
  */
 export function readText(root, path) {
-  return readFileSync(join(root, path), 'utf8');
+  return fileSystem.readFile(join(root, path), 'utf8');
 }
 
 

@@ -1,0 +1,4 @@
+{
+  "cli.expedite.records-reason-coordinator-only": {"proves": {"specs": ["C7"], "claim": "pullboard expedite records one expedite event with its reason for the coordinator, is refused COORDINATOR_ONLY for any other caller and USAGE without a reason, and is listed in coordinator help."}, "why": "Without it an expedite could be recorded by a seat or without a stated reason.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/expedite.js", "apps/cli/tests/fixtures/next/take.js"]},
+  "cli.expedite.cap-counts-only-in-flight": {"proves": {"specs": ["C7"], "claim": "pullboard expedite is refused naming jobs.expediteMax once that many items are expedited, and an item whose gate settled no longer counts."}, "why": "Without it the coordinator could expedite every item and an expedite would never clear.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/expedite.js", "apps/cli/tests/fixtures/next/take.js"]}
+}

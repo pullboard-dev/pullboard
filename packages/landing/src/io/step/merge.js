@@ -1,9 +1,9 @@
 import { requireLandingCompanions } from '../guards.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { requireLandingSecretFree } from '../guards.js';
-import { requireRecordedMoves } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
+import { mechanicalConflictFiles } from '../../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../../merge/index.js';
 import * as store from '../../../../store/index.js';
 import { git } from '../../../../git/index.js';
@@ -18,6 +18,7 @@ import { landingSquashEnabled } from '../../../../config/index.js';
 import { landingComposedEquality } from '../../../../config/index.js';
 import { squashOnto } from '../land/squash.js';
 import { checkLandingMessages } from '../../logic/message.js';
+import { checkLandingCommits } from '../../logic/message.js';
 import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
 import { scanRidesRunner } from '../scan.js';
@@ -82,7 +83,7 @@ async function resetDirtyOnce(state) {
 function baseVerdicts(state, base) {
   state.baseVerdicts ??= new Map();
   if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
-    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() }));
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled(), residualConflicts: mechanicalConflictFiles }));
   return state.baseVerdicts.get(base);
 }
 
@@ -98,6 +99,8 @@ export async function mergeGroup(state, items) {
   const landedCommit = (item) => proven?.get(item.item_id) ?? store.checkedLandingCommit(state.board, item);
   const messages = checkLandingMessages(items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)),
     landingContext(batch.root, batch.base, state.config, landedCommit));
+  // An item's own commits are read as well as the generated message: a Co-Authored-By trailer or a home-folder path in one refuses the landing before anything merges [C7,#11265].
+  await checkLandingCommits(batch.root, batch.base, items.map((entry) => store.getItem(state.board, entry.id ?? entry.item_id)), landedCommit);
   const merged = [];
   const conflicts = [];
   const resolutions = [];
@@ -131,7 +134,6 @@ export async function mergeGroup(state, items) {
     const checked = landedCommit(item);
     if (!proven && checked !== (entry.reviewedCommit ?? entry.commit ?? item.item_commit)) throw new Refused('LAND_ITEM_MOVED', `item #${item.item_id} was re-reviewed; rebuild its landing from the checked commit`);
     requireLandingCompanions(batch.root, state.board, [item], checked);
-    requireRecordedMoves(batch.root, headCommit(batch.root), checked);
     const stale = proven ? null : baseVerdicts(state, batch.base).state(item);
     if (stale) throw staleVerdictRefusal(item, stale);
     if (composed) {
@@ -176,7 +178,7 @@ export async function mergeGroup(state, items) {
     }
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
     // A named batch derives once after its last merge, on a runner (below), so the coordinator spends no CPU on it [C7,#5568].
-    if (!onRunner) for (const engine of amendLandingEngines(batch.root, hooks).assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
+    if (!onRunner) for (const engine of (await amendLandingEngines(batch.root, hooks)).assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
     const first = squashed?.commit ? headCommit(batch.root) : firstContainingCommit(batch.root, checked);
     const commit = proven ? checked : item.item_commit;
     merged.push({ id: item.item_id, commit, ...(checked !== commit ? { reviewedCommit: checked } : {}), merge: first });

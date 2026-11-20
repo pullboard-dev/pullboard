@@ -11,7 +11,7 @@ function scheduler() {
     cancel: timer => { timer.cancelled = true; } };
 }
 
-test('clause 1: the seat is beaten on each tick with its board file, every minute by default, and never after stop [B3,C7]', () => {
+test('gate.io-keepalive.the-seat-is-beaten-on-each: clause 1: the seat is beaten on each tick with its board file, every minute by default, and never after stop [B3,C7]', () => {
   const beats = [], clock = scheduler();
   const stop = keepSeatAlive('/any/checkout', { ...clock,
     seatOf: () => ({ seat: 'core-7', item: 12, file: '/repo/.git/pullboard/seat-timing.jsonl' }),
@@ -24,7 +24,7 @@ test('clause 1: the seat is beaten on each tick with its board file, every minut
   assert.equal(clock.timers[0].cancelled, true, 'stop cancels the timer');
 });
 
-test('clause 2: a directory with no seat registers no timer [B3,C7]', () => {
+test('gate.io-keepalive.a-directory-with-no-seat-registers: clause 2: a directory with no seat registers no timer [B3,C7]', () => {
   const clock = scheduler();
   const stop = keepSeatAlive('/no/seat', { ...clock, seatOf: () => null, beat: () => { throw new Error('no beat'); } });
   stop();

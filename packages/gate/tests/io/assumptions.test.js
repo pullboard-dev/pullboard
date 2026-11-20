@@ -35,7 +35,7 @@ function lines(root) {
   return assumptionProblems(root).map(row => `${row.path}:${row.line}: ${row.text}`);
 }
 
-test('clause 1: a new .test.js, node --test, /bin/sh or darwin literal in a core file is refused by file and line, and adapters, tests and comments are not [C7]', () => {
+test('gate.io-assumptions.a-new-test-js-node-test: clause 1: a new .test.js, node --test, /bin/sh or darwin literal in a core file is refused by file and line, and adapters, tests and comments are not [C7]', () => {
   const root = fixture({}, {
     'packages/core/runner.js': "export const pick = name => name.endsWith('.test.js');\n",
     'packages/core/shell.js': "import { spawn } from 'node:child_process';\nexport const run = () => spawn('/bin/sh', ['-c', 'ls']);\n",
@@ -58,7 +58,7 @@ test('clause 1: a new .test.js, node --test, /bin/sh or darwin literal in a core
   assert.deepEqual(assumptionsIn("const a = '/bin/sh'; const b = 'darwin';\n").map(site => site.kind), ['binSh', 'darwin']);
 });
 
-test('clause 1: adding one such line to a clean core file is refused, and the same line in an adapter is not [C7]', () => {
+test('gate.io-assumptions.adding-one-such-line-to-a: clause 1: adding one such line to a clean core file is refused, and the same line in an adapter is not [C7]', () => {
   const root = fixture();
   assert.deepEqual(lines(root), [], 'a clean tree passes');
   const added = fixture({}, { 'packages/core/clean.js': "export const answer = 42;\nexport const shell = '/bin/sh';\n" });
@@ -67,7 +67,7 @@ test('clause 1: adding one such line to a clean core file is refused, and the sa
   assert.deepEqual(lines(moved), [], 'the line in an adapter passes');
 });
 
-test('clause 2: existing sites listed in the baseline pass, growth past it is refused, and --write only lowers it [C7]', () => {
+test('gate.io-assumptions.existing-sites-listed-in-the-baseline: clause 2: existing sites listed in the baseline pass, growth past it is refused, and --write only lowers it [C7]', () => {
   const dirty = { 'packages/core/old.js': "export const a = '/bin/sh';\nexport const b = '/bin/sh';\n" };
   const baseline = { 'packages/core/old.js': { binSh: 2 } };
   assert.deepEqual(lines(fixture({ baseline }, dirty)), [], 'listed sites pass');
@@ -81,7 +81,7 @@ test('clause 2: existing sites listed in the baseline pass, growth past it is re
   assert.deepEqual(written.baseline, { 'packages/core/old.js': { binSh: 2 } }, 'a baseline above today falls to it and a file with no sites leaves the list');
 });
 
-test('clause 2: node packages/gate/src/io/assumptions.js --check exits 0 on this repository and submit runs the check [C7]', () => {
+test('gate.io-assumptions.node-packages-gate-src-io-assumptions: clause 2: node packages/gate/src/io/assumptions.js --check exits 0 on this repository and submit runs the check [C7]', () => {
   assert.deepEqual(assumptionProblems(REPO), [], 'no core file names more than its baseline');
   assert.ok(STATIC_CHECKS.some(check => check.name === 'no-runtime-assumptions'), 'the static registry runs the check');
   const run = spawnSync(process.execPath, [join(REPO, 'packages/gate/src/io/assumptions.js'), '--check'], { cwd: REPO, encoding: 'utf8' });

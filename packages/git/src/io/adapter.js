@@ -1,6 +1,10 @@
 /** Injectable Git process boundary; production retains Node's exact process and stream behavior [C7]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Refused } from '../../../kernel/browser.js';
+import { accessSync } from 'node:fs';
+import { constants } from 'node:fs';
+import { delimiter } from 'node:path';
+import { join } from 'node:path';
 import {
   execFileSync,
   spawn,
@@ -46,14 +50,61 @@ function projectTimeout(error, options) {
   return refusal;
 }
 
+const SHIM = '/usr/bin/git';
+
+/** Pick the git binary to spawn: the first PATH git that is not the macOS shim, else what xcrun names, else plain git [C7]. */
+export function resolveGitPath({ path = process.env.PATH ?? '', executable = isExecutable, xcrun = xcrunGit } = {}) {
+  for (const dir of path.split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, 'git');
+    if (candidate !== SHIM && executable(candidate)) return candidate;
+  }
+  try { return xcrun() || 'git'; } catch { return 'git'; }
+}
+
+function isExecutable(file) {
+  try { accessSync(file, constants.X_OK); return true; } catch { return false; }
+}
+
+/** Ask xcrun for the real git behind the shim; a failure or empty answer is left to the caller. */
+function xcrunGit() {
+  const found = launchSync('xcrun', ['-f', 'git'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return found.status === 0 ? String(found.stdout).trim() : '';
+}
+
+/** The one synchronous launch of this file: git and the xcrun lookup share it, so the leased-work call count does not grow. */
+function launchSync(command, args, options) { return spawnSync(command, args, options); }
+
+const resolvedGit = new Map();
+/**
+ * The git binary for one PATH, resolved on first use and reused: each call through the shim cost two execs.
+ * Why per PATH, rechecked: one long-lived process kept the first git it found, so a caller with another PATH, or any
+ * command after that git was removed, spawned a missing file and read it as NOT_A_REPO [C7].
+ *
+ * @param {string} [path] - The PATH the call runs under; the process PATH when left out.
+ * @returns {string}
+ */
+export function realGitPath(path = process.env.PATH ?? '') {
+  const known = resolvedGit.get(path);
+  if (known !== undefined && (!known.includes('/') || isExecutable(known))) return known;
+  const found = resolveGitPath({ path });
+  resolvedGit.set(path, found);
+  return found;
+}
+
+/** The PATH one Git call runs under: its own environment's, else this process's. */
+function callPath(options) {
+  return options?.env?.PATH ?? process.env.PATH ?? '';
+}
+
 /** The real implementation forwards every argument and option without interpreting Git output. */
 export const realGitAdapter = Object.freeze({
   /** Run a synchronous Git process and preserve its complete Node result. */
-  spawnSync(args, options) { return spawnSync('git', args, options); },
+  spawnSync(args, options) { return launchSync(realGitPath(callPath(options)), args, options); },
   /** Run Git with Node's throwing synchronous contract, including binary output. */
-  execFileSync(args, options) { return execFileSync('git', args, options); },
+  execFileSync(args, options) { return execFileSync(realGitPath(callPath(options)), args, options); },
   /** Start a streaming Git process; framing remains the caller's responsibility. */
-  spawn(args, options) { return spawn('git', args, options); },
+  spawn(args, options) { return spawn(realGitPath(callPath(options)), args, options); },
 });
 
 /** Return the implementation belonging to this async call chain, defaulting to real Git. */
@@ -61,6 +112,11 @@ export function currentGitAdapter() {
   return adapters.getStore() ?? realGitAdapter;
 }
 
+/**
+ * Refuse a Git adapter that lacks spawnSync, execFileSync or spawn.
+ *
+ * @param {object} adapter
+ */
 export function needAdapter(adapter) {
   const method = ['spawnSync', 'execFileSync', 'spawn'].find(name => typeof adapter?.[name] !== 'function');
   if (method) throw new TypeError(`Git adapter needs ${method}`);
