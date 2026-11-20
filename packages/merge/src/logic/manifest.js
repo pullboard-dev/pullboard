@@ -1,5 +1,6 @@
-/** Conservative, deterministic row merges for the authoritative generated manifests [C7,D3]. */
+/** Conservative, deterministic row merges for the two authoritative generated manifests [C7,D3]. */
 const FIELDS = {
+  'packages/codemap/data/plan/cells.json': ['cells', 'stays', 'entries', 'retired', 'engineStays'],
   'packages/gate/data/tests/tiers.json': ['files'],
 };
 const ABSENT = Symbol('absent');
@@ -37,7 +38,7 @@ function choice(base, left, right) {
 /** Each manifest declares its row identity explicitly, independently of JSON property order. */
 function rowKey(field, row) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
-  const key = field === 'files' ? row.file : row.path;
+  const key = field === 'cells' ? row.name : field === 'files' ? row.file : (field === 'retired' || field === 'engineStays') ? row.row?.[0] : row.path;
   return typeof key === 'string' && key.length ? key : null;
 }
 
@@ -63,6 +64,7 @@ function mergeRows(field, values, conflicts) {
     if (selected.conflict) conflicts.push(`${field}:${key}`);
     else if (selected.value !== ABSENT) rows.push(canonical(selected.value));
   }
+  if (field === 'cells') rows.sort((left, right) => left.order - right.order || (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
   return rows;
 }
 

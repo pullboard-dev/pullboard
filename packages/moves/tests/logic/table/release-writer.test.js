@@ -9,7 +9,7 @@ import { boardReleaseEngine } from '../../../index.js';
 import { readReleaseRecords } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { release } from '../../../../store/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 
 const HISTORY = JSON.parse(readFileSync(new URL('../../fixtures/table/release-history.json', import.meta.url), 'utf8'));
 const FAR = '2099-01-01T00:00:00.000Z';

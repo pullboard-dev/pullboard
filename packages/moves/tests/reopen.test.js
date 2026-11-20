@@ -37,13 +37,13 @@ import { correctedNoVerdictReopen } from '../../items/index.js';
 import { firstRefusalArgs } from '../../items/index.js';
 import { loadConfig } from '../../config/index.js';
 import { criterionFreezer } from '../index.js';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../board/tests/fixtures/cell-board.js';
 import { submitFixture as submitBoardStateFixture } from '../../store/tests/fixtures/submit.js';
 import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
