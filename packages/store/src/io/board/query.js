@@ -34,6 +34,7 @@ import { workerInboxQuery } from "../../logic/board/worker.js";
 import { verdictWithdrawals } from "../../../../verify/read.js";
 import { reopenCauseCorrection } from "../../../../items/light.js";
 import { COORDINATOR } from "../../../../queue/light.js";
+export { validateNeeds } from "../../../../queue/light.js";
 import { itemFiles } from "../../../../items/light.js";
 import { parseSpec } from "../../../../spec/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";

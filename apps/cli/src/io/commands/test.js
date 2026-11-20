@@ -1,4 +1,5 @@
 /** @pullboard-module-loads apps/cli/src/io/test/status-outcomes.js */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -67,7 +68,7 @@ export async function run(io, { first, second, rest, values }) {
   if (named !== undefined && !owned.claims.includes(named)) throw new Refused('NOT_YOURS', `--item ${values.item} is not a claim this seat holds; run pullboard whoami to see its claims`);
   const item = testRunItem({ named, folder: owned.item, claims: owned.claims });
   const items = named === undefined ? owned.claims : [named];
-  if (values.diagnose !== true && queuesTestRun(ctx, seat, values, process.env, { claimed: held })) return queueSeatRun(io, ctx, { agent, item, items, files, values }, await import('../test/pull.js'));
+  if (values.diagnose !== true && queuesTestRun(ctx, seat, values, environmentAdapter().all(), { claimed: held })) return queueSeatRun(io, ctx, { agent, item, items, files, values }, await import('../test/pull.js'));
   if (values['test-run'] !== undefined) {
     const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
     await workTestRun(work => withBoard(ctx, work), values['test-run'], async () => (await (await import('../test/here.js')).runHere(io, ctx, { agent, item, items, files, values })).payload,
@@ -97,7 +98,7 @@ async function queueSeatRun(io, ctx, { agent, item, items, files, values }, pull
   const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true, noFileLimit: values['no-file-limit'] === true },
     { bin: CLI_ENTRY, runs });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });
-  if (values.wait === true || process.env.PULLBOARD_TEST_WAIT === '1') io.say('a seat holding a claim never blocks on its own test run; it queues');
+  if (values.wait === true || environmentAdapter().get('PULLBOARD_TEST_WAIT') === '1') io.say('a seat holding a claim never blocks on its own test run; it queues');
   io.say(`queued test run ${queued.id}; the board runs it and pullboard next brings the result; read it any time with pullboard test --status ${queued.id}; take your next item now: pullboard next --take`);
   return 0;
 }
