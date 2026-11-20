@@ -31,6 +31,7 @@ import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
+import * as configLight from '../../../../../packages/config/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
 import { withBoardRead } from '../board/read.js';
 import {
@@ -141,6 +142,17 @@ async function derivedVerdictTable(root, board, verdictTrunk) {
   return table ? { main, derived: item => table.verdicts.get(String(item.item_id)) } : null;
 }
 
+/** The thin door's facts for a plain item, with the readers the full path runs on the open board; null when the full path must run [C7,#12413]. */
+async function thinFacts(ctx, id, prices) {
+  const { thinShowFacts } = await import('../show/thin.js');
+  const { showReads: reads } = await import('../../../../../packages/verify/read.js');
+  const { machineVerification, reviewEligibility } = await reads();
+  const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
+  return thinShowFacts({ cwd: ctx.info.root, id, clock: ctx.clock, conflictReader: async () => (await import('../../../../../packages/merge/index.js')).mechanicalConflictFiles,
+    reads: { progress: (board) => itemProgress(board, id, { onMain }), machine: (board, item) => machineVerification(board, item),
+      independence: (board, item) => reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), cost: (board) => itemCost(board, id, prices) } });
+}
+
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
@@ -150,7 +162,19 @@ export async function run(io, { first, values }) {
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
+  // With read.thinCommands on, the thin door serves a plain item's facts for the text show; null takes the full path [C7,#12413].
+  const thin = configLight.readThinCommands() && !values.json ? await thinFacts(ctx, id, prices) : null;
   const { fields, links, afterGate, afterGateMeasure, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+    if (thin) {
+      const stored = thin.item;
+      return { item: stored, queuedSubmit: null, queuedJobId: null, gateText: null, machine: thin.machine, progress: thin.progress, independence: thin.independence,
+        verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id), proofReceipts: [], cost: thin.cost,
+        approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(stored) }, { store, verifiedPasskeyRowDecision }),
+        gateJob: newestGateJob(board.db, id, []), fields: [], links: [], afterGate: [], afterGateMeasure: undefined, foreign: new Map(),
+        moves: thin.history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+        related: store.relatedItems(board, stored), reviewer: store.reviewHolder(board, stored), agents: thin.agents, mainMerge: mainMergeFor(board, id),
+        submits: thin.history.filter((event) => event.event_kind === 'submit') };
+    }
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
     // An accept whose only conflict with main is one the mechanical merge resolves stays fresh, as it does at landing; the merge index loads only for an accepted item [C7,#11417].
