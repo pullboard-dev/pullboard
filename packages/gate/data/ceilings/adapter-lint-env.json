@@ -10,8 +10,6 @@
     "apps/cli/src/io/hook/push.js": 4,
     "apps/cli/src/io/hook/thin.js": 1,
     "apps/cli/src/io/init.js": 14,
-    "apps/cli/src/io/landing/advance.js": 1,
-    "apps/cli/src/io/landing/audit.js": 1,
     "apps/cli/src/io/landing/budget.js": 4,
     "apps/cli/src/io/memo.js": 1,
     "apps/cli/src/io/pinned/tool/build.js": 2,
