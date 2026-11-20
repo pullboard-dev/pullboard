@@ -26,9 +26,9 @@ const ANALYZER = 'packages/codemap/src/io/cells-move-fixtures.js';
 const WARM_ENTRY = `import * as codemap from './packages/codemap/index.js';
 import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import * as gate from './packages/gate/heavy.js';
-import { readFileSync } from 'node:fs';
+import { text } from 'node:stream/consumers';
 const root = process.argv[2];
-const input = JSON.parse(readFileSync(0, 'utf8'));
+const input = JSON.parse(await text(process.stdin));
 const result = { main: input.main, source: input.main, cells: 0 };
 const memos = await import('./apps/cli/src/io/memo.js').then(module => module.runnerFixtureMemos(cellsCache, process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT ?? null)).catch(() => null);
 if (memos && typeof codemap.checkMoved === 'function' && typeof codemap.cellInventory === 'function') {

@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { spawnCaptured } from '../../../sandbox/index.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
@@ -17,13 +18,6 @@ import { receiptLine } from '../../../git/index.js';
  * edit.
  */
 import { spawnSync } from 'node:child_process';
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -47,8 +41,9 @@ import {
   checkFieldFindings,
   parseSpec,
 } from '../../../spec/index.js';
-import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../kernel/light.js';
+
+const fs = fileSystemAdapter();
 
 /** The store file name for the record held under a key, with its extension; local so a cold command loads one module fewer (closure-budget) [C7]. */
 function storeName(key, ext = '.json') { return key + ext; }
@@ -301,7 +296,7 @@ export function submitRulesNarrowable(root, mainCommit, practice) {
 
 /** Run a check at an exact commit in a private shared clone, leaving every live worktree alone. */
 function* checkAtCommitExecution(root, commit, command, timeoutMs) {
-  const directory = mkdtempSync(join(scratchBase(), 'pullboard-doctrine-base-'));
+  const directory = fs.mkdtemp(join(scratchBase(), 'pullboard-doctrine-base-'));
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {
@@ -310,7 +305,7 @@ function* checkAtCommitExecution(root, commit, command, timeoutMs) {
     if (!selected || selected.status !== 0) return { problems: [], broken: 'could not check out the base commit', seconds: 0 };
     return yield { checkout, command, timeoutMs };
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -377,7 +372,7 @@ function* measuredMain(root, mainCommit, command, timeoutMs, scope = undefined) 
   const file = tree ? mainMeasureFile(tree, command, timeoutMs) : null;
   if (file) {
     try {
-      const saved = JSON.parse(readFileSync(file, 'utf8'));
+      const saved = JSON.parse(fs.readFile(file));
       if (Array.isArray(saved.problems) && saved.problems.every(line => typeof line === 'string')) return { problems: saved.problems, broken: '' };
     } catch { /* A missing or damaged entry is a miss. */ }
   }
@@ -385,10 +380,10 @@ function* measuredMain(root, mainCommit, command, timeoutMs, scope = undefined) 
   const run = yield { commit: mainCommit, command, timeoutMs, candidate: false, main: true, ...(scope ? { scope } : {}) };
   if (file && !run.broken && !run.partial) {
     try {
-      mkdirSync(dirname(file), { recursive: true });
+      fs.mkdir(dirname(file), { recursive: true });
       const temp = `${file}.${process.pid}.tmp`;
-      writeFileSync(temp, JSON.stringify({ problems: run.problems }));
-      renameSync(temp, file);
+      fs.writeFile(temp, JSON.stringify({ problems: run.problems }));
+      fs.rename(temp, file);
     } catch { /* A failed save only costs the next check a rerun. */ }
   }
   return run;
@@ -406,7 +401,7 @@ function* measuredMain(root, mainCommit, command, timeoutMs, scope = undefined) 
 export function ratchetMachineryRule(root, mainCommit, rules) {
   const tree = gitOut(root, ['rev-parse', `${mainCommit}^{tree}`]);
   if (!tree) return null;
-  return createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url)))
+  return createHash('sha256').update(fs.readFile(fileURLToPath(import.meta.url), null))
     .update(JSON.stringify([rules, tree])).digest('hex');
 }
 

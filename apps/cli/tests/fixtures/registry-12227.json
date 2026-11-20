@@ -1,0 +1,3 @@
+{
+  "cli.landing-pull.items-carry-pace": {"proves":{"specs":["V2","M1"],"claim":"A pulled land job's items carry each item's frozen pace, read from the listed row the way sprintLandable reads it."},"why":"The runner has no board to read the frozen pace from, so the payload must carry it.","kind":"cell unit","inputs":["apps/cli/src/io/landing/pull.js","apps/cli/tests/fixtures/landing/offer.js"]}
+}

@@ -1,0 +1,3 @@
+{
+  "api.landing-pace.items-carry-pace": {"proves":{"specs":["C7"],"claim":"offerLandingJob keeps each landed item's pace (sprint, steady or strict) in the job payload, gives an item with no pace steady, and refuses any other pace as LANDING_ITEMS."},"why":"Without it a pace chosen on the cli side never reaches the runner's landing job, so every landed item reads as steady.","kind":"cell unit","inputs":["packages/api/tests/io/landing-queue.test.js","packages/api/src/io/landing.js"]}
+}
