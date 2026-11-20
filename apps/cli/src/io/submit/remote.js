@@ -6,7 +6,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { needsFullCensus } from '../../../../../packages/codemap/index.js';
-import { readAcceptedCells } from '../../../../../packages/gate/index.js';
+import { readAcceptedCells } from '../../../../../packages/gate/heavy.js';
 import { shellWord } from '../../../../../packages/runners/index.js';
 import { createHash } from 'node:crypto';
 import {
@@ -176,7 +176,7 @@ import {
   foreignNodeOptions,
   readAcceptedCells,
   warmAcceptedCells,
-} from './packages/gate/index.js';
+} from './packages/gate/heavy.js';
 import { withMainCheckout } from './packages/landing/index.js';
 import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import { readFileSync } from 'node:fs';
