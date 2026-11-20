@@ -26,8 +26,11 @@ import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
 import { CELLS_EDGES_CEILINGS } from '../../edges.js';
+import { declaredReads } from '../gui/admission.js';
 
 const snapshots = new Map();
+/** Shared data files many tests read: the gate ceilings, the codemap plan and edges, and the registries tests record into [C7]. */
+const SHARED_DATA = /^(?:packages\/gate\/data\/ceilings\/[^/]+\.json|packages\/codemap\/data\/(?:plan|edges)\/[^/]+|(?:apps|packages)\/[^/]+\/tests\/fixtures\/registry[^/]*\.json)$/u;
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
 
 /** Read exact Git objects or construct an isolated read view without executing project hooks. */
@@ -160,6 +163,36 @@ function ownUnit(row, snapshot, unsealed) {
   return Boolean(owner) && owner !== '.' && unsealed.has(owner) && row.reasons.every(reason => reason.startsWith('cross-package:'));
 }
 
+/**
+ * The T1 tests a data-only change to shared data files reaches: those that declare they read a changed file with
+ * `@pullboard-test-reads`, plus those whose source names the file, its directory under data/, or its stem family (so a path
+ * built at run time and a readdir of the directory are caught). Null when the change is not data-only or some changed
+ * data file has no reader at all, which keeps today's selection of every T1 test of the touched package, never fewer [C7].
+ */
+function sharedDataReaders(actual, after, read) {
+  if (!actual?.length) return null;
+  const data = actual.filter(file => SHARED_DATA.test(file));
+  if (!data.length || !actual.every(file => SHARED_DATA.test(file) || after.rows.has(file))) return null;
+  const needles = data.map(file => {
+    const base = posix.basename(file), stem = base.replace(/\.[^.]*$/u, ''), family = stem.includes('-') ? stem.slice(0, stem.lastIndexOf('-') + 1) : stem;
+    const directory = posix.dirname(file), local = directory.includes('/data/') ? directory.slice(directory.indexOf('data/')) : null;
+    return { file, words: [file, base, family, ...(local ? [local] : [])] };
+  });
+  const declared = new Set(), scan = new Set(), served = new Set();
+  for (const row of after.manifest.files) {
+    if (row.tier !== 'T1') continue;
+    const source = read(row.file);
+    if (source === null) continue;
+    const reads = new Set(declaredReads(source).map(path => posix.normalize(path)));
+    for (const { file, words } of needles) {
+      if (reads.has(file)) { declared.add(row.file); served.add(file); }
+      else if (words.some(word => source.includes(word))) { scan.add(row.file); served.add(file); }
+    }
+  }
+  if (data.some(file => !served.has(file))) return null;
+  return { files: data, declared: [...declared].sort(), scan: [...scan].filter(file => !declared.has(file)).sort() };
+}
+
 /** The canary a project with no `canary` list in pullboard.json runs at every gate: the closure budget and stable-ID files [C7,#10874]. */
 export const DEFAULT_CANARY = Object.freeze(['apps/cli/journeys/imports/closure-budget.test.js', 'apps/cli/tests/stable.test.js']);
 
@@ -249,8 +282,10 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
   const changedFiles = new Set(actual ?? []);
+  const shared = !global && !confined ? sharedDataReaders(actual, after, file => sourceGit(root, ['show', `${commit}:${file}`], true)) : null;
+  const sharedUnits = shared ? new Set([...shared.declared, ...shared.scan]) : null;
   const doorChanged = row => global || row.doors?.some(door => changedFiles.has(door));
-  const selects = row => row.tier === 'T2' ? doorChanged(row) : confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
+  const selects = row => row.tier === 'T2' ? doorChanged(row) : confined ? confinedUnit(row, confined.roots, doors) : shared ? (row.tier === 'T1' && sharedUnits.has(row.file)) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
   const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003). The one exception
   // is a test that reads a listing file the change carried: that file is its input, so it stays selected (#4633).
@@ -266,7 +301,7 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const kept = file => !left.includes(file);
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: [...new Set([...units.filter(kept), ...canary])].sort(),
     journeys: journeys.filter(file => kept(file) && !canary.includes(file)), skipped,
-    ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+    ...(shared ? { sharedData: shared } : {}), ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
 /** Whether a change list carries a file that is global whatever cell it sits in: a manifest or lockfile. */
@@ -495,7 +530,8 @@ export function testTierReport(plan, { names = true } = {}) {
     .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
   const sealed = plan.sealedCells?.length ? `\nCells sealed by conforming tests (${plan.sealedCells.length}): ${plan.sealedCells.join(', ')}` : '';
   const audit = plan.auditLeft?.length ? `\nLeft to the main audit (landing.auditOnly) (${plan.auditLeft.length}): ${plan.auditLeft.join(', ')}` : '';
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}${audit}`;
+  const data = plan.sharedData ? `\nShared data change: ${plan.sharedData.declared.length} declared readers, ${plan.sharedData.scan.length} found by the scan${names ? `: ${[...plan.sharedData.declared, ...plan.sharedData.scan].join(', ')}` : ''}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}${audit}${data}`;
 }
 
 /**
