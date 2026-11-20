@@ -22,6 +22,7 @@ import { applyGateReceipt } from '../../src/io/gate.js';
 import { offerProofShards } from '../../src/io/gate.js';
 import { WIDE_SEED_SQL } from '../../src/io/recheck.js';
 import { settleDoneShardGates } from '../../src/io/gate.js';
+import { jobQueueCall } from '../../src/io/jobs.js';
 import { settleWaitingGates } from '../../src/io/gate.js';
 import { ledgerMissReasons } from '../../../store/index.js';
 import { recordTestResults } from '../../../store/index.js';
@@ -360,4 +361,79 @@ test('api.io-gate.settled-class-main-red-stale-infra: clause 1: receipts posted 
   const infra = oneGate(t);
   infra.post({ version: 1, status: 1, gate: { source: infra.head, green: false, analysis: { infra: 'the runner lost its checkout' }, phases: [{ role: 'proof', status: 1, failures: [], tail: 'not ok' }] } });
   assert.deepEqual(kinds(infra), [{ job: infra.parent, outcome: 'unknown', class: 'infra' }]);
+});
+
+/** On `board`, a new claimed item whose two-shard gate waits on its last shard; `lose` records that shard done with its apply lost, offered at `at`. */
+function lostApply(board, repo, name, at) {
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat-${name}` });
+  const item = cellItem(board, { lane: 'web', title: `Build ${name}` });
+  cellClaim(board, item.item_id, seat, { root: repo.root });
+  const held = store.getItem(board, item.item_id);
+  const head = repo.commit;
+  const parent = `gate:${item.item_id}:${name}`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: at,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: `r-${name}`, capabilities: [], now: at + 1 });
+  const gate = { version: 1, source: head, green: false, environment: { node: process.version, platform: process.platform, arch: process.arch }, phases: [{ role: 'check', status: 0 }],
+    analysis: { proofFiles: SHARD_FILES, proofCommand: 'node --test' }, proofPlan: { runner: 'node --test', cores: 1, files: SHARD_FILES } };
+  const sharded = boardJobQueueCall(board, { action: 'receipt', job: parent, runner: `r-${name}`, token: lease.token, receipt: { status: 0, gate } }, { mode: 'pull', now: at + 2 });
+  const lost = [];
+  sharded.applied.shards.forEach((shard, index) => {
+    const claimed = claimJob(board.db, { runner: `r-${name}-${index}`, capabilities: [], now: at + 3 + index });
+    const posted = { action: 'receipt', job: shard, runner: `r-${name}-${index}`, token: claimed.token, receipt: SHARD_GREEN(head) };
+    // The last shard's receipt records with no apply, as when the board restarted between the record and the apply.
+    // It is held back to `lose`, because a receipt posted through boardJobQueueCall would open the settle window.
+    if (index === sharded.applied.shards.length - 1) lost.push(() => jobQueueCall(board.db, posted, { mode: 'pull', now: at + 4 + index }));
+    else boardJobQueueCall(board, posted, { mode: 'pull', now: at + 4 + index });
+  });
+  return { id: item.item_id, lose: lost[0] };
+}
+
+/** One board with its repo, for gates whose settle the claims below time. */
+function settleBoard(t) {
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  board.gitRoot = repo.root;
+  return { repo, board };
+}
+const claimAt = (board, now) => boardJobQueueCall(board, { action: 'claim', runner: 'r-idle', capabilities: [] }, { mode: 'pull', now });
+const statusOf = (board, id) => store.getItem(board, id).item_status;
+
+test('api.io-gate.settle-throttle-window: clause 1: a done sharded gate with a lost apply settles on a claim at T, a second one made eligible after stays unsettled on a claim at T+4 s, and a claim at T+9 s settles it [C7,#12480]', t => {
+  const { repo, board } = settleBoard(t);
+  const T = Date.now();
+  const one = lostApply(board, repo, 'one', T);
+  const two = lostApply(board, repo, 'two', T + 200);
+  const [first, second] = [one.id, two.id];
+  one.lose();
+  assert.equal(statusOf(board, first), 'claimed', 'the lost apply leaves the item claimed');
+  claimAt(board, T + 1000);
+  assert.notEqual(statusOf(board, first), 'claimed', 'the first claim settles the first gate');
+  two.lose();
+  claimAt(board, T + 5000);
+  assert.equal(statusOf(board, second), 'claimed', 'a claim 4 s after the settle skips the walk');
+  claimAt(board, T + 10_000);
+  assert.notEqual(statusOf(board, second), 'claimed', 'a claim 9 s after the settle walks again');
+});
+
+test('api.io-gate.settle-on-receipt: clause 2: a receipt posted through boardJobQueueCall opens the window, so a claim 1 s after it settles a gate that became eligible inside the window of an earlier settle [C7,#12480]', t => {
+  const { repo, board } = settleBoard(t);
+  const T = Date.now() + 100_000;
+  const late = lostApply(board, repo, 'late', T - 1000);
+  const gated = late.id;
+  claimAt(board, T);
+  late.lose();
+  claimAt(board, T + 500);
+  assert.equal(statusOf(board, gated), 'claimed', 'inside the window the claim skips the walk');
+  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat-plain` });
+  const other = cellItem(board, { lane: 'web', title: 'Build plain' });
+  cellClaim(board, other.item_id, seat, { root: repo.root });
+  const head = repo.commit;
+  const parent = `gate:${other.item_id}:plain`;
+  offerJob(board.db, { id: parent, kind: 'gate', needs: [], item: other.item_id, candidate: head, base: head, now: T + 600,
+    request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: store.getItem(board, other.item_id).item_frozen_digest, tree: headTree(repo.root), files: [] } } });
+  const lease = claimJob(board.db, { runner: 'r-plain', capabilities: [], now: T + 601 });
+  boardJobQueueCall(board, { action: 'receipt', job: parent, runner: 'r-plain', token: lease.token, receipt: SHARD_GREEN(head) }, { mode: 'pull', now: T + 700 });
+  claimAt(board, T + 1700);
+  assert.notEqual(statusOf(board, gated), 'claimed', 'a claim 1 s after the receipt settles the gate');
 });

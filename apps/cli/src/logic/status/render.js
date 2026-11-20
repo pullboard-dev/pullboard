@@ -31,12 +31,16 @@ export function statusLines(summary, options) {
   for (const entry of summary.needsRescope ?? []) lines.push(`needs re-scope: #${entry.id} is not offered to ${entry.lane} at the ${entry.route} route; ${entry.reasons.join('; ')}; edit, refreeze or re-route it`);
   for (const entry of summary.staleState.claimHealth ?? []) {
     lines.push(entry.health === 'waiting' ? `waiting: #${entry.id} (${entry.actor}) waits on ${entry.waitingOn.map(id => `#${id}`).join(', ')} to land; the claim is released and the item returns when it lands`
-      : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 40m`);
+      : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 30m`);
   }
   for (const gate of summary.stalledGates) lines.push(`gate job ${gate.id}${gate.item ? ` (#${gate.item})` : ''}: ${gate.text}`);
   for (const warning of summary.runnerUtilization.warnings) lines.push(warning);
   lines.push(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);
   lines.push(`capacity: ${summary.capacity.liveAgents} live, ${summary.capacity.idleAgents} idle, ${summary.capacity.readyItems} ready item${summary.capacity.readyItems === 1 ? '' : 's'}`);
+  for (const [route, ready] of Object.entries(summary.capacity.readyByRoute ?? {})) {
+    const builders = summary.capacity.buildersByRoute?.[route] ?? 0;
+    lines.push(`ready buffer: ${route} ${ready} ready, ${builders > 0 ? `${builders} builders = ${(ready / builders).toFixed(1)}x` : 'no builders'}`);
+  }
   for (const seat of summary.agents.filter(seat => all || seat.presence !== 'gone')) lines.push(`${seat.agent_id}: ${seat.presence}${seat.heartbeatAt ? ` (heartbeat ${seat.heartbeatAt})` : ' (no local heartbeat)'}`);
   if (summary.memoryHeld === null) lines.push('local memory hold status unavailable; pullboard resources shows the queue');
   else for (const run of summary.memoryHeld) lines.push(`local memory holds ${run.agent}${run.item ? ` #${run.item}` : ''}${run.kind ? ` (${run.kind})` : ''}${run.repo ? ` in ${run.repo}` : ''}`);

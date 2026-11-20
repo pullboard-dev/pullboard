@@ -79,7 +79,7 @@ test('cli.logic-status-render.a-summary-with-every-section-filled-renders-the-re
     'past half limit: claim-2 open; inactivity unproven (evidence unknown); blocker classification unknown; shown at shortest possible half-limit',
     'needs re-scope: #12 is not offered to core at the light route; too wide; no test; edit, refreeze or re-route it',
     'waiting: #3 (core-2) waits on #8, #9 to land; the claim is released and the item returns when it lands',
-    'stalled: #4 (core-3) idle 22m with no commit, file change, running check or item move; released automatically at 40m',
+    'stalled: #4 (core-3) idle 22m with no commit, file change, running check or item move; released automatically at 30m',
     'gate job job-1 (#13): dispatcher is gone',
     'gate job job-2: no worker',
     'runner r1 is idle',
@@ -154,4 +154,18 @@ test('cli.logic-status-render.real-status: clause 3: the real status command on 
   const code = await main(['status'], { cwd: box.root, clock: box.clock, stdout: { isTTY: false, write: (part) => { out += part; } }, stderr: { write: () => {} } });
   assert.equal(code, 0, out);
   assert.ok(out.split('\n').includes(staffingLines(staffing)), `status prints ${staffingLines(staffing)}`);
+});
+
+test('cli.logic-status-render.ready-buffer-line: clause 1: statusLines prints one ready buffer line per route with the ratio to one decimal, and "no builders" for a route with none [C7,#12475]', () => {
+  const capacity = { liveAgents: 2, idleAgents: 1, readyItems: 14, readyByRoute: { mid: 12, strong: 2 }, buildersByRoute: { mid: 8, strong: 0 } };
+  const lines = statusLines({ ...summary(), capacity }, options());
+  assert.deepEqual(lines.filter((line) => line.startsWith('ready buffer: ')), ['ready buffer: mid 12 ready, 8 builders = 1.5x', 'ready buffer: strong 2 ready, no builders']);
+  assert.equal(statusLines(summary(), options()).some((line) => line.startsWith('ready buffer: ')), false, 'a summary without readyByRoute prints no ready buffer line');
+});
+
+test('cli.logic-status-render.stalled-line-30m: clause 1: the stalled line printed for a claim with health stalled ends "released automatically at 30m", not 40m [C7,#12476]', () => {
+  const staleState = { holds: [], claims: [], reviews: [], claimHealth: [{ id: 4, actor: 'core-3', health: 'stalled', idleMs: 1_320_000 }] };
+  const lines = statusLines({ ...summary(), staleState }, options()).filter((line) => line.startsWith('stalled: '));
+  assert.deepEqual(lines, ['stalled: #4 (core-3) idle 22m with no commit, file change, running check or item move; released automatically at 30m']);
+  assert.equal(lines[0].includes('40m'), false);
 });

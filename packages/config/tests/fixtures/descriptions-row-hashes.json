@@ -256,7 +256,8 @@
   "line.landingCadenceMinutes",
   "line.tune",
   "review.requireProvenBreak",
-  "review.builderOffers"
+  "review.builderOffers",
+  "cells.plan"
  ],
  "hashes": [
   "0740d27e4147d0df90267602ee08bd734cad1d4b",
@@ -515,6 +516,7 @@
   "504ddf57e677ec563286aa0b92d1c3187c9fc383",
   "9e461ee64924349b56f63ca03525b63dc5d71e5a",
   "b2ffb06c7a1c6eb436ff2c9b89e4f8005f19a197",
-  "d36beeac1c99ca08543cc229ef0fd5aac8176f20"
+  "d36beeac1c99ca08543cc229ef0fd5aac8176f20",
+  "776ea644b7dc70ae3cb8d8d6a172b48bda4c27a7"
  ]
 }
