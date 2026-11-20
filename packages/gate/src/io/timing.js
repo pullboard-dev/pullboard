@@ -1,10 +1,8 @@
 /** Read durations already printed by a caller's test runner, without changing its command [C7,V10]. */
-import {
-  closeSync,
-  openSync,
-  readSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { StringDecoder } from 'node:string_decoder';
+
+const fs = fileSystemAdapter();
 
 const MAX_LINE = 64 * 1024;
 
@@ -119,14 +117,14 @@ export function timingFromOutput(output, runner = 'shell') {
 
 /** Iterate a complete log in bounded chunks, discarding only oversized diagnostic lines. */
 export function* logLines(path) {
-  const fd = openSync(path, 'r');
+  const fd = fs.open(path, 'r');
   const decoder = new StringDecoder('utf8');
   const chunk = Buffer.alloc(32 * 1024);
   let pending = '';
   let oversized = false;
   try {
     let count;
-    while ((count = readSync(fd, chunk, 0, chunk.length, null)) > 0) {
+    while ((count = fs.read(fd, chunk, 0, chunk.length, null)) > 0) {
       const parts = (pending + decoder.write(chunk.subarray(0, count))).split('\n');
       pending = parts.pop();
       for (const [index, line] of parts.entries()) {
@@ -137,7 +135,7 @@ export function* logLines(path) {
     }
     pending += decoder.end();
     if (!oversized && pending) yield pending;
-  } finally { closeSync(fd); }
+  } finally { fs.close(fd); }
 }
 
 /** Read the private worker's full output without trusting its bounded diagnostic capture. */

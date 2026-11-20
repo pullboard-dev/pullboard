@@ -1,5 +1,6 @@
 /** Board-only proposed changes to approved requirements [P6,B23,N39]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import {
@@ -20,7 +21,7 @@ function approvedSource(root, config, id) {
   const spec = loadSpec(root, config);
   const matches = spec.rows.filter(row => row.id === id);
   if (matches.length !== 1 || matches[0].status !== 'approved') throw new Refused('SPEC_REVISION', `${id} must name one approved requirement; use pullboard spec show <id>`);
-  return { row: matches[0], source: readFileSync(join(root, config.spec), 'utf8').split(/\r?\n/u)[matches[0].line - 1] };
+  return { row: matches[0], source: disk.readFile(join(root, config.spec), 'utf8').split(/\r?\n/u)[matches[0].line - 1] };
 }
 
 /** Plan a new proposal without writing either the approved row or a draft row into SPEC.md. */

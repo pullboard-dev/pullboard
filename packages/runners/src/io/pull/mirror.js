@@ -1,14 +1,4 @@
 /** The per-runner status mirror: one ssh per runner per 3 s however many jobs wait, read from a local file by everyone [5465,5468]. */
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { statusScript } from './scripts.js';
 import { pullJobId } from './scripts.js';
@@ -16,6 +6,9 @@ import { createSshAdapter } from '../adapter/ssh.js';
 import { runnerStatusDir } from './ssh.js';
 import { storeName } from '../store-names.js';
 import { environmentAdapter } from '../../../../env/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Every ssh call in this file goes through the ssh runner adapter. */
 const sshAdapter = createSshAdapter();
@@ -44,15 +37,15 @@ function markerDir(host, dir) { return join(dir, `${hostFile(host)}.jobs`); }
  * @returns {{ at: number, reachable: boolean, failures: number, agent: string, jobs: object }|null} The mirror, or null when none is readable.
  */
 export function readRunnerMirror(host, { dir = runnerStatusDir() } = {}) {
-  try { return JSON.parse(readFileSync(mirrorFile(host, dir), 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFile(mirrorFile(host, dir), 'utf8')); } catch { return null; }
 }
 
 /** Write a marker file atomically enough: a marker is only ever read whole or not found. */
 function mark(host, id, kind, dir, text = '') {
   pullJobId(id);
   const folder = markerDir(host, dir);
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
-  writeFileSync(join(folder, `${id}.${kind}`), text, { mode: 0o600 });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
+  fs.writeFile(join(folder, `${id}.${kind}`), text, { mode: 0o600 });
 }
 
 /** Say a job is wanted by this process: refreshes keep touching its `wanted` file while the pid lives. */
@@ -73,14 +66,14 @@ function alive(pid) {
 function markers(host, dir) {
   const folder = markerDir(host, dir), found = { wanted: [], cancel: [], ack: [] };
   let names = [];
-  try { names = readdirSync(folder); } catch { return found; }
+  try { names = fs.list(folder); } catch { return found; }
   for (const name of names) {
     const dot = name.lastIndexOf('.'), id = name.slice(0, dot), kind = name.slice(dot + 1);
     if (!(kind in found)) continue;
     if (kind === 'wanted') {
       let pid = 0;
-      try { pid = Number(readFileSync(join(folder, name), 'utf8')); } catch { continue; }
-      if (alive(pid)) found.wanted.push(id); else rmSync(join(folder, name), { force: true });
+      try { pid = Number(fs.readFile(join(folder, name), 'utf8')); } catch { continue; }
+      if (alive(pid)) found.wanted.push(id); else fs.rm(join(folder, name), { force: true });
     } else found[kind].push(id);
   }
   return found;
@@ -123,17 +116,17 @@ function parseLoad(text) {
 /** Publish the mirror whole: a reader sees the old file or the new one. */
 function publish(file, mirror) {
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(mirror), { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(mirror), { mode: 0o600 });
+  fs.rename(temporary, file);
 }
 
 /** Take the refresh lock (O_EXCL); a lock older than 15 s belongs to a dead refresher and is replaced. */
 function lockRefresh(file, now) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    try { const fd = openSync(file, 'wx', 0o600); writeFileSync(fd, String(process.pid)); closeSync(fd); return true; }
+    try { const fd = fs.open(file, 'wx', 0o600); fs.writeFile(fd, String(process.pid)); fs.close(fd); return true; }
     catch (error) {
       if (error.code !== 'EEXIST') return false;
-      try { if (now - statSync(file).mtimeMs <= MIRROR_LOCK_STALE_MS) return false; unlinkSync(file); } catch { /* A winner just released it. */ }
+      try { if (now - fs.stat(file).mtimeMs <= MIRROR_LOCK_STALE_MS) return false; fs.unlink(file); } catch { /* A winner just released it. */ }
     }
   }
   return false;
@@ -148,7 +141,7 @@ function lockRefresh(file, now) {
  */
 export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now = Date.now, intervalMs = MIRROR_INTERVAL_MS, ssh = 'ssh', env = environmentAdapter().all(), timeoutMs = 10_000, force = false } = {}) {
   const file = mirrorFile(runner.host, dir), fresh = () => { const m = readRunnerMirror(runner.host, { dir }); return m && now() - m.at < intervalMs ? m : null; };
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.mkdir(dir, { recursive: true, mode: 0o700 });
   if (!force && fresh()) return { mirror: fresh(), refreshed: false };
   const lock = `${join(dir, hostFile(runner.host))}.lock`;
   if (!lockRefresh(lock, now())) return { mirror: readRunnerMirror(runner.host, { dir }), refreshed: false };
@@ -165,9 +158,9 @@ export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now
     publish(file, mirror);
     if (parsed) {
       const folder = markerDir(runner.host, dir);
-      for (const id of sent.cancel) rmSync(join(folder, `${id}.cancel`), { force: true });
-      for (const id of sent.ack) for (const kind of ['ack', 'wanted']) rmSync(join(folder, `${id}.${kind}`), { force: true });
+      for (const id of sent.cancel) fs.rm(join(folder, `${id}.cancel`), { force: true });
+      for (const id of sent.ack) for (const kind of ['ack', 'wanted']) fs.rm(join(folder, `${id}.${kind}`), { force: true });
     }
     return { mirror, refreshed: true };
-  } finally { rmSync(lock, { force: true }); }
+  } finally { fs.rm(lock, { force: true }); }
 }

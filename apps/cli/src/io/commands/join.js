@@ -137,7 +137,9 @@ export async function run(io, { first: named, values }) {
     io.say(`already joined as ${displayName}${existing.agent_family ? ` (family ${existing.agent_family})` : ''}; run pullboard next`);
     return 0;
   }
-  if (existing && !sameSeat) {
+  // The same model asking for another lane moves the seat; the store refuses LANE_HELD while it holds work [C7,#12022].
+  const moving = existing !== undefined && existing !== null && existing.agent_lane !== first && existing.agent_model === model;
+  if (existing && !sameSeat && !moving) {
     throw new Refused('ALREADY_JOINED',
       `this worktree is already joined as ${existing.agent_id}; retry with lane ${existing.agent_lane} and model ${JSON.stringify(existing.agent_model)}`);
   }
@@ -145,16 +147,17 @@ export async function run(io, { first: named, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(coordinatorSeat ? { coordinatorSeat: true } : {}), ...(values['lock-lane'] ? { lockLane: true } : {}), ...(values.role === undefined ? {} : { role: values.role }), ...(values.abilities === undefined ? {} : { abilities: abilitiesOf(values.abilities) }), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(moving ? { moveLane: true } : {}), ...(coordinatorSeat ? { coordinatorSeat: true } : {}), ...(values['lock-lane'] ? { lockLane: true } : {}), ...(values.role === undefined ? {} : { role: values.role }), ...(values.abilities === undefined ? {} : { abilities: abilitiesOf(values.abilities) }), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
   registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
-  io.result?.({ agent: id, lane: first, route, level: route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(values.role === undefined ? {} : { role: values.role }), ...(values.abilities === undefined ? {} : { abilities: abilitiesOf(values.abilities) }), ...(sameSeat ? { alreadyJoined: true } : {}) });
+  io.result?.({ agent: id, lane: first, route, level: route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(values.role === undefined ? {} : { role: values.role }), ...(values.abilities === undefined ? {} : { abilities: abilitiesOf(values.abilities) }), ...(sameSeat ? { alreadyJoined: true } : {}), ...(moving ? { moved: true, from: existing.agent_lane } : {}) });
   io.say(sameSeat
     ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
+    : moving ? `moved ${displayName} from ${existing.agent_lane} to ${first}`
     : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${values.role === undefined ? '' : ` as an ${values.role}`}${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
   return 0;
 }

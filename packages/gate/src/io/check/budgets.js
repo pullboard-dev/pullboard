@@ -1,11 +1,6 @@
 #!/usr/bin/env node
 /** Save the main CI performance artifacts and warn by action against the fixed view budgets [N40,C7]. */
 import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -14,18 +9,21 @@ import {
   perfBudgetTable,
   readPerfReport,
 } from '../../../heavy.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Parse the saved harness output; artifacts live outside the harness's disposable workspace. */
 function main(args) {
   if (args.length !== 2) throw new Error('usage: node packages/gate/src/io/check/budgets.js <harness-output> <artifact-directory>');
-  const report = readPerfReport(readFileSync(resolve(args[0]), 'utf8'));
+  const report = readPerfReport(fs.readFile(resolve(args[0]), 'utf8'));
   const result = evaluatePerfBudgets(report);
   const directory = resolve(args[1]);
-  mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, 'performance.json'), JSON.stringify(report, null, 2) + '\n');
-  writeFileSync(join(directory, 'budgets.json'), JSON.stringify(result, null, 2) + '\n');
+  fs.mkdir(directory, { recursive: true });
+  fs.writeFile(join(directory, 'performance.json'), JSON.stringify(report, null, 2) + '\n');
+  fs.writeFile(join(directory, 'budgets.json'), JSON.stringify(result, null, 2) + '\n');
   const context = 'Measured board: ' + JSON.stringify(report.size) + ' items; ' + JSON.stringify(report.projects) + ' projects; ' + JSON.stringify(report.runs) + ' run(s).';
-  writeFileSync(join(directory, 'performance.md'), context + '\n\n' + perfBudgetTable(result) + '\n\n'
+  fs.writeFile(join(directory, 'performance.md'), context + '\n\n' + perfBudgetTable(result) + '\n\n'
     + (typeof report.table === 'string' ? report.table + '\n' : ''));
   for (const warning of result.warnings) {
     // Names come only from the fixed action registry, so harness content cannot inject annotations.

@@ -1,7 +1,6 @@
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 /** Final exact-head native receipt for opt-in native landings; floors retain their separate evidence [B3,C7]. */
-import { copyFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { headCommit } from '../../../../git/index.js';
@@ -12,6 +11,9 @@ import { runGate } from '../../../../gate/heavy.js';
 import { createLandingEnvelope } from '../../logic/envelope.js';
 import { readTrainLandingReceipt } from '../train/receipt.js';
 import { Refused } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Gate the final envelope using the unmodified accepted command, never an augmented floor or a tree-only cache.
@@ -41,8 +43,8 @@ export async function finalizeLandingEnvelope(state, save, observer) {
   const run = await runGate(batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true,
     agent: 'coordinator', stages: true, quarantines: state.landingPorts.quarantineVerdictSnapshot(state.board), onWait: state.onWait, onFailure: observer() });
   const logPath = join(dirname(batch.root), 'logs', `envelope-${batch.revision}.log`);
-  copyFileSync(run.log, logPath);
-  if (run.profilePath) copyFileSync(run.profilePath, `${logPath}.profile.json`);
+  fs.copyFile(run.log, logPath);
+  if (run.profilePath) fs.copyFile(run.profilePath, `${logPath}.profile.json`);
   await state.checkLease();
   if (headCommit(batch.root) !== envelope.tip || headTree(batch.root) !== envelope.tree
     || !isClean(batch.root) || untracked(batch.root).length) {

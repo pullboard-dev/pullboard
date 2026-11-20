@@ -132,6 +132,31 @@ export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget =
 }
 
 /**
+ * Why a file the runner is offered has no ledger hit, read from the proof rows alone: `none` (no row for it), `red` (its only
+ * rows are fails, or passes shadowed by a fail at the same key and context), or `changed` (it has a recorded pass, so a miss on
+ * the runner means its input key moved). Why rows only: the runner computes input keys, the board never does [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} files
+ * @param {{ command?: string }} [options]
+ * @returns {Record<string, 'none' | 'red' | 'changed'>}
+ */
+export function ledgerMissReasons(db, files, { command = 'proof' } = {}) {
+  const reasons = {};
+  if (!Array.isArray(files)) return reasons;
+  const ledger = !missingLedgerTable(db);
+  const rows = ledger ? db.prepare('SELECT COUNT(*) AS rows FROM test_result WHERE test_result_file = ? AND test_result_command = ?') : null;
+  const passes = ledger ? db.prepare(`SELECT COUNT(*) AS passes FROM test_result pass WHERE pass.test_result_file = ? AND pass.test_result_command = ? AND pass.test_result_status = 'pass'
+    AND NOT EXISTS (SELECT 1 FROM test_result red WHERE red.test_result_input_key = pass.test_result_input_key AND red.test_result_command = pass.test_result_command
+      AND red.test_result_context = pass.test_result_context AND red.test_result_file = pass.test_result_file AND red.test_result_status = 'fail')`) : null;
+  for (const file of new Set(files)) {
+    if (!FILE.test(String(file))) continue;
+    reasons[file] = !ledger || !rows.get(file, command).rows ? 'none' : passes.get(file, command).passes ? 'changed' : 'red';
+  }
+  return reasons;
+}
+
+/**
  * The test files with the newest green proof rows in the ledger, newest first, at most `limit`. Why: a landing's contract
  * files are chosen on the runner after the merge, so the board offers hits for the files it most recently saw pass [C7,#9301].
  *
@@ -182,4 +207,32 @@ export function ledgerMainReds(db, files, main, contexts, { command = 'proof' } 
     WHERE test_result_file = ? AND test_result_commit = ? AND test_result_command = ? AND test_result_status = 'fail'`);
   return [...new Set(files)].filter(file => FILE.test(String(file))).flatMap(file => select.all(file, main, command)
     .map(({ inputKey, context }) => [file, inputKey, contexts.includes(context) ? contexts.indexOf(context) : contexts.push(context) - 1]));
+}
+
+const GATE_FAILS = `SELECT test_result_file AS file, test_result_receipt AS receipt, test_result_command AS command, test_result_at AS at
+  FROM test_result WHERE test_result_status = 'fail' AND test_result_receipt LIKE 'gate:%' AND test_result_at >= ? ORDER BY test_result_id`;
+
+/**
+ * The gate fail rows since a time, each with the item the gate was for, that item's files, and the runner time the
+ * gate shard took. Why: the board already holds these facts, and a test file that fails gates of many unrelated
+ * items is the cost the costly-tests report names [C7]. A receipt whose job lacks a claimed or receipt step has ms null.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ since?: number }} [options]
+ * @returns {Array<{ file: string, item: number, itemFiles: string[], command: string, at: number, ms: number | null }>}
+ */
+export function gateFailRows(db, { since = 0 } = {}) {
+  if (missingLedgerTable(db)) return [];
+  const files = db.prepare('SELECT item_files AS files FROM item WHERE item_id = ?');
+  const step = db.prepare('SELECT job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name = ? ORDER BY job_step_id DESC LIMIT 1');
+  const rows = [];
+  for (const row of db.prepare(GATE_FAILS).all(Number(since) || 0)) {
+    const item = Number(/^gate:(\d+)(?::|$)/u.exec(row.receipt)?.[1]);
+    if (!Number.isInteger(item)) continue;
+    const start = step.get(row.receipt, 'claimed')?.at;
+    const end = step.get(row.receipt, 'receipt')?.at;
+    rows.push({ file: row.file, item, itemFiles: (files.get(item)?.files ?? '').split('\n').filter(Boolean), command: row.command, at: row.at,
+      ms: start === undefined || end === undefined ? null : Math.max(0, end - start) });
+  }
+  return rows;
 }
