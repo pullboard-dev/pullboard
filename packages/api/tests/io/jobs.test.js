@@ -21,6 +21,9 @@ import { claimJob } from '../../index.js';
 import { endJobs } from '../../index.js';
 import { renewJob } from '../../index.js';
 import { postReceipt } from '../../index.js';
+import { gateClaimHop } from '../../index.js';
+import { provideGateHopTable } from '../../index.js';
+import { readGateHop } from '../../../store/index.js';
 import { runnerCommitPort } from '../../index.js';
 import { MACHINE_DEFAULTS } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
@@ -442,3 +445,53 @@ test('api.io-claim-key.retry-after-abort-returns-same-lease: clause 1: the board
   assert.equal((await claim('bad key')).document.error.code, 'JOB_CLAIM_KEY', 'a key that is not a plain name is refused');
 });
 
+/** A hop table as pullboard serve provides the moves cell's (a cell test may not import it): create, acquire a queued or lapsed hop, refuse HOP_HELD while another runner's lease lives. */
+function hopTable(t) {
+  provideGateHopTable((leaseMs) => ({ item, hop, now }, { name, actor }) => {
+    if (name === 'create') return { patch: { hop: { state: 'queued', owner: null, epoch: 0, leaseUntil: 0, attempts: 0, commit: item.commit, digest: item.digest } } };
+    if (hop.state === 'driven' && hop.owner !== actor && hop.leaseUntil >= now) return { refused: { code: 'HOP_HELD', message: `the hop is driven by ${hop.owner} and its lease has not lapsed` } };
+    return { patch: { hop: { ...hop, state: 'driven', owner: actor, epoch: hop.epoch + 1, leaseUntil: now + leaseMs } } };
+  });
+  t.after(() => provideGateHopTable(null));
+}
+
+/** A board with two gate jobs for item 7 at one candidate and a gate job for item 9 behind them. */
+function hopBoard(t, name) {
+  const { root } = privateFixtureFiles(name);
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  hopTable(t);
+  const candidate = 'c0ffee'.padEnd(40, '0');
+  offerJob(db, { id: 'gate:7:a', kind: 'gate', item: 7, candidate, now: 1000 });
+  offerJob(db, { id: 'gate:7:b', kind: 'gate', item: 7, candidate, now: 1001 });
+  offerJob(db, { id: 'gate:9:x', kind: 'gate', item: 9, candidate: 'beef'.padEnd(40, '0'), now: 1002 });
+  return db;
+}
+
+const leaseRow = (db, job) => db.prepare('SELECT job_step, job_attempt, job_lease_owner, job_lease_until, job_updated FROM job WHERE job_id = ?').get(job);
+
+test('api.io-refusal.hop-held-leaves-lease: clause 1: a claim reaching a gate job whose hop another live runner holds skips that job, leaves its lease row unchanged, and takes the next job [C7]', (t) => {
+  const db = hopBoard(t, 'pullboard-jobs-hop-held-');
+  const claim = (runner, now) => jobQueueCall(db, { action: 'claim', runner, capabilities: [] }, { mode: 'pull', now, hop: gateClaimHop(true) }).claim;
+  assert.equal(claim('r1', 5000).job, 'gate:7:a', 'r1 takes the first gate job and the item hop');
+  const before = leaseRow(db, 'gate:7:b');
+  const next = claim('r2', 5001);
+  assert.equal(next.job, 'gate:9:x', 'r2 skips the held gate job and takes the job behind it; no refusal ends its serve');
+  assert.deepEqual(leaseRow(db, 'gate:7:b'), before, 'the skipped job\'s lease row is unchanged');
+  assert.equal(jobView(db, 'gate:7:b').steps.some((step) => step.name === 'claimed'), false, 'no claim step was written for it');
+  assert.deepEqual([readGateHop(db, 7).owner, readGateHop(db, 7).epoch], ['r1', 1], 'r1 keeps the hop');
+  assert.equal(claim('r2', 5002), null, 'with nothing else open, the claim answers no job rather than a refusal');
+});
+
+test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job claim with the hop on makes the same 33 board statements as before the hop check moved [C7]', (t) => {
+  const db = hopBoard(t, 'pullboard-jobs-hop-reads-');
+  let statements = 0;
+  const counted = new Proxy(db, { get(target, key) {
+    const value = Reflect.get(target, key, target);
+    if (key === 'prepare') return (...args) => { statements += 1; return value.apply(target, args); };
+    if (key === 'exec') return (...args) => { statements += 1; return value.apply(target, args); };
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+  const taken = claimJob(counted, { runner: 'r1', now: 5000, hop: gateClaimHop(true) });
+  assert.equal(taken.job, 'gate:7:a');
+  assert.equal(statements, 33, 'the success path prepares and runs the same statements as on main');
+});

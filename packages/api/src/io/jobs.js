@@ -453,6 +453,9 @@ export function claimJob(db, { runner, key = null, capabilities = [], kinds = nu
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
       if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
+      // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds skips this job before its lease is touched, and the claim goes on to the next job [C7,#8352,#12147].
+      const held = hop && row.job_kind === 'gate' && row.job_item ? acquireOrEnd(db, hop, row, { runner, now, leaseMs }) : null;
+      if (held === OVER || held === HELD) continue;
       // jobs.recordLapse: what the earlier claim held and last wrote, read before this claim overwrites the lease [C7,#9247].
       const lapsed = recordLapse && row.job_attempt >= 1 ? lapseOf(db, row, now) : null;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
@@ -461,9 +464,6 @@ export function claimJob(db, { runner, key = null, capabilities = [], kinds = nu
       if (lapsed) noteLapse(db, row.job_id, lapsed, now);
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = keyed === null ? randomBytes(24).toString('base64url') : keyedToken(runner, keyed, row.job_id, attempt);
-      // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
-      const held = hop && row.job_kind === 'gate' && row.job_item ? acquireOrEnd(db, hop, row, { runner, now, leaseMs }) : null;
-      if (held === OVER) continue;
       writeStep(db, row.job_id, 'claimed', { runner, ...(held ? { hopEpoch: held.epoch } : {}), capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
       noteLease(db, row.job_id, 'lease.grant', { owner: runner, until: now + leaseMs }, now);
       if (keyed !== null) noteClaimKey(db, row.job_id, claimKeyStep(runner, keyed), attempt, now);
@@ -495,19 +495,24 @@ function lapseOf(db, row, now) {
 
 /** acquireOrEnd's answer for a gate job it ended because its hop is over. */
 const OVER = Symbol('hop over');
+/** acquireOrEnd's answer for a gate job whose hop another live runner holds: this claim skips it and leaves it as it is. */
+const HELD = Symbol('hop held');
 
 /**
  * Acquire the item's hop for this gate job's claim, or end the job when its own candidate's hop is already done or ended.
  * Why: a resubmit ends the old candidate's hop but leaves its gate job open; once that job's lease lapsed, every claim
  * reached it first and was refused HOP_OVER, so no gate job behind it was ever claimed. A job whose hop is over is no
  * one's work, so it ends here like a runaway and the claim goes on to the next job [C7,#8352,#8353].
+ * A hop another live runner holds (HOP_HELD, refused as HOP_FENCED) skips only this job: a refused claim ended the whole runner serve,
+ * which then drained for about a minute before launchd restarted it. The caller runs this before it takes the lease, so the skipped job's lease row is never written [C7,#12147].
  *
- * @returns {{ owner: string | null, epoch: number } | typeof OVER}
+ * @returns {{ owner: string | null, epoch: number } | typeof OVER | typeof HELD}
  */
 function acquireOrEnd(db, hop, row, { runner, now, leaseMs }) {
   try {
     return moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'acquire', job: row.job_id, now, leaseMs });
   } catch (error) {
+    if (error?.code === 'HOP_FENCED') return HELD;
     if (error?.code !== 'HOP_OVER') throw error;
     endJob(db, row.job_id, 'superseded', { detail: `#${row.job_item}'s gate hop at ${String(row.job_candidate).slice(0, 12)} is already done or ended; ended, not rerun` }, { now });
     return OVER;
