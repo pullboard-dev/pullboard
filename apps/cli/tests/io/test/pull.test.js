@@ -1,7 +1,12 @@
 /** A test job request carries the caller's fixture switches and nothing else from its shell [C7,#10849]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import { LEDGER_SCHEMA_SQL } from '../../../../../packages/store/index.js';
 import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { test } from 'node:test';
+import { ledgerHits } from '../../../../../packages/store/index.js';
+import { recordTestResults } from '../../../../../packages/store/index.js';
+import { testResults } from '../../../../../packages/store/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 
@@ -41,4 +46,16 @@ test('cli.io-test-pull.finish-run-carries-test-results: clause 1: the pulled fin
     { file: 'apps/cli/tests/a.test.js', inputKey: KEY_B, command: 'proof', context: CONTEXT, status: 'pass' },
     { file: 'apps/cli/tests/b.test.js', inputKey: KEY_A, command: 'proof', context: CONTEXT, status: 'fail' }]);
   assert.deepEqual(finishLedgerRows({ phases: [{ role: 'test' }] }), []);
+});
+
+test('cli.io-test-pull.finish-rows-reach-ledger: clause 2: a finish run of 5 files leaves 5 rows in the board ledger, and the next run of the same unchanged files is offered 5 hits to reuse [P7]', () => {
+  const files = [1, 2, 3, 4, 5].map(n => `apps/cli/tests/f${n}.test.js`);
+  const phase = { role: 'test', ledger: { contexts: [CONTEXT], files: files.map((file, n) => [file, String(n).repeat(64).slice(0, 64).replace(/[^0-9a-f]/gu, 'a'), 0, 'pass']) } };
+  const db = new DatabaseSync(':memory:');
+  db.exec(LEDGER_SCHEMA_SQL);
+  const rows = finishLedgerRows({ phases: [phase] });
+  assert.equal(recordTestResults(db, { receipt: 'test:1#0', origin: 'finish:runner', commit: 'f'.repeat(40), rows }), 5);
+  assert.deepEqual(testResults(db).map(row => row.file).sort(), files);
+  const hits = ledgerHits(db, files);
+  assert.deepEqual(hits.files.map(row => row[0]).sort(), files);
 });
