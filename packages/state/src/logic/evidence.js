@@ -69,7 +69,7 @@ function refuseColdImportWithoutRow(criterion) {
  * With `refuseEmpty`, a missing, blank or unnumbered criterion is refused BAR_EMPTY; without it an undefined criterion returns no warnings [C7].
  *
  * @param {string|undefined} criterion
- * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string, refuseEmpty?: boolean }} [options]
+ * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string, check?: string, refuseEmpty?: boolean }} [options]
  * @returns {{ code: string, clause: number, message: string }[]}
  */
 export function guardBar(criterion, options) {
