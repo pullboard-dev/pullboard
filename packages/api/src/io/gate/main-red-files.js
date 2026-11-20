@@ -42,6 +42,14 @@ export function caseRows(phase) {
   return [...(Array.isArray(phase?.failures) ? phase.failures : []), ...(Array.isArray(phase?.errors) ? phase.errors : [])];
 }
 
+/**
+ * The files a red phase names with no case: a file that failed as a whole (an import error, a crash) shows only in the
+ * spec footer's failedFiles. Each is compared with main by its input key like a file with a failing case [C7,P7].
+ */
+function wholeFiles(phase) {
+  return (Array.isArray(phase?.failedFiles) ? phase.failedFiles : []).filter(file => typeof file === 'string' && PROJECT_FILE.test(file));
+}
+
 /** The failing files' input keys a red phase carries: its own ledger rows, or the keys a combined shard receipt kept. */
 function failingKeys(phase) {
   const kept = phase?.failedInputKeys && typeof phase.failedInputKeys === 'object' ? phase.failedInputKeys : {};
@@ -72,12 +80,12 @@ export function mainRedFileExcuse(board, receipt) {
   const gate = receipt?.gate ?? {};
   if (receipt?.status === 0 || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.analysis?.ownership || gate.proofPlan) return null;
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
-  if (!red.length || red.some(phase => phase.role !== 'proof' || !caseRows(phase).length
+  if (!red.length || red.some(phase => phase.role !== 'proof' || !(caseRows(phase).length || wholeFiles(phase).length)
     || caseRows(phase).some(row => typeof row?.name !== 'string' || !row.name || !PROJECT_FILE.test(row?.file ?? '')))) return null;
   const keys = Object.assign({}, ...red.map(failingKeys));
   const listed = new Set(listedMainRedFiles(board.db));
   const excused = [];
-  for (const file of [...new Set(red.flatMap(phase => caseRows(phase).map(row => row.file)))]) {
+  for (const file of [...new Set(red.flatMap(phase => [...caseRows(phase).map(row => row.file), ...wholeFiles(phase)]))]) {
     const inputKey = keys[file];
     if (!INPUT_KEY.test(inputKey ?? '')) return null;
     const main = mainReceiptAtKey(board.db, file, inputKey);
