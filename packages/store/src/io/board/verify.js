@@ -35,6 +35,7 @@ import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../../../state/light.js';
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../../state/light.js';
 import { itemHold } from "./query.js";
 import { recordVerdict } from "../../../../verify/index.js";
+import { writeBoardMeta } from "./meta.js";
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { verdictReviewProblem } from "../../../../verify/index.js";
@@ -167,7 +168,7 @@ export function prepareVerdictFacts(board, id, { agentId, review }) {
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false, verifyFacts, soloLowStakes, rows, checks }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false, verifyFacts, soloLowStakes, rows, checks, isolated }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -237,6 +238,11 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       before: (found) => {
         if (!isAccept) clauseDetail = rejectionClauseDetail(found, clause, engine);
         recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head });
+        // Whether the check ran isolated from the reviewer's checkout is recorded beside the verdict, only when the caller says so [C7,#1112].
+        if (typeof isolated === 'boolean') {
+          const verdictId = board.db.prepare('SELECT MAX(verdict_id) AS id FROM verdict WHERE item_id=?').get(id).id;
+          writeBoardMeta(board.db, `verdict_isolated:${verdictId}`, String(isolated));
+        }
         // The verified proof trigger reads this event when the item row moves to verified, so it is written with the verdict, ahead of the move [#966].
         for (const event of soloEvents) logEvent(board, event.by, event.kind, id, event.detail);
       },

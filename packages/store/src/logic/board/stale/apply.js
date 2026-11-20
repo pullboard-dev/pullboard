@@ -19,11 +19,11 @@ import { PINNED_CLAIM_LAPSE_ENGINE } from "../../../../../state/light.js";
 import { PINNED_CLAIM_RELEASE_MS } from "../../pinned.js";
 import { itemPinned } from "../../pinned.js";
 
-/** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
+/** A claim shows as stalled after 20 idle minutes and is released at 30 (#1225); kept beside the health reader's copy. */
 const CLAIM_STALL_MS = 20 * 60_000;
 /** A holder who committed this recently is never returned by the progress rule. */
 const RECENT_COMMIT_MS = 30 * 60_000;
-const CLAIM_IDLE_RELEASE_MS = 40 * 60_000;
+const CLAIM_IDLE_RELEASE_MS = 30 * 60_000;
 import { RELEASE_REASONS_ENGINE } from "../../../../../state/index.js";
 import { BOARD_RELEASE_CODES_ENGINE } from "../../../../../state/index.js";
 import {
