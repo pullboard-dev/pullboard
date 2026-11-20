@@ -111,6 +111,11 @@ function nextChangeInputs(ctx) {
  */
 export async function nextHere(io, values) {
   if (values.stuck !== undefined) values = await releaseStuck(io, values);
+  if (values.done === true) {
+    const submitted = await submitDone(io);
+    if (submitted !== 0) return submitted;
+    values = { ...values, done: undefined };
+  }
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
   const monitor = startNextProgressMonitor(io);
@@ -163,6 +168,22 @@ async function releaseStuck(io, values) {
   await release(quiet, { first: String(held[0]), values: { reason: 'BLOCKED', note: why } });
   const { stuck, ...rest } = values;
   return rest;
+}
+
+/**
+ * next --done: submit the one build claim this seat holds through the submit command's own run, as the done alias does, then answer as next does [C7,#11701].
+ * Why: a builder whose item is committed needs one command to hand it to the gate and hear the next instruction, not a submit and a second call.
+ *
+ * @param {any} io
+ * @returns {Promise<number>} Zero after the submit queued; submit's own nonzero code, so no new item is handed out after a refusal.
+ */
+async function submitDone(io) {
+  const held = seatClaims(context(io));
+  if (held.length !== 1) {
+    throw new Refused('USAGE', `pullboard next --done submits the one build claim this seat holds; this seat holds ${held.length}`, 'hold one claim, then run pullboard next --done; to continue without submitting run pullboard next');
+  }
+  const { run: submit } = await import('./submit.js');
+  return submit(io, { first: String(held[0]), values: {} });
 }
 
 /** The line after a claim's check: the criterion and check above are the bar, so a builder skips show [#10557]. */

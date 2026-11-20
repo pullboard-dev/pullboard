@@ -42,11 +42,11 @@ function fixture(t, { deleteMoves = false } = {}) {
   return { root, merge: git(root, 'rev-parse', 'HEAD') };
 }
 
-test('landing.numbers.an-allocating-landing-commits-its-new: an allocating landing commits its new history as data in the same merge [B3,C7,D3,H16]', t => {
+test('landing.numbers.an-allocating-landing-commits-its-new: an allocating landing commits its new history as data in the same merge [B3,C7,D3,H16]', async t => {
   const { root, merge } = fixture(t);
   const parents = git(root, 'show', '-s', '--format=%P', merge);
   assert.equal(parents.split(' ').length, 2, 'the input is a real item merge');
-  const engines = amendLandingEngines(root);
+  const engines = await amendLandingEngines(root);
   assert.deepEqual(engines.assigned, [{ name: 'FEATURE_ENGINE', number: 81 }]);
   const head = git(root, 'rev-parse', 'HEAD');
   assert.notEqual(head, merge);
@@ -54,13 +54,13 @@ test('landing.numbers.an-allocating-landing-commits-its-new: an allocating landi
   const history = 'packages/state/data/history/81.json';
   assert.equal(JSON.parse(git(root, 'show', `${head}:${history}`)).engine, 81);
   assert.equal(git(root, 'status', '--porcelain'), '', 'no unstaged file escapes the merge');
-  assert.deepEqual(amendLandingEngines(root).assigned, [], 'a retry never allocates or places the same history twice');
+  assert.deepEqual((await amendLandingEngines(root)).assigned, [], 'a retry never allocates or places the same history twice');
   assert.equal(git(root, 'rev-parse', 'HEAD'), head);
 });
 
-test('landing.numbers.landing-a-candidate-that-deletes-src: landing a candidate that deletes src/moves numbers its engine from the moves cell [C7,H16]', t => {
+test('landing.numbers.landing-a-candidate-that-deletes-src: landing a candidate that deletes src/moves numbers its engine from the moves cell [C7,H16]', async t => {
   const { root } = fixture(t, { deleteMoves: true });
-  const engines = amendLandingEngines(root);
+  const engines = await amendLandingEngines(root);
   assert.deepEqual(engines.assigned, [{ name: 'FEATURE_ENGINE', number: 81 }]);
   const record = JSON.parse(git(root, 'show', 'HEAD:packages/state/data/history/81.json'));
   assert.deepEqual(Object.keys(record.declarations), ['example.js'], 'the history freezes the packaged body');

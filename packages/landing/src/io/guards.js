@@ -143,17 +143,25 @@ function missingImports(graph) {
 function edgeKey(row) { return JSON.stringify([row.file, row.specifier, row.reason]); }
 
 /**
- * The changed ES modules that do not parse alone at the composed tip.
+ * The changed ES modules that do not parse alone at the composed tip but did parse at the landing base.
+ * A module that already failed to parse at the base (JSX or Flow in a .js file) is not the composition's break [C7].
  * Why: the inventory reads through tolerantImportsIn, which treats an uncompilable source as importing nothing, so the
  * parse failure must be found here, directly, or a duplicate import lands [C7].
  */
-function brokenModules(root, tip, changed) {
+function brokenModules(root, base, tip, changed) {
   const modules = changed.filter(file => /\.(?:m?js)$/u.test(file));
   const sources = committedSources(root, tip, modules);
-  return modules.filter(file => {
+  const failing = modules.filter(file => {
     const source = sources.has(file) ? sources.get(file) : shownSource(root, tip, file);
     if (source === null) return false;
     try { importsIn([source], undefined); return false; } catch { return true; }
+  });
+  if (!failing.length) return failing;
+  const atBase = committedSources(root, base, failing);
+  return failing.filter(file => {
+    const source = atBase.has(file) ? atBase.get(file) : shownSource(root, base, file);
+    if (source === null) return true;
+    try { importsIn([source], undefined); return true; } catch { return false; }
   });
 }
 
@@ -195,7 +203,7 @@ function committedSources(root, tip, files) {
  * Why: a duplicate import in a composition killed the worker as LAND_WORKER, which blamed no item and left the batch
  * pinned in merging; a parse failure is the composed content's own and ends the batch terminally [C7].
  */
-function parseRefusal(root, tip, changed, broken = brokenModules(root, tip, changed)) {
+function parseRefusal(root, base, tip, changed, broken = brokenModules(root, base, tip, changed)) {
   const refusal = new Refused('LAND_MODULE_PARSE', `the composed landing has ${broken.length ? broken.join(', ') : 'a module'} that does not parse as an ES module; fix the duplicate or invalid declaration and resubmit`);
   refusal.broken = broken;
   return refusal;
@@ -219,13 +227,13 @@ export async function requireLandingModuleResolution(root, base, tip) {
   requireLandingSecretFree(root, base, tip);
   const before = graphAt(root, base);
   const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
-  const broken = brokenModules(root, tip, changed);
-  if (broken.length) throw parseRefusal(root, tip, changed, broken);
+  const broken = brokenModules(root, base, tip, changed);
+  if (broken.length) throw parseRefusal(root, base, tip, changed, broken);
   let after;
   try { after = graphAt(root, tip); }
   catch (error) {
     if (error.message !== 'source does not compile as an ES module') throw error;
-    throw parseRefusal(root, tip, changed);
+    throw parseRefusal(root, base, tip, changed);
   }
   const inherited = new Set(missingImports(before).map(edgeKey));
   const missing = missingImports(after).filter(row => !inherited.has(edgeKey(row)));

@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/api/src/io/stale.js */
 /** The coordinator ends the offered shards of gates whose candidate lacks a named main commit, in one indexed pass, and the gate settles red to its builder [C7,#12166]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
