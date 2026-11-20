@@ -8,7 +8,7 @@ import { rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { startCheckBaseline } from '../../../../../index.js';
+import { startCheckBaseline } from '../../../../../heavy.js';
 import { privateFixtureFiles } from '../../../../fixtures/child.js';
 
 const worker = fileURLToPath(new URL('../../../../../../../apps/lib/src/io/check/baseline.js', import.meta.url));

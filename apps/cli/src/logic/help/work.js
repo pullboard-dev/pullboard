@@ -13,7 +13,7 @@ export const RELEASE_REASON_LINES = Object.freeze([
 export const workHelp = `Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
-  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
+  pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--after-gate 3,4] [--from-record <hash>] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--readiness "<command>"]           the command that says the item is ready to start; edit replaces it, "" clears it
     [--needs browser,gui]               the abilities an agent needs to build it; edit replaces them, "" clears them
@@ -38,6 +38,7 @@ export const workHelp = `Work
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--level light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--after-gate <id>[,<id>...]|none]   replace the ids it waits on until their gate is green; none clears them
                 [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
                 [--needs browser,gui]   the abilities an agent needs to build it; "" clears them
                 [--sensitive]           select Strict review; edit can set it while open
@@ -207,6 +208,7 @@ ${RELEASE_REASON_LINES.map(line => `                                        ${li
                                         as the person, a project's repos list together as repo#id
   pullboard rulings <cause>                       every ruling recorded under that cause, newest first, with its shout id and text
   pullboard block add <name> <id> <id> [<id> ...] --tier <light|mid|strong>  record a named block of items
+  pullboard block claim <name>                    claim every member of a block for this seat in one move
   pullboard block list [--json]                   each block as one row: name, tier and member ids
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]
                 [--work <lane>] [--review-wait <minutes>]

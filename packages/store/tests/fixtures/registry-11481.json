@@ -1,0 +1,17 @@
+{
+  "store.io-board-claim-table.needs-ability-real-path": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a real claim of an item with needs [browser] is refused NEEDS_ABILITY for a seat with no saved abilities and the item stays open, and a seat given [browser] through saveAgentAbilities is not refused for it."
+    },
+    "why": "Without this test, a regression where the live claim snapshot stops carrying the item's needs or the seat's abilities would let a real claim bypass the NEEDS_ABILITY guard unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/claim-table.test.js",
+      "packages/store/src/io/board/claim-table.js",
+      "packages/store/src/io/needs.js"
+    ]
+  }
+}

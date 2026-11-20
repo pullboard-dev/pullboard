@@ -5,14 +5,7 @@ import { operationIntent } from '../../../state/index.js';
  * this machine with the board as the relay last ordered it, until they replay in relay order.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   dirname,
   join,
@@ -83,6 +76,7 @@ import {
   entryCreatedItems,
   rememberCreatedItems,
 } from '../../../link/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** The environment this file reads, through the one adapter [C7]. */
 const environment = environmentAdapter();
@@ -103,8 +97,8 @@ export function outboxAhead(state) {
  * Why: the board image and the queued moves are as private as the relay's own sealed records, so they stay sealed at rest.
  */
 export async function readOutbox(file, key, boardId) {
-  if (!existsSync(file)) return null;
-  const plain = await unseal(key, readFileSync(file), { boardId, kind: 'outbox', sequence: 0 });
+  if (!fileSystem.exists(file)) return null;
+  const plain = await unseal(key, fileSystem.readFile(file, null), { boardId, kind: 'outbox', sequence: 0 });
   const document = JSON.parse(gunzipSync(plain).toString('utf8'));
   // Version 3 (#1013) keeps no board image: each move carries the rows it changed, to be taken back by them.
   if (![1, 2, 3].includes(document?.version) || !Array.isArray(document.moves) || !(document.base || document.version === 3) || !Number.isSafeInteger(document.baseSequence)) {
@@ -128,17 +122,17 @@ export async function writeOutbox(file, key, boardId, document) {
       || entry.created?.some(row => row.resultPath.length)
       || entry.refs?.some(ref => ref.resultPath?.length))) document.version = 2;
   const sealed = await seal(key, gzipSync(Buffer.from(JSON.stringify(document))), { boardId, kind: 'outbox', sequence: 0 });
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  fileSystem.mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, Buffer.from(sealed), { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
+    fileSystem.writeFile(temporary, Buffer.from(sealed), { flag: 'wx', mode: 0o600 });
+    fileSystem.rename(temporary, file);
+  } finally { fileSystem.rm(temporary, { force: true }); }
 }
 
 /** Remove the outbox once every move in it has been ordered. */
 export function removeOutbox(file) {
-  rmSync(file, { force: true });
+  fileSystem.rm(file, { force: true });
 }
 
 /** The item a move acts on, when its first argument names one. */
@@ -235,6 +229,8 @@ export const ITEM_SLOTS = Object.freeze({
   // Request and acted-on event IDs are native event identities, never item references.
   answerTypedRequests: [],
   recordPublishFinding: [[0, 'item']],
+  // A block names its member items in `ids`; a block claim names the block, and its members come from the stored record.
+  addBlock: [[0, 'ids', '*']], claimBlock: [],
   register: [], ensureCoordinator: [], shout: [], passDecision: [], holdLane: [], releaseLane: [],
   moveMilestone: [], editMilestone: [], removeMilestone: [], shipMilestone: [],
   recordRowDecisions: [], decideSpecRevisions: [], applyRowDecisions: [], draftSpecRow: [], recordSpecApprovalBaseline: [],
@@ -411,21 +407,21 @@ function saveOutboxSummary({ file, state }, outbox) {
   const where = outboxSummaryFile(file);
   if (outbox?.moves.length) {
     state.outbox = { restored: outbox.restored, moves: outbox.moves.map(outboxEntrySummary) };
-    mkdirSync(dirname(where), { recursive: true, mode: 0o700 });
+    fileSystem.mkdir(dirname(where), { recursive: true, mode: 0o700 });
     const temporary = where + '.' + randomUUID() + '.tmp';
     try {
-      writeFileSync(temporary, JSON.stringify(state.outbox) + '\n', { flag: 'wx', mode: 0o600 });
-      renameSync(temporary, where);
-    } finally { rmSync(temporary, { force: true }); }
+      fileSystem.writeFile(temporary, JSON.stringify(state.outbox) + '\n', { flag: 'wx', mode: 0o600 });
+      fileSystem.rename(temporary, where);
+    } finally { fileSystem.rm(temporary, { force: true }); }
   } else {
     delete state.outbox;
-    rmSync(where, { force: true });
+    fileSystem.rm(where, { force: true });
   }
 }
 
 /** Whether a move waits in the outbox now, read from disk rather than from a link loaded earlier. */
 export function outboxWaiting(linkFile) {
-  return existsSync(outboxFile(linkFile));
+  return fileSystem.exists(outboxFile(linkFile));
 }
 
 /** The file counting moves ever queued on this board, beside its link. */
@@ -439,7 +435,7 @@ function generationFile(linkFile) {
  * since a queued move shows on the board before the relay orders it (#1013).
  */
 export function outboxGeneration(linkFile) {
-  try { return Number(readFileSync(generationFile(linkFile), 'utf8')) || 0; } catch { return 0; }
+  try { return Number(fileSystem.readFile(generationFile(linkFile), 'utf8')) || 0; } catch { return 0; }
 }
 
 /**
@@ -462,7 +458,7 @@ export function liveOutbox(name, before, document) {
 
 /** Count one more queued move. */
 function bumpGeneration(linkFile) {
-  writeFileSync(generationFile(linkFile), `${outboxGeneration(linkFile) + 1}\n`, { mode: 0o600 });
+  fileSystem.writeFile(generationFile(linkFile), `${outboxGeneration(linkFile) + 1}\n`, { mode: 0o600 });
 }
 
 /**
@@ -484,13 +480,13 @@ function unsealedOutboxFile(linkFile) {
 
 /** Write the key-free outbox: a new file by exclusive create, then an atomic replace; an empty list removes it. */
 function writeUnsealedOutbox(where, entries) {
-  if (!entries.length) { rmSync(where, { force: true }); return; }
-  mkdirSync(dirname(where), { recursive: true, mode: 0o700 });
+  if (!entries.length) { fileSystem.rm(where, { force: true }); return; }
+  fileSystem.mkdir(dirname(where), { recursive: true, mode: 0o700 });
   const temporary = where + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, JSON.stringify(entries), { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, where);
-  } finally { rmSync(temporary, { force: true }); }
+    fileSystem.writeFile(temporary, JSON.stringify(entries), { flag: 'wx', mode: 0o600 });
+    fileSystem.rename(temporary, where);
+  } finally { fileSystem.rm(temporary, { force: true }); }
 }
 
 /**
@@ -503,7 +499,7 @@ async function queueUnsealed(link, { operation, args, command, move, applyLocall
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));
   localRecords(root, (board) => requireKnownCoordinatorHold(board, move));
   const where = unsealedOutboxFile(file);
-  const before = existsSync(where) ? JSON.parse(readFileSync(where, 'utf8')) : [];
+  const before = fileSystem.exists(where) ? JSON.parse(fileSystem.readFile(where, 'utf8')) : [];
   const entry = { move, intent: operationIntent(operation, args), queuedAt: new Date().toISOString(), after: state.sequence ?? 0,
     ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}) };
   writeUnsealedOutbox(where, [...before, entry]);
@@ -520,7 +516,7 @@ async function queueUnsealed(link, { operation, args, command, move, applyLocall
 async function foldUnsealed(link) {
   const { root, file, state, io, localRecords } = link;
   const where = unsealedOutboxFile(file);
-  if (!existsSync(where)) return;
+  if (!fileSystem.exists(where)) return;
   try { if (io?.relayQueueOnFailure?.() !== true) return; } catch { return; }
   let key;
   try { key = readBoardKey(state.board); } catch { return; }
@@ -528,13 +524,13 @@ async function foldUnsealed(link) {
     const sealed = outboxFile(file);
     const outbox = await readOutbox(sealed, key, state.board) ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
     const known = new Set(outbox.moves.map(row => row.move.id));
-    for (const entry of JSON.parse(readFileSync(where, 'utf8'))) {
+    for (const entry of JSON.parse(fileSystem.readFile(where, 'utf8'))) {
       if (!known.has(entry.move.id)) outbox.moves.push({ ...entry, refs: bindRefs(outbox, entry.move) });
     }
     bumpGeneration(file);
     await writeOutbox(sealed, key, state.board, outbox);
     saveOutboxSummary(link, outbox);
-    rmSync(where, { force: true });
+    fileSystem.rm(where, { force: true });
   });
 }
 
@@ -992,7 +988,7 @@ export async function flushOutbox(link, { recover = false } = {}) {
 async function flushRounds(link) {
   const { file, state } = link;
   const where = outboxFile(file);
-  if (!state.outbox && !existsSync(where)) return;
+  if (!state.outbox && !fileSystem.exists(where)) return;
   const key = readBoardKey(state.board);
   let fromCheckpoint = false;
   for (let round = 0; round < FLUSH_ROUNDS; round += 1) {

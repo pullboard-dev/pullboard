@@ -38,10 +38,10 @@ test('cli.io-cells-cache-door.the-codemap-door-no-longer-exports-the: clause 1: 
   }
 });
 
-test('cli.io-cells-cache-door.the-cache-module-reaches-codemap-git-and: clause 1: the cache module reaches codemap, git and kernel only through their doors, with the Git reader from the codemap door [C7,#9464]', () => {
+test('cli.io-cells-cache-door.the-cache-module-reaches-codemap-git-and: clause 1: the cache module reaches codemap, fs, git and kernel only through their doors, with the Git reader from the codemap door [C7,#9464]', () => {
   const cache = readFileSync(join(ROOT, 'apps/cli/src/io/cells/cache.js'), 'utf8');
   const from = [...cache.matchAll(/^import .* from '(\.[^']+)';$/gmu)].map(match => match[1]);
-  assert.deepEqual([...new Set(from)].sort(), ['../../../../../packages/codemap/index.js', '../../../../../packages/git/index.js', '../../../../../packages/kernel/index.js']);
+  assert.deepEqual([...new Set(from)].sort(), ['../../../../../packages/codemap/index.js', '../../../../../packages/fs/index.js', '../../../../../packages/git/index.js', '../../../../../packages/kernel/index.js']);
   assert.match(cache, /import \{ cellGit as git \} from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/codemap\/index\.js';/u);
 });
 

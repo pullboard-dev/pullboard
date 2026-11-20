@@ -7,10 +7,6 @@
  * never by checking anything out. The packet is stored under the board's directory, keyed by item
  * and head, so `show --review` and `next --verify` print it without a checkout or a test process.
  */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { posix } from 'node:path';
@@ -26,6 +22,9 @@ import { criterionClauses } from '../../../../state/index.js';
 import { earlierHeadFacts } from '../../../../state/index.js';
 import { linkEarlierFacts } from '../../../../state/index.js';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -72,7 +71,7 @@ function reviewPacketPath(commonDir, id, head) {
 function readReviewPacket(commonDir, id, head, criterionDigest) {
   try {
     const path = reviewPacketPath(commonDir, id, head);
-    const packet = path && JSON.parse(readFileSync(path, 'utf8'));
+    const packet = path && JSON.parse(fs.readFile(path, 'utf8'));
     return packet?.version === VERSION && packet.item === Number(id) && packet.head === head
       && packet.criterionDigest === criterionDigest ? packet : null;
   } catch { return null; }
@@ -82,10 +81,10 @@ function readReviewPacket(commonDir, id, head, criterionDigest) {
 function storeReviewPacket(commonDir, packet) {
   const path = reviewPacketPath(commonDir, packet.item, packet.head);
   if (!path) return null;
-  mkdirSync(dirname(path), { recursive: true });
+  fs.mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(packet) + '\n');
-  renameSync(temporary, path);
+  fs.writeFile(temporary, JSON.stringify(packet) + '\n');
+  fs.rename(temporary, path);
   return path;
 }
 
@@ -141,7 +140,7 @@ function mainReceiptFor(commonDir, ids, main, failure) {
   for (const id of new Set(ids)) {
     if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
     try {
-      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
+      const stored = JSON.parse(fs.readFile(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
       if (stored.id === id && stored.kind === 'main-red' && stored.head === main
         && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
     } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
@@ -196,7 +195,7 @@ function words(text) {
 function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
   try {
-    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
+    const stored = JSON.parse(fs.readFile(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
     if (stored.id !== receipt.id || stored.head !== head) return [];
     return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => declared || !row.skipped);
   } catch { return []; }

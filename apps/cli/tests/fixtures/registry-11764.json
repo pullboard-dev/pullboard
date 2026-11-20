@@ -1,0 +1,16 @@
+{
+  "cli.io-commands-verify.deps-outside-tree-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "verify refuses a folder whose node_modules links a package outside it as DEPS_OUTSIDE_TREE, naming each package, and passes an in-tree entry."
+    },
+    "why": "Without it, a review check ran against code that was not the commit under review.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/verify.js",
+      "apps/cli/tests/io/commands/verify.test.js"
+    ]
+  }
+}

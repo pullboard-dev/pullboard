@@ -35,6 +35,19 @@ test('sandbox.take.holding-seat-returns-claim: a holding seat returns its claim 
   assert.deepEqual(actorClaims(box), [held]);
 });
 
+test('sandbox.take.one-claim-per-call: clause 1: next --take on a board with five claimable items in two lanes leaves the seat holding exactly one claim, and a repeat call, as the retry after NEXT_TIMEOUT is, returns that same claim [C7]', async t => {
+  const box = fixture(t, cellBoard);
+  for (const title of ['One', 'Two', 'Three']) box.add(title);
+  for (const title of ['Four', 'Five']) box.add(title, { lane: 'docs' });
+  const first = await take(box);
+  assert.ok(first.item, JSON.stringify(first));
+  assert.equal(actorClaims(box).length, 1, 'one call claims one item');
+  const again = await take(box);
+  assert.equal(again.item.item_id, first.item.item_id, 'the repeat call returns the held claim');
+  assert.equal(again.held, true);
+  assert.deepEqual(actorClaims(box), [first.item.item_id], 'no second claim while the first is unsubmitted with a live lease');
+});
+
 test('sandbox.take.write-runs-chosen-item-guards: next --take: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
   const box = fixture(t, cellBoard);
   const raced = box.add('Raced by a peer');

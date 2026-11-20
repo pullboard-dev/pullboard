@@ -63,7 +63,7 @@ function runTune(io, { values }) {
  * Why the setLineSetting move: it is the same ordered, coordinator-only writer `pullboard settings line` uses, so a tuned change is
  * recorded, replayed and refused exactly like a hand-made one. Nothing is written with line.tune off or a cycle not due.
  */
-function runTuneApply(io, { values }) {
+export function runTuneApply(io, { values }) {
   const minutes = flowWindowMinutes(values.window ?? '4h');
   return actOn(io, async (ctx, board, me) => {
     const now = ctx.clock.now().getTime();

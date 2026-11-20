@@ -2,6 +2,14 @@ import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
 import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
 import { addItem } from './add.js';
+import { sendBackDependents } from './item/after-gate.js';
+import { afterGateDependents } from './item/after-gate.js';
+import { recordAfterGateRebuild } from './item/after-gate-report.js';
+import { recordAfterGateSaved } from './item/after-gate-report.js';
+import { reopen } from './reopen.js';
+import { release } from './release.js';
+import { appendFact } from './fact.js';
+import { announceItemState } from './link/announce.js';
 import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
@@ -49,6 +57,7 @@ import { reviewerChecks } from "../board.js";
 import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../state/light.js';
 import { gateReceiptProblem } from '../board.js';
 import { reservedRelaxation } from './review/family.js';
+import { relaxationRecordLine } from './review/family.js';
 import { itemReviewPolicy } from '../../../../verify/index.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { holdItem } from "./hold/item.js";
@@ -74,6 +83,8 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { SPEC_APPROVAL_ENGINE } from "../../../../state/light.js";
 import { STRONG_REJECTION_NOTICE_ENGINE } from "../../../../state/light.js";
 import { itemPace } from "./sprint-pace.js";
+import { landedSprintPullOut } from "./sprint-pull-out.js";
+import { queueSprintPullOut } from "./sprint-pull-out.js";
 
 /** What the verify table needs from the cells the writer already reads; the table decides a verdict only from the engine where every rule it holds was in force. */
 const VERIFY_TABLE_DEPS = Object.freeze({ pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
@@ -146,7 +157,7 @@ export function prepareVerdictFacts(board, id, { agentId, review }) {
  *
  * The verdict binds the submitted commit and the digest frozen at claim. If the criterion's text
  * has moved since, there is no verdict to give: the coordinator refreezes it and the work is
- * claimed again. The builder never verifies; under `verify: "coordinator"`, lane work is the
+ * claimed again. The builder never verifies, except by the solo low-stakes accept the verify table writes (`soloLowStakes`, `rows` and `checks`, #966); under `verify: "coordinator"`, lane work is the
  * coordinator's to verify; an agent verifies items at its tier or below, and not while another
  * agent holds the review (V15). An accept means CRITERION_MET and says how it was proved; a reject
  * names one of the reject reasons and says what failed, and may name its cause key for rigor (#713).
@@ -156,7 +167,7 @@ export function prepareVerdictFacts(board, id, { agentId, review }) {
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false, verifyFacts }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false, verifyFacts, soloLowStakes, rows, checks }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -177,7 +188,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   return atomic(board, () => {
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
     const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null);
-    const relaxationLine = relaxation ? `review family relaxed at reservation: ${relaxation.queueLength} waiting, threshold ${relaxation.threshold}; active seats: ${relaxation.activeSeats.join(', ') || 'none'}` : null;
+    const relaxationLine = relaxation ? relaxationRecordLine(board, relaxedItem, agentId, relaxation) : null;
     if (relaxation) note += `\n${relaxationLine}`;
     const proofKnown = verdictEvidence(board, id, { agentId, isAccept, engine, review, knownMainFailures, quarantineProofId, enforce: !prechecked });
     // A verdict with no gate receipt would be recorded as INSUFFICIENT_EVIDENCE and count toward the send-back hold (#3737).
@@ -185,8 +196,13 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (pendingGate) throw pendingGate;
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     // The verify table decides the verdict event and its follow-ups from the board before the move; where it does not model the call, the original rules below run.
-    const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
+    const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, soloLowStakes, rows, checks, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
       companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS, verifyFacts) : null;
+    // A builder's own accept passes the notBuilder check only when the verify table, through soloLowStakesHolds, wrote the solo-low-stakes-accept event for it [#966].
+    const soloEvents = isAccept ? decided?.events.filter(event => event.kind === 'solo-low-stakes-accept') ?? [] : [];
+    const soloAccepted = soloEvents.length > 0;
+    // A reject of landed sprint work queues its pull-out; read before the move, and only for a sprint item, so steady and strict read nothing more [M2,#12181].
+    const pullOut = isAccept ? null : landedSprintPullOut(board, getItem(board, id));
     const item = moveItem(board, id, verb, {
       transition,
       checks: {
@@ -199,7 +215,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
-        ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
+        ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, soloLowStakes: soloAccepted, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
             ? isAccept ? itemPatchReviewProblem(board, found, companionDigest, { getItem }) : null
@@ -221,6 +237,8 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       before: (found) => {
         if (!isAccept) clauseDetail = rejectionClauseDetail(found, clause, engine);
         recordVerdict(board, found, { agentId, decision, reason: code, note, digest, head });
+        // The verified proof trigger reads this event when the item row moves to verified, so it is written with the verdict, ahead of the move [#966].
+        for (const event of soloEvents) logEvent(board, event.by, event.kind, id, event.detail);
       },
       set: (found) => ({ item_verdict: decision, item_verified_by: isAccept ? agentId : null, item_owner: isAccept ? found.item_owner : null }),
     });
@@ -232,7 +250,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       else if (reopenFirstRefusalMinutes === undefined && rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
     }
     const trigger = decided ? measureBoardWritePhase(board.db, 'verify-finish', () => {
-      const logged = applyVerdict(board, id, decided.events, { logEvent, holdItem, shout, escalate });
+      const logged = applyVerdict(board, id, decided.events.filter(event => !soloEvents.includes(event)), { logEvent, holdItem, shout, escalate });
       tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
       return logged;
     }) : measureBoardWritePhase(board.db, 'verify-finish', () => finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
@@ -242,7 +260,13 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       recordRejectedItemRoute: (target, itemId, moveEngine, item, dependencies) => recordRejectedItemRoute(target, itemId, moveEngine, item,
         { ...dependencies, routeCalibrationEngine: ROUTE_CALIBRATION_ENGINE }),
       escalate, tellVerdictImplications }));
+    // The verify table writes the pull_out itself when it decides; where it does not model the call, the writer queues it here.
+    if (pullOut && !decided) queueSprintPullOut(board, id, pullOut, { reason: code });
     if (!isAccept) postRigorNotices(board, trigger);
+    // The dependents built on a rejected after-gate parent go back with it [C7,#11807].
+    if (!isAccept) sendBackDependents(board, id, { cause }, { reopen, release, appendFact, recordAfterGateRebuild });
+    // A verified after-gate parent records the minutes its dependents built meanwhile [C7,#12326].
+    if (isAccept) recordAfterGateSaved(board, id, afterGateDependents(board, id), { agentId });
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
   });
@@ -318,4 +342,16 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}), ...(followUp && keepCheck && found.item_check && getItem(board, followUp)?.item_check === found.item_check ? { keptCheckFrom: found.item_check } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
+}
+
+/**
+ * Tell the parent boards that wait on a verified item its new state, after the verdict has been recorded.
+ * Why: the verdict is a replayed move and cannot carry a transport, so the command passes the link ports here after the move; a failed delivery stays queued for resendPendingBoardStates and never undoes the verdict [E32,B24].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ links: object[] }} ports
+ */
+export async function announceVerdict(board, id, ports) {
+  return announceItemState(board, id, ports);
 }

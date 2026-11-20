@@ -119,6 +119,8 @@ export const HELP_FLAG_EXPLANATIONS = {
   '--stuck': 'next: release the one build claim this seat holds as BLOCKED with this reason, then answer as next does',
   '--take': 'next: take one eligible item in this seat; handoff: take the named existing hand-off',
   '--after': 'ids or repo#id; claiming waits for verified items on their own boards',
+  '--after-gate': 'ids; claiming waits until each one passes its gate, and show lists them apart from --after',
+  '--from-record': 'add: file the item from the accepted record snapshot with this sha256 hash; its rows, bar and check fill the item and its text is quoted in the brief',
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
