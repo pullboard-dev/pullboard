@@ -13,8 +13,6 @@ import {
 } from '../../../../../packages/config/index.js';
 import { setHere } from '../../../../../packages/gate/heavy.js';
 import {
-} from '../../../../../packages/gate/index.js';
-import {
   gateReport,
   runGate,
 } from '../../../../../packages/gate/heavy.js';

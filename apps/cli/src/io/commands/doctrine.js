@@ -7,8 +7,6 @@ import {
   ruleLine,
 } from '../../../../../packages/doctrine/index.js';
 import {
-} from '../../../../../packages/gate/index.js';
-import {
   withGateSlot,
 } from '../../../../../packages/gate/heavy.js';
 import {
