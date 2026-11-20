@@ -4,6 +4,7 @@ import { relative } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { scratchBase } from '../../../kernel/light.js';
 import { spawnCaptured } from './captured.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
 
 const fs = fileSystemAdapter();
@@ -38,7 +39,7 @@ const isSource = (file) => /\.(?:js|mjs)$/u.test(file) && !isTest(file);
  * @param {NodeJS.ProcessEnv} [from] the parent environment
  * @returns {NodeJS.ProcessEnv}
  */
-export function childEnv(from = process.env) {
+export function childEnv(from = environmentAdapter().all()) {
   const env = { ...from };
   delete env.NODE_TEST_CONTEXT;
   if (env.PULLBOARD_TEST_BROWSER_SLOT === 'none') {
