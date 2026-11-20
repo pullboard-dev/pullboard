@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
@@ -9,6 +8,7 @@ import { machineSettingsFile } from '../../../resources/light.js';
 import { parseMachineSettings } from '../../../queue/light.js';
 import { validateGateQueue } from '../../../queue/light.js';
 const DEFAULT_GATE_SLOTS = 2;
+const fs = fileSystemAdapter();
 
 /**
  * Read the machine settings file as a plain object, or null when there is none.
@@ -18,7 +18,7 @@ const DEFAULT_GATE_SLOTS = 2;
  * @returns {object|null}
  */
 function readMachineSettingsFile(file) {
-  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
+  return parseMachineSettings(fs.exists(file) ? fs.readFile(file, 'utf8') : null, file);
 }
 
 /**
@@ -911,6 +911,11 @@ export function browserFreeChecksEnabled() {
 /** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
 export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether health.derivedState is on (#8974): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function derivedStateEnabled() {
+  return loadMachineSettings().health?.derivedState === true;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */

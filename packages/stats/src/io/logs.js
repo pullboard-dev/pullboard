@@ -3,17 +3,15 @@
  * for the pipeline ledger [C7,N2]. Read only: the logs are never written. A keyed store the caller passes in keeps each
  * file's fold and the byte offset it reached, so a later read parses only what the file gained since.
  */
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { KEEP_MS } from '../logic/activity.js';
 import { foldText } from '../logic/activity.js';
 import { newFold } from '../logic/activity.js';
 import { openTail } from '../logic/activity.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Version of a cached fold; a different version is refolded from the start. */
 const CACHE_VERSION = 2;
@@ -44,14 +42,14 @@ function logFiles(folder, since, depth, take = () => true) {
   const found = [];
   const walk = (dir, level, top) => {
     let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = fs.list(dir, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
       if (top && !take(entry.name)) continue;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) { if (level < depth) walk(path, level + 1, false); continue; }
       if (!entry.name.endsWith('.jsonl')) continue;
       let stat;
-      try { stat = statSync(path); } catch { continue; }
+      try { stat = fs.stat(path); } catch { continue; }
       if (stat.mtimeMs >= since) found.push({ file: path, size: stat.size, mtimeMs: stat.mtimeMs, ino: stat.ino });
     }
   };
@@ -106,14 +104,14 @@ function cached(cache, source) {
 function advance(source, fold) {
   if (fold.offset >= source.size) return false;
   let fd;
-  try { fd = openSync(source.file, 'r'); } catch { return false; }
+  try { fd = fs.open(source.file, 'r'); } catch { return false; }
   try {
     let position = fold.offset, carry = Buffer.alloc(0);
     const out = { segments: fold.segments, buckets: fold.buckets };
     while (position < source.size) {
       const length = Math.min(CHUNK, source.size - position);
       const buffer = Buffer.allocUnsafe(length);
-      const read = readSync(fd, buffer, 0, length, position);
+      const read = fs.read(fd, buffer, 0, length, position);
       if (read <= 0) break;
       position += read;
       const bytes = carry.length ? Buffer.concat([carry, buffer.subarray(0, read)]) : buffer.subarray(0, read);
@@ -125,7 +123,7 @@ function advance(source, fold) {
       carry = Buffer.from(bytes.subarray(cut + 1));
     }
     return true;
-  } finally { closeSync(fd); }
+  } finally { fs.close(fd); }
 }
 
 /**

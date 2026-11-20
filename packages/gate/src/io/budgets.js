@@ -1,9 +1,9 @@
 /** Find unexplained wall-clock judgments in test source, without executing it [C7]. */
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitExecFileSync } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Mask comments and quoted fixture text while retaining exact offsets and comment lines. */
 function codeOnly(source) {
@@ -178,11 +178,11 @@ export function wallClockViolations(root) {
     let regularFile = true;
     for (const [index, part] of parts.entries()) {
       path = join(path, part);
-      if (!existsSync(path)) { regularFile = false; break; }
-      const entry = lstatSync(path);
+      if (!fs.exists(path)) { regularFile = false; break; }
+      const entry = fs.lstat(path);
       if (index < parts.length - 1 ? !entry.isDirectory() : !entry.isFile()) { regularFile = false; break; }
     }
-    if (regularFile) found.push(...fixedWallMargins(readFileSync(path, 'utf8'), file));
+    if (regularFile) found.push(...fixedWallMargins(fs.readFile(path, 'utf8'), file));
   }
   return found.sort();
 }

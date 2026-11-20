@@ -63,6 +63,7 @@ import { provideRefusalTrials } from '../../../../../packages/api/index.js';
 import { provideComparisonStart } from '../../../../../packages/api/index.js';
 import { provideLandingStart } from '../../../../../packages/api/index.js';
 import { provideScreenStart } from '../../../../../packages/api/index.js';
+import { providePostLandMainTest } from '../../../../../packages/api/index.js';
 import { runScreenJob } from '../../../../../packages/drive/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/heavy.js';
 import { countTrialGate } from '../../../../../packages/gate/heavy.js';
@@ -157,6 +158,7 @@ export async function serveHere(io, values) {
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
   provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   traceServeStartup('serve-listen-start');
   // serve.pullRoute (off by default): runners that dial out pull jobs through this API's /pull/ routes [C7,#8765].
   const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
@@ -273,6 +275,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
   provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -317,6 +320,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
   provideScreenStart(startReceiptScreen);
+  providePostLandMainTest((await import('../test/post-land.js')).postLandTestRequest);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');

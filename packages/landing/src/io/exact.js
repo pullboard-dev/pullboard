@@ -34,7 +34,7 @@ export async function sprintProof(record, ports) {
     if (!ports.rerunFile || !run.files?.length) return { ...proof, result: 'red', failed, ...extra(undefined), ...output };
     for (const file of run.files) {
       const again = await ports.rerunFile(file);
-      const receipt = ports.mainReceipt?.(file) ?? null;
+      const receipt = (await ports.mainReceipt?.(file)) ?? null;
       if (!again.isGreen || receipt?.result !== 'green') return { ...proof, result: 'red', failed, file, rerun: again.isGreen ? 'green' : 'red', mainReceipt: receipt, ...(flakes.length ? { flakes } : {}), ...extra(file), ...output };
       flakes.push({ file, tree: record.tree });
     }
