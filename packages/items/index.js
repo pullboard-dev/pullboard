@@ -7,7 +7,7 @@ export { briefFiles } from './src/logic/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/logic/caught.js';
 export { newBlock, firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
 export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/logic/order/path.js';
-export { foreignDependencyStates, foreignBlockers } from './src/logic/cross/repo.js';
+export { foreignDependencyStates, foreignBlockers, requireLinkedForeign } from './src/logic/cross/repo.js';
 export { optionsDigest, decisionHandoffs } from './src/io/decision.js';
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/logic/decision/origin.js';
 export { DIGEST_MAX_BYTES, readDigest, writeDigest, watchDigest, digestCommand } from './src/io/digest.js';
