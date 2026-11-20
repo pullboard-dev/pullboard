@@ -20,7 +20,7 @@
       "claim": "On a board of 20000 gate-shard rows across 500 gates, a settleDoneShardGates pass over 30 candidate gates takes under 5 ms, its time printed."
     },
     "why": "Without this measurement a slide back to a full scan of the shard rows would only show as a slow pull claim on the live board.",
-    "kind": "measurement",
+    "kind": "contract",
     "inputs": [
       "packages/api/src/io/gate.js"
     ]
