@@ -176,3 +176,16 @@ test('landing.io-guards.rename-without-path-map: a composed landing that renames
   const broken = candidate({ 'use.js': "import { row1 } from './gone.js';\nexport const use = row1;\n" });
   await assert.rejects(requireLandingModuleResolution(root, base, broken), error => error.code === 'LAND_MODULE_RESOLUTION' && error.message.includes('./gone.js'));
 });
+
+test('landing.io-guards.parse-broken-at-base-not-refused: a changed .js file that already failed to parse at the landing base is not refused LAND_MODULE_PARSE [C7]', async t => {
+  const jsx = 'export const View = () => <div />;\n';
+  const { root, base, candidate } = secretRepo(t, { 'view.js': jsx, 'a.js': 'export const a = 1;\n' });
+  const edited = candidate({ 'view.js': jsx + 'export const more = 1;\n' });
+  await requireLandingModuleResolution(root, base, edited);
+});
+
+test('landing.io-guards.parse-broken-by-composition-refused: a module that parses at the base but not at the composed tip is still refused, naming it [C7]', async t => {
+  const { root, base, candidate } = secretRepo(t, { 'a.js': 'export const a = 1;\n' });
+  const broken = candidate({ 'a.js': 'export const a = 1;\nexport const a = 2;\n' });
+  await assert.rejects(requireLandingModuleResolution(root, base, broken), error => error.code === 'LAND_MODULE_PARSE' && error.broken.includes('a.js'));
+});

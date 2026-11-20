@@ -42,6 +42,19 @@ test('stats.timeline.item-rows: clause 1: events, a gate job and its steps becom
   assert.deepEqual(unmapped, [{ kind: 'fact', count: 1 }], 'an event kind no stage names is reported, not dropped');
 });
 
+test('stats.timeline.submit-offered: clause 1: an item whose events hold a submit_offered followed 90 s later by a submit gets one submitted row, at the submit_offered [C7,#12214]', () => {
+  const { rows, unmapped } = timelineOf({ events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit_offered'), event(4, 10 * MIN + 90 * SEC, 'submit')], jobs: [], steps: [] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'submitted']);
+  assert.equal(rows[2].at, T0 + 10 * MIN);
+  assert.deepEqual(unmapped, []);
+});
+
+test('stats.timeline.submit-without-offered: clause 2: a submit event with no submit_offered before it still maps to the submitted stage as before [C7,#12214]', () => {
+  const { rows } = timelineOf({ events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit')], jobs: [], steps: [] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'submitted']);
+  assert.equal(rows[2].at, T0 + 10 * MIN);
+});
+
 test('stats.timeline.buckets: clause 1: bucket totals plus UNACCOUNTED equal the last row minus filed exactly, and the summary names the longest gap and its reason [C7,#12143]', () => {
   const gate = job('gate:1', 'gate', 20 * MIN, [['claimed', 21 * MIN], ['result', 25 * MIN, '{"outcome":"green"}']]);
   const land = job('land:1', 'landing-run', 40 * MIN, [['running', 40 * MIN + 30 * SEC], ['result', 41 * MIN]]);
@@ -114,4 +127,74 @@ test('stats.timeline.fleet-overlay: clause 1: an api_stall row inside an unaccou
   assert.equal(outside.share.waits.API_BUSY, 0);
   assert.equal(outside.unaccounted_ms, 5 * MIN);
   assert.equal(outside.slowest[0].biggest_gap.reason, UNACCOUNTED);
+});
+
+test('stats.timeline.mark-rows: clause 1: a mark event with edge start and a later one with edge end become smoke start and end rows at their detail.at times, and the span counts as landing [C7,#12234]', () => {
+  const startAt = new Date(T0 + 40 * MIN).toISOString(), endAt = new Date(T0 + 45 * MIN).toISOString();
+  const { rows, summary, unmapped } = timelineOf({
+    events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 30 * MIN, 'submit'),
+      event(4, 50 * MIN, 'mark', { stage: 'smoke', edge: 'start', at: startAt }), event(5, 51 * MIN, 'mark', { stage: 'smoke', edge: 'end', at: endAt }), event(6, 60 * MIN, 'merged', {}, 'coordinator')],
+    jobs: [], steps: [], now: T0 + 60 * MIN,
+  });
+  const smoke = rows.filter(row => row.stage === 'smoke');
+  assert.deepEqual(smoke.map(row => [row.edge, row.at]), [['start', T0 + 40 * MIN], ['end', T0 + 45 * MIN]], 'placed at detail.at, not the event time');
+  assert.equal(unmapped.some(entry => entry.kind === 'mark'), false, 'a mark is never reported as an unmapped kind');
+  assert.equal(summary.buckets.landing, 5 * MIN, 'the span between start and end is counted in the landing bucket');
+});
+
+test('stats.timeline.mark-unknown-stage: clause 2: a mark event whose stage is not in TIMELINE_STAGES adds no row and does not throw [C7,#12234]', () => {
+  const stamp = new Date(T0 + MIN).toISOString();
+  const { rows } = timelineOf({
+    events: [event(1, 0, 'add', {}, 'coordinator'), event(2, MIN, 'mark', { stage: 'teleport', edge: 'start', at: stamp }), event(3, MIN, 'mark', 'not an object')],
+    jobs: [], steps: [], now: T0 + 2 * MIN,
+  });
+  assert.deepEqual(stagesOf(rows), ['filed']);
+});
+
+test('stats.timeline.merged-at-commit-time: clause 1: a merged event whose mergedAt is ten minutes before its event time places merged at mergedAt and adds a recorded row at the event time, so the gap is its own row and not landing [C7,#12156]', () => {
+  const { rows, summary } = timelineOf({ events: [event(1, 0, 'add'), event(2, MIN, 'claim'), event(3, 20 * MIN, 'merged', { mergedAt: T0 + 10 * MIN, commit: 'abc' })] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'merged', 'recorded']);
+  assert.equal(rows[2].at, T0 + 10 * MIN, 'merged sits at the commit time');
+  assert.equal(rows[3].at, T0 + 20 * MIN, 'recorded sits at the event time');
+  assert.equal(rows[3].delta, 10 * MIN, 'the record lag is its own row');
+  assert.equal(summary.buckets.landing, 0, 'the lag is not charged to landing');
+});
+
+test('stats.timeline.merged-without-merged-at: clause 1: a merged event with no mergedAt places merged at its event time as before and adds no recorded row [C7,#12156]', () => {
+  const { rows } = timelineOf({ events: [event(1, 0, 'add'), event(2, MIN, 'claim'), event(3, 20 * MIN, 'merged', { commit: 'abc' })] });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'merged']);
+  assert.equal(rows[2].at, T0 + 20 * MIN);
+});
+
+/** One submitted item whose gate job ends red at 16 min and whose builder is back at 40 min, with an optional gate_settled event. */
+function settledTimeline(settled) {
+  const gate = job('gate:7', 'gate', 10 * MIN, [['claimed', 11 * MIN], ['red', 16 * MIN]]);
+  const events = [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim'), event(3, 10 * MIN, 'submit'), event(4, 20 * MIN, 'release', { reasonCode: 'GATE_REFUSED' }), event(5, 40 * MIN, 'claim')];
+  if (settled) events.push(event(6, 16 * MIN + SEC, 'gate_settled', { job: 'gate:7', ...settled }));
+  return timelineOf({ events, jobs: [gate.job], steps: gate.steps });
+}
+
+test('stats.timeline.gate-settled-class: clause 1: a gate_settled event sets the gate-settled row reason and class, is not unmapped, and the stretch after a main-red or stale-base settle is that wait, not rework [C7,#12316]', () => {
+  const main = settledTimeline({ outcome: 'red', class: 'main-red' });
+  const row = main.rows.find(entry => entry.stage === 'gate-settled');
+  assert.equal(row.reason, 'red');
+  assert.equal(row.class, 'main-red');
+  assert.deepEqual(main.unmapped, []);
+  assert.equal(main.summary.waits.MAIN_RED, 24 * MIN);
+  assert.equal(main.summary.buckets.rework, 0);
+  const stale = settledTimeline({ outcome: 'red', class: 'stale-base' });
+  assert.equal(stale.summary.waits.STALE_BASE, 24 * MIN);
+  assert.equal(stale.summary.waits.MAIN_RED, 0);
+  const own = settledTimeline({ outcome: 'red', class: 'item' });
+  assert.equal(own.summary.waits.MAIN_RED + own.summary.waits.STALE_BASE, 0);
+  assert.equal(own.summary.buckets.rework, 24 * MIN, 'every other class keeps the rework bucket');
+});
+
+test('stats.timeline.gate-settled-absent-unchanged: clause 2: the same job with no gate_settled event keeps the step-derived reason, class null and the rework bucket [C7,#12316]', () => {
+  const { rows, summary } = settledTimeline(null);
+  const row = rows.find(entry => entry.stage === 'gate-settled');
+  assert.equal(row.reason, 'red');
+  assert.equal(row.class, null);
+  assert.equal(summary.buckets.rework, 24 * MIN);
+  assert.equal(summary.waits.MAIN_RED + summary.waits.STALE_BASE, 0);
 });

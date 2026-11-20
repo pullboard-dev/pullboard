@@ -1,16 +1,15 @@
 /** Read-only custody evidence prevents stale maintenance from releasing a claim during a native run [B4,Q1]. */
-import {
-  existsSync,
-  realpathSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../../../resources/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Any matching retained holder prevents proving silence; this observer never prunes another process's custody. */
 export function staleRunQuiet(repo, identity = null) {
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return true;
+  if (!fs.exists(file)) return true;
   let db;
   try {
     db = new DatabaseSync(file, { readOnly: true });
@@ -21,10 +20,10 @@ export function staleRunQuiet(repo, identity = null) {
       if (!columns.includes('item') || !columns.includes('agent')) return false;
       if (db.prepare('SELECT 1 FROM holder WHERE item=? AND agent=? LIMIT 1').get(identity.item, identity.agent)) return false;
     }
-    const target = realpathSync(repo);
+    const target = fs.realpath(repo);
     const roots = new Set([target, ...(identity?.roots ?? [])]);
     for (const row of db.prepare('SELECT DISTINCT repo FROM holder').all()) {
-      try { if (roots.has(realpathSync(row.repo))) return false; }
+      try { if (roots.has(fs.realpath(row.repo))) return false; }
       catch { if (roots.has(row.repo) || row.repo === repo) return false; }
     }
     return true;

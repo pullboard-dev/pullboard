@@ -143,6 +143,11 @@ export function failFastShardsEnabled() {
   return loadMachineSettings().gate?.failFastShards === true;
 }
 
+/** Seed main-test rows for wide-failing files only when this machine opted in [C7,#12094]; off by default, and only an exact true turns it on. */
+export function seedWideMainTestsEnabled() {
+  return loadMachineSettings().gate?.seedWideMainTests === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -179,6 +184,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { derivedStateEnabled } from '../logic/settings.js';
 export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -583,11 +589,6 @@ export function nameBehindDeviceEnabled() {
 }
 
 
-/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
-export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
-}
-
 /** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
 export function reofferTrunkBusyEnabled() {
   return loadMachineSettings().landing?.reofferTrunkBusy === true;
@@ -651,6 +652,11 @@ export function docsRegenerateOnCommit() {
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
+}
+
+/** Whether route reservations are on (#9177): off by default; only an exact `true` turns it on. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */

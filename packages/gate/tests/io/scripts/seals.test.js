@@ -20,7 +20,7 @@ import {
   sealOf,
   sealStatus,
   unsealedPackages,
-} from '../../../index.js';
+} from '../../../heavy.js';
 import {
   runFixtureChild,
   runFixtureGit,

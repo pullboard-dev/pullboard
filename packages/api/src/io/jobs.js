@@ -23,6 +23,7 @@ import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
 import { ledgerHits } from './store.js';
 import { recordShadow } from './store.js';
+import { expeditedItems } from './store.js';
 import { firstDifference } from './store.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
@@ -128,6 +129,22 @@ function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
   const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
   const rest = ordered.filter(entry => !isAged(entry) && !isFirst(entry));
   return [...ordered.filter(isFirst), ...ordered.filter(isAged), ...rest];
+}
+
+/**
+ * The claim order with the gate and gate-shard jobs of an expedited item moved ahead of everything but landing jobs and pre-push shards; each group keeps its order.
+ * Why: the coordinator's expedite mark names an item whose gate the lander waits on, so its shards must not queue by age behind other items' shards [C7,#11813].
+ * The expedited set is read once per claim, and only when a gate or gate-shard job is in the scan.
+ */
+function expeditedGateJobs(db, ordered) {
+  const gateKind = ({ row }) => row.job_kind === 'gate' || row.job_kind === SHARD_JOB_KIND;
+  if (!ordered.some(gateKind)) return ordered;
+  const expedited = new Set(expeditedItems({ db }));
+  if (!expedited.size) return ordered;
+  const isExpedited = entry => gateKind(entry) && expedited.has(Number(entry.row.job_item));
+  if (!ordered.some(isExpedited)) return ordered;
+  const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
+  return [...ordered.filter(isFirst), ...ordered.filter(entry => isExpedited(entry) && !isFirst(entry)), ...ordered.filter(entry => !isExpedited(entry) && !isFirst(entry))];
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -465,7 +482,9 @@ export function claimJob(db, { runner, key = null, onCapped = null, capabilities
     // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
     const shardsFirst = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
     // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
-    const offered = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
+    const aged = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
+    // An expedited item's gate jobs go ahead of the rest, behind landing jobs [C7,#11813].
+    const offered = reserve === null ? expeditedGateJobs(db, aged) : aged;
     for (const { row, offer } of offered) {
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
@@ -1111,15 +1130,15 @@ function reportedCommit(read) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {Record<string, any>} body
- * @param {{ mode: string, now?: number, trunk?: () => string | null, runnerCommit?: (() => string | null) | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
+ * @param {{ mode: string, now?: number, trunk?: () => string | null, runnerCommit?: (() => string | null) | null, reserve?: () => Record<string, number> | null, gateAgedMs?: () => number, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, gateAgedMs = () => GATE_JOB_AGED_MS, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, key, place, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
     let capped = false;
-    const claim = claimJob(db, { runner, key: key ?? null, onCapped: () => { capped = true; }, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
+    const claim = claimJob(db, { runner, key: key ?? null, onCapped: () => { capped = true; }, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), gateAgedMs: gateAgedMs(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
     const answer = { claim, ...(claim ? { trunk: trunk() } : capped ? { waitMs: CAPPED_CLAIM_WAIT_MS } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }

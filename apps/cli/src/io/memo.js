@@ -1,13 +1,5 @@
 /** Share the cells fixture-analysis memo between runners through the controller [C7]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -15,6 +7,10 @@ import { deserialize } from 'node:v8';
 import { serialize } from 'node:v8';
 import { gunzipSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
+import { environmentAdapter } from '../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A memo file is named by the fixture analyzer's digest, as packages/codemap/src/io/cells/scripts/plan.js names it. */
 const NAME = /^[a-f0-9]{64}\.v8\.gz$/u;
@@ -37,12 +33,21 @@ function memoEntries(bytes) {
   } catch { return null; } // Damaged bytes are no memo.
 }
 
+/** Write a new file at a private mode through the adapter, which has no writeFile options; `flag` is open's flags. */
+function writePrivate(path, data, flag = 'w') {
+  const fd = fs.open(path, flag, 0o600);
+  try {
+    const bytes = typeof data === 'string' ? Buffer.from(data) : data;
+    for (let done = 0; done < bytes.length;) done += fs.write(fd, bytes, done, bytes.length - done);
+  } finally { fs.close(fd); }
+}
+
 /** Replace one named memo file atomically. */
 function publish(directory, name, bytes) {
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const temporary = join(directory, `.${name}.${process.pid}.tmp`);
-  writeFileSync(temporary, bytes, { mode: 0o600 });
-  renameSync(temporary, join(directory, name));
+  writePrivate(temporary, bytes);
+  fs.rename(temporary, join(directory, name));
 }
 
 /**
@@ -61,7 +66,7 @@ export function absorbFixtureMemo(directory, memo) {
   const incoming = bytes.length <= MAX_BYTES ? memoEntries(bytes) : null;
   if (!incoming) return false;
   const file = join(directory, memo.name);
-  const stored = existsSync(file) ? memoEntries(readFileSync(file)) : null;
+  const stored = fs.exists(file) ? memoEntries(fs.readFile(file, null)) : null;
   if (!stored) { publish(directory, memo.name, bytes); return true; }
   let added = 0;
   for (const [key, value] of incoming) if (!stored.has(key)) { stored.set(key, value); added += 1; }
@@ -75,7 +80,7 @@ export function absorbFixtureMemo(directory, memo) {
  * The controller's store of shared memos, in this machine's home as gateMachineHome finds it (a machine or account home
  * isolates it in tests). Why here: this module is the runner job's import too, and may name no other cell.
  */
-export function controllerMemoStore(env = process.env) {
+export function controllerMemoStore(env = environmentAdapter().all()) {
   const home = env.PULLBOARD_MACHINE_HOME ? resolve(env.PULLBOARD_MACHINE_HOME) : join(resolve(env.PULLBOARD_ACCOUNT_HOME || homedir()), '.pullboard');
   return join(home, 'cells-cache', 'fixtures-shared');
 }
@@ -90,7 +95,7 @@ export function seedFixtureMemos(directory, memos) {
 /** The named memo files in a folder, newest first. */
 function memoFiles(directory) {
   try {
-    return readdirSync(directory).filter(name => NAME.test(name)).map(name => ({ name, at: statSync(join(directory, name)).mtimeMs }))
+    return fs.list(directory).filter(name => NAME.test(name)).map(name => ({ name, at: fs.stat(join(directory, name)).mtimeMs }))
       .sort((a, b) => b.at - a.at).map(row => row.name);
   } catch { return []; } // No folder yet holds no memo.
 }
@@ -100,7 +105,7 @@ export function storedFixtureMemos(directory) {
   const memos = [];
   for (const name of memoFiles(directory).slice(0, SHIPPED)) {
     try {
-      const bytes = readFileSync(join(directory, name));
+      const bytes = fs.readFile(join(directory, name), null);
       if (bytes.length <= MAX_BYTES) memos.push({ name, data: bytes.toString('base64') });
     } catch { /* A file removed meanwhile is simply not carried. */ }
   }
@@ -114,7 +119,7 @@ export function newestFixtureMemo(directory) {
 
 /** The memos an analysis artifact bundle carries at `file`, or none when it carries none or cannot be read. */
 function artifactMemos(file) {
-  try { const bundle = deserialize(readFileSync(file)); return Array.isArray(bundle?.fixtureMemos) ? bundle.fixtureMemos : []; }
+  try { const bundle = deserialize(fs.readFile(file, null)); return Array.isArray(bundle?.fixtureMemos) ? bundle.fixtureMemos : []; }
   catch { return []; } // No artifact, or one without memos, seeds nothing.
 }
 
@@ -137,7 +142,7 @@ function memoDigest(memo) {
 
 /** What each runner last returned, by host then memo name: the digest of the memo it holds. */
 function runnerIndex(directory) {
-  try { const index = JSON.parse(readFileSync(join(directory, 'runners.json'), 'utf8')); return index && typeof index === 'object' && !Array.isArray(index) ? index : {}; }
+  try { const index = JSON.parse(fs.readFile(join(directory, 'runners.json'), 'utf8')); return index && typeof index === 'object' && !Array.isArray(index) ? index : {}; }
   catch { return {}; } // No index yet sends every memo.
 }
 
@@ -184,9 +189,9 @@ function writeBundle(directory, value) {
   const bytes = serialize(value);
   if (bytes.length > 60 * 1024 ** 2) return null;
   const digest = createHash('sha256').update(bytes).digest('hex'), bundles = join(directory, 'bundles');
-  mkdirSync(bundles, { recursive: true, mode: 0o700 });
-  for (const old of readdirSync(bundles).filter(name => name.endsWith('.bundle')).map(name => ({ name, at: statSync(join(bundles, name)).mtimeMs }))
-    .sort((a, b) => b.at - a.at).slice(16)) rmSync(join(bundles, old.name), { force: true });
+  fs.mkdir(bundles, { recursive: true, mode: 0o700 });
+  for (const old of fs.list(bundles).filter(name => name.endsWith('.bundle')).map(name => ({ name, at: fs.stat(join(bundles, name)).mtimeMs }))
+    .sort((a, b) => b.at - a.at).slice(16)) fs.rm(join(bundles, old.name), { force: true });
   publish(bundles, `${digest}.bundle`, bytes);
   return { file: join(bundles, `${digest}.bundle`), bytes, digest };
 }
