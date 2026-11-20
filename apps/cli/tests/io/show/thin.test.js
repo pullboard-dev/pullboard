@@ -82,7 +82,7 @@ test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no 
   // A status moves only inside a move, which the board marks in its temp.moving table; the fixture marks it the same way for this one row.
   onBoard(box, board => {
     board.db.exec('INSERT INTO temp.moving (token) VALUES (1)');
-    try { board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = 9").run(); } finally { board.db.exec('DELETE FROM temp.moving'); }
+    try { board.db.prepare("UPDATE item SET item_status = 'verified', item_verified_by = 'fixture', item_commit = 'abc1234' WHERE item_id = 9").run(); } finally { board.db.exec('DELETE FROM temp.moving'); }
   });
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new ReadNeedsWrite('fixture write'); } }), null, 'ReadNeedsWrite');
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, conflictReader: async () => { throw new Error('no such table: fixture_missing'); } }), null, 'schemaMissing');
