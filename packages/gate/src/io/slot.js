@@ -121,12 +121,14 @@ export function rotateRunners(runners, avoided, tried) {
 export function requireGateExecutionServices(value) {
   const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
+  // Optional: carried when given, so a services object built before the release shard readers existed is still admitted [#11370].
+  const optional = ['offerReleaseShards', 'releaseParticipationShards'].filter(name => typeof value?.landing?.[name] === 'function');
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
     throw new TypeError('gate execution needs explicit canonical runner and landing services');
   }
   return Object.freeze({ runners: Object.freeze(Object.fromEntries(runners.map(name => [name, value.runners[name]]))),
-    landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
+    landing: Object.freeze(Object.fromEntries([...landing, ...optional].map(name => [name, value.landing[name]]))) });
 }
 
 /**

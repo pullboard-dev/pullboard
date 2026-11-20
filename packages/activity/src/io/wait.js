@@ -1,7 +1,5 @@
 /** Native file notifications share one wake generation without periodic polling [C7]. */
-import { existsSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { watch as nativeWatch } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { dirname } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -18,14 +16,14 @@ const PACE = 4;
 const MAX_GAP_MS = 2000;
 
 /** Watch exact inputs (tests may inject the native watch, the timer and the clock; weight names the milliseconds a wake costs its listeners), including files created or replaced later, and retain changes across reads and waits. */
-export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTimeout, cancel = clearTimeout, weight = () => 0, now = Date.now } = {}) {
+export function fileChangeWaiter(paths, { watch = (...args) => fileSystemAdapter().watch(...args), schedule = setTimeout, cancel = clearTimeout, weight = () => 0, now = Date.now } = {}) {
   let targets = [], generation = 0, closed = false, failure = null, pending = null, gap = 0, endedAt = 0;
   const watchers = new Map(), listeners = new Set();
   let signatures = new Map();
   const fileWatchers = new Map();
   /** Identity of one input right now; a missing input is its own state. */
   function signature(target) {
-    try { const stat = statSync(target); return `${stat.ino}:${stat.size}:${stat.mtimeMs}`; } catch { return 'none'; }
+    try { const stat = fileSystemAdapter().stat(target); return `${stat.ino}:${stat.size}:${stat.mtimeMs}`; } catch { return 'none'; }
   }
   /** Record every input's current identity so a change the native watcher has not yet reported is still seen. */
   function snapshot() { signatures = new Map(targets.map(target => [target, signature(target)])); }
@@ -58,7 +56,7 @@ export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTim
     const directories = new Map();
     for (const target of targets) {
       let directory = dirname(target);
-      while (!existsSync(directory) && dirname(directory) !== directory) directory = dirname(directory);
+      while (!fileSystemAdapter().exists(directory) && dirname(directory) !== directory) directory = dirname(directory);
       if (!directories.has(directory)) directories.set(directory, new Set());
       directories.get(directory).add(relative(directory, target).split(sep)[0]);
     }
@@ -66,7 +64,7 @@ export function fileChangeWaiter(paths, { watch = nativeWatch, schedule = setTim
     for (const [target, entry] of fileWatchers) if (!targets.includes(target)) { entry.watcher.close(); fileWatchers.delete(target); }
     for (const target of targets) {
       let ino = null;
-      try { ino = statSync(target).ino; } catch { /* absent inputs are covered by their parent directory */ }
+      try { ino = fileSystemAdapter().stat(target).ino; } catch { /* absent inputs are covered by their parent directory */ }
       const known = fileWatchers.get(target);
       if (known && known.ino !== ino) { known.watcher.close(); fileWatchers.delete(target); }
       if (ino === null || fileWatchers.has(target)) continue;

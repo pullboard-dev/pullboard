@@ -1,0 +1,5 @@
+{
+  "cli.io-submit-pull.proof-shard-plan-timing": {"proves":{"specs":["C7"],"claim":"proofShardPlan returns the runner, files, cores, account and only the declared proof files as timing."},"why":"Without it a timing-declared proof file never reaches the board as its own exclusive shard.","kind":"cell unit","inputs":["apps/cli/src/io/submit/pull.js"]},
+  "cli.io-submit-pull.proof-shard-plan-within-cores": {"proves":{"specs":["C7"],"claim":"proofShardPlan returns null when the files fit the cores and none is declared, and a plan when one is declared."},"why":"Without it a proof within the cores shards needlessly or a declared file stays in the loaded gate job.","kind":"cell unit","inputs":["apps/cli/src/io/submit/pull.js"]},
+  "cli.io-submit-pull.entry-reads-timing-through-gate-door": {"proves":{"specs":["C7"],"claim":"The gate entry reads timing files through main's gate door only when it exports them, treats a throw as none, and builds proofPlan through proofShardPlan."},"why":"Without it an older main or a throw breaks the gate entry, or the declaration never reaches the plan.","kind":"cell unit","inputs":["apps/cli/src/io/submit/pull.js"]}
+}

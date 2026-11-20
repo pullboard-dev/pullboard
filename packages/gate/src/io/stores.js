@@ -4,8 +4,7 @@
  * `.git/pullboard` or `~/.pullboard`) has one owner module, and only that module names its path or writes its table.
  * Existing second homes are a per-file ceiling that only falls [CD2].
  */
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { lex } from './scan.js';
@@ -14,6 +13,9 @@ import { readText } from './scan.js';
 import { report } from './scan.js';
 import { TEST_FILE } from './scan.js';
 import { walk } from './scan.js';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 /** The registry file, its one home: the disk report reads it through `diskStores`, and this scan judges it [CD2,C7]. */
 export const STORE_REGISTRY = 'packages/gate/data/baselines/stores.json';
@@ -221,6 +223,9 @@ export function storeBaselineGrowth(current, accepted) {
   return risen;
 }
 
+/** An owner under a logic layer: logic holds no write, so it cannot own a writable store. */
+const LOGIC_OWNER = /^(?:packages|apps)\/[^/]+\/src\/logic\//u;
+
 /**
  * Stores whose owner the registry pins: the owner is the module that writes the store, so moving it needs the pin
  * edited beside the row, in view of the reviewer. Why: the census picked owners by name count, and the three
@@ -230,8 +235,11 @@ export function storeBaselineGrowth(current, accepted) {
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function storeOwnerProblems(registry) {
-  return Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
+  const pinned = Object.entries(registry.pinned ?? {}).flatMap(([store, owner]) => registry.stores[store]?.owner === owner ? []
     : [{ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is pinned to ${owner}, not ${registry.stores[store]?.owner ?? 'no owner'}; the writer owns the store` }]);
+  const inLogic = Object.entries(registry.stores ?? {}).filter(([, row]) => row.kind !== 'repo-data' && LOGIC_OWNER.test(row.owner ?? ''))
+    .map(([store, row]) => ({ path: STORE_REGISTRY, line: 1, text: `CD2_STORE_OWNER: ${store} is owned by ${row.owner}, a logic file; a writable store is owned by the io module that writes it, and only a read-only repo-data file may name a logic owner` }));
+  return [...pinned, ...inLogic];
 }
 
 /** A call that writes a file or a table: what an owner module must hold for the store it owns. The fs adapter names its writes rename, write and copyFile (#11968). */
@@ -331,15 +339,15 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const sites = storeReport(root);
   const json = value => JSON.stringify(value, null, 2) + '\n';
   if (process.argv.includes('--write')) { // first record only
-    const registry = censusRegistry(sites, JSON.parse(readFileSync(REGISTRY_URL, 'utf8')).foreign ?? []);
-    writeFileSync(REGISTRY_URL, json(withDirHomes(registry, sites)));
-    writeFileSync(BASELINE_URL, json(storeHomeCounts(sites, registry)));
+    const registry = censusRegistry(sites, JSON.parse(fs.readFile(REGISTRY_URL, 'utf8')).foreign ?? []);
+    fs.writeFile(REGISTRY_URL, json(withDirHomes(registry, sites)));
+    fs.writeFile(BASELINE_URL, json(storeHomeCounts(sites, registry)));
   } else {
-    const registry = JSON.parse(readFileSync(REGISTRY_URL, 'utf8'));
-    const baseline = JSON.parse(readFileSync(BASELINE_URL, 'utf8'));
+    const registry = JSON.parse(fs.readFile(REGISTRY_URL, 'utf8'));
+    const baseline = JSON.parse(fs.readFile(BASELINE_URL, 'utf8'));
     if (process.argv.includes('--ratchet')) {
-      writeFileSync(BASELINE_URL, json(tightenStoreBaseline(sites, registry, baseline)));
-      writeFileSync(REGISTRY_URL, json(withDirHomes(registry, sites)));
+      fs.writeFile(BASELINE_URL, json(tightenStoreBaseline(sites, registry, baseline)));
+      fs.writeFile(REGISTRY_URL, json(withDirHomes(registry, sites)));
     }
     else report(storeGrowth(sites, registry, baseline, new Date().toISOString().slice(0, 10)));
   }
@@ -347,7 +355,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 
 /** The shipped registry, parsed. */
 export function storeRegistry() {
-  return JSON.parse(readFileSync(STORE_REGISTRY_URL, 'utf8'));
+  return JSON.parse(fs.readFile(STORE_REGISTRY_URL, 'utf8'));
 }
 
 /**
