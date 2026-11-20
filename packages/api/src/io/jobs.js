@@ -147,6 +147,11 @@ const REQUEST_BYTES = 60 * 1024;
 const PART_BYTES = 1024;
 // Budget: a whole request kept in its job's own request step, read only by the runner holding the job (#6150).
 const STORED_REQUEST_BYTES = 4 * 1024 ** 2;
+// Budget: a runner whose cap held back an open job is told to wait this long before its next claim, instead of polling every 2 s while it is full [C7,#12150].
+export const CAPPED_CLAIM_WAIT_MS = 10_000;
+// Budget: one batch renew names at most this many held jobs; a runner holds one per slot.
+const RENEW_BATCH = 64;
+
 // Budget: a job is claimed at most this many times (gate.jobMaxAttempts); at the cap it ends as a runaway and the coordinator hears once (#7386).
 export const JOB_MAX_ATTEMPTS = 12;
 // Budget: a pre-push gate renews its shards' liveness every 30 s; a shard unrenewed for this long has lost its gate and ends at its next claim (#7805).
@@ -408,11 +413,13 @@ export function boardQueueMode(db, wanted) {
  * share of the runner's `jobs` slots; with none, pre-push gate shards first (#7790), then landing jobs, test runs and the rest, each by age (claimableJobs) [C7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ runner: string, key?: string | null, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
+ * onCapped is called when the claim takes nothing because the runner's own cap (shards, cores or census) held back an open job [C7,#12150].
+ *
+ * @param {{ runner: string, key?: string | null, onCapped?: (() => void) | null, capabilities?: string[], kinds?: string[] | null, except?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, key = null, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS, place = null }) {
+export function claimJob(db, { runner, key = null, onCapped = null, capabilities = [], kinds = null, except = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false, coresPerShard = CORES_PER_SHARD, gateAgedMs = GATE_JOB_AGED_MS, place = null }) {
   runnerId(runner);
   // A retried claim with the same key gets the live lease its first call took, never a second job [C7].
   const keyed = claimKey(key);
@@ -427,6 +434,7 @@ export function claimJob(db, { runner, key = null, capabilities = [], kinds = nu
   const skip = except === null ? null : new Set(names(except, 'except'));
   const ended = [];
   const repeated = [];
+  let capped = false;
   const claimed = atomically(db, () => {
     // A runner that reported its cores and holds its cap of gate shards is offered no more, so idle runners get the rest (#7765).
     const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores, coresPerShard);
@@ -447,7 +455,13 @@ export function claimJob(db, { runner, key = null, capabilities = [], kinds = nu
       return !(kind === SHARD_JOB_KIND ? shards === 0 : tests === 0 && weight <= TEST_FLOOR_CORES);
     };
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
-      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !overBudget(row.job_kind) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
+      runnable: (row, offer) => {
+        if (!((!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)))) return false;
+        // A job this runner could run but its cap holds back: a claim that then takes nothing tells the runner to wait [C7,#12150].
+        const full = (shardsFull && row.job_kind === SHARD_JOB_KIND) || overBudget(row.job_kind) || censusFull(offer);
+        if (full) capped = true;
+        return !full;
+      } });
     // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
     const shardsFirst = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
     // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
@@ -477,6 +491,7 @@ export function claimJob(db, { runner, key = null, capabilities = [], kinds = nu
     return null;
   });
   // The shout is a board write of its own, so it follows the claim's transaction.
+  if (claimed === null && capped) onCapped?.();
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
   for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
@@ -738,6 +753,28 @@ function shadowed(db, move, now, write) {
  */
 export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = LEASE_MS, hop = null }) {
   return shadowed(db, { name: 'renew', job, runner, token }, now, () => renewHeld(db, { job, runner, token, now, leaseMs, hop }));
+}
+
+/**
+ * Renew every job a runner holds in one call: each named job and token is renewed as renewJob does, and the answer names each job's new lease,
+ * or the refusal code of a job this runner no longer holds, so one moved job never fails the others.
+ * Why: each runner renewed every held job with its own call, and those calls loaded the board and slowed every other call [C7,#12150].
+ * A landing job's renewal carries a landing permit, so it renews with its own renew call.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ runner: string, held: { job: string, token: string }[], now?: number, leaseMs?: number, hop?: object | null }} request
+ * @returns {{ leases: ({ job: string, renewed: boolean, leaseUntil: number | null } | { job: string, renewed: false, refused: string })[] }}
+ */
+export function renewJobs(db, { runner, held, now = Date.now(), leaseMs = LEASE_MS, hop = null }) {
+  runnerId(runner);
+  if (!Array.isArray(held) || held.length === 0 || held.length > RENEW_BATCH || held.some(entry => typeof entry?.job !== 'string' || typeof entry?.token !== 'string')) {
+    throw new Refused('JOB_RENEW_BATCH', `a batch renew names 1 to ${RENEW_BATCH} held jobs as [{ job, token }]; send each job your claims returned with its token`);
+  }
+  const leases = held.map(({ job, token }) => {
+    try { return { job, ...renewJob(db, { job, runner, token, now, leaseMs, hop }) }; }
+    catch (error) { if (!(error instanceof Refused)) throw error; return { job, renewed: false, refused: error.code }; }
+  });
+  return { leases };
 }
 
 /** Step the item's hop as a gate job's claim at the epoch it took, refused HOP_FENCED when that claim no longer owns it [C7,#8352,#8353]. */
@@ -1058,12 +1095,14 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, key, place, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, key: key ?? null, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
-    const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
+    let capped = false;
+    const claim = claimJob(db, { runner, key: key ?? null, onCapped: () => { capped = true; }, place: place ?? null, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse, coresPerShard });
+    const answer = { claim, ...(claim ? { trunk: trunk() } : capped ? { waitMs: CAPPED_CLAIM_WAIT_MS } : {}) };
     return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
-  if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
+  // A renew naming held renews every job it lists in one call [C7,#12150]; one naming job and token renews that job as before.
+  if (action === 'renew') return body.held !== undefined ? renewJobs(db, { runner, held: body.held, now, hop }) : renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
   if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, reuseCommits: body.reuseCommits, queue, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
