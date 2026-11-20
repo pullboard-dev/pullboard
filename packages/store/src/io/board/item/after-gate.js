@@ -6,6 +6,7 @@ import { deleteBoardMeta } from "../meta.js";
 import { readBoardMeta } from "../meta.js";
 import { writeBoardMeta } from "../meta.js";
 import { validateItemDependencies } from "./dependencies.js";
+import { submitHandoff } from "../../submit/handoff/records.js";
 import * as itemDependencies from "../../../../../items/index.js";
 
 /** The ids an item waits on through the after-gate list; a plain --after id never appears here. */
@@ -42,4 +43,33 @@ export function setAfterGate(board, id, ids) {
     else deleteBoardMeta(board.db, `after_gate:${id}`);
     return gate;
   });
+}
+
+/**
+ * Whether an after-gate parent is submitted and its gate went green at its submitted head [C7].
+ * Why a copy of next.js greenAtHead: the claim path must not import the review queue's module.
+ *
+ * @param {any} board
+ * @param {number} parentId
+ * @returns {boolean}
+ */
+export function gateGreenParent(board, parentId) {
+  const parent = itemById(board, parentId);
+  if (parent?.item_status !== 'submitted') return false;
+  const job = submitHandoff(board, parentId);
+  return Boolean(job && parent.item_commit && job.commit === parent.item_commit && job.state === 'green');
+}
+
+/**
+ * The after-gate parent a claim of this item builds on and the head it was submitted at, or null when no parent is waiting on its merge.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {{ parent: number, head: string } | null}
+ */
+export function afterGateBase(board, id) {
+  for (const parent of afterGateIds(board, id)) {
+    if (gateGreenParent(board, parent)) return { parent, head: itemById(board, parent).item_commit };
+  }
+  return null;
 }
