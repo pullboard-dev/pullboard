@@ -26,15 +26,6 @@ import {
   spawnSync,
 } from 'node:child_process';
 import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
   relative,
@@ -72,6 +63,9 @@ import {
   formatCollectionReport,
   parseCollectionReports,
 } from '../../../gate/heavy.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -116,10 +110,10 @@ const SWEEP_WAIT_MS = 1_000;
 function writeFileTimes(root, measured) {
   const path = fileTimesPath(root);
   const files = { ...readFileTimes(root), ...measured };
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  fs.mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify({ version: 1, files }, null, 2)}\n`, { mode: 0o600 });
-  renameSync(temporary, path);
+  fs.writeFile(temporary, `${JSON.stringify({ version: 1, files }, null, 2)}\n`, { mode: 0o600 });
+  fs.rename(temporary, path);
 }
 
 /** Read the per-file wall-time lines a shard printed, keeping the longest report for each file. */
@@ -293,8 +287,8 @@ export function landingSource(root) {
     const full = join(root, path);
     let content;
     try {
-      const stat = lstatSync(full);
-      content = stat.isSymbolicLink() ? `link:${readlinkSync(full)}` : stat.isFile() ? readFileSync(full) : `kind:${stat.mode}`;
+      const stat = fs.lstat(full);
+      content = stat.isSymbolicLink() ? `link:${fs.readlink(full)}` : stat.isFile() ? fs.readFile(full, null) : `kind:${stat.mode}`;
     } catch { content = 'missing'; }
     hash.update(path).update('\0').update(content).update('\0');
   }
@@ -627,8 +621,8 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
 
 /** Print this shard's per-file wall times and exit codes for its orchestrator; a missing record prints nothing. */
 export function printShardFileTimes(path, write = text => process.stdout.write(text)) {
-  if (!path || !existsSync(path)) return;
-  for (const line of shardFileLines(readFileSync(path, 'utf8'))) write(`${line}\n`);
+  if (!path || !fs.exists(path)) return;
+  for (const line of shardFileLines(fs.readFile(path, 'utf8'))) write(`${line}\n`);
 }
 
 /**
