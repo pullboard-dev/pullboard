@@ -39,7 +39,7 @@ function regexLiterals(source) {
   return found;
 }
 
-test('no hosted page script part loses a regex backslash [N26]', () => {
+test('cli.journeys-spec-cockpit-script.no-hosted-page-script-part-loses: no hosted page script part loses a regex backslash [N26]', () => {
   const offenders = [];
   // The four hosted page script parts were src/view/page-script-N.js; the path map says where each lives now.
   const parts = [...readPathMap(REPOSITORY)].filter(([from]) => /^src\/view\/page-script-\d+\.js$/u.test(from));
@@ -58,7 +58,7 @@ test('no hosted page script part loses a regex backslash [N26]', () => {
   assert.deepEqual(offenders, [], `hosted regex escapes need a doubled template-literal backslash: ${offenders.join(', ')}`);
 });
 
-test('emitted page script splits decision ids on whitespace [N26]', () => {
+test('cli.journeys-spec-cockpit-script.emitted-page-script-splits-decision-ids: emitted page script splits decision ids on whitespace [N26]', () => {
   const served = pageScriptPart4({});
   const split = /String\(args\.ids\)\.split\((\/.*?\/)\)/u.exec(served);
   assert.ok(split, 'the served decideRow implementation splits its ids');
@@ -70,7 +70,7 @@ test('emitted page script splits decision ids on whitespace [N26]', () => {
   assert.equal(ids.map((id) => `doctrine:${id}`).join(' '), 'doctrine:G1 doctrine:G2', 'each doctrine row keeps its own qualified id');
 });
 
-test('a decision on two spec rows splits their ids on whitespace [B26,N26]', async () => {
+test('cli.journeys-spec-cockpit-script.a-decision-on-two-spec-rows: a decision on two spec rows splits their ids on whitespace [B26,N26]', async () => {
   const served = pageScriptPart4({});
   const start = served.indexOf('async function decideRow(');
   const end = served.indexOf('\n}\n', start) + 2;
