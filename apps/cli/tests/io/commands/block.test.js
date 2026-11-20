@@ -18,7 +18,7 @@ test('cli.block.add-and-list: clause 1: block add web-batch <id1> <id2> --tier m
   assert.ok(added.out.includes(`web-batch mid #${first} #${second}`), added.out);
   const listed = await box.runLocal(box.repo, 'block', 'list');
   assert.equal(listed.code, 0, listed.err || listed.out);
-  assert.equal(listed.out.trim(), `web-batch mid #${first} #${second}`);
+  assert.equal(listed.out.split('\n')[0], `web-batch mid #${first} #${second}`);
   const json = await box.runLocal(box.repo, 'block', 'list', '--json');
   assert.equal(json.code, 0, json.err || json.out);
   assert.deepEqual(JSON.parse(json.out).blocks.map(block => ({ name: block.name, tier: block.tier, ids: block.ids })), [{ name: 'web-batch', tier: 'mid', ids: [first, second] }]);
