@@ -1,5 +1,5 @@
 /** Put the pinned tooling on a runner once: a runner that holds the pin's tree reads its copy and is sent no bytes [C7]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { shellWord } from '../logic/frames.js';
 
 /** A refusal with a stable code, kept local so this file adds no cross-cell import. */
@@ -47,7 +47,7 @@ export async function ensureTooling(channel, { tree, bundle }, log = () => {}) {
     log(`tooling pin ${tree} held on ${channel.runner.host}: tooling bytes sent: 0`);
     return { tree, path: reply.slice(4), held: true, bytesSent: 0 };
   }
-  const bytes = readFileSync(bundle);
+  const bytes = fileSystemAdapter().readFile(bundle, null);
   const sent = await channel.run([
     `d=${folder}`,
     `rm -rf "$d.partial" && mkdir -p "$d.partial" || exit 3`,
