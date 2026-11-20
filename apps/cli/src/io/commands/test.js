@@ -1,6 +1,6 @@
 /** @pullboard-module-loads apps/cli/src/io/test/status-outcomes.js */
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
-import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,8 @@ import { testStatusOutcomesEnabled } from '../../../../../packages/config/index.
 import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+
+const fs = fileSystemAdapter();
 
 /** Loads the status-outcomes reader at the first status read that wants it, so no other command pays for it [C7,#10212]. */
 const requireModule = createRequire(import.meta.url);
@@ -86,7 +88,7 @@ async function queueSeatRun(io, ctx, { agent, item, items, files, values }, pull
   const affected = values.affected === true;
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   if (!affected && !files.length) throw new Refused('USAGE', 'name the test files to run: pullboard test <file> [more files]');
-  const missing = files.filter(file => !existsSync(join(ctx.info.root, file)));
+  const missing = files.filter(file => !fs.exists(join(ctx.info.root, file)));
   if (missing.length) throw new Refused('NO_TEST_FILE', `no such test file in this checkout: ${missing.join(', ')}`);
   if (!affected && (typeof ctx.config.affectedTests !== 'string' || !ctx.config.affectedTests.trim())) {
     throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');

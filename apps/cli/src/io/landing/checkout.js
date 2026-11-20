@@ -1,5 +1,4 @@
 /** Whether a land job's trunk remote is a checkout on this host with the trunk branch checked out [C7,P7]. */
-import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
 import { networkInterfaces } from 'node:os';
@@ -8,6 +7,9 @@ import { isAbsolute } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tryGit } from '../../../../../packages/git/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The names and addresses this host answers to, as an ssh or scp-like trunk remote may spell it. */
 function localHosts() {
@@ -45,7 +47,7 @@ function localPath(remote, root) {
  */
 export function trunkCheckedOut(remote, root, trunk) {
   const path = localPath(remote, root);
-  if (!path || !existsSync(path)) return false;
+  if (!path || !fs.exists(path)) return false;
   const listed = tryGit(path, ['worktree', 'list', '--porcelain']);
   if (listed.status !== 0) return false;
   return listed.stdout.split(/\n\n+/u).some(block => !/^bare$/mu.test(block) && block.split('\n').includes(`branch ${trunk}`));

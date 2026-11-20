@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../fs/index.js';
 export { IMPLIES_ENGINE } from '../logic/move/constants.js';
 import { IMPLIES_ENGINE } from '../logic/move/constants.js';
 /**
@@ -14,10 +15,6 @@ import { IMPLIES_ENGINE } from '../logic/move/constants.js';
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { COORDINATOR } from '../../../config/light.js';
@@ -298,7 +295,7 @@ const SEEN_LIMIT = 2000;
 export function takeDecisionNotices(gitDir, held) {
   const record = join(gitDir, 'pullboard-checkout', 'decisions-seen.json');
   let seen = [];
-  try { seen = JSON.parse(readFileSync(record, 'utf8')).seen ?? []; }
+  try { seen = JSON.parse(fileSystemAdapter().readFile(record, 'utf8')).seen ?? []; }
   catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
   if (!Array.isArray(seen)) seen = [];
   const known = new Set(seen);
@@ -307,9 +304,9 @@ export function takeDecisionNotices(gitDir, held) {
     .map((fact) => ({ item, fact: fact.id, text: fact.text })));
   if (!notices.length) return notices;
   const next = [...seen, ...notices.map((notice) => notice.fact)].slice(-SEEN_LIMIT);
-  mkdirSync(dirname(record), { recursive: true });
+  fileSystemAdapter().mkdir(dirname(record), { recursive: true });
   const temporary = `${record}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify({ version: 1, seen: next })}\n`);
-  renameSync(temporary, record);
+  fileSystemAdapter().writeFile(temporary, `${JSON.stringify({ version: 1, seen: next })}\n`);
+  fileSystemAdapter().rename(temporary, record);
   return notices;
 }

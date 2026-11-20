@@ -109,3 +109,22 @@ test('landing.exact.flake-rerun-needs-every-file: clause 2: with two red files, 
   assert.equal(proof.file, files[1]);
   assert.deepEqual(proof.flakes, [{ file: files[0], tree: 'a'.repeat(40) }], 'the first file stays recorded as a flake');
 });
+
+test('landing.exact-flake.awaits-main-receipt: clause 1: sprintProof awaits a mainReceipt port that returns a promise: a green receipt settles a flake, a non-green or missing receipt refuses, a direct value behaves as before [C7]', async () => {
+  const file = 'packages/alpha/tests/a.test.js';
+  const prove = receipt => sprintProof({ tree: 'a'.repeat(40) }, {
+    changedFiles: () => ['packages/alpha/src/a.js'],
+    pin: () => 'tooling-pin',
+    runStatic: async () => ({ isGreen: true }),
+    runCell: async () => ({ isGreen: false, output: 'not ok', files: [file] }),
+    rerunFile: async () => ({ isGreen: true }),
+    mainReceipt: receipt,
+  });
+  const settled = await prove(async () => GREEN);
+  assert.equal(settled.result, 'green');
+  assert.deepEqual(settled.flakes, [{ file, tree: 'a'.repeat(40) }]);
+  assert.equal((await prove(async () => ({ ...GREEN, result: 'red' }))).result, 'red');
+  assert.equal((await prove(async () => null)).result, 'red');
+  assert.equal((await prove(() => GREEN)).result, 'green', 'a port that returns the receipt directly behaves as before');
+  assert.equal((await prove(() => null)).result, 'red');
+});

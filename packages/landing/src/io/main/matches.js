@@ -2,7 +2,6 @@ import { blockingFailures } from '../../../../verify/index.js';
 /** Match completely accounted test failures without granting a file-wide main-red exemption [V4,B3]. */
 import { createHash } from 'node:crypto';
 import { secretsIn } from '../../../../commits/index.js';
-import { realpathSync } from 'node:fs';
 import { accountedFailures } from '../land.js';
 import { junitFailures } from '../../logic/junit-failures.js';
 import { junitFailureSignature } from '../../logic/junit-signature.js';
@@ -18,6 +17,9 @@ import {
 } from '../../../../kernel/index.js';
 
 export { MAIN_FAILURE_SIGNATURE_VERSION, normalizedFailureDiagnostics } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Keep deterministic failure diagnostics, excluding only timing, source location and stack presentation. */
 function diagnostics(output, root) {
@@ -119,7 +121,7 @@ function junitSignedRows(xml, root) {
 export function failureSignatures(run, root, { raw = false, allowCancelled = false, evidence = false, junitSignatures = false } = {}) {
   let executionRoot = run.executionRoot ?? root;
   if (!run.executionRunner) {
-    try { executionRoot = realpathSync(executionRoot); }
+    try { executionRoot = fs.realpath(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
   if (junitSignatures === true && typeof run.junitXml === 'string') return junitSignedRows(run.junitXml, executionRoot);
