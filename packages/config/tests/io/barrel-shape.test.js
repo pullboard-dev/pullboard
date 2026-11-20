@@ -17,7 +17,6 @@ const BEFORE = [
   'configFromSource',
   'doctrineFile',
   'environmentProblem',
-  'gitSyncMarkerLinked',
   'healthDiskFloorGb',
   'hunkFreshnessEnabled',
   'listThinRead',
@@ -29,6 +28,7 @@ const BEFORE = [
   'reofferInfraEndEnabled',
   'retireIdleSeatHours',
   'submitProofOnly',
+  'typedFieldsEnabled',
   'validateRunner',
 ];
 

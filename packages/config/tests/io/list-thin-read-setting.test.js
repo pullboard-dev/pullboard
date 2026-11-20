@@ -1,4 +1,4 @@
-/** list.thinRead is a machine setting, off by default, described, and on only for an exact true [C7,#9089]. */
+/** list.thinRead is a machine setting, on by default, described, and off only for an exact false [C7,#9089,#9072]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,12 +25,12 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'list.thinRead'));
 }
 
-test('config.io-list-thin-read-setting.clause-3-list-thinread-is-off-by-default: clause 3: list.thinRead is off by default, on only for an exact true, and a non-boolean is refused [C7,#9089]', () => {
+test('config.io-list-thin-read-setting.clause-3-list-thinread-is-on-by-default: clause 3: list.thinRead is on by default, off only for an exact false, and a non-boolean is refused [C7,#9089,#9072]', () => {
   const unset = row({});
-  assert.equal(unset.default, false);
-  assert.equal(unset.value, false);
-  assert.equal(withSettings({}, listThinRead), false);
-  assert.equal(withSettings({ list: { thinRead: true } }, listThinRead), true);
+  assert.equal(unset.default, true);
+  assert.equal(unset.value, true);
+  assert.equal(withSettings({}, listThinRead), true);
+  assert.equal(withSettings({ list: { thinRead: false } }, listThinRead), false);
   assert.throws(() => withSettings({ list: { thinRead: 'yes' } }, listThinRead), /list\.thinRead/u);
 });
 

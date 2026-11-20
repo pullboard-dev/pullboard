@@ -7,11 +7,8 @@
  */
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { openSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
@@ -24,6 +21,7 @@ import { takeJob } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** The job kind of a queued test run; the drive cell's gate reclaim never touches it. */
 export const TEST_RUN_KIND = 'test-run';
@@ -67,7 +65,7 @@ const RENEW_MS = 30_000;
  *   at least one live build claim.
  * @returns {boolean}
  */
-export function queuesTestRun(ctx, agent, values, environment = process.env, { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
+export function queuesTestRun(ctx, agent, values, environment = environmentAdapter().all(), { alive = pidAlive, pid = process.pid, claimed = false } = {}) {
   if (values['test-run'] !== undefined || ctx.info.isMain || agent === undefined) return false;
   if (machineContext(environment, { alive, pid }) !== null) return false;
   if (claimed) return true;
@@ -149,16 +147,16 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
     writeStep(runs?.db ?? board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
       compareMain: run.compareMain === true, noFileLimit: run.noFileLimit === true, root: ctx.info.root, log }, { now });
   });
-  mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
-  const out = openSync(log, 'a', 0o600);
+  disk.mkdir(dirname(log), { recursive: true, mode: 0o700 });
+  const out = disk.open(log, 'a', 0o600);
   try {
     const args = [bin, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
       ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
-      env: { ...process.env, PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
+      env: { ...environmentAdapter().all(), PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
     child.unref();
-  } finally { closeSync(out); }
+  } finally { disk.close(out); }
   return { id, status: 'queued', log, files: run.files };
 }
 
@@ -295,13 +293,13 @@ export function readFinalLine(path) {
   if (!path) return null;
   let fd;
   try {
-    fd = openSync(path, 'r');
-    const size = fstatSync(fd).size;
+    fd = disk.open(path, 'r');
+    const size = disk.fstat(fd).size;
     const buffer = Buffer.alloc(Math.min(size, 8192));
-    readSync(fd, buffer, 0, buffer.length, size - buffer.length);
+    disk.read(fd, buffer, 0, buffer.length, size - buffer.length);
     const match = FINAL_LINE.exec(buffer.toString('utf8'));
     return match ? { green: match[1] === 'green', runner: match[2], seconds: Number(match[3]) } : null;
-  } catch { return null; } finally { if (fd !== undefined) closeSync(fd); }
+  } catch { return null; } finally { if (fd !== undefined) disk.close(fd); }
 }
 
 /**

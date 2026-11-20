@@ -10,6 +10,7 @@ import { nextSelection } from '../../index.js';
 import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
 import { next } from '../fixtures/next.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** view and docs own folders, as in pullboard.json; tests owns none, as the verifier lane does. */
 const LANES = { view: { owns: ['apps/view/'] }, docs: { owns: ['guides/'] }, tests: { owns: [] } };
@@ -127,6 +128,87 @@ test('moves.selection.derived-gate-port-absent: clause 2: with no port, or a por
   assert.equal(pick({ ...box.ports, derivedGateAtHead: () => null }), first, 'a port returning null');
 });
 
+/** Run one default-loop pick and return the options the review offer was given, so a port's answer is seen where it reaches nextFor. */
+function offerOptions(t, box, ports) {
+  const seen = [];
+  const original = nextSelection.defaultOffer;
+  nextSelection.defaultOffer = (board, options) => { seen.push(options); return original(board, options); };
+  t.after(() => { nextSelection.defaultOffer = original; });
+  const picked = nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, ports);
+  return { seen, picked };
+}
+
+test('moves.selection.derived-seat-family-port: clause 1: with ports.derivedSeatFamily returning a map or a reader, pick passes it to nextFor as derivedSeatFamily and the answer is the port\'s [C7,#11384]', t => {
+  const box = fixture(t);
+  box.add('Work for the default loop');
+  const reader = id => (id === 'seat-x' ? 'openai' : undefined);
+  const fromReader = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => reader });
+  assert.equal(fromReader.seen.length, 1, 'the review offer ran once');
+  assert.equal(fromReader.seen[0].derivedSeatFamily, reader, 'a reader is passed as it is');
+  const families = new Map([['seat-x', 'anthropic']]);
+  const fromMap = offerOptions(t, box, { ...box.ports, derivedSeatFamily: () => families });
+  assert.equal(fromMap.seen[0].derivedSeatFamily('seat-x'), 'anthropic', 'a map answers through its entries');
+  assert.equal(fromMap.seen[0].derivedSeatFamily('seat-y'), undefined, 'an id the map does not name is unanswered');
+});
+
+test('moves.selection.derived-seat-family-port-absent: clause 2: with no port, or a port returning null, pick passes no derivedSeatFamily and returns the same item as before [C7,#11384]', t => {
+  const box = fixture(t);
+  const first = box.add('First work');
+  box.add('Second work');
+  for (const ports of [box.ports, { ...box.ports, derivedSeatFamily: () => null }]) {
+    const { seen, picked } = offerOptions(t, box, ports);
+    assert.equal('derivedSeatFamily' in seen[0], false, 'no derivedSeatFamily key reaches nextFor');
+    assert.equal(picked.item?.item_id, first);
+  }
+});
+
+test('moves.selection.derived-seat-family-beside-gate: clause 3: pick reads ports.derivedSeatFamily beside ports.derivedGateAtHead, each answering on its own [C7,#11384]', t => {
+  const box = fixture(t);
+  const gated = box.add('Gated by the derived table');
+  const free = box.add('Free work');
+  const reader = () => undefined;
+  const derivedGateAtHead = () => entry => (entry.item_id === gated ? `gate green at ${'a'.repeat(12)}` : undefined);
+  const { seen, picked } = offerOptions(t, box, { ...box.ports, derivedGateAtHead, derivedSeatFamily: () => reader });
+  assert.equal(seen[0].derivedSeatFamily, reader, 'the seat-family answer reaches nextFor');
+  assert.equal(picked.item?.item_id, free, 'the gate answer still skips the gated item');
+});
+
+/** The box's claim port, made to refuse `id` as claim refuses a bar naming paths no lane owns; every other claim goes through. */
+function refuseOwnership(box, id) {
+  const through = box.ports.claimOrdered;
+  box.ports.claimOrdered = (ctx, open, args) => {
+    if (args[0] === id) throw new Refused('CROSS_OWNERSHIP', 'the bar names zzz/other.js, which no lane owns, so lane web cannot build it', 'split the item');
+    return through(ctx, open, args);
+  };
+}
+
+test('moves.selection.cross-ownership-passed-over: clause 1: an item whose claim is refused CROSS_OWNERSHIP is passed over, reported once, and the next claimable item is offered [C7,#11862]', async t => {
+  const box = fixture(t);
+  const refused = box.add('Bar names a path no lane owns');
+  const claimable = box.add('Claimable work');
+  refuseOwnership(box, refused);
+  const found = await next(box);
+  assert.equal(found.item?.item_id, claimable);
+  assert.equal(store.getItem(box.board, refused).item_status, 'open', 'the refused item stays open');
+  const reports = store.itemThread(box.board, refused).filter(entry => entry.type === 'fact' && entry.text.includes('"unbuildableBar"') && entry.text.includes('CROSS_OWNERSHIP'));
+  assert.equal(reports.length, 1, 'one coordinator report per bar');
+});
+
+test('moves.selection.wait-never-offers-refused: clause 2: with wait above 0, an item whose claim refuses for the calling seat is never returned to it; the seat gets the next claimable item or none [C7,#11862]', async t => {
+  const box = fixture(t);
+  const refused = box.add('Bar names a path no lane owns');
+  refuseOwnership(box, refused);
+  const alone = await next(box, { wait: 1 });
+  assert.equal(alone.item, undefined, 'a lone refused item is not returned, as an offer or a claim');
+  assert.equal(alone.waitingOffer, undefined);
+  assert.equal(store.getItem(box.board, refused).item_status, 'open');
+  const claimable = box.add('Claimable work');
+  const found = await next(box, { wait: 1 });
+  assert.equal(found.item?.item_id, claimable);
+  assert.equal(found.waitingOffer, undefined);
+  assert.equal(store.getItem(box.board, claimable).item_status, 'claimed');
+});
+
 test('moves.selection.wait-claims-ready-item: clause 1: nextOnce with values.wait above 0 and a ready open item claims it for the calling seat and returns no waitingOffer [C7,#11846]', async t => {
   const box = fixture(t);
   const ready = box.add('Ready work');
@@ -148,4 +230,32 @@ test('moves.selection.wait-held-unchanged: clause 2: nextOnce with values.wait a
   assert.equal(again.held, true);
   assert.equal(again.waitingOffer, undefined);
   assert.deepEqual(actorClaims(box), [mine], 'no second claim');
+});
+
+/** Run pick under `config`, recording the who that reaches the review offer (plain loop) and the default offer (default loop). */
+function whoReaching(t, box, config) {
+  const seen = [];
+  const original = { ...nextSelection };
+  nextSelection.reviewOffer = (board, who) => { seen.push(who); return original.reviewOffer(board, who); };
+  nextSelection.defaultOffer = (board, who) => { seen.push(who); return original.defaultOffer(board, who); };
+  t.after(() => Object.assign(nextSelection, original));
+  const ctx = { ...box.ctx, config: { ...box.ctx.config, ...config } };
+  box.add('Open work');
+  nextSelection.pick(ctx, box.board, { defaultLoop: false, observeIdle: true, omitIds: [] }, box.ports);
+  nextSelection.pick(ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports);
+  return seen;
+}
+
+test('moves.selection.compose-landing-on: clause 1: with slices.composeLanding true in ctx.config, the who handed to the review offer and the default offer carries composeLanding true [C7,#11345]', t => {
+  const seen = whoReaching(t, fixture(t), { slices: { composeLanding: true } });
+  assert.equal(seen.length, 2, 'both offers were reached');
+  for (const who of seen) assert.equal(who.composeLanding, true);
+});
+
+test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding unset, the who carries no composeLanding and the offer is unchanged [C7,#11345]', t => {
+  for (const config of [{}, { slices: { composeLanding: false } }]) {
+    const seen = whoReaching(t, fixture(t), config);
+    assert.equal(seen.length, 2, 'both offers were reached');
+    for (const who of seen) assert.ok(!who.composeLanding, 'composeLanding is false or absent');
+  }
 });

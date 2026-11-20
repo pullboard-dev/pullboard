@@ -1,6 +1,4 @@
 /** Authenticated cross-board dispatch shares existing relay credentials and opaque storage [E32,H16,H17]. */
-import { lstatSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { apiJson } from '../../../../../packages/api/index.js';
@@ -16,12 +14,15 @@ import { boardLinkName } from '../../../../../packages/kernel/index.js';
 import { boardLinkEnvelope } from '../../../../../packages/store/index.js';
 import { appendBoardLinkEnvelope } from './inbox.js';
 import { readBoardLinkEnvelopes } from './inbox.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 /** Create one private authoritative DAG catalog without deriving any paths from message fields. */
 function catalogBoard(directory, now) {
   const file = join(directory, 'board-links.sqlite');
-  try { writeFileSync(file, '', { flag: 'wx', mode: 0o600 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const stat = lstatSync(file);
+  try { fileSystem.writeFile(file, '', { flag: 'wx', mode: 0o600 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const stat = fileSystem.lstat(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.mode & 0o077) throw new Refused('RELAY_STORAGE', 'keep the board-link catalog in a private regular database');
   return openBoard(file, { now: () => new Date(now()) }, { writeContext: { command: 'relay board-link catalog', seat: 'relay' } });
 }
