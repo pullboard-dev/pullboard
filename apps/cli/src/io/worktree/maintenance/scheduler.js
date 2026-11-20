@@ -3,12 +3,6 @@ import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { constants } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -29,9 +23,12 @@ import { maintenanceDurations } from '../../../../../../packages/config/light.js
 import { readTimer } from '../../tool/build.js';
 import { timerFiles } from '../../tool/build.js';
 import { writeTimer } from '../../tool/build.js';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const TOKEN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
-const NOFOLLOW = constants.O_NOFOLLOW;
+const NOFOLLOW = fs.constants.O_NOFOLLOW;
 const TIMER = { label: 'maintenance timer', folder: 'worktree-maintenance' };
 
 /** Unknown OS observations never justify replacing a live timer. */
@@ -73,14 +70,14 @@ function primaryCheckout(root, common) {
 async function canonical(ctx) {
   return withGitFacts(() => {
     // An inherited GIT_DIR (hooks, agent shells) must not make the primary checkout look like a linked worktree.
-    const info = repoInfo(ctx.info.root, { env: cleanGitEnvironment() }), common = realpathSync(info.commonDir);
-    if (common !== realpathSync(ctx.info.commonDir)) throw new Error('maintenance timer repository changed');
+    const info = repoInfo(ctx.info.root, { env: cleanGitEnvironment() }), common = fs.realpath(info.commonDir);
+    if (common !== fs.realpath(ctx.info.commonDir)) throw new Error('maintenance timer repository changed');
     const policy = mainPolicy(info.root);
     if (policy.config.worktreeMaintenance?.enabled !== true) return null;
     const root = primaryCheckout(info.root, common);
     const primary = repoInfo(root, { env: cleanGitEnvironment() });
-    if (!primary.isMain || realpathSync(primary.commonDir) !== common) throw new Error('maintenance primary repository changed');
-    return { root: realpathSync(root), common, everyMs: maintenanceDurations(policy.config.worktreeMaintenance).everyMs };
+    if (!primary.isMain || fs.realpath(primary.commonDir) !== common) throw new Error('maintenance primary repository changed');
+    return { root: fs.realpath(root), common, everyMs: maintenanceDurations(policy.config.worktreeMaintenance).everyMs };
   });
 }
 
@@ -114,10 +111,10 @@ export async function scheduleWorktreeMaintenance(ctx) {
       stage = 'register';
       const token = randomUUID(), dueAt = new Date(Date.now() + accepted.everyMs).toISOString();
       const log = join(files.directory, 'scheduler.log');
-      const logFd = openSync(log, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | NOFOLLOW, 0o600);
+      const logFd = fs.open(log, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | NOFOLLOW, 0o600);
       let child;
       try {
-        const state = fstatSync(logFd);
+        const state = fs.fstat(logFd);
         if (!state.isFile() || state.mode & 0o077) throw new Error('maintenance scheduler log is not private');
         stage = 'launch';
         child = spawn(process.execPath, [join(accepted.root, 'apps/cli/pullboard.js'), 'maintenance', '--watch', '--key', token],
@@ -128,7 +125,7 @@ export async function scheduleWorktreeMaintenance(ctx) {
         stage = 'register';
         writeTimer(files.file, TIMER, { version: 1, token, pid: child.pid, started: identity.started, dueAt, root: accepted.root, common: accepted.common });
         return { scheduled: true, dueAt };
-      } finally { child?.unref(); closeSync(logFd); }
+      } finally { child?.unref(); fs.close(logFd); }
     });
   } catch (error) {
     // The primary checkout owns the timer and reports a real failure once; a linked worktree stays quiet [#2909].
@@ -141,7 +138,7 @@ export async function scheduleWorktreeMaintenance(ctx) {
 /** Match the exact registered process and repository, independently of agent identity. */
 function owned(owner, token, identity, ctx) {
   return owner?.token === token && owner.pid === process.pid && owner.started === identity.started
-    && owner.common === realpathSync(ctx.info.commonDir) && owner.root === realpathSync(ctx.info.root);
+    && owner.common === fs.realpath(ctx.info.commonDir) && owner.root === fs.realpath(ctx.info.root);
 }
 
 /** A fresh --watch worker authenticates registration, waits, then delegates to a fresh canonical CLI. */
@@ -149,7 +146,7 @@ export async function runScheduledMaintenance(ctx, key) {
   if (!TOKEN.test(key ?? '')) return { ran: false, reason: 'unregistered' };
   const identity = processIdentity(process.pid);
   if (!identity || identity.zombie) throw new Error('maintenance timer cannot observe its own identity');
-  const files = timerFiles(realpathSync(ctx.info.commonDir), false, TIMER);
+  const files = timerFiles(fs.realpath(ctx.info.commonDir), false, TIMER);
   let owner;
   // The parent records the spawned PID/start after spawn; never act before that exact registration arrives.
   const registrationDeadline = Date.now() + 5000;
@@ -171,7 +168,7 @@ export async function runScheduledMaintenance(ctx, key) {
     const current = await canonical(ctx);
     if (current && (current.common !== owner.common || current.root !== owner.root)) throw new Error('maintenance timer primary changed');
     // Only this due registration is consumed. The fresh command schedules the next timer after completion.
-    unlinkSync(files.file);
+    fs.unlink(files.file);
     return current;
   });
   if (!accepted) return { ran: false, reason: 'disabled-or-registration-changed' };
@@ -189,7 +186,7 @@ export async function runScheduledMaintenance(ctx, key) {
 /** Read existing timer identity and last completed run without creating, replacing or signalling anything. */
 export function maintenanceTimerHealth(common) {
   try {
-    const files = timerFiles(realpathSync(common), false, TIMER), owner = readTimer(files.file, TIMER);
+    const files = timerFiles(fs.realpath(common), false, TIMER), owner = readTimer(files.file, TIMER);
     return { state: owner ? timerState(owner) : 'absent', key: owner ? createHash('sha256').update(owner.token).digest('hex') : null,
       pid: owner?.pid ?? null, dueAt: owner?.dueAt ?? null, lastRun: readMaintenanceLastRun(common) };
   } catch (error) {
