@@ -1,7 +1,8 @@
 /** Rotation of the machine every-write log, run between commands and never inside a board write [C7,#6478]. */
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { boardWritesLog } from './log.js';
+
+const fs = fileSystemAdapter();
 
 /** The size past which the every-write log moves to its one prior file, so the log cannot grow without bound. */
 export const BOARD_WRITES_MAX_BYTES = 64 * 1024 * 1024;
@@ -16,8 +17,8 @@ export const BOARD_WRITES_MAX_BYTES = 64 * 1024 * 1024;
 export function rotateBoardWritesLog() {
   const file = boardWritesLog();
   try {
-    if (statSync(file).size <= BOARD_WRITES_MAX_BYTES) return false;
-    renameSync(file, file + '.1');
+    if (fs.stat(file).size <= BOARD_WRITES_MAX_BYTES) return false;
+    fs.rename(file, file + '.1');
     return true;
   } catch { return false; /* A missing log has nothing to rotate; a failed rename leaves the log growing, which loses nothing. */ }
 }

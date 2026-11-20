@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as store from '../../../../../store/index.js';
 import { openKitBoard } from '../../../../../board/tests/fixtures/board.js';
 import { rigorFixtureBoard } from '../../../fixtures/testkit.js';
-import { runFrozenProof } from '../../../../index.js';
+import { runFrozenProof } from '../../../../heavy.js';
 
 /** A not-executed check result carrying the renames checkAtCommit followed. */
 const checked = renames => async () => ({ state: 'pass', green: true, executed: false, checked: true, report: '', renames });

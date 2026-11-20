@@ -1,11 +1,13 @@
 /** Current capacity descriptors for completed-receipt utilization, without admission writes [C7,O5]. */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { machineHome } from '../../../resources/light.js';
 import { openPoolReadOnly } from '../../../resources/light.js';
 import { loadMachineSettings } from '../../../config/light.js';
 import { validateRunner } from '../../../config/light.js';
 import { localRunnerDescriptor } from './load.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Missing optional tables are historical absence, never an instruction to migrate a read. */
 function tableExists(db, name) {
@@ -62,7 +64,7 @@ function descriptors(settings, db, receipts) {
 export function readRunnerCapacities(receipts = []) {
   const settings = loadMachineSettings();
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return descriptors(settings, null, receipts);
+  if (!fs.exists(file)) return descriptors(settings, null, receipts);
   const db = openPoolReadOnly(file);
   try {
     db.exec('BEGIN');

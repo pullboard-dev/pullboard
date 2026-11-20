@@ -138,6 +138,16 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
+export function failFastShardsEnabled() {
+  return loadMachineSettings().gate?.failFastShards === true;
+}
+
+/** Seed main-test rows for wide-failing files only when this machine opted in [C7,#12094]; off by default, and only an exact true turns it on. */
+export function seedWideMainTestsEnabled() {
+  return loadMachineSettings().gate?.seedWideMainTests === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -174,6 +184,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { derivedStateEnabled } from '../logic/settings.js';
 export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -201,9 +212,9 @@ export function adapterLintSigningEnabled() {
   return loadMachineSettings().gate?.adapterLintSigning === true;
 }
 
-/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
+/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: on by default; only an exact `false` turns it off [C7,#1807]. */
 export function jsdocCheckEnabled() {
-  return loadMachineSettings().gate?.jsdocCheck === true;
+  return loadMachineSettings().gate?.jsdocCheck !== false;
 }
 
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
@@ -488,6 +499,11 @@ export function claimKeepWhileRunning() {
   return loadMachineSettings().claim?.keepWhileRunning === true;
 }
 
+/** Whether claim.checkCeiling is on: off by default; only an exact `true` makes claim refuse a check whose measured time is over its ceiling [C7,#1273]. */
+export function claimCheckCeilingEnabled() {
+  return loadMachineSettings().claim?.checkCeiling === true;
+}
+
 /** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
 export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
@@ -573,11 +589,6 @@ export function nameBehindDeviceEnabled() {
 }
 
 
-/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
-export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
-}
-
 /** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
 export function reofferTrunkBusyEnabled() {
   return loadMachineSettings().landing?.reofferTrunkBusy === true;
@@ -641,6 +652,11 @@ export function docsRegenerateOnCommit() {
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
+}
+
+/** Whether route reservations are on (#9177): off by default; only an exact `true` turns it on. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
@@ -1125,6 +1141,11 @@ export function setRunnerDrain(host, drain) {
   }, { observation: true });
 }
 
+/** How long a queued gate job waits, in milliseconds, before it outranks shard jobs (gate.gateAgedMinutes, 5 minutes by default) [C7]. */
+export function gateAgedMs() {
+  return (loadMachineSettings().gate?.gateAgedMinutes ?? 5) * 60_000;
+}
+
 /**
  * The share of each runner's slots every job class keeps (gate.jobReserve), or null: unset keeps today's claim order,
  * set makes a claim take the highest class first while each class keeps its reserve [C7].
@@ -1259,4 +1280,9 @@ export function reuseGateReceiptsEnabled() {
 /** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
 export function relaxRequiredFamilyEnabled() {
   return loadMachineSettings().review?.relaxRequiredFamily === true;
+}
+
+/** Whether line.tune is on (#1099): off by default; only an exact `true` lets the line controller tune its own knobs, until the replay bench proves it better. */
+export function lineTuneEnabled() {
+  return loadMachineSettings().line?.tune === true;
 }
