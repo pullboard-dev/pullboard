@@ -198,3 +198,16 @@ test('stats.timeline.gate-settled-absent-unchanged: clause 2: the same job with 
   assert.equal(summary.buckets.rework, 24 * MIN);
   assert.equal(summary.waits.MAIN_RED + summary.waits.STALE_BASE, 0);
 });
+
+test('stats.timeline.released-lease-lapsed: clause 1: a release event whose detail carries reasonCode LEASE_LAPSED and the sweep prose reason, then a second claim, gives a released row with reason LEASE_LAPSED followed by a re-claimed row [C7,#12401]', () => {
+  const { rows, unmapped } = timelineOf({
+    events: [event(1, 0, 'add', {}, 'coordinator'), event(2, 30 * SEC, 'claim', {}, 'core-1'),
+      event(3, 10 * MIN, 'release', { reasonCode: 'LEASE_LAPSED', reason: 'Seat core-1 has no heartbeat for two minutes or its worktree is gone; claim returned to the queue.' }, 'sentinel'),
+      event(4, 12 * MIN, 'claim', {}, 'core-2')],
+  });
+  assert.deepEqual(stagesOf(rows), ['filed', 'claimed', 'released', 're-claimed']);
+  assert.equal(rows[2].reason, 'LEASE_LAPSED');
+  assert.equal(rows[2].actor, 'sentinel');
+  assert.equal(rows[3].actor, 'core-2');
+  assert.deepEqual(unmapped, []);
+});

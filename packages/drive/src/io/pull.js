@@ -764,6 +764,7 @@ const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCE
  * @param {{ nap: (ms: number) => Promise<void> }} [options.wake] - runners.localWake: an idle wait that also ends when an offering command signals a new job (watchWake); without it the idle wait is the full idleMs [#10409].
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {{ session: 'gui' | 'daemon', guiRunning: () => Promise<boolean> | boolean }} [options.peer] - With it, a serve that is not the GUI-session copy claims nothing while guiRunning reports another serve of its install in a GUI session, and claims again once it reports none; the GUI copy and a serve given no peer claim as today (#10840).
  * @param {{ changed: (commit: string) => Promise<boolean>, refresh: (commit: string) => Promise<unknown> }} [options.runnerCode] - With it, a claim answer's runnerCommit that differs from the installed code stops claiming; held jobs finish and post, the code is rebuilt from that commit, and the serve returns restart naming it (#10800).
  * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
  * @param {number} [options.jobWorkerFactor] - The multiple of its even share of cores a job runs test files at once; default 2.
@@ -772,7 +773,7 @@ const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCE
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = environmentAdapter().get('PULLBOARD_RUNNER_JOBS'), cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, jobWorkerFactor = 2, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => disk.rm(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = environmentAdapter().get('PULLBOARD_RUNNER_JOBS'), cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, peer = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, jobWorkerFactor = 2, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => disk.rm(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -1062,6 +1063,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let exclusive = null;
   // The drain: whether it was announced, and when the trunk was last probed [#9024].
   let drained = false, probedAt = 0;
+  let yielding = false;
   // Loaded only by a serve handed a runnerCode port, so no cold command pays for it (the closure budgets).
   const codeWatch = runnerCode ? (await import('./pull/runner-code.js')).runnerCodeWatch(runnerCode, say) : null;
   let restart = null;
@@ -1095,6 +1097,16 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         if (probe.status === 0) { fetchFailures = 0; trunkDown = null; drained = false; say('the trunk answers again; claiming'); continue; }
       }
       await Promise.race([nap(idleMs), ...active]); continue;
+    }
+    // One serve claims per host: a daemon copy waits idle while the GUI-session copy of its install runs, so a GUI login never leaves two serves pulling one cache (#10840).
+    if (peer && peer.session !== 'gui') {
+      const gui = await Promise.resolve().then(() => peer.guiRunning()).catch(() => false);
+      if (gui) {
+        if (!yielding) { yielding = true; say('not claiming: the GUI-session serve of this install is running'); }
+        if (once) break;
+        await Promise.race([nap(idleMs), ...active]); continue;
+      }
+      if (yielding) { yielding = false; say('the GUI-session serve is gone; claiming'); }
     }
     // Admission and claim take one turn of the machine's ledger, and a claimed kind is held before the turn ends, so a
     // serve of another board on this machine admits against it; a kind admission excepts is skipped by the claim [C7,#10794].
