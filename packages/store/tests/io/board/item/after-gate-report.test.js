@@ -71,8 +71,8 @@ function timed(t) {
     store.writeBoardCommand(board, "submit", [id, { agentId: seats.builder.id, commit: COMMIT, tree: COMMIT, submissionProof: PROOF }], seats.builder.id);
     return id;
   };
-  board.executionEngineVersion = ENGINE_VERSION;
   const verdict = (id, decision) => {
+    board.executionEngineVersion = ENGINE_VERSION;
     const row = store.getItem(board, id);
     return store.verify(board, id, { agentId: seats.reviewer.id, decision, head: row.item_commit, digest: row.item_frozen_digest, policy: "any", familyPolicy: "off",
       ...(decision === "REJECT" ? { reason: "TEST_FAILURE", clause: CLAUSE } : {}), note: "Synthetic fixture verdict: read the diff against the bar.",
