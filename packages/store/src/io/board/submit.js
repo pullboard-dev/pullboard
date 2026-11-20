@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { boardWriteSnapshot } from './write/preparation.js';
 import { builderFamilyProblem } from '../builder/family.js';
 import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../state/light.js';
@@ -74,6 +74,8 @@ import { FLOW_SIZE_ENGINE } from "../../../../state/light.js";
 import { submissionSize } from "../../../../state/light.js";
 import { moveItem } from "../board.js";
 import { sealClauseInspection } from './repository.js';
+
+const fs = fileSystemAdapter();
 export { sealClauseInspection };
 
 /** Seal rename evidence from exact Git objects and accepted sensitive-path policy before replication [V4,H16]. */
@@ -368,7 +370,7 @@ export function recordedBaseRows(board, base) {
   if (!/^[a-f0-9]{40}$/u.test(base ?? '') || !boardReceiptStore) return [];
   const store = boardReceiptStore(board);
   let names = [];
-  try { names = store ? readdirSync(store) : []; } catch { return []; }
+  try { names = store ? fs.list(store) : []; } catch { return []; }
   const listed = new Set(names);
   const known = MAIN_RED_ROWS.get(store) ?? new Map();
   MAIN_RED_ROWS.set(store, known);
