@@ -9,9 +9,9 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../../fixtures/child.js';
-import { codeMapGraph } from '../../../../index.js';
-import { selectAffectedTests } from '../../../../index.js';
-import { cachedAffectedGraph } from '../../../../index.js';
+import { codeMapGraph } from '../../../../heavy.js';
+import { selectAffectedTests } from '../../../../heavy.js';
+import { cachedAffectedGraph } from '../../../../heavy.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
 
 /** A real immutable Git graph with a supported reader and an unresolved computed loader. */

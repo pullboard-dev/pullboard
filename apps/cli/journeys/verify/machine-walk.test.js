@@ -53,7 +53,10 @@ const ENTRY_POINTS = [
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
 // The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
-const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js'];
+// The same services hand the gate its cell checks (requireSubmitCells), which read the cell plan and raise its refusals.
+const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js', '../apps/cli/src/io/cells-submit-checks.js'];
+// next and status load the drive cell with await import only when a gate job lapsed (#11941), which the walk does not follow; its reclaim pass still raises the drive refusals.
+const LAZY_RAISER_FILES = ['../packages/drive/src/io/reclaim.js'];
 // The move tables raise the lease refusals from data the walk does not follow; these files raise them as code, and the audit worker raises STALE_MAIN_RED on withdraw.
 const TABLE_RAISER_FILES = ['../packages/store/src/logic/board/landing/lease.js', '../packages/landing/src/io/worker.js', '../packages/landing/src/io/resource.js', '../packages/gate/src/io/main/audit/worker.js'];
 const NON_MOVE_ENTRY_POINTS = [
@@ -84,6 +87,8 @@ const CAUGHT = {
   '../packages/verify/src/logic/review/reachability.js#unreviewableStrict': ['../packages/verify/src/logic/review/eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   '../packages/items/src/logic/cross/repo.js#stateFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord', '../packages/store/src/logic/board/link.js#readReceivedBoardState'],
+  // linkFor reads each link record inside its own catch and skips an invalid one.
+  '../packages/items/src/logic/cross/repo.js#linkFor': ['../packages/kernel/index.js#boardLinkRecord', '../packages/kernel/src/logic/registry.js#boardLinkRecord'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
@@ -145,6 +150,11 @@ function lazyCallees(file, body, source) {
       const [original, local = original] = part.split(/\s*:\s*/);
       if (new RegExp(String.raw`(?<![\w.])${local}\(`).test(body)) callees.push(`${under(specifier)}#${original}`);
     }
+  }
+  // A memoized loader, `const store = () => (cache ??= load('./x.js'))`, then `store().name(...)`: the board opener loads the store barrel this way on its first write open.
+  const memo = String.raw`^const (\w+) = \(\) => \(\w+ \?\?= (?:${[...loaders].join('|')})\(\s*['"](\.{1,2}\/[^'"]+\.js)['"]\s*\)\);$`;
+  for (const [, wrapper, specifier] of source.matchAll(new RegExp(memo, 'gm'))) {
+    for (const [, name] of body.matchAll(new RegExp(String.raw`(?<![\w.])${wrapper}\(\)\.(\w+)\(`, 'g'))) callees.push(`${under(specifier)}#${name}`);
   }
   return callees;
 }
@@ -342,7 +352,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...LAZY_RAISER_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   // A code a move's own entry reaches is raised by the code, whichever file holds the entry (the pulled submit gate's table replay, for one).
   for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
@@ -407,6 +417,8 @@ function statusWriters(read) {
       if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
     }
     for (const match of source.matchAll(/(?:\[\s*)?(['"`]?)item_status\1(?:\s*\])?\s*:|\b(?:update|replace\s+into|insert\s+or\s+replace\s+into)\s+(?:main\.)?item\b/gi)) {
+      // A JSDoc line (` * @param {{ item_status: string }}`) describes a row's type and never writes one.
+      if (/^\s*\*/u.test(source.slice(source.lastIndexOf('\n', match.index) + 1, match.index))) continue;
       if (!spans.some(([start, end]) => match.index >= start && match.index < end)) {
         const before = source.slice(0, match.index);
         const owner = [...functionsIn(source).entries()].find(([, body]) => source.indexOf(body) <= match.index && match.index < source.indexOf(body) + body.length);

@@ -29,6 +29,8 @@ function gateFixture(box) {
   const entered = join(box.dir, 'entered');
   const release = join(box.dir, 'release');
   const trace = join(box.dir, 'gate-trace.jsonl');
+  // The bare origin landProject adds; a land job pushes the trunk there.
+  const origin = join(box.dir, 'origin.git');
   writeFileSync(gate, [
     "const fs = require('node:fs'); const path = require('node:path');",
     `const calls = ${JSON.stringify(callPath)}; const hold = ${JSON.stringify(hold)}; const entered = ${JSON.stringify(entered)}; const release = ${JSON.stringify(release)}; const trace = ${JSON.stringify(trace)};`,
@@ -38,8 +40,11 @@ function gateFixture(box) {
     "fs.appendFileSync(trace, JSON.stringify({ alone, files }) + '\\n'); const fullRuns = fs.readFileSync(trace, 'utf8').trim().split('\\n').map(line => JSON.parse(line)).filter(row => !row.alone).length;",
     "if (!alone && fs.existsSync(hold) && (fs.readFileSync(hold, 'utf8') === 'armed' || Number(fs.readFileSync(hold, 'utf8')) === fullRuns)) { fs.writeFileSync(entered, root); const end = Date.now() + 20000; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); if (!fs.existsSync(release)) process.exit(24); }",
     "if (fixtureSwitch('LAND_UNNAMED_RED') === '1' && !alone && files.length > 1) { console.log('TAP version 13'); console.log('1..0'); process.exit(1); }",
+    // LAND_RED_AFTER_LANDING: a FLAKE file fails a full run only once the trunk the land jobs push to holds it, so the item's own gate is green
+    // and a main-wide test run after its landing is red, as a main test no import links to the item breaks [M2,R3,#12184].
+    `const onTrunk = file => require('node:child_process').spawnSync('git', ['--git-dir', ${JSON.stringify(origin)}, 'cat-file', '-e', 'main:' + file]).status === 0;`,
     "console.log('TAP version 13'); let failed = 0;",
-    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = fixtureSwitch('LAND_SUPPRESS_RED') !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
+    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = fixtureSwitch('LAND_SUPPRESS_RED') !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE') && (fixtureSwitch('LAND_RED_AFTER_LANDING') !== '1' || onTrunk(file))); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
     "const cancelled = fixtureSwitch('LAND_CANCEL') === '1' && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
     "console.log('1..' + (files.length + cancelled)); console.log('# tests ' + (files.length + cancelled)); console.log('# pass ' + (files.length - failed)); console.log('# fail ' + failed); console.log('# cancelled ' + cancelled); process.exitCode = failed || cancelled ? 1 : 0;",
   ].join('\n'));

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 /** A throwaway folder made straight from the OS temp root: join(tmpdir(), ...), mkdtemp(tmpdir()...) or `?? tmpdir()`. */
-const DIRECT = /\bjoin\(\s*(?:realpathSync\(\s*)?tmpdir\(\)|\bmkdtemp(?:Sync)?\(\s*(?:realpathSync\(\s*)?tmpdir\(\)|\?\?\s*tmpdir\(\)/u;
+const DIRECT = /\bjoin\(\s*(?:realpathSync\(\s*|fileSystemAdapter\(\)\.realpath\(\s*)?tmpdir\(\)|\bmkdtemp(?:Sync)?\(\s*(?:realpathSync\(\s*)?tmpdir\(\)|\?\?\s*tmpdir\(\)/u;
 
 /** The scratch root's own home: the only places allowed to read the OS temp root as the default. */
 const HOME = ['packages/config/src/logic/scratch.js', 'packages/config/src/logic/scratch/folder.js'];

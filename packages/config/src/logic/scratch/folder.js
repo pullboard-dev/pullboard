@@ -1,14 +1,11 @@
 /** Scratch folders and cross-volume moves [C7]. */
-import {
-  cpSync,
-  mkdtempSync,
-  renameSync,
-  rmSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { loadMachineSettings } from '../settings.js';
 import { scratchRoot } from '../scratch.js';
 import { environmentAdapter } from '../../../../env/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Makes a fresh throwaway folder under the scratch root, so every sentinel and sandbox lands in one place.
@@ -19,7 +16,7 @@ import { environmentAdapter } from '../../../../env/index.js';
  * @returns {string} The new folder's path.
  */
 export function scratchFolder(prefix, settings = loadMachineSettings(), env) {
-  return mkdtempSync(join(scratchRoot(settings, env), prefix));
+  return fs.mkdtemp(join(scratchRoot(settings, env), prefix));
 }
 
 /**
@@ -28,16 +25,16 @@ export function scratchFolder(prefix, settings = loadMachineSettings(), env) {
  *
  * @param {string} from - Source path.
  * @param {string} to - Destination path.
- * @param {{ rename?: typeof renameSync }} [ops] - Rename override, for tests.
+ * @param {{ rename?: (from: string, to: string) => void }} [ops] - Rename override, for tests.
  * @returns {void}
  */
-export function moveAcross(from, to, { rename = renameSync } = {}) {
+export function moveAcross(from, to, { rename = fs.rename } = {}) {
   try {
     rename(from, to);
   } catch (error) {
     if (error?.code !== 'EXDEV') throw error;
-    cpSync(from, to, { recursive: true });
-    rmSync(from, { recursive: true, force: true });
+    fs.cp(from, to, { recursive: true });
+    fs.rm(from, { recursive: true, force: true });
   }
 }
 

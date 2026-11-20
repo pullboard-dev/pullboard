@@ -1,11 +1,5 @@
 /** Recover conflicting local Git-sharing artifacts without rewriting board history [H11,C7]. */
 import { randomUUID } from 'node:crypto';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitSyncCompatibility } from '../main.js';
 import { inspectGitSyncLock } from './lock.js';
@@ -13,33 +7,36 @@ import { withGitSyncLock } from './lock.js';
 import { gitSyncFiles } from '../../../../config/index.js';
 import { readGitSyncMarker } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Retain one exact conflicting marker under its own immutable recovery summary. */
 function quarantineMarker(root, observed, owner, lease) {
   lease.assertHeld();
   const { marker, quarantine } = gitSyncFiles(root);
   let current;
-  try { current = lstatSync(marker); }
+  try { current = fs.lstat(marker); }
   catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   if (!observed.stat || current.dev !== observed.stat.dev || current.ino !== observed.stat.ino
     || current.mtimeMs !== observed.stat.mtimeMs || current.size !== observed.stat.size) return null;
-  mkdirSync(quarantine, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(quarantine);
+  fs.mkdir(quarantine, { recursive: true, mode: 0o700 });
+  const parent = fs.lstat(quarantine);
   if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Refused('GIT_SYNC_LOCAL_CHANGED',
     'Git sync recovery evidence needs a real local quarantine directory; the original marker was preserved',
     'restore the quarantine directory without deleting the original evidence');
   const at = new Date().toISOString();
   const folder = join(quarantine, `git-sync-${Date.now()}-${randomUUID()}`);
-  mkdirSync(folder, { mode: 0o700 });
+  fs.mkdir(folder, { mode: 0o700 });
   lease.assertHeld();
   const destination = join(folder, 'git-sync.json');
-  renameSync(marker, destination);
+  fs.rename(marker, destination);
   const writer = observed.value?.writer;
   const summary = { version: 1, at, reason: 'foreign-marker', artifacts: [{ name: 'git-sync.json',
     path: destination, pid: Number.isSafeInteger(writer?.pid) ? writer.pid : owner.pid ?? null,
     command: typeof writer?.command === 'string' ? writer.command : owner.command ?? 'unknown',
     at: typeof writer?.at === 'string' ? writer.at : at, sha256: observed.sha256 ?? null }] };
-  writeFileSync(join(folder, 'recovery.json'), JSON.stringify(summary) + '\n', { flag: 'wx', mode: 0o600 });
+  fs.writeFile(join(folder, 'recovery.json'), JSON.stringify(summary) + '\n', { flag: 'wx', mode: 0o600 });
   return summary;
 }
 
@@ -78,13 +75,13 @@ export async function repairGitSync(root, board, io = {}) {
 export function readGitSyncRepairs(root) {
   const { quarantine } = gitSyncFiles(root);
   let names;
-  try { names = readdirSync(quarantine).filter(name => /^git-sync-[A-Za-z0-9-]+$/u.test(name)).sort().slice(-100); }
+  try { names = fs.list(quarantine).filter(name => /^git-sync-[A-Za-z0-9-]+$/u.test(name)).sort().slice(-100); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   return names.flatMap(name => {
     try {
-      const path = join(quarantine, name, 'recovery.json'), stat = lstatSync(path);
+      const path = join(quarantine, name, 'recovery.json'), stat = fs.lstat(path);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16384) return [];
-      const row = JSON.parse(readFileSync(path, 'utf8'));
+      const row = JSON.parse(fs.readFile(path, 'utf8'));
       return row?.version === 1 && typeof row.at === 'string' && Array.isArray(row.artifacts) ? [row] : [];
     } catch { return []; /* Interrupted evidence publication cannot stop the health reader. */ }
   });

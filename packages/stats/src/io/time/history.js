@@ -1,8 +1,8 @@
 /** The append-only stats history file: dated checkpoints are added, never rewritten [R1,C7]. */
-import { appendFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The time checkpoint log's file name under the board's private folder; this module appends to it, so it owns the store [R1,C7]. */
 export const STATS_HISTORY_FILE = 'stats-history.jsonl';
@@ -17,7 +17,7 @@ export { statsHistoryFile } from './history/path.js';
  * @returns {string}
  */
 export function readTimeHistory(file) {
-  try { return readFileSync(file, 'utf8'); } catch (error) { if (error.code === 'ENOENT') return ''; throw error; }
+  try { return fs.readFile(file, 'utf8'); } catch (error) { if (error.code === 'ENOENT') return ''; throw error; }
 }
 
 /**
@@ -27,6 +27,6 @@ export function readTimeHistory(file) {
  * @param {string} line
  */
 export function appendTimeCheckpoint(file, line) {
-  mkdirSync(dirname(file), { recursive: true });
-  appendFileSync(file, `${line}\n`);
+  fs.mkdir(dirname(file), { recursive: true });
+  fs.appendFile(file, `${line}\n`);
 }

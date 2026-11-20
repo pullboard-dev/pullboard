@@ -16,10 +16,10 @@ import { derivedStateEnabled } from '../../../../../packages/config/light.js';
  * The rows `pullboard list` would print from `cwd`, or null when the full path must run it: no readable board, a
  * board a read must not open (it needs a write or an upgrade), or a read that wants the write path.
  *
- * @param {{ cwd: string, lane?: string, all?: boolean, clock?: any }} request
- * @returns {{ items: any[], needsRescope: any[], agents: any[], merging: Set<number> } | null}
+ * @param {{ cwd: string, lane?: string, all?: boolean, clock?: any, conflictReader?: () => Promise<Function> }} request - conflictReader loads the merge index's mechanical conflict reader.
+ * @returns {Promise<{ items: any[], needsRescope: any[], agents: any[], merging: Set<number> } | null>}
  */
-export function thinListRows({ cwd, lane, all, clock = store.systemClock }) {
+export async function thinListRows({ cwd, lane, all, clock = store.systemClock, conflictReader }) {
   // With health.derivedState on the full path reads the derived-state table for verdict freshness, so the thin door steps aside [C7,#11373].
   if (derivedStateEnabled()) return null;
   const info = repoInfo(cwd);
@@ -28,7 +28,9 @@ export function thinListRows({ cwd, lane, all, clock = store.systemClock }) {
   if (!board.current || board.drifted) { store.closeBoard(board); return null; }
   try {
     const rows = store.listItems(board, { lane, all });
-    const project = verdictProjector(info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project;
+    // An accept whose only conflict with main is mechanical stays fresh, as on the full path; the caller's reader loads the merge index only when a row is accepted [C7,#11417].
+    const residualConflicts = conflictReader && rows.some(row => row.item_status === 'verified') ? await conflictReader() : null;
+    const project = verdictProjector(info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts }).project;
     const items = rows.map(project);
     const merging = new Set(rows.filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id));
     return { items, needsRescope: store.allItemsNeedingRescope(board), agents: store.listAgents(board), merging };
