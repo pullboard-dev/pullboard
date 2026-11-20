@@ -1,7 +1,5 @@
 /** Keep every engine identity in the one engines folder of the state cell, one leaf per engine [C7,V4]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { engineBindings } from '../../../../kernel/light.js';
@@ -159,13 +157,13 @@ export function engineFolderViolations(sources) {
 /** Read only product source trees; fixture text is lexed without running any module. */
 export function engineFolderProblems(root) {
   const sources = [];
-  const pending = ['src', 'packages', 'apps'].filter(folder => existsSync(join(root, folder)));
+  const pending = ['src', 'packages', 'apps'].filter(folder => fileSystemAdapter().exists(join(root, folder)));
   while (pending.length) {
     const directory = pending.pop();
-    for (const entry of readdirSync(join(root, directory), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    for (const entry of fileSystemAdapter().list(join(root, directory), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const file = `${directory}/${entry.name}`;
       if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') pending.push(file);
-      else if (entry.isFile() && /\.[cm]?js$/u.test(file)) sources.push({ file, source: readFileSync(join(root, file), 'utf8') });
+      else if (entry.isFile() && /\.[cm]?js$/u.test(file)) sources.push({ file, source: fileSystemAdapter().readFile(join(root, file), 'utf8') });
     }
   }
   return engineFolderViolations(sources).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line);

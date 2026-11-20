@@ -9,6 +9,7 @@ import { recoveryIdentity } from '../../../../../packages/resources/light.js';
 import { claimRunnerWorker } from '../../../../../packages/runners/light.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { userInfo } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
@@ -185,7 +186,7 @@ export async function readSpec(S) {
     || typeof value.testResults.origin !== 'string' || /[\r\n\0]/u.test(value.testResults.origin))) throw new Error('invalid test-result exchange');
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('work specification root is not an absolute path');
   if (value.recovery?.launchFence === 1) {
-    const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
+    const root = value.root ?? join(isAbsolute(environmentAdapter().get('HOME', '')) ? environmentAdapter().get('HOME') : userInfo().homedir, '.pullboard-runner');
     if (!claimRunnerWorker(root, value.recovery, processCensus)) throw new Error('runner launch was fenced or unclaimed');
   }
   return value;

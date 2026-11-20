@@ -15,6 +15,8 @@ import { claimJob } from '../../index.js';
 import { jobRequest } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { offerProofShards } from '../../src/io/gate.js';
+import { ledgerMissReasons } from '../../../store/index.js';
+import { recordTestResults } from '../../../store/index.js';
 
 const STAMP = '2026-11-16T12:00:00.000Z';
 const MAIN = 'a'.repeat(40);
@@ -69,11 +71,12 @@ test('api.gate.land-red-under-separate-still-holds: clause 2: a red or hook-refu
 });
 
 /** A gate job whose receipt's proof plan splits three files two to a core, offered as shards and read back as the runner reads them: each shard's data.shard by index. */
-function shardData(t, needs) {
+function shardData(t, needs, seed) {
   const dir = cellSandbox(t).dir;
   const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
   board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
+  if (seed) seed(board.db);
   offerJob(board.db, { id: 'gate:s', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1,
     request: { run: ['true'], input: { entry: 'gate.js', data: {} } } });
   const proofPlan = { runner: 'node --test', cores: 2, files: ['web/a.test.js', 'web/b.test.js', 'web/c.test.js'], ...(needs ? { needs } : {}) };
@@ -226,4 +229,28 @@ test('api.io-gate.shard-red-outside-main-stays-red: clause 2: a red shard with a
   const none = twoShardGate(t, { red: head => SHARD_RED(head, failures), options: {} });
   assert.equal(none.last.outcome, 'red', JSON.stringify(none.last));
   for (const f of [fresh, none]) assert.equal(store.events(f.board, { itemId: f.item.item_id }).filter(row => /every red shard failed only in files main/u.test(row.event_detail ?? '')).length, 0);
+});
+
+const KEY = '1'.repeat(64);
+const CONTEXT = 'e'.repeat(64);
+const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: 'proof', context: CONTEXT, status });
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer carries the ledger hit for a file with a recorded pass and a reason none, red or changed for each other file [C7,P7]', t => {
+  let reasons;
+  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [proofRow('web/a.test.js', 'pass'), proofRow('web/b.test.js', 'fail'), proofRow('web/b.test.js', 'pass', '2'.repeat(64)), proofRow('web/b.test.js', 'fail', '2'.repeat(64))] });
+    reasons = ledgerMissReasons(db, ['web/a.test.js', 'web/b.test.js', 'web/c.test.js']); };
+  const [first, second] = shardData(t, undefined, seed);
+  // Shard 1 holds a (a recorded pass: a hit) and c (no row at all); shard 2 holds b (a fail and a pass shadowed by a fail: red).
+  assert.deepEqual(first.files, ['web/a.test.js', 'web/c.test.js']);
+  assert.deepEqual(first.ledger.files, [['web/a.test.js', KEY, 0]]);
+  assert.deepEqual(first.ledger.contexts, [CONTEXT]);
+  assert.deepEqual(first.ledger.reasons, { 'web/c.test.js': 'none' });
+  assert.deepEqual(second.ledger.reasons, { 'web/b.test.js': 'red' });
+  assert.equal(second.ledger.files, undefined, 'a shard without a hit hands its runner no hit list');
+  // A file with a recorded pass that the runner still misses reads changed: its input key moved.
+  assert.deepEqual(reasons, { 'web/a.test.js': 'changed', 'web/b.test.js': 'red', 'web/c.test.js': 'none' });
+});
+
+test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 2: with no ledger rows for any file of the shard its data.shard.ledger stays absent [C7,P7]', t => {
+  for (const shard of shardData(t)) assert.equal(shard.ledger, undefined);
 });

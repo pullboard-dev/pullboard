@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
-import { TEST_FILE_CORES_ENV } from '../../index.js';
-import { TEST_FILE_POOL_ENV } from '../../index.js';
+import { TEST_FILE_CORES_ENV } from '../../heavy.js';
+import { TEST_FILE_POOL_ENV } from '../../heavy.js';
 
 /** A fixture test file that logs when its body starts and ends, holding its token for `ms`. */
 export function timedFile(name, ms, body = '') {

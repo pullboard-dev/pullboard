@@ -1,5 +1,5 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
-import { checkBaseline } from '../../../index.js';
+import { checkBaseline } from '../../../heavy.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';

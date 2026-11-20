@@ -1,7 +1,7 @@
 /** A gate red only on cases a main receipt names for the same file and command passes as main's own red [C7,P7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { judgeMainOwnedReds } from '../index.js';
+import { judgeMainOwnedReds } from '../heavy.js';
 
 const file = 'tests/red.test.js';
 const command = 'node --test';
