@@ -606,7 +606,7 @@ test('cli.journeys-mcp-main.mcp-rejects-require-and-preserve-caller: MCP rejects
 });
 
 
-test('cli.journeys-mcp-main.mcp-code-map-tools-pin-usages: MCP code-map tools pin usages, impact and cell answers and refuse escaping paths [A9,C7,D3]', async t => {
+test('cli.journeys-mcp-main.mcp-code-map-tools-pin-usages: MCP code-map tools pin usages and impact answers and refuse escaping paths [A9,C7,D3]', async t => {
   const box = await project(t);
   const files = {
     'package.json': JSON.stringify({ type: 'module' }),
@@ -614,10 +614,6 @@ test('cli.journeys-mcp-main.mcp-code-map-tools-pin-usages: MCP code-map tools pi
     'src/caller.js': "import { leaf as chosen } from './leaf.js';\nexport function caller() { return chosen(); }\n",
     'test/leaf.test.js': "import { caller } from '../src/caller.js';\ncaller();\n",
     'test/other.test.js': 'export const unrelated = true;\n',
-    'packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ file: 'packages/codemap/data/plan/01-leaf.json' }, { file: 'packages/codemap/data/plan/02-callers.json' }], stays: [] }),
-    'packages/codemap/data/plan/01-leaf.json': JSON.stringify({ order: 1, name: 'leaf', frontDoor: 'src/leaf.js', paths: [['src/leaf.js', 'packages/leaf/index.js', 'seed']], reexports: [], cuts: [] }),
-    'packages/codemap/data/plan/02-callers.json': JSON.stringify({ order: 2, name: 'callers', frontDoor: 'src/caller.js', paths: [['src/caller.js', 'packages/callers/index.js', 'seed']], reexports: [], cuts: [] }),
-    'packages/codemap/data/plan/temporary-edges.json': JSON.stringify({ version: 1, edges: [] }),
   };
   for (const [file, source] of Object.entries(files)) {
     mkdirSync(resolve(box.repo, file, '..'), { recursive: true });
@@ -629,7 +625,7 @@ test('cli.journeys-mcp-main.mcp-code-map-tools-pin-usages: MCP code-map tools pi
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const client = mcpClient(t, box, box.web, box.sessionA);
   await initialize(client);
-  const requests = [['usages', { target: 'src/leaf.js#leaf' }], ['impact', { files: ['src/leaf.js'] }], ['cell', { path: 'src/caller.js' }]];
+  const requests = [['usages', { target: 'src/leaf.js#leaf' }], ['impact', { files: ['src/leaf.js'] }]];
   const answers = [];
   for (const [name, args] of requests) {
     const first = await client.call(name, args);
@@ -644,9 +640,6 @@ test('cli.journeys-mcp-main.mcp-code-map-tools-pin-usages: MCP code-map tools pi
   assert.deepEqual(answers[1].dependentModules, ['src/caller.js', 'test/leaf.test.js']);
   assert.deepEqual(answers[1].tests.files, ['test/leaf.test.js']);
   assert.equal(answers[1].tests.full, false);
-  assert.equal(answers[2].cell, 'callers');
-  assert.equal(answers[2].frontDoor, 'src/caller.js');
-  assert.deepEqual(answers[2].allowedImports, ['leaf']);
   writeFileSync(join(box.web, 'src/caller.js'), 'export function caller() {}\n');
   assert.deepEqual((await client.call('usages', requests[0][1])).structuredContent, answers[0], 'dirty working bytes do not replace committed source');
   for (const [name, args] of [['usages', { target: '../outside.js#leaf' }], ['impact', { files: ['/outside.js'] }], ['cell', { path: 'src/../../outside.js' }]]) {
@@ -669,6 +662,50 @@ test('cli.journeys-mcp-main.mcp-code-map-tools-pin-usages: MCP code-map tools pi
   assert.match(opaque.structuredContent.tests.reason, /unresolved root closures retained/u);
   assert.ok(opaque.structuredContent.unknown.some(row => row.file === 'src/opaque.js'));
   assert.deepEqual(opaque.structuredContent.tests.files, ['test/leaf.test.js', 'test/opaque.test.js']);
+  assert.equal((await client.close()).code, 0);
+});
+
+test('cli.journeys-mcp.cell-from-folder: the cell query names the cell from the path folder and its allowed imports from the declared edge rule, with no plan on disk [A9,C7]', async t => {
+  const box = await project(t);
+  const files = {
+    'package.json': JSON.stringify({ type: 'module' }),
+    'packages/leaf/index.js': 'export const leaf = 1;\n',
+    'packages/mid/index.js': 'export const mid = 1;\n',
+    'packages/callers/index.js': 'export const callers = 1;\n',
+    'packages/callers/src/io/thing.js': 'export const thing = 1;\n',
+    'apps/cli/index.js': 'export const cli = 1;\n',
+    'docs/notes.js': 'export const notes = 1;\n',
+    'packages/codemap/data/ceilings/allowed-edges.json': JSON.stringify({ allowedEdges: ['callers->mid', 'callers->leaf', 'apps/cli->callers', 'apps/cli->leaf/src'], upwardEdgesGrandfathered: [], cellOrder: ['leaf', 'mid', 'callers', 'app:cli'] }),
+  };
+  for (const [file, source] of Object.entries(files)) {
+    mkdirSync(resolve(box.repo, file, '..'), { recursive: true });
+    writeFileSync(join(box.repo, file), source);
+  }
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: commit cell rule fixture');
+  box.git(box.web, 'merge', '--ff-only', 'main');
+  const client = mcpClient(t, box, box.web, box.sessionA);
+  await initialize(client);
+  const asked = async path => {
+    const answer = await client.call('cell', { path });
+    assert.equal(answer.isError, false, JSON.stringify(answer));
+    return answer.structuredContent;
+  };
+  const deep = await asked('packages/callers/src/io/thing.js');
+  assert.equal(deep.cell, 'callers');
+  assert.equal(deep.frontDoor, 'packages/callers/index.js');
+  assert.deepEqual(deep.allowedImports, ['leaf', 'mid'], 'declared edges only, in cell order');
+  assert.deepEqual(deep.temporaryEdges, []);
+  assert.equal(deep.sameCellImports, true);
+  assert.equal(deep.unknown, null);
+  const app = await asked('apps/cli/index.js');
+  assert.equal(app.cell, 'app:cli');
+  assert.deepEqual(app.allowedImports, ['leaf', 'callers']);
+  const outside = await asked('docs/notes.js');
+  assert.equal(outside.cell, null);
+  assert.equal(outside.frontDoor, null);
+  assert.deepEqual(outside.allowedImports, []);
+  assert.match(outside.unknown, /not in a cell folder/u);
   assert.equal((await client.close()).code, 0);
 });
 

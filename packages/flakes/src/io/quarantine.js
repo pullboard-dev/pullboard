@@ -35,7 +35,7 @@ import {
   boardReceiptStore,
   receiptBinds,
   receiptFields,
-} from "../../../gate/index.js";
+} from "../../../gate/heavy.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./main.js";
 import { flakeEvents } from "./main.js";
