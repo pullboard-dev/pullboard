@@ -20,6 +20,19 @@ export function seatAt(board, root) {
 }
 
 /**
+ * The seat and item an item folder's marker names when that seat is on this board, or null. A seat whose item left its hands
+ * (submitted and landed, or released) no longer resolves from the folder, and this names where it should work instead [B5].
+ */
+export function itemFolderSeatHint(board, root) {
+  try {
+    const marker = JSON.parse(fs.readFile(gitPath(root, ITEM_MARKER_FILE), 'utf8'));
+    if (marker.version !== 1 || typeof marker.seat !== 'string' || !Number.isSafeInteger(marker.item)) return null;
+    const seat = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(marker.seat);
+    return seat ? { seat: seat.agent_path, item: marker.item } : null;
+  } catch { return null; }
+}
+
+/**
  * The seat's own checkout, so item folders open beside it even when a command runs inside one.
  * Reads the stored path alone: a full seat read derives the family from sessions and Git [B3].
  */

@@ -9,4 +9,4 @@ export { cleanupTimeoutDetails } from './src/logic/diagnostics.js';
 export { sampleRunnerLoad, localRunnerDescriptor } from './src/io/load.js';
 export { carriedRunnerTrunk } from './src/io/policy.js';
 export { LEGACY_WORKER_ENTRY, WORKER_ENTRY, trustedWorkerEntry } from './src/logic/entries.js';
-export { SCREENSHOT_MAX_BYTES, screenshotPlan } from './src/logic/screenshots.js';
+export { SCREENSHOT_DIRECTORY, SCREENSHOT_MAX_BYTES, screenshotPlan } from './src/logic/screenshots.js';
