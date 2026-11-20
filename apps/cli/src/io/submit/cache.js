@@ -7,14 +7,17 @@ import { writeCheckReceipt } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { foreignNodeOptions } from '../../../../../packages/gate/heavy.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
 const fs = fileSystemAdapter();
 
+const environment = environmentAdapter();
+
 /** Bind recognized preloads to their actual bytes; unknown options can never reuse a receipt. */
 function preloadState() {
-  if (foreignNodeOptions(process.env.NODE_OPTIONS)) return null;
+  if (foreignNodeOptions(environment.get('NODE_OPTIONS'))) return null;
   try {
-    return String(process.env.NODE_OPTIONS ?? '').split(/\s+/u).filter(Boolean).map(token => {
+    return String(environment.get('NODE_OPTIONS') ?? '').split(/\s+/u).filter(Boolean).map(token => {
       const match = /^--(?:import|require)=(.+)$/u.exec(token);
       if (!match) throw new Error('unrecognized preload');
       const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];

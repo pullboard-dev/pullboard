@@ -306,6 +306,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "EVENT_LOG_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "EXPORT_EXISTS": "name an empty folder for the export",
   "FLAG_NOT_ALLOWED": "drop the flag; pullboard help spec lists what each spec command takes",
+  "FACT_QUOTE_UNCITED": "if the quote says what the row claims, run the accept again with that quote inside --reason",
+  "FOREIGN_UNLINKED": "link the named repository with pullboard link <repo>, or drop that repo#id from --after",
   "GATE_ARGUMENT": "use pullboard resources for status, or pullboard gate with no extra words to run the gate",
   "GATE_SLOT_LEASE_LOST": "let the parent process take the gate slot again, then restart the child",
   "GATE_SLOT_LEASE_REQUIRED": "start the child test process with the live gate lease",
@@ -646,7 +648,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_REPROVE_RED: 'read the failure named in the item\'s note, fix it in the reopened item, then submit it again',
   NO_STORE_WRITER: 'update this pullboard to a build that has the writer for that operation, or ask the coordinator',
   RULING_CAUSE: 'give --cause one of the causes the refusal lists, or leave it out',
-  REVIEW_RELEASE_TWICE: 'a seat of another model family reviews the item, or ask the coordinator to rule'
+  REVIEW_RELEASE_TWICE: 'a seat of another model family reviews the item, or ask the coordinator to rule',
+  PROVEN_BREAK_REQUIRED: 'run pullboard verify <id> accept again with --broke "<the file, command or case you broke and the failure it showed>"'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

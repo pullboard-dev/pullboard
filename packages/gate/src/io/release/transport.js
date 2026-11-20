@@ -4,15 +4,13 @@ import {
 } from 'node:child_process';
 import { scratchFolder } from '../../../../config/index.js';
 import {
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   join,
 } from 'node:path';
 import {
   RELEASE_RECEIPT_MAX_BYTES,
 } from './receipt.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 const WORKFLOW = '.github/workflows/release-gate.yml';
 const MAX_ARCHIVE = 16 * 1024 * 1024;
@@ -74,7 +72,7 @@ export function unpackReleaseReceipt(bytes) {
   const directory = scratchFolder('pullboard-release-artifact-');
   try {
     const file = join(directory, 'artifact.zip');
-    writeFileSync(file, bytes, { mode: 0o600, flag: 'wx' });
+    fs.writeFile(file, bytes, { mode: 0o600, flag: 'wx' });
     const entries = execFileSync('unzip', ['-Z', '-1', file], { timeout: 15_000, maxBuffer: 16_384, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     requireValue(entries === 'receipt.json\n', 'release archive must contain exactly receipt.json');
     const body = execFileSync('unzip', ['-p', file, 'receipt.json'], { timeout: 15_000,
@@ -84,7 +82,7 @@ export function unpackReleaseReceipt(bytes) {
   } catch (error) {
     if (error instanceof ReleaseTransportError) throw error;
     throw new ReleaseTransportError('release archive is invalid or exceeds extraction bounds');
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fs.rm(directory, { recursive: true, force: true }); }
 }
 
 /** Read every bounded page so duplicates outside the first page cannot evade exact-name checks. */

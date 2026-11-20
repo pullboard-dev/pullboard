@@ -7,6 +7,7 @@ let screenStarter = null;
 
 /**
  * Provide the function that starts the screen job for a submitted sprint item: start({ root, item, commit, digest, trunk }).
+ * `pullboard serve` hands in a start that runs runScreenJob from the drive cell, which stores the receipt and ends the job at done.
  * Why a provider: the screen merges the item onto the trunk and runs the static and trusted checks with the CLI's tools,
  * so `pullboard serve` hands it in beside the landing starter and the board API keeps no import of the CLI [V2,M1].
  * @param {((request: { root: string, item: number, commit: string, digest: string | null, trunk: string }) => unknown) | null} start

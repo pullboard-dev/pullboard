@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { claimWorktreeSnapshot } from '../../../../../packages/seats/index.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
 import { staleReleaseNote } from '../../../../../packages/store/index.js';
@@ -19,6 +18,9 @@ import {
   editAfter,
   textArg,
 } from '../read.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A seat whose session ends releases its build claims at once (#1225), keeping its work at a board ref, so no claim
@@ -108,7 +110,7 @@ export async function run(io, args) {
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
     // The holder's folder is gone: capture its path so the release needs no stale interval (#3223).
     const seatPath = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(row.actor)?.agent_path;
-    const observed = seatPath && !existsSync(seatPath) ? { ...row, seatFolderMissing: seatPath } : row;
+    const observed = seatPath && !fs.exists(seatPath) ? { ...row, seatFolderMissing: seatPath } : row;
     const scoped = releaseStaleItemRevision() || deadSeatClaim(board, observed, snapshot.observedAt);
     args.push(staleObservation(observed, snapshot, scoped ? itemRevision : undefined, ctx.config.health ?? {}), reasonCode);
   } else {

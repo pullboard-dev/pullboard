@@ -18,3 +18,15 @@ export function coreLines(item, { itemLine, checkText = '', checkTiming = false 
     check: checkText ? [`check: ${checkText}`, ...(item.item_frozen_digest ? [`check digest: ${item.item_frozen_digest}`] : []), ...(checkTiming ? [CHECK_TIMING_LINE] : [])] : [],
   };
 }
+
+/**
+ * The reservation line for an item, or null: printed only while route.reservations is on and the item holds a reservation (#9178).
+ *
+ * @param {any} item the board's item row
+ * @param {boolean} on whether route.reservations is on
+ * @returns {string | null}
+ */
+export function reservationLine(item, on) {
+  if (!on || !item.item_reservation_holder) return null;
+  return `reserved for ${item.item_reservation_holder}${item.item_reservation_by ? ` by ${item.item_reservation_by}` : ''}${item.item_reservation_at ? ` at ${item.item_reservation_at}` : ''}`;
+}

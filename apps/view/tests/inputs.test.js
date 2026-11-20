@@ -27,6 +27,7 @@ const READERS = {
   'apps/view/tests/io/headings.test.js': ['apps/view/src/io/main.css', 'apps/view/src/io/cost.css', 'apps/view/src/io/page/render.js'],
   'apps/view/tests/io/no-inline-style.test.js': ['apps/view/src/**'],
   'apps/view/tests/io/page/after-paint.test.js': ['apps/view/src/io/page/account.js', 'apps/view/src/io/page/actions.js', 'apps/view/src/io/page/boards.js', 'apps/view/src/io/page/connect.js', 'apps/view/src/io/page/menu.js', 'apps/view/src/io/page/render.js', 'apps/view/src/io/page/shouts.js'],
+  'apps/view/tests/io/page/boards.test.js': ['apps/view/src/io/main.css', 'apps/view/src/io/item/rows.css', 'apps/view/src/io/stage.css', 'apps/view/src/io/dashboard.css', 'apps/view/src/io/activity.css', 'apps/view/src/io/project-menu.css', 'apps/view/src/io/palette/palette.css', 'apps/view/src/io/nav.css', 'apps/view/src/io/shouts.css', 'apps/view/src/io/notch.css'],
   'apps/view/tests/io/page/dismiss.test.js': ['apps/view/src/io/page/actions.js'],
   'apps/view/tests/io/page/new-item-control.test.js': ['apps/view/src/io/page/actions.js'],
   'apps/view/tests/io/page/render-names.test.js': ['apps/view/data/ceilings/model-names.json', 'apps/view/src/io/page/render.js'],
