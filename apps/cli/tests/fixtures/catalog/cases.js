@@ -1351,7 +1351,7 @@ catalogCase('[A1,C7] rules replays the event log through the catalog', ['init', 
 catalogCase('[A1,C7] block, expedite and rulings report through real CLI JSON', ['init'], async () => {
   const box = await project();
   const ids = [];
-  for (const title of ['Block item one', 'Block item two']) ids.push((await json(box, box.repo, 'add', ['coordinator', title, '--specs', 'G1', '--criterion', `${title} is verified`, '--check', 'true'])).id);
+  for (const title of ['Block item one', 'Block item two']) ids.push((await json(box, box.repo, 'add', ['coordinator', title, '--specs', 'G1', '--criterion', `${title} is verified`, '--check', 'true'])).item.item_id);
   await uncataloguedRootJSON(box, box.repo, 'block', ['add', 'catalog-block', ...ids.map(String), '--tier', 'mid']);
   assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'block', ['list'])).blocks.map(block => block.name), ['catalog-block']);
   const expedited = await uncataloguedRootJSON(box, box.repo, 'expedite', [String(ids[0]), '--reason', 'catalog fixture expedite']);
