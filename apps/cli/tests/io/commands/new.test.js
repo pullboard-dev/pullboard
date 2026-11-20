@@ -69,9 +69,8 @@ test('cli.io-commands-new.lints-cell-lint-report-clean: clause 1: a cell written
     mkdirSync(dirname(join(box.repo, path)), { recursive: true });
     writeFileSync(join(box.repo, path), JSON.stringify(body, null, 2) + '\n');
   }
-  // The report reaches a package only from an app front door, so the fixture app imports the new cell.
-  mkdirSync(join(box.repo, 'apps', 'shop'), { recursive: true });
-  writeFileSync(join(box.repo, 'apps', 'shop', 'index.js'), "import '../../packages/tidy-cell/index.js';\n");
+  // The report reaches a package only from an application entry; the fixture's package.json names the new cell's front door as its bin.
+  writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'fixture-shop', version: '1.0.0', bin: { shop: 'packages/tidy-cell/index.js' } }, null, 2) + '\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the new cell and its plan row');
   const report = withCellLintParser(compile => cellLintReport(box.repo, cellLintParsers(compile)));
