@@ -8,12 +8,13 @@ import { SOURCE_ADVANCE_ENGINE } from "../../../state/light.js";
  * would make recovery text load board writers and could cycle through this discovered registry.
  * Historical order and first-matching engine conditions belong to each leaf, not this loader.
  */
-import { readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../fs/index.js';
 
 /** Load a discovered move module synchronously, so this registry (and everything that imports it) has no top-level await. */
 const loadMove = createRequire(import.meta.url);
+const fs = fileSystemAdapter();
 import {
   MOVE_CANDIDATE,
   MOVE_FILE,
@@ -60,7 +61,7 @@ export function loadDiscovered(file, directory) {
 
 /** The move files beneath the folders, by file name, each with its operation; reading names loads no module. */
 function moveEntries(folders) {
-  return (Array.isArray(folders) ? folders : [folders]).flatMap(directory => discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
+  return (Array.isArray(folders) ? folders : [folders]).flatMap(directory => discovered(fs.list(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
     .map(file => ({ file, directory, operation: file.slice(0, -'.js'.length) })));
 }
 

@@ -75,6 +75,13 @@ function inferBrief(brief, check, engine) {
   return add.length ? `${brief.trim()}${brief.trim() ? '\n\n' : ''}${add.join('\n\n')}` : brief;
 }
 
+/**
+ * Refuse an item whose criterion, brief or check cannot be built cold for its route, and return the brief with any files and test line inferred from the check.
+ *
+ * @param {{ brief: string, route: string, criterion: string, check: string }} item The fields an add or edit carries.
+ * @param {number} engine The engine number that decides which brief rules apply.
+ * @returns {string} The brief to store.
+ */
 export function checkRouted({ brief, route, criterion, check }, engine) {
   checkPerItemCriterion(criterion, engine);
   if (brief.length > BRIEF_LIMIT) {

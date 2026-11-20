@@ -4,12 +4,7 @@
  * per-attempt manifests (ci-result.json beside its TAP file), so it needs no network and no CI credentials.
  */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -31,7 +26,7 @@ function digest(text) {
  */
 function readAttempt(file) {
   let value;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); } catch { value = null; }
+  try { value = JSON.parse(fileSystemAdapter().readFile(file, 'utf8')); } catch { value = null; }
   const text = (entry, limit) => typeof entry === 'string' && entry.length > 0 && entry.length <= limit && !/[\r\n\0]/u.test(entry);
   if (!value || value.provider !== 'github' || !/^\d{1,20}$/u.test(String(value.run ?? '')) || !Number.isSafeInteger(value.attempt)
       || value.attempt < 1 || !text(value.job, 200) || !text(value.runner, 200) || !/^v\d+\.\d+\.\d+$/u.test(value.node ?? '')
@@ -41,7 +36,7 @@ function readAttempt(file) {
     throw new Refused('CI_RESULT', `${file} is not a CI result: it needs provider github, run, attempt, job, runner, node, commit, root, conclusion, at and the tap file beside it`);
   }
   const tap = join(dirname(file), value.tap);
-  return { ...value, run: String(value.run), tapFile: tap, output: readFileSync(tap, 'utf8') };
+  return { ...value, run: String(value.run), tapFile: tap, output: fileSystemAdapter().readFile(tap, 'utf8') };
 }
 
 /**
@@ -90,15 +85,15 @@ function rerunTest(target, before, after) {
 function keepReceipt(evidence, id, label, attempt) {
   const folder = join(evidence, id);
   const file = join(folder, label + '.log');
-  if (existsSync(file)) {
-    if (digest(readFileSync(file, 'utf8')) !== digest(attempt.output)) {
+  if (fileSystemAdapter().exists(file)) {
+    if (digest(fileSystemAdapter().readFile(file, 'utf8')) !== digest(attempt.output)) {
       throw new Refused('FLAKE_OBSERVATION_CHANGED', `the kept ${label} report for ${id} differs from this CI result; the original evidence stays as recorded`);
     }
   } else {
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(file, attempt.output, { flag: 'wx', mode: 0o600 });
+    fileSystemAdapter().mkdir(folder, { recursive: true, mode: 0o700 });
+    fileSystemAdapter().writeFile(file, attempt.output, { flag: 'wx', mode: 0o600 });
   }
-  return { green: attempt.conclusion === 'success', sha256: digest(attempt.output), bytes: statSync(file).size,
+  return { green: attempt.conclusion === 'success', sha256: digest(attempt.output), bytes: fileSystemAdapter().stat(file).size,
     artifact: `flake-evidence/${id}/${label}.log`, profileSha256: null };
 }
 
@@ -112,7 +107,7 @@ function keepReceipt(evidence, id, label, attempt) {
  * @returns {object[]} observations for recordFlakeObservation
  */
 export function ciObservations(root, folder) {
-  const files = readdirSync(folder, { recursive: true }).map(String).filter(path => basename(path) === MANIFEST).sort();
+  const files = fileSystemAdapter().list(folder, { recursive: true }).map(String).filter(path => basename(path) === MANIFEST).sort();
   if (!files.length) throw new Refused('CI_RESULT', `${folder} holds no ${MANIFEST}; save each CI attempt's manifest beside its TAP file`);
   const jobs = new Map();
   for (const attempt of files.map(path => readAttempt(join(folder, path)))) {

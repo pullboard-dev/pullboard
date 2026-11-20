@@ -3,6 +3,7 @@ import { causeProblem } from "../../logic/board/rigor.js";
 import { runVerifyTable } from "../../logic/board/landing/lease.js";
 import { ACCEPT_REASON } from "../board.js";
 import { REJECT_REASONS } from "../board.js";
+import { itemPace } from "./sprint-pace.js";
 
 /** The event kinds the table's rules read, as the history reader of the replay reads them. */
 const KINDS = Object.freeze(['add', 'edit', 'claim', 'renew', 'release', 'submit', 'accept', 'reject', 'reopen', 'withdraw', 'merged', 'escalate',
@@ -56,6 +57,37 @@ function factsGuard(board, id, agentId) {
 }
 
 /**
+ * The snapshot the verify table reads for one verdict: the item row, the facts read before the write lock, and the shell facts that hold once the writer's own checks pass.
+ * A sprint item's snapshot carries `pace: 'sprint'`, read from the item row already loaded, so the table runs its sprint rows; a steady or strict item's carries no pace key.
+ *
+ * @param {any} board
+ * @param {any} item - The item row before the move.
+ * @param {object} call
+ * @param {object} facts - From readVerifyFacts.
+ * @param {object} deps
+ * @returns {object}
+ */
+export function verifySnapshot(board, item, call, facts, deps) {
+  const { sharpenToPerson, history, verdicts, flakes } = facts;
+  const main = call.agentId === 'coordinator';
+  const id = item.item_id;
+  return { now: board.clock.now().toISOString(),
+    actor: { id: call.agentId, joined: true, route: facts.route, family: facts.family },
+    item: { id, status: item.item_status, merged: Boolean(item.item_merged_commit), commit: item.item_commit, frozenDigest: item.item_frozen_digest, frozen: item.item_frozen,
+      route: item.item_route, lane: item.item_lane, builtBy: item.item_built_by, owner: item.item_owner, reviewBy: item.item_review_by ?? null, reviewUntil: item.item_review_until ?? null,
+      effectiveHead: call.sourceAdvanceHead ?? null, outside: null },
+    history, verdicts, knownItems: call.implies ?? [], actorFlakeObservations: flakes, nativeFlakeEngine: deps.nativeFlakeEngine, lineSettings: { sharpenToPerson },
+    nextEventId: facts.nextEventId, nextVerdictId: facts.nextVerdictId,
+    // The writer's own checks have all passed by now, so the command-side and board-side facts the table takes from the shell all hold.
+    io: { isMain: main, mainRefusal: null, selfSession: false, staleAcceptance: item.item_status === 'verified', policyRefused: null, commitInHead: true, root: '/repo',
+      missingCompanions: null, checkRefused: null, selectorGap: false, reviewHolderFresh: false },
+    deferred: { environmentProblem: null, knownMainProblem: null, quarantineProblem: null, gateReceipt: null, companionWindow: null, authorProblem: null, requiredFamily: null,
+      familyProblem: null, patchProblem: null, sandboxProblem: null, relaxation: call.relaxation ?? null, assurance: null, impliedFacts: null },
+    // A sprint item runs the table under sprint, so its sprint rows apply; steady and strict carry no pace key, as before paces were read here.
+    ...(itemPace(item) === 'sprint' ? { pace: 'sprint' } : {}) };
+}
+
+/**
  * Decide a verdict's events with the verify table, over the board as it stands before the move writes anything.
  * Why: one table decides the verdict event and its automatic hold, sharpen, escalation or notice, so the writer carries no second copy of those rules.
  * Returns null when the table does not model this call (an older engine, a damaged record, or a refusal the writer's own checks already ruled out):
@@ -78,20 +110,8 @@ export function verifyDecision(board, item, call, deps, prepared) {
   const current = prepared && prepared.itemId === id && prepared.agentId === call.agentId && prepared.guard === factsGuard(board, id, call.agentId);
   const facts = current ? prepared : readVerifyFacts(board, item, call.agentId, deps);
   if (!facts) return null;
-  const { sharpenToPerson, history, verdicts, flakes } = facts;
+  const snapshot = verifySnapshot(board, item, call, facts, deps);
   const main = call.agentId === 'coordinator';
-  const snapshot = { now: board.clock.now().toISOString(),
-    actor: { id: call.agentId, joined: true, route: facts.route, family: facts.family },
-    item: { id, status: item.item_status, merged: Boolean(item.item_merged_commit), commit: item.item_commit, frozenDigest: item.item_frozen_digest, frozen: item.item_frozen,
-      route: item.item_route, lane: item.item_lane, builtBy: item.item_built_by, owner: item.item_owner, reviewBy: item.item_review_by ?? null, reviewUntil: item.item_review_until ?? null,
-      effectiveHead: call.sourceAdvanceHead ?? null, outside: null },
-    history, verdicts, knownItems: call.implies ?? [], actorFlakeObservations: flakes, nativeFlakeEngine: deps.nativeFlakeEngine, lineSettings: { sharpenToPerson },
-    nextEventId: facts.nextEventId, nextVerdictId: facts.nextVerdictId,
-    // The writer's own checks have all passed by now, so the command-side and board-side facts the table takes from the shell all hold.
-    io: { isMain: main, mainRefusal: null, selfSession: false, staleAcceptance: item.item_status === 'verified', policyRefused: null, commitInHead: true, root: '/repo',
-      missingCompanions: null, checkRefused: null, selectorGap: false, reviewHolderFresh: false },
-    deferred: { environmentProblem: null, knownMainProblem: null, quarantineProblem: null, gateReceipt: null, companionWindow: null, authorProblem: null, requiredFamily: null,
-      familyProblem: null, patchProblem: null, sandboxProblem: null, relaxation: call.relaxation ?? null, assurance: null, impliedFacts: null } };
   const accept = call.decision === 'ACCEPT';
   const move = { id, actor: call.agentId, decision: call.decision, ...(main ? { as: 'coordinator' } : {}), ...(accept ? {} : { reason: call.reason }), note: call.note,
     ...(call.cause !== undefined ? { cause: call.cause } : {}), ...(accept ? {} : { clause: call.clause }), head: call.head, digest: call.digest, review, sourceAdvanceHead: call.sourceAdvanceHead,

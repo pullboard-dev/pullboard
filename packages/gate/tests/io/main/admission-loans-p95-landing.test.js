@@ -1,4 +1,5 @@
 /** @pullboard-test-input packages/gate/src/io/browser/admission.js packages/gate/src/io/run/tests.js */
+/** @pullboard-test-timing */
 /** Four concurrent landing runs keep process lifetime under twice standalone; one mode per file so each finishes under 60 s [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
