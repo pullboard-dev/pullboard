@@ -1,7 +1,7 @@
 /** Read-only aggregate evidence for a case study; recorded work is not fresh execution [C7]. */
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { receiptFields } from '../../../packages/gate/index.js';
+import { receiptFields } from '../../../packages/gate/heavy.js';
 
 /** Bound memory and statement lifetimes: SQLite iterators on the minimum Node can outlive their statement. */
 export function* eventRows(db, kind = null) {
