@@ -75,7 +75,8 @@ export function runnableFiles() {
     if (!/\.(?:js|mjs|cjs)$/u.test(file) || !existsSync(join(REPO, file))) continue;
     const source = readFileSync(join(REPO, file), 'utf8');
     // A source that lists folders may load whatever it finds there, so its whole folder comes along.
-    if (source.includes('readdirSync')) {
+    // The folder reader is node's readdirSync or the file-system adapter's list(), which the cells moved listings behind (packages/fs).
+    if (/readdirSync|\.list\(/u.test(source)) {
       // A folder named by a quoted path (`join(root, 'packages/state/src/logic/engines')`) is read the same way, though the closure never sees a reference to it.
       const named = [...source.matchAll(NAMED_FOLDER)].map(match => `${match[1]}/`);
       for (const sibling of tracked) {
