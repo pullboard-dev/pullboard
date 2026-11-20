@@ -1,11 +1,13 @@
 /** Native CPU observations for registered agent worktrees; no process is signalled [A6,H16]. */
 import { execFileSync } from 'node:child_process';
-import { readlinkSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { basename } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { hostname } from 'node:os';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The one file-system adapter this file reads through [C7]. */
+const fs = fileSystemAdapter();
 
 /** Read bounded native utility output without arguments or environment supplied by a process. */
 function native(command, args) {
@@ -28,10 +30,10 @@ function rows(text) {
 }
 /** Canonical paths avoid symlink spelling differences; unreadable or vanished cwd never establishes ownership. */
 function canonical(path) {
-  try { return realpathSync(path); } catch { return null; /* A disappearing process/worktree has no attributable cwd. */ }
+  try { return fs.realpath(path); } catch { return null; /* A disappearing process/worktree has no attributable cwd. */ }
 }
 /** Report only native cwd ownership revalidated against the same PID birth after the cwd observation. */
-export function agentCpuFindings(db, { platform = process.platform, run = native, readLink = readlinkSync, host = hostname() } = {}) {
+export function agentCpuFindings(db, { platform = process.platform, run = native, readLink = path => fs.readlink(path), host = hostname() } = {}) {
   if (!['darwin', 'linux'].includes(platform)) return null;
   const prefix = `AGENT_CPU:${encodeURIComponent(host)}:`;
   const last = db.prepare("SELECT event_detail FROM event WHERE event_kind='health-scan' ORDER BY event_id DESC LIMIT 1").get();

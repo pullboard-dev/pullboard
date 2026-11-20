@@ -201,6 +201,9 @@ export function loadMachineSettings() {
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
+  if (value.gate?.failFastShards !== undefined && typeof value.gate.failFastShards !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.failFastShards in ${file} must be true or false`);
+  }
   if (value.gate?.retryNewRedsOnce !== undefined && typeof value.gate.retryNewRedsOnce !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.retryNewRedsOnce in ${file} must be true or false`);
   }
@@ -410,6 +413,9 @@ export function loadMachineSettings() {
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
   }
+  if (value.line?.tune !== undefined && typeof value.line.tune !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `line.tune in ${file} must be true or false`);
+  }
   if (value.verify?.soloLowStakes !== undefined && typeof value.verify.soloLowStakes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.soloLowStakes in ${file} must be true or false`);
   }
@@ -442,6 +448,9 @@ export function loadMachineSettings() {
   }
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);
+  }
+  if (value.health?.adviceThroughNext !== undefined && typeof value.health.adviceThroughNext !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.adviceThroughNext in ${file} must be true or false`);
   }
   if (value.health?.lapsedSweep !== undefined && typeof value.health.lapsedSweep !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.lapsedSweep in ${file} must be true or false`);
