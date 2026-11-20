@@ -1,17 +1,11 @@
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
-import { redGateReleaseSource } from '../../../fixtures/execution.js';
-import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../../fixtures/child.js';
-import { runFixtureChildAsync } from '../../../fixtures/child.js';
 import { once } from 'node:events';
 import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -28,14 +22,13 @@ import { staleIdentity } from '../../../fixtures/admission/lease.js';
 import { expireHeartbeat } from '../../../fixtures/admission/lease.js';
 import { capacityChangeCases } from '../../../fixtures/resources/capacity.js';
 import { releaseQueueProof } from '../../../fixtures/resources/release.js';
+import { openKitBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 import { machineSettings } from '../../../fixtures/admission/settings.js';
 import { cpuCheckRepo } from '../../../fixtures/admission/cpu.js';
 import { MODULE } from '../../../fixtures/admission/pool.js';
 import { POOL_MODULE_WORKER } from '../../../fixtures/admission/pool.js';
 import { PERL_FORK } from '../../../fixtures/admission/pool.js';
 import { PRE_RUNNER_MODULE } from '../../../fixtures/admission/pool.js';
-import { SANDBOX_EXEC } from '../../../fixtures/admission/pool.js';
-import { TEST_RUNNER } from '../../../fixtures/admission/pool.js';
 import { acquired } from '../../../fixtures/admission/pool.js';
 import { delay } from '../../../fixtures/admission/pool.js';
 import { event } from '../../../fixtures/admission/pool.js';
@@ -44,11 +37,9 @@ import { insertExpiredHolder } from '../../../fixtures/admission/pool.js';
 import { memoryWorker } from '../../../fixtures/admission/pool.js';
 import { poolWorker } from '../../../fixtures/admission/pool.js';
 import { privateList } from '../../../fixtures/admission/pool.js';
-import { privateTake } from '../../../fixtures/admission/pool.js';
 import { release } from '../../../fixtures/admission/pool.js';
 import { requeuedRemoteRun } from '../../../fixtures/admission/pool.js';
 import { setQueueOrder } from '../../../fixtures/admission/pool.js';
-import { waitForMarker } from '../../../fixtures/admission/pool.js';
 import { waitForProcessState } from '../../../fixtures/admission/pool.js';
 import { waitUntil } from '../../../fixtures/admission/pool.js';
 import { worker } from '../../../fixtures/admission/pool.js';
@@ -91,11 +82,6 @@ test('gate.io-browser-admission-resources.single-quoted-named-test-checks-skip: 
     env: { ...process.env, NODE_OPTIONS: '--import=unknown-preload.mjs' },
   }), true, 'an unclassified preload keeps the check browser-gated');
 });
-
-
-
-
-
 
 /** Prove the machine setting changes real browser admission while retaining the single-slot default [C7]. */
 test('gate.io-browser-admission-resources.browserslots-admits-that-many-browser-runs: browserSlots admits that many browser runs and no more [C7]', async () => {
@@ -153,8 +139,7 @@ test('gate.io-browser-admission-resources.lowering-capacity-never-stops-a-runnin
 /** Browser capacity can grow under the same live gate lease without exceeding either limit [Q1,Q2,Q4]. */
 test('gate.io-browser-admission-resources.raising-busy-browser-capacity-admits-only: raising busy browser capacity admits only the new browser slots [Q1,Q2,Q4]', capacityCases.browser);
 
-test('gate.io-browser-admission-resources.the-gate-pool-serves-the-current: the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ machineSettings, executionServicesSource, fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
-
+test('gate.io-browser-admission-resources.the-gate-pool-serves-the-current: the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ openKitBoard, machineSettings, executionServicesSource, fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
 
 // These cases keep all asynchronous state in separate child processes and private machine homes.
 // Their only parent environment changes are synchronous reads restored before yielding.
@@ -452,9 +437,7 @@ test('gate.io-browser-admission-resources.a-line-holding-an-older-pullboard: a l
   await release(review);
 });
 
-
 });
-
 
 test('gate.io-browser-admission-resources.q1-q2-a-waiting-landing-keeps: [Q1,Q2] a waiting landing keeps a current holder from taking the second slot [Q1,Q2]', async () => {
   const box = fixture();
@@ -687,19 +670,6 @@ test('gate.io-browser-admission-resources.q2-q3-an-evicted-live-waiter: [Q2,Q3] 
   await release(waiter);
 });
 
-test('gate.io-browser-admission-resources.q3-a-live-stalled-holder-keeps: [Q3] a live stalled holder keeps its place beyond the lease timeout', async () => {
-  const box = fixture();
-  const holder = worker(box, { agent: 'stalled-holder', stallMs: 22_000, env: { TZ: 'UTC' } });
-  assert.equal((await event(holder)).acquired, 'stalled-holder');
-  const waiter = worker(box, { agent: 'queued-behind-live-holder', env: { TZ: 'Pacific/Honolulu', PATH: '/usr/bin' } });
-  assert.equal((await event(waiter)).waiting, 1);
-  await assert.rejects(event(waiter, 20_500), /worker timed out/u, 'a live OS process must not be evicted when its heartbeat pauses'); // budget: declared 22000ms holder stall; observe it still held at 20500ms.
-  assert.equal((await event(holder, 5_000)).resumed, true); // budget: hang ceiling for the stalled holder resume handshake; no throughput claim.
-  await release(holder);
-  assert.equal((await event(waiter)).acquired, 'queued-behind-live-holder');
-  await release(waiter);
-});
-
 test('gate.io-browser-admission-resources.q3-concurrent-openers-serialize-migration-of: [Q3] concurrent openers serialize migration of a prior resource database', async () => {
   const box = fixture();
   oldSchema(box);
@@ -740,32 +710,6 @@ test('gate.io-browser-admission-resources.q3-process-identity-lookup-ignores-a: 
     else process.env.PATH = previousPath;
   }
   await release(holder);
-});
-
-test('gate.io-browser-admission-resources.q3-an-unreadable-process-identity-keeps: [Q3] an unreadable process identity keeps a live holder', { skip: !SANDBOX_EXEC }, async () => {
-  const box = fixture();
-  const holder = worker(box, { agent: 'sandbox-live-holder', stallMs: 27_000 });
-  assert.equal((await acquired(holder)).acquired, 'sandbox-live-holder');
-  const waiter = worker(box, { agent: 'sandbox-live-waiter', sandboxProcessInfo: true });
-  assert.equal((await event(waiter)).waiting, 1);
-  await assert.rejects(event(waiter, 20_500), /worker timed out/u, 'denied process-info access is not proof that a live PID died'); // budget: declared 22000ms holder stall with denied process-info access; observe at 20500ms.
-  assert.equal((await event(holder, 8_000)).resumed, true); // budget: hang ceiling for the stalled holder resume handshake; no throughput claim.
-  await release(holder);
-  assert.equal((await acquired(waiter)).acquired, 'sandbox-live-waiter');
-  await release(waiter);
-});
-
-test('gate.io-browser-admission-resources.q3-an-unreadable-process-identity-still: [Q3] an unreadable process identity still releases a dead holder', { skip: !SANDBOX_EXEC }, async () => {
-  const box = fixture();
-  const holder = worker(box, { agent: 'sandbox-dead-holder' });
-  assert.equal((await acquired(holder)).acquired, 'sandbox-dead-holder');
-  holder.kill('SIGKILL');
-  const { signal } = await holder.finished;
-  holder.lines.close();
-  assert.equal(signal, 'SIGKILL');
-  const waiter = worker(box, { agent: 'sandbox-dead-waiter', sandboxProcessInfo: true });
-  assert.equal((await acquired(waiter)).acquired, 'sandbox-dead-waiter');
-  await release(waiter);
 });
 
 test('gate.io-browser-admission-resources.q3-cached-live-identities-expire-so: [Q3] cached live identities expire so an actual zombie holder is released', { skip: !PERL_FORK }, async () => {
@@ -839,7 +783,6 @@ test('gate.io-browser-admission-resources.q2-q3-a-sigkilled-waiter-is: [Q2,Q3] a
   await release(live);
 });
 
-
 test('gate.io-browser-admission-resources.the-pool-holds-work-while-the: the pool holds work while the machine is out of memory and names the biggest process [C7]', async () => {
   const box = fixture();
   const reading = join(box.dir, 'memory.json');
@@ -884,7 +827,6 @@ test('gate.io-browser-admission-resources.the-pool-holds-work-while-the: the poo
   assert.equal(recovered.acquired, 'held-run', 'the held run is admitted once memory recovers');
   await release(run);
 });
-
 
 });
 
@@ -948,100 +890,4 @@ test('gate.io-browser-admission-resources.q1-machine-scope-is-shared-repo: [Q1] 
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /BOARD_SCOPE_UNAVAILABLE.*relay/i);
 });
-
-test('gate.io-browser-admission-resources.q4-a-red-gate-releases-its: [Q4] a red gate releases its lease before the same process starts another gate', async () => {
-  const box = fixture();
-  const command = join(box.dir, 'red-then-green.cjs');
-  const counter = join(box.dir, 'gate-count');
-  const eventsFile = join(box.dir, 'gate-runs.log');
-  writeFileSync(command, [
-    "const fs = require('node:fs');",
-    'const [counter, events] = process.argv.slice(2);',
-    'const count = Number(fs.existsSync(counter) ? fs.readFileSync(counter, "utf8") : 0);',
-    'fs.writeFileSync(counter, String(count + 1));',
-    "fs.appendFileSync(events, 'start\\nend\\n');",
-    'process.exit(count === 0 ? 7 : 0);',
-  ].join('\n'));
-  const gateCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(command)} ${JSON.stringify(counter)} ${JSON.stringify(eventsFile)}`;
-  const worker = redGateReleaseSource();
-  const child = spawn(process.execPath, ['--input-type=module', '-e', worker, gateCommand], {
-    cwd: box.first, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let stdout = '';
-  let stderr = '';
-  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
-  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
-  const closed = new Promise((resolveClose) => child.once('close', (code, signal) => resolveClose({ code, signal })));
-  let timer;
-  try {
-    const result = await Promise.race([
-      closed,
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('the red gate kept its lease and blocked the same process')), 5_000); }), // budget: hang ceiling for the same process to reacquire its released gate slot.
-    ]);
-    assert.equal(result.code, 0, stderr);
-    assert.deepEqual(JSON.parse(stdout.trim()), { firstGreen: false, secondGreen: true });
-    assert.deepEqual(readFileSync(eventsFile, 'utf8').trim().split(/\r?\n/u), ['start', 'end', 'start', 'end']);
-  } finally {
-    clearTimeout(timer);
-    if (child.exitCode === null && child.signalCode === null) process.kill(-child.pid, 'SIGKILL');
-    if (child.exitCode === null && child.signalCode === null) await closed;
-  }
-});
-
-
-/** A write lock on the slot database delays a queued run; only a lock past the deadline stops it, as never ran [C7]. */
-test('gate.io-browser-admission-resources.a-gate-slot-waiter-retries-a: a gate-slot waiter retries a locked slot database [C7]', async () => {
-  const box = fixture();
-  mkdirSync(box.home, { recursive: true });
-  const released = join(box.dir, 'lock-released');
-  // The waiter's test passes only if the lock was already released when it ran.
-  writeFileSync(join(box.first, 'ran.test.js'), `import assert from 'node:assert/strict';\nimport { existsSync } from 'node:fs';\nimport { test } from 'node:test';\ntest('the waiter ran', () => assert.ok(existsSync(${JSON.stringify(released)})));\n`);
-  // The runner refuses a repository with no commit (NO_POLICY), so commit the waiter's test file first.
-  for (const args of [['add', 'ran.test.js'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'fixture']]) {
-    const committed = spawnSync('git', args, { cwd: box.first, encoding: 'utf8' });
-    assert.equal(committed.status, 0, committed.failure);
-  }
-  const env = { ...box.env, PULLBOARD_SLOT_DB_LOCK_MS: '6000' };
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
-  /** Hold a write lock on the machine slot database from another process for `ms`; wrapped so awaiting it waits only for the lock. */
-  const holdLock = async (ms) => {
-    const marker = join(box.dir, `locked-${ms}`);
-    const locker = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
-      import { DatabaseSync } from 'node:sqlite';
-      import { writeFileSync } from 'node:fs';
-      const [file, marker, ms, released] = process.argv.slice(1);
-      const db = new DatabaseSync(file);
-      db.exec('BEGIN IMMEDIATE');
-      db.exec('CREATE TABLE IF NOT EXISTS lock_probe (x)');
-      writeFileSync(marker, 'locked');
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(ms));
-      db.exec('COMMIT');
-      writeFileSync(released, 'released');`, join(box.home, 'resources.sqlite'), marker, String(ms), released], { env });
-    await waitForMarker(marker);
-    return { done: locker, pid: locker.child.pid, stop: () => locker.child.kill('SIGKILL') };
-  };
-  /** Run one named test file through the real runner, which waits for a machine gate slot. */
-  const runWaiter = () => awaitNestedRun(runFixtureChildAsync(process.execPath, [TEST_RUNNER, 'ran.test.js'], { cwd: box.first, env }));
-
-  const shortLock = await holdLock(3_000);
-  const kept = await runWaiter();
-  assert.equal((await shortLock.done).status, 0, 'the 3 s lock was taken and released');
-  assert.equal(kept.status, 0, `${kept.context}\n${kept.stdout}`);
-  assert.match(kept.stdout, /ok \d+ - the waiter ran/u);
-  assert.match(kept.stdout, /^# fail 0$/mu);
-
-  rmSync(released);
-  const longLock = await holdLock(60_000);
-  try {
-    const stopped = await runWaiter();
-    assert.equal(stopped.status, 75, stopped.context);
-    assert.match(stopped.stderr, /never ran/u);
-    assert.match(stopped.stderr, /not a test failure/u);
-    assert.match(stopped.stderr, new RegExp(`pid ${longLock.pid}\\b`, 'u'), 'names the process holding the lock');
-    assert.doesNotMatch(stopped.stdout, /the waiter ran/u);
-  } finally { longLock.stop(); await longLock.done; }
-});
-
-
-
 

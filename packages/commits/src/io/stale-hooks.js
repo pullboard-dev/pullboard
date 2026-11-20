@@ -1,9 +1,8 @@
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hookStanding } from '../logic/hook-compat.js';
 import { activeHooksDir } from './hooks.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /**
  * Name hooks installed by an older release, and the one step that refreshes them (#7760, R4).
@@ -18,8 +17,8 @@ import { activeHooksDir } from './hooks.js';
  */
 export function staleHookProblems(root, release) {
   const dir = activeHooksDir(root);
-  if (!existsSync(dir)) return [];
-  const scripts = readdirSync(dir).map((name) => { try { return readFileSync(join(dir, name), 'utf8'); } catch { return ''; } });
+  if (!fs.exists(dir)) return [];
+  const scripts = fs.list(dir).map((name) => { try { return fs.readFile(join(dir, name), 'utf8'); } catch { return ''; } });
   const { state, versions } = hookStanding(release, scripts);
   if (state === 'none' || state === 'current') return [];
   const verdict = state === 'accepted' ? 'still run, but the next release will refuse them' : `are refused by Pullboard ${release} and stop every commit`;

@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
@@ -21,6 +22,8 @@ import { gitExecFileSync } from '../../index.js';
 import { gitSpawn } from '../../index.js';
 import { gitSpawnSync } from '../../index.js';
 import { realGitAdapter } from '../../index.js';
+import { realGitPath } from '../../index.js';
+import { resolveGitPath } from '../../index.js';
 import { withGitContractAdapter as withGitAdapter } from '../../index.js';
 import { createMemoryGitAdapter } from '../../index.js';
 import {
@@ -364,6 +367,47 @@ test('git.adapter.no-launch-over-allowance: clause 1: no direct Git launch excee
   const report = gitLaunchReport(ROOT);
   assert.deepEqual(gitLaunchGrowth(report, baseline.files), [], 'a direct Git launch beyond the allowance must go through packages/git');
   assert.ok(Object.values(baseline.files).reduce((sum, count) => sum + count, 0) <= baseline.originalTotal, 'the allowance never rises above its original total');
+});
+
+test('git.adapter.real-path-resolution: clause 1: the real adapter spawns the first PATH git that is not the shim, else the xcrun answer, and the process resolves once [C7]', () => {
+  const present = new Set(['/usr/bin/git', '/opt/real/bin/git']);
+  const executable = file => present.has(file);
+  const never = () => assert.fail('xcrun is not asked when a PATH git exists');
+  assert.equal(resolveGitPath({ path: '/usr/bin:/opt/real/bin', executable, xcrun: never }), '/opt/real/bin/git', 'the shim is skipped');
+  assert.equal(resolveGitPath({ path: '/usr/bin', executable, xcrun: () => '/Library/Developer/CommandLineTools/usr/bin/git' }), '/Library/Developer/CommandLineTools/usr/bin/git', 'no PATH git but the shim asks xcrun');
+  const first = realGitPath();
+  assert.equal(realGitPath(), first, 'the resolved path is reused');
+  const real = withGitAdapter(realGitAdapter, () => gitSpawnSync(['--version'], { encoding: 'utf8' }));
+  assert.equal(real.status, 0);
+  assert.match(real.stdout, /^git version /u);
+});
+
+test('git.adapter.path-keyed-resolution: two PATHs each spawn their own git, and a removed git is resolved again under the same PATH [C7]', (t) => {
+  const files = privateFixtureFiles('pullboard-git-path-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  const shim = (name) => {
+    const dir = join(files.root, name);
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'git'), `#!/bin/sh\necho ${name}\n`, { mode: 0o755 });
+    return dir;
+  };
+  const first = shim('first'), second = shim('second');
+  const tail = process.env.PATH ?? '';
+  const run = (path) => String(realGitAdapter.spawnSync(['--version'], { encoding: 'utf8', env: { ...process.env, PATH: path } }).stdout).trim();
+  assert.equal(run(`${first}${delimiter}${tail}`), 'first');
+  assert.equal(run(`${second}${delimiter}${tail}`), 'second', 'another PATH spawns its own git, not the first one cached');
+  assert.equal(realGitPath(`${first}${delimiter}${tail}`), join(first, 'git'), 'one resolution per PATH string is reused');
+  rmSync(first, { recursive: true, force: true });
+  const again = realGitAdapter.spawnSync(['--version'], { encoding: 'utf8', env: { ...process.env, PATH: `${first}${delimiter}${tail}` } });
+  assert.equal(again.error, undefined, 'the removed git is not spawned');
+  assert.match(String(again.stdout), /^git version /u, 'the same PATH resolves the next git');
+});
+
+test('git.adapter.real-path-fallback: clause 2: a failed or empty resolution falls back to plain git [C7]', () => {
+  const none = () => false;
+  assert.equal(resolveGitPath({ path: '', executable: none, xcrun: () => '' }), 'git', 'an empty xcrun answer');
+  assert.equal(resolveGitPath({ path: '/usr/bin', executable: none, xcrun: () => { throw new Error('no xcrun'); } }), 'git', 'a failed xcrun');
+  assert.equal(resolveGitPath({ path: '/usr/bin', executable: file => file === '/usr/bin/git', xcrun: () => '' }), 'git', 'only the shim exists');
 });
 
 /** A real one-commit repository for the read-fact cases, removed when the test ends. */

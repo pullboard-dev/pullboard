@@ -9,6 +9,8 @@ import { boardStateAnnouncement } from "../link.js";
 import { boardLinkBody } from "../../../../../kernel/index.js";
 import { boardLinkName } from "../../../../../kernel/index.js";
 import { boardReferenceId } from "../../../../../kernel/index.js";
+import { regressedIds } from "./regress.js";
+import { holdRegressedDependents } from "./regress.js";
 import { boardLinkEnvelope } from "./envelope.js";
 import { boardLinkEnvelopeDigest } from "./envelope.js";
 import { boardLinkDeliveryReceipt } from "./envelope.js";
@@ -148,7 +150,7 @@ export async function resendPendingBoardStates(board, { transport }) {
   return { sent, failed };
 }
 
-/** Apply a verified incoming state once, with its source-position cursor and durable retry outcome. */
+/** Apply a verified incoming state once, with its source-position cursor and durable retry outcome; the stored state carries the board-clock time it was received. */
 export async function receiveBoardState(board, delivery, { authority, capability }) {
   const envelope = boardLinkEnvelope(delivery?.envelope);
   if (boardId(board) !== envelope.destinationBoardId) throw new Refused('BOARD_LINK_AUTH', 'open this delivery only on its exact receiving board');
@@ -167,9 +169,10 @@ export async function receiveBoardState(board, delivery, { authority, capability
     }
     const latest = saved(board, stateKey);
     if (latest && latest.position >= announcement.position) throw new Refused('BOARD_LINK_REPLAY', 'read the latest source position before applying another announcement');
-    remember(board, stateKey, announcement);
+    remember(board, stateKey, { ...announcement, receivedAt: board.clock.now().toISOString() });
     remember(board, key, receipt);
     logEvent(board, envelope.sourceBoardId, 'board_link_state', null, { announcement, receipt });
+    holdRegressedDependents(board, { handle: record.child.handle, ids: regressedIds(latest, announcement) });
     return receipt;
   });
 }

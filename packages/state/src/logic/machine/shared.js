@@ -148,7 +148,8 @@ export const SUBMIT_REACHED_REFUSALS = [
   { code: 'FILE_LEASED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'TABLE_REPLAY', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'HOP_ITEM', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
-  { code: 'HOP_FENCED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'HOP_FENCED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },  // Identifying the caller registers its seat, and register refuses a lane move for a seat that holds work [C7,M1].
+  { code: 'LANE_HELD', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
 ];
 
 /** Refusals the verdict moves reach through the timing reservation and main-red classification [M1,C7]. */
@@ -166,4 +167,8 @@ export const VERDICT_REACHED_REFUSALS = [
   { code: 'JOB_MISSING', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'JOB_STEP_NAME', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'RUNNER_BRIDGE_DEADLINE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  // A parent's review composes its submitted slices, and a slice that conflicts refuses [C7,M1].
+  { code: 'SLICE_COMPOSE', rule: 'each submitted slice composes onto its parent review and the slices before it', next: 'merge main into the named slice and resubmit it' },
+  // Identifying the caller registers its seat, and register refuses a lane move for a seat that holds work [C7,M1].
+  { code: 'LANE_HELD', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
 ];

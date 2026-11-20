@@ -1,10 +1,10 @@
 /** A change inside sealed cells shrinks the gate: apps cells confine, and so do the listing rows that ride with them (#4633) [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requireSealedSkips } from '../index.js';
-import { selectTestTiers } from '../index.js';
-import { submitGatePlan } from '../index.js';
-import { writeTestTiers } from '../index.js';
+import { requireSealedSkips } from '../heavy.js';
+import { selectTestTiers } from '../heavy.js';
+import { submitGatePlan } from '../heavy.js';
+import { writeTestTiers } from '../heavy.js';
 import { fixture as repository } from '../../landing/tests/fixtures/plan.js';
 import { git } from '../../landing/tests/fixtures/plan.js';
 
