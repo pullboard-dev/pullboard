@@ -1,11 +1,32 @@
 /** next.holdAboveLoad hands no new claim to a seat on a machine above machine.loadCeiling, on an injected load reading, and is off by default [C7,#9703]. @pullboard-test-input source-cell apps/cli packages/config packages/resources */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { machineSettingsFile } from '../../../../../packages/config/index.js';
+import { setMachineLoadPort } from '../../../../../packages/resources/index.js';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
-import { injectLoad } from '../../fixtures/next/take.js';
-import { machineSettings } from '../../fixtures/next/take.js';
+
+/** Write this fixture machine's settings, keeping the settings the fixture wrote. */
+function machineSettings(next, machine = {}) {
+  const file = machineSettingsFile();
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, next, machine }));
+}
+
+/** Inject a 1-minute load on a 4-core machine (ceiling 6) outside any admitted gate run; restore both after the test. */
+function injectLoad(t, load) {
+  const restore = setMachineLoadPort({ loadavg: () => [load, load, load], cores: () => 4 });
+  const saved = process.env.PULLBOARD_GATE_SLOT_HELD;
+  delete process.env.PULLBOARD_GATE_SLOT_HELD;
+  t.after(() => {
+    restore();
+    if (saved === undefined) delete process.env.PULLBOARD_GATE_SLOT_HELD; else process.env.PULLBOARD_GATE_SLOT_HELD = saved;
+  });
+}
 
 test('cli.io-next-load-ceiling.cli-next-load-ceiling-above-machine-loadceiling: cli.next.load-ceiling.above-machine-loadceiling-next-hands-no: clause 1: above machine.loadCeiling next hands no new build or review claim and names the load [C7,#9703]', async t => {
   const box = await fixture(t);

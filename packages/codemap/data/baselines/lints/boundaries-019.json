@@ -86,7 +86,6 @@
     "packages/gate/tests/io/sizes.test.js->packages/gate/src/io/sizes.js": 1,
     "test/typed-request-registry.test.js->src/relay-sender.js": 1,
     "test/typed-request-registry.test.js->src/typed-requests-engine.js": 1,
-    "test/wall-clock-budgets.test.js->packages/gate/tests/fixtures/budgets.js": 1,
-    "apps/cli/tests/io/next/load-ceiling.test.js->packages/store/index.js": 1
+    "test/wall-clock-budgets.test.js->packages/gate/tests/fixtures/budgets.js": 1
   }
 }

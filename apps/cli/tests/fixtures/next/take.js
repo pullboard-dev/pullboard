@@ -10,7 +10,6 @@ import {
 } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from '../../../../../packages/store/index.js';
@@ -25,7 +24,6 @@ import {
 import { scanHealthSentinel } from '../../../../../packages/sentinels/index.js';
 import { heartbeatSeat } from '../../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../../packages/config/index.js';
-import { setMachineLoadPort } from '../../../../../packages/resources/index.js';
 import { submitFixture } from '../board/submit.js';
 import { runFixtureGit } from '../child.js';
 
@@ -151,22 +149,4 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   };
   t.after(() => cleanupFixture(directory, board, original));
   return box;
-}
-
-/** Write this fixture machine's settings, keeping the settings the fixture wrote. */
-export function machineSettings(next, machine = {}) {
-  const file = machineSettingsFile();
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, next, machine }));
-}
-
-/** Inject a 1-minute load on a 4-core machine (ceiling 6) outside any admitted gate run; restore both after the test. */
-export function injectLoad(t, load) {
-  const restore = setMachineLoadPort({ loadavg: () => [load, load, load], cores: () => 4 });
-  const saved = process.env.PULLBOARD_GATE_SLOT_HELD;
-  delete process.env.PULLBOARD_GATE_SLOT_HELD;
-  t.after(() => {
-    restore();
-    if (saved === undefined) delete process.env.PULLBOARD_GATE_SLOT_HELD; else process.env.PULLBOARD_GATE_SLOT_HELD = saved;
-  });
 }
