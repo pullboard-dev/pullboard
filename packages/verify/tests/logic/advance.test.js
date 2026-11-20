@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { effectiveItemHead as indexEffectiveItemHead } from '../../index.js';
-import { effectiveItemHead as lightEffectiveItemHead } from '../../light.js';
+import { effectiveItemHead as readEffectiveItemHead } from '../../read.js';
 import { gateJudgmentPath } from '../../index.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -74,14 +74,14 @@ function advanceBoard(chain) {
   return { db: { prepare: sql => ({ get: key => rows(sql, key) }) } };
 }
 
-/** The light door answers as the index door does, so a light caller no longer needs the heavy front door [C7]. */
-test('verify.logic-advance.light-door-exports-effective-item-head: the light door exports the index door\'s effectiveItemHead and agrees on an advanced and an unadvanced item [C7]', () => {
-  assert.equal(lightEffectiveItemHead, indexEffectiveItemHead, 'one function behind both doors');
+/** The read door answers as the index door does, so a read caller no longer needs the heavy front door [C7]. */
+test('verify.logic-advance.read-door-exports-effective-item-head: the read door exports the index door\'s effectiveItemHead and agrees on an advanced and an unadvanced item [C7]', () => {
+  assert.equal(readEffectiveItemHead, indexEffectiveItemHead, 'one function behind both doors');
   const item = { item_id: 5, item_commit: 'submitted-sha', item_frozen_digest: 'bar-digest' };
   const advanced = advanceBoard([{ submitted: 'submitted-sha', bar: 'bar-digest', patchDigest: null, episode: 7, eventId: 9, head: 'advanced-head', verdict: 1, phases: [], trunk: 't', paths: [] }]);
-  assert.equal(lightEffectiveItemHead(advanced, item), 'advanced-head');
+  assert.equal(readEffectiveItemHead(advanced, item), 'advanced-head');
   assert.equal(indexEffectiveItemHead(advanced, item), 'advanced-head');
   const plain = advanceBoard(null);
-  assert.equal(lightEffectiveItemHead(plain, item), null);
+  assert.equal(readEffectiveItemHead(plain, item), null);
   assert.equal(indexEffectiveItemHead(plain, item), null);
 });
