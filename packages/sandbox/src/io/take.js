@@ -46,7 +46,13 @@ function selected(ctx, board, values, services) {
     && !store.pendingSubmitHandoff(board, item, { fromJobRow: pendingFromJobRow() }));
   const holding = Boolean(ownClaim);
   // One claim per call: a seat holding an unsubmitted claim with a live lease gets that claim back and selects nothing else (#12122).
-  if (ownClaim) return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
+  if (ownClaim) {
+    // A clean claim waiting on an unmet prerequisite still yields to an urgent repair: ask the routing before keeping it (#12465).
+    const preempt = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omittedIds.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
+      workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
+    if (preempt?.releaseRequest?.seat === me.id) return { ...preempt, review: false, held: false };
+    return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
+  }
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
