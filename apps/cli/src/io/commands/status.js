@@ -8,6 +8,8 @@ import { capacityLines } from '../../../../../packages/stats/light.js';
 import { statusShowUsefulBuilders } from '../../../../../packages/config/index.js';
 import { readMaxUsefulBuilders } from '../../../../../packages/stats/light.js';
 import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
+import { staffingSeats } from '../../../../../packages/stats/light.js';
+import { staffingLines } from '../../../../../packages/stats/light.js';
 import { lineSettings } from '../../../../../packages/state/light.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
 import { foreignBlockers } from '../../../../../packages/items/light.js';
@@ -108,6 +110,7 @@ export async function run(io, { values }) {
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
   summary.reclaim = reclaim;
+  summary.staffing = staffingSeats({ ready: summary.capacity.readyItems, maxUseful: summary.usefulBuilders?.max ?? null });
   summary.landingBatch = batchLine;
   summary.memoryHeld = store.memoryHeldRuns();
   // These status readers load here, not through the packages' light doors: those doors are the runner worker's, and a status reader in them widens the worker bundle [C7].
@@ -123,7 +126,7 @@ export async function run(io, { values }) {
   }
   if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
   const originHint = !summary.relay.linked && !originRepository(ctx.info.root, { optional: true });
-  const format = { capacityLines, usefulBuilderLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
+  const format = { capacityLines, usefulBuilderLines, staffingLines, signingLine, staleStateLine: store.staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
   for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
   if (Object.keys(ctx.config.products).length) {
     const { loadSpec, productLine, productSummaries } = await import('../../../../../packages/spec/index.js');
