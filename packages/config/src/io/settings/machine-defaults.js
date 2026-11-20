@@ -85,6 +85,7 @@ export const MACHINE_DEFAULTS = {
   'gate.runnersOnly': false,
   'gate.sampleDiskIo': false,
   'gate.sampleSwap': false,
+  'gate.seedWideMainTests': false,
   'gate.selectionUnit': 'file',
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
