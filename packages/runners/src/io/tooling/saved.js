@@ -1,13 +1,11 @@
 /** Save a trusted tooling capture under the scratch root so a later controller process skips the rescan [C7,#8291]. */
 import { createHash } from 'node:crypto';
-import { chmodSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { scratchRoot } from '../../../../config/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const sha256 = text => createHash('sha256').update(text).digest('hex');
 
@@ -30,9 +28,9 @@ export function saveTrustedCapture(root, id, captured, order) {
   try {
     const body = JSON.stringify({ version: 1, root: resolve(root), commit: id.commit, tree: id.tree, order, captured });
     const path = savedPath(root, id), staging = `${path}.${process.pid}.tmp`;
-    writeFileSync(staging, JSON.stringify({ sha256: sha256(body), body }), { mode: 0o600 });
-    chmodSync(staging, 0o600);
-    renameSync(staging, path);
+    fs.writeFile(staging, JSON.stringify({ sha256: sha256(body), body }), { mode: 0o600 });
+    fs.chmod(staging, 0o600);
+    fs.rename(staging, path);
   } catch { /* the capture is only slower next time */ }
 }
 
@@ -47,9 +45,9 @@ export function saveTrustedCapture(root, id, captured, order) {
  */
 export function loadTrustedCapture(root, id) {
   try {
-    const path = savedPath(root, id), state = statSync(path);
+    const path = savedPath(root, id), state = fs.stat(path);
     if (!state.isFile() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return null;
-    const { sha256: claimed, body } = JSON.parse(readFileSync(path, 'utf8'));
+    const { sha256: claimed, body } = JSON.parse(fs.readFile(path));
     if (typeof body !== 'string' || claimed !== sha256(body)) return null;
     const saved = JSON.parse(body);
     const { captured, order } = saved;
