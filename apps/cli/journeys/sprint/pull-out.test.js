@@ -2,7 +2,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
@@ -74,12 +73,17 @@ function marker(t) {
   return label => t.diagnostic(`${((Date.now() - started) / 1000).toFixed(1)}s ${label}`);
 }
 
-/** The coordinator's reject of `id`, with no next, run from a review worktree detached at the submitted commit, as a reviewer runs it. */
-function reject(box, id) {
+/**
+ * The coordinator's reject of `id` from the main checkout, as the coordinator runs it, with no next. Work not yet on main is
+ * reviewed with the checkout detached at the submitted commit, and main is checked out again after.
+ */
+async function reject(box, id) {
   const commit = boardRead(box, 'SELECT item_commit FROM item WHERE item_id = ?', id)[0].item_commit;
-  const review = join(dirname(box.remote), `review-${id}`);
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  return box.runAsync(review, 'verify', String(id), 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', CLAUSE, '--note', NOTE, '--as', 'coordinator');
+  const landed = box.tryGit(box.repo, 'merge-base', '--is-ancestor', commit, 'main').status === 0;
+  if (!landed) box.git(box.repo, 'switch', '-q', '--detach', commit);
+  try {
+    return await box.runAsync(box.repo, 'verify', String(id), 'reject', '--no-next', '--reason', 'TEST_FAILURE', '--clause', CLAUSE, '--note', NOTE, '--as', 'coordinator');
+  } finally { if (!landed) box.git(box.repo, 'switch', '-q', 'main'); }
 }
 
 test('cli.sprint.reject-pulls-out: clause 1: a reject of landed sprint work reverts its merge on main, leaves one pull-out job and one pulled event, reopens the item, and the builder next re-offers it with the reject reason [M2,R3,#12181]', { timeout: CASE_MS }, async t => {
