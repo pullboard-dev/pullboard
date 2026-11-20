@@ -120,7 +120,7 @@ test('cli.add.needs-flag: clause 1: add --needs browser,gui stores both and show
   assert.equal(added.code, 0, added.err + added.out);
   const id = String(JSON.parse(added.out).item.item_id);
   const shown = await box.inProcess(box.repo, 'show', id, '--json');
-  assert.deepEqual(JSON.parse(shown.out).item.item_needs, ['browser', 'gui']);
+  assert.deepEqual(JSON.parse(shown.out).item_needs, ['browser', 'gui']);
   const refused = await box.inProcess(box.repo, 'add', 'web', 'Needs a gpu', '--specs', 'G1', '--needs', 'gpu', '--json');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /USAGE/u);

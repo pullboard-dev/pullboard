@@ -39,7 +39,7 @@ test('cli.edit.needs-flag: clause 2: edit --needs gui replaces the list and edit
   const added = await box.inProcess(box.repo, 'add', 'web', 'Needs edit', '--specs', 'G1', '--needs', 'browser,gui', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = String(JSON.parse(added.out).item.item_id);
-  const needsOf = async () => JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out).item.item_needs;
+  const needsOf = async () => JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out).item_needs;
   const replaced = await box.inProcess(box.repo, 'edit', id, '--needs', 'gui', '--json');
   assert.equal(replaced.code, 0, replaced.err + replaced.out);
   assert.deepEqual(await needsOf(), ['gui']);
