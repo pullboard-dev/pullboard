@@ -3,6 +3,9 @@
 /** The item page's Timeline strip: its markup from a timeline document, its read-only route on a real fixture board, and its hover text [C7,#12162]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { readItemTimeline } from '../../../../../packages/stats/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
@@ -15,6 +18,9 @@ import { composeViewStyles } from '../../../src/io/styles.js';
 import { itemPanelHtml } from '../../../src/logic/panel/item.js';
 import { itemPanelModel } from '../../../src/logic/panel/item.js';
 import { pageRenderScript } from '../../../src/io/page/render.js';
+import { cockpitPage } from '../../../src/io/cockpit/page.js';
+import { compatRowsHtml } from '../../../src/io/cockpit/page.js';
+import { COMPAT_STAGES } from '../../../src/logic/cockpit/compat.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const NOW = Date.parse('2026-11-20T12:00:00Z');
@@ -89,4 +95,31 @@ test('view.item.timeline-strip-hover: clause 3: each segment carries its stage, 
     assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|oklch\(/iu.test(line), `no colour literal: ${line}`);
     for (const token of line.matchAll(/var\((--[\w-]+)\)/gu)) if (/stage|mark|surface|ink|line/u.test(token[1])) assert.ok(new RegExp(`${token[1]}:`, 'u').test(defined), `${token[1]} is defined`);
   }
+});
+
+test('view.io-cockpit-page.compat-by-stage: clause 1: the cockpit page fetches GET /compat-cells and draws one row per language with one cell per stage in CONFORMANCE_STAGES order, each cell carrying its outcome and run id [C7]', async t => {
+  const root = cellProject(t, { real: true, gate: 'true' }).repo;
+  mkdirSync(join(root, '.pullboard', 'conformance'), { recursive: true });
+  writeFileSync(join(root, '.pullboard', 'conformance', 'runs.json'), JSON.stringify([
+    { id: 'run-node-1', language: 'node', at: '2026-11-20T10:00:00Z', stages: { claim: 'works', submit: 'works', gate: 'fail' } },
+    { id: 'run-python-1', language: 'python', at: '2026-11-20T10:05:00Z', stages: { claim: 'partial' } },
+  ]));
+  const secret = ['page', 'test', 'key', '3706'].join('-');
+  const none = () => { throw new Error('not used by compat cells'); };
+  const view = await serveView({ secret, projectRoot: root, projects: () => [{ root, name: 'Compat fixture' }], runCommand: none, renderPage: () => '', refusalDocument: () => '', boardOpeners: { openBoard: none, openBoardForRead: none } });
+  t.after(() => view.close());
+  const answer = await fetch(`http://127.0.0.1:${view.port}/compat-cells`, { headers: { 'x-pullboard-key': secret, connection: 'close' } });
+  assert.equal(answer.status, 200);
+  const html = compatRowsHtml(await answer.json());
+  const rows = [...html.matchAll(/<tr data-language="([^"]+)">(.*?)<\/tr>/gu)].map(match => ({ language: match[1],
+    cells: [...match[2].matchAll(/<td data-stage="([^"]*)" data-outcome="([^"]*)" data-run="([^"]*)">/gu)].map(cell => ({ stage: cell[1], outcome: cell[2], run: cell[3] })) }));
+  assert.deepEqual(rows.map(row => row.language), ['node', 'python'], 'one row per language');
+  for (const row of rows) assert.deepEqual(row.cells.map(cell => cell.stage), [...COMPAT_STAGES], `${row.language} has one cell per stage in CONFORMANCE_STAGES order`);
+  assert.deepEqual(rows[0].cells.slice(0, 3), [{ stage: 'claim', outcome: 'works', run: 'run-node-1' }, { stage: 'submit', outcome: 'works', run: 'run-node-1' }, { stage: 'gate', outcome: 'breaks', run: 'run-node-1' }]);
+  assert.deepEqual(rows[1].cells[0], { stage: 'claim', outcome: 'partial', run: 'run-python-1' });
+  assert.ok(html.includes('partial <code>run-python-1</code>'), 'a cell shows its outcome and its run id');
+  const page = cockpitPage('', { commandPhrases: () => ['add'] });
+  assert.ok(page.includes("api('/compat-cells')"), 'the page fetches the compat cells');
+  assert.ok(page.includes(`const compatRowsHtml = ${compatRowsHtml.toString()};`), 'the page draws them with the same rows function');
+  assert.ok(page.indexOf('drawCompatCells();') < page.lastIndexOf('</script>'), 'the draw runs inside the page script');
 });

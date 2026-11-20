@@ -1,0 +1,3 @@
+{
+ "view.io-cockpit-page.compat-by-stage": {"proves":{"specs":["C7"],"claim":"clause 1: the cockpit page fetches GET /compat-cells and draws one row per language with one cell per stage in CONFORMANCE_STAGES order, each cell carrying its outcome and run id."},"why":"The compat feed had no page; the cockpit shows what each conformance setup does at each pipeline stage and which run said so.","kind":"journey","inputs":["apps/view/src/io/cockpit/page.js","apps/view/src/io/serve.js","apps/view/tests/io/cockpit/page.test.js"]}
+}
