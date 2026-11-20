@@ -136,6 +136,7 @@ export {
   refuseMissingCheckFile,
   addWarnUnnamedTest,
   itemsBarRulesAtAdd,
+  routeReservations,
   itemsTestMirrorAtAdd,
   docsRegenerateOnCommit,
   holdsLiftSettled,

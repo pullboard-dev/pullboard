@@ -281,10 +281,19 @@ export function seedWideMainTests(board, { main, now = Date.now() }) {
   return queued;
 }
 
+/** The trunk ref reader of each board root, so a claim asks Git for the repository's paths once, not on every claim. */
+const TRUNK_READERS = new Map();
+
 /** Accepted main's commit, read from trunk's ref files first and from Git when they name none; null without a repository. */
 function acceptedMain(root) {
   if (!root) return null;
-  const read = trunkRevisionReader(repoInfo(root))();
+  let reader = TRUNK_READERS.get(root);
+  if (!reader) {
+    reader = trunkRevisionReader(repoInfo(root));
+    TRUNK_READERS.set(root, reader);
+    while (TRUNK_READERS.size > 32) TRUNK_READERS.delete(TRUNK_READERS.keys().next().value);
+  }
+  const read = reader();
   return SHA.test(String(read)) ? read : resolveCommit(root, plainTrunkRef(root));
 }
 

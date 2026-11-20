@@ -654,6 +654,11 @@ export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
+/** Whether route reservations are on (#9177): off by default; only an exact `true` turns it on. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations === true;
+}
+
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
 export function itemsTestMirrorAtAdd() {
   return loadMachineSettings().items?.testMirrorAtAdd === true;

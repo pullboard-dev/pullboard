@@ -241,6 +241,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `link` | `version:number`, `link:string`, `parent:object`, `child:object`, `disclosure:string` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
+| `mark` | `version:number`, `mark:object` |
 | `mutate` | `version:number`, `cell:string`, `all:boolean`, `redBefore:array`, `tests:array`, `faults:array`, `caught:number`, `missed:number` |
 | `red` | `version:number`, `file:string` |
 | `replay` | `version:number`, `table:string`, `days:number`, `agreed:number`, `disagreed:number`, `beforeCut:number`, `disagreements:array` |

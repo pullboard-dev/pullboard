@@ -8,13 +8,15 @@ import { analysisArtifactDescriptor } from '../../../../../packages/resources/li
 import { recoveryIdentity } from '../../../../../packages/resources/light.js';
 import { claimRunnerWorker } from '../../../../../packages/runners/light.js';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { userInfo } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const fs = fileSystemAdapter();
 
 /**
  * Name the first top-level rule a work specification breaks, or '' when none.
@@ -62,7 +64,7 @@ function hydrateRuntime(value, S) {
   const root = dirname(dirname(dirname(dirname(dirname(dirname(fileURLToPath(S.entryUrl)))))));
   const files = {};
   for (const name of names) {
-    try { files[name] = readFileSync(join(root, name), 'utf8'); }
+    try { files[name] = fs.readFile(join(root, name), 'utf8'); }
     catch { throw new Error('trusted runtime cache does not match the request'); }
   }
   value.runtime = { entry: runtime.entry, files, sha256: runtime.sha256 };
@@ -163,7 +165,7 @@ export async function readSpec(S) {
       || /[\\\u0000-\u001f\u007f]/u.test(name) || typeof source !== 'string'
       || name === value.runtime.entry)) throw new Error('invalid trusted runtime paths');
   if (createHash('sha256').update(JSON.stringify(value.runtime.files)).digest('hex') !== value.runtime.sha256) throw new Error('invalid trusted runtime');
-  const workerSource = readFileSync(fileURLToPath(S.entryUrl), 'utf8');
+  const workerSource = fs.readFile(fileURLToPath(S.entryUrl), 'utf8');
   const toolingFiles = Object.fromEntries(Object.entries({ ...value.runtime.files, [value.runtime.entry]: workerSource })
     .sort(([a], [b]) => a.localeCompare(b)));
   if (!workerSource || !value.tooling || !['git-checkout', 'installed-package'].includes(value.tooling.kind)

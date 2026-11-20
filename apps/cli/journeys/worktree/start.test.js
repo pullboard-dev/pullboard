@@ -377,10 +377,10 @@ test('cli.journeys-worktree-start.submit-refuses-co-author-and-home-path: clause
   const trailer = await submitNamingThisMachine(sandbox(), false, { body: 'Co-Authored-By: Ada Example <ada@example.com>', settings: { noCoAuthor: true } });
   assert.equal(trailer.code, 1, trailer.out + trailer.err);
   assert.match(trailer.err, /\[CO_AUTHOR\]/u);
-  const path = await submitNamingThisMachine(sandbox(), false, { body: 'built from /Users/ada/work/repo' });
+  const path = await submitNamingThisMachine(sandbox(), false, { body: 'built from /Users/fixture/work/repo' });
   assert.equal(path.code, 1, path.out + path.err);
   assert.match(path.err, /\[HOME_PATH\]/u);
-  assert.equal(`${path.out}\n${path.err}`.includes('/Users/ada'), false, 'the refusal never echoes the path');
+  assert.equal(`${path.out}\n${path.err}`.includes('/Users/fixture'), false, 'the refusal never echoes the path');
   const clean = await submitNamingThisMachine(sandbox(), false, { body: 'a plain note', settings: { noCoAuthor: true } });
   assert.equal(clean.code, 0, clean.err);
 });

@@ -179,6 +179,7 @@ export const MACHINE_DEFAULTS = {
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
+  'route.reservations': false,
   'runner.packCache': false,
   runnerRates: {},
   runners: [],
