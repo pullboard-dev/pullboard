@@ -127,6 +127,8 @@ export async function topUpClaims(ctx, values, { most = Infinity } = {}) {
       // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
       for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
+      // A seat whose own gate went red fixes that item first (store.next-own-red-first), so it takes no second build until it resubmits.
+      if (store.queuedReds(board, me).length) return 0;
       return store.claimsPerSeat(board, perSeat, { runs: store.boardRunsReader(board, ctx.file) }).n - heldTop(ctx, board).length;
     });
     if (room <= 0) break;

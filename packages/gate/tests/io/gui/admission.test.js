@@ -10,9 +10,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { checkNeedsGui } from '../../../src/io/gui/admission.js';
 import { testsNeedGui } from '../../../src/io/gui/admission.js';
+import { timingTestFiles } from '../../../src/io/gui/admission.js';
 import { guiSession } from '../../../src/io/gui/session.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { runFixtureGit } from '../../fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { timingTestFiles as timingTestFilesFromDoor } from '../../../index.js';
 
 test('gate.io-gui-admission.gui-admission-reads-an-explicit-file: GUI admission reads an explicit file marker rather than Chrome headless arguments [C7,V4]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-marker-'));
@@ -97,4 +100,24 @@ test('gate.io-gui-admission.unreadable-or-nonregular-committed-gui-metadata: unr
   box.command('commit', '-qm', 'Nonregular test input');
   const link = box.command('rev-parse', 'HEAD');
   assert.equal(await checkNeedsGui(box.root, 'node apps/cli/src/io/run/tests.js test/link.test.js', { commit: link }), true);
+});
+
+test('gate.io-gui-admission.timing-header-declares: clause 1: timingTestFiles returns exactly the files whose leading comments hold a @pullboard-test-timing line, never the tag after code, inside a string, or on a missing file [C7]', t => {
+  const { root, write } = privateFixtureFiles('pullboard-timing-marker-');
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  write('declared.test.js', '/** A note. */\n/** @pullboard-test-timing */\nconst x = 1;');
+  write('line.test.js', '// @pullboard-test-timing\nconst x = 1;');
+  write('after-code.test.js', 'const x = 1;\n/** @pullboard-test-timing */');
+  write('in-string.test.js', 'const x = "/** @pullboard-test-timing */";');
+  write('gui.test.js', '/** @pullboard-test-gui */\nconst x = 1;');
+  const files = ['declared.test.js', 'line.test.js', 'after-code.test.js', 'in-string.test.js', 'gui.test.js', 'missing.test.js'];
+  assert.deepEqual(timingTestFiles(root, files), ['declared.test.js', 'line.test.js']);
+  assert.deepEqual(timingTestFilesFromDoor(root, files), ['declared.test.js', 'line.test.js'], 'the gate front door exports it');
+  assert.equal(testsNeedGui(root, ['declared.test.js']), false, 'the timing tag asks for no GUI');
+});
+
+test('gate.io-gui-admission.timing-files-declared-here: clause 2: in this repository timingTestFiles finds the three admission-loans timing files [C7]', () => {
+  const root = join(import.meta.dirname, '../../../../..');
+  const names = ['packages/gate/tests/io/main/admission-loans.test.js', 'packages/gate/tests/io/main/admission-loans-p95-landing.test.js', 'packages/gate/tests/io/main/admission-loans-p95-native.test.js'];
+  assert.deepEqual(timingTestFiles(root, names), names);
 });

@@ -502,6 +502,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
+    "adapter-lint-github.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/github.js"
+    },
     "adapter-lint-ssh.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/ssh.js"
