@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 /** Check every incoming PR or main-push commit against the event's trusted base policy [C1,C7]. */
-import { readFileSync } from 'node:fs';
 // The light commits door alone, not the commits barrel: the barrel's hooks load node:sqlite, whose
 // ExperimentalWarning would break the one-line refusal CI prints [C1,C7].
 import { contributionSignoffProblem } from '../../../../commits/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
+
+const fs = fileSystemAdapter();
+const environment = environmentAdapter();
 
 /** Use structured event data rather than interpolating contributor-controlled values into a shell. */
 function main() {
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+  const event = JSON.parse(fs.readFile(environment.get('GITHUB_EVENT_PATH'), 'utf8'));
   let range;
-  if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+  if (environment.get('GITHUB_EVENT_NAME') === 'pull_request') {
     range = { base: event.pull_request?.base?.sha, head: event.pull_request?.head?.sha };
-  } else if (process.env.GITHUB_EVENT_NAME === 'push') {
+  } else if (environment.get('GITHUB_EVENT_NAME') === 'push') {
     range = { base: /^0+$/u.test(event.before ?? '') ? null : event.before, head: event.after };
   } else throw new Error('Run the sign-off check for a pull_request or push event with its complete event file.');
   const result = contributionSignoffProblem(process.cwd(), range);

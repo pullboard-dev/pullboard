@@ -7,6 +7,10 @@
  * Why here: main-test was a controller-dispatch kind; under pull nothing ran it and every row stayed queued (#6063).
  */
 import { tryGit } from '../../../git/index.js';
+import { plainTrunkRef } from '../../../git/index.js';
+import { repoInfo } from '../../../git/index.js';
+import { resolveCommit } from '../../../git/index.js';
+import { trunkRevisionReader } from '../../../git/index.js';
 import { atomically } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { readPayload } from '../../../jobs/index.js';
@@ -41,6 +45,13 @@ const WIDE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const WIDE_SCAN_JOBS = 6000;
 // Budget: one seeding queues at most this many files.
 const WIDE_FILES = 50;
+/** The seeding query: the 24 h window is the job_kind_created range, so it reads only the window's jobs, then one receipt step each by the job_step key. */
+export const WIDE_SEED_SQL = `SELECT job.job_item AS item, step.job_step_payload AS payload FROM job
+  JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'receipt'
+    AND step.job_step_seq = (SELECT MAX(job_step_seq) FROM job_step WHERE job_step_job = job.job_id AND job_step_name = 'receipt')
+  WHERE job.job_kind IN ('gate', 'gate-shard') AND job.job_item IS NOT NULL AND job.job_created >= ?
+    AND COALESCE(json_extract(step.job_step_payload, '$.receipt.status'), 1) <> 0
+  ORDER BY job.job_created DESC LIMIT ?`;
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
 
@@ -209,8 +220,8 @@ export function applyMainTestReceipt(board, { job, receipt }, { now = Date.now()
   return { applied: true, outcome: 'recorded', verdict };
 }
 
-/** The main each board's wide failures were last seeded for, so a claim that finds main unmoved reads nothing. */
-const seededAt = new WeakMap();
+/** The main each board root's wide failures were last seeded for; keyed by root path, never by db handle, so every open of one board root shares it. */
+const seededAt = new Map();
 
 /** The test files a posted gate or shard receipt names as failed: its red phases' failing cases and failed-file footers. */
 function redFiles(receipt) {
@@ -236,20 +247,15 @@ function redFiles(receipt) {
  */
 export function seedWideMainTests(board, { main, now = Date.now() }) {
   const { db } = board;
-  if (!board.gitRoot || !SHA.test(String(main)) || seededAt.get(db) === main) return [];
-  seededAt.set(db, main);
+  if (!board.gitRoot || !SHA.test(String(main)) || seededAt.get(board.gitRoot) === main) return [];
+  seededAt.set(board.gitRoot, main);
   const tree = tryGit(board.gitRoot, ['rev-parse', `${main}^{tree}`]);
   const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]);
   let command = null;
   try { command = shown.status === 0 ? JSON.parse(shown.stdout)?.affectedTests : null; } catch { command = null; }
   if (tree.status !== 0 || !/^[0-9a-f]{40,64}$/u.test(tree.stdout) || typeof command !== 'string' || !command.trim()) return [];
   // Red gates and shards of the window: an inline receipt that passed is skipped in SQL; a blob stub has no status and is read.
-  const rows = db.prepare(`SELECT job.job_item AS item, step.job_step_payload AS payload FROM job
-    JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'receipt'
-      AND step.job_step_seq = (SELECT MAX(job_step_seq) FROM job_step WHERE job_step_job = job.job_id AND job_step_name = 'receipt')
-    WHERE job.job_kind IN ('gate', 'gate-shard') AND job.job_item IS NOT NULL AND job.job_created >= ?
-      AND COALESCE(json_extract(step.job_step_payload, '$.receipt.status'), 1) <> 0
-    ORDER BY job.job_created DESC LIMIT ?`).all(now - WIDE_WINDOW_MS, WIDE_SCAN_JOBS);
+  const rows = db.prepare(WIDE_SEED_SQL).all(now - WIDE_WINDOW_MS, WIDE_SCAN_JOBS);
   const items = new Map();
   for (const { item, payload } of rows) {
     let posted = null;
@@ -273,4 +279,25 @@ export function seedWideMainTests(board, { main, now = Date.now() }) {
     queued.push(id);
   }
   return queued;
+}
+
+/** The trunk ref reader of each board root, so a claim asks Git for the repository's paths once, not on every claim. */
+const TRUNK_READERS = new Map();
+
+/** Accepted main's commit, read from trunk's ref files first and from Git when they name none; null without a repository. */
+function acceptedMain(root) {
+  if (!root) return null;
+  let reader = TRUNK_READERS.get(root);
+  if (!reader) {
+    reader = trunkRevisionReader(repoInfo(root));
+    TRUNK_READERS.set(root, reader);
+    while (TRUNK_READERS.size > 32) TRUNK_READERS.delete(TRUNK_READERS.keys().next().value);
+  }
+  const read = reader();
+  return SHA.test(String(read)) ? read : resolveCommit(root, plainTrunkRef(root));
+}
+
+/** The claim path's seeding: wide failures for accepted main, once per board root and main sha; a refusal never fails the claim. */
+export function seedWideMainTestsAtMain(board, { now }) {
+  try { return seedWideMainTests(board, { main: acceptedMain(board.gitRoot), now }); } catch (error) { if (!error?.code) throw error; return []; }
 }

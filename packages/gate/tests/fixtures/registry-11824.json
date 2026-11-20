@@ -1,0 +1,4 @@
+{
+  "gate.io-test-child-fixture.git-runs-by-its-real-path": {"proves":{"specs":["C7"],"claim":"A git fixture child with no git before the system one on its PATH runs by the real git path, and other commands are unchanged."},"why":"Without it every fixture git call pays two execs through the system shim.","kind":"cell unit","inputs":["packages/gate/tests/fixtures/child.js"]},
+  "gate.io-test-child-fixture.a-fixture-git-wrapper-still-runs": {"proves":{"specs":["C7"],"claim":"A fixture whose PATH holds its own bin/git wrapper still runs that wrapper."},"why":"Without it the counting and slowing wrappers in the speed and landing tests would be skipped.","kind":"cell unit","inputs":["packages/gate/tests/fixtures/child.js"]}
+}

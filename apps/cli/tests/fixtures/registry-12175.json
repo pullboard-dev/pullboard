@@ -1,0 +1,4 @@
+{
+  "cli.sprint.screen-on-submit": {"proves":{"specs":["V2","M1"],"claim":"On a fresh board with pace sprint, an item claimed, built and submitted with submit --no-next gets exactly one green screen job through the starter pullboard serve hands the board, with no accept given."},"why":"Without it a sprint item could wait for a verdict like a steady one, with no screen to land on.","kind":"journey","inputs":["apps/cli/journeys/sprint/screen.test.js","apps/cli/src/io/commands/serve.js","packages/api/src/io/gate/screen-start.js","packages/drive/src/io/screen.js"]},
+  "cli.sprint.screen-steady-none": {"proves":{"specs":["V2","M1"],"claim":"The same journey on a steady board makes no screen job and the item keeps its gate job as today."},"why":"Sprint wiring must change nothing for steady boards.","kind":"journey","inputs":["apps/cli/journeys/sprint/screen.test.js","apps/cli/src/io/commands/serve.js"]}
+}

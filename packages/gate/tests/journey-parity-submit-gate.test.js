@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/submit/missing.test.js apps/cli/tests/fixtures/submit/gate.js apps/cli/tests/fixtures/e2e.js */
+/** @pullboard-test-input apps/cli/tests/io/submit/missing.test.js apps/cli/tests/fixtures/submit/gate.js apps/cli/tests/fixtures/e2e.js */
 /** @pullboard-world-pin: clause 2 reads the committed submit gate fixture source to prove its quick CLI calls start no process. */
 /**
  * The parity check for the submit gate fixture (U149): its setup calls (init, worktree, add, claim, fact) are answered by the warm
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/submit/missing.test.js', cases: ['clause 1: submit refuses in under a second when the frozen check names a missing test file and lists the added files, with gate.refuseMissingCheckFile on [C7]'] }];
+const SAMPLES = [{ journey: 'apps/cli/tests/io/submit/missing.test.js', cases: ['clause 1: submit refuses in under a second when the frozen check names a missing test file and lists the added files, with gate.refuseMissingCheckFile on [C7]'] }];
 
 test('gate.journey-parity-submit-gate.a-submit-gate-fixture-sample-gives-the: clause 1: a submit gate fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);

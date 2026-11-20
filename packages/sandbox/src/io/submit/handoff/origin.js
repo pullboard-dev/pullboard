@@ -9,7 +9,7 @@ import { sameCommonDir } from '../../../../../git/index.js';
 import { itemPatchDigest } from '../../../../../items/index.js';
 import { agentById } from '../../../../../store/index.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   join,
   resolve,
@@ -26,6 +26,9 @@ import {
 import { submitHandoff } from '../../../../../store/index.js';
 import { handoffRecords } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
+import { environmentAdapter } from '../../../../../env/index.js';
+
+const fs = fileSystemAdapter();
 
 const CONTEXTS = new WeakMap();
 const BOARDS = new WeakMap();
@@ -39,7 +42,7 @@ export function submitHandoffRoot(commonDir, job) {
 /** Whether this worker's checkout is the private source its native queue identity names. */
 function atHandoffRoot(ctx, job) {
   const expected = submitHandoffRoot(ctx.info.commonDir, job);
-  return realpathSync(ctx.info.root) === realpathSync(expected);
+  return fs.realpath(ctx.info.root) === fs.realpath(expected);
 }
 
 /** Install finite worker authority only after checking the exact native queued source on this board. */
@@ -148,7 +151,7 @@ export function submitHandoffHookActor(ctx, board) {
   const main = mainPolicy(ctx.info.root).commit;
   const mergeHead = tryGit(ctx.info.root, ['rev-parse', '--verify', 'MERGE_HEAD']);
   // Git invokes pre-merge-commit before writing MERGE_HEAD; these are candidate SHAs, never actor authority.
-  const names = Object.keys(process.env).filter(name => name.startsWith('GITHEAD_'));
+  const names = Object.keys(environmentAdapter().all()).filter(name => name.startsWith('GITHEAD_'));
   const candidates = names.every(name => /^GITHEAD_[a-f0-9]{40}$/u.test(name))
     ? names.map(name => name.slice('GITHEAD_'.length)) : [];
   const merge = mergeHead.status === 0 ? mergeHead.stdout.trim() : candidates.length === 1 ? candidates[0] : null;

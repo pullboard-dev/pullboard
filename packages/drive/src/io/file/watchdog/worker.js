@@ -1,13 +1,13 @@
 /** Independent supervision still runs while a test blocks its main JavaScript thread [C7,V10]. */
 import { parentPort } from 'node:worker_threads';
 import { workerData } from 'node:worker_threads';
-import { writeSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { fileIdleHung } from '../../../logic/policy.js';
 import { processTreeCpu } from './tree.js';
 import { treeCpuDelta } from './tree.js';
 import { processTreeDescendants } from './tree.js';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 const tests = new Map();
 const startedAt = new Map();
@@ -45,11 +45,11 @@ function hung(reason, wall = false) {
   const name = tests.size ? [...tests.values()].join('; ') : '<file setup or cleanup>';
   if (wall) {
     // Past even the load-scaled wall a running case is bounded by its own deadline, so only file setup or cleanup is left to name.
-    writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case "<file setup or cleanup>": ${reason}; finished cases ${finishedSummary()}\n`);
+    fs.write(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} slowest running case "<file setup or cleanup>": ${reason}; finished cases ${finishedSummary()}\n`);
     void killTree();
     return;
   }
-  writeSync(2, `run-tests: HUNG file ${JSON.stringify(workerData.file)} test ${JSON.stringify(name)}: ${reason}; finished cases ${finishedSummary()}\n`);
+  fs.write(2, `run-tests: HUNG file ${JSON.stringify(workerData.file)} test ${JSON.stringify(name)}: ${reason}; finished cases ${finishedSummary()}\n`);
   void killTree();
 }
 
@@ -65,7 +65,7 @@ function overBudget() {
   if (killed) return;
   killed = true;
   const running = [...tests.values()].join('; ') || '<file setup or cleanup>';
-  writeSync(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} exceeded the per-file budget ${workerData.budgetMs}ms; running ${JSON.stringify(running)}; finished cases ${finishedSummary()}; last output: ${JSON.stringify(lastLines)}\n`);
+  fs.write(2, `run-tests: TIMEOUT file ${JSON.stringify(workerData.file)} exceeded the per-file budget ${workerData.budgetMs}ms; running ${JSON.stringify(running)}; finished cases ${finishedSummary()}; last output: ${JSON.stringify(lastLines)}\n`);
   void killTree();
 }
 if (workerData.budgetMs) setTimeout(overBudget, workerData.budgetMs);
@@ -116,7 +116,7 @@ setInterval(async () => {
   tree = current;
   if (workerData.outputMarker) {
     try {
-      const stamp = statSync(workerData.outputMarker).mtimeMs;
+      const stamp = fs.stat(workerData.outputMarker).mtimeMs;
       if (stamp !== outputStamp) { outputStamp = stamp; activity(); }
     } catch { /* No forwarded descendant output yet. */ }
   }
