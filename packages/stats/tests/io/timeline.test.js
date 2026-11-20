@@ -12,7 +12,7 @@ import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { readItemTimeline } from '../../index.js';
 
 test('stats.io-timeline.real-board: clause 2: readItemTimeline on a real board after an add, claim and submit returns those stages in order, then the gate job stages [C7,#12143]', t => {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile);
   const seat = cellSeat(board, { lane: 'core', path: '/builder' });
   const id = cellItem(board, { lane: 'core', title: 'Timeline fixture item' }).item_id;
