@@ -382,11 +382,10 @@ function storeOutcome(cache, keys, path, outcome) {
  * commit and file; later submits reuse completed results rather than rerunning the same file.
  * A frozen-check comparison pinned to an actual executor and runtime always executes without that generic cache.
  *
- * @param {string} root
- * @param {object} profile
- * @param {(state:object)=>void} [onWait]
- * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{env?: Record<string,string>, commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
+ * The arguments are, in order: root (string), profile (object), onWait (optional callback taking a state object),
+ * output (optional string, the failed phase's unchanged reporter output), and options (optional object: env, commit, detailed,
+ * fresh, allowCancelled, onMeasuredReceipt, onStart, runnerAdmission, execution).
+ * @param {...*} args - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
  * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
  * env, when given, is process.env for the whole comparison; absent, process.env is used and nothing changes.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
