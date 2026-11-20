@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
+/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/env/index.js packages/env/src/io/env.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
 /** Runners share one cells fixture-analysis memo through the controller; a bad memo never replaces good entries [C7]. */
 /** @pullboard-world-pin: the runner fixture carries the shipped memo-share module, the code a pinned main's archive holds. */
 import { test } from 'node:test';
@@ -103,6 +103,7 @@ function fixture(t) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('apps/cli/src/io/memo.js', readFileSync(fileURLToPath(new URL('../../src/io/memo.js', import.meta.url)), 'utf8'));
+  for (const path of ['packages/env/index.js', 'packages/env/src/io/env.js']) put(path, readFileSync(fileURLToPath(new URL('../../../../' + path, import.meta.url)), 'utf8'));
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
