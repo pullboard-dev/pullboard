@@ -1,9 +1,8 @@
-/** The hand-off ticket queue keeps submit order on a durable counter and refuses when it is damaged [C7]. */
+/** The hand-off ticket queue drops a withdrawn job's place and nothing else [C7]. */
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
   realpathSync,
   rmSync,
@@ -13,12 +12,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
+  dropHandoffTicket,
   handoffQueueDirectory,
-  reserveHandoffTicket,
+  handoffTicketWaiting,
 } from '../../../../index.js';
-
-/** Count launch tickets while retaining the queue's durable counter and other bookkeeping. */
-function tickets() { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)); }
 
 /** A private machine home; the returned function puts the environment back and removes it. */
 function privateHome() {
@@ -31,13 +28,15 @@ function privateHome() {
   };
 }
 
-test('resources.cap.a-damaged-durable-ticket-counter-refuses: a damaged durable ticket counter refuses instead of reordering the queue [C7]', async () => {
+test('resources.cap.dropping-a-ticket-removes-its-place: dropping a job\'s hand-off ticket removes its place in line and leaves every other job\'s place [C7]', () => {
   const cleanup = privateHome();
   try {
     mkdirSync(handoffQueueDirectory(), { recursive: true });
-    writeFileSync(join(handoffQueueDirectory(), 'next-ticket'), 'damaged');
-    await assert.rejects(reserveHandoffTicket('next-job'), { code: 'HANDOFF_TICKET_SOURCE' });
-    assert.equal(readFileSync(join(handoffQueueDirectory(), 'next-ticket'), 'utf8'), 'damaged');
-    assert.deepEqual(tickets(), []);
+    for (const name of ['000000000001-job-a.json', '000000000002-job-a.reserved', '000000000003-job-b.json']) writeFileSync(join(handoffQueueDirectory(), name), '{}\n');
+    assert.equal(handoffTicketWaiting('job-a'), true);
+    assert.equal(dropHandoffTicket('job-a'), 2);
+    assert.equal(handoffTicketWaiting('job-a'), false);
+    assert.equal(handoffTicketWaiting('job-b'), true);
+    assert.deepEqual(readdirSync(handoffQueueDirectory()), ['000000000003-job-b.json']);
   } finally { cleanup(); }
 });

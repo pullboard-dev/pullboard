@@ -269,7 +269,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: diagnose && !run.isGreen ? readFileSync(summary.logPath, 'utf8') : renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: requested ?? paths, known: [], main: null,
-    ...(run.executionRunner ? {} : { local: loadStart ? `${localReason()}; ${loadStart.note}` : localReason() }) };
+    ...(run.executionRunner ? {} : { local: loadStart ? `${localReason()}; ${loadStart.note}` : localReason() }),
+    ...(run.screenshotsPath ? { screenshotsPath: run.screenshotsPath } : {}) };
   // A one-file run is a builder diagnosing its own red: main's run of that file waits for a second runner slot and
   // answers a question nobody asked, so it runs only on request (compareMain, pullboard test --compare-main).
   const skipMain = !affected && paths.length === 1 && !compareMain;

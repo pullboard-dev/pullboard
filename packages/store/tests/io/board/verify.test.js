@@ -72,3 +72,60 @@ test('store.io-board-verify.landed-dependent-gets-notice: clause 2: a dependent 
   assert.notEqual(status(board, landed), 'open', 'the landed item stays landed');
   assert.ok(noteTexts(board, landed).some(text => text.includes(`#${parent}`) && text.includes('already landed')), 'a notice fact names the parent');
 });
+
+const LOW = [{ id: 'row-1', stakes: 'low', personApproved: true }];
+const MACHINE = [{ machineRun: true, redBefore: true, greenAfter: true }];
+
+/** A submitted item whose frozen record carries one low-stakes row, built by core-1. */
+function soloItem(board, title, stakes = 'low') {
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title, criterion: `1. ${CLAUSE} [test]` });
+  store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
+    freeze: () => ({ text: JSON.stringify({ criterion: `1. ${CLAUSE} [test]`, rows: [{ id: 'row-1', stakes }], policy: { version: 1, commit: LANDED, verify: { policy: 'any', family: 'off' } } }), digest: `synthetic-${title}` }) });
+  store.submit(board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: TREE, files: [],
+    submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'synthetic native board-state fixture; no execution proof' } });
+  return id;
+}
+
+/** The builder's own verify call, with the sealed review the CLI records and the solo facts as given. */
+function builderVerify(board, id, decision, solo) {
+  board.executionEngineVersion = store.ENGINE_VERSION; // the verify table decides only on a board that runs an engine
+  const item = store.getItem(board, id);
+  return store.verify(board, id, { agentId: 'core-1', decision, ...(decision === 'REJECT' ? { reason: 'TEST_FAILURE', clause: CLAUSE } : {}), head: item.item_commit, digest: item.item_frozen_digest,
+    note: 'Synthetic solo accept fixture; the check ran red then green on a machine.', ...REVIEW, review: { commit: item.item_commit, head: item.item_commit, trunk: LANDED, paths: [] }, ...solo });
+}
+
+const soloEvents = (board, id) => board.db.prepare("SELECT event_by by, event_detail d FROM event WHERE item_id=? AND event_kind='solo-low-stakes-accept'").all(id).map(row => ({ by: row.by, ...JSON.parse(row.d) }));
+
+test('store.io-board-verify.solo-accept-event: clause 1: the builder accepts its own low-stakes work with soloLowStakes, person-approved rows and machine-run red-then-green checks, and one solo-low-stakes-accept event names the verdict, commit, tree, digest and by [C7,#966]', t => {
+  const { board } = seeded(t);
+  const id = soloItem(board, 'Solo low');
+  assert.equal(builderVerify(board, id, 'ACCEPT', { soloLowStakes: true, rows: LOW, checks: MACHINE }).decision, 'ACCEPT');
+  const item = store.getItem(board, id);
+  assert.equal(item.item_status, 'verified', 'the item is verified through the verified proof trigger');
+  const verdict = board.db.prepare('SELECT verdict_id id FROM verdict WHERE item_id=?').get(id).id;
+  const events = soloEvents(board, id);
+  assert.equal(events.length, 1, 'one event');
+  const { by, verdict: eventVerdict, commit, tree, digest } = events[0];
+  assert.deepEqual({ by, verdict: eventVerdict, commit, tree, digest }, { by: 'core-1', verdict, commit: item.item_commit, tree: TREE, digest: item.item_frozen_digest });
+  assert.equal(item.item_verified_by, 'core-1');
+});
+
+test('store.io-board-verify.solo-accept-narrow: clause 2: a builder accept without soloLowStakes, with a non-low row or with a check that is not machine-run red-then-green is refused SELF_VERIFY and writes no event; a builder reject is refused [C7,#966]', t => {
+  const { board } = seeded(t);
+  const refused = (id, decision, solo) => assert.throws(() => builderVerify(board, id, decision, solo), error => error.code === 'SELF_VERIFY');
+  const cases = [
+    ['Solo flag false', 'low', { soloLowStakes: false, rows: LOW, checks: MACHINE }],
+    ['Solo flag absent', 'low', { rows: LOW, checks: MACHINE }],
+    ['Solo team row', 'team', { soloLowStakes: true, rows: LOW, checks: MACHINE }],
+    ['Solo unproved check', 'low', { soloLowStakes: true, rows: LOW, checks: [{ machineRun: true, redBefore: false, greenAfter: true }] }],
+  ];
+  for (const [title, stakes, solo] of cases) {
+    const id = soloItem(board, title, stakes);
+    refused(id, 'ACCEPT', solo);
+    assert.equal(store.getItem(board, id).item_status, 'submitted', `${title}: still submitted`);
+    assert.equal(soloEvents(board, id).length, 0, `${title}: no event`);
+  }
+  const rejected = soloItem(board, 'Solo builder reject');
+  refused(rejected, 'REJECT', { soloLowStakes: true, rows: LOW, checks: MACHINE });
+  assert.equal(soloEvents(board, rejected).length, 0, 'a builder reject writes no event');
+});
