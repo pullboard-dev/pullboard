@@ -33,3 +33,17 @@ test('cli.io-commands-edit.strict-baseline-off: clause 2: with claim.checkCeilin
   assert.equal(baseline.command, 'node --test web/other.test.js');
   assert.equal('strict' in baseline, false);
 });
+
+test('cli.edit.needs-flag: clause 2: edit --needs gui replaces the list and edit --needs "" clears it to [] [C7,#11206]', async () => {
+  const box = helpers.project();
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Needs edit', '--specs', 'G1', '--needs', 'browser,gui', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = String(JSON.parse(added.out).item.item_id);
+  const needsOf = async () => JSON.parse((await box.inProcess(box.repo, 'show', id, '--json')).out).item_needs;
+  const replaced = await box.inProcess(box.repo, 'edit', id, '--needs', 'gui', '--json');
+  assert.equal(replaced.code, 0, replaced.err + replaced.out);
+  assert.deepEqual(await needsOf(), ['gui']);
+  const cleared = await box.inProcess(box.repo, 'edit', id, '--needs', '', '--json');
+  assert.equal(cleared.code, 0, cleared.err + cleared.out);
+  assert.deepEqual(await needsOf(), []);
+});

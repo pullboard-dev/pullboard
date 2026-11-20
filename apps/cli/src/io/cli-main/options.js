@@ -15,6 +15,7 @@ const OPTIONS = {
   'split-coordinator': { type: 'boolean' },
   'expected-minutes': { type: 'string' },
   readiness: { type: 'string' },
+  needs: { type: 'string' },
   sensitive: { type: 'boolean' },
   'machine-verified': { type: 'string' },
   'machine-commands-file': { type: 'string' },
