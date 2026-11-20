@@ -35,6 +35,7 @@ import { localRunnerStatus } from '../../../../../packages/drive/index.js';
 import { localRunnerFolder } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
+import { runnerServiceRecords } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
@@ -87,17 +88,20 @@ function toolchainLine(host, problem) {
 }
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */
-export async function runnerCommand(io, { first, second, rest, values }, { serve = serveRunner } = {}) {
+export async function runnerCommand(io, { first, second, rest, values }, { serve = serveRunner, install = installRunnerService } = {}) {
   if (first === 'list') {
     if (second || rest.length || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', 'pullboard runner list');
     // Registered capacity is what each runner enforces, whatever its own settings say (#1066).
     const settings = loadMachineSettings();
     const registered = new Map((settings.runners ?? []).map(runner => [runner.host, runner]));
+    // A runner whose install-serve left an older LaunchDaemon waiting on its sudo line carries that on its row [P7].
+    const services = runnerServiceRecords();
+    const pending = host => (services[host]?.pendingRemoval === true ? { pendingRemoval: true, ...(services[host].sudo ? { sudo: services[host].sudo } : {}) } : {});
     const runners = runnerResourceStatus(settings.runners ?? []).map(row => {
       const runner = registered.get(row.host);
-      if (!runner) return { ...row, computedSlots: null };
+      if (!runner) return { ...row, ...pending(row.host), computedSlots: null };
       const offered = effectiveRunner(runner, settings.gate?.measuredSlots === true);
-      return { ...row, slots: offered.slots, browser: offered.browser,
+      return { ...row, ...pending(row.host), slots: offered.slots, browser: offered.browser,
         ...(runner.cores !== undefined ? { cores: runner.cores, memoryMB: runner.memoryMB, measuredAt: runner.measuredAt } : {}),
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
         fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}),
@@ -109,7 +113,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
     io.result?.({ runners, ...(local ? { local } : {}) });
     const localLine = local ? (local.state === 'live' ? `local (pid ${local.pid}, live)` : 'local (stopped)') : null;
     if (localLine && !runners.length) { io.say(localLine); return 0; }
-    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}${swapLine(registered.get(runner.host)) ? `\n  ${swapLine(registered.get(runner.host))}` : ''}`)].join('\n') : 'no runners registered');
+    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}${runner.pendingRemoval ? `\n  pending removal of old service${runner.sudo ? `: on ${runner.host} run: ${runner.sudo}` : ''}` : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}${swapLine(registered.get(runner.host)) ? `\n  ${swapLine(registered.get(runner.host))}` : ''}`)].join('\n') : 'no runners registered');
     return 0;
   }
   if (first === 'status') {
@@ -180,7 +184,7 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
     // The key: the flag, the URL's own ?k=, the runner environment's variable, or this machine's board key when it serves the board.
     const key = values.key ?? (values.remove ? undefined : serviceBoard(values.board).key) ?? environmentAdapter().get('PULLBOARD_BOARD_KEY')
       ?? (fs.exists(boardKeyFile()) ? boardKey() : undefined);
-    const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
+    const service = await install(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
     if (values.remove) {
       io.say(`removed runner serve from ${runner.host}`);
@@ -192,6 +196,10 @@ export async function runnerCommand(io, { first, second, rest, values }, { serve
       io.say(`runner serve on ${runner.host} is a LaunchDaemon ${service.label} run as ${service.user}, since macOS Local Network privacy blocks a LaunchAgent from the board's local network address; log ${service.log}`);
       if (!service.loaded) io.say(`one step left, as an administrator: on ${runner.host} run: ${service.sudo}`);
       return service.loaded ? 0 : 1;
+    }
+    if (service.pendingRemoval) {
+      io.say(`NOT READY: runner serve on ${runner.host} waits for the older LaunchDaemon to be removed${service.sudo ? `; on ${runner.host} run: ${service.sudo}` : ''}`);
+      return 1;
     }
     io.say(`installed runner serve on ${runner.host} as launchd agent ${service.label}, restarting on exit; log ${service.log}`);
     if (service.sudo) io.say(`an older LaunchDaemon is still installed; on ${runner.host} run: ${service.sudo}`);

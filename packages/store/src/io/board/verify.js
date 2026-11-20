@@ -2,6 +2,7 @@ import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
 import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
 import { addItem } from './add.js';
+import { announceItemState } from './link/announce.js';
 import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
@@ -324,4 +325,16 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}), ...(followUp && keepCheck && found.item_check && getItem(board, followUp)?.item_check === found.item_check ? { keptCheckFrom: found.item_check } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
+}
+
+/**
+ * Tell the parent boards that wait on a verified item its new state, after the verdict has been recorded.
+ * Why: the verdict is a replayed move and cannot carry a transport, so the command passes the link ports here after the move; a failed delivery stays queued for resendPendingBoardStates and never undoes the verdict [E32,B24].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ links: object[] }} ports
+ */
+export async function announceVerdict(board, id, ports) {
+  return announceItemState(board, id, ports);
 }

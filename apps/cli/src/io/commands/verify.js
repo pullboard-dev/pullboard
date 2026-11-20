@@ -1,6 +1,13 @@
 /** @pullboard-module-loads packages/git/src/io/review-folder.js */
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { announcePorts } from '../link/ports.js';
+import { boardLinkPorts } from '../link/ports.js';
+import { listProjects } from '../../../../../packages/seats/index.js';
+import { announceVerdict } from '../../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
@@ -281,6 +288,15 @@ function privateCheckEvidence(check, { hasStructuredCounts = false } = {}) {
  */
 function sameVerdictNote(recorded, given) {
   return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
+}
+
+/** Tell each linked parent board that waits on this item its new state; a failed delivery stays queued and never undoes the verdict [E32,B24,#11039]. */
+async function announceVerdictState(ctx, board, id) {
+  const open = (root) => ctx.nativeBoard.openBoard(boardFilePath(join(root, '.git')), ctx.clock, { isMain: false, gitRoot: root });
+  const ports = announcePorts({ board, root: ctx.info.root }, { projects: listProjects(), openBoard: open, closeBoard, portsFor: boardLinkPorts,
+    readKey: (boardId) => readBoardKey(boardId, { legacyKeychain: false }) });
+  try { await announceVerdict(board, id, ports); }
+  finally { ports.close(); }
 }
 
 /**
@@ -599,6 +615,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
+    if (verdict.decision === 'ACCEPT' || verdict.decision === 'REJECT') await announceVerdictState(ctx, board, id);
     if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
       acceptedLandingCommit = store.checkedLandingCommit(board, accepted);

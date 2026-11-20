@@ -103,8 +103,6 @@
     "packages/runners/src/io/pull/enqueue.js": 1,
     "packages/runners/src/io/service.js": 10,
     "packages/runners/src/io/slots.js": 8,
-    "packages/runners/src/io/source/scan.js": 11,
-    "packages/runners/src/io/tooling/bundle.js": 5,
     "packages/runners/src/io/tooling/remote.js": 13,
     "packages/runners/src/io/tooling/saved.js": 5,
     "packages/sandbox/src/io/environment.js": 1,
@@ -132,11 +130,8 @@
     "packages/store/src/io/board/state.js": 2,
     "packages/store/src/io/board/submit.js": 1,
     "packages/store/src/io/board/write/lock.js": 12,
-    "packages/store/src/io/presence.js": 4,
-    "packages/store/src/io/receipts.js": 2,
     "packages/sync/src/io/git/lock.js": 1,
     "packages/sync/src/io/git/repair.js": 6,
-    "packages/sync/src/io/main.js": 1,
-    "packages/verify/src/io/rule/proof/coverage.js": 1
+    "packages/sync/src/io/main.js": 1
   }
 }

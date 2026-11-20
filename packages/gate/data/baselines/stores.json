@@ -95,6 +95,11 @@
       "disk": "other",
       "owner": "packages/keys/src/io/relay.js"
     },
+    "board-links": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "apps/cli/src/io/link/ports.js"
+    },
     "census": {
       "kind": "dir",
       "disk": "other",
