@@ -173,7 +173,7 @@ test('api.io-recheck.seed-once-per-main: clause 1: with gate.seedWideMainTests o
   project.git(project.repo, 'commit', '-qm', 'chore: move main');
   const moved = project.git(project.repo, 'rev-parse', 'HEAD');
   const movedTree = project.git(project.repo, 'rev-parse', 'HEAD^{tree}');
-  const again = seedWideMainTests(reopened(t, project), { main: moved, now });
+  const again = seedWideMainTests({ db, gitRoot: project.repo }, { main: moved, now });
   assert.ok(again.includes(`main-test:${movedTree}:tests/wide.test.js:node --test`), 'a new main sha seeds the wide files again');
 });
 
