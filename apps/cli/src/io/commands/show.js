@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/jobs/index.js */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
@@ -6,6 +7,9 @@ import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { reservationLine } from '../../logic/show/core.js';
+import { frozenLines } from '../../logic/show/frozen.js';
+import { threadLines } from '../../logic/show/thread.js';
 import { tailLines } from '../../logic/show/tail.js';
 import { fieldLines } from '../../logic/show/fields.js';
 import { reviewLines } from '../../logic/show/review.js';
@@ -19,6 +23,7 @@ import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { routeReservations } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { derivedStateEnabled } from '../../../../../packages/config/index.js';
@@ -144,7 +149,7 @@ export async function run(io, { first, values }) {
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
-  const { fields, links, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  const { fields, links, afterGate, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
     // An accept whose only conflict with main is one the mechanical merge resolves stays fresh, as it does at landing; the merge index loads only for an accepted item [C7,#11417].
@@ -164,6 +169,8 @@ export async function run(io, { first, values }) {
     // Free related links (#9356) load beside the fields, so with the setting off no link is read and show is as it was [C7].
     const links = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).relatedLinks(board, id, { enabled: true })
       .map(other => ({ id: other, title: board.db.prepare('SELECT item_title FROM item WHERE item_id=?').get(other)?.item_title ?? '' })) : [];
+    // The after-gate ids sit beside the after line; the full store loads only for an item that has any [C7].
+    const afterGate = item.item_after && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`after_gate:${id}`) ? (await import('../../../../../packages/store/index.js')).afterGateIds(board, id) : [];
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
@@ -180,10 +187,10 @@ export async function run(io, { first, values }) {
     const runsOn = (() => { try { return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('runs_store')?.meta_value === '1'; } catch { return false; } })();
     const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
     const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
-    if (values.json) return { ...result, gateJob, fields, links };
+    if (values.json) return { ...result, gateJob, fields, links, afterGate };
     result.foreign = await foreignStates(board, item, async () => (await import('../../../../../packages/store/index.js')).foreignDependencyStates);
     const history = store.events(board, { itemId: id });
-    return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+    return { ...result, gateJob, fields, links, afterGate, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
       agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
@@ -205,7 +212,7 @@ export async function run(io, { first, values }) {
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
-  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+  const environment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN')
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
     try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
@@ -218,6 +225,9 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
   io.say(core.item);
+  const reserved = reservationLine(item, routeReservations());
+  if (reserved) io.say(reserved);
+  if (afterGate.length) io.say(`after-gate ${afterGate.map(waitId => `#${waitId}`).join(',')}`);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
@@ -238,7 +248,7 @@ export async function run(io, { first, values }) {
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
-    const { retainedGateAssertions } = await import('../../../../../packages/gate/index.js');
+    const { retainedGateAssertions } = await import('../../../../../packages/gate/heavy.js');
     for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
   }
   if (item.item_rehome_import) {
@@ -273,7 +283,7 @@ export async function run(io, { first, values }) {
       io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
     }
   }
-  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
+  if (item.item_check_baseline) (await import('../../../../../packages/gate/heavy.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);
@@ -287,22 +297,12 @@ export async function run(io, { first, values }) {
     const detail = JSON.parse(event.event_detail);
     io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${firstLineOf(detail.note)}`);
   }
-  if (frozen) {
-    io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
-    const rulings = testHashRulings(thread, store.PERSON);
-    for (const [path, hash] of Object.entries(frozen.testHashes ?? {})) {
-      const ruled = rulings.filter(ruling => ruling.path === path);
-      io.say(`  test ${path}: sha256 ${hash}${ruled.length ? `; person ruling ${ruled.map(ruling => `${ruling.factId} accepts ${ruling.hash.slice(0, 12)}`).join(', ')}` : ''}`);
-    }
-  }
+  const bar = frozenLines(item, frozen, { rulings: frozen ? testHashRulings(thread, store.PERSON) : [], authors: testAuthors(thread),
+    reviewerFamilies: [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))],
+    testFiles: barTestFiles(item).criterion.sort(), agentName, readable: readableRigorText });
+  for (const line of bar.frozen) io.say(line);
   for (const line of mutationScoreLines(thread)) io.say(line);
-  const authors = testAuthors(thread);
-  const reviewerFamilies = [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))];
-  for (const path of barTestFiles(item).criterion.sort()) {
-    const author = authors[path];
-    io.say(`  test ${path}: author ${author ? `${agentName(author.seat)} [family ${author.family}]` : 'not recorded'}; reviewer family ${reviewerFamilies.join(', ') || 'none yet'}`);
-  }
+  for (const line of bar.authors) io.say(line);
   const tail = tailLines(item, { builderName: agentName(item.item_built_by), reviewerName: reviewer ? agentName(reviewer) : null, infra });
   for (const line of tail.before) io.say(line);
   // Earlier verdicts as one line each, so an item sent back several times stays short to read
@@ -322,17 +322,6 @@ export async function run(io, { first, values }) {
   for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
   if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
   if (tail.withdrawn) io.say(tail.withdrawn);
-  io.say('thread:');
-  for (const entry of thread) {
-    if (entry.kind === 'proof-run') continue;
-    const stamp = `  ${entry.at}  ${agentDisplayName(agents, ctx.config, entry.by)}  `;
-    if (entry.type === 'fact') {
-      io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.answers ? ' (answers ' + entry.answers + ')' : entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
-      if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
-    } else {
-      const detail = entry.detail;
-      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.previousTitle ? ` (title was: ${detail.previousTitle})` : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
-    }
-  }
+  for (const line of threadLines(thread, (by) => agentDisplayName(agents, ctx.config, by), firstLineOf)) io.say(line);
   return 0;
 }

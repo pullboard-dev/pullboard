@@ -43,7 +43,8 @@ export function startFixtureLocalRunner(env, root, { entry } = {}) {
   if (typeof entry !== 'string' || !entry) throw new Error('startFixtureLocalRunner needs { entry }: the path of the CLI entry file, from the caller');
   const folder = fixtureRunnerFolder(env);
   addLocalBoard(folder, root);
-  const live = localRunnerState(folder);
+  const home = env.PULLBOARD_HOME || null;
+  const live = localRunnerState(folder, Date.now(), home);
   if (live) return { pid: live.pid, started: false };
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const kept = Object.fromEntries(Object.entries(env).filter(([key, value]) => value !== undefined && reachesRunner(key)));
@@ -55,7 +56,7 @@ export function startFixtureLocalRunner(env, root, { entry } = {}) {
     { cwd: resolve(root), env: kept, detached: true, stdio: 'ignore' });
   if (started.status !== 0) throw new Error(`could not start the fixture local runner for ${root}: ${started.error?.message ?? `exit ${started.status}`}`);
   for (const until = Date.now() + START_MS; Date.now() < until;) {
-    const state = localRunnerState(folder);
+    const state = localRunnerState(folder, Date.now(), home);
     if (state) return { pid: state.pid, started: true };
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
   }
@@ -73,7 +74,7 @@ export function startFixtureLocalRunner(env, root, { entry } = {}) {
  * @returns {boolean} True when a runner was started.
  */
 export function reviveFixtureLocalRunner(cwd, env, { entry = CLI_ENTRY } = {}) {
-  if (!env.PULLBOARD_MACHINE_HOME || localRunnerState(fixtureRunnerFolder(env))) return false;
+  if (!env.PULLBOARD_MACHINE_HOME || localRunnerState(fixtureRunnerFolder(env), Date.now(), env.PULLBOARD_HOME || null)) return false;
   let settings = {};
   try { settings = JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')); } catch { /* the defaults */ }
   if (settings.gate?.localRunner === false || (settings.runners ?? []).length) return false;

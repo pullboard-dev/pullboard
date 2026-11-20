@@ -10,6 +10,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 /** Require actual successful CLI execution before inspecting its document. */
@@ -33,6 +34,7 @@ test('cli.journeys-companion-companions-review.a-reviewer-gets-the-companion-com
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   // @pullboard-board-file journey: reservation and verdict share this durable board
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));

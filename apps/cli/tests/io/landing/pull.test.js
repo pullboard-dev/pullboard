@@ -15,6 +15,7 @@ import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js'
 import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
+import { offerOverConflict } from '../../fixtures/landing/conflict-offer.js';
 import { offerWithLog } from '../../fixtures/landing/offer.js';
 import { fixtureBoard } from '../../fixtures/board.js';
 import { temporaryDirectory } from '../../fixtures/board.js';
@@ -114,6 +115,21 @@ test('cli.io-landing-pull.offer-unchanged-outside-lock: clause 2: the offered jo
   assert.deepEqual(raced.result.items, [1], 'only #1 is left to this offer');
 });
 
+test('cli.io-landing-pull.mechanical-only-conflict-stays-verified: clause 1: a mechanical-only conflict keeps the accepted item verified and the offer takes it [C7,#3064]', async t => {
+  const { result, said, item } = await offerOverConflict(t, mechanicalOnlyConflictRepo());
+  assert.equal(item.item_status, 'verified', said.join('\n'));
+  assert.deepEqual(result?.items, [item.item_id]);
+  assert.doesNotMatch(said.join('\n'), /STALE_VERDICT/u);
+});
+
+test('cli.io-landing-pull.real-conflict-reopens-naming-file: clause 2: a real conflict still reopens the accepted item naming the file [C7,#3064]', async t => {
+  const repo = realConflictRepo();
+  const { result, said, item } = await offerOverConflict(t, repo);
+  assert.equal(item.item_status, 'open');
+  assert.match(said.join('\n'), new RegExp(`STALE_VERDICT #${item.item_id} reopened to its lane: ${repo.file.replace('.', '\\.')}`, 'u'));
+  assert.deepEqual(result?.items ?? [], []);
+});
+
 const SWEPT = 'a'.repeat(40);
 const MOVED = 'b'.repeat(40);
 
@@ -154,4 +170,11 @@ test('cli.io-landing-pull.accept-order-production-wiring: clause 3: the offer re
   assert.match(offerPulledLanding.toString(), /await acceptOrderOf\(root, board,/);
   assert.doesNotMatch(offerPulledLanding.toString(), /GROUP BY/);
   assert.match(acceptOrderOf.toString(), /readDerivedState\(board, \{ mainCommit: main, enabled: true \}\)/);
+});
+
+test('cli.landing-pull.items-carry-pace: clause 1: a landing offered for one item frozen at sprint and one at steady carries each item pace in its job payload [V2,M1,#12227]', async t => {
+  const { jobs } = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' } });
+  const paceOf = id => jobs.flatMap(job => job.items).find(entry => entry.id === id)?.pace;
+  assert.equal(paceOf(1), 'sprint');
+  assert.equal(paceOf(2), 'steady');
 });

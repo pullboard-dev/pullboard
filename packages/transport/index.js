@@ -15,3 +15,4 @@ export { resultDigest, parseResult } from './src/logic/result.js';
 export { probeStanding, QUARANTINE_GAP_MS } from './src/logic/quarantine.js';
 export { ensureSource } from './src/io/tree.js';
 export { ensureTooling, toolingFolder } from './src/io/tooling.js';
+export { writeScreenshots } from './src/io/screenshots.js';

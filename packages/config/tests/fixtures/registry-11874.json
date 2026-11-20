@@ -1,0 +1,4 @@
+{
+  "config.io-settings-gate-aged.default-and-set-value": {"proves":{"specs":["C7"],"claim":"clause 1: gateAgedMs returns 300000 with no setting and 120000 when gate.gateAgedMinutes is 2."},"why":"Keeps the gate-aging wait readable as one number of milliseconds with a 5 minute default.","kind":"contract","inputs":["packages/config/index.js"]},
+  "config.io-settings-gate-aged.refuses-bad-values": {"proves":{"specs":["C7"],"claim":"clause 2: gate.gateAgedMinutes of 0 or 1.5 is refused BAD_MACHINE_SETTINGS naming the setting."},"why":"Keeps a malformed gate-aging wait from reaching the runner claim order.","kind":"contract","inputs":["packages/config/index.js"]}
+}

@@ -335,11 +335,11 @@ test('cli.journeys-worktree-start.a-stand-in-host-after-a: a stand-in host after
  * Build a claimed web item whose only commit names this machine in its message, then submit it. The
  * setting is written to the main checkout first, since submit reads the accepted main's policy [C1].
  */
-async function submitNamingThisMachine(box, noHostName) {
+async function submitNamingThisMachine(box, noHostName, { body = `built on ${hostname()}`, settings = {} } = {}) {
   const { repo, web } = project('true', box);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  config.commits = { ...(config.commits ?? {}), noHostName };
+  config.commits = { ...(config.commits ?? {}), noHostName, ...settings };
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   box.git(repo, 'add', 'pullboard.json');
   box.git(repo, 'commit', '-q', '-m', `chore: set the host-name guard to ${noHostName}`);
@@ -350,7 +350,7 @@ async function submitNamingThisMachine(box, noHostName) {
   writeFileSync(join(web, 'web', 'a.html'), '<h1>Hi</h1>\n');
   box.git(web, 'add', '-A');
   // The host name comes from the machine at run time; it is never written into a file or a shout.
-  box.git(web, 'commit', '-q', '-m', 'feat(web): page [G1]', '-m', `built on ${hostname()}`);
+  box.git(web, 'commit', '-q', '-m', 'feat(web): page [G1]', '-m', body);
   return (await box.runLocal(web, 'submit', '1'));
 }
 
@@ -371,4 +371,16 @@ test('cli.journeys-worktree-start.the-same-submit-only-warns-when: the same subm
   assert.match(submitted.out, /warning: commit [0-9a-f]{12} names this machine in its message/u, 'the warning line is printed');
   assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}|#1 is in the gate as job gate:1:[0-9a-f]{12}:/u, 'the submit continues to its record (pull dispatch queues the gate at once)');
   assert.equal(`${submitted.out}\n${submitted.err}`.toLowerCase().includes(host), false, 'the output does not name the host');
+});
+
+test('cli.journeys-worktree-start.submit-refuses-co-author-and-home-path: clause 2: a real submit refuses a branch whose commit carries a Co-Authored-By trailer when commits.noCoAuthor is on, refuses a home-folder path always, and a clean branch passes [C1,C7]', async () => {
+  const trailer = await submitNamingThisMachine(sandbox(), false, { body: 'Co-Authored-By: Ada Example <ada@example.com>', settings: { noCoAuthor: true } });
+  assert.equal(trailer.code, 1, trailer.out + trailer.err);
+  assert.match(trailer.err, /\[CO_AUTHOR\]/u);
+  const path = await submitNamingThisMachine(sandbox(), false, { body: 'built from /Users/fixture/work/repo' });
+  assert.equal(path.code, 1, path.out + path.err);
+  assert.match(path.err, /\[HOME_PATH\]/u);
+  assert.equal(`${path.out}\n${path.err}`.includes('/Users/fixture'), false, 'the refusal never echoes the path');
+  const clean = await submitNamingThisMachine(sandbox(), false, { body: 'a plain note', settings: { noCoAuthor: true } });
+  assert.equal(clean.code, 0, clean.err);
 });
