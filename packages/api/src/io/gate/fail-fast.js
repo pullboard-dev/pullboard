@@ -7,7 +7,7 @@ import { retryShardId } from './retry.js';
  * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
  * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
  */
-function endedDetail(db, job) {
+export function endedDetail(db, job) {
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
   if (!row) return null;
   try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
