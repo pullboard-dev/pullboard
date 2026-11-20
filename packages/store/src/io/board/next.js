@@ -38,6 +38,7 @@ import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
 import { contentionScores } from "../../../../items/index.js";
+import { largestDisjointWave } from "../../../../items/index.js";
 import { orderByContention } from "../../../../items/index.js";
 import { itemCollisionPlan } from "../../../../items/index.js";
 import { firstRefusalReason } from "../../../../items/index.js";
@@ -110,6 +111,23 @@ export function diagnoseWanted(board, item, seatRoute) {
 }
 
 /**
+ * The submitted items a review must not be offered while slices compose into their parent: every slice (an item with an item-slice row),
+ * and each parent that still has a slice child open or claimed [C7,#11320].
+ *
+ * @param {any} board
+ * @returns {Set<number>}
+ */
+function composeLandingReview(board) {
+  const held = new Set();
+  const slices = board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item-slice:*'").all();
+  for (const { meta_key: key } of slices) held.add(Number(key.slice('item-slice:'.length)));
+  const unfinished = board.db.prepare(`SELECT DISTINCT item_parent_id AS parent FROM item WHERE item_parent_id IS NOT NULL AND item_status IN ('open', 'claimed')
+    AND EXISTS (SELECT 1 FROM board_meta WHERE meta_key = 'item-slice:' || item.item_id)`).all();
+  for (const { parent } of unfinished) held.add(parent);
+  return held;
+}
+
+/**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
  * dependencies are verified; for a verifier, the oldest submitted item it did not build. An agent
  * sees items at its tier and below, its own tier first, so lighter work waits for lighter models
@@ -122,7 +140,7 @@ export function diagnoseWanted(board, item, seatRoute) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -130,7 +148,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily, composeLanding = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -206,7 +224,9 @@ export function nextFor(board, options) {
       return derived ?? builderFamilyOf(board, entry);
     };
     const hasDifferentFamily = (entry) => familiesDiffer(board, family, builderFamily(entry));
-    const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
+    // slices.composeLanding (off unless a project turns it on): a submitted slice is never offered, and its submitted parent only once no slice child is still open or claimed [C7,#11320].
+    const composed = composeLanding ? composeLandingReview(board) : null;
+    const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id) && !composed?.has(entry.item_id));
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
@@ -374,6 +394,13 @@ export function nextFor(board, options) {
     const alone = ({ entry, reworkRouting }) => urgent.has(entry.item_id) || redUnowned.has(entry.item_id) || parked.has(entry.item_id) || Boolean(reworkRouting?.rejection) || rejectedFirstEnabled(board) && isReturned(board, entry);
     orderByContention(mine, candidate => alone(candidate) ? `#${candidate.entry.item_id}` : `${tier(candidate.entry)}|${position(candidate.entry)}|${focus?.ids.has(candidate.entry.item_id)}`, hot);
   }
+  // queue.contention: of the ready items no claimed or submitted item shares a file with, only the largest disjoint wave is offered [C7,#1440].
+  const ready = hot ? mine.map(({ entry }) => entry).filter(entry => hot.get(entry.item_id).score < contention.threshold
+    && itemDependencies.localDependencyIds(entry).every(id => ['verified', 'withdrawn'].includes(current(board, itemById(board, id)).item_status))
+    && !itemFileCollisions(entry, inFlight).length) : [];
+  const wave = hot ? new Set(largestDisjointWave(ready)) : null;
+  const waveFiles = wave ? new Set(ready.filter(entry => wave.has(entry.item_id)).flatMap(entry => itemFiles(entry))) : null;
+  const readyIds = new Set(ready.map(entry => entry.item_id));
   const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
@@ -400,6 +427,10 @@ export function nextFor(board, options) {
     if (hot && hot.get(entry.item_id).score >= contention.threshold) {
       const { file, score } = hot.get(entry.item_id);
       skip(entry, 'CONTENTION'); reasons.push(`#${entry.item_id} waits on ${file}: contention ${score} reaches ${contention.threshold}; changes in flight on it land first`); continue;
+    }
+    if (wave && readyIds.has(entry.item_id) && !wave.has(entry.item_id)) {
+      const file = itemFiles(entry).find(path => waveFiles.has(path));
+      skip(entry, 'WAVE'); reasons.push(`#${entry.item_id} waits on ${file}: it shares the file with an item in this wave of disjoint work`); continue;
     }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
