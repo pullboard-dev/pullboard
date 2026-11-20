@@ -33,6 +33,7 @@ import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { startReceiptScreen } from './gate/screen-start.js';
+import { sprintLandable } from './gate/sprint-land.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
@@ -960,9 +961,11 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
       // A carried merge-only accept leaves the item verified with no verify command to offer its land job (#7948).
-      // A submitted sprint item lands before its verdict, so its screen starts here, from the row already loaded [V2,M1].
+      // A submitted sprint item lands before its verdict: a green screen on the trunk tip stands in for the accept, else its screen
+      // starts here and, once it applies green, starts the lander; both read the row already loaded [V2,M1,#12176].
       const held = store.getItem(board, id);
-      if (held?.item_status === 'verified') startReceiptLanding(board, id); else startReceiptScreen(board, held, main);
+      if (held?.item_status === 'verified' || sprintLandable(board, held)) startReceiptLanding(board, id);
+      else startReceiptScreen(board, held, main, () => startReceiptLanding(board, id, `land job for #${id} not offered after its green screen`));
       return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.failures, knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -1481,7 +1484,8 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
     const item = store.getItem(board, id);
-    if (item?.item_status !== 'verified' || item.item_merged_commit) continue;
+    // A submitted sprint item lands on a green screen on the trunk the job was offered on, as a verified one does [V2,M1,#12176].
+    if (item?.item_merged_commit || (item?.item_status !== 'verified' && !sprintLandable(board, item, offered.payload?.expect ?? null))) continue;
     // Each item lands at its own first-containing merge when the receipt names one; trunk already held the rest [B3,R3,#7506].
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
     store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
