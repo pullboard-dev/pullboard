@@ -138,3 +138,22 @@ test('relay.io-github.signing-adapter-bad-key-refused: a privateKey that is not 
   const ed = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
   assert.throws(() => createGitHubClient({ ...config, privateKey: ed }), { code: 'GITHUB_CONFIG' });
 });
+
+test('relay.io-github.retry-after-403-is-rate-limited: a GitHub 403 carrying retry-after is named GITHUB_RATE_LIMITED, not lost access [H5,H16]', async (t) => {
+  const fixture = await githubFixture(t);
+  const limited = createServer((req, res) => {
+    res.writeHead(403, { 'Content-Type': 'application/json', 'retry-after': '60' });
+    res.end('{"message":"You have exceeded a secondary rate limit"}');
+  });
+  limited.listen(0, '127.0.0.1');
+  await once(limited, 'listening');
+  t.after(() => { limited.closeAllConnections(); limited.close(); });
+  const client = createGitHubClient({ ...fixture.config, apiBase: 'http://127.0.0.1:' + limited.address().port });
+  await assert.rejects(client.access({ id: '7', login: 'fixture-user' }, 'fixture/repository'), { code: 'GITHUB_RATE_LIMITED' });
+  const denied = createServer((req, res) => { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end('{}'); });
+  denied.listen(0, '127.0.0.1');
+  await once(denied, 'listening');
+  t.after(() => { denied.closeAllConnections(); denied.close(); });
+  const plain = createGitHubClient({ ...fixture.config, apiBase: 'http://127.0.0.1:' + denied.address().port });
+  await assert.rejects(plain.access({ id: '7', login: 'fixture-user' }, 'fixture/repository'), { code: 'NO_REPO_ACCESS' });
+});

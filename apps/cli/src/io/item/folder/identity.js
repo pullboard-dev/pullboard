@@ -1,6 +1,5 @@
 /** Validate per-item worktree identity against the registered seat and live claim [B5,C7]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
 import { gitPath } from '../../../../../../packages/git/light.js';
 import { ITEM_MARKER_FILE } from '../../../../../../packages/items/light.js';
 import { itemFolderIdentity } from '../../../../../../packages/items/light.js';
@@ -9,6 +8,8 @@ export { itemFolderIdentity };
 import { repoInfo } from '../../../../../../packages/git/light.js';
 import { agentAt } from '../../../../../../packages/store/light.js';
 import { Refused } from '../../../../../../packages/kernel/light.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The seat acting from a checkout: the seat registered there, or the seat whose live-claim item folder it is.
@@ -37,15 +38,15 @@ export function seatRoot(ctx, board, me) {
 export function itemFolderSeat(root) {
   const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
   let marked = true;
-  try { readFileSync(gitPath(root, ITEM_MARKER_FILE)); } catch { marked = false; }
-  if (!marked && !(match && existsSync(match[1]))) return null;
+  try { fs.readFile(gitPath(root, ITEM_MARKER_FILE)); } catch { marked = false; }
+  if (!marked && !(match && fs.exists(match[1]))) return null;
   return { seat: match?.[1] ?? null };
 }
 
 /** Name the native renewal for a missing-marker hook without granting checkout authority. */
 export function itemFolderRenewalRefusal(board, root) {
   try {
-    try { readFileSync(gitPath(root, ITEM_MARKER_FILE)); return null; }
+    try { fs.readFile(gitPath(root, ITEM_MARKER_FILE)); return null; }
     catch (error) { if (error.code !== 'ENOENT') return null; }
     const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
     if (!match) return null;
