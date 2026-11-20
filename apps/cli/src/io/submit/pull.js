@@ -22,11 +22,11 @@ import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
 import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
-import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
-import { submitGateConfig } from '../../../../../packages/gate/index.js';
-import { namedFileRunner } from '../../../../../packages/gate/index.js';
-import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
-import { missingGate } from '../../../../../packages/gate/index.js';
+import { PULLED_JOB_ENV } from '../../../../../packages/gate/heavy.js';
+import { submitGateConfig } from '../../../../../packages/gate/heavy.js';
+import { namedFileRunner } from '../../../../../packages/gate/heavy.js';
+import { BROWSER_MARKER } from '../../../../../packages/gate/heavy.js';
+import { missingGate } from '../../../../../packages/gate/heavy.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 // A URL-joined seat's submit bundles its clone's commits; moves.js loads it from here only when board.commits is on [P7,C7].
