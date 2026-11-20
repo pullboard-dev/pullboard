@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { commonJsIn } from '../../../gate/index.js';
-import { importsIn } from '../../../gate/index.js';
+import { commonJsIn } from '../../../gate/heavy.js';
+import { importsIn } from '../../../gate/heavy.js';
 import { captureReleaseQueue } from '../../index.js';
 
 const SOURCE = readFileSync(new URL('../../src/io/queue.js', import.meta.url), 'utf8');

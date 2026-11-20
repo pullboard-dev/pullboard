@@ -22,18 +22,21 @@ export function recordRowDecisions(board, { agentId, channel, decisions }) {
   const keys = new Set();
   for (const record of decisions) {
     if (!record || !['approve', 'decline'].includes(record.decision) || !['spec', 'doctrine'].includes(record.kind)
-      || !['id', 'file', 'source', 'replacement', 'text'].every((key) => typeof record[key] === 'string' && record[key].trim())
+      || !['id', 'file', 'replacement', 'text'].every((key) => typeof record[key] === 'string' && record[key].trim())
+      || (record.standard === true ? record.kind !== 'doctrine' || record.source !== '' : typeof record.source !== 'string' || !record.source.trim())
       || (record.decision === 'decline' && !String(record.reason ?? '').trim())) throw new Refused('ROW_DECISION', 'a row decision needs its id, file and exact text; use pullboard spec approve or decline');
     const original = parseSpec(`## Decision\n${record.source}\n`).rows;
     const replacement = parseSpec(`## Decision\n${record.replacement}\n`).rows;
     const target = replacement[0];
     const engineVersion = board.executionEngineVersion ?? ENGINE_VERSION;
-    const validDeclineText = record.decision !== 'decline' || (engineVersion >= 12
+    // A standard default has no repo line, so its exact original is empty and the spec cell's injected line is the whole decision [C7,#2007].
+    const inherited = record.standard === true;
+    const validDeclineText = inherited || record.decision !== 'decline' || (engineVersion >= 12
       ? record.text === original[0]?.text
       : target?.text === record.reason);
     const revision = record.revision !== undefined && engineVersion >= SPEC_REVISION_ENGINE && validRevisionApproval(board, record, board.nativePorts);
-    if (!revision && (record.revision !== undefined || original.length !== 1 || original[0].id !== record.id || replacement.length !== 1 || target.id !== record.id
-      || target.status !== (record.decision === 'approve' ? 'approved' : 'wont') || target.text !== record.text
+    if (!revision && (record.revision !== undefined || (inherited ? original.length !== 0 : original.length !== 1 || original[0].id !== record.id) || replacement.length !== 1 || target.id !== record.id
+      || target.status !== (record.decision === 'approve' ? 'approved' : 'wont') || target.text !== (inherited && record.decision === 'decline' ? record.reason : record.text)
       || !validDeclineText)) throw new Refused('ROW_DECISION', 'the exact row must match its recorded approval or decline; use pullboard spec approve or decline');
     const key = `${record.kind}:${record.id}`;
     if (keys.has(key)) throw new Refused('ROW_DECISION', `${key} is named twice; use each row once`);

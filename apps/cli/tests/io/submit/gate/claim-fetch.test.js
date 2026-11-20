@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { remoteSubmitAnalysis } from '../../../../src/io/submit/gate.js';
 import { sharedRemoteAnalysis } from '../../../../src/io/submit/gate.js';
-import { submitUntilSettled } from '../../../../../../packages/gate/index.js';
+import { submitUntilSettled } from '../../../../../../packages/gate/heavy.js';
 import { temporaryDirectory } from '../../../fixtures/board.js';
 import { temporaryRepository } from '../../../fixtures/board/submit.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
