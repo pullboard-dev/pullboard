@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import { reserveItem } from '../../../../packages/board/index.js';
+import { reserveItem } from '../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
 import { main } from '../../tests/fixtures/native.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
