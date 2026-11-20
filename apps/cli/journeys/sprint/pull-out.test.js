@@ -16,6 +16,8 @@ after(helpers.cleanup);
 const WAIT_MS = 60_000;
 // Budget: declared per case, so one stuck case ends with its step diagnostics inside the file's kill.
 const CASE_MS = 150_000;
+// Budget: the revert is pushed inside the reject command, so its wait is short and a missing revert leaves the steady case its time.
+const REVERT_MS = 15_000;
 const CLAUSE = 'land fixture 1 remains valid';
 const NOTE = 'fixture reject of landed work: the landed change breaks its clause';
 
@@ -96,7 +98,11 @@ test('cli.sprint.reject-pulls-out: clause 1: a reject of landed sprint work reve
   const verdict = await reject(box, id);
   assert.equal(verdict.code, 0, `${verdict.err}\n${verdict.out}`);
   mark(`#${id} rejected${(verdict.err ?? '').trim() ? `; stderr: ${verdict.err.trim().slice(0, 400)}` : ''}`);
-  await helpers.waitFor(() => /^Revert /u.test(trunkSubject(box)), 'main takes the revert of the landing', WAIT_MS); // budget: declared WAIT_MS
+  const pullOuts = boardRead(box, "SELECT event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('pull_out', 'pulled', 'reject', 'reopen')", id);
+  const steps = boardRead(box, "SELECT s.job_step_name, s.job_step_payload FROM job_step s JOIN job j ON j.job_id = s.job_step_job WHERE j.job_kind = 'pull-out'");
+  mark(`events: ${JSON.stringify(pullOuts).slice(0, 600)}; pull-out steps: ${JSON.stringify(steps).slice(0, 600)}; out: ${String(verdict.out ?? '').trim().slice(0, 300)}`);
+  // The reject runs the pull-out before it returns, so the revert is on the trunk at once; the wait covers only the push settling.
+  await helpers.waitFor(() => /^Revert /u.test(trunkSubject(box)), 'main takes the revert of the landing', REVERT_MS); // budget: declared REVERT_MS
   assert.equal(pullOutJobs(box, id), 1, 'the board holds one pull-out job');
   assert.equal(pulledEvents(box, id), 1, 'the board holds one pulled event');
   assert.equal(itemRow(box, id).item_status, 'open', 'the item is open again');
