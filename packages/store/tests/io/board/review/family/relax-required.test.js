@@ -101,7 +101,8 @@ function familyGuard(board, agentId) {
 test('store.io-board-review-family-relax-required.family-allows-stands-with-witness: clause 1: with review.relaxRequiredFamily on and a relaxation witness for the seat, the familyAllows guard of reviewerChecks returns no refusal for a seat of another family, and still returns O2_FAMILY_MATCH with the setting off [C7,#11333]', t => {
   const { board, items } = waitingBoard(t);
   const item = store.getItem(board, items[0]);
-  const guard = familyGuard(board, 'core-2');
+  store.register(board, { id: 'core-4', lane: 'core', path: '/fixture/core-4', family: 'google', parentDigest: 'd'.repeat(64), model: FIXTURE_MODEL });
+  const guard = familyGuard(board, 'core-4');
   assert.equal(withRelax(true, () => guard(item)), null);
   assert.equal(withRelax(false, () => guard(item))?.code, 'O2_FAMILY_MATCH', 'the same board refuses once the setting is off');
 });
