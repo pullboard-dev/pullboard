@@ -22,6 +22,7 @@ import { homedir } from 'node:os';
 import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { posix } from 'node:path';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -414,7 +415,7 @@ function recordService(host, service, file = serviceRecordFile()) {
  * @returns {Promise<object>} What the runner reported: the form, plist, folder and log, whether launchd loaded it, and
  *   the sudo line a person runs when it could not.
  */
-export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = process.env } = {}) {
+export async function installRunnerService(runner, { board, key, remove = false, ssh = 'ssh', env = environmentAdapter().all() } = {}) {
   const plan = { label: SERVICE_LABEL, root: runner.root ?? '', remove, host: runner.host };
   if (!remove) {
     const target = serviceBoard(board);

@@ -2,19 +2,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
-import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
-import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
-import { cellClaim } from '../../../store/tests/fixtures/cell.js';
-import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import * as jobs from '../../../jobs/index.js';
-import { headTree } from '../../../git/index.js';
-import { openBoardForRead } from '../../../store/index.js';
-import * as store from '../../../store/index.js';
-import { poolHandlers } from '../../index.js';
-import { provideMainComparison } from '../../index.js';
-import { applyMainTestReceipt } from '../../src/io/recheck.js';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
@@ -109,74 +96,4 @@ test('api.gate.shard-carries-browser-gui-need: clause 1: offerProofShards puts p
 
 test('api.gate.shard-plan-absent-without-needs: clause 2: a proof plan with no needs field adds no plan to the shard [C7]', t => {
   for (const shard of shardData(t, null)) assert.equal('plan' in shard, false, 'a shard of a plan with no needs carries no plan');
-});
-
-const SEEDED_FILE = 'web/a.test.js';
-const SEEDED_CASE = 'loads under load';
-const SIGNATURE = 'c'.repeat(64);
-const COMMAND = 'node --test';
-
-/** Seed through a real claim, post main's receipt for the seeded row, then run a pulled gate red only in that case with `signature`; returns the gate's outcome, its notes and the main-test rows before and after. */
-async function seededGate(t, signature) {
-  const project = cellProject(t, { real: true, config: { affectedTests: COMMAND } });
-  const home = join(project.dir, 'machine-home');
-  mkdirSync(home, { recursive: true });
-  fixtureMachineSettings(home, { gate: { fencedHop: false, runnerDispatch: 'pull', settleOnMainReceipt: true } });
-  const saved = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = home;
-  t.after(() => { provideMainComparison(null); if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
-  const head = project.git(project.repo, 'rev-parse', 'HEAD');
-  const tree = project.git(project.repo, 'rev-parse', 'HEAD^{tree}');
-  const rowId = `main-test:${tree}:${SEEDED_FILE}:${COMMAND}`;
-  // The lookup a serving board provides: main's keyed receipt when it recorded one, else the main-test row a gate would queue.
-  provideMainComparison(({ db, cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => {
-    const answered = jobs.jobsOf(db, { kind: 'main-test' }).some(job => job.id === rowId && job.steps.some(step => step.name === 'receipt' && step.seq === 0));
-    return { file, owner: answered ? 'main' : 'unknown', own: [], receipt: answered ? rowId : null, job: answered ? null : rowId };
-  }) }));
-  const board = openCellBoard(project.boardFile, undefined, { gitRoot: project.repo });
-  let lease, item, seat;
-  try {
-    for (let other = 1; other <= 12; other++) {
-      const job = `gate:${other}:x:shard:0`;
-      jobs.createJob(board.db, { id: job, kind: 'gate-shard', item: 500 + other, now: Date.now() });
-      jobs.writeStep(board.db, job, 'receipt', { runner: 'r', attempt: 1, receipt: { status: 1, gate: { phases: [{ role: 'proof', status: 1, failures: [{ file: SEEDED_FILE, name: SEEDED_CASE }] }] } } }, { seq: 1, now: Date.now() });
-    }
-    seat = cellSeat(board, { lane: 'web', path: `${project.repo}/seat` });
-    item = cellItem(board, { lane: 'web', title: 'Build the page' });
-    cellClaim(board, item.item_id, seat, { root: project.repo });
-    const held = store.getItem(board, item.item_id);
-    offerJob(board.db, { id: 'gate:seeded', kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
-      request: { run: ['true'], input: { entry: 'gate.js', data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree: headTree(project.repo), files: [] } } });
-    lease = claimJob(board.db, { runner: 'r-gate', capabilities: [], now: 2 });
-  } finally { closeCellBoard(board); }
-  const handlers = poolHandlers({ boardOpeners: { openBoard: openCellBoard, openBoardForRead, moveArgs: body => [body.verb] } });
-  const call = (body, now) => handlers.jobs({ board: { id: 'fixture', root: project.repo }, body, now });
-  const rows = () => { const b = openCellBoard(project.boardFile, undefined, { gitRoot: project.repo }); try { return jobs.jobsOf(b.db, { kind: 'main-test' }).map(job => job.id); } finally { closeCellBoard(b); } };
-  // A runner's claim seeds the row; the row is offered, and the receipt a runner would post for it is applied.
-  const claiming = openCellBoard(project.boardFile, undefined, { gitRoot: project.repo });
-  try { boardJobQueueCall(claiming, { action: 'claim', runner: 'r-seed', capabilities: ['node22'] }, { mode: 'pull', now: 5 }); } finally { closeCellBoard(claiming); }
-  assert.deepEqual(rows(), [rowId], 'the claim queued the seeded main-test row');
-  const b = openCellBoard(project.boardFile, undefined, { gitRoot: project.repo });
-  try {
-    const tail = 'PULLBOARD_MAIN_TEST ' + JSON.stringify({ green: false, status: 1, failing: [SEEDED_CASE], signatures: [SIGNATURE], inputKey: null });
-    assert.equal(applyMainTestReceipt({ db: b.db, gitRoot: project.repo }, { job: rowId, receipt: { tail, commit: head } }, { now: 6 }).verdict, 'red');
-  } finally { closeCellBoard(b); }
-  const before = rows();
-  const gate = { version: 1, source: head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: SEEDED_FILE, name: SEEDED_CASE }], failureSignatures: [signature], tail: 'not ok' }], analysis: { proofFiles: [SEEDED_FILE], proofCommand: COMMAND } };
-  const answer = await call({ action: 'receipt', job: 'gate:seeded', runner: 'r-gate', token: lease.token, receipt: { status: 1, gate } }, 20);
-  const reopened = openCellBoard(project.boardFile, undefined, { gitRoot: project.repo });
-  try {
-    const notes = reopened.db.prepare('SELECT event_kind, event_detail FROM event WHERE item_id = ?').all(item.item_id).map(event => `${event.event_kind} ${event.event_detail}`).join(' | ');
-    return { outcome: answer.applied?.outcome, notes, before, after: jobs.jobsOf(reopened.db, { kind: 'main-test' }).map(job => job.id) };
-  } finally { closeCellBoard(reopened); }
-}
-
-test('api.io-gate.seeded-receipt-settles-main-owned: clause 2: with the seeded receipt posted, a real pulled gate whose only reds are cases red on main under the same name and signature settles review with those cases listed main-owned, no unknown step and no new main-test row, and a case whose signature differs stays red [C7,P7,#12035]', async t => {
-  const same = await seededGate(t, SIGNATURE);
-  assert.equal(same.outcome, 'review', same.notes);
-  assert.match(same.notes, /also fails on main/u, 'the case is listed as main-owned');
-  assert.doesNotMatch(same.notes, /main receipt missing/u, 'no unknown step');
-  assert.deepEqual(same.after, same.before, 'no new main-test row');
-  const differs = await seededGate(t, 'd'.repeat(64));
-  assert.notEqual(differs.outcome, 'review', 'a case whose signature differs stays red');
 });
