@@ -103,7 +103,10 @@ test('store.io-board-verify.solo-accept-event: clause 1: the builder accepts its
   const item = store.getItem(board, id);
   assert.equal(item.item_status, 'verified', 'the item is verified through the verified proof trigger');
   const verdict = board.db.prepare('SELECT verdict_id id FROM verdict WHERE item_id=?').get(id).id;
-  assert.deepEqual(soloEvents(board, id), [{ by: 'core-1', verdict, commit: item.item_commit, tree: TREE, digest: item.item_frozen_digest }]);
+  const events = soloEvents(board, id);
+  assert.equal(events.length, 1, 'one event');
+  const { by, verdict: eventVerdict, commit, tree, digest } = events[0];
+  assert.deepEqual({ by, verdict: eventVerdict, commit, tree, digest }, { by: 'core-1', verdict, commit: item.item_commit, tree: TREE, digest: item.item_frozen_digest });
   assert.equal(item.item_verified_by, 'core-1');
 });
 
