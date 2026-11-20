@@ -109,7 +109,7 @@ const BEFORE = {
   'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.adviceThroughNext': false,
-  'health.derivedState': false,
+  'health.derivedState': true,
   'health.diskFloorGb': 0,
   'health.lapsedSweep': false,
   'health.sentinel': true,
