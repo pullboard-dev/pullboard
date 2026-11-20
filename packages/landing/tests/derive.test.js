@@ -14,9 +14,9 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import {
   privateFixtureFiles,
-  runFixtureChild,
   runFixtureGit,
 } from '../../gate/tests/fixtures/child.js';
+import { deriveJobPatch } from './fixtures/derive-job.js';
 import { commitDerived } from '../src/io/step/derive.js';
 import { composeOnRunner } from '../src/io/step/compose.js';
 import { stageLandingDerived } from '../src/io/derive.js';
@@ -206,12 +206,8 @@ test('landing.derive.closure-tighten-absent-or-failing: a tree without the tight
 
 test('landing.derive.closure-tighten-derive-job-patch: the runner derive job prints a patch holding the lowered ceilings file [C7,#12053]', t => {
   const { root, sh } = tightenRepo(t, 0);
-  const { root: twin } = privateFixtureFiles('landing-derive-tighten-');
-  runFixtureGit(['clone', '-q', root, twin], { cwd: root });
-  const ran = runFixtureChild(process.execPath, [DERIVE, '--tree', sh('rev-parse', 'HEAD^{tree}')], { cwd: twin, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  rmSync(twin, { recursive: true, force: true });
-  assert.equal(ran.status, 0, ran.stderr);
-  const patch = Buffer.from(ran.stdout.split('\n').find(line => line.startsWith('LANDING_DERIVE_PATCH=')).slice(21), 'base64').toString('utf8');
+  const { status, stderr, patch } = deriveJobPatch(root, sh('rev-parse', 'HEAD^{tree}'));
+  assert.equal(status, 0, stderr);
   assert.match(patch, /closure-budget\.json/u);
   assert.match(patch, /\+\s+"show": 3/u);
 });
