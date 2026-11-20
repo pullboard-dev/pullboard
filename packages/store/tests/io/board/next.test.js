@@ -336,3 +336,48 @@ test('store.io-board-next.plain-after-submitted-parent-skipped: clause 2: a depe
     assert.ok(answer.reasons.some(line => line.startsWith(`#${child} waits on`)), answer.reasons.join(' | '));
   }
 });
+
+/** Every statement a call prepares on the board's connection, with its query plan rows. */
+function plannedStatements(board, run) {
+  const prepare = board.db.prepare.bind(board.db), seen = [];
+  board.db.prepare = sql => { seen.push(sql); return prepare(sql); };
+  try { run(); } finally { board.db.prepare = prepare; }
+  return seen.filter(sql => /^\s*SELECT/iu.test(sql)).map(sql => ({ sql, plan: prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail) }));
+}
+
+/** Add board_meta rows of other keys, about the live board's average row size, as history the selection must not read. */
+function seedMetaHistory(board, rows) {
+  const insert = board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)');
+  const value = JSON.stringify({ history: 'x'.repeat(180) });
+  board.db.exec('BEGIN');
+  try { for (let index = 0; index < rows; index += 1) insert.run(`local:history-${index}`, value); board.db.exec('COMMIT'); } catch (error) { board.db.exec('ROLLBACK'); throw error; }
+}
+
+/** The median milliseconds of repeated nextFor calls. */
+function medianNextMs(board, calls = 20) {
+  const times = [];
+  for (let index = 0; index < calls; index += 1) {
+    const started = performance.now();
+    nextFor(board, { agentId: 'web-2', lane: 'web' });
+    times.push(performance.now() - started);
+  }
+  return times.sort((a, b) => a - b)[Math.floor(times.length / 2)];
+}
+
+test('store.io-board-next.needs-read-uses-key-range: clause 1: nextFor reads item needs by a key range and never scans board_meta [C7]: its cost does not grow with board history', (t) => {
+  const { board } = mixedBoard(t);
+  const statements = plannedStatements(board, () => nextFor(board, { agentId: 'web-2', lane: 'web' }));
+  assert.ok(statements.some(({ sql }) => sql.includes('item_needs')), 'nextFor reads item needs');
+  for (const { sql, plan } of statements) assert.ok(!plan.some(detail => /^SCAN board_meta\b/u.test(detail)), `a nextFor statement scans board_meta: ${sql} -> ${plan.join('; ')}`);
+});
+
+test('store.io-board-next.cost-flat-with-meta-history: clause 2: nextFor stays under 200 ms and within 2x of an empty board with 81,559 board_meta history rows [C7]: 1:10 of the live board', (t) => {
+  const empty = mixedBoard(t).board;
+  const full = mixedBoard(t).board;
+  seedMetaHistory(full, 81_559);
+  medianNextMs(empty, 3); medianNextMs(full, 3);
+  const base = medianNextMs(empty);
+  const loaded = medianNextMs(full);
+  assert.ok(loaded < 200, `median nextFor ${loaded.toFixed(1)} ms with history`);
+  assert.ok(loaded <= Math.max(2 * base, base + 5), `median nextFor ${loaded.toFixed(1)} ms with history against ${base.toFixed(1)} ms without`);
+});
