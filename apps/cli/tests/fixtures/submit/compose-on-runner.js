@@ -21,7 +21,7 @@ export async function runSubmit(t, { on, declared = false }, { jobsOf }) {
     assert.equal((await box.helpers.commitFile(box, box.repo, 'pullboard.json', JSON.stringify(config), 'chore: accept the generated policy [G1]')).status, 0);
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   }
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'pull' }, ...(on ? { submit: { composeOnRunner: true } } : {}) });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { localRunner: false, runnerDispatch: 'pull' }, submit: { composeOnRunner: on } });
   const [id] = box.ids;
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);

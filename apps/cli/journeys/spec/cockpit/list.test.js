@@ -23,7 +23,7 @@ import {
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
-test('clause 1: spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 }, async (t) => {
+test('cli.journeys-spec-cockpit-list.spec-rows-read-as-a-list: clause 1: spec rows read as a list, decided in the panel [N26]', { timeout: 300_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec list checks.');
 

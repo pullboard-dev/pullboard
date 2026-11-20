@@ -1,16 +1,16 @@
-import { boardReceiptStore } from '../../../../../packages/gate/index.js';
-import { readGateReceipt } from '../../../../../packages/gate/index.js';
-import { receiptBinds } from '../../../../../packages/gate/index.js';
+import { boardReceiptStore } from '../../../../../packages/gate/heavy.js';
+import { readGateReceipt } from '../../../../../packages/gate/heavy.js';
+import { receiptBinds } from '../../../../../packages/gate/heavy.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { policyAt } from '../../../../../packages/sandbox/index.js';
-import { checkNeedsBrowser } from '../../../../../packages/gate/index.js';
+import { checkNeedsBrowser } from '../../../../../packages/gate/heavy.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
-import { checkNeedsGui } from '../../../../../packages/gate/index.js';
-import { runProfiledShellAsync } from '../../../../../packages/gate/index.js';
-import { withGateSlot } from '../../../../../packages/gate/index.js';
+import { checkNeedsGui } from '../../../../../packages/gate/heavy.js';
+import { runProfiledShellAsync } from '../../../../../packages/gate/heavy.js';
+import { withGateSlot } from '../../../../../packages/gate/heavy.js';
 /** Additive receipt check; the existing pre-push hook remains the only active hook [C7]. */
 import {
   context,
