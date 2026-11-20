@@ -35,6 +35,6 @@ test("store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a
   box.claim(child);
   assert.equal(claimNotes(box.board, child).length, 1, "a renewed claim records none");
   const plain = box.add("Item with no after-gate parent");
-  box.claim(plain);
+  box.claim(plain, box.seats.actor);
   assert.equal(claimNotes(box.board, plain).length, 0, "a claim with no after-gate parent records none");
 });
