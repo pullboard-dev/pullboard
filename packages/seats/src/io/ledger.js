@@ -1,12 +1,12 @@
 /** Local timing and board events projected into bounded seat states [C7,N2]. */
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { gitExecFileSync } from '../../../git/index.js';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Ignore malformed or partially written tail records rather than inventing time. */
 export function readSeatTiming(common) {
-  try { return readFileSync(join(common, 'pullboard', 'seat-timing.jsonl'), 'utf8').split('\n').flatMap(line => { try { const row = JSON.parse(line); return row.version === 1 && row.seat && row.id ? [row] : []; } catch { return []; } }); }
+  try { return fileSystem.readFile(join(common, 'pullboard', 'seat-timing.jsonl'), 'utf8').split('\n').flatMap(line => { try { const row = JSON.parse(line); return row.version === 1 && row.seat && row.id ? [row] : []; } catch { return []; } }); }
   catch { return []; }
 }
 
@@ -18,7 +18,7 @@ export function worktreeActivity(path) {
     let latest = null;
     for (const row of files) {
       if (row.length < 4) continue;
-      try { const at = statSync(join(path, row.slice(3))).mtimeMs; latest = Math.max(latest ?? 0, at); } catch { /* Deleted files have no mtime. */ }
+      try { const at = fileSystem.stat(join(path, row.slice(3))).mtimeMs; latest = Math.max(latest ?? 0, at); } catch { /* Deleted files have no mtime. */ }
     }
     return latest;
   } catch { return null; }

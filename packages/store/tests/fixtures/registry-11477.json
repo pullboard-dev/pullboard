@@ -1,0 +1,34 @@
+{
+  "store.io-board-next.needs-ability-skips": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextFor never offers an open item whose needs the seat abilities lack, offers it to a seat that has them, and offers an item with no needs as before."
+    },
+    "why": "Without this test, a regression where nextFor never offers an open item whose needs the seat abilities lack, offers it to a seat that has them, and offers an item with no needs as before would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/next.test.js",
+      "packages/store/src/io/board/next.js",
+      "packages/store/src/io/needs.js",
+      "packages/queue/src/logic/needs.js"
+    ]
+  },
+  "store.io-board-next.needs-ability-idle-skip": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with observeIdle the item skipped for a missing ability is listed with code NEEDS_ABILITY."
+    },
+    "why": "Without this test, a regression where with observeIdle the item skipped for a missing ability is listed with code NEEDS_ABILITY would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/next.test.js",
+      "packages/store/src/io/board/next.js",
+      "packages/store/src/io/needs.js",
+      "packages/queue/src/logic/needs.js"
+    ]
+  }
+}

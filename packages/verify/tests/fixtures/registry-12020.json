@@ -1,0 +1,4 @@
+{
+  "verify.post-move.submit-never-claims": {"proves":{"specs":["C7"],"claim":"a submit hand-off calls neither nextOnce for a build claim nor the topUp port, and names run pullboard next."},"why":"Submit claimed builds in lanes the seat was never joined to.","kind":"cell unit","inputs":["packages/verify/tests/logic/post/move.test.js","packages/verify/src/logic/post/move.js"]},
+  "verify.post-move.submit-keeps-lane": {"proves":{"specs":["C7"],"claim":"after a submit the seat gets no claim or lane move, and a verify accept still reserves a ready review."},"why":"Lane moves must never be a side effect of submit.","kind":"cell unit","inputs":["packages/verify/tests/logic/post/move.test.js","packages/verify/src/logic/post/move.js"]}
+}

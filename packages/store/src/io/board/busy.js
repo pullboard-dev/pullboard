@@ -1,4 +1,5 @@
 import { boardWriteHolderText } from "./write/lock.js";
+import { environmentAdapter } from "../../../../env/index.js";
 import { discardBoardWriteMarker } from "./write/lock.js";
 import { prepareBoardWriteIdentity } from "./write/lock.js";
 import { prepareBoardWriteMarker } from "./write/lock.js";
@@ -49,7 +50,7 @@ const DEFAULT_QUEUE_MS = 0;
 
 /** Read the bound per call so a caller or test can set PULLBOARD_BOARD_QUEUE_MS=0 to refuse at SQLite's timeout. */
 function queueMs() {
-  const raw = process.env.PULLBOARD_BOARD_QUEUE_MS;
+  const raw = environmentAdapter().get('PULLBOARD_BOARD_QUEUE_MS');
   const value = raw === undefined || raw === '' ? DEFAULT_QUEUE_MS : Number(raw);
   return Number.isFinite(value) && value >= 0 ? value : DEFAULT_QUEUE_MS;
 }

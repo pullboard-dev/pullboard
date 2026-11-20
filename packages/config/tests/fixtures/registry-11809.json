@@ -1,0 +1,4 @@
+{
+  "config.settings-expedite-max.default-three": {"proves":{"specs":["C7"],"claim":"clause 1: jobs.expediteMax is a described repo setting with default 3, read as 3 when unset through the same read as claims.itemsInGateMax."},"why":"Keeps the coordinator expedite cap declared, described and defaulting to 3 so a person can find and set it (#11809).","kind":"contract","inputs":["packages/config/src/io/settings/inventory.js","packages/config/src/io/settings/descriptions.js","packages/config/tests/io/settings/expedite-max.test.js"]},
+  "config.settings-expedite-max.configured-value": {"proves":{"specs":["C7"],"claim":"A jobs.expediteMax in the repo policy is kept by the config read and resolves, not stripped as an unknown key."},"why":"The compat schema had no jobs section, so a configured jobs.expediteMax was stripped and the default always won.","kind":"contract","inputs":["packages/config/index.js"]}
+}

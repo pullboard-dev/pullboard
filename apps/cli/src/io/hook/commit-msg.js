@@ -98,7 +98,7 @@ export async function commitMsgHook(io, ctx, info, second, hookRead, loaders) {
   const { loadSpec, withRowDrafts } = await loaders.spec();
   const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
   const prepared = prepareCommitMetadata(originalMessage, { ...metadataContext, spec, syncMerge: existsSync(gitPath(info.root, 'MERGE_HEAD')) });
-  // Mechanical header style is fixed here and said, never refused, so it costs no retry [C7,#5775].
+  // A capitalised subject and a trailing period are fixed here and said, never refused, so they cost no retry [C7,#5775]; an over-long header is refused with its length, never cut [C7,#12030].
   const styled = fixCommitHeader(prepared.message, ctx.config.commits);
   styled.notes.forEach((note) => io.err(`pullboard commit-msg: fixed: ${note}`));
   const message = styled.message;
