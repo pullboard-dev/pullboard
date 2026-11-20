@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { addWorktree } from '../../../../git/index.js';
 
 /** Distinguishes the base worktrees one process makes. */
 let counter = 0;
@@ -35,8 +36,7 @@ export function runnerSprintPorts(root, { base, tip, sprint, check }) {
     mainReceipt: async file => {
       // Git makes the throwaway worktree beside the trunk and removes it again; no folder is created here.
       const dir = `${root}-base-${process.pid}-${(counter += 1)}`;
-      const added = spawnSync('git', ['worktree', 'add', '--detach', dir, base], { cwd: root, encoding: 'utf8' });
-      if (added.status !== 0) return { result: 'red' };
+      try { addWorktree(root, ['--detach', dir, base]); } catch { return { result: 'red' }; }
       try {
         return { result: verdict(await check([...sprint.testCommand, file])({ root: dir })).isGreen ? 'green' : 'red' };
       } finally {
