@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../../../gate/tests/fixtures/testkit.js';
-import { withGateProgress } from '../../../../../gate/index.js';
+import { withGateProgress } from '../../../../../gate/heavy.js';
 import { compareMainFailures } from '../../../../index.js';
 
 /** A real repository whose committed main has a Pullboard policy and no focused test runner. */

@@ -60,6 +60,15 @@ test('cli.logic-show-gate.a-red-pulled-gate-prints-gate-red: a red pulled gate p
   assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'claimed', gate: null }, { item_id: 1, item_status: 'claimed' }), []);
 });
 
+test('cli.logic-show-gate.red-line-prints-phase-command: clause 1: a red phase that carries its command prints it as one command line under GATE_RED, and a red phase with none prints no command line [C7]', () => {
+  const gate = { green: false, phases: [{ role: 'proof', status: 1, command: 'node --test ./tests/a.test.js', exit: 'boom' }] };
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate }, { item_id: 1, item_status: 'claimed' });
+  assert.match(red[0], /^GATE_RED: /u);
+  assert.equal(red[1], 'command: node --test ./tests/a.test.js');
+  const bare = pulledRedLines({ id: 'gate:1', step: 'done', gate: { green: false, phases: [{ role: 'proof', status: 1, exit: 'boom' }] } }, { item_id: 1, item_status: 'claimed' });
+  assert.equal(bare.some(line => line.startsWith('command: ')), false);
+});
+
 /** A red proof phase whose one failing case carries `error`, with a node --test output tail that names the crash. */
 function crashedGate(error) {
   return { green: false, phases: [{ role: 'proof', status: 1, errors: [{ file: 'test/a.test.js', name: 'a.test.js', error }],
