@@ -1,6 +1,5 @@
 /** Reuse fixture analysis and immutable tree metadata across the cells inspected by one sweep [C7]. */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { serialize } from 'node:v8';
 import { deserialize } from 'node:v8';
@@ -8,6 +7,9 @@ import { gzipSync } from 'node:zlib';
 import { gunzipSync } from 'node:zlib';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { cellSourceSnapshot } from '../cell/snapshot.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fileSystem = fileSystemAdapter();
 
 /** Own one analysis session; the entry point supplies its trusted analyzer, cache policy and publication ports. */
 export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest, eligible, onTreeRead } = {}) {
@@ -31,7 +33,7 @@ export function createFixtureMemo({ fixtureSourceEdits, cellsCacheDirectory, pub
     memory = new Map();
     try {
       file = join(cellsCacheDirectory('fixtures'), `${analyzerDigest()}.v8.gz`);
-      const data = deserialize(gunzipSync(readFileSync(file), { maxOutputLength: 512 * 1024 * 1024 }));
+      const data = deserialize(gunzipSync(fileSystem.readFile(file, null), { maxOutputLength: 512 * 1024 * 1024 }));
       if (data?.version === 1 && data.entries instanceof Map) memory = data.entries;
     } catch { /* A first run or damaged file only costs analysis. */ }
     return memory;

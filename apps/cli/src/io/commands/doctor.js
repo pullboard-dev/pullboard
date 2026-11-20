@@ -45,6 +45,7 @@ import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
 import { residentDaemons } from '../resident/daemons.js';
 import { appDaemonProblems } from '../../logic/runner/daemons.js';
+import { affectedRunnerProblems } from '../../logic/init/test-runner-match.js';
 import { toolchainProblems } from '../../logic/runner/toolchains.js';
 import { jestWorktreeProblem } from '../../logic/jest-worktrees.js';
 import { existsSync } from 'node:fs';
@@ -106,6 +107,10 @@ export async function run(io, { values = {} } = {}) {
   problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
   const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/index.js');
   problems.push(...toolchainProblems(languageToolchains(detectLanguages(ctx.info.root)).toolchains, loadMachineSettings().runners ?? []));
+  const packageText = textAt(ctx.info.root, 'package.json');
+  let packageJson = null;
+  try { packageJson = JSON.parse(packageText ?? 'null'); } catch { /* An unreadable package.json has no test script to compare. */ }
+  problems.push(...affectedRunnerProblems(packageJson, ctx.config));
   const jest = jestProblem(ctx.info.root);
   if (jest) problems.push(jest);
   // A managed repo with no background git maintenance slows every git command as loose objects pile up (#10782).

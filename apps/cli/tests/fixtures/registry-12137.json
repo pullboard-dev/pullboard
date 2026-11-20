@@ -1,0 +1,4 @@
+{
+  "cli.logic-runner-output.tap-escapes-undone": {"proves":{"specs":["C7"],"claim":"tapCaseErrors returns a red case's name with the reporter's # and backslash escapes undone"},"why":"Without it a red case whose name holds # or a backslash never matches the outcomes record and the gate posts failures null.","kind":"cell unit","inputs":["apps/cli/src/logic/runner/output.js"]},
+  "cli.logic-runner-output.file-path-unchanged": {"proves":{"specs":["C7"],"claim":"tapCaseErrors keeps a file-level failure's absolute path unchanged"},"why":"Without it unescaping could alter the path that names a file-level failure.","kind":"cell unit","inputs":["apps/cli/src/logic/runner/output.js"]}
+}
