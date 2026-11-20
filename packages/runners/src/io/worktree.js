@@ -1,5 +1,4 @@
 /** Builder item folders hosted on a registered runner over SSH, so git and hooks leave the coordinator [C7]. */
-import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
@@ -15,6 +14,7 @@ const HOST = /^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u;
 const ITEM = /^[1-9]\d{0,8}$/u;
 const REF = /^(?!.*\.\.)(?!\/)(?!.*\/$)[A-Za-z0-9._/-]{1,200}$/u;
 const OUTPUT_LIMIT = 64 * 1024;
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /**
  * Refuse a runner, item or ref that could leave the runner's builder root or the item's own branch.
@@ -66,23 +66,19 @@ export function hostedFolderScript({ folder, origin, branch, base, hooksPath }) 
  * Run one remote shell script on the runner over a bounded, non-forwarding SSH connection; never a synchronous child.
  * @param {{ host: string }} runner A registered runner record.
  * @param {string} script The POSIX script the runner's shell runs.
- * @param {{ ssh?: string, timeoutMs?: number }} [options] The SSH client and an optional wall bound.
+ * @param {{ ssh?: string, timeoutMs?: number, adapter?: { run: Function } }} [options] The SSH client, an optional wall bound, and an ssh adapter (a fake in a test).
  * @returns {Promise<{ status: number|null, signal: string|null, stdout: string, stderr: string, host: string, error: string|null }>} The run.
  */
-export function runOnRunnerShell(runner, script, { ssh = 'ssh', timeoutMs = 0 } = {}) {
+export async function runOnRunnerShell(runner, script, { ssh = 'ssh', timeoutMs = 0, adapter = null } = {}) {
   if (!HOST.test(runner?.host ?? '')) throw new Error('hosted item folder needs a registered runner host');
-  const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
-    '-o', 'SendEnv=-*', '--', runner.host, `/bin/sh -c ${shellWord(script)}`];
-  const child = spawn(ssh, args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
-  let stdout = '', stderr = '', error = null, timer = null;
-  child.stdout.setEncoding('utf8').on('data', part => { stdout = (stdout + part).slice(-OUTPUT_LIMIT); });
-  child.stderr.setEncoding('utf8').on('data', part => { stderr = (stderr + part).slice(-OUTPUT_LIMIT); });
-  child.once('error', failure => { error = failure.code ?? failure.name; });
-  if (timeoutMs > 0) timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);
-  return new Promise(resolve => child.once('close', (status, signal) => {
-    clearTimeout(timer);
-    resolve({ status, signal, stdout, stderr, host: runner.host, error });
-  }));
+  // Loaded when a hosted folder is first run, so status and next do not load the adapter with this file [C7].
+  const sshAdapter = adapter ?? (await import('./adapter/ssh.js')).createSshAdapter();
+  const run = await sshAdapter.run(runner, script, { ssh, env: sshEnvironment(), timeoutMs: timeoutMs > 0 ? timeoutMs : MAX_TIMER_MS });
+  return {
+    status: run.status, signal: run.signal ?? null,
+    stdout: run.stdout.toString('utf8').slice(-OUTPUT_LIMIT), stderr: run.stderr.slice(-OUTPUT_LIMIT),
+    host: runner.host, error: run.error ?? null,
+  };
 }
 
 /**

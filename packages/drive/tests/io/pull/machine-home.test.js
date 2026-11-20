@@ -58,6 +58,21 @@ test('drive.machine-home.temp-root-on-named-folder: clause 1: a host naming an e
   assert.equal(env.PULLBOARD_RUNNER_TMP_ROOT, undefined, 'the variable is not handed to the job');
 });
 
+test('drive.machine-home.playwright-path-passed: clause 1: a host PLAYWRIGHT_BROWSERS_PATH reaches the job environment unchanged [test] [C7]', t => {
+  const cache = cacheFolder(t);
+  const { env } = jobEnvironment(cache, 'gate-11', 'gate:11:shard:1', { PATH: '/usr/bin:/bin', PLAYWRIGHT_BROWSERS_PATH: '/opt/browsers' });
+  assert.equal(env.PLAYWRIGHT_BROWSERS_PATH, '/opt/browsers');
+});
+
+test('drive.machine-home.playwright-default-cache: clause 2: with no host value the job gets the host default browser cache folder when it exists, and none when it does not [test] [C7]', t => {
+  const cache = cacheFolder(t), hostHome = join(cache, 'hosthome'), browsers = join(hostHome, '.cache/ms-playwright');
+  const host = { PATH: '/usr/bin:/bin', HOME: hostHome };
+  assert.equal(jobEnvironment(cache, 'gate-12', 'gate:12:shard:1', host).env.PLAYWRIGHT_BROWSERS_PATH, undefined, 'no folder, no variable');
+  mkdirSync(browsers, { recursive: true });
+  assert.equal(jobEnvironment(cache, 'gate-13', 'gate:13:shard:1', host).env.PLAYWRIGHT_BROWSERS_PATH, browsers);
+  assert.equal(jobEnvironment(cache, 'gate-14', 'gate:14:shard:1', { ...host, PLAYWRIGHT_BROWSERS_PATH: '/opt/b' }).env.PLAYWRIGHT_BROWSERS_PATH, '/opt/b', 'a host value wins over the default');
+});
+
 test('drive.machine-home.temp-root-unset-or-missing: clause 2: with PULLBOARD_RUNNER_TMP_ROOT unset, missing or a file, TMPDIR stays the cache env folder tmp [test] [C7]', t => {
   const cache = cacheFolder(t), file = join(cache, 'afile');
   writeFileSync(file, 'x');
