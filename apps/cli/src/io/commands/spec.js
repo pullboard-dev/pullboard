@@ -114,11 +114,6 @@ import {
   renderSpecView,
 } from '../../../../view/index.js';
 import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
   resolve,
@@ -146,10 +141,12 @@ import {
   assertNoCitedSpecDecline,
   prepareSpecRowApplyPayload,
 } from '../../../../../packages/spec/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
 function verifierFindings(ctx, parsed) {
-  const source = readFileSync(parsed.file, 'utf8');
+  const source = fs.readFile(parsed.file, 'utf8');
   return hookRead(ctx, board => rowVerificationFindings(board, parsed, source, { rowDrafts }))
     ?? rowVerificationFindings(null, parsed, source, { rowDrafts });
 }
@@ -206,7 +203,12 @@ export async function specCommand(io, { first, second, rest, values }) {
     if (!second || rest.length !== 1 || !['accepted', 'rejected'].includes(rest[0])) throw new Refused('USAGE', 'use pullboard spec verify <id> accepted|rejected --reason "why"');
     const rows = spec.rows.filter(row => row.id === second);
     if (rows.length !== 1) throw new Refused('NO_ROW', `no unique row ${second}; read pullboard spec --json`);
-    const source = readFileSync(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
+    const source = fs.readFile(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
+    // With spec.requireFactQuote on, an accept of a source-backed row must cite the row's quote in its reason, so the verifier read the words it rests on [C7,#11250].
+    const quote = rows[0].quote?.trim();
+    if (rest[0] === 'accepted' && requireFactQuoteEnabled() && rows[0].source?.trim() && quote && !String(values.reason ?? '').includes(quote)) {
+      throw new Refused('FACT_QUOTE_UNCITED', `${second} rests on the quote "${quote}"; does this quote say what the row claims?`, 'if it does, run the accept again with that quote inside --reason');
+    }
     return withBoard(ctx, async board => {
       const me = whoAmI(ctx, board);
       const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason,
@@ -536,8 +538,8 @@ export async function specCommand(io, { first, second, rest, values }) {
       generatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       files: { spec: ctx.config.spec, practice: ctx.config.practice },
     });
-    mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, html);
+    fs.mkdir(dirname(out), { recursive: true });
+    fs.writeFile(out, html);
     io.result?.({ path: out });
     io.say(`wrote ${out}`);
     io.say(`open: ${pathToFileURL(out).href}`);

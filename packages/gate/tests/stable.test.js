@@ -22,7 +22,7 @@ import {
   findChromeExecutable,
   findRunnerAncestor,
 } from '../../../apps/cli/tests/fixtures/chrome.js';
-import { withNestedGroup } from '../index.js';
+import { withNestedGroup } from '../heavy.js';
 import { runFixtureChildAsync } from './fixtures/child.js';
 import { runUnderStandIn } from './fixtures/runner-standin.js';
 

@@ -1,13 +1,5 @@
 /** The block ledger: refusals that stopped someone's command. Not in refused.js, which the browser loads [C6]. */
-import {
-  appendFileSync,
-  closeSync,
-  existsSync,
-  fstatSync,
-  openSync,
-  readSync,
-  statSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   join,
   resolve,
@@ -21,6 +13,8 @@ import {
   repoInfo,
 } from "../../../git/light.js";
 import { homedir } from 'node:os';
+
+const fs = fileSystemAdapter();
 
 /** The ledger of refusals that stopped someone's command, beside the board in Git's common folder. */
 export const BLOCKS_FILE = join('pullboard', 'blocks.jsonl');
@@ -36,8 +30,8 @@ export const BLOCKS_FILE = join('pullboard', 'blocks.jsonl');
 export function recordBlock(commonDir, block) {
   const folder = join(commonDir, 'pullboard');
   // A repository without a board has no ledger yet; the refusal itself still prints.
-  if (!existsSync(folder)) return false;
-  appendFileSync(join(commonDir, BLOCKS_FILE), JSON.stringify({ ...block, ...(block.moveKey ? { id: randomUUID() } : {}) }) + '\n');
+  if (!fs.exists(folder)) return false;
+  fs.appendFile(join(commonDir, BLOCKS_FILE), JSON.stringify({ ...block, ...(block.moveKey ? { id: randomUUID() } : {}) }) + '\n');
   return true;
 }
 
@@ -52,17 +46,17 @@ const TAIL_SLACK_MS = 3_600_000;
  * @returns {Buffer}
  */
 export function readLedgerBytes(file, offset) {
-  const fd = openSync(file, 'r');
+  const fd = fs.open(file, 'r');
   try {
-    const bytes = Buffer.allocUnsafe(Math.max(0, fstatSync(fd).size - offset));
+    const bytes = Buffer.allocUnsafe(Math.max(0, fs.fstat(fd).size - offset));
     let length = 0;
     while (length < bytes.length) {
-      const count = readSync(fd, bytes, length, bytes.length - length, offset + length);
+      const count = fs.read(fd, bytes, length, bytes.length - length, offset + length);
       if (count === 0) break;
       length += count;
     }
     return bytes.subarray(0, length);
-  } finally { closeSync(fd); }
+  } finally { fs.close(fd); }
 }
 
 /** The ledger text in `bytes` read from `offset`; a read that starts mid-file drops its first partial line. */
@@ -135,9 +129,9 @@ function stampOf(line) {
  */
 export function readBlocks(commonDir, { since, mentioning, read = readLedgerBytes } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   const from = since ? since.getTime() : -Infinity;
-  const size = statSync(file).size;
+  const size = fs.stat(file).size;
   let text;
   if (!since) {
     // With no bound every line counts, so the whole ledger is read once; a ledger naming none of the words is never decoded.
@@ -251,7 +245,7 @@ export function blockOwner(audience, info) {
 export function blocksMayClear(io) {
   let info;
   try { info = repoInfo(io.cwd); } catch { return false; }
-  return existsSync(join(info.commonDir, BLOCKS_FILE)) && blockMoveKeys(io).length > 0;
+  return fs.exists(join(info.commonDir, BLOCKS_FILE)) && blockMoveKeys(io).length > 0;
 }
 
 /**
@@ -275,7 +269,7 @@ export async function clearCompletedBlocks(io, { loadPersonCheck }, now = io.clo
     }
     const ids = matching.filter(block => owners.has(block.owner)).map(block => block.id);
     if (!ids.length) return;
-    appendFileSync(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');
+    fs.appendFile(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');
   } catch (error) { io.err(`pullboard: the move completed, but its earlier block could not be cleared (${error.message})`); }
 }
 

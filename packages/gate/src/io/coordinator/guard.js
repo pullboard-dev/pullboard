@@ -1,4 +1,6 @@
 /** No test process starts on the coordinator: tests run on runners, by a runner job, or nowhere [C7]. */
+import { environmentAdapter } from '../../../../env/index.js';
+
 /** The variable a runner job sets on every process it starts; a process without it is not a runner job. */
 export const RUNNER_JOB_ENV = 'PULLBOARD_RUNNER_JOB';
 
@@ -24,7 +26,7 @@ export function isCoordinatorMachine(read) {
  * @param {{ env?: NodeJS.ProcessEnv, read: () => any }} options - read is config's loadMachineSettings.
  * @returns {string | null}
  */
-export function coordinatorTestRefusal({ env = process.env, read }) {
+export function coordinatorTestRefusal({ env = environmentAdapter().all(), read }) {
   if (env[RUNNER_JOB_ENV] || !isCoordinatorMachine(read)) return null;
   return `[${TESTS_ON_COORDINATOR}] tests never run on the coordinator (gate.runnersOnly); run them on a runner with pullboard test <file>`;
 }
@@ -35,7 +37,7 @@ export function coordinatorTestRefusal({ env = process.env, read }) {
  *
  * @param {{ env?: NodeJS.ProcessEnv, read: () => any, exit?: (code: number) => never, write?: (text: string) => void }} options - read is config's loadMachineSettings.
  */
-export function refuseTestsOnCoordinator({ env = process.env, read, exit = code => process.exit(code), write = text => process.stderr.write(text) } = {}) {
+export function refuseTestsOnCoordinator({ env = environmentAdapter().all(), read, exit = code => process.exit(code), write = text => process.stderr.write(text) } = {}) {
   const refusal = coordinatorTestRefusal({ env, read });
   if (!refusal) return;
   write(refusal + '\n');
