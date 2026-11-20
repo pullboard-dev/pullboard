@@ -237,6 +237,9 @@ export function loadMachineSettings() {
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
   }
+  if (value.route?.reservations !== undefined && typeof value.route.reservations !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `route.reservations in ${file} must be true or false`);
+  }
   if (value.items?.barRulesAtAdd !== undefined && typeof value.items.barRulesAtAdd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.barRulesAtAdd in ${file} must be true or false`);
   }

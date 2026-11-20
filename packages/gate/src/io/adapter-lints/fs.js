@@ -18,17 +18,23 @@ export const FS_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-fs.json
 
 const KERNEL = 'packages/kernel/';
 /**
- * The two submit files whose node:fs imports live inside generated child-process scripts, which cannot import the adapter.
+ * The files whose node:fs imports live inside generated child-process scripts (the two submit files, the runner probe, and the capsule installer stringified into the remote install script, #11632), which cannot import the adapter.
  *
  * Why: the lint counts import text, so these files can never reach zero by migration; exempting them by exact path keeps
  * the imports visible here instead of rewriting the generated scripts to dodge the count [C7].
  */
-const GENERATED_CHILD_SCRIPTS = new Set(['apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js']);
+const GENERATED_CHILD_SCRIPTS = new Set(['apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js', 'packages/runners/src/io/probe.js', 'packages/runners/src/io/package/install.js']);
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const FS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(['"`])(?:node:)?fs(?:\/promises)?\1/gu;
 
-/** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not a generated-child-script file. */
-export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && !GENERATED_CHILD_SCRIPTS.has(path)
+/**
+ * The watchdog worker's program text: a worker thread's own program cannot import the adapter, and it must write a
+ * diagnostic from outside the stuck event loop, so its node:fs require is the one exempt path.
+ */
+const WATCHDOG_SOURCE = 'packages/gate/src/io/run-tests-watchdog-source.js';
+
+/** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not the watchdog program text, not a generated-child-script file. */
+export const coveredByFsLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL) && path !== WATCHDOG_SOURCE && !GENERATED_CHILD_SCRIPTS.has(path)
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**

@@ -284,9 +284,12 @@ async function nextWithProgress(io, values, progress) {
   const origin = ctx.info.root;
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
+  // What this seat's last selection could see, read before that selection; a wake that leaves it equal waits again without selecting [C7,#11798].
+  let passSignature = null, quiet = null, quietAt = 0;
   try { for (;;) {
     // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
     store.refreshItemSnapshot();
+    if (minutes > 0) passSignature = seatSignature(ctx);
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
@@ -539,8 +542,36 @@ async function nextWithProgress(io, values, progress) {
       });
       await progress.idle(found.reasons, () => wake.wait({ after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
+      quiet = passSignature; quietAt = Date.now();
+      // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
+      while (quiet !== null && !testRuns.pending.length && Date.now() < until && Date.now() - quietAt < QUIET_RECHECK_MS && seatSignature(ctx) === quiet) {
+        await wake.wait({ after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS) });
+        wakeVersion = wake.version();
+      }
     }
   } } finally { wake?.close(); }
+}
+
+/** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
+const QUIET_RECHECK_MS = 30_000;
+
+/**
+ * What a waiting seat's selection reads that other seats' writes can change: items, shouts, verdicts, holds, agents, this seat's queued reds and the non-board inputs.
+ * Why: next --wait woke on every write to the board file and re-ran the whole selection, burning CPU on a busy board [C7,#11798].
+ */
+function seatSignature(ctx) {
+  const rows = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board), all = sql => board.db.prepare(sql).all();
+    return [me.id,
+      all('SELECT item_id, item_status, item_owner, item_lease_until, item_commit, item_tree, item_verdict, item_merged_commit, item_hold_reason, item_after FROM item'),
+      all('SELECT MAX(shout_id) AS last FROM shout'), all('SELECT MAX(verdict_id) AS last, COUNT(*) AS n FROM verdict'),
+      all('SELECT hold_lane, hold_reason FROM hold'), all('SELECT agent_id, agent_lane, agent_route FROM agent'),
+      store.queuedReds(board, me.id).map(red => red.id)];
+  });
+  const inputs = nextChangeInputs(ctx).slice(2).map(path => {
+    try { const stat = fs.stat(path); return `${stat.ino}:${stat.size}:${stat.mtimeMs}`; } catch { return 'none'; }
+  });
+  return JSON.stringify([rows, inputs]);
 }
 
 /**
