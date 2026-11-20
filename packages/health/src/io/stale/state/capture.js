@@ -157,6 +157,15 @@ export function dependencyWaitedIds(board) {
   return waited;
 }
 
+/**
+ * Capture the claims whose lease has lapsed, or whose holder has gone quiet, as one stale-state snapshot for the sweep to act on.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {string} actor
+ * @param {{lapsedOnly?: boolean}} [options]
+ * @returns {object|null}
+ */
 export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
   const seatQuietLimit = 2 * 60_000;

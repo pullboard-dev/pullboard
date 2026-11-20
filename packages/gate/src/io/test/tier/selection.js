@@ -21,7 +21,6 @@ import { sealStoreFile } from '../../seals.js';
 import { sealsExist } from '../../seals.js';
 import { checkSkippedSeals } from '../../seals.js';
 import { refusalFloor } from '../../refusal/floor.js';
-import { cellReadPathMap } from '../../../../../codemap/index.js';
 import { codeMapGraph } from '../../affected/tests.js';
 import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
@@ -30,7 +29,6 @@ import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
-const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 
 /** Read exact Git objects or construct an isolated read view without executing project hooks. */
 function sourceGit(root, args, optional = false, { input, binary = false } = {}) {
@@ -112,22 +110,6 @@ function tierCodeDigest() {
   return tierCode;
 }
 
-/**
- * What the layout freeze made of the former bin folder, by the committed path map at one commit: the check scripts
- * (bin/checks/*.js) and every path that file set touches, old and new. A commit without the map has none [C7,#4015].
- */
-function formerBin(root, commit) {
-  const scripts = new Set(), inputs = new Set();
-  let map = new Map();
-  try { map = cellReadPathMap(root, { commit }); } catch { /* No readable map, no tooling tier. */ }
-  for (const [old, now] of map) {
-    if (!old.startsWith('bin/')) continue;
-    inputs.add(old).add(now);
-    if (old.startsWith('bin/checks/') && old.endsWith('.js')) scripts.add(now);
-  }
-  return { scripts, inputs };
-}
-
 /** Recompute classifications and ownership from the exact source, including stale or edited manifest rows. */
 function snapshotAt(root, commit, componentTier = false) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
@@ -146,9 +128,6 @@ function snapshotAt(root, commit, componentTier = false) {
   // Read from the commit's Git objects: a sealed in-memory source, no clone or checkout on this machine [C7,V4].
   let owners, packageFiles;
   const helpers = new Map();
-  // The tooling tier: unit tests whose only production inputs, by the import graph, are the former bin check scripts.
-  const { scripts } = formerBin(root, commit);
-  const tooling = new Set();
   const manifest = generateTestTiersAt(root, commit, {
     componentTier,
     onInventory: inventory => {
@@ -157,8 +136,6 @@ function snapshotAt(root, commit, componentTier = false) {
     },
     onReach: row => {
       if (row.tier !== 'T1') return;
-      const inputs = [...row.reached].filter(path => path !== row.file && !TEST_HELPER.test(path) && !TEST_FILE.test(path));
-      if (inputs.length && inputs.every(path => scripts.has(path))) tooling.add(row.file);
       for (const path of row.reached) if (TEST_HELPER.test(path)) {
         const packages = helpers.get(path) ?? new Set();
         for (const name of row.packages) packages.add(name);
@@ -166,7 +143,7 @@ function snapshotAt(root, commit, componentTier = false) {
       }
     },
   });
-  const result = { manifest, owners, packageFiles, helpers, tooling, rows: new Map(manifest.files.map(row => [row.file, row])) };
+  const result = { manifest, owners, packageFiles, helpers, rows: new Map(manifest.files.map(row => [row.file, row])) };
   writeTierSnapshot(commit, code, result);
   snapshots.set(key, result);
   if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
@@ -240,10 +217,9 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const packages = new Set();
   // Cells the test-cell check records as sealed (packages/gate/data/tests/test-cells.json): their tests conform, so the plan names them [C7].
   const sealedCells = sealedTestCells(root, commit);
-  // A cell's own plan shard is a listing that rides with its work, so only the other plan files are global here (#4633).
   const hardGlobal = isHardGlobal(actual);
   const confined = confinementOf(root, base, commit, actual, sealedCells);
-  const global = hardGlobal || (!confined && actual.some(file => PLAN_SHARD.test(file)));
+  const global = hardGlobal;
   if (global) for (const row of after.manifest.files) for (const name of row.packages) packages.add(name);
   else for (const file of actual) {
     for (const snapshot of [before, after]) {
@@ -272,14 +248,10 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // source text, never through imports, so a diff that adds or edits one names that audit here (#3184).
   for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
-  // The tooling tier runs only when a former bin file or a rule it checks changes: its tests reach nothing else, so any other
-  // cell change leaves them out, and a global change keeps every test [C7,#4015].
-  const tooling = after.tooling ?? new Set(), former = formerBin(root, commit);
-  const toolingRun = global || (actual ?? []).some(file => former.inputs.has(file));
   const changedFiles = new Set(actual ?? []);
   const doorChanged = row => global || row.doors?.some(door => changedFiles.has(door));
-  const selects = row => (!tooling.has(row.file) || toolingRun) && (row.tier === 'T2' ? doorChanged(row) : confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row));
-  const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file) || (toolingRun && tooling.has(row.file))).map(row => row.file), ...contracts])].sort();
+  const selects = row => row.tier === 'T2' ? doorChanged(row) : confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
+  const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
   // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003). The one exception
   // is a test that reads a listing file the change carried: that file is its input, so it stays selected (#4633).
   const readers = confined?.listings.length ? listingReaders(root, base, commit, confined.listings) : null;
@@ -297,21 +269,9 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
     ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
-/**
- * The tooling tier of a commit: its unit tests whose only production inputs, by the import graph, are the former bin check
- * scripts named by the layout freeze path map. Computed from the graph each time, never listed by hand [C7,#4015].
- *
- * @param {string} root any checkout of the repository
- * @param {string} [commit] the commit whose graph decides the tier
- * @returns {string[]} the sorted test files
- */
-export function toolingTests(root, commit = 'HEAD') {
-  return [...(snapshotAt(root, commitAt(root, commit)).tooling ?? [])].sort();
-}
-
-/** Whether a change list carries a file that is global whatever cell it sits in: a manifest, lockfile or non-shard plan file. */
+/** Whether a change list carries a file that is global whatever cell it sits in: a manifest or lockfile. */
 function isHardGlobal(actual) {
-  return !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file) || (file.startsWith('packages/codemap/data/plan') && !PLAN_SHARD.test(file)));
+  return !actual || actual.some(file => file === 'package.json' || /(?:^|\/)(?:package-lock|npm-shrinkwrap)\.json$/u.test(file));
 }
 
 /** The sealed-cell confinement of the change from `base` to `commit`, or null; shared by selection and its guard so both read one rule (#5671). */
@@ -319,8 +279,6 @@ function confinementOf(root, base, commit, actual, sealedCells) {
   return isHardGlobal(actual) ? null : sealedConfinement(actual, sealedCells, (file, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${file}`], true));
 }
 
-/** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
-const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
 /** The generated fixture registry: one row per test file naming the fixtures it uses. */
 const [FIXTURE_REGISTRY] = BASELINE_TABLES;
 /** The per-file cross-cell import ceilings, a committed listing its writer in edges.js names. */
@@ -338,7 +296,7 @@ const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 const GENERATED_SECTIONS = { 'packages/gate/data/tests/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), [CELLS_EDGES_CEILINGS]: true, [TEST_TIERS_FILE]: true };
 
 /** Whether a changed path is a listing file a cell's work regenerates beside its code. */
-function isListing(file) { return COMMITTED_LISTINGS.has(file) || PLAN_SHARD.test(file); }
+function isListing(file) { return COMMITTED_LISTINGS.has(file); }
 
 /** The name the test-cell listing gives a cell root: `<cell>` for `packages/<cell>`, `apps/<name>` for `apps/<name>`. */
 function listedCellName(root) { return root.startsWith('apps/') ? root : root.slice('packages/'.length); }
@@ -389,7 +347,6 @@ function listingIsOwn(file, roots, read) {
   const parse = side => { try { const text = read(file, side); return text === null ? null : JSON.parse(text); } catch { return undefined; } };
   const [before, after] = [parse('base'), parse('head')];
   if (before === undefined || after === undefined) return false;
-  if (PLAN_SHARD.test(file) && !roots.has((after ?? before)?.root)) return false;
   const names = new Set([...roots].map(listedCellName));
   const owns = key => names.has(key.replace(/^<-/u, '')) || [...roots].some(root => key === root || key.startsWith(`${root}/`));
   const [was, now] = [listingRows(before), listingRows(after)];
@@ -403,7 +360,7 @@ function listingIsOwn(file, roots, read) {
  * reads a listing as input must run when the listing changes, even though a confined change runs no other journey (#4633).
  */
 function listingReaders(root, base, commit, listings) {
-  const needles = [...new Set(listings.map(file => PLAN_SHARD.test(file) ? 'packages/codemap/data/plan/' : posix.basename(file)))];
+  const needles = [...new Set(listings.map(file => posix.basename(file)))];
   const before = base ? codeMapGraph(root, base) : null;
   const readers = new Set();
   for (const graph of [before, codeMapGraph(root, commit, before)]) {

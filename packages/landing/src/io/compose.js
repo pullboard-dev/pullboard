@@ -63,7 +63,7 @@ export async function composeLanding(root, { base, plan, config, badges, identit
   }
   // The derived files fold into the last item merge when it is the tip, else they are a commit of their own, as the coordinator did.
   const before = git(root, ['rev-parse', 'HEAD']);
-  const { engines } = stageLandingDerived(root);
+  const { engines } = await stageLandingDerived(root);
   await stageTestRegistries(root, base);
   if (badges.length) stageBadgeDocuments(root, badges);
   if (git(root, ['diff', '--cached', '--name-only']).trim()) {
