@@ -1,11 +1,13 @@
 /** Checkout leases and the opt-in startup trace shared by the CLI dispatcher modules [A2,C7]. */
-import { appendFileSync } from 'node:fs';
 import { loadavg } from 'node:os';
 import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
 const environment = environmentAdapter();
+const fs = fileSystemAdapter();
 
 export const CHECKOUT_LEASES = new WeakMap();
 export const CHECKOUT_BOARD_ONLY = new WeakMap();
@@ -16,7 +18,7 @@ export function traceServeStartup(phase) {
   const entry = environment.get('PULLBOARD_STARTUP_TRACE_ENTRY');
   if (!path || !entry || resolve(process.argv[1] ?? '') !== resolve(entry)) return;
   try {
-    appendFileSync(path, `${JSON.stringify({ phase, at: Date.now(), elapsedMs: performance.now(),
+    fs.appendFile(path, `${JSON.stringify({ phase, at: Date.now(), elapsedMs: performance.now(),
       processId: process.pid, cpuUsage: process.cpuUsage(), loadAverage: loadavg(),
       eventLoopUtilization: performance.eventLoopUtilization() })}\n`);
   } catch {
