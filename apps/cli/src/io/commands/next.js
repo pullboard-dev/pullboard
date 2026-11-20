@@ -122,6 +122,7 @@ export async function nextHere(io, values) {
     // One item list serves every phase of this next between its own writes, instead of a full read per phase and per other seat's commit [C7,N2,#12010].
     const code = await store.withItemSnapshot(() => nextWithProgress(io, values, progress));
     // An item folder is cut from current main, so the seat checkout's lag says nothing about that build [U159].
+    progress.enter('lag');
     if (!io.lagSilent) sayLag(io, context(io));
     sayCoordinatorCallouts(io);
     return code;
@@ -175,15 +176,18 @@ function sayCoordinatorCallouts(io) {
 
 /** Keep native routing and deliberate idle waits separate from bounded nonprogress retries. */
 async function nextWithProgress(io, values, progress) {
-  progress.enter('context');
+  // Each context step is its own profile row, so the profile names the slow one rather than one lump [N2].
+  progress.enter('fallback reclaim');
   let ctx = context(io);
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   await fallbackReclaim(ctx, 'next');
   // A gate job waiting with no live runner brings this machine's local runner back, and says so in one line [#6556].
+  progress.enter('dead runner restart');
   const restarted = await restartDeadRunner(ctx);
   if (restarted) io.say(restarted);
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
+  progress.enter('queued reds');
   const hasQueuedReds = withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
     return store.queuedReds(board, me.id).some(red =>
