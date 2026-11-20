@@ -128,7 +128,7 @@ function stretches(rows, end) {
     else if (current.stage === 'reviewing') phase = 'reviewing';
     else if (current.stage === 'verdict') phase = 'verdict';
     else if (current.stage === 'held') held = current.edge === 'start';
-    else if (current.stage === 'merged') phase = 'merged';
+    else if (current.stage === 'merged') phase = rows[index + 1]?.stage === 'recorded' ? 'recorded' : 'merged';
     else if (current.stage === 'recorded') phase = 'recorded';
     if (gateJob) {
       if (current.stage === 'gate-queued') gate.queued.add(current.ref);
