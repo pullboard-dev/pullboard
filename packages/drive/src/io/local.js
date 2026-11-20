@@ -34,6 +34,18 @@ export const WAKE_FILE = 'wake';
 // The file startLocalRunner writes as it starts the process: its pid and start time, read by localRunnerStarting.
 const STARTING_FILE = 'starting.json';
 
+/**
+ * The name of one of the runner folder's per-runner files for a PULLBOARD_HOME: the plain name when no home is given,
+ * else the name with a short key of the home. Why: a runner only pulls the boards of the home it started under, so a
+ * runner of another home must never read as this home's live runner, and two homes never share one lock [P7,C7].
+ */
+function homeFile(name, home) {
+  if (typeof home !== 'string' || home === '') return name;
+  const key = createHash('sha256').update(home).digest('hex').slice(0, 12);
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? `${name}-${key}` : `${name.slice(0, dot)}-${key}${name.slice(dot)}`;
+}
+
 /** Read a JSON file, or the fallback when it is missing or damaged. */
 function readJson(file, fallback) {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return fallback; }
@@ -56,10 +68,11 @@ export function processAlive(pid) {
  * The running local runner's state, or null when none runs: its pid is alive and its heartbeat is recent.
  * @param {string} folder
  * @param {number} [now]
+ * @param {string | null} [home] - The PULLBOARD_HOME asking: only a runner started under it counts.
  * @returns {{ pid: number, runner: string, url: string | null, heartbeatAt: number } | null}
  */
-export function localRunnerState(folder, now = Date.now()) {
-  const state = readJson(join(folder, 'state.json'), null);
+export function localRunnerState(folder, now = Date.now(), home = null) {
+  const state = readJson(join(folder, homeFile('state.json', home)), null);
   if (!state || !processAlive(state.pid) || !(now - Number(state.heartbeatAt) < STALE_MS)) return null;
   return state;
 }
@@ -81,10 +94,10 @@ export function wakeLocalRunner(folder) {
  * @param {string} folder
  * @returns {{ state: 'live', pid: number } | { state: 'stopped' } | null}
  */
-export function localRunnerStatus(folder) {
-  const live = localRunnerState(folder);
+export function localRunnerStatus(folder, home = null) {
+  const live = localRunnerState(folder, Date.now(), home);
   if (live) return { state: 'live', pid: live.pid };
-  return existsSync(join(folder, 'state.json')) ? { state: 'stopped' } : null;
+  return existsSync(join(folder, homeFile('state.json', home))) ? { state: 'stopped' } : null;
 }
 
 /** The board roots the local runner serves, those still on disk. */
@@ -110,11 +123,11 @@ export function addLocalBoard(folder, root) {
  * @param {{ cwd: string, env: NodeJS.ProcessEnv }} options
  * @returns {Promise<number | null>}
  */
-export async function startLocalRunner(folder, argv, { cwd, env, spawn = spawnReachable }) {
+export async function startLocalRunner(folder, argv, { cwd, env, home = null, spawn = spawnReachable }) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const { pid } = await spawn(process.execPath, argv, { cwd, env, log: join(folder, 'runner.log') });
   // The new process writes its state only once it has loaded and taken the lock; until then this marker says it is on its way [P7,C7].
-  if (Number.isSafeInteger(pid)) writeJson(join(folder, STARTING_FILE), { pid, startedAt: Date.now() });
+  if (Number.isSafeInteger(pid)) writeJson(join(folder, homeFile(STARTING_FILE, home)), { pid, startedAt: Date.now() });
   return pid ?? null;
 }
 
@@ -125,20 +138,21 @@ export async function startLocalRunner(folder, argv, { cwd, env, spawn = spawnRe
  *
  * @param {string} folder
  * @param {number} [now]
+ * @param {string | null} [home] - The PULLBOARD_HOME asking: only a start under it counts.
  * @returns {number | null}
  */
-export function localRunnerStarting(folder, now = Date.now()) {
-  const starting = readJson(join(folder, STARTING_FILE), null);
+export function localRunnerStarting(folder, now = Date.now(), home = null) {
+  const starting = readJson(join(folder, homeFile(STARTING_FILE, home)), null);
   if (!starting || !processAlive(starting.pid) || !(now - Number(starting.startedAt) < STALE_MS)) return null;
   return starting.pid;
 }
 
 /** Take the folder's lock, or answer false while a live local runner holds it; a dead holder's lock is taken over. */
-function takeLock(folder) {
-  const lock = join(folder, 'lock');
+function takeLock(folder, home) {
+  const lock = join(folder, homeFile('lock', home));
   for (let attempt = 0; attempt < 2; attempt++) {
     try { mkdirSync(lock); return true; } catch (error) { if (error?.code !== 'EEXIST') throw error; }
-    if (localRunnerState(folder)) return false;
+    if (localRunnerState(folder, Date.now(), home)) return false;
     rmSync(lock, { recursive: true, force: true });
   }
   return false;
@@ -181,18 +195,22 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  * @param {boolean} [options.wakeOnOffer] - runners.localWake: an idle board wait ends when an offering command touches the folder's wake file (wakeLocalRunner); default off.
  * @param {Parameters<typeof serveRunner>[0]['admit']} [options.admit] - Asked before each claim, with the kinds the runner holds across its boards; the local runner takes a job only while it says yes, skipping the kinds it excepts.
  * @param {Parameters<typeof serveRunner>[0]['git']} [options.git] - The Git launches the app hands every serve.
+ * @param {string | null} [options.home] - The PULLBOARD_HOME the runner serves: its lock, state and starting marker are keyed to it, so a runner of another home is never this home's live runner.
  * @param {AbortSignal} options.signal
  * @param {(line: string) => void} [options.say]
  * @param {{ heartbeatMs?: number }} [options.timing]
- * @returns {Promise<{ served: boolean, pid: number }>} served false when another local runner (pid) already runs.
+ * @returns {Promise<{ served: true, pid: number } | { served: false, pid: number | null, code: string, next: string }>} served false, with a refusal code and a next line, when a local runner of the same home (pid) already runs.
  */
-export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, git, signal, say = () => {}, timing = {}, wakeOnOffer = false }) {
+export async function serveLocalRunner({ folder, open, capabilities, handlers = {}, admit, git, signal, say = () => {}, timing = {}, wakeOnOffer = false, home = null }) {
   const { heartbeatMs = HEARTBEAT_MS } = timing;
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  if (!takeLock(folder)) return { served: false, pid: localRunnerState(folder)?.pid ?? null };
+  if (!takeLock(folder, home)) {
+    return { served: false, pid: localRunnerState(folder, Date.now(), home)?.pid ?? null, code: 'LOCAL_RUNNER_RUNNING', next: 'a local runner of this home already runs; pullboard runner list shows it' };
+  }
   const runner = `local-${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'host'}-${process.pid}`;
   const state = { pid: process.pid, runner, url: null };
-  const beat = () => writeJson(join(folder, 'state.json'), { ...state, heartbeatAt: Date.now() });
+  const stateFile = join(folder, homeFile('state.json', home));
+  const beat = () => writeJson(stateFile, { ...state, heartbeatAt: Date.now() });
   beat();
   const heartbeat = setInterval(beat, heartbeatMs);
   // One ledger of held job kinds for every board this runner serves: a check baseline held for one board keeps the others from claiming a second [C7,#10794].
@@ -216,8 +234,8 @@ export async function serveLocalRunner({ folder, open, capabilities, handlers = 
   } finally {
     clearInterval(heartbeat);
     await api?.close().catch(() => { /* already closed */ });
-    rmSync(join(folder, 'state.json'), { force: true });
-    rmSync(join(folder, 'lock'), { recursive: true, force: true });
+    rmSync(stateFile, { force: true });
+    rmSync(join(folder, homeFile('lock', home)), { recursive: true, force: true });
     say('stopped');
   }
 }

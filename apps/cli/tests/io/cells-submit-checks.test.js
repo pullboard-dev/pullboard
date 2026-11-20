@@ -4,6 +4,10 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
 import { cellsSnapshotProblems } from '../../src/io/cells-submit-checks.js';
 import { cellsSnapshotPair } from '../fixtures/cells/snapshot.js';
+import { commonJsIn } from '../../../../packages/gate/heavy.js';
+import { foreignNodeOptions } from '../../../../packages/gate/heavy.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
+import { withImportParseCache } from '../../../../packages/gate/heavy.js';
 
 const git = (root, ...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } }).trim();
 const files = root => git(root, 'ls-files').split('\n').sort();
@@ -33,4 +37,15 @@ test('cli.io-cells-submit-checks.missing-census-cache-services-refuse-cells-subm
     error => error.code === 'CELLS_SUBMIT' && /canonical census cache services are required/u.test(error.message));
   assert.throws(() => cellsSnapshotProblems(pair.main.root, pair.candidate.root, { ...options, withImportParseCache: work => work(), cacheEligible: undefined }),
     error => error.code === 'CELLS_SUBMIT' && /canonical census cache services are required/u.test(error.message), 'a missing cacheEligible refuses the same way');
+});
+
+test('cli.io-cells-submit-checks.an-unchanged-candidate-returns-no-problems: clause 1: cellsSnapshotProblems on an unchanged snapshot pair, given the parsers, withImportParseCache and cacheEligible services apps/cli/src/io/submit/gate.js passes it, returns no problems [C7,#10962]', (t) => {
+  const pair = cellsSnapshotPair(t);
+  // The same gate front-door services the submit gate hands requireSubmitCells, not stubs.
+  const options = {
+    acceptedMain: pair.main.commit, withMainCheckout: () => { throw new Error('an unchanged candidate needs no main checkout'); }, acceptedArtifact: null, acceptedArtifacts: null,
+    parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), collectMachinery: false,
+    readCutItems: () => [], onInventory: () => {}, onAllCells: () => {},
+  };
+  assert.deepEqual(cellsSnapshotProblems(pair.main.root, pair.candidate.root, options).problems, []);
 });
