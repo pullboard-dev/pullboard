@@ -28,6 +28,7 @@ import { submitGatePlan } from '../../../../../packages/gate/heavy.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { sealedFallbackMain } from '../../../../../packages/verify/index.js';
+import { namedProofTests } from '../submit.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/heavy.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
@@ -537,7 +538,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           if (!moveNote) {
             try {
               const sealedConfig = submitGateConfig(policyAt(root, commit).config, policyAt(root, sealedMain).config);
-              const plan = submitGatePlan(root, sealedConfig, { base: item.item_claim_head, trunk: sealedMain, commit, check: frozenCheck(item) });
+              const plan = submitGatePlan(root, sealedConfig, { base: item.item_claim_head, trunk: sealedMain, commit, check: frozenCheck(item), crossRunTests: namedProofTests(root, item, commit) });
               sealedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
             } catch { /* A plan that cannot be reproduced grants no reuse. */ }
           }
