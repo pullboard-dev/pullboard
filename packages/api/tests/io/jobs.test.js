@@ -401,6 +401,50 @@ test('api.jobs.claims-aged-test-before-shards-over-claim-action: clause 3: over 
   assert.equal(claim(182_001), 'gate:9:shard:1');
 });
 
+test('api.io-claim-key.retry-after-abort-returns-same-lease: clause 1: the board commits a keyed claim whose first response is aborted; the retry with the same key gets the same job and token with no lapsed lease and no second job, and another key takes another job [C7]', async (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-claim-key-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:first', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'test:second', kind: 'test', now: 1001 });
+  // The production route: the board commits the claim, then the runner's call is cut before the answer reaches it.
+  let cut = null;
+  let committed = null;
+  const handler = createApiHandler({ refusalDocument,
+    authenticate: () => ({ local: true }),
+    board: (id) => ({ id }),
+    jobs: (board, body) => {
+      // The abort runs before the answer is written, so the runner never reads it.
+      const answer = jobQueueCall(db, body, { mode: 'pull' });
+      if (cut) { committed = answer; cut.abort(); cut = null; }
+      return answer;
+    },
+  });
+  const server = createServer(handler);
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { handler.close(); server.close(done); server.closeIdleConnections(); }));
+  const claim = async (key, signal) => {
+    const response = await fetchFresh(`http://127.0.0.1:${server.address().port}/api/v1/boards/fixture/jobs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'claim', runner: 'r-a', key, capabilities: [] }), ...(signal ? { signal } : {}) });
+    return { status: response.status, document: await response.json() };
+  };
+
+  cut = new AbortController();
+  await assert.rejects(claim('key-first-0001', cut.signal), { name: 'AbortError' }, 'the runner never sees the first answer');
+  assert.equal(committed.claim.job, 'test:first', 'the board committed the first claim');
+  const retry = await claim('key-first-0001');
+  assert.equal(retry.status, 200);
+  assert.deepEqual([retry.document.claim.job, retry.document.claim.attempt, retry.document.claim.token, retry.document.claim.leaseUntil], ['test:first', 1, committed.claim.token, committed.claim.leaseUntil], 'the retry answers the committed lease: same job, attempt, token and lease end');
+  const first = jobView(db, 'test:first');
+  assert.deepEqual([first.leaseOwner, first.attempt, first.step], ['r-a', 1, 'claimed']);
+  assert.equal(first.steps.some((step) => step.name === 'lapsed'), false, 'no lease lapsed');
+  assert.equal(jobView(db, 'test:second').leaseOwner, null, 'the retry took no second job');
+  assert.equal((await claim('key-first-0001')).document.claim.token, committed.claim.token, 'a further retry answers the same lease again');
+  assert.equal(renewJob(db, { job: 'test:first', runner: 'r-a', token: committed.claim.token }).renewed, true, 'the token the retry answered holds the job');
+  const other = await claim('key-second-002');
+  assert.deepEqual([other.document.claim.job, other.document.claim.attempt], ['test:second', 1], 'a different key takes another job');
+  assert.notEqual(other.document.claim.token, committed.claim.token);
+  assert.equal((await claim('bad key')).document.error.code, 'JOB_CLAIM_KEY', 'a key that is not a plain name is refused');
+});
+
 /** A hop table as pullboard serve provides the moves cell's (a cell test may not import it): create, acquire a queued or lapsed hop, refuse HOP_HELD while another runner's lease lives. */
 function hopTable(t) {
   provideGateHopTable((leaseMs) => ({ item, hop, now }, { name, actor }) => {
