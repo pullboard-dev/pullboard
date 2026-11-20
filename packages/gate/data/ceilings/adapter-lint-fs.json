@@ -103,7 +103,6 @@
     "packages/runners/src/io/pull/enqueue.js": 1,
     "packages/runners/src/io/service.js": 10,
     "packages/runners/src/io/slots.js": 8,
-    "packages/runners/src/io/source/cache.js": 12,
     "packages/runners/src/io/source/scan.js": 11,
     "packages/runners/src/io/tooling/bundle.js": 5,
     "packages/runners/src/io/tooling/remote.js": 13,
