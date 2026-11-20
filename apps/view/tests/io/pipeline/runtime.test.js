@@ -118,6 +118,7 @@ test('view.pipeline.window-live: clause 2: the page reads through its own window
   const moved = { ...project, sequence: 2_001 };
   runtime.draw(moved);
   assert.equal(region.innerHTML, '<b>drawn</b>', 'a window that was complete once keeps drawing while the next events arrive');
+  await flush();
   assert.equal(stub.log.at(-1), '/api/v1/boards/b/events?after=2000&limit=50000', 'a later read starts after the last held id, not from the start of the window');
   assert.ok(first > 100, 'the first read held the window');
 });
