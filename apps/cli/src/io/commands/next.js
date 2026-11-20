@@ -4,6 +4,7 @@ import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
 import { adviceThroughNextEnabled } from '../../../../../packages/config/index.js';
+import { reviewBuilderOffers } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { nextRouteByTier } from '../../../../../packages/config/index.js';
 import { join } from 'node:path';
@@ -88,6 +89,12 @@ function reviewFolderAt(ctx, commit) {
   try { return requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(ctx.info.root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')); } catch (error) { return { failed: String(error.message ?? error).split('\n')[0] }; }
 }
 const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
+/** Whether this seat builds (neither a review nor the coordinator seat) while another seat in lane review has live presence [C7,#11946]. */
+function builderWithLiveReviewSeat(board, me) {
+  if (me.lane === 'review' || me.lane === 'coordinator') return false;
+  return store.withSeatPresence(board, store.listAgents(board)).some(seat => seat.agent_lane === 'review' && seat.agent_id !== me.id && seat.presence === 'live');
+}
+
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
 const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/health/index.js').shoutStarvedReviews(...args);
@@ -272,6 +279,8 @@ async function nextWithProgress(io, values, progress) {
     throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
   }
   if (values.verifyId !== undefined) idArg(values.verifyId, 'an item id after --verify');
+  // review.builderOffers (off by default): while a seat in lane review is alive, a builder's next takes the build path and never offers or reserves a review [C7,#11946].
+  if (!values.verify && !values.build && reviewBuilderOffers() && withBoardRead(ctx, board => builderWithLiveReviewSeat(board, whoAmI(ctx, board)))) values = { ...values, build: true };
   const minutes = values.wait === undefined ? 0 : Number(values.wait);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');

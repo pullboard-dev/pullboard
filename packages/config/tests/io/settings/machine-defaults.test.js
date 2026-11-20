@@ -180,6 +180,7 @@ const BEFORE = {
   'relay.renewAfterSync': false,
   'release.rerouteUntouched': false,
   'release.staleItemRevision': false,
+  'review.builderOffers': false,
   'review.canonicalFamilies': false,
   'review.holdAfterTwoReleases': false,
   'review.relaxRequiredFamily': false,
