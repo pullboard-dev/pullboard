@@ -1,0 +1,3 @@
+{
+"store.io-write-queue-file.scan-skips-stored-results": {"proves":{"specs":["C7"],"claim":"clause 1: a drain beside 500 stored results still applies three new writes in queue order and leaves no pending record."},"why":"A drain that scans every stored result slows with the queue's age, so pending records live apart.","kind":"cell unit","inputs":["packages/store/src/io/write-queue-file.js","packages/store/tests/io/write-queue-file.test.js"]}
+}
