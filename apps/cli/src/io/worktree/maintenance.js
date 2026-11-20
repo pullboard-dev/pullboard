@@ -11,6 +11,7 @@ import { maintenanceDurations } from '../../../../../packages/config/index.js';
 import { retireIdleSeatHours } from '../../../../../packages/config/index.js';
 import { retireIdleSeats } from './maintenance/idle-seats.js';
 import { retireLandedSeats } from './maintenance/landed-seat.js';
+import { sweepFinishedFolders } from './maintenance/folder-sweep.js';
 import { classifyMaintenanceTree } from './maintenance/classify.js';
 import { archiveMaintenanceWorktree } from './maintenance/archive.js';
 import { removePartialArchives } from './maintenance/archive.js';
@@ -212,10 +213,12 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   // A seat whose item landed or was withdrawn goes in this same cycle once it is clean, idle and claim-free (#10783).
   await retireLandedSeats(root, report.entries, { mainRoot, now, observed, ports, report, state: next,
     dirtyPaths: maintenanceDirtyPaths, commitsSafe: maintenanceCommitsSafe });
+  // Folders of landed, withdrawn and dead-seat items go each cycle, inside the grace; dirty ones keep their diff at a keep ref (#12537).
+  await sweepFinishedFolders(root, report.entries, { mainRoot, now, observed: await ports.readSnapshot(), ports, report, dirtyPaths: maintenanceDirtyPaths });
   // With maintenance.retireIdleSeats on, clean trees idle past the set hours whose HEAD is already on main go too (#9109).
   const idleHours = retireIdleSeatHours();
   if (idleHours !== null) await retireIdleSeats(root, report.entries, { mainRoot, hours: idleHours, now, observed, ports, report, dirtyPaths: maintenanceDirtyPaths });
-  for (const entry of report.entries) if (entry.action === 'retired-idle' || entry.action === 'retired-landed') delete next.trees[entry.path];
+  for (const entry of report.entries) if (['retired-idle', 'retired-landed', 'swept'].includes(entry.action)) delete next.trees[entry.path];
   // A dirty worktree remains a health finding only after repeated observations spanning a day.
   next.lastRun.finishedAt = new Date().toISOString();
   next.lastRun.nextAt = new Date(now + durations.everyMs).toISOString();

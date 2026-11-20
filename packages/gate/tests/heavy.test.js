@@ -10,17 +10,17 @@ import * as light from '../light.js';
 /** The index names status still reads from the index itself. */
 const STAYS = new Set(['diskStores', 'gateControlFindings', 'performanceCores', 'retainedReceipts']);
 
-/** The names whose index modules reach apps/cli: they stay off heavy.js until a later slice gives them their own door. The eight after the first 25 come from the file dispatch module and the final one from the derived registries module, which heavy.js must not import. */
+/** The names whose index modules reach apps/cli: they stay off heavy.js until a later slice gives them their own door. The eight after the first 25 come from the file dispatch module and the next from the derived registries module, which heavy.js must not import; the last comes from the test cells module, which reaches apps/cli. */
 const CLI_REACH = new Set([
   'runMainAudits', 'mainAuditJobs', 'routeAuditFailures', 'closeAuditedMainReds', 'withAuditedMain', 'testActionKeys', 'testResultStore',
   'reusableResult', 'suiteProven', 'planTestActions', 'preQueueReuse', 'reuseReceipt', 'RECORD_ONLY_PREFIX', 'TEST_REUSE_RECORD',
   'settleTestActions', 'recordTestAction', 'LEDGER_HITS_ENV', 'TEST_ACTIONS_ENV', 'TEST_STAGE_ENV', 'prepareTestResultExchange',
   'runFullSuite', 'testFiles', 'runTestFiles', 'inCleanCheckout', 'uncommittedNotice',
   'dispatchTestFiles', 'reportDispatchedTests', 'nativeFileArguments', 'testFileOptions', 'optionTakesValue', 'knownNodeOption',
-  'legacyFileMode', 'legacyNativeFileRun', 'deriveTestRegistries',
+  'legacyFileMode', 'legacyNativeFileRun', 'deriveTestRegistries', 'TEST_CELL_LISTING',
 ]);
 
-test('gate.heavy.exports-index-heavy-names: clause 1: every index export except the light door names, four status names and the 34 apps/cli-reaching names is also exported by heavy.js as the same binding [C7]', () => {
+test('gate.heavy.exports-index-heavy-names: clause 1: every index export except the light door names, four status names and the 35 apps/cli-reaching names is also exported by heavy.js as the same binding [C7]', () => {
   const names = Object.keys(index).filter(name => !(name in light) && !STAYS.has(name) && !CLI_REACH.has(name));
   assert.ok(names.length > 400, 'the index still exports its heavy names');
   const missing = names.filter(name => !(name in heavy));
