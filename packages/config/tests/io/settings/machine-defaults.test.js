@@ -220,7 +220,7 @@ const BEFORE = {
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
-  'submit.residentChecks': false,
+  'submit.residentChecks': true,
   'test.inProcessHooks': false,
   'test.loadRerun': false,
   'test.retryStaleRecord': false,
