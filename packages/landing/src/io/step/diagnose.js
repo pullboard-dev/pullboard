@@ -1,5 +1,5 @@
-import { hasTestTiers } from '../../../../gate/index.js';
-import { requireTestTierAccount } from '../../../../gate/index.js';
+import { hasTestTiers } from '../../../../gate/heavy.js';
+import { requireTestTierAccount } from '../../../../gate/heavy.js';
 /** Coordinator landing diagnose step; source-preserving partition of land.js [B3,R3,C7]. */
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
@@ -10,8 +10,8 @@ import * as store from '../../../../store/index.js';
 import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
-import { runProfiledShellAsync } from '../../../../gate/index.js';
-import { withLandingGateSlot } from '../../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../../gate/heavy.js';
+import { withLandingGateSlot } from '../../../../gate/heavy.js';
 import { laneOf } from '../../../../seats/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { itemRefusalText } from '../../logic/refusal.js';

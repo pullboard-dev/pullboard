@@ -12,6 +12,7 @@ import {
   takeResource,
 } from '../../../../resources/light.js';
 import { Refused } from '../../../../kernel/index.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { checkoutSessionFile } from './binding.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
 const fileSystem = fileSystemAdapter();
@@ -117,15 +118,16 @@ function enterBoundSession(info, file, agent, digest) {
 
 /** Hand back a write turn whose children act under its writer record, and which removes that record when it ends. */
 function writerTurn(record, persist) {
-  const previous = process.env[CHECKOUT_SESSION_TOKEN_ENV];
-  process.env[CHECKOUT_SESSION_TOKEN_ENV] = record.token;
+  const env = environmentAdapter();
+  const previous = env.get(CHECKOUT_SESSION_TOKEN_ENV);
+  env.set(CHECKOUT_SESSION_TOKEN_ENV, record.token);
   let ended = false;
   const release = () => {
     if (ended) return;
     ended = true;
-    if (process.env[CHECKOUT_SESSION_TOKEN_ENV] === record.token) {
-      if (previous === undefined) delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
-      else process.env[CHECKOUT_SESSION_TOKEN_ENV] = previous;
+    if (env.get(CHECKOUT_SESSION_TOKEN_ENV) === record.token) {
+      if (previous === undefined) env.delete(CHECKOUT_SESSION_TOKEN_ENV);
+      else env.set(CHECKOUT_SESSION_TOKEN_ENV, previous);
     }
     removeWriterRecord(record);
   };
@@ -146,7 +148,7 @@ function drainCheckoutWriters(info) {
 
 /** Take the checkout's lease, act under the one a parent command passed down, or stop after waitLimitMs naming the holder. */
 async function checkoutLease(info, name, agent, waitLimitMs) {
-  const inherited = process.env[CHECKOUT_SESSION_TOKEN_ENV];
+  const inherited = environmentAdapter().get(CHECKOUT_SESSION_TOKEN_ENV);
   if (inherited && (liveWriterToken(info, inherited) || holdsLease({ name, scope: 'repo', root: info.root, token: inherited }))) return { token: inherited, inherited: true, release() {} };
   const startedAt = Date.now();
   const onWait = waitLimitMs ? (state) => {
@@ -229,12 +231,13 @@ export async function bindLocalSession(info, { agent, digest, takeover = false, 
     if (keepLease) {
       retained = true;
       // Processes this command starts while it holds the checkout inherit the lease; the previous value returns with it.
-      const previous = process.env[CHECKOUT_SESSION_TOKEN_ENV];
-      process.env[CHECKOUT_SESSION_TOKEN_ENV] = lease.token;
+      const env = environmentAdapter();
+      const previous = env.get(CHECKOUT_SESSION_TOKEN_ENV);
+      env.set(CHECKOUT_SESSION_TOKEN_ENV, lease.token);
       const release = () => {
-        if (process.env[CHECKOUT_SESSION_TOKEN_ENV] === lease.token) {
-          if (previous === undefined) delete process.env[CHECKOUT_SESSION_TOKEN_ENV];
-          else process.env[CHECKOUT_SESSION_TOKEN_ENV] = previous;
+        if (env.get(CHECKOUT_SESSION_TOKEN_ENV) === lease.token) {
+          if (previous === undefined) env.delete(CHECKOUT_SESSION_TOKEN_ENV);
+          else env.set(CHECKOUT_SESSION_TOKEN_ENV, previous);
         }
         if (intent) removeTakeoverIntent(info);
         lease.release();

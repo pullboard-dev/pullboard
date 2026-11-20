@@ -6,11 +6,12 @@ import { randomUUID } from 'node:crypto';
 import { invalidateGitFacts } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** Read process identities before attributing a live worker or its detached gate descendants. */
 function census(parseProcessCensus) {
   try {
-    const result = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], { encoding: 'utf8', env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' } });
+    const result = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], { encoding: 'utf8', env: { ...environmentAdapter().all(), LC_ALL: 'C', TZ: 'UTC' } });
     if (result.status !== 0) return null;
     const rows = parseProcessCensus(result.stdout);
     rows?.delete(result.pid); // This already-exited observer is never a cleanup target.
@@ -83,7 +84,7 @@ export const CUSTODY_ENV = 'PULLBOARD_LANDING_CUSTODY';
 
 /** Pids of the live timed gate workers carrying a landing's token; the random token is their identity, so a reused pid never matches. */
 function registeredGates(token) {
-  return new Promise(resolve => execFile('/bin/ps', ['-axww', '-o', 'pid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, LC_ALL: 'C' } }, (error, stdout) => {
+  return new Promise(resolve => execFile('/bin/ps', ['-axww', '-o', 'pid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...environmentAdapter().all(), LC_ALL: 'C' } }, (error, stdout) => {
     resolve(error ? [] : stdout.split('\n').flatMap(line => {
       const match = /^\s*(\d+) (.*)$/u.exec(line);
       return match && match[2].includes(`--landing-custody=${token}`) && Number(match[1]) !== process.pid ? [Number(match[1])] : [];
@@ -119,7 +120,7 @@ export function startGuardian({ onDeath, boardFile = null, leaseToken = null }) 
   let draining = null;
   // Refuse first: the stopped gate then fails into an aborted landing, so its fall-out cannot block the batch or name itself the cause.
   child.once('exit', () => { if (ended) return; onDeath(); draining = stopRegisteredGates(token).catch(() => {}); });
-  process.env[CUSTODY_ENV] = token;
+  environmentAdapter().set(CUSTODY_ENV, token);
   return {
     pid: child.pid,
     /** Resolves once a guardian death has finished stopping the gates, so the landing never releases before they are gone. */
@@ -127,7 +128,7 @@ export function startGuardian({ onDeath, boardFile = null, leaseToken = null }) 
     deadline(at) { if (child.connected) child.send({ deadline: at }); },
     end() {
       ended = true;
-      delete process.env[CUSTODY_ENV];
+      environmentAdapter().delete(CUSTODY_ENV);
       if (child.connected) child.send({ end: true }, () => {});
     },
   };

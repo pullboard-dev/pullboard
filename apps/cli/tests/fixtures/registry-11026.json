@@ -1,3 +1,36 @@
 {
+  "cli.io-next-review-lease.second-seat-refused-without-write": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "While one seat holds an item's review lease, a second waits on the lease and is then refused REVIEW_HELD with zero calls to the board write it wraps."
+    },
+    "why": "Without it, every idle seat queues on the board's one write lock to reserve the same review and the losers fail only after getting the lock.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/next/review-lease.js"
+    ]
+  },
+  "cli.io-next-review-lease.dead-holder-reclaimed": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A review lease whose pid is gone is reclaimed at once and the write runs."
+    },
+    "why": "Without it, a seat killed mid-reservation would block every other seat's reservation of that review until the lease ran out.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/next/review-lease.js"
+    ]
+  },
+  "cli.io-next-review-lease.failed-write-frees-lease": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A reservation write that fails leaves no lease file, so the next seat reserves at once."
+    },
+    "why": "Without it, one failed write would hold the lease and turn the next seats away with REVIEW_HELD for a review nobody took.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/next/review-lease.js"
+    ]
+  },
   "cli.journeys-next-herd.twelve-seats-distinct": {"proves":{"specs":["C7"],"claim":"12 pullboard next calls started together in process on one board with one submitted review and 12 open builds each end with a distinct item, one of them the review, and none BOARD_BUSY or NEXT_TIMEOUT."},"why":"Without it, a herd of seats calling next at once could collide on the one board writer and hand two seats the same item or none.","kind":"journey","inputs":["apps/cli/journeys/next/herd.test.js"]}
 }

@@ -16,6 +16,7 @@ import { loadConfig } from '../../../config/index.js';
 import { remoteRepository } from '../logic/github/remote.js';
 import { withMachineHomeWrite } from '../../../resources/light.js';
 import { boardReferenceId } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -29,7 +30,7 @@ const fileSystem = fileSystemAdapter();
  * @returns {string}
  */
 export function registryFile() {
-  return join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'projects.json');
+  return join(environmentAdapter().get('PULLBOARD_HOME') || join(homedir(), '.pullboard'), 'projects.json');
 }
 
 /** Return a stable team handle only when Git origin and the opened board identity are both exact. */
@@ -47,7 +48,7 @@ export function projectBoardIdentity(root, boardId) {
  * @param {string} [home]
  * @returns {string}
  */
-export function privateBoardPath(repoBoardId, home = process.env.PULLBOARD_HOME || join(homedir(), '.pullboard')) {
+export function privateBoardPath(repoBoardId, home = environmentAdapter().get('PULLBOARD_HOME') || join(homedir(), '.pullboard')) {
   const id = boardReferenceId(repoBoardId);
   return join(resolve(home), 'private', id, 'board.sqlite');
 }

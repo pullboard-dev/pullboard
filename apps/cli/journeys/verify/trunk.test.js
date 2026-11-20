@@ -40,6 +40,12 @@ function sandbox() {
   const box = e2e.sandbox();
   // One machine home, so one loopback runner serves every case's repository instead of one runner process per case [C7].
   if (machineHome) box.env.PULLBOARD_MACHINE_HOME = machineHome; else machineHome = box.env.PULLBOARD_MACHINE_HOME;
+  // The V6 cases prove the compose the submit command runs itself, which runs only with submit.composeOnRunner off since it became the default (#11423).
+  const settings = join(machineHome, 'settings.json');
+  let current = {};
+  try { current = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* no machine settings yet */ }
+  mkdirSync(machineHome, { recursive: true });
+  writeFileSync(settings, JSON.stringify({ ...current, submit: { ...current.submit, composeOnRunner: false } }));
   // A submit or accept returns at once: each case waits for its own gate or land receipt with an awaited helper, so the cases run side by side [C7].
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   return { dir: box.dir, env: box.env, git: (cwd, ...args) => box.git(cwd, ...args), go: box.runIn };
