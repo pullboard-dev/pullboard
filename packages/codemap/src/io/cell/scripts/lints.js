@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
-import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { tryGit } from '../../../../../git/index.js';
 import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../../../../index.js';
@@ -19,6 +19,8 @@ import { lowerCellLintBaseline } from '../../../../index.js';
 import { withCellLintParser } from '../../../../index.js';
 import { cellLintParsers } from '../../../../index.js';
 
+const fs = fileSystemAdapter();
+
 withCellLintParser(compile => {
   const parsers = cellLintParsers(compile);
   const [mode = '--report', directory = '.'] = process.argv.slice(2);
@@ -29,15 +31,15 @@ withCellLintParser(compile => {
   /** The lint report is the slow part; --check on an unchanged state never builds it [C7]. */
   const build = () => cellLintReport(root, parsers);
   const report = mode === '--check' ? null : build();
-  if (mode === '--report') console.log(JSON.stringify({ ...report, growth: existsSync(file) ? cellLintGrowth(report, readCellLintBaseline(root)) : null }, null, 2));
+  if (mode === '--report') console.log(JSON.stringify({ ...report, growth: fs.exists(file) ? cellLintGrowth(report, readCellLintBaseline(root)) : null }, null, 2));
   else if (mode === '--init') {
-    if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
+    if (fs.exists(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
     // The cell inventory reads tracked files only, so the new shards are staged before the verify re-reads them [C7].
     const stage = () => { tryGit(root, ['add', '--', dirname(CELL_BASELINE_DESCRIPTOR)]); };
     writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => { stage(); return JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline); } });
   } else if (mode === '--update') {
-    if (!existsSync(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
+    if (!fs.exists(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
     const baseline = readCellLintBaseline(root);
     lowerCellLintBaseline(report, baseline);
     const sharded = cellLintCells(root).length > 0;
