@@ -45,6 +45,8 @@ function scenario(seed) {
     lineage: g.int(6) === 0 ? 'x' : own ? own.lineage : s.lineage, generation: (s.lease?.generation ?? 0) + (g.int(6) === 0 ? 1 : 0), guardianPid: g.pick([5, 70 + n, 0]) };
   if (g.int(30) === 0) move.token = 'short';
   if (name === 'batch') Object.assign(move, { batch: g.pick(['batch-a', 'batch-b']), ...(g.int(2) === 0 ? { allowance: 2 } : {}) });
+  if (name === 'batch' && s.lease?.holder && g.int(2) === 0) s.lease = { ...s.lease, batches: g.pick([['batch-a'], ['batch-c'], ['batch-a', 'batch-c']]) };
+  if (name === 'batch' && g.int(12) === 0) move.batch = '';
   return { s, move };
 }
 
