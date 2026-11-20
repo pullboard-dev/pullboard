@@ -9,9 +9,9 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
-import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
-import { testFileLoadScale } from '../../../../../packages/gate/index.js';
-import { allTestOutcomes } from '../../../../../packages/gate/index.js';
+import { FILE_TIME_LINE } from '../../../../../packages/gate/heavy.js';
+import { testFileLoadScale } from '../../../../../packages/gate/heavy.js';
+import { allTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { testLoadRerunEnabled } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
@@ -433,7 +433,7 @@ function redFilesIn(text, paths) {
  * there. Why the short wait: the board writes the receipt as it applies the post the job row already shows.
  */
 async function boundReceipt(root, job, wait = pause) {
-  const [{ mainRedReceiptId }, { readGateReceipt, receiptStore }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../../../../../packages/gate/index.js')]);
+  const [{ mainRedReceiptId }, { readGateReceipt, receiptStore }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../../../../../packages/gate/heavy.js')]);
   for (let tries = 0; ; tries += 1) {
     const receipt = readGateReceipt(receiptStore(root), mainRedReceiptId(job));
     if (receipt || tries >= 10) return receipt;
@@ -596,7 +596,7 @@ export function loadRerunFiles(ran, paths, { enabled = testLoadRerunEnabled() } 
 export async function runPulledTests(ctx, { agent, item, files, values, knownRed, say }) {
   const { root } = ctx.info;
   const config = ctx.config;
-  const [{ testFiles, retainTestOutput, renderTestSummary }, { mainPolicy }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('../../../../../packages/sandbox/index.js')]);
+  const [{ testFiles }, { retainTestOutput, renderTestSummary }, { mainPolicy }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('../../../../../packages/gate/heavy.js'), import('../../../../../packages/sandbox/index.js')]);
   if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
     throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
   }

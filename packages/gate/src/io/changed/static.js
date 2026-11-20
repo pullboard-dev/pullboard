@@ -11,11 +11,14 @@ import { gitSpawnSync } from '../../../../git/index.js';
  *
  * @param {string} root - Checkout root the files are read from.
  * @param {string[]} files - Root-relative changed or staged paths.
- * @param {{ staged?: boolean, only?: string[] | null, also?: { name: string, run: (context: object) => string[] }[] }} [options] - `only` runs
+ * @param {{ staged?: boolean, only?: string[] | null, also?: { name: string, run: (context: object) => string[] }[], deadline?: number | null }} [options] - `only` runs
  *   just the registered checks with these names; `also` adds checks the caller owns, run on the same context after the registry.
- * @returns {string[]} One `path:line: message` per failure; empty when clean.
+ *   `deadline` is an epoch time in milliseconds: checks run in order, and once it has passed no further check starts.
+ *   Why: a loaded machine ran the whole list to the pre-commit timeout; what does not fit is left to the gate, which passes no deadline [C7].
+ * @returns {string[] | { failures: string[], deferred: string[] }} With no deadline, one `path:line: message` per failure, empty when clean.
+ *   With a deadline, those failures and the names of the checks it skipped.
  */
-export function changedStaticFailures(root, files, { staged = false, only = null, also = [] } = {}) {
+export function changedStaticFailures(root, files, { staged = false, only = null, also = [], deadline = null } = {}) {
   const cache = new Map();
   const accepted = new Map();
   let indexed = null;
@@ -72,8 +75,16 @@ export function changedStaticFailures(root, files, { staged = false, only = null
     engineSources = [...sources, ...extra.map(read)];
   }
   const context = { root, files, staged, text, previous, read, sources, engineSources };
-  const registry = only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
-  return [...registry, ...also.flatMap(check => check.run(context))];
+  if (deadline === null) {
+    const registry = only ? STATIC_CHECKS.filter(check => only.includes(check.name)).flatMap(check => check.run(context)) : runStaticRegistry(context);
+    return [...registry, ...also.flatMap(check => check.run(context))];
+  }
+  const failures = [], deferred = [];
+  for (const check of [...(only ? STATIC_CHECKS.filter(row => only.includes(row.name)) : STATIC_CHECKS), ...also]) {
+    if (Date.now() >= deadline) deferred.push(check.name);
+    else failures.push(...check.run(context));
+  }
+  return { failures, deferred };
 }
 
 /**

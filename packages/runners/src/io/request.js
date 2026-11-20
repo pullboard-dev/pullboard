@@ -23,12 +23,12 @@ import { sourceObjects } from './source/scan.js';
 import { readAnalysisArtifact } from '../../../resources/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { scratchFolder } from '../../../config/index.js';
 import { environmentAdapter } from '../../../env/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /**
  * Name the runtime by digest and file names; its bytes already travel gzipped in the stdin capsule.
@@ -119,7 +119,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
   const origin = anonymousOrigin(root);
   const originBase = origin ? originAncestor(root, selected) : undefined;
   const tags = candidateTags(root, selected);
-  const repoId = createHash('sha256').update(realpathSync(repoInfo(root).commonDir)).digest('hex');
+  const repoId = createHash('sha256').update(fileSystem.realpath(repoInfo(root).commonDir)).digest('hex');
   const directory = scratchFolder('pullboard-runner-send-');
   try {
     // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
@@ -169,9 +169,9 @@ export async function requestFor(root, command, { runner, source, browser = fals
     return { spec, runner, exchange, reusedRuntime, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
       '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([capsule, Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
-    cleanup() { rmSync(directory, { recursive: true, force: true }); } };
+    cleanup() { fileSystem.rm(directory, { recursive: true, force: true }); } };
   } catch (error) {
-    rmSync(directory, { recursive: true, force: true });
+    fileSystem.rm(directory, { recursive: true, force: true });
     throw error;
   }
 }
