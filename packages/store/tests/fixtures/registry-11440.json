@@ -1,0 +1,44 @@
+{
+  "store.io-board-next.wave-hands-out-the-largest-disjoint-set": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with a contention option set, successive seats that each claim what they are offered receive exactly the ids largestDisjointWave picks from the ready items."
+    },
+    "why": "Without this test, a regression where with a contention option set, successive seats that each claim what they are offered receive exactly the ids largestDisjointWave picks from the ready items would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/index.js",
+      "packages/store/src/io/board/next.js"
+    ]
+  },
+  "store.io-board-next.wave-skip-names-the-shared-file": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a ready item outside the wave is skipped with a reason naming the file it shares with a wave item."
+    },
+    "why": "Without this test, a regression where a ready item outside the wave is skipped with a reason naming the file it shares with a wave item would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/index.js",
+      "packages/store/src/io/board/next.js"
+    ]
+  },
+  "store.io-board-next.wave-off-leaves-the-order": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with contention null the offer order is unchanged."
+    },
+    "why": "Without this test, a regression where with contention null the offer order is unchanged would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/index.js",
+      "packages/store/src/io/board/next.js"
+    ]
+  }
+}
