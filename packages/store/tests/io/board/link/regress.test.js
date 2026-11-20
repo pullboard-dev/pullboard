@@ -16,6 +16,7 @@ import { generateBoardKey } from '../../../../../kernel/index.js';
 import { regressedIds } from '../../../../src/io/board/link/regress.js';
 import { openKitBoard } from '../../../fixtures/cell.js';
 import { cellSeat } from '../../../fixtures/cell.js';
+import { submitFixture } from '../../../fixtures/submit.js';
 
 const CHILD = 'c'.repeat(32);
 const RECEIVED = '2026-11-19T08:00:00.000Z';
@@ -57,7 +58,7 @@ function waiting(board, id, { merged = null, submitted = false } = {}) {
   const item = addItem(board, { by: 'coordinator', lane: 'core', title: `waits on kid#${id}` });
   claim(board, item, { agentId: seat.id, lane: 'core', leaseMs: 3_600_000, freeze: row => ({ text: row.item_title, digest: `digest:${row.item_title}` }) });
   board.db.prepare('UPDATE item SET item_after=?, item_merged_commit=? WHERE item_id=?').run(`kid#${id}`, merged, item);
-  if (submitted) board.db.prepare("UPDATE item SET item_status='submitted' WHERE item_id=?").run(item);
+  if (submitted) submitFixture(board, item, { agentId: seat.id, commit: '1'.repeat(40), tree: '1'.repeat(40) });
   return item;
 }
 
