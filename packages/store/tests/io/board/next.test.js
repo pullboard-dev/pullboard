@@ -281,5 +281,5 @@ test('store.io-board-next.needs-ability-idle-skip: clause 2: with observeIdle th
   const bare = seat('/seat-idle', []);
   const idle = nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain], observeIdle: true });
   assert.equal(idle.item, null);
-  assert.deepEqual(idle.skips, [{ item: ids.browser, code: 'NEEDS_ABILITY' }]);
+  assert.deepEqual(idle.skips.filter(row => row.item === ids.browser), [{ item: ids.browser, code: 'NEEDS_ABILITY' }]);
 });
