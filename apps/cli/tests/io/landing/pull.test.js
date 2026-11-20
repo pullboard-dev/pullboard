@@ -310,3 +310,34 @@ test('cli.landing.pull.sprint-resumes-after-green-or-pulled: clause 1: once the 
   } });
   assert.deepEqual(offeredIds(green.jobs), [1, 2], 'a later finished green job lifts the hold');
 });
+
+/** The ledger setting on, as pullboard.json sets it on the live board; main reds ride with the contracts, so an affected-tests runner is set too. */
+const AFFECTED = { affectedTests: 'node affected.js' };
+const LEDGER_ON = { ...AFFECTED, landing: { ledgerMainReds: true } };
+
+test('cli.io-landing-pull.ledger-outside-offer-lock: clause 1: with landing.ledgerMainReds on, offerPulledLanding prepares no test_result statement while its board write lock is held; the red-now ledger read runs before the lock [C7,#12533]', async t => {
+  // The setting alone: an affectedTests runner adds landingProof's commit-indexed ledger reads to the job write, which this case does not cover.
+  const { lines, jobs } = await offerWithLog(t, { config: { landing: { ledgerMainReds: true } }, ledger: { reds: ['tests/red.test.js'] } });
+  const enter = lines.indexOf('LOCK_ENTER'), exit = lines.indexOf('LOCK_EXIT');
+  assert.ok(enter >= 0 && exit > enter, `the offer went through the injected lock: ${lines.join(' | ')}`);
+  assert.deepEqual(lines.slice(enter, exit).filter(line => line === 'SQL test_result'), [], 'no test_result statement between lock enter and lock exit');
+  assert.ok(lines.slice(0, enter).includes('SQL test_result'), 'the ledger read still happens, before the lock');
+  assert.equal(jobs.length, 2, 'the offer was written');
+});
+
+test('cli.io-landing-pull.ledger-main-reds-unchanged: clause 2: with a red ledger row seeded at a commit, the offered land job carries the same mainReds pair it carried on main, and none with the setting off [C7,#12533]', async t => {
+  const on = await offerWithLog(t, { config: LEDGER_ON, ledger: { reds: ['tests/red.test.js'], filler: 3 } });
+  assert.equal(on.jobs.length, 2);
+  for (const job of on.jobs) assert.deepEqual(job.mainReds, [['tests/red.test.js', on.main]], 'each job carries the red file and the commit it was red at');
+  const off = await offerWithLog(t, { config: AFFECTED, ledger: { reds: ['tests/red.test.js'] } });
+  for (const job of off.jobs) assert.deepEqual(job.mainReds ?? [], [], 'with the setting off no job carries a main red');
+});
+
+test('cli.io-landing-pull.offer-hold-under-1s: clause 3: with 200,000 test_result rows seeded and ledgerMainReds on, the offer board-writes.jsonl hold row (move offerPulledLanding) records heldMs under 1000 [C7,#12533]', async t => {
+  const { home, jobs, main } = await offerWithLog(t, { config: LEDGER_ON, ledger: { reds: ['tests/red.test.js'], filler: 200_000 } });
+  assert.equal(jobs.length, 2, 'the offer was written');
+  assert.deepEqual(jobs[0].mainReds, [['tests/red.test.js', main]], 'the big ledger was still read');
+  const holds = readFileSync(join(home, 'board-writes.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.move === 'offerPulledLanding');
+  assert.equal(holds.length, 1, 'one hold row for the one offer');
+  assert.ok(holds[0].heldMs < 1000, `the offer held the board write lock ${holds[0].heldMs} ms`);
+});
