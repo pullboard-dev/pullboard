@@ -53,6 +53,7 @@ export {
   revertTuning,
 } from './src/logic/flow/tune/choose.js';
 export { tuneCycleDue } from './src/logic/flow/tune/cycle.js';
+export { tuneFixes, tuneRecord, lastTuneChange } from './src/logic/flow/tune/fixes.js';
 export {
   WINDOW_STAGES,
   newWindowTrace,
@@ -224,3 +225,5 @@ export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
 export { itemRunnerCost } from './src/io/cost/runner.js';
 export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';
 export { allowanceWarning } from './src/logic/allowance.js';
+export { timelineOf, TIMELINE_STAGES, TIMELINE_BUCKETS, WAIT_REASONS, UNACCOUNTED, UNACCOUNTED_OVER_MS, TIMELINE_JOB_KINDS } from './src/logic/timeline.js';
+export { readItemTimeline } from './src/io/timeline.js';

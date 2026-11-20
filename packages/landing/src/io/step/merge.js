@@ -4,6 +4,7 @@ import { requireLandingSecretFree } from '../guards.js';
 import { requireRecordedMoves } from '../guards.js';
 import { repointLandingGates } from '../../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
+import { mechanicalConflictFiles } from '../../../../merge/index.js';
 import { resolveMechanicalIndex } from '../../../../merge/index.js';
 import * as store from '../../../../store/index.js';
 import { git } from '../../../../git/index.js';
@@ -83,7 +84,7 @@ async function resetDirtyOnce(state) {
 function baseVerdicts(state, base) {
   state.baseVerdicts ??= new Map();
   if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
-    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() }));
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled(), residualConflicts: mechanicalConflictFiles }));
   return state.baseVerdicts.get(base);
 }
 
