@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { selectAffectedTests } from '../../../index.js';
+import { selectAffectedTests } from '../../../heavy.js';
 
 /** Every test that imports the door or the changed module, one per import shape, plus one unrelated test. */
 const TESTS = {

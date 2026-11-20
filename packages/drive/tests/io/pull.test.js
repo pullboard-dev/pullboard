@@ -232,3 +232,36 @@ test('drive.io-keep-lease.capped-claim-waits: clause 1: a claim answer carrying 
   assert.ok(slept.includes(300), 'the runner waited the 300 ms the claim answer carried');
   assert.ok(!slept.includes(5), 'and never the 5 ms idle poll');
 });
+
+test("drive.io-claim-refusal.backs-off-keeps-serving: clause 1: a claim call the board refuses (HOP_HELD twice) is said, backed off and claimed again; the serve takes the next job and ends only on its signal [C7]", { timeout: 30_000 }, async t => {
+  const { root } = privateFixtureFiles("pullboard-claim-refusal-");
+  const stop = new AbortController(), said = [], posted = [];
+  let refused = 0, claimed = 0, release = null;
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    queueMicrotask(changed);
+    if (call.action === "claim") {
+      claimed += 1;
+      if (claimed === 2 || claimed === 3) { refused += 1; return { status: 409, json: async () => ({ error: { code: "HOP_HELD", message: "the hop is held" } }) }; }
+      const job = { 1: "gate:1:hold", 4: "gate:2:after" }[claimed];
+      const claim = job === undefined ? null : { job, kind: "gate", needs: [], run: [], candidate: null, base: null, attempt: 1, token: "t" };
+      return { status: 200, json: async () => ({ trunk: "unused", claim }) };
+    }
+    return { status: 200, json: async () => (call.action === "renew" ? { renewed: true } : { recorded: true }) };
+  };
+  const handlers = { gate: async claim => { if (claim.job === "gate:1:hold") await new Promise(resolve => { release = resolve; }); posted.push(claim.job); changed(); return { outcome: "green" }; } };
+  const state = { returned: false };
+  const serve = serveRunner({ git: pullGit, board: "http://board.invalid/api/v1/boards/b0?k=x", runner: "claim-refusal-0", capabilities: [], cache: `${root}/b0`, jobs: 2,
+    fetchImpl, handlers, signal: stop.signal, say: line => said.push(line), timing: { idleMs: 5, firstMs: 1, maxMs: 4 }, trunkPack: async () => {} }).finally(() => { state.returned = true; });
+  t.after(() => { stop.abort(); rmSync(root, { recursive: true, force: true }); });
+  await until(() => posted.includes("gate:2:after"));
+  assert.equal(state.returned, false, "the serve did not return on the refused claims");
+  assert.equal(refused, 2, "two claim calls were refused");
+  assert.ok(said.filter(line => /claim refused: \[HOP_HELD\]/u.test(line)).length >= 2, "each refusal is said with its code");
+  assert.ok(!posted.includes("gate:1:hold"), "the job held in the other slot is still running");
+  release();
+  await until(() => posted.includes("gate:1:hold"));
+  stop.abort();
+  const result = await serve;
+  assert.ok(Array.isArray(result.jobs), "the serve resolves when its signal aborts");
+});

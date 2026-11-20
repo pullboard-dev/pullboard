@@ -1,6 +1,5 @@
 /** Observe in-flight heads after a landing without changing any peer checkout [N2,B3]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -8,6 +7,9 @@ import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
 import { mechanicalConflictFiles } from './mechanical.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A claimed item's own folder beside its seat checkout, when it exists in this repository.
@@ -21,7 +23,7 @@ import { mechanicalConflictFiles } from './mechanical.js';
 function itemFolderPath(seatPath, id, common) {
   const folder = join(dirname(seatPath), `${basename(seatPath)}-item-${id}`);
   try {
-    if (existsSync(folder) && sameCommonDir(repoInfo(folder).commonDir, common)) return folder;
+    if (fs.exists(folder) && sameCommonDir(repoInfo(folder).commonDir, common)) return folder;
   } catch { /* an unreadable folder falls back to the submitted source or the seat checkout */ }
   return null;
 }

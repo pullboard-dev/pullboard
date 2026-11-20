@@ -1,0 +1,44 @@
+{
+  "cli.io-item-bar-after.names-the-item-a-missing-file-waits-on": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With items.barRulesAtAdd on, a bar naming a path missing from main that an unmerged open or verified item branch adds is refused AFTER_NEEDED unless --after names it."
+    },
+    "why": "Without it, a bar naming a file an accepted item has not landed would be filed and then released BLOCKED, costing a claim cycle.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/bar/after.test.js",
+      "apps/cli/src/io/item/bar.js"
+    ]
+  },
+  "cli.io-item-bar-after.refusal-names-each-item-and-the-rerun": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The AFTER_NEEDED refusal names each such item id with its file and the next step rerun with --after <id>."
+    },
+    "why": "Without it, a bar naming a file an accepted item has not landed would be filed and then released BLOCKED, costing a claim cycle.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/bar/after.test.js",
+      "apps/cli/src/io/item/bar.js"
+    ]
+  },
+  "cli.io-item-bar-after.accepts-the-bar-with-the-setting-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With the setting off, or a missing path no unmerged item branch adds, add and edit accept the bar as today."
+    },
+    "why": "Without it, a bar naming a file an accepted item has not landed would be filed and then released BLOCKED, costing a claim cycle.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/bar/after.test.js",
+      "apps/cli/src/io/item/bar.js"
+    ]
+  }
+}

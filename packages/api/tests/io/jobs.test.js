@@ -12,6 +12,7 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
+import { gateAgedMs } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
 import { settledGate } from '../../../jobs/index.js';
@@ -349,6 +350,36 @@ test('api.jobs.claims-aged-gate-job-over-claim-action: clause 3: over the claim 
   assert.equal(claim(290_000), 'test:one', 'a runner holding no test job takes the test job; the gate job is 4.8 minutes old');
   assert.equal(claim(302_000), 'gate:9', 'the gate job is now 5 minutes old and is handed before the queued shard');
   assert.equal(claim(302_001), 'gate:9:shard:1');
+});
+
+/** A board where a runner holds a test job, then claims over the claim action with gateAgedMs read from the machine settings the case wrote, as packages/api/src/io/main.js passes it. */
+function agedSettingBoard(t, settings) {
+  const { root } = privateFixtureFiles('pullboard-jobs-gate-aged-setting-');
+  const home = join(root, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, settings);
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 150_000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now, gateAgedMs }).claim?.job;
+  assert.equal(claim(160_000), 'test:one', 'a runner holding no test job takes the test job');
+  offerJob(db, { id: 'gate:9', kind: 'gate', now: 10_000 });
+  return claim;
+}
+
+test('api.jobs.claims-gate-aged-minutes-setting: clause 1: with gate.gateAgedMinutes 2 set in machine settings, over the claim action a gate job offered 3 minutes before the claim is handed to a runner holding a test job ahead of fresh shards [C7,#11875]', (t) => {
+  const claim = agedSettingBoard(t, { gate: { gateAgedMinutes: 2 } });
+  assert.equal(claim(190_000), 'gate:9', 'the 3-minute-old gate job passes the 2-minute setting and goes before the shard');
+  assert.equal(claim(190_001), 'gate:9:shard:1');
+});
+
+test('api.jobs.claims-gate-aged-minutes-unset: clause 2: with gate.gateAgedMinutes unset the same 3-minute-old gate job stays behind the shards over the claim action [C7,#11875]', (t) => {
+  const claim = agedSettingBoard(t, {});
+  assert.equal(claim(190_000), 'gate:9:shard:1', 'the default is 5 minutes, so the shard goes first');
+  assert.equal(claim(190_001), 'gate:9');
 });
 
 /** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */

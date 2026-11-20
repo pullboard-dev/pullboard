@@ -1,0 +1,18 @@
+{
+  "cli.io-commands-add.files-absent-from-main-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With items.barRulesAtAdd on, add and edit refuse a brief Files entry absent from main unless a clause creates it."
+    },
+    "why": "Without it a brief can send a builder to edit a file that is not on main and no clause creates.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/item/bar.js",
+      "apps/cli/src/io/commands/add.js",
+      "apps/cli/src/io/commands/edit.js",
+      "apps/cli/tests/io/commands/add.test.js"
+    ]
+  }
+}

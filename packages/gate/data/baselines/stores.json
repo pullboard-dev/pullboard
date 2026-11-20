@@ -95,6 +95,11 @@
       "disk": "other",
       "owner": "packages/keys/src/io/relay.js"
     },
+    "board-links": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "apps/cli/src/io/link/ports.js"
+    },
     "census": {
       "kind": "dir",
       "disk": "other",
@@ -883,6 +888,10 @@
     "models.json": {
       "kind": "repo-data",
       "owner": "packages/stats/src/logic/pipeline.js"
+    },
+    "new-package.json": {
+      "kind": "repo-data",
+      "owner": "apps/cli/src/logic/new-package.js"
     },
     "no-runtime-assumptions.json": {
       "kind": "json",

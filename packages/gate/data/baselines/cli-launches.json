@@ -284,9 +284,6 @@
   "apps/cli/journeys/export/team/board.test.js": {
     "launch": 3
   },
-  "packages/gate/tests/io/main/resource.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/mcp/main.test.js": {
     "launch": 1
   },
@@ -1151,7 +1148,7 @@
   "apps/cli/journeys/inbox/events-stream.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/shout/activity/polish.test.js": {
