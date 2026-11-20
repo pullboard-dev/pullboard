@@ -144,7 +144,6 @@
     "packages/pin/src/io/cache.js": 7,
     "packages/pin/src/io/keyed.js": 7,
     "packages/pin/src/io/main.js": 4,
-    "packages/pin/src/io/tooling.js": 5,
     "packages/queue/src/io/settings.js": 1,
     "packages/resources/src/io/admission/memory.js": 2,
     "packages/resources/src/io/artifact.js": 1,
