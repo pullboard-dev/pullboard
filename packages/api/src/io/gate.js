@@ -31,6 +31,7 @@ import { queueFor } from './queue.js';
 import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
+import { startReceiptScreen } from './gate/screen-start.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
@@ -951,7 +952,9 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
       // A carried merge-only accept leaves the item verified with no verify command to offer its land job (#7948).
-      if (store.getItem(board, id)?.item_status === 'verified') startReceiptLanding(board, id);
+      // A submitted sprint item lands before its verdict, so its screen starts here, from the row already loaded [V2,M1].
+      const held = store.getItem(board, id);
+      if (held?.item_status === 'verified') startReceiptLanding(board, id); else startReceiptScreen(board, held, main);
       return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.failures, knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
