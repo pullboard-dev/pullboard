@@ -69,7 +69,7 @@ const SUDO = 'sudo launchctl bootout system/dev.pullboard.runner';
 async function withRunner(t, record, work) {
   const { root: home } = privateFixtureFiles('pullboard-runner-pending-');
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  fixtureMachineSettings(home, { runners: [{ host: 'fixture-runner' }] });
+  fixtureMachineSettings(home, { runners: [{ host: 'fixture-runner', slots: 2, browser: 1 }] });
   if (record) writeFileSync(join(home, 'runner-services.json'), JSON.stringify({ 'fixture-runner': record }));
   const before = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
