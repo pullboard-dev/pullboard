@@ -50,7 +50,7 @@ function openShards(board) {
   return board.db.prepare("SELECT job_id FROM job WHERE job_kind = 'gate-shard' AND job_step != 'done'").all().length;
 }
 
-const notOnMain = { compareWithMain: ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'item', own: [], receipt: null, job: null })) }) };
+const notOnMain = { compareWithMain: ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'item', own: cases.filter(one => one.file === file).map(one => one.name), receipt: null, job: null })) }) };
 const onMain = { compareWithMain: ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'main', own: [], receipt: null, job: null })) }) };
 
 test('api.io-gate-fail-fast.item-red-ends-remaining-shards: clause 1: with gate.failFastShards on, a shard that posts red in a file the item changed ends the gate\'s other open shards and applies the red with the unrun shards named [C7,P7,#12040]', t => {
