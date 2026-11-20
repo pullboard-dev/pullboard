@@ -46,6 +46,7 @@ import {
   seedSpecAndHandoff,
   seedRehome,
   seedHandoff,
+  seedBlocks,
 } from '../../../../../packages/store/tests/fixtures/relay/parity/seeds.js';
 import { submitFixture } from '../../../../cli/tests/fixtures/board/submit.js';
 import {
@@ -159,6 +160,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
           observedAt: board.clock.now().getTime(), records: [{ model: FIXTURE_MODEL, inputTokens: null, outputTokens: null, wallMs: 0,
             knownInputTokens: 0, knownOutputTokens: 0, unknownReasons: ['native-session-unavailable'] }] })),
         () => seedHandoff(context),
+        () => seedBlocks(context),
         () => seedPersonSigning(context)],
     };
     if (!phases[part]) throw new TypeError(`unknown operation part ${part}`);
