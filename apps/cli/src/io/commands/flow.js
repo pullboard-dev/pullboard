@@ -13,6 +13,7 @@ import {
   flowWindowMinutes,
   lastTuneChange,
   replayFlow,
+  replayTuned,
   revertTuning,
   tuneCycleDue,
   tuneFixes,
@@ -102,6 +103,26 @@ function readJson(root, file, label) {
   catch { throw new Refused('USAGE', `readable JSON is required for replay ${label}; correct the file and run pullboard flow replay again`); }
 }
 
+/** The median minutes from claim to landing over a replay's measured items; null with none. */
+function medianClaimToLanded(side) {
+  const spans = side.replay.items.map(item => (Date.parse(item.landedAt) - Date.parse(item.claimAt)) / MINUTE).sort((a, b) => a - b);
+  const middle = Math.floor(spans.length / 2);
+  return spans.length ? (spans.length % 2 ? spans[middle] : (spans[middle - 1] + spans[middle]) / 2) : null;
+}
+
+/** Run `pullboard flow replay --tune`: replay the history with the line tuner closing cycles and print the tuned run beside the untuned run. */
+function runReplayTuned(io, events, policy) {
+  const result = replayTuned(events, policy);
+  io.result?.(result);
+  io.say(`flow replay --tune: ${result.changes.length} change${result.changes.length === 1 ? '' : 's'}; tuned rows after a change are predicted`);
+  for (const [name, side] of [['untuned', result.untuned], ['tuned', result.tuned]]) {
+    io.say(`${name}: ${side.replay.mode}; ${side.replay.items.length} measured; median claim to landed ${medianClaimToLanded(side) ?? 'unknown'} minutes`);
+    for (const [stage, row] of Object.entries(side.replay.stages)) io.say(`${name} ${stage}: median ${row.medianMinutes ?? 'unknown'} minutes`);
+  }
+  for (const change of result.changes) io.say(`${change.at}: ${change.kind} ${change.key} ${change.from} to ${change.to} (${change.stage}, ${change.reason})`);
+  return 0;
+}
+
 /** Run `pullboard flow replay`; exported history contains no detail, descriptions, paths or commit strings. */
 export function run(io, { first, second, rest, values }) {
   if (first === 'tune' && !second && !rest.length) return values.apply ? runTuneApply(io, { values }) : runTune(io, { values });
@@ -112,6 +133,7 @@ export function run(io, { first, second, rest, values }) {
     events: board.db.prepare('SELECT event_id, event_kind, event_at, item_id, event_by FROM event ORDER BY event_id').all() })) : readJson(ctx.info.root, values.history, 'history');
   if (input?.version !== 1) throw new Refused('USAGE', 'replay history needs version 1 and an events array exported by pullboard flow replay --json');
   const policy = values.policy === undefined ? undefined : readJson(ctx.info.root, values.policy, 'policy');
+  if (values.tune) return runReplayTuned(io, input.events, policy);
   const result = replayFlow(input.events, policy);
   io.result?.(result);
   io.say(`flow replay: ${result.replay.mode}; ${result.replay.items.length} measured, ${result.replay.unmeasured.length} unmeasured`);

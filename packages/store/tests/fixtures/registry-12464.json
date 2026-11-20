@@ -1,0 +1,15 @@
+{
+  "store.io-board-verify.records-isolated": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "store.verify given isolated true or false records it in board_meta as verdict_isolated:<verdict_id> for an accept and a reject, and a verdict given no isolated field writes no such row."
+    },
+    "why": "Without this test the isolated flag the CLI computes is dropped by the store, so no journey can observe whether a verdict's check ran isolated.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js"
+    ]
+  }
+}

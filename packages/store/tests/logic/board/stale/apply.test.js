@@ -200,3 +200,17 @@ test('store.stale-apply.review-idle-code-below-engine: clause 2: below the board
   assert.equal(f.releases()[0].reasonCode, 'OTHER');
   assert.equal(f.moves[0].boardCodes, undefined);
 });
+
+test('store.logic-board-stale-apply.release-at-30: clause 1: the re-check accepts an idle release row at exactly 30 minutes and refuses one at 29 minutes as invalid [C7,#12467]', t => {
+  const early = swept(t);
+  early.box.advance(29 * MINUTE);
+  assert.throws(() => early.pass(early.rows.silent), error => error.code === 'BAD_STALE_STATE', 'a row idle 29 minutes is refused');
+  assert.deepEqual(early.releases(), [], 'a refused pass writes no release');
+  assert.equal(getItem(early.box.board, early.id).item_status, 'claimed');
+
+  const due = swept(t);
+  due.box.advance(30 * MINUTE);
+  due.pass(due.rows.silent);
+  assert.equal(due.releases().length, 1, 'a row idle exactly 30 minutes is accepted and the claim released');
+  assert.match(due.releases()[0].reason, /^Idle 30 minutes: no commit/);
+});

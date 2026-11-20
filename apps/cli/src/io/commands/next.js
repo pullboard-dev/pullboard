@@ -408,8 +408,8 @@ async function nextWithProgress(io, values, progress) {
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         if (found.companions) io.say(`review tree checked out at ${found.companions.commit}; patch-set digest: ${found.companions.digest}; companions: ${found.companions.keys.join(', ')}`);
         else {
-          // verify.reviewFolder (off by default): the review reads a detached folder at the submitted commit, so this seat's own checkout stays where it is [C7,#8969].
-          const folder = ctx.config.verify?.reviewFolder === true ? reviewFolderAt(ctx, item.item_commit) : null;
+          // verify.reviewFolder (on by default): the review reads a detached folder at the submitted commit, so this seat's own checkout stays where it is [C7,#8969].
+          const folder = ctx.config.verify?.reviewFolder !== false ? reviewFolderAt(ctx, item.item_commit) : null;
           if (folder?.failed) io.say(`no review folder: ${folder.failed}`);
           if (folder?.folder) io.say(`review folder at that commit: ${folder.folder} (read it there; this checkout is untouched)`);
           else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);

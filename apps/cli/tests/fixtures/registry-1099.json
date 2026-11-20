@@ -30,5 +30,37 @@
       "apps/cli/src/io/commands/flow.js",
       "apps/cli/tests/fixtures/e2e.js"
     ]
+  },
+  "cli.journeys-flow-tune.busy-board-tuned-beats-untuned": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "pullboard flow replay --tune over a seeded busy history prints the tuned and untuned runs, and the tuned median claim to landed is lower than the untuned one."
+    },
+    "why": "Without it the line tuner's default could be turned on with no proof on the replay bench that the tuned line is faster.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/flow.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/flow/tune-history.js",
+      "packages/stats/index.js"
+    ]
+  },
+  "cli.journeys-flow-tune.one-seat-no-stage-worse": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "pullboard flow replay --tune over a seeded one-seat history leaves no stage median of the tuned run higher than the untuned run."
+    },
+    "why": "Without it tuning could make a board with one seat slower and nothing would show it before the default is turned on.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/commands/flow.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/flow/tune-history.js",
+      "packages/stats/index.js"
+    ]
   }
 }

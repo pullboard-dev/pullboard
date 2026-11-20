@@ -115,3 +115,4 @@ export {
   mainRedReceiptId,
   mainTestCommand,
 } from "./src/io/test/receipt.js";
+export { trialClaims } from "./src/io/claim-replay.js";
