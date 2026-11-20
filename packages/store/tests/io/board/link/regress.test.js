@@ -10,9 +10,11 @@ import { applyBoardLink } from '../../../../index.js';
 import { approveBoardLink } from '../../../../index.js';
 import { receiveBoardState } from '../../../../index.js';
 import { addItem } from '../../../../index.js';
+import { claim } from '../../../../index.js';
 import { getItem } from '../../../../index.js';
 import { generateBoardKey } from '../../../../../kernel/index.js';
 import { openKitBoard } from '../../../fixtures/cell.js';
+import { cellSeat } from '../../../fixtures/cell.js';
 
 const CHILD = 'c'.repeat(32);
 const RECEIVED = '2026-11-19T08:00:00.000Z';
@@ -48,21 +50,23 @@ async function linked(t) {
   return { board, receive };
 }
 
-/** A parent item that waits on kid#id, set to the given status. */
-function waiting(board, id, status, extra = {}) {
-  const item = addItem(board, { by: 'coordinator', lane: 'core', title: `waits on kid#${id}`, after: [`kid#${id}`] });
-  board.db.prepare('UPDATE item SET item_status=?, item_merged_commit=? WHERE item_id=?').run(status, extra.merged ?? null, item.item_id ?? item);
-  return item.item_id ?? item;
+/** A claimed parent item that waits on kid#id; a merged commit marks it as already landed. The claim comes first because a foreign prerequisite would refuse it. */
+function waiting(board, id, { merged = null } = {}) {
+  const seat = cellSeat(board, { lane: 'core', path: `/seat-${id}` });
+  const item = addItem(board, { by: 'coordinator', lane: 'core', title: `waits on kid#${id}` });
+  claim(board, item, { agentId: seat.id, lane: 'core', leaseMs: 3_600_000, freeze: row => ({ text: row.item_title, digest: `digest:${row.item_title}` }) });
+  board.db.prepare('UPDATE item SET item_after=?, item_merged_commit=? WHERE item_id=?').run(`kid#${id}`, merged, item);
+  return item;
 }
 
 const events = (board, kind) => board.db.prepare('SELECT event_item, event_detail FROM event WHERE event_kind=? ORDER BY event_id').all(kind);
 
 test('store.io-board-link-regress.reopened-holds-claimed-dependent: clause 1: a received state going from verified or landed back to open holds each claimed dependent with a reason naming repo#id [XB1,#11045]', async t => {
   const { board, receive } = await linked(t);
-  const first = waiting(board, 8, 'claimed');
-  const second = waiting(board, 9, 'claimed');
-  const idle = waiting(board, 5, 'claimed');
-  await receive([[8, 'verified'], [9, 'landed'], [5, 'verified']].map(([id, state]) => [id, state]));
+  const first = waiting(board, 8);
+  const second = waiting(board, 9);
+  const idle = waiting(board, 5);
+  await receive([[8, 'verified'], [9, 'landed'], [5, 'verified']]);
   await receive([[8, 'open'], [9, 'open'], [5, 'verified']]);
   assert.match(getItem(board, first).item_hold_reason, /kid#8/u);
   assert.match(getItem(board, second).item_hold_reason, /kid#9/u);
@@ -71,7 +75,7 @@ test('store.io-board-link-regress.reopened-holds-claimed-dependent: clause 1: a 
 
 test('store.io-board-link-regress.landed-dependent-gets-notice: clause 2: a dependent that already landed gets a notice fact and no hold [XB1,#11045]', async t => {
   const { board, receive } = await linked(t);
-  const done = waiting(board, 8, 'verified', { merged: 'f'.repeat(40) });
+  const done = waiting(board, 8, { merged: 'f'.repeat(40) });
   await receive([[8, 'verified']]);
   await receive([[8, 'open']]);
   assert.equal(getItem(board, done).item_hold_reason, null);
@@ -83,7 +87,7 @@ test('store.io-board-link-regress.landed-dependent-gets-notice: clause 2: a depe
 
 test('store.io-board-link-regress.first-state-and-other-moves-hold-nothing: clause 1: a first received state, and a state that only moves open to claimed, hold no dependent [XB1,#11045]', async t => {
   const { board, receive } = await linked(t);
-  const item = waiting(board, 8, 'claimed');
+  const item = waiting(board, 8);
   await receive([[8, 'open']]);
   await receive([[8, 'claimed']]);
   assert.equal(getItem(board, item).item_hold_reason, null);
