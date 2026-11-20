@@ -1,0 +1,32 @@
+{
+  "cli.io-commands-next.done-submits-and-continues": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "next --done submits the one held claim at the seat head through the submit command and claims another item in the same call."
+    },
+    "why": "Without it a builder needs a submit and a second next, and an agent's whole loop is not one command.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/next.js",
+      "apps/cli/src/io/commands/submit.js",
+      "apps/cli/src/io/cli-main/options.js"
+    ]
+  },
+  "cli.io-commands-next.done-refusal-stops": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "next --done prints submit's refusal, hands out no new item and exits 1 when submit refuses."
+    },
+    "why": "Without it a refused submit would be followed by new work while the built item sits unsubmitted.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/next.js",
+      "apps/cli/src/io/commands/submit.js",
+      "apps/cli/src/io/cli-main/options.js"
+    ]
+  }
+}

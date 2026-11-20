@@ -1,5 +1,6 @@
 /** Approval provenance: a status word is not a person's decision [S1,B26,P6]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import {
   gitReadSignature,
@@ -88,7 +89,7 @@ function confirmedDecision(root, board, decision, evidenceErrors, verifiedPasske
 /** Capture the current approved source before setup commits or a legacy board's first ordered move. */
 export function captureSpecApprovalBaseline(root, config) {
   const spec = loadSpec(root, config);
-  const source = spec.exists === false ? [] : readFileSync(join(root, config.spec), 'utf8').split(/\r?\n/u);
+  const source = spec.exists === false ? [] : disk.readFile(join(root, config.spec), 'utf8').split(/\r?\n/u);
   const head = tryGit(root, ['rev-parse', '--verify', 'HEAD']);
   return { version: 1, file: config.spec, anchor: head.status === 0 ? head.stdout.trim() : null,
     rows: spec.rows.filter(row => row.status === 'approved').map(row => ({ id: row.id, text: row.text, source: source[row.line - 1] })) };
@@ -111,7 +112,7 @@ export function specApprovalState(root, { board, config, spec = loadSpec(root, c
   }
   if (!baseline && !baselineInvalid) return { mode, baselinePending: true, evidenceErrors, rows: [] };
   if (spec.exists === false) return { mode, baselinePending: false, baselineInvalid, evidenceErrors, rows: [] };
-  const source = readFileSync(join(root, config.spec), 'utf8').split(/\r?\n/u);
+  const source = disk.readFile(join(root, config.spec), 'utf8').split(/\r?\n/u);
   const decisions = store.rowDecisions(board).filter(record => record.kind === 'spec' && record.file === config.spec);
   const signed = approvalEvidence(root, evidenceErrors);
   const wanted = ids ? new Set(ids) : null;

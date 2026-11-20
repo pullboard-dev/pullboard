@@ -19,12 +19,17 @@ import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
+import { briefFilesAbsentFromMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireAfterNeeded } from '../item/bar.js';
+import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireSpecRow } from '../item/bar.js';
+import { requireCellTestFixture } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
+import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
@@ -132,6 +137,7 @@ export async function run(io, args) {
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
+  const afterGate = dependencyValues(idList(values['after-gate']));
   const title = [second, ...rest].filter(Boolean).join(' ');
   requireSpecRow({ lane: first, title, specIds }, itemsBarRulesAtAdd());
   const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
@@ -151,9 +157,11 @@ export async function run(io, args) {
     specIds,
     parentId,
     after,
+    afterGate,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
+    ...(values.needs === undefined ? {} : { needs: values.needs.split(',').map(need => need.trim()).filter(Boolean) }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
     route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,
@@ -174,7 +182,7 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief, check: item.check });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
@@ -195,12 +203,16 @@ export async function run(io, args) {
   requireNoCoordinatorPath(ctx.config, me, item, owners);
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
+  briefFilesAbsentFromMain(ctx, { criterion: item.criterion, brief: item.brief }, itemsBarRulesAtAdd());
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  requireAfterNeeded(ctx, { criterion: item.criterion, check: item.check }, { on: itemsBarRulesAtAdd(), after: item.after ?? [], items: () => store.listItems(board, { all: true }) });
+  requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
   requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
+  await requireCellTestFixture(ctx, { criterion: item.criterion, check: item.check, brief: item.brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || item.by === 'person');
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
-  if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) item.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() ? { strict: true } : {}) };
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
@@ -264,7 +276,7 @@ async function fileCoordinatorPiece(ctx, board, { id, item, split, title, specId
   const { command, brief } = store.validateItemAddition(board, piece);
   piece.brief = brief;
   if (command) refuseCheckSyntax(command);
-  if (command) piece.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) piece.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() ? { strict: true } : {}) };
   try { return await ordered(ctx, board, 'addItem', [piece]); }
   catch (error) {
     if (!String(error?.code).startsWith('AGENT_GRANT_')) throw error;

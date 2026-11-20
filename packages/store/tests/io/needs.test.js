@@ -6,6 +6,9 @@ import * as store from '../../index.js';
 import { ENGINE_VERSION } from '../../../state/light.js';
 import { NEEDS_ENGINE } from '../../../state/light.js';
 import { saveItemNeeds } from '../../src/io/needs.js';
+import { saveAgentAbilities } from '../../src/io/needs.js';
+import { agentAbilities } from '../../src/io/needs.js';
+import { validateAgentAbilities } from '../../src/io/needs.js';
 import { validateItemNeeds } from '../../src/io/needs.js';
 import { cellBoard } from '../fixtures/cell.js';
 import { cellProject } from '../fixtures/cell.js';
@@ -54,4 +57,19 @@ test('store.needs.add-real-path: the exported addItem and editItem record the ne
   store.editItem(board, id, { agentId: 'coordinator', needs: [] });
   assert.deepEqual(store.itemById(board, id).item_needs, []);
   assert.throws(() => store.editItem(board, id, { agentId: 'coordinator', needs: ['gpu'] }), { code: 'USAGE' });
+});
+
+test('store.needs.abilities-save-and-read: saveAgentAbilities then agentAbilities returns the list; a seat never given abilities reads []; an unknown name is refused USAGE through the queue validator [C7,U136]', (t) => {
+  const board = fixture(t);
+  assert.deepEqual(agentAbilities(board, 'coordinator'), []);
+  saveAgentAbilities(board, 'coordinator', ['browser']);
+  assert.deepEqual(agentAbilities(board, 'coordinator'), ['browser']);
+  saveAgentAbilities(board, 'coordinator', undefined);
+  assert.deepEqual(agentAbilities(board, 'coordinator'), ['browser'], 'undefined leaves the declaration alone');
+  assert.deepEqual(agentAbilities(board, 'core-1'), [], 'another seat is not given them');
+  saveAgentAbilities(board, 'coordinator', []);
+  assert.deepEqual(agentAbilities(board, 'coordinator'), []);
+  assert.throws(() => validateAgentAbilities(['gpu']), (error) => error.code === 'USAGE' && /browser/u.test(error.message));
+  assert.throws(() => validateAgentAbilities('browser'), { code: 'USAGE' });
+  validateAgentAbilities(undefined);
 });

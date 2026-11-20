@@ -12,7 +12,9 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
+import { gateAgedMs } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { LEASE_MS } from '../../../jobs/index.js';
 import { settledGate } from '../../../jobs/index.js';
 import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
@@ -350,6 +352,36 @@ test('api.jobs.claims-aged-gate-job-over-claim-action: clause 3: over the claim 
   assert.equal(claim(302_001), 'gate:9:shard:1');
 });
 
+/** A board where a runner holds a test job, then claims over the claim action with gateAgedMs read from the machine settings the case wrote, as packages/api/src/io/main.js passes it. */
+function agedSettingBoard(t, settings) {
+  const { root } = privateFixtureFiles('pullboard-jobs-gate-aged-setting-');
+  const home = join(root, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, settings);
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 150_000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now, gateAgedMs }).claim?.job;
+  assert.equal(claim(160_000), 'test:one', 'a runner holding no test job takes the test job');
+  offerJob(db, { id: 'gate:9', kind: 'gate', now: 10_000 });
+  return claim;
+}
+
+test('api.jobs.claims-gate-aged-minutes-setting: clause 1: with gate.gateAgedMinutes 2 set in machine settings, over the claim action a gate job offered 3 minutes before the claim is handed to a runner holding a test job ahead of fresh shards [C7,#11875]', (t) => {
+  const claim = agedSettingBoard(t, { gate: { gateAgedMinutes: 2 } });
+  assert.equal(claim(190_000), 'gate:9', 'the 3-minute-old gate job passes the 2-minute setting and goes before the shard');
+  assert.equal(claim(190_001), 'gate:9:shard:1');
+});
+
+test('api.jobs.claims-gate-aged-minutes-unset: clause 2: with gate.gateAgedMinutes unset the same 3-minute-old gate job stays behind the shards over the claim action [C7,#11875]', (t) => {
+  const claim = agedSettingBoard(t, {});
+  assert.equal(claim(190_000), 'gate:9:shard:1', 'the default is 5 minutes, so the shard goes first');
+  assert.equal(claim(190_001), 'gate:9');
+});
+
 /** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */
 function budgetBoard(t, { cores, shards, tests, offered }) {
   const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-');
@@ -494,4 +526,54 @@ test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job cl
   const taken = claimJob(counted, { runner: 'r1', now: 5000, hop: gateClaimHop(true) });
   assert.equal(taken.job, 'gate:7:a');
   assert.equal(statements, 33, 'the success path prepares and runs the same statements as on main');
+});
+
+test('api.io-renew-batch.one-call-extends-all-held: clause 1: one renew call over the job route extends every job the runner holds and answers each job\'s new lease; a job it no longer holds is named refused without failing the rest [C7]', async (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-renew-batch-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  for (let i = 0; i < 3; i += 1) offerJob(db, { id: `test:held:${i}`, kind: 'test', now: 1000 + i });
+  offerJob(db, { id: 'test:rival', kind: 'test', now: 1003 });
+  let clock = 5000;
+  let calls = 0;
+  const handler = createApiHandler({ refusalDocument,
+    authenticate: () => ({ local: true }),
+    board: (id) => ({ id }),
+    jobs: (board, body) => { calls += 1; return jobQueueCall(db, body, { mode: 'pull', now: clock }); },
+  });
+  const server = createServer(handler);
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { handler.close(); server.close(done); server.closeIdleConnections(); }));
+  const jobs = async (body) => (await (await fetchFresh(`http://127.0.0.1:${server.address().port}/api/v1/boards/fixture/jobs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json());
+  const held = [];
+  for (let i = 0; i < 3; i += 1) held.push((await jobs({ action: 'claim', runner: 'r-a', capabilities: [] })).claim);
+  const rival = (await jobs({ action: 'claim', runner: 'r-b', capabilities: [] })).claim;
+  assert.deepEqual(held.map((claim) => claim.job), ['test:held:0', 'test:held:1', 'test:held:2']);
+  clock = 65_000;
+  calls = 0;
+  const answer = await jobs({ action: 'renew', runner: 'r-a', held: [...held.map(({ job, token }) => ({ job, token })), { job: rival.job, token: rival.token }] });
+  assert.equal(calls, 1, 'one call renews them all');
+  assert.deepEqual(answer.leases, [
+    ...held.map(({ job }) => ({ job, renewed: true, leaseUntil: 65_000 + LEASE_MS })),
+    { job: 'test:rival', renewed: false, refused: 'JOB_LEASE_MOVED' },
+  ], 'each held job answers its new lease; the job r-a does not hold is refused alone');
+  for (const { job } of held) assert.equal(jobView(db, job).leaseUntil, 65_000 + LEASE_MS, `${job} lease extended on the board`);
+  assert.equal(jobView(db, 'test:rival').leaseOwner, 'r-b', 'the rival\'s lease is untouched');
+  assert.equal((await jobs({ action: 'renew', runner: 'r-a', held: [] })).error.code, 'JOB_RENEW_BATCH', 'an empty batch is refused');
+  assert.equal((await jobs({ action: 'renew', runner: 'r-a', job: held[0].job, token: held[0].token })).renewed, true, 'a single renew answers as before');
+});
+
+test('api.io-renew-batch.capped-claim-carries-wait: clause 1: a claim answer for a runner whose cap holds back an open job carries a wait time; an empty queue or a claim that takes a job carries none [C7]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-capped-wait-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  const claim = (body, now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [], ...body }, { mode: 'pull', now });
+  assert.deepEqual(claim({ cores: 3 }, 5000), { claim: null }, 'an empty queue answers no job and no wait');
+  offerJob(db, { id: 'gate:12150:shard:0', kind: 'gate-shard', now: 6000 });
+  offerJob(db, { id: 'gate:12150:shard:1', kind: 'gate-shard', now: 6001 });
+  const taken = claim({ cores: 3 }, 7000);
+  assert.equal(taken.claim.job, 'gate:12150:shard:0');
+  assert.equal(taken.waitMs, undefined, 'a claim that takes a job carries no wait');
+  const full = claim({ cores: 3 }, 7001);
+  assert.equal(full.claim, null, 'three cores hold one shard, so the second waits');
+  assert.ok(Number.isSafeInteger(full.waitMs) && full.waitMs > 0, 'the capped answer tells the runner how long to wait');
+  assert.equal(claim({}, 7002).claim.job, 'gate:12150:shard:1', 'a claim reporting no cores is not capped and takes the shard');
 });

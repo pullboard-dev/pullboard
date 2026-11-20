@@ -1,8 +1,6 @@
 import { controllerPolicyFingerprints } from '../package.js';
 /** Pin derived tooling bytes without a hand-maintained dependency list [C7,P3]. */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { resolve } from 'node:path';
@@ -16,6 +14,8 @@ import { importsWithCompiler as importsIn } from '../../../../kernel/index.js';
 import { createRunnerModuleParser } from '../module/parser.js';
 import { parseWithPaths } from '../module/parser.js';
 
+const fs = fileSystemAdapter();
+
 const readers = new WeakMap();
 let lastCaptureReaders = null;
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
@@ -27,7 +27,7 @@ const CONTROLLER_STEPS = ['packages/runners/index.js', 'packages/runners/src/io/
 
 /** Read each controller step's bytes, null when absent, so a fixture holding only runners.js still pins. */
 function controllerSteps(root) {
-  return CONTROLLER_STEPS.map(file => { try { return readFileSync(join(root, file), 'utf8'); } catch { return null; } });
+  return CONTROLLER_STEPS.map(file => { try { return fs.readFile(join(root, file), 'utf8'); } catch { return null; } });
 }
 
 /** Derive only package providers literally composed by the actual controller entry, using the canonical closure reader. */
@@ -60,12 +60,12 @@ function controllerProviderReader(root, source, entryFile) {
 
 /** The controller facade file this tree pins: packages/runners/index.js in a 0.9.3 layout while it exists, else the cell door. */
 export function controllerFile(root) {
-  return existsSync(join(root, 'src/runners.js')) ? 'src/runners.js' : 'packages/runners/index.js';
+  return fs.exists(join(root, 'src/runners.js')) ? 'src/runners.js' : 'packages/runners/index.js';
 }
 
 /** Select the controller entry present in the captured tree, including the legacy layout. */
 function controllerEntryFile(root) {
-  return existsSync(join(root, 'apps/runner/src/io/controller.js'))
+  return fs.exists(join(root, 'apps/runner/src/io/controller.js'))
     ? 'apps/runner/src/io/controller.js' : 'bin/runner-controller.js';
 }
 
@@ -79,7 +79,7 @@ const COARSE_CLOCK_MS = 10;
  */
 function changedSince(root, files, since) {
   return files.some(file => {
-    try { return statSync(join(root, file)).ctimeMs > since - COARSE_CLOCK_MS; } catch { return false; }
+    try { return fs.stat(join(root, file)).ctimeMs > since - COARSE_CLOCK_MS; } catch { return false; }
   });
 }
 
@@ -95,7 +95,7 @@ export function captureRunnerTooling(root, { since } = {}) {
 function captureTooling(root, since) {
   const absoluteRoot = resolve(root);
   const entryFile = controllerEntryFile(root);
-  const controllerEntry = readFileSync(join(root, entryFile), 'utf8');
+  const controllerEntry = fs.readFile(join(root, entryFile), 'utf8');
   if (lastCaptureReaders?.root !== absoluteRoot || lastCaptureReaders.entry !== controllerEntry || lastCaptureReaders.entryFile !== entryFile) {
     lastCaptureReaders = {
       root: absoluteRoot,
@@ -106,7 +106,7 @@ function captureTooling(root, since) {
     };
   }
   const { read, providers } = lastCaptureReaders;
-  const loaded = { ...read(), controller: readFileSync(join(root, controllerFile(root)), 'utf8'),
+  const loaded = { ...read(), controller: fs.readFile(join(root, controllerFile(root)), 'utf8'),
     controllerEntry, controllerEntryFile: entryFile, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
   if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), controllerFile(root),
@@ -118,7 +118,7 @@ function captureTooling(root, since) {
 /** Re-read the pinned controller graph, so edits to helper bodies are caught even without a closure rescan. */
 function sameControllerPolicy(root, policy) {
   return Boolean(policy) && Object.entries(policy).every(([file, digest]) =>
-    createHash('sha256').update(readFileSync(join(root, file))).digest('hex') === digest);
+    createHash('sha256').update(fs.readFile(join(root, file), null)).digest('hex') === digest);
 }
 
 /** Refuse stale pinned bytes before parsing dependencies again; newly reached files also require a restart. */
@@ -135,13 +135,13 @@ function checkTooling(root, loaded, rescan) {
   if (!loaded) return refuse();
   const reader = readers.get(loaded);
   try {
-    if (readFileSync(join(root, controllerFile(root)), 'utf8') !== loaded.controller
+    if (fs.readFile(join(root, controllerFile(root)), 'utf8') !== loaded.controller
       || controllerEntryFile(root) !== loaded.controllerEntryFile
-      || readFileSync(join(root, loaded.controllerEntryFile), 'utf8') !== loaded.controllerEntry
+      || fs.readFile(join(root, loaded.controllerEntryFile), 'utf8') !== loaded.controllerEntry
       || JSON.stringify(controllerSteps(root)) !== JSON.stringify(loaded.controllerSteps)
       || !sameControllerPolicy(root, loaded.controllerPolicy)
       || (reader?.root === resolve(root) ? reader.providers() : controllerProviderReader(root, loaded.controllerEntry, loaded.controllerEntryFile)()) !== loaded.controllerProviders
-      || Object.entries(loaded.files).some(([name, source]) => readFileSync(join(root, name), 'utf8') !== source)) return refuse();
+      || Object.entries(loaded.files).some(([name, source]) => fs.readFile(join(root, name), 'utf8') !== source)) return refuse();
   } catch (error) {
     if (error.code === 'RUNNER_TOOLING_FILES') throw error;
     return refuse();

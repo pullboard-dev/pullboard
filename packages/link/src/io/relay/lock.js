@@ -1,20 +1,15 @@
 import { beginCommandPhase } from '../command.js';
 /** The per-board link lock: one worktree sends at a time, and a sibling waits instead of failing (#919). */
 import { randomUUID } from 'node:crypto';
-import {
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import {
   dirname,
   join,
 } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Longest wait for a sibling worktree's relay send, and how often the waiting command says so. */
 const LOCK_WAIT_MS = 120000;
@@ -24,7 +19,7 @@ const UNOWNED_STALE_MS = 30000;
 
 /** The lock's owner, or null when it names none yet (its maker is between creating it and writing its pid). */
 function ownerOf(lock) {
-  const pid = Number(readFileSync(join(lock, 'pid'), 'utf8'));
+  const pid = Number(fs.readFile(join(lock, 'pid'), 'utf8'));
   return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
@@ -73,7 +68,7 @@ function releaseLease(db, token) {
  * @returns {boolean} Whether this process now holds the directory lock too.
  */
 function takeDirectory(lock) {
-  try { mkdirSync(lock, { mode: 0o700 }); writeFileSync(join(lock, 'pid'), String(process.pid)); return true; }
+  try { fs.mkdir(lock, { mode: 0o700 }); fs.writeFile(join(lock, 'pid'), String(process.pid)); return true; }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
   let owner = null;
   try { owner = ownerOf(lock); }
@@ -82,13 +77,13 @@ function takeDirectory(lock) {
     // age check below recovers.
     if (error.code !== 'ENOENT') owner = null;
     else {
-      try { lstatSync(lock); } catch (missing) { if (missing.code === 'ENOENT') return false; throw missing; }
+      try { fs.lstat(lock); } catch (missing) { if (missing.code === 'ENOENT') return false; throw missing; }
     }
   }
   let stale;
-  try { stale = owner !== null ? gone(owner) : Date.now() - lstatSync(lock).mtimeMs > UNOWNED_STALE_MS; }
+  try { stale = owner !== null ? gone(owner) : Date.now() - fs.lstat(lock).mtimeMs > UNOWNED_STALE_MS; }
   catch (error) { if (error.code === 'ENOENT') return false; throw error; }
-  if (stale) rmSync(lock, { recursive: true, force: true });
+  if (stale) fs.rm(lock, { recursive: true, force: true });
   return false;
 }
 
@@ -106,7 +101,7 @@ export async function locked(file, work, io) {
       if (io?.relaySignal?.aborted) throw new Refused('RELAY_TIMEOUT', 'the relay deadline expired; this waiter did not take over another sender');
     };
     checkAbort();
-    mkdirSync(dirname(file), { recursive: true });
+    fs.mkdir(dirname(file), { recursive: true });
     const startedAt = Date.now();
     const deadline = startedAt + (io?.relayLockWaitMs ?? LOCK_WAIT_MS);
     const progressEvery = io?.relayLockProgressMs ?? LOCK_PROGRESS_MS;
@@ -128,15 +123,15 @@ export async function locked(file, work, io) {
       try {
         checkAbort();
         // Only the current lock holder can have a live link write; remove crashed legacy bearer fragments.
-        for (const name of readdirSync(dirname(file))) {
-          if (/^relay\.json\.[0-9a-f-]+\.tmp$/u.test(name)) rmSync(join(dirname(file), name), { force: true });
+        for (const name of fs.list(dirname(file))) {
+          if (/^relay\.json\.[0-9a-f-]+\.tmp$/u.test(name)) fs.rm(join(dirname(file), name), { force: true });
         }
         return await work();
       } finally {
         // Remove only this command's own directory lock; another's is never ours to free.
         let owner = null;
         try { owner = ownerOf(lock); } catch { /* Already gone, or never named: nothing of ours to keep. */ }
-        if (owner === process.pid) rmSync(lock, { recursive: true, force: true });
+        if (owner === process.pid) fs.rm(lock, { recursive: true, force: true });
       }
     } finally {
       releaseLease(lease, token);
