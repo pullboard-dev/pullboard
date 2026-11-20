@@ -95,6 +95,8 @@ export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflic
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission, runnerSlotsSnapshot, claimRows } from './src/io/board/claim.js';
 /** The verdict reads a verify prepares before the write lock, loaded at the call so the front door does not load verify.js for every importer [C7,#10868]. */
 export async function prepareVerdictFacts(...call) { return (await import('./src/io/board/verify.js')).prepareVerdictFacts(...call); }
+/** Tell the parent boards that wait on a verified item its new state, loaded at the call so the front door does not load verify.js for every importer [E32,B24]. */
+export async function announceVerdict(...call) { return (await import('./src/io/board/verify.js')).announceVerdict(...call); }
 export { writeBoardCommand } from './src/io/board/write.js';
 export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
