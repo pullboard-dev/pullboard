@@ -29,6 +29,7 @@ export {
   SHARD_JOB_KIND,
   boardQueueMode,
   claimJob,
+  duplicateRunnerPlaces,
   endJobs,
   heldShards,
   jobArtifacts,
