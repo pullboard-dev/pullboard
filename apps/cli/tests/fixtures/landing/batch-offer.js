@@ -50,7 +50,7 @@ export function batchOffer(t, { files, line = {} }) {
   store.register(board, { lane: 'coordinator', path: '/source' });
   process.env.PULLBOARD_MACHINE_HOME = home;
   fixtureMachineSettings(home, { landing: {} });
-  for (const [name, value] of Object.entries(line)) store.setLineSetting(board, { agentId: 'coordinator', key: name, value, reason: 'the batch offer fixture sets its line' });
+  for (const [name, value] of Object.entries(line)) store.setLineSetting(board, { agentId: 'coordinator', key: name, value, reason: 'the batch offer fixture sets its line', window: null });
   const policy = { config: { flakes: { rerun: true } }, commit: main };
   const ids = {};
   const offer = () => offerPulledLanding({ io: { say() {} }, file: boardFile }, directory,
