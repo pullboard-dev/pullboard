@@ -142,7 +142,15 @@ function insertItems(board, count, status, lane, merged) {
   board.db.exec('BEGIN');
   try { for (let at = 0; at < count; at += 1) insert.run(lane, `${status} ${at}`); board.db.exec('COMMIT'); } catch (error) { board.db.exec('ROLLBACK'); throw error; }
   if (status === 'open') return;
-  asMove(board, 'UPDATE item SET item_status=?, item_merged_commit=? WHERE item_id >= ? AND item_id < ?', status, merged ? '2'.repeat(40) : null, first, first + count);
+  // The fields each status requires, placed the way the stage tests place them: the fixture records where items stand, not how they got there.
+  const built = "item_built_by='core-1', item_commit=?2, item_frozen_digest=?3";
+  const fields = {
+    withdrawn: "item_withdrawn_reason='not needed'",
+    claimed: "item_owner='core-1', item_lease_until='2000-01-01T00:00:00.000Z', item_frozen_digest=?3",
+    submitted: built,
+    verified: `${built}, item_verified_by='core-2', item_merged_commit=?4`,
+  }[status];
+  asMove(board, `UPDATE item SET item_status=?1, ${fields} WHERE item_id >= ?5 AND item_id < ?6`, status, 'b'.repeat(40), 'd'.repeat(64), merged ? 'a'.repeat(40) : null, first, first + count);
 }
 
 /** The sorted medians helper: the middle of the measured times. */
