@@ -8,6 +8,7 @@
  *
  * This module stays light: submit imports it, and only the runner process loads the API (local/serve.js).
  */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +45,7 @@ export function runnerEnv(env) {
  * @param {string} root
  * @returns {Promise<number | null>}
  */
-export function startLocalRunner(root, { env = process.env } = {}) {
+export function startLocalRunner(root, { env = environmentAdapter().all() } = {}) {
   return startProcess(localRunnerFolder(), [CLI, 'runner', 'local'], { cwd: root, env: runnerEnv(env) });
 }
 

@@ -36,7 +36,7 @@ import {
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('Chrome startup waits past the old timeout, retries once, and reports final stderr [N26,A10]', { timeout: 45_000 }, async () => {
+test('cli.journeys-shout-fixture.chrome-startup-waits-past-the-old: Chrome startup waits past the old timeout, retries once, and reports final stderr [N26,A10]', { timeout: 45_000 }, async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-chrome-launch-')));
   scratch.push(dir);
   const profile = join(dir, 'slow-profile');
@@ -92,7 +92,7 @@ process.exit(19);
   assert.equal(readFileSync(failedAttempts, 'utf8'), '2', 'the failed launch is retried exactly once');
 });
 
-test('a Chrome wait whose condition throws while the next document loads keeps polling, and names its last error [N26,C7]', { timeout: 60_000 }, async (t) => {
+test('cli.journeys-shout-fixture.a-chrome-wait-whose-condition-throws: a Chrome wait whose condition throws while the next document loads keeps polling, and names its last error [N26,C7]', { timeout: 60_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser wait proof.');
   const server = createServer((request, response) => {
@@ -132,7 +132,7 @@ test('a Chrome wait whose condition throws while the next document loads keeps p
   }
 });
 
-test('owned Chrome cleanup waits out a slow exit and still fails a real hang [C7,N26]', async t => {
+test('cli.journeys-shout-fixture.owned-chrome-cleanup-waits-out-a: owned Chrome cleanup waits out a slow exit and still fails a real hang [C7,N26]', async t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-owned-chrome-cleanup-')));
   scratch.push(dir);
   const launched = [];
@@ -221,7 +221,7 @@ test('owned Chrome cleanup waits out a slow exit and still fails a real hang [C7
 });
 
 
-test('a timed-out wait names what moved [N26,C7]', { timeout: 60_000 }, async () => {
+test('cli.journeys-shout-fixture.a-timed-out-wait-names-what: a timed-out wait names what moved [N26,C7]', { timeout: 60_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the wait capture control');
   const responses = new Set();
