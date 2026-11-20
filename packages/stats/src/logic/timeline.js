@@ -30,7 +30,7 @@ const ACTIVE = new Set(['building', 'testing', 'reviewing', 'landing']);
 const GATE_RUNNING_STEPS = new Set(['claimed', 'started', 'running']);
 const GATE_SETTLED_STEPS = new Set(['green', 'red', 'finished', 'ended', 'result', 'receipt']);
 /** Event kinds that become one row each, as [stage, edge]. */
-const EVENT_STAGES = { add: ['filed', 'point'], claim: ['claimed', 'start'], release: ['released', 'point'], reopen: ['reopened', 'point'], reject: ['rejected', 'point'], submit: ['submitted', 'point'], reserve: ['reviewing', 'start'], accept: ['verdict', 'point'], pass: ['verdict', 'point'], merged: ['merged', 'point'], hold_item: ['held', 'start'], unhold_item: ['held', 'end'] };
+const EVENT_STAGES = { add: ['filed', 'point'], claim: ['claimed', 'start'], release: ['released', 'point'], reopen: ['reopened', 'point'], reject: ['rejected', 'point'], submit: ['submitted', 'point'], submit_offered: ['submitted', 'point'], reserve: ['reviewing', 'start'], accept: ['verdict', 'point'], pass: ['verdict', 'point'], merged: ['merged', 'point'], hold_item: ['held', 'start'], unhold_item: ['held', 'end'] };
 
 /** A JSON object from a detail or payload, or an empty one when it is damaged. */
 function objectOf(value) {
@@ -52,10 +52,14 @@ function row(at, item, stage, edge, actor, reason, ref) {
  */
 function eventRows(events) {
   const rows = [], unmapped = new Map();
-  let released = false;
+  let released = false, offered = false;
   for (const event of events) {
     const detail = objectOf(event.detail), at = msOf(event.at), mapped = EVENT_STAGES[event.kind];
     if (!mapped) { unmapped.set(event.kind, (unmapped.get(event.kind) ?? 0) + 1); continue; }
+    // The submit after a submit_offered is the same submission, so the one submitted row sits at the offer; a board from before the kind keeps its submit row.
+    if (event.kind === 'submit_offered') offered = true;
+    else if (event.kind === 'submit' && offered) { offered = false; continue; }
+    else if (['claim', 'release', 'reject', 'reopen'].includes(event.kind)) offered = false;
     let [stage, edge] = mapped;
     if (event.kind === 'claim' && released) stage = 're-claimed';
     if (['release', 'reject', 'reopen'].includes(event.kind)) released = true;
