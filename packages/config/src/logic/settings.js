@@ -383,6 +383,9 @@ export function loadMachineSettings() {
   if (value.gate?.refuseTempWorktree !== undefined && typeof value.gate.refuseTempWorktree !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseTempWorktree in ${file} must be true or false`);
   }
+  if (value.claim?.checkCeiling !== undefined && typeof value.claim.checkCeiling !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `claim.checkCeiling in ${file} must be true or false`);
+  }
   if (value.claim?.keepWhileRunning !== undefined && typeof value.claim.keepWhileRunning !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `claim.keepWhileRunning in ${file} must be true or false`);
   }
@@ -593,6 +596,10 @@ export function loadMachineSettings() {
   if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
   }
+  const gateAged = value.gate?.gateAgedMinutes;
+  if (gateAged !== undefined && !(Number.isSafeInteger(gateAged) && gateAged >= 1 && gateAged <= 1440)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.gateAgedMinutes in ${file} must be a whole number of minutes, 1 to 1440; remove it to keep 5`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
@@ -757,9 +764,9 @@ export function gateSampleSwap() {
   return loadMachineSettings().gate?.sampleSwap === true;
 }
 
-/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755): off by default; only an exact `true` turns it on. */
+/** Whether a submit leaves the main merge, trunk merge and generator regeneration to the queued gate job (#10755, default on in #11423): on by default; only an exact `false` turns it off. */
 export function submitComposeOnRunner() {
-  return loadMachineSettings().submit?.composeOnRunner === true;
+  return loadMachineSettings().submit?.composeOnRunner !== false;
 }
 
 /** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): on by default; only an exact `false` turns it off. */

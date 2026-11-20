@@ -43,6 +43,16 @@ test('cli.io-next-real-size.cli-next-real-size-next-take-on: cli.next.real-size.
   assert.ok(seconds < 2, `next --take took ${seconds.toFixed(2)} s wall on the real-size board:\n${profile.join('\n')}`);
 });
 
+test('cli.io-next-real-size.context-steps-profile: cli.next.real-size.context-steps-profile: clause 1: the next profile reports fallback reclaim, dead runner restart, queued reds and lag as separate rows in place of one context row [N2]', async t => {
+  const { taken } = await takeOnRealSizeBoard(t);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  const rows = taken.err.split('\n').filter(line => line.startsWith('next profile: '));
+  const phases = rows.map(line => line.slice('next profile: '.length).replace(/ \d+ ms$/, ''));
+  const steps = ['fallback reclaim', 'dead runner restart', 'queued reds', 'lag'];
+  for (const step of steps) assert.ok(phases.includes(step), `the profile has a row for ${step}: ${rows.join(' | ')}`);
+  assert.ok(!phases.includes('context'), 'the single context row is gone: ' + rows.join(' | '));
+});
+
 test('cli.io-next-real-size.seed-rows-deterministic: clause 1: after seedRealSize, event row n has agent real-(n mod 1800), kind edit, detail {} and the (n mod 600)th seeded item [N2]', async t => {
   const box = await fixture(t, { route: 'light' });
   seedRealSize(box);

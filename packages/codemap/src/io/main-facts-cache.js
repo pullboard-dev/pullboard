@@ -11,7 +11,10 @@ import { indexedFiles } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { trunkRef } from '../../../git/index.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
+
 const disk = fileSystemAdapter();
+const environment = environmentAdapter();
 
 const LIMIT = 64 * 1024 * 1024;
 const DEFAULT_CACHE_BYTES = 512 * 1024 * 1024;
@@ -19,8 +22,8 @@ const DEFAULT_RECENT_COMMITS = 8;
 
 /** Environment overrides are local cache limits, never board or proof authority. */
 function cacheLimits() {
-  const bytes = Number(process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES);
-  const recent = Number(process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS);
+  const bytes = Number(environment.get('PULLBOARD_MAIN_FACTS_MAX_BYTES'));
+  const recent = Number(environment.get('PULLBOARD_MAIN_FACTS_RECENT_COMMITS'));
   return { bytes: Number.isSafeInteger(bytes) && bytes >= 16384 ? bytes : DEFAULT_CACHE_BYTES,
     recent: Number.isSafeInteger(recent) && recent >= 1 && recent <= 1000 ? recent : DEFAULT_RECENT_COMMITS };
 }

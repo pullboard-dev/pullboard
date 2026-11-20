@@ -115,11 +115,13 @@ const HELP_ALIASES = {
 };
 
 export const HELP_FLAG_EXPLANATIONS = {
+  '--stuck': 'next: release the one build claim this seat holds as BLOCKED with this reason, then answer as next does',
   '--take': 'next: take one eligible item in this seat; handoff: take the named existing hand-off',
   '--after': 'ids or repo#id; claiming waits for verified items on their own boards',
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
+  '--needs': 'the abilities an agent needs to build it, browser and gui, comma separated; an empty string clears them',
   '--readiness': 'the command that tells whether the item is ready to start; an empty string clears it',
   '--expected-minutes': 'positive expected build minutes, or unknown to clear the estimate',
   '--check-timing': 'coordinator-only true|false, frozen exclusive timing admission for the check',
