@@ -1,11 +1,11 @@
 /** With submit.composeAsObject on, submit composes main with the head as a throwaway object under refs/pullboard/compose and never writes a branch commit [C7,U159]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureMachineSettings } from '../../../../packages/gate/tests/fixtures/testkit.js';
-import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
-import { jobsOf } from '../../../../packages/jobs/index.js';
-import { pullProject } from '../../tests/fixtures/pull.js';
-import { pullQueue } from '../../tests/fixtures/pull.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { runFixtureGit } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
+import { pullProject } from '../../fixtures/pull.js';
+import { pullQueue } from '../../fixtures/pull.js';
 
 /** Claim item 1, commit one file in its folder, then move main on, with submit.composeAsObject set as `on` says. */
 async function readySubmit(t, { on }) {

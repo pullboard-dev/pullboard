@@ -12,19 +12,19 @@ import {
   after,
   test,
 } from 'node:test';
-import { Refused } from '../../../../packages/kernel/light.js';
+import { Refused } from '../../../../../packages/kernel/light.js';
 import {
   recordedRefusal,
   refusalFromReceipt,
   RECORDED_GENERIC_NEXT,
-} from '../../../../packages/state/index.js';
-import { refusalDocument } from '../../index.js';
-import { commandOutput as lightCommandOutput } from '../../../../packages/config/index.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { fixtureJoin } from '../../tests/fixtures/testkit.js';
-import { REPOSITORY } from '../../tests/fixtures/source.js';
-import { movedSourceFiles } from '../../tests/fixtures/source.js';
+} from '../../../../../packages/state/index.js';
+import { refusalDocument } from '../../../index.js';
+import { commandOutput as lightCommandOutput } from '../../../../../packages/config/index.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { fixtureAdd } from '../../fixtures/testkit.js';
+import { fixtureJoin } from '../../fixtures/testkit.js';
+import { REPOSITORY } from '../../fixtures/source.js';
+import { movedSourceFiles } from '../../fixtures/source.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -54,7 +54,7 @@ test('cli.journeys-submit-steps.every-refusal-names-a-next-step: clause 2: every
     assert.ok(next.trim(), `${code} supplies a recovery action`);
     assert.doesNotMatch(next, /Run pullboard help, correct the reported problem/u, `${code} has its own recovery`);
   }
-  const { nextSteps$NEXT_STEPS: NEXT_STEPS } = await import('../../index.js');
+  const { nextSteps$NEXT_STEPS: NEXT_STEPS } = await import('../../../index.js');
   for (const code of codes) assert.ok(Object.hasOwn(NEXT_STEPS, code), `${code} has an explicit recovery entry`);
   assert.equal(refusalDocument({ code: 'FUTURE_REMOTE_RULE', message: 'The service refused.', next: 'ask the service owner to restore this board' }).error.next,
     'ask the service owner to restore this board', 'remote recovery guidance survives serialization');
@@ -174,7 +174,7 @@ test('cli.journeys-submit-steps.the-light-collector-preserves-prepared-json: the
   for (const error of cases) {
     let text = '';
     const io = lightCommandOutput(['show', '1', '--json'], { stdout: { write(value) { text += value; } }, stderr: { write() {} } },
-      { loadRefusal: async () => (await import('../../index.js')).refusalDocument });
+      { loadRefusal: async () => (await import('../../../index.js')).refusalDocument });
     io.caller('seat', '/fixture');
     io.refusal(error);
     await io.prepareRefusal();

@@ -31,7 +31,7 @@ export function statusLines(summary, options) {
   for (const entry of summary.needsRescope ?? []) lines.push(`needs re-scope: #${entry.id} is not offered to ${entry.lane} at the ${entry.route} route; ${entry.reasons.join('; ')}; edit, refreeze or re-route it`);
   for (const entry of summary.staleState.claimHealth ?? []) {
     lines.push(entry.health === 'waiting' ? `waiting: #${entry.id} (${entry.actor}) waits on ${entry.waitingOn.map(id => `#${id}`).join(', ')} to land; the claim is released and the item returns when it lands`
-      : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 40m`);
+      : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 30m`);
   }
   for (const gate of summary.stalledGates) lines.push(`gate job ${gate.id}${gate.item ? ` (#${gate.item})` : ''}: ${gate.text}`);
   for (const warning of summary.runnerUtilization.warnings) lines.push(warning);
