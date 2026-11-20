@@ -12,6 +12,7 @@ import { git } from '../../../../../landing/tests/fixtures/plan.js';
 import { frozen } from './frozen.js';
 import { change } from './frozen.js';
 import { OTHER_TEST } from './frozen.js';
+import { MIXED_TEST } from './frozen.js';
 import { SIZE_TEST } from './frozen.js';
 import { WEB_TEST } from './frozen.js';
 

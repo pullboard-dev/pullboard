@@ -172,7 +172,7 @@ function ownUnit(row, snapshot, unsealed) {
 function sharedDataReaders(actual, after, read) {
   if (!actual?.length) return null;
   const data = actual.filter(file => SHARED_DATA.test(file));
-  if (!data.length || !actual.every(file => SHARED_DATA.test(file) || after.rows.has(file))) return null;
+  if (!data.length || !actual.every(file => SHARED_DATA.test(file) || file === TEST_TIERS_FILE || after.rows.has(file))) return null;
   const needles = data.map(file => {
     const base = posix.basename(file), stem = base.replace(/\.[^.]*$/u, ''), family = stem.includes('-') ? stem.slice(0, stem.lastIndexOf('-') + 1) : stem;
     const directory = posix.dirname(file), local = directory.includes('/data/') ? directory.slice(directory.indexOf('data/')) : null;
