@@ -6,7 +6,9 @@ import { listItems } from '../../../index.js';
 import { nextFor } from '../../../index.js';
 import { reviewOffer } from '../../../index.js';
 import { register } from '../../../index.js';
+import { saveAgentAbilities } from '../../../src/io/needs.js';
 import { claim } from '../../../index.js';
+import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
 import { FIXTURE_MODEL } from '../../fixtures/cell.js';
 import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
@@ -210,4 +212,74 @@ test('store.next.derived-seat-family-beside-gate: clause 3: nextFor reads derive
   const offered = nextFor(board, { ...REVIEW, derivedGateAtHead: () => undefined, derivedSeatFamily: id => { asked.push(id); return undefined; } });
   assert.equal(offered.item?.item_id, first, offered.reasons.join(' | '));
   assert.ok(asked.includes('rev-1'), 'the seat-family option was read with the gate option beside it');
+});
+
+/** Four ready items: A{x}, B{x,y}, C{y}, D{z}; the largest disjoint wave is A, C, D and B waits. */
+function waveBoard(t) {
+  const board = fixtureBoard(t);
+  register(board, { lane: 'coordinator', path: '/coordinator' });
+  const make = (title, files) => addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files:\n${files.map(file => `- ${file}`).join('\n')}` });
+  const ids = { a: make('A', ['src/x.js']), b: make('B', ['src/x.js', 'src/y.js']), c: make('C', ['src/y.js']), d: make('D', ['src/z.js']) };
+  return { board, ids };
+}
+
+/** One more seat asks for work and claims what it is offered. */
+function seatTakes(board, options) {
+  const agentId = register(board, { lane: 'web', path: `/seat-${board.db.prepare('SELECT COUNT(*) AS n FROM agent').get().n}`, route: 'strong' });
+  const picked = nextFor(board, { agentId, lane: 'web', ...options });
+  if (picked.item) claim(board, picked.item.item_id, { agentId, lane: 'web', leaseMs: 3_600_000, freeze: item => ({ text: item.item_title, digest: `digest:${item.item_title}` }) });
+  return picked;
+}
+
+const CONTENTION = { threshold: 1, rates: new Map() };
+
+test('store.io-board-next.wave-hands-out-the-largest-disjoint-set: clause 1: with a contention option set, successive seats that claim what they are offered receive exactly the ids largestDisjointWave picks [C7, #1440]', t => {
+  const { board, ids } = waveBoard(t);
+  const wave = largestDisjointWave(listItems(board));
+  assert.deepEqual(wave.toSorted((a, b) => a - b), [ids.a, ids.c, ids.d]);
+  const offered = [];
+  for (let seat = 0; seat < 3; seat++) offered.push(seatTakes(board, { contention: CONTENTION }).item?.item_id);
+  assert.deepEqual(offered.toSorted((a, b) => a - b), wave.toSorted((a, b) => a - b));
+});
+
+test('store.io-board-next.wave-skip-names-the-shared-file: clause 2: a ready item outside the wave is skipped with a reason naming the file it shares with a wave item [C7, #1440]', t => {
+  const { board, ids } = waveBoard(t);
+  // Urgent work is looked at first, so the item outside the wave is reached before the seat's first offer.
+  board.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, 'on')").run(`item_urgent:${ids.b}`);
+  const picked = nextFor(board, { agentId: register(board, { lane: 'web', path: '/seat-reason', route: 'strong' }), lane: 'web', contention: CONTENTION });
+  assert.ok([ids.a, ids.c, ids.d].includes(picked.item?.item_id), picked.reasons.join(' | '));
+  assert.ok(picked.reasons.some(line => line.startsWith(`#${ids.b} waits on src/x.js: `) && line.includes('wave')), picked.reasons.join(' | '));
+});
+
+test('store.io-board-next.wave-off-leaves-the-order: clause 3: with contention null the offer order is unchanged and the second ready item is offered whole [C7, #1440]', t => {
+  const { board, ids } = waveBoard(t);
+  const agentId = register(board, { lane: 'web', path: '/seat-off', route: 'strong' });
+  assert.equal(nextFor(board, { agentId, lane: 'web', contention: null }).item?.item_id, ids.a);
+  assert.equal(nextFor(board, { agentId, lane: 'web', omitIds: [ids.a] }).item?.item_id, ids.b);
+});
+
+/** Two open items on one lane: one needing a browser, one needing nothing; seats with and without the ability. */
+function needsBoard(t) {
+  const board = fixtureBoard(t);
+  const make = (title, file) => addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files:\n- ${file}` });
+  const ids = { plain: make('needs nothing', 'src/plain.js'), browser: make('needs a browser', 'src/browser.js') };
+  board.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)").run(`item_needs:${ids.browser}`, JSON.stringify(['browser']));
+  const seat = (path, abilities) => { const agentId = register(board, { lane: 'web', path, route: 'strong' }); saveAgentAbilities(board, agentId, abilities); return agentId; };
+  return { board, ids, seat };
+}
+
+test('store.io-board-next.needs-ability-skips: clause 1: nextFor never offers an open item whose needs the seat abilities lack, offers it to a seat that has them, and offers an item with no needs as before [U136, #1888]', t => {
+  const { board, ids, seat } = needsBoard(t);
+  const bare = seat('/seat-bare', []), able = seat('/seat-able', ['browser']);
+  assert.equal(nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain] }).item, null, 'a seat without the browser ability is not offered the browser item');
+  assert.equal(nextFor(board, { agentId: bare, lane: 'web' }).item?.item_id, ids.plain, 'an item with no needs is offered as today');
+  assert.equal(nextFor(board, { agentId: able, lane: 'web', omitIds: [ids.plain] }).item?.item_id, ids.browser);
+});
+
+test('store.io-board-next.needs-ability-idle-skip: clause 2: with observeIdle the item skipped for a missing ability is listed with code NEEDS_ABILITY [U136, #1888]', t => {
+  const { board, ids, seat } = needsBoard(t);
+  const bare = seat('/seat-idle', []);
+  const idle = nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain], observeIdle: true });
+  assert.equal(idle.item, null);
+  assert.deepEqual(idle.skips.filter(row => row.item === ids.browser), [{ item: ids.browser, code: 'NEEDS_ABILITY' }]);
 });

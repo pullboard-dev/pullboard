@@ -157,3 +157,27 @@ test('drive.io-serve-refusal.succeeding-job-calls: clause 3: a succeeding job ma
   assert.deepEqual(own.map(call => call.action), ['receipt'], 'a succeeding job adds only its receipt call to the claim');
   assert.equal(queue.calls.filter(call => call.action === 'release').length, 0, 'nothing is released');
 });
+
+test('drive.io-claim-key.one-key-per-claim-reused-on-retry: clause 1: queueCall sends one claim key per claim and the same key on each retry of that claim, and a new claim gets a new key [C7]', { timeout: 30_000 }, async t => {
+  const claims = [];
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    if (call.action !== 'claim') return { status: 200, json: async () => ({ recorded: true }) };
+    claims.push(call);
+    if (claims.length <= 2) return { status: 503, json: async () => ({}) };
+    queueMicrotask(changed);
+    return { status: 200, json: async () => ({ trunk: 'unused', claim: null }) };
+  };
+  const { root } = privateFixtureFiles('pullboard-claim-key-');
+  const stop = new AbortController();
+  const serve = serveRunner({ git: pullGit, board: 'http://board.invalid/api/v1/boards/b0?k=x', runner: 'key-0', capabilities: [], cache: `${root}/b0`, jobs: 1,
+    fetchImpl, handlers: {}, signal: stop.signal, timing: { idleMs: 5, firstMs: 1, maxMs: 2 }, trunkPack: async () => {} });
+  t.after(() => { stop.abort(); rmSync(root, { recursive: true, force: true }); });
+  await until(() => claims.length >= 4);
+  stop.abort();
+  await serve;
+  assert.match(claims[0].key, /^[A-Za-z0-9_-]{8,128}$/u, 'the claim carries a plain random key');
+  assert.equal(claims[1].key, claims[0].key, 'the first retry sends the same key');
+  assert.equal(claims[2].key, claims[0].key, 'the second retry sends the same key');
+  assert.notEqual(claims[3].key, claims[0].key, 'the next claim gets a new key');
+});

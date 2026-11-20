@@ -173,7 +173,9 @@ export async function run(io, { first, second, values }) {
     // The store's own refusals, checked before any step is written so a refused merge writes no tooling pin.
     store.coordinatorOnly(me.id, 'records merges');
     const item = store.getItem(board, id);
-    if (values.forced === undefined && item.item_status !== 'verified' && item.item_merged_commit !== commit) {
+    // A sprint item lands submitted work before its verdict, as the store's merged writer decides it by the item's frozen pace [V2,M1].
+    const sprintSubmitted = item.item_status === 'submitted' && store.itemPace(item) === 'sprint';
+    if (values.forced === undefined && item.item_status !== 'verified' && !sprintSubmitted && item.item_merged_commit !== commit) {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
     return { train: false };
@@ -192,7 +194,7 @@ export async function run(io, { first, second, values }) {
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, composeLanding: ctx.config.slices?.composeLanding === true, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
     return {};
   };
   let announced = false;

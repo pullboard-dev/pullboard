@@ -4,8 +4,12 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../../jobs/index.js';
+import { loadStopRules } from '../../../items/index.js';
+import { loadReturnedFirst } from '../../../queue/index.js';
 import * as store from '../../../store/index.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { nextSelection } from '../../index.js';
 import { actorClaims } from '../fixtures/next.js';
 import { fixture } from '../fixtures/next.js';
@@ -230,6 +234,56 @@ test('moves.selection.wait-held-unchanged: clause 2: nextOnce with values.wait a
   assert.equal(again.held, true);
   assert.equal(again.waitingOffer, undefined);
   assert.deepEqual(actorClaims(box), [mine], 'no second claim');
+});
+
+/** Insert one move event for an item long enough ago that the release cooldown does not hide it. */
+function seedMove(box, id, kind, detail = {}) {
+  box.board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES ('2026-10-01T00:00:00.000Z', 'fixture', ?, ?, ?)").run(kind, id, JSON.stringify(detail));
+}
+
+/** Run `read` with next.returnedFirst set in a private machine home, restoring the home afterwards. */
+function withReturnedFirst(on, read) {
+  const { root: dir } = privateFixtureFiles('pullboard-selection-returned-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(dir, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, on === undefined ? {} : { next: { returnedFirst: on } });
+    return read();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+/** The item next picks on this box with the given setting, through the production ports plus the queue's returnedFirst. */
+async function pickedWith(box, on) {
+  const returnedRules = { ...await loadReturnedFirst(), ...await loadStopRules() };
+  return withReturnedFirst(on, () => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, { ...box.ports, returnedRules }).item?.item_id);
+}
+
+test('moves.selection.returned-first-on: clause 1: with next.returnedFirst on, next hands an item released once with no refusal ahead of an untouched item, and never one rejected twice since its last criterion edit [C7,#11255]', async t => {
+  const box = fixture(t);
+  const walled = box.add('Rejected twice');
+  const untouched = box.add('Untouched work');
+  const returned = box.add('Released once');
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, returned, 'release', { reasonCode: 'OTHER' });
+  assert.equal(await pickedWith(box, true), returned, 'the released item leads; the walled one is passed over');
+  assert.notEqual(await pickedWith(box, true), untouched);
+  seedMove(box, walled, 'edit', { criterion: '1. reworded [test]' });
+  assert.equal(await pickedWith(box, true), walled, 'a reworded criterion resets the count, so its two rejects count no more and it leads again by queue order');
+});
+
+test('moves.selection.returned-first-off: clause 2: with next.returnedFirst off or unset, next hands exactly the item it hands today on the same board [C7,#11255]', async t => {
+  const box = fixture(t);
+  const walled = box.add('Rejected twice');
+  box.add('Untouched work');
+  const returned = box.add('Released once');
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, walled, 'reject', { reason: 'INSUFFICIENT_EVIDENCE' });
+  seedMove(box, returned, 'release', { reasonCode: 'OTHER' });
+  const today = nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, box.ports).item?.item_id;
+  assert.equal(await pickedWith(box, undefined), today, 'unset');
+  assert.equal(await pickedWith(box, false), today, 'false');
 });
 
 /** Run pick under `config`, recording the who that reaches the review offer (plain loop) and the default offer (default loop). */

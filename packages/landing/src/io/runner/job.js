@@ -243,12 +243,9 @@ export function commandCheck(argv, { deadline = null } = {}) {
  * by its code. Why: a pulled land job ran neither, so a duplicate import or a broken help reached trunk [C7,#7307].
  */
 function landingGuards(payload, phases) {
-  return async ({ root, base, items }) => {
-    const merged = new Set(items);
+  return async ({ root, base }) => {
     try {
       const guards = await import('../guards.js');
-      // A rename the path map does not record is refused as the batch landing refused it: LAND_MOVE_UNRECORDED [C7,#7700].
-      for (const entry of payload.items.filter(row => merged.has(row.id))) guards.requireRecordedMoves(root, base, entry.commit);
       await guards.requireLandingModuleResolution(root, base, 'HEAD');
       await timed(phases, 'cli smoke', async () => (await import('../smoke.js')).runLandingCliSmoke(root));
       return { ok: true, detail: null };
