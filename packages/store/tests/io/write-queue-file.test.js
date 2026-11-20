@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -205,6 +206,26 @@ test('store.io-write-queue-file.a-write-published-beside-a-far-ahead-record-take
   const outcome = await queue.submit({ id: 'late', run: seq => { taken = seq; return seq; } });
   assert.equal(outcome.ok, true);
   assert.ok(taken > far, `the late write took ${taken}, not above the visible ${far}`);
+});
+
+test('store.io-write-queue-file.publish-order-with-three-hundred-pending: clause 1: with 300 writes already pending in one queue directory, each newly published write takes a sequence number above every visible record and the 300 writes apply in publish order [C7]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-pub-').root;
+  const base = Date.now() * 1000;
+  mkdirSync(join(dir, 'pending'), { recursive: true });
+  for (let n = 0; n < 300; n++) writeFileSync(join(dir, 'pending', `seed${String(n).padStart(3, '0')}.pending`), JSON.stringify({ seq: base + 3_600_000_000 + n, pid: 2_147_483_646 }));
+  const highestSeeded = base + 3_600_000_000 + 299;
+  const timing = {};
+  const queue = createFileWriteQueue(dir, { timing });
+  const ids = Array.from({ length: 300 }, (_, n) => `p${String(n).padStart(3, '0')}`);
+  const applied = [];
+  const results = [];
+  for (const id of ids) results.push(queue.submit({ id, run: seq => { applied.push({ id, seq }); return seq; } }));
+  const settled = await Promise.all(results);
+  assert.ok(settled.every(outcome => outcome.ok), 'every write succeeded');
+  assert.deepEqual(applied.map(entry => entry.id), ids, 'the 300 writes applied in publish order');
+  assert.ok(applied.every(entry => entry.seq > highestSeeded), 'every new write took a number above every visible record');
+  assert.ok(applied.every((entry, n) => n === 0 || entry.seq > applied[n - 1].seq), 'sequence numbers rise in publish order');
+  console.log(`publish-order-with-three-hundred-pending: publish ${Math.round(timing.publish ?? 0)} ms, drain ${Math.round(timing.drain ?? 0)} ms, waiter-settle ${Math.round(timing.settle ?? 0)} ms`);
 });
 
 test('store.io-write-queue-file.two-hundred-waiters-in-order: clause 1: 200 writes submitted in one turn by one process, with transaction ports, each return their own stored result and apply in queue order [C7]', async () => {
