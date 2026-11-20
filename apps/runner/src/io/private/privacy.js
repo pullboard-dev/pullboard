@@ -7,19 +7,6 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  closeSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  openSync,
-  readFileSync,
-  readSync,
-  realpathSync,
-  rmSync,
-  writeSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { gitSpawnSync } from '../../../../../packages/git/index.js';
@@ -60,11 +47,15 @@ import {
 } from '../../../../../packages/resources/index.js';
 import { cleanGitEnvironment } from '../../../../../packages/git/index.js';
 import { secretsIn } from '../../../../../packages/commits/index.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
 /** Copy one authenticated phase without buffering the full command output into controller memory. */
 function phaseCopy(raw, phase, path) {
-  const input = openSync(raw, 'r');
-  const output = openSync(path, 'wx', 0o600);
+  const input = fs.open(raw, 'r');
+  const output = fs.open(path, 'wx', 0o600);
   const hash = createHash('sha256');
   const buffer = Buffer.alloc(64 * 1024);
   let offset = 0;
@@ -72,13 +63,13 @@ function phaseCopy(raw, phase, path) {
   let captureBytes = 0;
   try {
     while (offset < phase.length) {
-      const count = readSync(input, buffer, 0, Math.min(buffer.length, phase.length - offset), phase.offset + offset);
+      const count = fs.read(input, buffer, 0, Math.min(buffer.length, phase.length - offset), phase.offset + offset);
       if (!count) throw new Error('private-check phase capture is incomplete');
       const bytes = buffer.subarray(0, count);
       hash.update(bytes);
       let written = 0;
       while (written < count) {
-        const progress = writeSync(output, bytes, written, count - written);
+        const progress = fs.write(output, bytes, written, count - written);
         if (!progress) throw new Error('private-check artifact write made no progress');
         written += progress;
       }
@@ -93,15 +84,15 @@ function phaseCopy(raw, phase, path) {
     }
     if (hash.digest('hex') !== phase.sha256) throw new Error('private-check phase digest does not match');
     return Buffer.concat(captures, captureBytes).toString('utf8');
-  } finally { closeSync(input); closeSync(output); }
+  } finally { fs.close(input); fs.close(output); }
 }
 
 /** Run only under an actual runner lease, preserving raw evidence even when formatting or transport fails; the pulled run is awaited (#8504). */
 export async function runnerPrivateCheck(root, item, command, policy, lease, guard, waitMs, format) {
   const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   const artifactRoot = join(common, 'pullboard', 'check-output');
-  mkdirSync(artifactRoot, { recursive: true, mode: 0o700 });
-  const directory = mkdtempSync(join(artifactRoot, 'private-runner-'));
+  fs.mkdir(artifactRoot, { recursive: true, mode: 0o700 });
+  const directory = fs.mkdtemp(join(artifactRoot, 'private-runner-'));
   const ref = trunkRef(root);
   const mode = privateCheckEnvelope({ kind: 'private-check', version: 1, install: policy.config.check.install,
     check: command, timeoutMs: frozenCheckCeilingMs(policy.config), policyCommit: policy.commit,
@@ -192,12 +183,13 @@ function runCheckAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLe
   const install = config.check.install;
   const timeout = frozenCheckCeilingMs(config);
   // Retain the physical root before cleanup; Node TAP resolves symlinks in test locations.
-  const scratch = realpathSync(scratchFolder('pullboard-criterion-'));
+  const scratch = fs.realpath(scratchFolder('pullboard-criterion-'));
   const copy = join(scratch, 'repo');
   const home = join(scratch, 'home');
-  mkdirSync(home, { mode: 0o700 });
-  const verifierHome = process.env.HOME ?? process.env.USERPROFILE;
-  const npmCache = process.env.npm_config_cache ?? join(verifierHome ?? home, '.npm');
+  fs.mkdir(home, { mode: 0o700 });
+  const machine = environmentAdapter();
+  const verifierHome = machine.get('HOME') ?? machine.get('USERPROFILE');
+  const npmCache = machine.get('npm_config_cache') ?? join(verifierHome ?? home, '.npm');
   const env = { ...cleanGitEnvironment(), HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, 'machine'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', npm_config_cache: npmCache };
   if (gateLease) Object.assign(env, gateSlotEnvironment(gateLease),
     gateLease.testOutcomeRunId ? { [TIMING_RUN_ID_ENV]: gateLease.testOutcomeRunId } : {});
@@ -219,7 +211,7 @@ function runCheckAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLe
   /** Format one completed check phase with the private captures and durable artifact locations. */
   const finish = (state, stage) => {
     const runner = timingRunner(command);
-    const events = checkLogPath && existsSync(checkLogPath) ? timingFromLog(checkLogPath, runner) : timingFromOutput(checkOutput, runner);
+    const events = checkLogPath && fs.exists(checkLogPath) ? timingFromLog(checkLogPath, runner) : timingFromOutput(checkOutput, runner);
     timingProfile = { ...events, wallMs: Math.max(0, Date.now() - checkStartedAt), environment };
     const result = checkResult(state, stage, installOutput, checkOutput, { root, item, commandRoot: copy, installLogPath, checkLogPath, timingProfile, waitMs,
       environment, testRuntimes, executed, exitCode, proofCounts: privateCheckCounts(checkLogPath, checkOutput), executionSourceUnchanged: checkedSourceReady && privateSourceUnchanged(copy, item.item_commit, env) });
@@ -254,7 +246,7 @@ function runCheckAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLe
     if (trustedTrunk) {
       const record = runnerPolicyRecord({ id: `private-${randomUUID()}`, commit: item.item_commit,
         tree: policyGit(copy, ['rev-parse', 'HEAD^{tree}']).trim(), trunk: trustedTrunk });
-      writeFileSync(join(copy, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600, flag: 'wx' });
+      { const policy = fs.open(join(copy, '.git', RUNNER_POLICY_FILE), 'wx', 0o600); try { fs.write(policy, JSON.stringify(record)); } finally { fs.close(policy); } }
     }
     if (mutate) {
       const reason = mutate(copy);
@@ -288,13 +280,13 @@ function runCheckAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLe
     return finish(run.status === 0 ? 'pass' : 'red', run.status === 0 ? 'check' : `check failed (exit ${run.status})`);
   } catch { return finish('unverified', 'check could not complete'); }
   finally {
-    rmSync(scratch, { recursive: true, force: true });
+    fs.rm(scratch, { recursive: true, force: true });
   }
 }
 
 /** Count only the check phase; install output is setup and cannot supply verdict test totals. */
 function privateCheckCounts(path, capture) {
-  try { return proofCounts(path && existsSync(path) ? logLines(path) : capture); }
+  try { return proofCounts(path && fs.exists(path) ? logLines(path) : capture); }
   catch { return { passed: null, failed: null, skipped: null }; }
 }
 
@@ -311,12 +303,12 @@ function runPrivateCommand(root, env, command, timeout, logPath) {
     try { return JSON.parse(run.stdout); }
     catch { return { status: null, error: { code: 'CHECK_RUNNER' }, output: '' }; }
   } finally {
-    if (existsSync(pidFile)) {
-      const pid = Number(readFileSync(pidFile, 'utf8'));
+    if (fs.exists(pidFile)) {
+      const pid = Number(fs.readFile(pidFile, 'utf8'));
       if (Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid) {
         try { process.kill(-pid, 'SIGKILL'); } catch { /* The private command group has already exited. */ }
       }
-      rmSync(pidFile, { force: true });
+      fs.rm(pidFile, { force: true });
     }
   }
 }
@@ -417,18 +409,18 @@ function streamSanitizedLog(path, fallback, label, writeArtifact, onLine = () =>
     else if (finishedWithNewline) { tail.push(''); if (tail.length > 40) tail.shift(); }
   }
 
-  if (path && existsSync(path)) {
-    const input = openSync(path, 'r');
+  if (path && fs.exists(path)) {
+    const input = fs.open(path, 'r');
     const chunk = Buffer.alloc(CHECK_LOG_READ_BYTES);
     try {
       let count;
-      while ((count = readSync(input, chunk, 0, chunk.length, null)) > 0) {
+      while ((count = fs.read(input, chunk, 0, chunk.length, null)) > 0) {
         consume(decoder.write(chunk.subarray(0, count)));
       }
       consume(decoder.end());
       if (line || oversized) emitLine(false);
       else if (finishedWithNewline) { tail.push(''); if (tail.length > 40) tail.shift(); }
-    } finally { closeSync(input); }
+    } finally { fs.close(input); }
   } else feedFallback(fallback);
   flush();
   return { tail, sawOutput };
@@ -457,9 +449,9 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     try {
       const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
       const directory = join(common, 'pullboard', 'check-output');
-      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      fs.mkdir(directory, { recursive: true, mode: 0o700 });
       outputPath = join(directory, `check-${item.item_id ?? 'unknown'}-${String(item.item_commit ?? 'unknown').slice(0, 12)}-${randomUUID()}.log`);
-      artifactFd = openSync(outputPath, 'wx', 0o600);
+      artifactFd = fs.open(outputPath, 'wx', 0o600);
     } catch (error) {
       outputPath = null;
       outputError = error.code ?? 'CHECK_DIAGNOSTIC';
@@ -471,7 +463,7 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     const buffer = Buffer.from(text, 'utf8');
     let offset = 0;
     while (offset < buffer.length) {
-      const written = writeSync(artifactFd, buffer, offset, buffer.length - offset);
+      const written = fs.write(artifactFd, buffer, offset, buffer.length - offset);
       if (written <= 0) throw new Error('diagnostic artifact write made no progress');
       offset += written;
     }
@@ -481,7 +473,7 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     appendArtifact(`${title}:\n`);
     const scan = sandboxBlockedScanner(commandRoot);
     const result = streamSanitizedLog(path, capture, label, artifactFd === null ? null : (buffer, offset) => {
-      const written = writeSync(artifactFd, buffer, offset, buffer.length - offset);
+      const written = fs.write(artifactFd, buffer, offset, buffer.length - offset);
       if (written <= 0) throw new Error('diagnostic artifact write made no progress');
       return written;
     }, line => { if (state !== 'pass' && title === (stage.startsWith('install') ? 'install' : 'check')) sandboxBlocked ??= scan(line); });
@@ -496,16 +488,16 @@ function checkResult(state, stage, installCapture, checkCapture, { root = '', it
     appendArtifact('\n');
     checkLog = writePhase('check', checkLogPath, checkCapture, 'frozen check output',
       !checkLogPath && !checkCapture ? '(not run or no output)' : '(no output)');
-    if (artifactFd !== null) closeSync(artifactFd);
+    if (artifactFd !== null) fs.close(artifactFd);
     if (outputPath && timingProfile) {
       profilePath = `${outputPath}.profile.json`;
       const profile = writeTimingProfile(profilePath, { ...timingProfile, waitMs: Math.max(0, Math.round(waitMs)) });
       timingProfile = profile;
     }
   } catch (error) {
-    if (artifactFd !== null) { try { closeSync(artifactFd); } catch { /* The descriptor may already be closed. */ } }
-    if (outputPath) { try { rmSync(outputPath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
-    if (profilePath) { try { rmSync(profilePath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
+    if (artifactFd !== null) { try { fs.close(artifactFd); } catch { /* The descriptor may already be closed. */ } }
+    if (outputPath) { try { fs.rm(outputPath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
+    if (profilePath) { try { fs.rm(profilePath, { force: true }); } catch { /* Keep the refusal typed if cleanup also fails. */ } }
     profilePath = null;
     outputPath = null;
     outputError = error.code ?? 'CHECK_DIAGNOSTIC';

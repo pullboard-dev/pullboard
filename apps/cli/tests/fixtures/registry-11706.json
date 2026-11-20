@@ -1,0 +1,4 @@
+{
+  "cli.io-next-health.advice-lines": {"proves":{"specs":["C7"],"claim":"healthAdviceLines returns one line per recorded finding owned by this builder seat, from its title and next step, and nothing for another seat or role or an empty list."},"why":"Without it advice meant for a builder would reach other seats or never be printed.","kind":"cell unit","inputs":["apps/cli/src/io/next/health.js","apps/cli/tests/io/next/health.test.js"]},
+  "cli.io-next-health.advice-off": {"proves":{"specs":["C7"],"claim":"With health.adviceThroughNext off, healthAdviceLines returns no lines and never reads the findings."},"why":"Without it every next call would read the health findings even with the setting off.","kind":"cell unit","inputs":["apps/cli/src/io/next/health.js","apps/cli/tests/io/next/health.test.js"]}
+}

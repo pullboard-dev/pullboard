@@ -1,8 +1,11 @@
 /** The layout ratchet as a static check class: a tracked file that raises a layout rule count is a finding [C7]. */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { LAYOUT_BASELINE } from '../../../../codemap/index.js';
 import { layoutCheck } from '../../../../codemap/index.js';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 /**
  * The layout ratchet judged on one checked tree, as `path:line: message` rows.
@@ -14,7 +17,7 @@ import { layoutCheck } from '../../../../codemap/index.js';
  * @returns {string[]} One row per failure; empty when no rule is above its baseline or the tree keeps no baseline.
  */
 export function layoutProblems(root) {
-  if (!existsSync(join(root, LAYOUT_BASELINE))) return [];
+  if (!fs.exists(join(root, LAYOUT_BASELINE))) return [];
   try {
     layoutCheck(root, { baselineFile: join(root, LAYOUT_BASELINE) });
     return [];

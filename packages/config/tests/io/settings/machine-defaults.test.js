@@ -31,6 +31,7 @@ const BEFORE = {
   'census.selfTune': false,
   'census.skipUnchanged': false,
   'census.soloFileSeconds': null,
+  'claim.checkCeiling': false,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'docs.regenerateOnCommit': false,
@@ -40,6 +41,8 @@ const BEFORE = {
   'gate.adapterLintClock': false,
   'gate.adapterLintEnv': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintGithub': false,
+  'gate.adapterLintSigning': false,
   'gate.adapterLintSsh': false,
   'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
@@ -52,10 +55,11 @@ const BEFORE = {
   'gate.endStaleJobs': false,
   'gate.excuseMainTimingReds': false,
   'gate.fencedHop': true,
+  'gate.gateAgedMinutes': 5,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
-  'gate.jsdocCheck': false,
+  'gate.jsdocCheck': true,
   'gate.junitReport': null,
   'gate.knownMainStatic': false,
   'gate.literalPins': false,
@@ -81,6 +85,8 @@ const BEFORE = {
   'gate.refuseTempWorktree': false,
   'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
+  'gate.retryNewRedsOnce': false,
+  'gate.seedWideMainTests': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
   'gate.runnerWaitMs': 300000,
@@ -102,6 +108,7 @@ const BEFORE = {
   'gate.viewTimerLayout': false,
   'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
+  'health.adviceThroughNext': false,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
   'health.lapsedSweep': false,
@@ -109,6 +116,7 @@ const BEFORE = {
   'holds.liftSettled': false,
   'holds.requireOwner': false,
   'inspection.clauses': false,
+  'items.barRulesAtAdd': false,
   'items.testMirrorAtAdd': false,
   'items.typedFields': false,
   'jobs.avoidRunners': false,
@@ -133,7 +141,8 @@ const BEFORE = {
   'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
   'launch.reachableDispatcher': false,
-  'list.thinRead': false,
+  'line.tune': false,
+  'list.thinRead': true,
   'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
@@ -183,6 +192,7 @@ const BEFORE = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
+  'runners.jobWorkerFactor': 2,
   'runners.localWake': false,
   'runners.postedLineNamesCase': false,
   'runners.reportCommit': false,
@@ -195,6 +205,7 @@ const BEFORE = {
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'serve.pullRoute': false,
+  'serve.restartTrial': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'spec.requireFactQuote': false,
@@ -203,7 +214,7 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.composeAsObject': false,
-  'submit.composeOnRunner': false,
+  'submit.composeOnRunner': true,
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
@@ -296,6 +307,13 @@ test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machi
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
 });
 
+test('config.io-settings-machine-defaults.restart-trial-default-off: clause 1: serve.restartTrial is a described boolean machine setting, listed in BEFORE, and false with nothing set [C7]', () => {
+  assert.equal(BEFORE['serve.restartTrial'], false);
+  assert.equal(MACHINE_DEFAULTS['serve.restartTrial'], false);
+  assert.equal(typeof MACHINE_DEFAULTS['serve.restartTrial'], 'boolean');
+  assert.ok(SETTING_DESCRIPTIONS['serve.restartTrial']);
+});
+
 test('clause 1: gate.knownMainStatic is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['gate.knownMainStatic'], false);
   assert.ok(SETTING_DESCRIPTIONS['gate.knownMainStatic']);
@@ -377,6 +395,36 @@ test('config.io-settings-machine-defaults.items-test-mirror-at-add-exact-true: c
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: false } }), false);
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: true } }), true);
   await assert.rejects(testMirrorWith({ items: { testMirrorAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.testMirrorAtAdd/u.test(error.message));
+});
+
+/** Read items.barRulesAtAdd through a private machine home holding the given settings. */
+async function barRulesWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { itemsBarRulesAtAdd } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-bar-rules-at-add-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return itemsBarRulesAtAdd();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.items-bar-rules-at-add-exact-true: clause 1: items.barRulesAtAdd defaults false and itemsBarRulesAtAdd() is true only for an exact true [C7,#11738]', async () => {
+  assert.equal(BEFORE['items.barRulesAtAdd'], false);
+  assert.equal(MACHINE_DEFAULTS['items.barRulesAtAdd'], false);
+  assert.equal(await barRulesWith({}), false);
+  assert.equal(await barRulesWith({ items: { barRulesAtAdd: false } }), false);
+  assert.equal(await barRulesWith({ items: { barRulesAtAdd: true } }), true);
+});
+
+test('config.io-settings-machine-defaults.items-bar-rules-at-add-refuses-non-boolean: clause 2: a non-boolean items.barRulesAtAdd refuses BAD_MACHINE_SETTINGS [C7,#11738]', async () => {
+  await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.barRulesAtAdd/u.test(error.message));
+  await assert.rejects(barRulesWith({ items: { barRulesAtAdd: 1 } }), error => error.code === 'BAD_MACHINE_SETTINGS');
 });
 
 async function reviewHoldWith(settings) {
@@ -489,4 +537,83 @@ test('config.io-settings-machine-defaults.solo-low-stakes-listed: clause 1: veri
     assert.equal(read({ verify: { soloLowStakes: true } }), true);
     assert.throws(() => read({ verify: { soloLowStakes: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /verify\.soloLowStakes/u.test(error.message));
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+});
+
+test('config.io-settings-machine-defaults.list-thin-read-default-on: clause 1: list.thinRead defaults to true, listThinRead() is true for an empty machine file and false only when the file sets list: { thinRead: false }, and its description says on by default [C7,#9072]', async () => {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { listThinRead } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  assert.equal(BEFORE['list.thinRead'], true);
+  assert.equal(MACHINE_DEFAULTS['list.thinRead'], true);
+  const read = (settings) => {
+    const { root } = privateFixtureFiles('pullboard-list-thin-default-');
+    const saved = process.env.PULLBOARD_MACHINE_HOME;
+    process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+    try {
+      mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+      fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+      return listThinRead();
+    } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+  };
+  assert.equal(read({}), true);
+  assert.equal(read({ list: { thinRead: false } }), false);
+  assert.match(SETTING_DESCRIPTIONS['list.thinRead'].description ?? JSON.stringify(SETTING_DESCRIPTIONS['list.thinRead']), /on by default/iu);
+});
+
+test('config.io-settings-machine-defaults.line-tune-listed: clause 1: line.tune is a machine setting, false by default, accepted as a boolean, with a description row in the Line group [C7,#11441]', async () => {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { lineTuneEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  assert.equal(MACHINE_DEFAULTS['line.tune'], false);
+  assert.ok(SETTING_DESCRIPTIONS['line.tune']);
+  const { root } = privateFixtureFiles('pullboard-line-tune-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  const read = (settings) => {
+    process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return lineTuneEnabled();
+  };
+  try {
+    assert.equal(read({}), false);
+    assert.equal(read({ line: { tune: false } }), false);
+    assert.equal(read({ line: { tune: true } }), true);
+    assert.throws(() => read({ line: { tune: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /line\.tune/u.test(error.message));
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+});
+
+/** Read health.adviceThroughNext through a private machine home holding the given settings. */
+async function adviceThroughNextWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { adviceThroughNextEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-advice-through-next-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return adviceThroughNextEnabled();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.health-advice-through-next: clause 1: health.adviceThroughNext defaults to false, is accepted only as a boolean (BAD_MACHINE_SETTINGS otherwise), and has a description row naming next [C7,#11703]', async () => {
+  assert.equal(MACHINE_DEFAULTS['health.adviceThroughNext'], false);
+  assert.match(SETTING_DESCRIPTIONS["health.adviceThroughNext"].description, /next/u);
+  assert.equal(await adviceThroughNextWith({}), false);
+  assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: false } }), false);
+  assert.equal(await adviceThroughNextWith({ health: { adviceThroughNext: true } }), true);
+  await assert.rejects(adviceThroughNextWith({ health: { adviceThroughNext: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /health\.adviceThroughNext/u.test(error.message));
+});
+
+test('config.io-settings-machine-defaults.seed-wide-main-default-off: clause 1: gate.seedWideMainTests is a described machine setting, boolean, default off, listed in BEFORE, and false with nothing set [C7,#12119]', () => {
+  assert.equal(BEFORE['gate.seedWideMainTests'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.seedWideMainTests'], false);
+  assert.equal(typeof SETTING_DESCRIPTIONS['gate.seedWideMainTests'].description, 'string');
 });

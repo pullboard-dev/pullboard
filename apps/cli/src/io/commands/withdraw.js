@@ -5,6 +5,7 @@ import { pendingText } from '../item/withdraw-review.js';
 import { pendingWithdrawal } from '../item/withdraw-review.js';
 import { rejectedText } from '../item/withdraw-review.js';
 import { refuseLandedWithdraw } from '../item/withdraw-landed.js';
+import { withdrawCancelsJob } from '../../../../../packages/config/index.js';
 /** The pullboard withdraw command, in its own module so an item adding another command never edits these lines. */
 import * as roadmapView from '../../../../../packages/roadmap/index.js';
 import { listApiProjects } from '../../../../../packages/seats/index.js';
@@ -46,7 +47,7 @@ export function run(io, { first, second, rest, values = {} }) {
     if (!reason) throw new Refused('NOTE_REQUIRED', `withdraw needs a reason: pullboard withdraw ${item} "<reason>" (--note "<reason>" works too)`);
     // A queued or running hand-off ends with the withdrawal; its place in line goes too, so the dispatcher never starts it (#3366).
     const handoff = store.submitHandoff(board, item);
-    const result = await roadmapView.withdrawWithMilestones(ctx, board, me, item, reason, ordered, { ...store, listApiProjects });
+    const result = await roadmapView.withdrawWithMilestones(ctx, board, me, item, reason, ordered, { ...store, listApiProjects }, { endGateJobs: withdrawCancelsJob() });
     if (handoff && ['queued', 'running'].includes(handoff.state)) dropHandoffTicket(handoff.id);
     if (owner && ctx.config.worktreeMaintenance?.enabled === true) {
       const { cleanupMaintenanceLifecycle } = await import('../worktree/maintenance/command.js');

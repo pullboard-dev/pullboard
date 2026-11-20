@@ -6,6 +6,7 @@
  * thin path stays under 20 modules, and every case it cannot serve returns null so the entry runs the command
  * in-process exactly as before.
  */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import {
   spawn,
   spawnSync,
@@ -58,7 +59,7 @@ export const RESIDENT_COMMAND_CEILING_MS = 60_000;
 export const RESIDENT_WEDGED_GRACE_MS = 10_000;
 
 /** The ceiling in effect: PULLBOARD_RESIDENT_COMMAND_MS when set to a positive number, else the default. */
-export function residentCommandCeiling(env = process.env) {
+export function residentCommandCeiling(env = environmentAdapter().all()) {
   const ms = Number(env.PULLBOARD_RESIDENT_COMMAND_MS);
   return Number.isFinite(ms) && ms > 0 ? ms : RESIDENT_COMMAND_CEILING_MS;
 }
@@ -72,7 +73,7 @@ export function residentBusyFile(pidFile) {
  * Whether the resident process has been running one command for longer than RESIDENT_BUSY_DIRECT_MS. Read from a file
  * so it holds while that command blocks the process's event loop, which then answers nothing on its socket.
  */
-export function residentBusy(pidFile, now = Date.now(), env = process.env) {
+export function residentBusy(pidFile, now = Date.now(), env = environmentAdapter().all()) {
   try {
     const [pid, at] = fs.readFile(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
     if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
@@ -360,7 +361,7 @@ function detach(args, { cwd, env }) {
  *
  * Why: every agent polls `test --status`, and each poll that started a resident process cost 15-25% CPU [C7,#5888].
  */
-export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr, start = startResident, call = null, payload = null, onResult = () => {} } = {}) {
+export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = environmentAdapter().all(), stdout = process.stdout, stderr = process.stderr, start = startResident, call = null, payload = null, onResult = () => {} } = {}) {
   let code, place, starts;
   try {
     if (!call && !residentCommand(argv)) return Promise.resolve(null);
@@ -431,7 +432,7 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
  * @param {{ cwd?: string, env?: object, entry?: string }} [options]
  * @returns {Promise<object | null>} The call's answer, or null.
  */
-export async function callResident(call, payload, { cwd = process.cwd(), env = process.env, entry = PULLBOARD_ENTRY } = {}) {
+export async function callResident(call, payload, { cwd = process.cwd(), env = environmentAdapter().all(), entry = PULLBOARD_ENTRY } = {}) {
   let value = null;
   const code = await runResident([], { entry, cwd, env, call, payload, onResult: (answer) => { value = answer; } });
   return code === 0 ? value : null;
