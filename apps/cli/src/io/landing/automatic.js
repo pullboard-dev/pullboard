@@ -22,6 +22,8 @@ import {
 } from '../../../../../packages/git/index.js';
 import { stopLandingWaits } from '../../../../../packages/landing/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
+import { sprintLandable } from '../../../../../packages/api/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import {
   landingBatches,
   landingTestDefects,
@@ -62,6 +64,7 @@ export function staleLanderReason(loaded, current) {
 
 /** The lander code commit this process loaded, read on its first wake. */
 let loadedCode;
+const environment = environmentAdapter();
 
 /**
  * The scheduled wake's own io: the outbox, the native board and the board openers the relay path asks for.
@@ -88,7 +91,7 @@ function landingObservation(root, ioOptions = {}) {
   const trunk = mainCheckout(root);
   // A repository with no board has nothing to land; reading must never create one (withBoardRead would open it for write).
   const verified = !fs.exists(ctx.file) ? [] : withBoardRead(ctx, board => listItems(board, { all: true })
-    .filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => `${item.item_id}:${item.item_commit}`).sort());
+    .filter(item => !item.item_merged_commit && (item.item_status === 'verified' || sprintLandable(board, item, trunk?.commit ?? null))).map(item => `${item.item_id}:${item.item_commit}`).sort());
   return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0, verified };
 }
 
@@ -174,8 +177,8 @@ export async function runLandingWake(root, { land = landAfterAcceptance, wait = 
 /** One wake of runLandingWake, which owns the code watch; `staleCode` and `handover` come from it. */
 async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, marks, staleCode, handover }) {
   // The lease the landing takes names the back-off that delayed it.
-  if (backoff?.backoffMs) process.env.PULLBOARD_LANDING_BACKOFF_MS = String(backoff.backoffMs);
-  else delete process.env.PULLBOARD_LANDING_BACKOFF_MS;
+  if (backoff?.backoffMs) environment.set('PULLBOARD_LANDING_BACKOFF_MS', String(backoff.backoffMs));
+  else environment.delete('PULLBOARD_LANDING_BACKOFF_MS');
   let observed = landingObservation(root);
   if (!observed.waiting) return;
   const before = observed;
@@ -196,7 +199,7 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
     else if (retryableLandingRefusal(error.code)) refused = true;
     else throw error;
   }
-  finally { delete process.env.PULLBOARD_LANDING_BACKOFF_MS; }
+  finally { environment.delete('PULLBOARD_LANDING_BACKOFF_MS'); }
   if (staleCode()) return handover();
   observed = landingObservation(root);
   if (!observed.waiting) return;
