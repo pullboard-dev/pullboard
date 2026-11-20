@@ -82,7 +82,7 @@ async function submitted(t, { folderOn = false } = {}) {
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   await ok(box, builder, 'fact', String(id), 'note', 'clause 1 [test]: web/folder.test.js, run by the check for clause 1');
   assert.equal((await settleSubmit(t, box, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out))).gate.green, true, 'the fixture gate is green');
-  if (folderOn) setReviewFolder(box, true);
+  setReviewFolder(box, folderOn);
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   assert.equal((await joinFixtureSeat(box, reviewer, 'api', { run: box.runIn })).code, 0);

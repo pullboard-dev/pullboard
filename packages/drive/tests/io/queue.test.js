@@ -10,8 +10,10 @@ import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { parseStub } from '../../../jobs/index.js';
 import { START_BOUND_MS } from '../../index.js';
 import { endLostTestRuns } from '../../index.js';
+import { ownTestRuns } from '../../index.js';
 import { queueTestRun } from '../../index.js';
 import { readTestRun } from '../../index.js';
 import { testRunLines } from '../../index.js';
@@ -97,4 +99,45 @@ test('drive.queue.the-worker-runs-the-cli: clause 1: the worker runs the CLI ent
   queueTestRun({ info: { commonDir: root, root } }, work => work(board), { agent: 'seat', files: ['a.test.js'] },
     { launch: (_node, args) => { seen.push(args[0]); return { unref() {} }; }, bin: '/some/cli.js' });
   assert.deepEqual(seen, ['/some/cli.js']);
+});
+
+/** Finish a queued run with a recorded result, the state most undelivered runs on a real board are in. */
+async function finished(board, agent, files = ['test/a.test.js']) {
+  const run = queueTestRun({ info: { commonDir: root, root } }, work => work(board), { agent, files }, { launch: () => ({ unref() {} }) });
+  await workTestRun(work => work(board), run.id, async () => ({ green: true, runner: 'host-1', seconds: 1, files }));
+  return run;
+}
+
+/** A board whose job_step reads are counted per job id, through a spy on prepare. */
+function countingSteps(board) {
+  const read = new Map();
+  const prepare = board.db.prepare.bind(board.db);
+  const db = new Proxy(board.db, { get: (target, key) => key !== 'prepare' ? Reflect.get(target, key) : (sql) => {
+    const statement = prepare(sql);
+    if (!/^SELECT \* FROM job_step WHERE job_step_job = \?/u.test(sql)) return statement;
+    return { all: (job, ...rest) => { read.set(job, (read.get(job) ?? 0) + 1); return statement.all(job, ...rest); } };
+  } });
+  return { board: { ...board, db }, read };
+}
+
+test('drive.queue.own-runs-read-only-own-steps: clause 1: a seat\'s own test runs are read without reading any other seat\'s run steps [C7]: next stays flat as finished runs pile up', async (t) => {
+  const board = fixtureBoard(t);
+  for (let index = 0; index < 40; index += 1) await finished(board, `other-${index}`);
+  const mine = await finished(board, 'seat');
+  const counted = countingSteps(board);
+  const runs = ownTestRuns(counted.board, 'seat');
+  assert.deepEqual(runs.map(run => run.id), [mine.id]);
+  assert.equal(runs[0].status, 'green');
+  assert.deepEqual([...counted.read.keys()], [mine.id], 'only the seat\'s own run has its steps read');
+});
+
+test('drive.queue.own-runs-stub-payload-returns: clause 2: a run whose queued payload went to the blob store still comes back to its own seat only [C7]', async (t) => {
+  const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
+  const many = Array.from({ length: 3_000 }, (_, index) => `test/a-long-test-file-name-${index}.test.js`);
+  const mine = await finished(board, 'seat', many);
+  await finished(board, 'other', many);
+  const stored = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'queued'").get(mine.id).payload;
+  assert.ok(parseStub(stored), 'the queued payload is a blob stub, so SQL sees no agent');
+  assert.deepEqual(ownTestRuns(board, 'seat').map(run => run.id), [mine.id]);
+  assert.deepEqual(ownTestRuns(board, 'nobody'), []);
 });

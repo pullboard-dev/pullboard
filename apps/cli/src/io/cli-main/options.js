@@ -10,6 +10,7 @@ const OPTIONS = {
   'not-duplicate-of': { type: 'string' },
   here: { type: 'string' },
   confirm: { type: 'boolean' },
+  clear: { type: 'boolean' },
   reject: { type: 'boolean' },
   'accept-green': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
@@ -34,6 +35,7 @@ const OPTIONS = {
   status: { type: 'string' },
   cancel: { type: 'string' },
   off: { type: 'boolean' },
+  list: { type: 'boolean' },
   stale: { type: 'boolean' },
   port: { type: 'string' },
   address: { type: 'string' },
@@ -238,7 +240,7 @@ export function parseCommandArgs(argv) {
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), ...(argv[0] === 'flow' ? { apply: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), ...(argv[0] === 'flow' ? { apply: { type: 'boolean' }, tune: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
@@ -254,7 +256,7 @@ export function parseCommandArgs(argv) {
     ...(['add', 'edit'].includes(command) ? { review: { type: 'string' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
-  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' }, apply: { type: 'boolean' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
+  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' }, apply: { type: 'boolean' }, tune: { type: 'boolean' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
   foldLevelIntoRoute(parsed.values);
   if (['add', 'edit'].includes(command)) foldReviewIntoReviewTier(parsed.values);

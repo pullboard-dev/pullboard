@@ -1,0 +1,4 @@
+{
+  "cli.io-runner-service.peer-port-on": {"proves":{"specs":["C7","P7"],"claim":"With runners.oneServePerHost on, runService passes serveRunner a peer naming its session and the GUI probe, and with it off passes none."},"why":"Without it, a regression where with runners.oneServePerHost on, runService passes serveRunner a peer naming its session and the GUI probe, and with it off passes none would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/service.test.js"]},
+  "cli.io-runner-service.gui-running-probe": {"proves":{"specs":["C7","P7"],"claim":"guiRunning is true only when launchctl reports the GUI-session service running, and false on a nonzero exit or a thrown error."},"why":"Without it, a regression where guiRunning is true only when launchctl reports the GUI-session service running, and false on a nonzero exit or a thrown error would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/service.test.js"]}
+}

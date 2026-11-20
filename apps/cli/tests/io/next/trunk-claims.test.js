@@ -12,7 +12,7 @@ import { fixture } from '../../fixtures/next/take.js';
 
 /** Main sets claims.perSeat 1; the actor seat's own branch commits 5, as a seat on an older or edited checkout does. */
 async function staleSeat(t) {
-  const box = await fixture(t, { perSeat: 1 });
+  const box = await fixture(t, { perSeat: 1, seats: ['actor'] });
   const seat = box.seats.actor.path;
   const file = join(seat, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -54,7 +54,7 @@ const buildClaims = box => store.listItems(box.board).filter(item => item.item_s
   && item.item_owner === box.seats.actor.id && !store.awaitingGateOrReview(box.board, item)).map(item => item.item_id);
 
 test('cli.io-next-trunk-claims.next-never-stacks-child-slices: clause 3: at claims.perSeat 1, next over children of an unheld parent never leaves more than one build claim, before or after a submit [C7,#10846]', async t => {
-  const box = await fixture(t, { perSeat: 1 });
+  const box = await fixture(t, { perSeat: 1, seats: ['actor'] });
   box.board.gitRoot = box.root;
   const seat = box.seats.actor;
   const parent = box.add('Umbrella item nobody holds', { brief: 'Files: web/umbrella.js\nTest: the real board selects the item.' });

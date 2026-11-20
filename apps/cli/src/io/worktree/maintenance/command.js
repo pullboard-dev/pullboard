@@ -5,6 +5,7 @@ import { SEAT_LIVE_WINDOW_MS } from '../../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../../packages/sandbox/index.js';
 import { listAgents } from '../../../../../../packages/store/index.js';
 import { listItems } from '../../../../../../packages/store/index.js';
+import { logEvent } from '../../../../../../packages/store/index.js';
 import { ordered } from '../../entry.js';
 import { withBoard } from '../../entry.js';
 import { withBoardRead } from '../../entry.js';
@@ -34,6 +35,11 @@ export function maintenanceCommandPorts(ctx, agentId) {
         await ordered(ctx, board, 'appendFact', [item, { agentId, kind: 'note',
           text: `Worktree work archived before maintenance cleanup: ${JSON.stringify(record.path)}; archive ${JSON.stringify(record.archive)}; retained HEAD ${record.head} at ${record.ref}; snapshot ${record.signature}.` }]);
       }
+    }),
+    /** Log each folder the sweep removed or kept as a board event naming its rule (#12537). */
+    recordSweep: record => withBoard(ctx, async board => {
+      logEvent(board, agentId, 'folder_swept', record.item ?? null, { action: record.action, rule: record.rule, path: record.path,
+        ...(record.ref ? { ref: record.ref } : {}), ...(record.commit ? { commit: record.commit } : {}) });
     }),
     /** Name the kept folder and its dirty paths on every linked item, so the owner can find the unfinished work. */
     recordDirty: record => withBoard(ctx, async board => {
