@@ -33,6 +33,13 @@ function percentile(sorted, fraction) {
  * @returns {{ p50: number, p95: number, max: number }} Milliseconds per claim.
  */
 export function replayClaims({ db, root, count = 50, freeBytes = defaultFreeBytes }) {
+  const { took } = measureClaims({ db, root, count, freeBytes });
+  const sorted = took.toSorted((a, b) => a - b);
+  return { p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95), max: sorted.at(-1) };
+}
+
+/** Run the rolled-back claims on a copy of the board and return each claim's milliseconds and the process CPU the loop used. */
+function measureClaims({ db, root, count, freeBytes }) {
   const scratch = tmpdir();
   const sourceSize = fs.stat(db).size;
   const free = freeBytes(scratch);
@@ -43,6 +50,7 @@ export function replayClaims({ db, root, count = 50, freeBytes = defaultFreeByte
   const copy = new DatabaseSync(copyFile);
   const board = { db: copy, gitRoot: root, root };
   const took = [];
+  const cpuBefore = process.cpuUsage();
   try {
     for (let index = 0; index < count; index++) {
       copy.exec('BEGIN IMMEDIATE');
@@ -58,8 +66,25 @@ export function replayClaims({ db, root, count = 50, freeBytes = defaultFreeByte
     copy.close();
     fs.rm(copyFile, { force: true });
   }
-  const sorted = took.toSorted((a, b) => a - b);
-  return { p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95), max: sorted.at(-1) };
+  const cpu = process.cpuUsage(cpuBefore);
+  return { took, cpuMs: (cpu.user + cpu.system) / 1000 };
+}
+
+/**
+ * Run `count` rolled-back pull claims on a copy of the board database and report the p95 and the process CPU they used,
+ * with the same copy and free-space rules as replayClaims [C7,#12096].
+ *
+ * @param {{ db: string, root: string, count?: number, freeBytes?: (dir: string) => number }} options - as replayClaims.
+ * @returns {{ p95: number, cpuMs: number }} p95 in milliseconds per claim; cpuMs the user plus system CPU milliseconds of the claims.
+ */
+export function trialClaims({ db, root, count = 20, freeBytes = defaultFreeBytes }) {
+  const { took, cpuMs } = measureClaims({ db, root, count, freeBytes });
+  return { p95: percentile(took.toSorted((a, b) => a - b), 0.95), cpuMs };
+}
+
+/** The one line a trial prints: the p95 and CPU figures for the claims. */
+export function trialLine({ p95, cpuMs }, count) {
+  return `claim trial: ${count} claims p95 ${p95.toFixed(2)} ms, cpu ${cpuMs.toFixed(2)} ms`;
 }
 
 /** The one line the command prints: the three figures for a replay. */
