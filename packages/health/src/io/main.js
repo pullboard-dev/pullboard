@@ -601,6 +601,9 @@ function queueFaults(board, { items, at, retired = [], gone = new Set(), machine
       ((item_id=? AND event_kind='proof-run') OR (event_kind='gate-run' AND json_extract(event_detail,'$.run.proof.item')=?)) LIMIT 1`)
       .get(claimEvent, holder.id, claim.item_id, claim.item_id);
     if (proved) continue;
+    // A builder fixing its own rejected item is not queue-jumping: rejected work is fixed by the builder that built it, so its rank does not matter.
+    const before = claimEvent && board.db.prepare("SELECT event_kind FROM event WHERE item_id=? AND event_id<? AND event_kind IN ('reject','reopen','submit') ORDER BY event_id DESC LIMIT 1").get(claim.item_id, claimEvent);
+    if (before?.event_kind === 'reject' && claim.item_built_by === holder.id) continue;
     // Model exactly the release printed below: legal child or returned claims remain occupied.
     const releasedClaims = [claim.item_id];
     const compare = buildOrder(board, { releasedClaims, agentId: holder.id, tierFirst: true });
