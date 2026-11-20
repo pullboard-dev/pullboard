@@ -137,3 +137,10 @@ test('state.logic-evidence.refuse-empty-bar-off: clause 2: guardBar without refu
   assert.deepEqual(guardBar(undefined, {}), []);
   assert.deepEqual(guardBar(undefined, { refuseEmpty: false }), []);
 });
+
+test('state.logic-evidence.cold-import-refused: clause 1: guardBar refuses a bar adding a cold-path import with no closure row, naming the row to add, and accepts a bar naming it [C7]', () => {
+  const bare = '1. packages/board/light.js adds an import of packages/roadmap/index.js and prints the roadmap [test]';
+  assert.throws(() => guardBar(bare), error => error.code === 'BAR_COLD_IMPORT' && /closure-budget row/u.test(error.next ?? error.message));
+  assert.doesNotThrow(() => guardBar('1. packages/board/light.js adds an import of packages/roadmap/index.js, measured by closure row show 1 [test]'));
+  assert.doesNotThrow(() => guardBar('1. packages/board/index.js adds an import of packages/roadmap/index.js [test]'), 'a warm path needs no row');
+});

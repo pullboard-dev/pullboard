@@ -7,8 +7,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../fixtures/e2e.js';
 import { openKitBoard } from '../fixtures/board.js';
+import { fixtureOpenBoard } from '../fixtures/board.js';
 import { withFixtureBoard } from '../fixtures/board.js';
 import { atomic } from '../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../packages/store/index.js';
+import { closeBoard } from '../../../../packages/store/index.js';
 import {
   itemLine,
   withOpenedBoard,
@@ -86,11 +89,22 @@ test('cli.io-read.item-line-prints-foreign-state: itemLine with a foreign states
   assert.match(itemLine({ ...WAITING, item_after: [3] }, id => id, false, new Map([['host#41', { status: 'verified' }]])), /after #3$/u, 'a local wait prints as before');
 });
 
+test('cli.io-read.item-line-prints-foreign-age: clause 1: itemLine prints after host#41 (verified on host, 2 min ago) for a state received two minutes before the injected now, and no age for a state with no receivedAt [C7,#11044,#11367]', () => {
+  const now = new Date('2026-11-19T10:02:00.000Z');
+  const received = new Map([['host#41', { status: 'verified', receivedAt: '2026-11-19T10:00:00.000Z' }]]);
+  assert.match(itemLine(WAITING, id => id, false, received, now), /after host#41 \(verified on host, 2 min ago\)$/u);
+  assert.match(itemLine(WAITING, id => id, false, new Map([['host#41', { status: 'verified' }]]), now), /after host#41 \(verified on host\)$/u, 'no receivedAt prints no age');
+  assert.match(itemLine(WAITING, id => id, false, received), /after host#41 \(verified on host\)$/u, 'no clock prints no age');
+});
+
 test('cli.io-read.show-prints-foreign-state: pullboard show on an item filed with --after host#41 prints that wait with its state on its first line [C7,#11044,#11050]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waits on host', args: ['--after', 'host#41'], run: box.runLocal });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Waits on host', run: box.runLocal });
+  // add refuses a wait on an unlinked repository now [XB1,#11040], so this wait is one filed before the guard, set straight on the row.
+  const board = fixtureOpenBoard({ boardFile: boardFilePath(join(box.repo, '.git')), web: box.repo });
+  try { board.db.prepare('UPDATE item SET item_after=? WHERE item_id=?').run('host#41', item.item_id); } finally { closeBoard(board); }
   const shown = await box.runLocal(box.repo, 'show', String(item.item_id));
   assert.equal(shown.code, 0, `${shown.err}\n${shown.out}`);
   assert.match(shown.out.split('\n')[0], /after host#41 \(unavailable: no link\)/u);
