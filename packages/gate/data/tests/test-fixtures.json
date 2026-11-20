@@ -975,9 +975,6 @@
     "tempdir": 1,
     "repo-read": 1
   },
-  "packages/resources/tests/io/handoff/worker/cap.test.js": {
-    "tempdir": 1
-  },
   "apps/cli/tests/fixtures/membership.js": {
     "tempdir": 1
   },

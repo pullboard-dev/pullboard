@@ -13,10 +13,8 @@ export * from './src/io/lock.js';
 export { keepHeartbeatWhileBlocked } from './src/io/heartbeat/blocked.js';
 export { analysisArtifactDescriptor, readAnalysisArtifact, receiveAnalysisArtifact } from './src/io/artifact.js';
 
-export { handoffQueueDirectory, handoffTicketWaiting, dropHandoffTicket } from './src/io/handoff/worker/cap.js';
 export { HANDOFF_FOLDER_KEEP_MS, handoffRoots, pruneFinishedHandoffs, rememberHandoffRoot } from './src/io/handoff/prune.js';
 export { closeGateSpans, gateSpanCause, openGateSpans, recordGateSpan, recordRunnerDispatch } from './src/io/spans/gate.js';
 export { recordRunnerTime, unattributedRunnerTime } from './src/io/spans/runner-time.js';
 export { closeLandingSpans, landingSpan, landingSpanFolder, openLandingSpans, readLandingSpans, recordLandingSpan } from './src/io/spans/landing.js';
-export { queuedElsewhere, recordHandoffQueue, replaceLostTicketOnce } from './src/io/handoff/owner.js';
 export { sourceCacheJobGone } from './src/io/liveness.js';
