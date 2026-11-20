@@ -16,6 +16,8 @@ export const ENV_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-env.js
 const KERNEL = 'packages/kernel/';
 /** The scope installer, exempt by exact path: it replaces process.env with a per-caller scope proxy, which the adapter cannot do over a source object [C7,#11917]. */
 const SCOPE_INSTALLER = 'packages/resources/src/io/environment.js';
+/** The gate preload, exempt by exact path: its reads sit inside the template string gateRuntimeCaptureSource returns, run as a CJS preload in the test child process, which cannot import the adapter [C7,#11497]. */
+const GATE_PRELOAD = 'packages/gate/src/io/preload.js';
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const ENV_READ = /(?<![\w$.])process\.env\b|(?<![\w$])(['"`])(?:[^'"`\n]*\/)?(?:[\w.-]*(?:config|settings)\.json|\.env(?:\.[\w-]+)?|\.pullboardrc)\1/gu;
 
@@ -33,6 +35,7 @@ export const ENV_GENERATED_SCRIPT_FILES = [
 export const coveredByEnvLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL)
   && !ENV_GENERATED_SCRIPT_FILES.includes(path)
   && path !== SCOPE_INSTALLER
+  && path !== GATE_PRELOAD
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**
