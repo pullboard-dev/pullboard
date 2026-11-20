@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { briefFilesAbsentFromMain } from '../../../src/io/item/bar.js';
 import { requireTestMirror } from '../../../src/io/item/bar.js';
 import { after } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
@@ -125,4 +126,25 @@ test('cli.add.needs-flag: clause 1: add --needs browser,gui stores both and show
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /USAGE/u);
   assert.match(refused.err + refused.out, /browser and gui/u);
+});
+
+const withFiles = (files, criterion) => ({ criterion, brief: `Files:\n${files.map(file => `- ${file}`).join('\n')}` });
+
+test('cli.io-commands-add.files-absent-from-main-refused: clause 1: with items.barRulesAtAdd on, add and edit each refuse a brief Files entry absent from main with a message naming the move that goes through; an entry present on main or created by a clause is accepted, and with the setting off the same brief is accepted [C7,#12124]', async () => {
+  const ctx = mainWith();
+  const missing = withFiles(['packages/demo/src/io/fresh.js'], '1. packages/demo/src/io/thing.js is changed [test]');
+  assert.throws(() => briefFilesAbsentFromMain(ctx, missing, true), error => {
+    assert.equal(error.code, 'BRIEF_FILE_MISSING');
+    assert.match(error.message, /packages\/demo\/src\/io\/fresh\.js/u);
+    assert.match(`${error.next ?? ''}`, /clause that creates the file, or remove the entry/u);
+    return true;
+  });
+  briefFilesAbsentFromMain(ctx, withFiles(['packages/demo/src/io/thing.js'], '1. it is changed [test]'), true);
+  briefFilesAbsentFromMain(ctx, withFiles(['packages/demo/src/io/fresh.js'], '1. packages/demo/src/io/fresh.js is created and proved [test]'), true);
+  briefFilesAbsentFromMain(ctx, missing, false);
+  const box = helpers.project();
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { items: { barRulesAtAdd: true } });
+  const refused = await box.inProcess(box.repo, 'add', 'web', 'Absent file', '--specs', 'G1', '--criterion', '1. the page renders [test]', '--brief', 'Files:\n- web/nowhere-on-main.js', '--json');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.err + refused.out, /BRIEF_FILE_MISSING/u);
 });

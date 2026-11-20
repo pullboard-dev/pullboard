@@ -198,6 +198,7 @@ export const MACHINE_DEFAULTS = {
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'serve.pullRoute': false,
+  'serve.restartTrial': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'spec.requireFactQuote': false,

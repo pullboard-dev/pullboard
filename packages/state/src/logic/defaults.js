@@ -306,6 +306,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "EVENT_LOG_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "EXPORT_EXISTS": "name an empty folder for the export",
   "FLAG_NOT_ALLOWED": "drop the flag; pullboard help spec lists what each spec command takes",
+  "FACT_QUOTE_UNCITED": "if the quote says what the row claims, run the accept again with that quote inside --reason",
+  "FOREIGN_UNLINKED": "link the named repository with pullboard link <repo>, or drop that repo#id from --after",
   "GATE_ARGUMENT": "use pullboard resources for status, or pullboard gate with no extra words to run the gate",
   "GATE_SLOT_LEASE_LOST": "let the parent process take the gate slot again, then restart the child",
   "GATE_SLOT_LEASE_REQUIRED": "start the child test process with the live gate lease",
