@@ -275,3 +275,24 @@ test('moves.reclaim.gate-settled-decides: clause 2: the same observations with g
     assert.deepEqual(run({ ...structuredClone(c.base.s), gateInFlight: false }, c.base.m), today, `${c.label}: false decides as absent`);
   }
 });
+
+/** The release each accepted observation records, run again with the move marked as written at the board-codes engine or not. */
+const released = (c, boardCodes) => run(c.s, boardCodes ? { ...c.m, boardCodes: true } : c.m).events.at(-1).detail;
+const CODES = { 'seat-gone': 'SEAT_GONE', waiting: 'BLOCKED', progress: 'NO_PROGRESS', release: 'BUILDER_SILENT', dependency: 'BUILDER_SILENT', lapsed: 'LEASE_LAPSED', review: 'REVIEW_IDLE', 'review-lapse': 'REVIEW_LEASE_LAPSED' };
+
+test('moves.table.release-board-codes: clause 1: a move carrying boardCodes releases with BUILDER_SILENT, SEAT_GONE, BLOCKED when waiting, NO_PROGRESS on progress, LEASE_LAPSED, REVIEW_IDLE and REVIEW_LEASE_LAPSED, each with its prose reason unchanged [C7]', () => {
+  const seen = new Set();
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    const on = released(c, true), off = released(c, false);
+    assert.equal(on.reasonCode, CODES[c.label], `seed ${c.seed}: ${c.label}`);
+    assert.equal(on.reason, off.reason, `seed ${c.seed}: the prose reason stays beside the code`);
+    seen.add(c.label);
+  }
+  for (const kind of ['seat-gone', 'waiting', 'progress', 'release', 'lapsed', 'review', 'review-lapse']) assert.ok(seen.has(kind), `no accepted ${kind} case`);
+});
+
+test('moves.table.release-board-codes-off: clause 2: with no boardCodes in the move every one of those releases still carries OTHER, or BLOCKED for a waiting claim, exactly as before [C7]', () => {
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    assert.equal(released(c, false).reasonCode, c.label === 'waiting' ? 'BLOCKED' : 'OTHER', `seed ${c.seed}: ${c.label}`);
+  }
+});
