@@ -1,0 +1,5 @@
+{
+  "cli.journeys-submit-frozen-check.submits-without-pullboard-check": {"proves":{"specs":["C7"],"claim":"An item whose coordinator check is unticked is submitted in a scratch repo without the builder running pullboard check."},"why":"Without it, submit could stop reaching the frozen check step and every builder would again have to call check --yes before submitting.","kind":"journey","inputs":["apps/cli/journeys/submit/frozen-check.test.js"]},
+  "cli.io-commands-submit.red-or-legacy-check": {"proves":{"specs":["C7"],"claim":"A red frozen check refuses the submit naming the check and its first failing lines, and a check with no recorded author is not run."},"why":"Without it a red check could submit, or a legacy check could run without its author's confirmation.","kind":"cell unit","inputs":["apps/cli/src/io/commands/submit.js"]},
+  "cli.io-commands-submit.runs-frozen-check": {"proves":{"specs":["C7"],"claim":"Submit runs the frozen check once when a test clause waits on it, with no confirmation prompt."},"why":"Without it builders keep calling pullboard check by hand before every submit.","kind":"cell unit","inputs":["apps/cli/src/io/commands/submit.js"]}
+}

@@ -1,11 +1,8 @@
 /** Fresh, bounded Git facts for the ordinary resume card; detailed diagnostics stay explicit [N19,D1]. */
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { CONFIG_FILE } from "../../../config/index.js";
 import { DOCTRINE_FILE } from "../../../config/index.js";
 import { LEGACY_DOCTRINE_FILE } from "../../../config/index.js";
@@ -18,9 +15,11 @@ import { mainCheckout } from "../../../git/index.js";
 import { tryGit } from "../../../git/index.js";
 import { Refused } from "../../../kernel/index.js";
 
+const fs = fileSystemAdapter();
+
 /** Compare actual filesystem identities without granting a guessed metadata parent project authority. */
 function samePath(left, right) {
-  try { return Boolean(left && right) && realpathSync.native(left) === realpathSync.native(right); }
+  try { return Boolean(left && right) && fs.realpath(left) === fs.realpath(right); }
   catch { return false; }
 }
 
@@ -42,7 +41,7 @@ async function primaryPath(info, listed, primaryCheckoutRoot) {
   const primary = listed[0]?.path;
   const marker = primary && join(primary, '.git');
   try {
-    if (marker && statSync(marker).isDirectory() && samePath(marker, info.commonDir)) return primary;
+    if (marker && fs.stat(marker).isDirectory() && samePath(marker, info.commonDir)) return primary;
   } catch { /* A missing or nonstandard primary must use the existing fail-closed resolver. */ }
   return primaryCheckoutRoot(info);
 }
@@ -63,8 +62,8 @@ function matchedDoctrine(ctx, primary, main, validatedPrimary, doctrineFromSourc
   const blobs = mainSourceBlobs(ctx.info.root);
   if (!blobs || blobs.commit !== main?.commit || !samePath(primary, validatedPrimary)) return null;
   try {
-    const config = readFileSync(join(primary, CONFIG_FILE));
-    const doctrine = readFileSync(join(primary, DOCTRINE_FILE));
+    const config = fs.readFile(join(primary, CONFIG_FILE), null);
+    const doctrine = fs.readFile(join(primary, DOCTRINE_FILE), null);
     /** Git hashes the type and byte length together with the original bytes, in the repository's object format. */
     const matches = (bytes, oid) => createHash(oid.length === 64 ? 'sha256' : 'sha1')
       .update(`blob ${bytes.length}\0`).update(bytes).digest('hex') === oid;
@@ -99,7 +98,7 @@ async function sharedDoctrine(ctx, board, primary, main, includeHeadDoctrine, va
     return { shared, headDoctrine };
   });
   const file = primary && join(primary, snapshot.shared.name);
-  const current = file && existsSync(file) ? readFileSync(file, 'utf8') : null;
+  const current = file && fs.exists(file) ? fs.readFile(file, 'utf8') : null;
   return { doctrine: appliedDoctrine(snapshot.shared, rowDecisions(board), current), headDoctrine: snapshot.headDoctrine };
 }
 

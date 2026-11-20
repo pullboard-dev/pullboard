@@ -143,6 +143,11 @@ export function failFastShardsEnabled() {
   return loadMachineSettings().gate?.failFastShards === true;
 }
 
+/** Seed main-test rows for wide-failing files only when this machine opted in [C7,#12094]; off by default, and only an exact true turns it on. */
+export function seedWideMainTestsEnabled() {
+  return loadMachineSettings().gate?.seedWideMainTests === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -647,6 +652,11 @@ export function docsRegenerateOnCommit() {
 /** Whether add and edit apply the bar path rules (#11738): off by default; only an exact `true` turns it on. */
 export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
+}
+
+/** Whether route reservations are on (#9177): off by default; only an exact `true` turns it on. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations === true;
 }
 
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */

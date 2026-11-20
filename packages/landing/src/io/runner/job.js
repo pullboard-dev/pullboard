@@ -286,7 +286,9 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     const phaseOf = (name, part) => context => timed(phases, name, () => part(context));
     const timedGuard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
     const guard = timedGuard && carry ? (context => carry(context, timedGuard)) : timedGuard;
-    const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
+    // The payload's install command (check.install) prepares the landing checkout before any check, so item checks find their dependencies [C7,#12232].
+    const install = typeof payload.install === 'string' && payload.install.trim() ? [['install', phaseOf('install', commandCheck(['sh', '-c', payload.install], { deadline }))]] : [];
+    const parts = [...install, ['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
       ...(payload.check ? [['proof', phaseOf('proof', commandCheck(payload.check, { deadline }))]] : []),
       ...(prove && files.length ? [['proof', phaseOf('proof', proveFiles({ ...payload.proof, files })), payload.proof?.runner]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
@@ -388,7 +390,7 @@ function squashItem(root, entry, base) {
  * main keeps unassignedEngine() placeholders (#1101, #6951) [C7].
  */
 async function deriveMerged(root, { base, badges }) {
-  try { amendLandingEngines(root, IDENTITY); await amendLandingRegistries(root, { base, badges, hooks: IDENTITY }); return null; } catch (error) {
+  try { await amendLandingEngines(root, IDENTITY); await amendLandingRegistries(root, { base, badges, hooks: IDENTITY }); return null; } catch (error) {
     must(root, ['reset', '-q', '--hard', 'HEAD']);
     return `the landing derive failed: ${String(error?.message ?? error).slice(0, 300)}`;
   }
@@ -451,7 +453,7 @@ function firstMerges(root, base, tip, pending, squash = false) {
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, diagnose?: Function | null, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
- * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed' | 'proof-timeout',
+ * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'install-red' | 'lease-lost' | 'push-failed' | 'proof-timeout',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null,
  *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
@@ -525,6 +527,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (result?.ok && result.waived?.length) receipt.waived = result.waived;
     // A check that ran past its deadline is no red: nothing is returned to a builder, and the board offers the landing again [C7,#7820].
     if (result?.timeout) return done('proof-timeout', { detail: result.detail });
+    // A red install names its command and returns no item: no item turned the tree red [C7,#12232].
+    if (!result?.ok && result?.role === 'install') return done('install-red', { detail: result.detail });
     if (!result?.ok) {
       // The merged commit stays reachable under a ref per item, with the failing names and full-log path, until the item is resolved [#8499].
       const mergedTip = tryGit(root, ['rev-parse', 'HEAD']).stdout.trim();
@@ -546,6 +550,20 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       // Per-item landing, the default, lands the clean rest as separate publish does; perItem false lands nothing red [C7,#2901].
       if (found.red.length && ((!separate && payload.perItem === false) || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
+    }
+    // Sprint (payload.sprint with an item at pace sprint): the merged tree is proved after the per-item and job checks and before the push; a red proof pushes nothing and ends as a red check does [C7,#12230].
+    // Steady items never reach this branch, so it adds no step, no import and no receipt key; the modules load only here.
+    if (payload.sprint && pending.some(entry => entry.pace === 'sprint')) {
+      const { runnerSprintPorts } = await import('./sprint.js');
+      const { sprintProof } = await import('../exact.js');
+      const proved = must(root, ['rev-parse', 'HEAD']);
+      const proof = await sprintProof({ tree: must(root, ['rev-parse', 'HEAD^{tree}']) }, runnerSprintPorts(root, { base, tip: proved, sprint: payload.sprint, check: commandCheck }));
+      receipt.exactTree = { tree: proof.tree, pin: proof.pin, cells: proof.cells, result: proof.result };
+      if (proof.result !== 'green') {
+        const where = proof.failed === 'static' ? 'the static check' : `cell ${proof.failed}${proof.file ? ` (file ${proof.file})` : ''}`;
+        for (const entry of pending) giveBack(entry.id, 'red', `the Sprint proof is red on tree ${proof.tree} in ${where}; trunk was not moved${proof.output ? `: ${String(proof.output).slice(-300)}` : ''}`);
+        return done('red');
+      }
     }
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);

@@ -95,6 +95,11 @@
       "disk": "other",
       "owner": "packages/keys/src/io/relay.js"
     },
+    "board-links": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "apps/cli/src/io/link/ports.js"
+    },
     "census": {
       "kind": "dir",
       "disk": "other",
@@ -510,6 +515,10 @@
     "adapter-lint-github.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/github.js"
+    },
+    "adapter-lint-signing.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/signing.js"
     },
     "adapter-lint-ssh.json": {
       "kind": "repo-data",

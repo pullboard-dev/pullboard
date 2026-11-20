@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { awaitNestedRun } from '../../index.js';
+import { awaitNestedRun } from '../../heavy.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 import { runUnderStandIn } from '../fixtures/runner-standin.js';
 

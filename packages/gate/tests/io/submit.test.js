@@ -8,8 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { submitGateAdmission } from '../../src/io/submit.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
-import { submitGateConfig } from "../../index.js";
-import { submitGatePlan } from "../../index.js";
+import { submitGateConfig } from "../../heavy.js";
+import { submitGatePlan } from "../../heavy.js";
 import { fixture } from "../../../landing/tests/fixtures/plan.js";
 import { git } from "../../../landing/tests/fixtures/plan.js";
 
@@ -43,7 +43,7 @@ test('gate.io-submit.admission-item-needs: clause 1: submitGateAdmission returns
   const { root } = privateFixtureFiles('pullboard-admission-needs-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'test', 'plain.test.js'), "import { test } from 'node:test';\ntest('plain', () => {});\n");
+  writeFileSync(join(root, 'test/plain.test.js'), "import { test } from 'node:test';\ntest('plain', () => {});\n");
   const files = ['test/plain.test.js'];
   const plan = { check: '', selection: { full: false, files }, deferFullFallback: false, deferSelection: false, proofFiles: files };
   const options = { allowBrowserFreeChecks: true };

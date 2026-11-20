@@ -6,12 +6,6 @@
  */
 import { spawnSync } from 'node:child_process';
 import { Readable } from 'node:stream';
-import {
-  chmodSync,
-  mkdirSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import {
   basename,
@@ -32,6 +26,7 @@ import { setLocalWake } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
 import { environmentAdapter } from '../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import {
   forgetProject,
   listProjects,
@@ -64,12 +59,12 @@ const CONFIG = {
   shared: [],
 };
 
+const fs = fileSystemAdapter();
 const FIRST = 'export const greet = (name) => `Hello, ${name}!`;\n';
 const FIXED = "export const greet = (name) => `Hello, ${name.trim() || 'world'}!`;\n";
 const TEST = `import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { greet } from './greet.mjs';
-
 test('greets by name [G1]', () => assert.equal(greet('Ada'), 'Hello, Ada!'));
 `;
 const EDGE_TEST = `${TEST}test('a blank name greets the world [G1]', () => assert.equal(greet(' '), 'Hello, world!'));\n`;
@@ -147,11 +142,11 @@ async function warmLocalRunner(repo, env) {
 export async function tour(io) {
   const color = colorEnabled(io);
   const pace = io.stdout.isTTY ? 1 : 0;
-  const dir = realpathSync(scratchFolder('pullboard-tour-'));
+  const dir = fs.realpath(scratchFolder('pullboard-tour-'));
   const shims = join(dir, '.bin');
-  mkdirSync(shims);
-  writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
-  chmodSync(join(shims, 'pullboard'), 0o755);
+  fs.mkdir(shims);
+  fs.writeFile(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  fs.chmod(join(shims, 'pullboard'), 0o755);
   // Nothing of the person's git setup reaches the tour: no config files, and no GIT_ variable, such
   // as GIT_DIR from a hook or GIT_CONFIG_COUNT pairs, which git reads as config too. The caller's agent session
   // stays out as well, so each seat is judged as its own session below (#952).
@@ -273,8 +268,8 @@ export async function tour(io) {
   };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
-      mkdirSync(join(where[who], path, '..'), { recursive: true });
-      writeFileSync(join(where[who], path), text);
+      fs.mkdir(join(where[who], path, '..'), { recursive: true });
+      fs.writeFile(join(where[who], path), text);
     }
   };
   const step = (n, text) => {
@@ -284,7 +279,7 @@ export async function tour(io) {
 
   io.say('pullboard tour: a coordinator and two scripted agents run real commands on a throwaway repo. No model runs.');
   try {
-    mkdirSync(repo);
+    fs.mkdir(repo);
     run('coordinator', 'git', ['init', '-q', '-b', 'main'], { label: '' });
     await pb('coordinator', ['init'], { label: '', show: null });
     write('coordinator', { 'pullboard.json': `${JSON.stringify(CONFIG, null, 2)}\n`, 'SPEC.md': SPEC });

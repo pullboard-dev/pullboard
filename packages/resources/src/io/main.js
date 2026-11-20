@@ -20,13 +20,6 @@ import { controllerRegistrationPorts } from './controller/custody.js';
 import { consumeControllerDisposition } from './controller/disposition.js';
 import { settleControllerCancellation } from './controller/disposition.js';
 /** Machine and repository queues persist leases; landings first, then arrival order, or by class (landing, review, submit, other) aging up over time where the machine opts in [Q1,Q2,Q3]. */
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
 import { execFile } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
@@ -94,6 +87,9 @@ import {
   queueClass,
   releaseOrderInEffect,
 } from '../../../queue/light.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/light.js';
 
 const LEASE_MS = 20_000;
@@ -159,7 +155,7 @@ function canonicalResourceFile(file) {
   const missing = [];
   while (true) {
     try {
-      return resolve(realpathSync(candidate), ...missing);
+      return resolve(fs.realpath(candidate), ...missing);
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
       const parent = dirname(candidate);
@@ -211,7 +207,7 @@ function adoptLegacyRows(db) {
 
 /** Initialize a queue, leaving machine-storage error translation to its caller. */
 function openQueue(file) {
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   queueFiles.set(db, file);
   let transaction = false, leave;
@@ -326,7 +322,7 @@ function slotDatabaseLocked(error) {
 
 /** Name other processes with the database open; SQLite does not record which one holds its lock. lsof scans every process, slowly on a loaded machine; it gets 2 s, and names whoever it found by then. */
 async function slotDatabaseOpeners(file) {
-  const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => existsSync(path));
+  const lsof = ['/usr/sbin/lsof', '/usr/bin/lsof'].find(path => fs.exists(path));
   if (!lsof) return [];
   // Asynchronous, so the scan never freezes this process's timers; a failed or timed-out scan still yields what it printed.
   const output = await new Promise(resolve => {
@@ -481,7 +477,7 @@ function removeEmptyViewPortResources(db) {
 function queueOrder(scope) {
   if (scope !== 'machine') return ARRIVAL_ORDER;
   const file = machineSettingsFile();
-  const { reviewsFirst, currentReleaseFirst, agingMinutes } = gateQueueSettings(parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file), file);
+  const { reviewsFirst, currentReleaseFirst, agingMinutes } = gateQueueSettings(parseMachineSettings(fs.exists(file) ? fs.readFile(file, 'utf8') : null, file), file);
   return { reviewsFirst, currentReleaseFirst, ageMs: agingMinutes * 60_000 };
 }
 
@@ -1426,7 +1422,7 @@ export function inheritedGateSlot({ root = process.cwd(), browser = false, named
   if (slotClass === 'short' && !namedFiles) throw new Refused('SHORT_SLOT_FULL_SUITE', 'a run that does not name its test files cannot reuse a short gate slot; start it outside the short check so it queues for an ordinary slot');
   const expectedBrowserMarker = holder.browser === 1 ? '1' : '';
   if (environmentAdapter().get(BROWSER_SLOT_HELD_ENV) !== expectedBrowserMarker) throw new Refused('GATE_SLOT_MARKER_INVALID', 'the inherited browser marker does not match its live gate lease; restart the child with gateSlotEnvironment(lease)');
-  if (browser && holder.browser !== 1 && refusalFile) writeFileSync(refusalFile, '{"code":"BROWSER_SLOT_REQUIRED"}\n', { mode: 0o600 });
+  if (browser && holder.browser !== 1 && refusalFile) fs.writeFile(refusalFile, '{"code":"BROWSER_SLOT_REQUIRED"}\n', { mode: 0o600 });
   if (browser && holder.browser !== 1) throw new Refused('BROWSER_SLOT_REQUIRED', 'the inherited gate lease does not hold the browser slot; release it and reacquire gate with browser: true before launching Chrome');
   return {
     name: 'gate', scope: 'machine', token, pool, runnerExecution: holder.runnerExecution === 1, browser: holder.browser === 1, timing: holder.timing === 1, slotClass, waitMs: 0,

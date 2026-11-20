@@ -24,7 +24,7 @@ import {
 } from './kit.js';
 
 const drive = await from('packages/drive/index.js');
-const { exactStart } = await from('packages/gate/index.js');
+const { exactStart } = await from('packages/gate/heavy.js');
 const { withFixtureBoard } = await from('packages/board/tests/fixtures/board.js');
 
 /** How far past its lease the blocked driver is judged: three minutes, past the 2-minute lease. */
