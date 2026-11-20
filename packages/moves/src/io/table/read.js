@@ -1,6 +1,4 @@
 /** Read recorded item moves from a board read-only, and find every move table without a central list [C7,#8070]. */
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/light.js';
@@ -10,7 +8,10 @@ import { apply } from '../../logic/lifecycle/rules.js';
 import { leaseLive } from '../../logic/lifecycle/rules.js';
 import { newItem } from '../../logic/lifecycle/rules.js';
 import { ruleOf } from '../../logic/lifecycle/rules.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { openBoardReadOnly } from '../../../../store/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The repository root, five folders above this file. */
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -88,7 +89,7 @@ export function readMoveRecords(board, { since } = {}) {
 
 /** Every folder under `directory`, depth first, in name order, skipping hidden folders and node_modules. */
 function walk(directory, found) {
-  for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of fs.list(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const path = join(directory, entry.name);
     if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') walk(path, found);
     else if (entry.isFile() && entry.name.endsWith('.table.js')) found.push(path);
@@ -104,11 +105,11 @@ function walk(directory, found) {
  */
 export function listMoveTables(root = REPO_ROOT) {
   const packages = join(root, 'packages');
-  if (!existsSync(packages)) return [];
+  if (!fs.exists(packages)) return [];
   const found = [];
-  for (const cell of readdirSync(packages, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const cell of fs.list(packages, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const logic = join(packages, cell.name, 'src/logic');
-    if (cell.isDirectory() && existsSync(logic)) walk(logic, found);
+    if (cell.isDirectory() && fs.exists(logic)) walk(logic, found);
   }
   return found.map(path => path.slice(root.length).replace(/^[\\/]+/u, '').split('\\').join('/')).sort();
 }

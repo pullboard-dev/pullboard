@@ -11,11 +11,11 @@ import {
 } from '../entry.js';
 
 import { tryGit } from '../../../../../packages/git/index.js';
-import { codeMapGraph } from '../../../../../packages/gate/index.js';
-import { selectAffectedTests } from '../../../../../packages/gate/index.js';
+import { codeMapGraph } from '../../../../../packages/gate/heavy.js';
+import { selectAffectedTests } from '../../../../../packages/gate/heavy.js';
 import { scanSource } from '../../../../../packages/codemap/index.js';
 import { repositoryImport } from '../../../../../packages/codemap/index.js';
-import { readPlan } from '../../../../../packages/codemap/index.js';
+import { readCellRule } from '../../../../../packages/codemap/light.js';
 import { personNeeds } from '../../../../../packages/spec/index.js';
 import { personNeedsState } from '../../../../view/index.js';
 import { refusalDocument } from '../../logic/step/words.js';
@@ -33,13 +33,6 @@ function repositoryPath(value) {
     throw new Refused('BAD_REQUEST', `path outside the repository or not canonical: ${JSON.stringify(value)}; use a repository-relative path`);
   }
   return value;
-}
-
-/** Read Git data without replacing objects or executing repository modules; every query pins HEAD once. */
-function committedText(root, revision) {
-  const result = tryGit(root, ['--no-replace-objects', 'show', revision]);
-  if (result.status !== 0) throw new Refused('BAD_REQUEST', `committed source ${revision} is unavailable; commit the file or restore the plan, then retry`);
-  return result.stdout;
 }
 
 /** Observed direct imports and simple calls retain the scanner's limitations instead of claiming completeness. */
@@ -67,8 +60,25 @@ function usages(graph, path, symbol) {
     complete: false, limitation: 'Observed direct imports and named calls only; dynamic dispatch, re-exported bindings and shadowing require source review.' };
 }
 
-/** Serve commit-stamped read-only map queries through existing compiler, selector and committed-plan readers. */
-function readCodeMap(cwd, name, input) {
+/** The cell a committed path sits in, read from its folder: packages/<cell> or apps/<app>, a cell only when its front door is committed [C7,#2467]. */
+function cellOfFolder(graph, path) {
+  const folder = /^(packages|apps)\/([^/]+)\//u.exec(path);
+  if (!folder) return null;
+  const frontDoor = `${folder[1]}/${folder[2]}/index.js`;
+  if (!graph.blobs.has(frontDoor)) return null;
+  return { name: folder[1] === 'apps' ? `app:${folder[2]}` : folder[2], edgeName: `${folder[1] === 'apps' ? 'apps/' : ''}${folder[2]}`, frontDoor };
+}
+
+/** The cells an edge rule lets one cell import, named as the cell order names them and listed in that order. */
+function declaredImports(rule, edgeName) {
+  const named = target => (target.startsWith('apps/') ? `app:${target.slice('apps/'.length)}` : target);
+  const targets = rule.allowedEdges.filter(edge => edge.startsWith(`${edgeName}->`)).map(edge => named(edge.slice(edgeName.length + 2).replace(/\/src$/u, '')));
+  const rank = name => (rule.cellOrder.includes(name) ? rule.cellOrder.indexOf(name) : rule.cellOrder.length);
+  return [...new Set(targets)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
+/** Serve commit-stamped read-only map queries through existing compiler, selector and declared-rule readers. */
+async function readCodeMap(cwd, name, input) {
   const located = tryGit(cwd, ['rev-parse', '--show-toplevel']);
   const pinned = tryGit(cwd, ['rev-parse', '--verify', 'HEAD^{commit}']);
   if (located.status || pinned.status) throw new Refused('BAD_REQUEST', 'code-map tools need a Git repository with a committed HEAD; commit the fixture or restore the checkout');
@@ -80,14 +90,10 @@ function readCodeMap(cwd, name, input) {
   const graph = codeMapGraph(root, commit);
   for (const path of paths) if (!graph.blobs.has(path)) throw new Refused('BAD_REQUEST', `path ${path} is not a committed repository file; commit it or use a tracked path`);
   if (name === 'cell') {
-    const plan = readPlan(root, file => committedText(root, `${commit}:${repositoryPath(file)}`));
-    const cell = plan.cells.find(cell => cell.paths.some(([from, to]) => from === paths[0] || to === paths[0]) || cell.frontDoor === paths[0]);
-    const stays = plan.stays?.find(row => row.path === paths[0]);
-    const temporary = committedText(root, `${commit}:packages/codemap/data/plan/temporary-edges.json`);
+    const cell = cellOfFolder(graph, paths[0]);
     return { version: 1, commit, path: paths[0], cell: cell?.name ?? null, frontDoor: cell?.frontDoor ?? null,
-      allowedImports: cell ? plan.cells.filter(other => other.order < cell.order).sort((a, b) => a.order - b.order).map(other => other.name) : [],
-      sameCellImports: Boolean(cell), temporaryEdges: JSON.parse(temporary).edges.filter(edge => edge.importer === paths[0]),
-      unknown: cell ? null : stays?.reason ?? 'file is not assigned to a cell in the committed plan' };
+      allowedImports: cell ? declaredImports(await readCellRule(root), cell.edgeName) : [], sameCellImports: Boolean(cell), temporaryEdges: [],
+      unknown: cell ? null : 'file is not in a cell folder: packages/<cell> or apps/<app> with a committed front door' };
   }
   const unknown = [...graph.unknown, ...graph.undeclared].sort(([a], [b]) => a.localeCompare(b)).map(([file, reason]) => ({ file, reason }));
   if (name === 'usages' && !graph.modules.has(paths[0])) throw new Refused('BAD_REQUEST', `path ${paths[0]} is not a committed JavaScript module; use a module path`);

@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-health.reports-runner-duplicates": {"proves":{"specs":["P7"],"claim":"pullboard health reports the place and both runner ids of a duplicate runner claim."},"why":"Without this test, a doubled runner service would be refused by the api yet stay invisible in pullboard health.","kind":"contract","inputs":["apps/cli/src/io/commands/health.js","packages/api/index.js"]},
+  "cli.io-commands-health.prints-runner-duplicate-line": {"proves":{"specs":["P7"],"claim":"The health text prints a RUNNER_DUPLICATE line with the next step, and none without a duplicate."},"why":"Without this test, a doubled runner service would be refused by the api yet stay invisible in pullboard health.","kind":"contract","inputs":["apps/cli/src/io/commands/health.js","packages/api/index.js"]}
+}
