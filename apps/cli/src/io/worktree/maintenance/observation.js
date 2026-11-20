@@ -2,16 +2,6 @@
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { closeSync } from 'node:fs';
-import { constants } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { fsyncSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../../../packages/git/index.js';
@@ -21,6 +11,9 @@ import { maintenanceGit } from './archive.js';
 import { workingDirectories } from '../../../../../../packages/landing/index.js';
 import { withFileLock } from '../../../../../../packages/outbox/index.js';
 import { environmentAdapter } from '../../../../../../packages/env/index.js';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 export { workingDirectories as maintenanceWorkingDirectories };
 
@@ -63,9 +56,9 @@ export function maintenanceDirectory(common) {
   let directory = common;
   for (const name of ['pullboard', 'worktree-maintenance']) {
     directory = join(directory, name);
-    try { mkdirSync(directory, { mode: 0o700 }); }
+    try { fs.mkdir(directory, { mode: 0o700 }); }
     catch (error) { if (error.code !== 'EEXIST') throw error; }
-    const state = lstatSync(directory);
+    const state = fs.lstat(directory);
     if (!state.isDirectory() || state.isSymbolicLink() || name === 'worktree-maintenance' && (state.mode & 0o077))
       throw new Error('maintenance state directory changed');
   }
@@ -74,11 +67,11 @@ export function maintenanceDirectory(common) {
 
 /** Serialize whole sweeps independently of foreground checkout ownership and the hourly timer. */
 export async function withMaintenanceLock(common, work) {
-  if (!Number.isInteger(constants.O_NOFOLLOW)) throw new Error('maintenance needs no-follow file observation');
+  if (!Number.isInteger(fs.constants.O_NOFOLLOW)) throw new Error('maintenance needs no-follow file observation');
   const file = join(maintenanceDirectory(common), 'sweep.guard.sqlite');
-  try { closeSync(openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600)); }
+  try { fs.close(fs.open(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600)); }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const state = lstatSync(file);
+  const state = fs.lstat(file);
   if (!state.isFile() || state.isSymbolicLink() || state.mode & 0o077) throw new Error('maintenance sweep lock is not private');
   return withFileLock(file, work);
 }
@@ -86,10 +79,10 @@ export async function withMaintenanceLock(common, work) {
 /** Read a bounded completed observation; missing history supplies no invented retention age. */
 export function readMaintenanceState(common) {
   const file = join(common, 'pullboard', 'worktree-maintenance', 'state.json');
-  if (!existsSync(file)) return { version: 1, trees: {} };
-  const info = lstatSync(file);
+  if (!fs.exists(file)) return { version: 1, trees: {} };
+  const info = fs.lstat(file);
   if (!info.isFile() || info.isSymbolicLink() || info.size > 16 * 1024 * 1024) throw new Error('maintenance state is not a bounded file');
-  const value = JSON.parse(readFileSync(file, 'utf8'));
+  const value = JSON.parse(fs.readFile(file, 'utf8'));
   if (value?.version !== 1 || !value.trees || typeof value.trees !== 'object' || Array.isArray(value.trees))
     throw new Error('maintenance state is incomplete');
   return value;
@@ -99,10 +92,10 @@ export function readMaintenanceState(common) {
 export function writeMaintenanceState(common, state) {
   const directory = maintenanceDirectory(common), file = join(directory, 'state.json');
   const temporary = join(directory, randomUUID() + '.tmp');
-  const fd = openSync(temporary, 'wx', 0o600);
-  try { writeFileSync(fd, JSON.stringify(state, null, 2) + '\n'); fsyncSync(fd); }
-  finally { closeSync(fd); }
-  renameSync(temporary, file);
+  const fd = fs.open(temporary, 'wx', 0o600);
+  try { fs.writeFile(fd, JSON.stringify(state, null, 2) + '\n'); fs.fsync(fd); }
+  finally { fs.close(fd); }
+  fs.rename(temporary, file);
 }
 
 /** Count allocated worktree bytes without interpreting paths as flags or measuring unrelated filesystem activity. */

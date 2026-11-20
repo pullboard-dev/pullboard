@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { processMachineHome as machineHome } from '../../../kernel/light.js';
 import { Refused } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** Resolve one executable now; a wake is not a shell expression or an argv prefix. */
 export function seatWakeCommand(command, root) {
@@ -24,7 +25,7 @@ export function seatWakeCommand(command, root) {
     throw new Refused('WAKE_COMMAND', 'give --wake the path of an executable that accepts only the item id');
   }
   const paths = isAbsolute(command) || command.includes('/') ? [resolve(root, command)]
-    : (process.env.PATH ?? '').split(delimiter).map(directory => resolve(directory || root, command));
+    : (environmentAdapter().get('PATH') ?? '').split(delimiter).map(directory => resolve(directory || root, command));
   for (const path of paths) {
     try {
       accessSync(path, constants.X_OK);
