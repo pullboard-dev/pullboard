@@ -1,0 +1,3 @@
+{
+  "api.io-claim-replay.replay-p95": {"proves":{"specs":["C7"],"claim":"replayClaims runs the given number of pull claims on a copy of the board database, each rolled back, and returns p50, p95 and max in milliseconds while the source database file stays byte for byte unchanged."},"why":"Without this test the claim path's cost per claim at a real board's size is measured by nobody, and a slow addition stalls the fleet before anyone sees it.","kind":"contract","inputs":["packages/api/src/io/claim-replay.js","packages/api/src/io/gate.js"]}
+}
