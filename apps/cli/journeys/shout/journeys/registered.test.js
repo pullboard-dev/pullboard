@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/shout/shouts.test.js apps/cli/journeys/shout/fixture.test.js apps/cli/journeys/shout/journeys/fixture-*.test.js apps/cli/journeys/shout/journeys/registry-10595.json apps/cli/tests/fixtures/registry-10550.json apps/cli/journeys/shout/ */
+/** @pullboard-test-input apps/cli/journeys/shout/shouts.test.js apps/cli/journeys/shout/fixture.test.js apps/cli/journeys/shout/journeys/fixture-*.test.js apps/cli/journeys/shout/journeys/registry-10595.json apps/cli/tests/fixtures/registry-10550.json apps/cli/journeys/shout/** */
 /** The nine view-owned shout journey files carry stable IDs and one record each [C7,U148,#10595]. @pullboard-world-pin: the check reads the nine sibling test files and their registry by path; no fixture can say what their titles are. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

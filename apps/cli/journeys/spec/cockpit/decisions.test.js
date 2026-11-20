@@ -1,6 +1,6 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** @pullboard-test-input apps/cli/journeys/spec/ apps/cli/journeys/spec/cockpit/decisions.test.js */
+/** @pullboard-test-input apps/cli/journeys/spec/** */
 /** Cockpit real-Chrome row decision check, split from cockpit.test.js [B26,N26,C7]. */
 /** @pullboard-world-pin checks by path that the old cockpit.test.js is gone beside this file; no fixture can say that. */
 import assert from 'node:assert/strict';
