@@ -13,6 +13,7 @@ import { addItem } from '../../../../index.js';
 import { claim } from '../../../../index.js';
 import { getItem } from '../../../../index.js';
 import { generateBoardKey } from '../../../../../kernel/index.js';
+import { regressedIds } from '../../../../src/io/board/link/regress.js';
 import { openKitBoard } from '../../../fixtures/cell.js';
 import { cellSeat } from '../../../fixtures/cell.js';
 
@@ -40,7 +41,7 @@ async function linked(t) {
   const receive = async rows => {
     position += 1;
     const correlationId = `state-${position}`;
-    const announcement = { version: 2, linkId: 'regress', generation: 1, sourceBoardId: CHILD, destinationBoardId: parent.boardId,
+    const announcement = { version: 1, linkId: 'regress', generation: 1, sourceBoardId: CHILD, destinationBoardId: parent.boardId,
       position, disclosure: 'states', rows: rows.map(([id, state]) => ({ board: CHILD, id, state })) };
     const envelope = await capability.seal(correlationId, announcement);
     const receipt = { version: 1, deliveryId: position, sourceBoardId: CHILD, destinationBoardId: parent.boardId, linkId: 'regress', generation: 1,
@@ -61,12 +62,12 @@ function waiting(board, id, { merged = null } = {}) {
 
 const events = (board, kind) => board.db.prepare('SELECT item_id, event_detail FROM event WHERE event_kind=? ORDER BY event_id').all(kind);
 
-test('store.io-board-link-regress.reopened-holds-claimed-dependent: clause 1: a received state going from verified or landed back to open holds each claimed dependent with a reason naming repo#id [XB1,#11045]', async t => {
+test('store.io-board-link-regress.reopened-holds-claimed-dependent: clause 1: a received state going from verified back to open holds each claimed dependent with a reason naming repo#id [XB1,#11045]', async t => {
   const { board, receive } = await linked(t);
   const first = waiting(board, 8);
   const second = waiting(board, 9);
   const idle = waiting(board, 5);
-  await receive([[8, 'verified'], [9, 'landed'], [5, 'verified']]);
+  await receive([[8, 'verified'], [9, 'verified'], [5, 'verified']]);
   await receive([[8, 'open'], [9, 'open'], [5, 'verified']]);
   assert.match(getItem(board, first).item_hold_reason, /kid#8/u);
   assert.match(getItem(board, second).item_hold_reason, /kid#9/u);
@@ -92,4 +93,10 @@ test('store.io-board-link-regress.first-state-and-other-moves-hold-nothing: clau
   await receive([[8, 'claimed']]);
   assert.equal(getItem(board, item).item_hold_reason, null);
   assert.deepEqual(events(board, 'board_link_regress_notice'), []);
+});
+
+test('store.io-board-link-regress.landed-state-counts-as-done: clause 1: a child item that went from landed back to open is a regression, and a first state, an open to claimed move or an unchanged verified item is not [XB1,#11045]', () => {
+  assert.deepEqual(regressedIds({ rows: [{ id: 3, state: 'landed' }, { id: 4, state: 'verified' }, { id: 5, state: 'open' }, { id: 6, state: 'verified' }] },
+    { rows: [{ id: 3, state: 'open' }, { id: 4, state: 'open' }, { id: 5, state: 'claimed' }, { id: 6, state: 'verified' }] }), [3, 4]);
+  assert.deepEqual(regressedIds(null, { rows: [{ id: 3, state: 'open' }] }), []);
 });
