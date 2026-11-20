@@ -8,7 +8,9 @@ import { recordSubmitHandoff } from '../../../jobs/index.js';
 import { loadStopRules } from '../../../items/index.js';
 import { loadReturnedFirst } from '../../../queue/index.js';
 import * as store from '../../../store/index.js';
+import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { loadConfig } from '../../../config/index.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { nextSelection } from '../../index.js';
@@ -346,4 +348,55 @@ test('moves.selection.compose-landing-off: clause 2: with slices.composeLanding 
     assert.equal(seen.length, 2, 'both offers were reached');
     for (const who of seen) assert.ok(!who.composeLanding, 'composeLanding is false or absent');
   }
+});
+
+/** The seat in web with docs and api as the other lanes, run from a linked worktree as a builder seat is; a claim after a move is made in the seat's new lane. */
+function threeLanes(t) {
+  const box = fixture(t, { lanes: { docs: { owns: ['docs/'] } } });
+  const ctx = { ...box.ctx, info: { ...box.ctx.info, isMain: false } };
+  const ports = { ...box.ports, claimOrdered: (_, open, [id, opts]) => cellClaim(open, id, { id: opts.agentId, lane: opts.lane }, { root: box.root, leaseMs: opts.leaseMs,
+    ...(opts.autoNext ? { autoNext: opts.autoNext, autoNextSnapshot: box.ports.claimWorktreeSnapshot() } : {}) }) };
+  const file = (title, lane) => box.add(title, { lane, brief: `Files: ${lane}/dispatch.js\nTest: the real board picks it.` });
+  const pick = () => nextSelection.pick(ctx, box.board, { defaultLoop: true, observeIdle: true }, ports);
+  const once = () => nextOnce(ctx, { defaultLoop: true, observeIdle: true }, ports);
+  return { box, file, pick, once };
+}
+
+test('moves.selection.empty-lane-moves-to-claimable-lane: clause 1: through nextSelection.pick, a seat holding no claim whose own lane has nothing is returned a move to the lane with claimable work, and its reasons say it moved and why [C7,#12090]', t => {
+  const { pick, file } = threeLanes(t);
+  const api = file('Api work', 'api');
+  const looked = pick();
+  assert.deepEqual(looked.move, { from: 'web', lane: 'api', item: api });
+  assert.ok(looked.reasons.includes('moved from web to api: web had nothing you can take'), JSON.stringify(looked.reasons));
+});
+
+test('moves.selection.never-empty-while-claimable: clause 2: with one seat and three lanes, and with two seats, next never answers empty for a seat holding no claim while an item claimable at its route exists in any lane [C7,#12090]', async t => {
+  const { box, file, pick, once } = threeLanes(t);
+  // A docs item the docs lane gave back for re-scope is not claimable by a seat that moves to docs, so it never draws a move there.
+  const docsSeatPath = join(box.project.dir, 'docs-seat');
+  mkdirSync(docsSeatPath);
+  const docsSeat = cellSeat(box.board, { lane: 'docs', path: docsSeatPath, family: 'Family Alpha' });
+  const gaveBack = file('Docs work the docs lane gave back', 'docs');
+  box.board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
+    .run('2026-10-25T09:00:00.000Z', docsSeat.id, 'release', gaveBack, JSON.stringify({ reasonCode: 'INELIGIBLE' }));
+  const first = file('Api work one', 'api');
+  const second = file('Api work two', 'api');
+  const found = await once();
+  assert.equal(found.item?.item_id, first, JSON.stringify(found));
+  assert.deepEqual(found.moved, { from: 'web', to: 'api' });
+  assert.equal(store.getItem(box.board, first).item_status, 'claimed');
+  // A second seat, in web with nothing of its own, is moved to the api item left, not left empty beside the docs one it cannot take.
+  box.as('builder');
+  assert.deepEqual(pick().move, { from: 'web', lane: 'api', item: second });
+});
+
+test('moves.selection.move-changes-seat-lane-only: clause 3: the move changes only the seat\'s lane: the lane config\'s owned folders are equal before and after, and the item the seat then claims is an item of the new lane [C7,#12090]', async t => {
+  const { box, file, once } = threeLanes(t);
+  const api = file('Api work', 'api');
+  const before = JSON.stringify(loadConfig(box.root).lanes);
+  const found = await once();
+  assert.equal(found.item?.item_id, api, JSON.stringify(found));
+  assert.equal(JSON.stringify(loadConfig(box.root).lanes), before, 'no lane changed what it owns');
+  assert.equal(store.getItem(box.board, api).item_lane, 'api');
+  assert.equal(store.agentById(box.board, box.seats.actor.id).agent_lane, 'api');
 });
