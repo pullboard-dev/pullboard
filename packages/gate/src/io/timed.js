@@ -1,26 +1,24 @@
 /** Run a bounded shell under identity-checked process custody before returning its result [E27]. */
 import { spawn } from 'node:child_process';
 import { scratchFolder } from '../../../config/index.js';
-import {
-  appendFileSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { environmentAdapter } from '../../../env/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   dirname,
   join,
 } from 'node:path';
 import { testRuntimeOption } from '../../../sandbox/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Run the unchanged bounded worker with the canonical tracker supplied by its executable composition root. */
 export async function runTimedShell(services) {
   if (typeof services?.createDescendantTracker !== 'function') throw new TypeError('timed shell needs the canonical descendant tracker');
   const { createDescendantTracker } = services;
-  const request = JSON.parse(readFileSync(0, 'utf8'));
+  const request = JSON.parse(fs.readFile(0, 'utf8'));
   if (!Number.isSafeInteger(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 2_147_483_647) throw new Error('invalid shell timeout');
   // A spool that cannot be created must refuse before there is any command to stop.
-  writeFileSync(request.outputFile, '', { mode: 0o600, flag: 'wx' });
+  fs.writeFile(request.outputFile, '', { mode: 0o600, flag: 'wx' });
   const directory = scratchFolder('pullboard-timed-shell-');
   let tracker;
   let phase = 'starting';
@@ -30,12 +28,13 @@ export async function runTimedShell(services) {
   function reportState(force = false) {
     if (!force && Date.now() - lastState < 1_000) return;
     lastState = Date.now();
-    try { writeFileSync(stateFile, JSON.stringify({ at: new Date().toISOString(), phase, ...(tracker?.cleanupState() ?? {}) }) + '\n', { mode: 0o600 }); }
+    try { fs.writeFile(stateFile, JSON.stringify({ at: new Date().toISOString(), phase, ...(tracker?.cleanupState() ?? {}) }) + '\n', { mode: 0o600 }); }
     catch { process.stderr.write('timed gate: cleanup state could not be written; retain the worker and inspect its private output directory\n'); }
   }
   tracker = createDescendantTracker(directory, { tick: () => reportState(), warn: () => reportState(true) });
   const recorder = testRuntimeOption();
-  const env = { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, tracker.nodeOptions, recorder].filter(Boolean).join(' '), PULLBOARD_RUNNER_PRELOAD: tracker.nodeOptions };
+  const environment = environmentAdapter();
+  const env = { ...environment.all(), NODE_OPTIONS: [environment.get('NODE_OPTIONS'), tracker.nodeOptions, recorder].filter(Boolean).join(' '), PULLBOARD_RUNNER_PRELOAD: tracker.nodeOptions };
   const child = spawn('/bin/sh', ['-c', request.command], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   tracker.registerRoot(child.pid);
   tracker.observe();
@@ -78,7 +77,7 @@ export async function runTimedShell(services) {
     bytes += chunk.length;
     if (bytes > 2 ** 30) { overflow = true; void stop(); }
     else if (!error) {
-      try { appendFileSync(request.outputFile, chunk); }
+      try { fs.appendFile(request.outputFile, chunk); }
       catch (cause) { error = cause.code ?? 'TIMED_OUTPUT_WRITE'; void stop(); }
     }
   }
@@ -92,6 +91,6 @@ export async function runTimedShell(services) {
   clearTimeout(timer);
   await stop();
   tracker.stopMonitoring();
-  rmSync(directory, { recursive: true, force: true });
+  fs.rm(directory, { recursive: true, force: true });
   process.stdout.write(JSON.stringify({ ...result, timedOut, overflow, error }));
 }

@@ -11,6 +11,7 @@ import { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 export { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 
 import { HEALTH_QUIET_ENGINE } from "../../../../state/light.js";
+import { HEALTH_EPISODE_ENGINE } from "../../../../state/light.js";
 
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;
@@ -30,7 +31,7 @@ export function hasPendingDispatchNotices(board) {
 }
 
 /** Validate and retain only the fields needed to identify and explain a health finding. */
-export function normalizedHealthFindings(findings) {
+export function normalizedHealthFindings(findings, { ownerRole = false } = {}) {
   if (!Array.isArray(findings) || findings.length > 10_000) {
     throw new Refused('HEALTH_FINDINGS', 'a sentinel scan needs at most 10000 health findings; run pullboard health and retry the scan');
   }
@@ -48,7 +49,8 @@ export function normalizedHealthFindings(findings) {
       throw new Refused('HEALTH_FINDINGS', 'a sentinel finding needs its owner address; run pullboard health again');
     }
     seen.add(finding.key);
-    return Object.fromEntries(['key', 'cause', 'item', 'subject', 'title', 'since', 'why', 'next'].map(key => [key, finding[key]]).concat([['owner', who]]));
+    const role = ownerRole && typeof finding.owner?.role === 'string' ? [['ownerRole', finding.owner.role]] : [];
+    return Object.fromEntries(['key', 'cause', 'item', 'subject', 'title', 'since', 'why', 'next'].map(key => [key, finding[key]]).concat([['owner', who]], role));
   });
 }
 
@@ -61,6 +63,9 @@ export function healthFindingIdentity(finding) {
 export function healthFindingNotice(finding, resolved = false) {
   return `${resolved ? 'Resolved' : 'Stuck'}: ${finding.subject} ${finding.title} [${finding.cause}], since ${finding.since}. ${finding.why}. ${finding.owner ? `Owner: ${finding.owner}. ` : ''}Next: ${finding.next}.`;
 }
+
+/** A finding that clears and returns inside this many milliseconds is the same episode and is not shouted again [C7,#1479]. */
+export const FLAP_WINDOW_MS = 30 * 60 * 1000;
 
 /** The causes the coordinator hears whoever owns them: it rules on each (#1479). */
 const COORDINATOR_CAUSES = new Set(["UNLANDED_CONFLICT", "UNLANDED_WAITING", "UNLANDED_READY", "UNLANDED_STACKED", "DECISION_UNANSWERED", "REQUEST_UNANSWERED", "STALE_ROW_DECISION"]);
@@ -87,11 +92,14 @@ export function healthTargets(finding, { engine, coordinator, person, lanes, age
  * Every finding keeps its event. From HEALTH_CAP_ENGINE the run sends at most HEALTH_SHOUT_CAP shouts and one more to
  * the coordinator saying how many it held back, so a backfill never floods a feed (#940). From HEALTH_QUIET_ENGINE a
  * resolved finding is logged and shouted to no one; an earlier engine's run replays with its original shouts.
+ * From HEALTH_EPISODE_ENGINE an added finding whose key resolved less than FLAP_WINDOW_MS before `now` is logged and shouted to no one;
+ * `recentlyResolved` maps finding key to its resolved instant.
+ * With `adviceThroughNext` true a finding whose owner role is builder is logged and shouted to no one: next carries that advice to the builder (#2330).
  *
- * @param {{ resolved: any[], added: any[], engine: number, coordinator: string, targets: (finding: any) => string[],
+ * @param {{ resolved: any[], added: any[], recentlyResolved?: Map<string, string>, now?: string | Date | null, engine: number, coordinator: string, targets: (finding: any) => string[],
  *   shout: (to: string, text: string) => void, log: (finding: any, cleared: boolean) => void }} run
  */
-export function deliverHealthNotices({ resolved, added, pending = [], engine, coordinator, targets, shout, log }) {
+export function deliverHealthNotices({ resolved, added, pending = [], recentlyResolved = new Map(), now = null, engine, coordinator, targets, shout, log, adviceThroughNext = false }) {
   const capped = engine >= HEALTH_CAP_ENGINE;
   const durableCpu = engine >= CPU_SENTINEL_ENGINE;
   const deferred = [];
@@ -100,16 +108,62 @@ export function deliverHealthNotices({ resolved, added, pending = [], engine, co
   for (const [finding, cleared, retry] of [...(durableCpu ? pending : []).map(entry => [entry, false, true]),
     ...resolved.map(entry => [entry, true, false]), ...added.map(entry => [entry, false, false])]) {
     let coordinatorSent = false;
-    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE ? [] : targets(finding)) {
+    const flap = !cleared && !retry && engine >= HEALTH_EPISODE_ENGINE && now !== null && recentlyResolved.has(finding.key)
+      && Date.parse(String(now instanceof Date ? now.toISOString() : now)) - Date.parse(recentlyResolved.get(finding.key)) < FLAP_WINDOW_MS;
+    const advice = adviceThroughNext === true && finding.ownerRole === 'builder';
+    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE || flap || advice ? [] : targets(finding)) {
       if (capped && sent >= HEALTH_SHOUT_CAP) { held += 1; continue; }
       shout(to, healthFindingNotice(finding, cleared));
       sent += 1;
       if (to === coordinator) coordinatorSent = true;
     }
-    if (!cleared && !coordinatorSent && (durableCpu && finding.cause === 'AGENT_CPU'
+    if (!cleared && !flap && !coordinatorSent && (durableCpu && finding.cause === 'AGENT_CPU'
       || engine >= AUTOMATIC_DISPATCH_ENGINE && finding.cause === 'UNPAIRED_WORK')) deferred.push(finding);
     if (!retry) log(finding, cleared);
   }
   if (held) shout(coordinator, `Health: ${held} more notices from this run were held back, so one run never floods a feed; pullboard health lists every finding.`);
   return durableCpu ? deferred : undefined;
+}
+
+/** One reader hears a buffered batch at most once in this many milliseconds (#1479). */
+export const DIGEST_WINDOW_MS = 10 * 60 * 1000;
+
+/** The findings a reader hears at once: each needs a ruling or a landing the reader must act on (#1479). */
+const DIGEST_IMMEDIATE_CAUSES = new Set(["UNLANDED_HELD", "UNLANDED_WAITING", "UNLANDED_CONFLICT", "DECISION_UNANSWERED", "REQUEST_UNANSWERED"]);
+
+/**
+ * Plan one run's notices as a digest: an immediate-cause finding goes to each of its readers now, every other added finding is buffered per
+ * reader, a resolved finding leaves every buffer, and a reader whose last flush is at least DIGEST_WINDOW_MS old gets one line naming every
+ * buffered subject. A reader with no last flush starts its window at `now`. No I/O; the caller stores `buffered` and `lastFlush`.
+ *
+ * @param {{ added: any[], resolved: any[], buffered?: Record<string, {key: string, subject: string}[]>, lastFlush?: Record<string, string>,
+ *   now: string | Date, targets: (finding: any) => string[] }} run
+ * @returns {{ immediate: [string, any][], buffered: Record<string, {key: string, subject: string}[]>, lastFlush: Record<string, string>, lines: [string, string][] }}
+ */
+export function healthDigestPlan({ added, resolved, buffered = {}, lastFlush = {}, now, targets }) {
+  const instant = String(now instanceof Date ? now.toISOString() : now);
+  const gone = new Set(resolved.map(finding => finding.key));
+  const next = {};
+  for (const [reader, entries] of Object.entries(buffered)) {
+    const kept = entries.filter(entry => !gone.has(entry.key));
+    if (kept.length) next[reader] = kept;
+  }
+  const immediate = [];
+  for (const finding of added) {
+    for (const reader of targets(finding)) {
+      if (DIGEST_IMMEDIATE_CAUSES.has(finding.cause)) immediate.push([reader, finding]);
+      else if (!(next[reader] ??= []).some(entry => entry.key === finding.key)) next[reader].push({ key: finding.key, subject: finding.subject });
+    }
+  }
+  const flushed = { ...lastFlush };
+  const lines = [];
+  for (const reader of Object.keys(next)) {
+    if (flushed[reader] === undefined) { flushed[reader] = instant; continue; }
+    if (Date.parse(instant) - Date.parse(flushed[reader]) < DIGEST_WINDOW_MS) continue;
+    const subjects = [...new Set(next[reader].map(entry => entry.subject))];
+    lines.push([reader, `Digest: ${next[reader].length} routine findings since ${flushed[reader]}: ${subjects.join(", ")}. pullboard health lists each with its next step.`]);
+    delete next[reader];
+    flushed[reader] = instant;
+  }
+  return { immediate, buffered: next, lastFlush: flushed, lines };
 }

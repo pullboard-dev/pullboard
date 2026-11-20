@@ -6,6 +6,7 @@ import { fetchItem } from './job.js';
 import { fetchTrunk } from './job.js';
 import { landingCheckout } from './job.js';
 import { landingMergeArgs } from './job.js';
+import { commitUnionedMerge } from '../land/registry-union.js';
 import { must } from './job.js';
 import { pushTrunk } from './job.js';
 
@@ -23,11 +24,12 @@ const onTip = (root, commit, tip) => tryGit(root, ['merge-base', '--is-ancestor'
 const treeOf = (root, commit) => must(root, ['rev-parse', `${commit}^{tree}`]);
 
 /** Merge entries onto `base` in order; stop at the first that does not merge and name it. */
-function mergeOnto(root, base, entries) {
+function mergeOnto(root, base, entries, union = false) {
   must(root, ['checkout', '-q', '--detach', '--force', base]);
   must(root, ['clean', '-q', '-fd']);
   for (const entry of entries) {
     const merged = tryGit(root, landingMergeArgs(root, entry));
+    if (merged.status !== 0 && union && commitUnionedMerge(root)) continue;
     if (merged.status !== 0) {
       tryGit(root, ['merge', '--abort']);
       return { tip: null, conflict: entry, detail: (merged.stdout || merged.stderr).slice(0, 240) };
@@ -40,13 +42,13 @@ function mergeOnto(root, base, entries) {
  * Build a candidate on `base`: merge its items, run the check, and on a red ask the judge; drop only the culprit it
  * names (or an item that does not merge) and build again without it, until the rest is green or nothing is left.
  */
-async function buildCandidate(root, base, entries, { check, judge, renew }) {
+async function buildCandidate(root, base, entries, { check, judge, renew, union = false }) {
   let kept = entries.filter(entry => !onTip(root, entry.commit, base));
   const returned = [];
   // Each round lands the rest or drops one item, so the rounds end within one more than the batch's size.
   for (let round = 0; round <= entries.length; round++) {
     if (kept.length === 0) return { tip: base, kept, returned, leaseLost: false };
-    const merged = mergeOnto(root, base, kept);
+    const merged = mergeOnto(root, base, kept, union);
     if (merged.conflict) {
       returned.push({ id: merged.conflict.id, reason: 'conflict', detail: merged.detail });
       kept = kept.filter(entry => entry !== merged.conflict);
@@ -83,6 +85,7 @@ async function buildCandidate(root, base, entries, { check, judge, renew }) {
 export async function runChainedLandingJob(payload, { workdir, checks = null, judge = returnLastItem, renew = () => true, awaitParent = null, pushOptions = () => [] }) {
   const { remote, trunk, expect, items, below = [], parent = null } = payload;
   const check = checks ?? (payload.check ? commandCheck(payload.check) : () => ({ ok: true, detail: null }));
+  const union = payload.unionRegistries === true;
   const root = landingCheckout(workdir);
   const receipt = { kind: LANDING_JOB_KIND, outcome: 'replan', parent, expect, base: null, trunk: null, landed: [], returned: [], already: [], rebuilt: false, pushes: 0, detail: null };
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
@@ -94,10 +97,10 @@ export async function runChainedLandingJob(payload, { workdir, checks = null, ju
   // Speculate: the parent's tree as planned. A below item that does not merge here is the parent's culprit to drop.
   let speculated = expect;
   for (const entry of below) {
-    const merged = mergeOnto(root, speculated, [entry]);
+    const merged = mergeOnto(root, speculated, [entry], union);
     if (merged.tip) speculated = merged.tip;
   }
-  let built = await buildCandidate(root, speculated, items, { check, judge, renew });
+  let built = await buildCandidate(root, speculated, items, { check, judge, renew, union });
   if (built.leaseLost) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its proof' });
   if (parent) {
     const landed = awaitParent ? await awaitParent(parent) : null;
@@ -114,13 +117,13 @@ export async function runChainedLandingJob(payload, { workdir, checks = null, ju
   let kept = null;
   if (treeOf(root, tip) === treeOf(root, speculated)) {
     kept = built.kept.filter(entry => !receipt.already.includes(entry.id));
-    const replay = kept.length > 0 ? mergeOnto(root, tip, kept) : { tip };
+    const replay = kept.length > 0 ? mergeOnto(root, tip, kept, union) : { tip };
     if (replay.tip && (kept.length === 0 || treeOf(root, replay.tip) === treeOf(root, built.tip))) built = { ...built, tip: replay.tip, kept };
     else kept = null;
   }
   if (kept === null) {
     receipt.rebuilt = true;
-    built = await buildCandidate(root, tip, items.filter(entry => !receipt.already.includes(entry.id)), { check, judge, renew });
+    built = await buildCandidate(root, tip, items.filter(entry => !receipt.already.includes(entry.id)), { check, judge, renew, union });
     if (built.leaseLost) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its rebuild' });
   }
   receipt.returned = built.returned;

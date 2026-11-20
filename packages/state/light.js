@@ -3,6 +3,7 @@ import { engineNumber } from './src/logic/engine/number.js';
 /** Pure state source classification, without loading the native board [C7]. */
 export const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 export { correctedBar } from "./src/logic/bar.js";
+export { isRecordedConflictContext } from "./src/logic/recorded/context.js";
 export { engineAtLeast } from "./src/logic/engine/minimum.js";
 export { MACHINE } from "./src/logic/machine/declaration.js";
 export const ACCEPTED_RELAND_ENGINE = engineNumber('ACCEPTED_RELAND_ENGINE');
@@ -46,6 +47,7 @@ export const REVIEW_RELEASE_TWICE_ENGINE = engineNumber('REVIEW_RELEASE_TWICE_EN
 export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
 export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
 export const BLOCK_ENGINE = engineNumber('BLOCK_ENGINE');
+export const MERGED_AT_ENGINE = engineNumber('MERGED_AT_ENGINE');
 export const WITHDRAW_AS_MET_ENGINE = engineNumber('WITHDRAW_AS_MET_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export const NEEDS_ENGINE = engineNumber('NEEDS_ENGINE');
@@ -72,6 +74,7 @@ export const GONE_CLAIM_ENGINE = engineNumber('GONE_CLAIM_ENGINE');
 export const HANDOFF_ENGINE = engineNumber('HANDOFF_ENGINE');
 export const HEALTH_CAP_ENGINE = engineNumber('HEALTH_CAP_ENGINE');
 export const HEALTH_EPISODE_ENGINE = engineNumber('HEALTH_EPISODE_ENGINE');
+export const BOARD_RELEASE_CODES_ENGINE = engineNumber('BOARD_RELEASE_CODES_ENGINE');
 export const HEALTH_QUIET_ENGINE = engineNumber('HEALTH_QUIET_ENGINE');
 export const HEALTH_SENTINEL_ENGINE = engineNumber('HEALTH_SENTINEL_ENGINE');
 export const HISTORICAL_AUTHORS_ENGINE = engineNumber('HISTORICAL_AUTHORS_ENGINE');

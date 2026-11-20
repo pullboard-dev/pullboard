@@ -1,5 +1,5 @@
 /** Keep disposable boards out of the person's machine inventory [N26,N35]. */
-import { realpathSync } from 'node:fs';
+import { environmentAdapter } from '../../../env/index.js';
 import {
   homedir,
   tmpdir,
@@ -10,10 +10,13 @@ import {
   resolve,
   sep,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Resolve symlinked temporary roots as well as their spelling at the command line. */
 function physicalPath(path) {
-  try { return realpathSync(path); }
+  try { return fs.realpath(path); }
   catch { return resolve(path); }
 }
 
@@ -27,7 +30,7 @@ function within(root, directory) {
  * A registry itself inside temporary storage is isolated from the person inventory and may hold fixtures.
  * Otherwise registration is for durable projects, not temporary roots, tests, previews, or agent scratch.
  */
-export function projectRegistrationAllowed(root, env = process.env) {
+export function projectRegistrationAllowed(root, env = environmentAdapter().all()) {
   const temporary = [tmpdir(), '/tmp', '/private/tmp', '/var/tmp'].flatMap(path => [resolve(path), physicalPath(path)]);
   if (env.PULLBOARD_HOME && [resolve(env.PULLBOARD_HOME), physicalPath(env.PULLBOARD_HOME)]
     .every(path => temporary.some(directory => within(path, directory)))) return true;

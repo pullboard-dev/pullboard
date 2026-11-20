@@ -1,5 +1,7 @@
 /** A pulled job runs with its own machine home, so its test run never reads or takes the host's runner pools (#8361) [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,6 +45,42 @@ test('drive.machine-home.a-pulled-gate-shard-on: clause 2: a pulled gate shard o
   const { env, folder } = jobEnvironment(cache, 'gate-8217-shard-16', 'gate:8217:shard:16', { PATH: '/usr/bin:/bin' });
   assert.equal(env.PULLBOARD_MACHINE_HOME, join(env.HOME, '.pullboard'), 'the job\'s machine home sits in the job\'s own HOME');
   assert.ok(inside(folder, env.PULLBOARD_MACHINE_HOME));
+});
+
+test('drive.machine-home.temp-root-on-named-folder: clause 1: a host naming an existing folder in PULLBOARD_RUNNER_TMP_ROOT gets the job TMPDIR inside it, created empty, never passed on [test] [C7]', t => {
+  const cache = cacheFolder(t), root = join(cache, 'ramdisk');
+  mkdirSync(root);
+  const host = { PATH: '/usr/bin:/bin', PULLBOARD_RUNNER_TMP_ROOT: root };
+  const { env, temporary } = jobEnvironment(cache, 'gate-9', 'gate:9:shard:1', host);
+  assert.equal(env.TMPDIR, join(root, 'gate-9'), 'TMPDIR is the named folder joined with the job name');
+  assert.equal(temporary, env.TMPDIR, 'temporary is the same path, for the reap');
+  assert.ok(existsSync(temporary), 'the folder is made');
+  assert.equal(env.PULLBOARD_RUNNER_TMP_ROOT, undefined, 'the variable is not handed to the job');
+});
+
+test('drive.machine-home.playwright-path-passed: clause 1: a host PLAYWRIGHT_BROWSERS_PATH reaches the job environment unchanged [test] [C7]', t => {
+  const cache = cacheFolder(t);
+  const { env } = jobEnvironment(cache, 'gate-11', 'gate:11:shard:1', { PATH: '/usr/bin:/bin', PLAYWRIGHT_BROWSERS_PATH: '/opt/browsers' });
+  assert.equal(env.PLAYWRIGHT_BROWSERS_PATH, '/opt/browsers');
+});
+
+test('drive.machine-home.playwright-default-cache: clause 2: with no host value the job gets the host default browser cache folder when it exists, and none when it does not [test] [C7]', t => {
+  const cache = cacheFolder(t), hostHome = join(cache, 'hosthome'), browsers = join(hostHome, '.cache/ms-playwright');
+  const host = { PATH: '/usr/bin:/bin', HOME: hostHome };
+  assert.equal(jobEnvironment(cache, 'gate-12', 'gate:12:shard:1', host).env.PLAYWRIGHT_BROWSERS_PATH, undefined, 'no folder, no variable');
+  mkdirSync(browsers, { recursive: true });
+  assert.equal(jobEnvironment(cache, 'gate-13', 'gate:13:shard:1', host).env.PLAYWRIGHT_BROWSERS_PATH, browsers);
+  assert.equal(jobEnvironment(cache, 'gate-14', 'gate:14:shard:1', { ...host, PLAYWRIGHT_BROWSERS_PATH: '/opt/b' }).env.PLAYWRIGHT_BROWSERS_PATH, '/opt/b', 'a host value wins over the default');
+});
+
+test('drive.machine-home.temp-root-unset-or-missing: clause 2: with PULLBOARD_RUNNER_TMP_ROOT unset, missing or a file, TMPDIR stays the cache env folder tmp [test] [C7]', t => {
+  const cache = cacheFolder(t), file = join(cache, 'afile');
+  writeFileSync(file, 'x');
+  for (const root of [undefined, join(cache, 'nowhere'), file]) {
+    const { env, folder, temporary } = jobEnvironment(cache, 'gate-10', 'gate:10:shard:1', { PATH: '/usr/bin:/bin', PULLBOARD_RUNNER_TMP_ROOT: root });
+    assert.equal(env.TMPDIR, join(folder, 'tmp'), `root ${root}: TMPDIR stays under the cache`);
+    assert.equal(temporary, env.TMPDIR);
+  }
 });
 
 test('drive.machine-home.a-request-s-fixture-variable: clause 1: a job request\'s fixture variable is set in the job over the runner service\'s value, and a request with no env map adds nothing [test] [C7,#10848]', t => {

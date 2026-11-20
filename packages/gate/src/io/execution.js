@@ -59,15 +59,6 @@ import {
   randomUUID,
 } from 'node:crypto';
 import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   isAbsolute,
   join,
@@ -159,6 +150,8 @@ import {
   sandboxBlockedOperation,
 } from '../../../sandbox/index.js';
 import { storeName } from './store-names.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
@@ -191,7 +184,7 @@ export function committedTree(root) {
  */
 export function stampGreen(root, tree) {
   if (committedTree(root) !== tree) return false;
-  writeFileSync(gitPath(root, STAMP), `${tree}\n`);
+  fs.writeFile(gitPath(root, STAMP), `${tree}\n`);
   return true;
 }
 
@@ -204,7 +197,7 @@ export function stampGreen(root, tree) {
 export function isStampedGreen(root) {
   const tree = committedTree(root);
   const file = gitPath(root, STAMP);
-  return tree !== null && existsSync(file) && readFileSync(file, 'utf8').trim() === tree;
+  return tree !== null && fs.exists(file) && fs.readFile(file, 'utf8').trim() === tree;
 }
 
 
@@ -233,7 +226,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   // A pinned runner source is the exact commit the runner received, never this checkout's HEAD [C7,#3323].
   const timingSourceBefore = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const id = randomUUID();
   const profilePath = profileFile ?? join(directory, `${artifactPrefix}-${id}.profile.json`);
   const logPath = persistLog ? join(directory, `${artifactPrefix}-${id}.log`) : null;
@@ -280,7 +273,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const testOutcomes = committedTestOutcomes(root, proofSource?.head ?? pinnedSource?.head ?? headCommit(root),
     readTestOutcomes(safeLog(run.output ?? ''), id) ?? singleFileTapOutcomes(command, safeLog(run.output ?? '')), tryGit);
   const profiledRun = { ...run, sandboxBlocked, ...(testOutcomes ? { testOutcomes } : {}) };
-  if (logPath) writeFileSync(logPath, safeLog(run.output), { mode: 0o600 });
+  if (logPath) fs.writeFile(logPath, safeLog(run.output), { mode: 0o600 });
   const profile = writeTimingProfile(profilePath, {
     ...runTiming(profiledRun, command, root), ...(testOutcomes ? { testOutcomes } : {}), ...cacheProfile(run.output),
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
@@ -372,8 +365,8 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
         ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}),
         ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
-    mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    fs.mkdir(store, { recursive: true, mode: 0o700 });
+    fs.writeFile(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
@@ -476,7 +469,7 @@ function runTiming(run, command, root) {
   const profile = { ...timingFromOutput(run.output, timingRunner(command)), ...(shards ? { landingShards: shards } : {}) };
   if (!run.executionRunner) {
     // Node names a crashed file by the absolute path it ran; a local profile names files from the repository root.
-    const bases = [root, (() => { try { return realpathSync(root); } catch { return root; } })()];
+    const bases = [root, (() => { try { return fs.realpath(root); } catch { return root; } })()];
     const repoPath = path => {
       if (typeof path !== 'string' || !isAbsolute(path)) return path;
       const inside = bases.map(base => relative(base, path)).find(suffix => suffix && suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix));
@@ -712,8 +705,8 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
         : observedRunTiming(run, run.suiteTiming),
       ...(releaseRequest ? { participationDigest: releaseParticipationDigest(run.releaseParticipation) } : {}) });
     if (!receipt) return null;
-    mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    fs.mkdir(store, { recursive: true, mode: 0o700 });
+    fs.writeFile(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }
@@ -725,7 +718,7 @@ function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log 
   const before = committedTree(root);
   const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, timedShell, signal }];
   const { isGreen, output, seconds, profile, profilePath } = run;
-  writeFileSync(log, output);
+  fs.writeFile(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).
   if (!run.sandboxBlocked && kind !== 'suite') {
     // The positive control is a second run the caller executes the way it ran the gate, so it is awaited on a runner too.
@@ -739,7 +732,7 @@ function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log 
   const receiptId = run.sandboxBlocked ? null : leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditFiles, releaseRequest, receiptAt, gateLease });
   refuseSandboxBlocked(run);
   // The release producer validates full collection and every executor before it may stamp this tree.
-  if (kind !== 'suite' && !releaseRequest && rawRunGreen(run) && !config[VALUE_GATE] && before !== null && committedTree(root) === before) writeFileSync(gitPath(root, STAMP), `${before}\n`);
+  if (kind !== 'suite' && !releaseRequest && rawRunGreen(run) && !config[VALUE_GATE] && before !== null && committedTree(root) === before) fs.writeFile(gitPath(root, STAMP), `${before}\n`);
   return { isGreen, exitCode: run.exitCode, isCached: false, output, seconds, log, profile, profilePath, receiptId, environment: run.environment ?? null,
     ...(run.blockingVerdict ? { blockingVerdict: run.blockingVerdict, rawIsGreen: run.rawIsGreen, quarantineFailures: run.quarantineFailures } : {}),
     ...(releaseRequest ? { releaseParticipation: run.releaseParticipation ?? null } : {}),
