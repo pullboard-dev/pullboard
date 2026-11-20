@@ -60,9 +60,9 @@ export function localMilestoneAliases(root, board, id, ports) {
 }
 
 /** Withdraw through ordered moves, then remove every local milestone alias and report the result. */
-export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered, ports) {
+export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered, ports, { endGateJobs = false } = {}) {
   roadmapPorts(ports, ["milestones", "listApiProjects"]);
-  await ordered(ctx, board, 'withdraw', [id, { agentId: me.id, reason }]);
+  await ordered(ctx, board, 'withdraw', [id, { agentId: me.id, reason, ...(endGateJobs === true ? { endGateJobs } : {}) }]);
   const removals = milestoneReferencesToRemove(board, [id, ...localMilestoneAliases(ctx.info.root, board, id, ports)], ports);
   const left = removals.map(({ name }) => name);
   for (const { name, remove } of removals) {

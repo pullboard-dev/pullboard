@@ -178,8 +178,11 @@ console.log(JSON.stringify({aged,admittedAgain,admitted,probesAtAdmission,probes
     const db = queue(t), runner = { host: 'private-generation', slots: 1, browser: 0 };
     const first = identity(), second = identity();
     recordRunnerFailure(db, runner.host, 'worker-unresponsive', { recovery: first });
-    let finish;
-    const pending = recoverUnavailableRunners(db, [runner], { now: Date.now() + 2000, probe: () => new Promise(resolve => { finish = resolve; }) });
+    // The pass calls its probe a microtask after it starts (#11011), so the newer failure lands only once the probe is pending.
+    let finish, probing;
+    const called = new Promise(resolve => { probing = resolve; });
+    const pending = recoverUnavailableRunners(db, [runner], { now: Date.now() + 2000, probe: () => new Promise(resolve => { finish = resolve; probing(); }) });
+    await called;
     recordRunnerFailure(db, runner.host, 'cleanup-unverified', { recovery: second });
     finish({ healthy: true });
     assert.equal(await pending, false);

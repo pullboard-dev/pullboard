@@ -1,6 +1,8 @@
 /** Item folders left holding an unfinished merge, rebase or cherry-pick: named, never archived or crashed on [B3,C7]. */
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The operation a checkout was left in the middle of, or null when it holds none. Unmerged index entries are an
@@ -11,10 +13,10 @@ import { join } from 'node:path';
  * @returns {'merge'|'rebase'|'cherry-pick'|null}
  */
 export function unfinishedOperation(path, tryGit) {
-  if (!existsSync(path)) return null;
+  if (!fs.exists(path)) return null;
   const dir = tryGit(path, ['rev-parse', '--absolute-git-dir']);
   if (dir.status !== 0) return null;
-  const marked = name => existsSync(join(dir.stdout, name));
+  const marked = name => fs.exists(join(dir.stdout, name));
   if (marked('rebase-merge') || marked('rebase-apply')) return 'rebase';
   if (marked('CHERRY_PICK_HEAD')) return 'cherry-pick';
   if (marked('MERGE_HEAD')) return 'merge';

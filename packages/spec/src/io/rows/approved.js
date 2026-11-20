@@ -1,10 +1,4 @@
 /** Person approval guards staged approved-row rewrites and exposes stale frozen items [S19,V3]. */
-import {
-  existsSync,
-  mkdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   parseSpec,
@@ -21,6 +15,9 @@ import {
   configFromSource,
 } from '../../../../config/index.js';
 import { scratchFolder } from '../../../../config/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial', SIGNOFFS_FILE];
 
@@ -48,7 +45,7 @@ function rowSourceAt(root, revision, file, kind) {
 
 /** Read the shared decision index without opening the board's migrator or changing its evidence. */
 function boardApprovals(file, { openBoardReadOnly, rowDecisions, boardBusyError }) {
-  if (!file || !existsSync(file)) return [];
+  if (!file || !fs.exists(file)) return [];
   const startedAt = Date.now();
   let db;
   try { db = openBoardReadOnly(file); return rowDecisions({ db }); }
@@ -60,7 +57,7 @@ function boardApprovals(file, { openBoardReadOnly, rowDecisions, boardBusyError 
 function stagedApprovals(root, decisions) {
   const snapshot = scratchFolder('pullboard-staged-approval-');
   try {
-    mkdirSync(join(snapshot, '.pullboard'));
+    fs.mkdir(join(snapshot, '.pullboard'));
     for (const file of TRUST_FILES) {
       const staged = gitText(root, '', file);
       const before = gitText(root, 'HEAD', file);
@@ -68,7 +65,7 @@ function stagedApprovals(root, decisions) {
         throw new Refused('APPROVED_ROW_CHANGE', `${file} cannot change the established SSH trust anchor; restore its committed bytes`);
       }
       if (file.endsWith('/signers') && before !== null && staged === null) throw new Refused('APPROVED_ROW_CHANGE', 'SSH signers cannot be removed to bypass person approval; restore .pullboard/signers');
-      if (staged !== null) writeFileSync(join(snapshot, file), staged);
+      if (staged !== null) fs.writeFile(join(snapshot, file), staged);
     }
     const ledger = gitText(root, '', SIGNOFFS_FILE);
     const records = ledger?.split('\n').filter((line) => line.trim()).map(JSON.parse) ?? [];
@@ -76,7 +73,7 @@ function stagedApprovals(root, decisions) {
     verifySignedRecords(snapshot, [...records, ...signed]);
     const enabled = hasSignerFile(snapshot);
     return { records: enabled ? records.filter((record) => record.signature) : [], signed: enabled };
-  } finally { rmSync(snapshot, { recursive: true, force: true }); }
+  } finally { fs.rm(snapshot, { recursive: true, force: true }); }
 }
 
 /** Refuse each rewritten approved row unless its exact staged target has person authorization. */
