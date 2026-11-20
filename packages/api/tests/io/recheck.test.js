@@ -1,5 +1,7 @@
 /** A main-test job names the cases a red file fails on main, and a red it cannot read keys no receipt [C7,P7]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
@@ -166,8 +168,10 @@ test('api.io-recheck.seed-once-per-main: clause 1: with gate.seedWideMainTests o
   assert.deepEqual(seedWideMainTests(second, { main, now }), [], 'main has not moved, so nothing is queued again');
   assert.equal(queries.some(sql => /job_step/u.test(sql)), false, 'the repeat reads no job_step row');
   // A new main sha seeds again.
-  project.put('tests/next.txt', 'next');
-  const moved = project.commit();
+  writeFileSync(join(project.repo, 'next.txt'), 'next');
+  project.git(project.repo, 'add', '-A');
+  project.git(project.repo, 'commit', '-qm', 'chore: move main');
+  const moved = project.git(project.repo, 'rev-parse', 'HEAD');
   const movedTree = project.git(project.repo, 'rev-parse', 'HEAD^{tree}');
   const again = seedWideMainTests(reopened(t, project), { main: moved, now });
   assert.ok(again.includes(`main-test:${movedTree}:tests/wide.test.js:node --test`), 'a new main sha seeds the wide files again');
