@@ -228,7 +228,7 @@ export function parseCommandArgs(argv) {
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), ...(argv[0] === 'flow' ? { apply: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
