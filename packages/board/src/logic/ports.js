@@ -154,7 +154,7 @@ function deferred(load, names) { return Object.fromEntries(names.map(name => [na
 
 const seal = onDemand(() => requireModule('../io/seal.js'));
 const healthPackage = onDemand(() => requireModule('../../../health/index.js'));
-const gatePackage = onDemand(() => requireModule('../../../gate/index.js'));
+const gatePackage = onDemand(() => requireModule('../../../gate/heavy.js'));
 const sandboxPackage = onDemand(() => requireModule('../../../sandbox/index.js'));
 const flakesPackage = onDemand(() => requireModule('../../../flakes/index.js'));
 const personPackage = onDemand(() => requireModule('../../../person/index.js'));

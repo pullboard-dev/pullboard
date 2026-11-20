@@ -70,7 +70,8 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
     if (/^TAP version \d+\s*$/u.test(line)) version = true;
     const failed = /^\s*not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
     if (failed) {
-      active = { name: failed[1].replace(/\s+#.*$/u, ''), file: null };
+      // Strip the TAP directive on the raw line, then undo Node's TAP escapes (\# and \\) so the name matches its outcome.
+      active = { name: failed[1].replace(/\s+#.*$/u, '').replace(/\\([\\#])/gu, '$1'), file: null };
       if (/^(?:\.\/)?(?:test|tests)\/[^\r\n]+\.(?:[cm]?js|ts|py)$/u.test(active.name)) active.file = active.name.replace(/^\.\//u, '');
       failures.push(active);
       continue;

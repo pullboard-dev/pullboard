@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../../../index.js';
-import { testClosures } from '../../../index.js';
+import { selectAffectedTests } from '../../../heavy.js';
+import { testClosures } from '../../../heavy.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 
 /** Build actual immutable Git trees; no fixture module is imported or executed by selection. */

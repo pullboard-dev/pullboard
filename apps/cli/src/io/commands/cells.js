@@ -1,5 +1,5 @@
 /** The pullboard cells command: each cell sealed or unsealed, and the commit that broke an unsealed one, read-only [C7,SC1,SC16]. */
-import { sealedCells } from '../../../../../packages/gate/index.js';
+import { sealedCells } from '../../../../../packages/gate/heavy.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { context } from '../context.js';
 

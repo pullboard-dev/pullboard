@@ -1,17 +1,20 @@
 /** Machine-local seat command timing; never placed in a board move or relay [C7,N2]. */
+import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { fileSystemAdapter } from '../../../fs/index.js';
-
-const fs = fileSystemAdapter();
 
 /** The seat and item an item folder's private marker names, or null. */
 function itemMarker(gitDir) {
   try {
-    const marker = JSON.parse(fs.readFile(join(gitDir, 'pullboard-item.json'), 'utf8'));
+    const marker = JSON.parse(readFileSync(join(gitDir, 'pullboard-item.json'), 'utf8'));
     return typeof marker.seat === 'string' && Number.isSafeInteger(marker.item) ? marker : null;
   } catch { return null; }
 }
@@ -21,18 +24,18 @@ export function timingSeat(cwd) {
   try {
     // Find the worktree's Git metadata without starting Git, including linked worktrees.
     let root = resolve(cwd);
-    while (!fs.exists(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
+    while (!existsSync(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
     const marker = join(root, '.git');
     let gitDir = marker;
-    if (!fs.stat(marker).isDirectory()) {
-      const match = /^gitdir:\s*(.+)\s*$/u.exec(fs.readFile(marker, 'utf8').trim());
+    if (!statSync(marker).isDirectory()) {
+      const match = /^gitdir:\s*(.+)\s*$/u.exec(readFileSync(marker, 'utf8').trim());
       if (!match) return null;
       gitDir = resolve(root, match[1]);
     }
     const commonFile = join(gitDir, 'commondir');
-    const common = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile, 'utf8').trim()) : gitDir;
+    const common = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
     const file = join(common, 'pullboard', 'board.sqlite');
-    if (!fs.exists(file)) return null;
+    if (!existsSync(file)) return null;
     const db = new DatabaseSync(file, { readOnly: true });
     try {
       // The seat registered at this exact path is found by index; only a moved or aliased path reads every seat.
@@ -42,7 +45,7 @@ export function timingSeat(cwd) {
       const named = early && db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(early.seat);
       if (named) return { seat: named.agent_id, item: early.item, file: join(common, 'pullboard', 'seat-timing.jsonl'), board: file };
       const rows = exact ? [exact] : db.prepare('SELECT agent_id, agent_path FROM agent').all();
-      const found = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return fs.realpath(row.agent_path) === fs.realpath(root); } catch { return resolve(row.agent_path) === resolve(root); } });
+      const found = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
       // An item folder names its seat and item in its private marker, so its commit hooks time under that seat (#5719).
       const marker = found ? null : itemMarker(gitDir);
       const seat = found ?? (marker && db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(marker.seat));
@@ -56,7 +59,7 @@ export function timingSeat(cwd) {
 
 /** Append one bounded record atomically; telemetry never changes command behavior. */
 export function appendSeatTiming(file, record) {
-  try { fs.mkdir(dirname(file), { recursive: true }); fs.appendFile(file, JSON.stringify(record) + '\n', { mode: 0o600 }); } catch { /* A read-only checkout must still work. */ }
+  try { mkdirSync(dirname(file), { recursive: true }); appendFileSync(file, JSON.stringify(record) + '\n', { mode: 0o600 }); } catch { /* A read-only checkout must still work. */ }
 }
 
 /** Record start immediately and finish even when the caller rejects. */

@@ -2,6 +2,9 @@
 import { posix } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 
+/** The most the png files of one runner job may total together: 4 MiB. */
+export const SCREENSHOT_MAX_BYTES = 4 * 1024 * 1024;
+
 /** The directory a test declares for its screenshots, relative to the job's checkout. */
 export const SCREENSHOT_DIRECTORY = 'screenshots';
 
