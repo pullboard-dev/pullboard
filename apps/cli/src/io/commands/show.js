@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/jobs/index.js */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
@@ -205,7 +206,7 @@ export async function run(io, { first, values }) {
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
-  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+  const environment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN')
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
     try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
