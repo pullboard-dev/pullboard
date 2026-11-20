@@ -355,18 +355,18 @@ function redShard(part) {
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted }) => {
+  const parts = shards.map(({ job, posted, ended = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
     return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null };
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
   const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
-  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? (part.ended ? `ended: ${part.ended}` : 'no proof phase')).slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
@@ -400,7 +400,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const signatures = { signatures: ports.settleOnMainReceipt === true };
-  const parts = shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) }));
+  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, ended: posted ? null : endedDetail(board.db, row.job_id) }; });
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null;
   try {
@@ -441,6 +441,16 @@ export function applyShardReceipt(board, { job }, ports = {}) {
       text: `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.` });
   }
   return applied;
+}
+
+/**
+ * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
+ * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
+ */
+function endedDetail(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
+  if (!row) return null;
+  try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
@@ -1008,10 +1018,11 @@ function startPulledComparison(board, id, agentId) {
 let landingStarter = null;
 
 /**
- * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }).
+ * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }); item is
+ * null when a settled land job starts the lander for every waiting item (#12185).
  * Why a provider: offering a land job publishes the item's ref and reads the trunk with git from the CLI's lander, so
  * `pullboard serve` hands it in and the board API keeps no import of the CLI [C7,#7948].
- * @param {((request: { root: string, item: number }) => unknown) | null} start
+ * @param {((request: { root: string, item: number | null }) => unknown) | null} start
  */
 export function provideLandingStart(start) {
   landingStarter = typeof start === 'function' ? start : null;
@@ -1023,14 +1034,26 @@ export function provideLandingStart(start) {
  * so nothing offered its land job and it waited accepted for good (#7948). A failed start is logged with its next
  * step; the coordinator's `pullboard land` then offers the job.
  */
-function startReceiptLanding(board, id) {
+function startReceiptLanding(board, id, what = `land job for #${id} not offered after its gate receipt`) {
   if (!landingStarter || !board.gitRoot) return;
   const start = landingStarter, root = board.gitRoot;
   setImmediate(() => {
     Promise.resolve().then(() => start({ root, item: id })).catch(error => {
-      process.stderr.write(`${new Date().toISOString()} land job for #${id} not offered after its gate receipt: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
+      process.stderr.write(`${new Date().toISOString()} ${what}: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
     });
   });
+}
+
+/**
+ * Whether the board's line settings batch landings: line.landingBatchSize above 1 or line.collisionFreeBatch on. Why:
+ * with batching on the lander waits while a land job is open, so the job's settle must start it again for the items
+ * accepted meanwhile [C7,#12185]. A line setting that cannot be read leaves batching off, as the defaults do.
+ */
+function batchesLandings(board) {
+  let line;
+  try { line = store.lineSettings(board); }
+  catch { return false; }
+  return (Number.isSafeInteger(line.landingBatchSize) && line.landingBatchSize > 1) || line.collisionFreeBatch === true;
 }
 
 /** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */
@@ -1409,7 +1432,16 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
  * @param {{ job: string, receipt: Record<string, any> }} posted
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
-export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
+export function applyLandingReceipt(board, posted, ports = {}) {
+  const answer = applyLandingOutcome(board, posted, ports);
+  // With landing batches on, the settled job starts the lander once more, after main-moved, so the items accepted while
+  // it ran go out together as the next job; with the line defaults nothing more runs [C7,#12185].
+  if (landingStarter && board.gitRoot && batchesLandings(board)) startReceiptLanding(board, null, `land offer after land job ${posted.job} settled not started`);
+  return answer;
+}
+
+/** Apply one land job's receipt to its items: returned reds, retries, merged items and the main-moved receipt. */
+function applyLandingOutcome(board, { job, receipt }, ports) {
   // With runs_store on the job's offered row is in the runs file, which the queue holds [B2,P7,#9114].
   const offered = JSON.parse((ports.queue ? ports.queue.runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));

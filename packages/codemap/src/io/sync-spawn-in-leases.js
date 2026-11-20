@@ -11,8 +11,7 @@
  *
  * @file-local Reads the config and the modules reached from its entries, through `read` when a caller supplies one.
  */
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { lex } from '../../../kernel/index.js';
@@ -159,13 +158,13 @@ export function syncSpawnProblems(root, options = {}) {
  */
 export function writeSyncSpawnBaseline(root) {
   const file = join(root, CONFIG);
-  const config = JSON.parse(readFileSync(file, 'utf8'));
+  const config = JSON.parse(fileSystemAdapter().readFile(file, 'utf8'));
   const today = syncSpawnReport(root);
   const lowered = {};
   for (const [path, allowed] of Object.entries(config.baseline)) {
     const actual = today[path]?.lines.length ?? 0;
     if (actual > 0) lowered[path] = Math.min(allowed, actual);
   }
-  writeFileSync(file, `${JSON.stringify({ ...config, baseline: lowered }, null, 2)}\n`);
+  fileSystemAdapter().writeFile(file, `${JSON.stringify({ ...config, baseline: lowered }, null, 2)}\n`);
   return syncSpawnProblems(root);
 }

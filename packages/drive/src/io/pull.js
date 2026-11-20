@@ -458,12 +458,15 @@ export function requestedJobEnvironment(requested) {
  * @param {string} job - The job id, carried as PULLBOARD_RUNNER_JOB.
  * @param {NodeJS.ProcessEnv} [host] - The runner service's environment, read for PATH and the passed names only.
  * @param {unknown} [requested] - The job request's env map: fixture switches the job's own caller set, over the host's [#10848].
- * @returns {{ env: Record<string, string>, folder: string }}
+ * @returns {{ env: Record<string, string>, folder: string, temporary: string }}
  */
 export function jobEnvironment(cache, name, job, host = environmentAdapter().all(), requested = null) {
   const asked = requestedJobEnvironment(requested);
-  const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
+  // A host that names an existing folder in PULLBOARD_RUNNER_TMP_ROOT, such as a RAM disk, keeps the job's TMPDIR there instead of under the cache, so test temp churn stays off the disk's file-event log. Read from host only, never passed on.
+  const root = host.PULLBOARD_RUNNER_TMP_ROOT, onNamed = typeof root === 'string' && root !== '' && existsSync(root) && statSync(root).isDirectory();
+  const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = onNamed ? join(root, name) : join(folder, 'tmp');
   try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
+  if (onNamed) { try { rmSync(temporary, { recursive: true, force: true, maxRetries: 3 }); } catch { /* the job starts in whatever is left */ } }
   // One cache per runner that every job's keyed caches outlive the job in; a job's own HOME and TMPDIR start empty (#8233).
   const shared = join(cache, 'shared-cache');
   for (const path of [home, temporary, shared]) mkdirSync(path, { recursive: true, mode: 0o700 });
@@ -472,7 +475,7 @@ export function jobEnvironment(cache, name, job, host = environmentAdapter().all
   // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
   // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
   const machine = join(home, '.pullboard');
-  return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
+  return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder, temporary };
 }
 
 /**
@@ -733,6 +736,9 @@ export function heldKinds() {
   };
 }
 
+/** The board refusals that end one job, never the serve: the job is released and its slot claims again [C7]. */
+const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCED', 'BOARD_BUSY', 'HOP_HELD']);
+
 /**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
  * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
@@ -821,7 +827,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
   };
   /** Call the board until it answers; only the board's own refusal ends the call. */
-  const reliably = async body => {
+  const reliably = async call => {
+    // One claim key names one claim: every retry of that claim sends it again, so the board hands back the lease the first try took [C7].
+    const body = call.action === 'claim' ? { ...call, key: randomBytes(12).toString('hex') } : call;
     for (;;) {
       if (signal?.aborted) throw new Refused('RUNNER_STOPPED', 'the runner was stopped');
       try { const answer = await queueCall(endpoint, body, fetchImpl); delay = firstMs; failures = 0; return answer; }
@@ -1019,7 +1027,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const result = await running.done.finally(() => { signal?.removeEventListener('abort', stopping); });
     const lost = isLost();
     // Every process the job started ends before its receipt posts, a detached one too: its group, then its marker (#5805).
-    const survivors = await reapJob(claim.job, running.pid, { claim: tag, folder: [job.folder, checkout.folder], graceMs: reapMs });
+    const survivors = await reapJob(claim.job, running.pid, { claim: tag, folder: [job.folder, job.temporary, checkout.folder], graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
     // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
@@ -1065,7 +1073,13 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const slot = free.shift();
     let task, known;
     const learned = new Promise(resolve => { known = resolve; });
-    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, error => { failure ??= error; })
+    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, async error => {
+      // A refusal that belongs to this one job (its receipt, its write, its hop) hands the job back and the serve keeps its other slots running [C7].
+      if (!(error instanceof Refused) || !PER_JOB_REFUSALS.has(error.code)) { failure ??= error; return; }
+      say(`releasing ${claim.job}: [${error.code}] ${error.message}`);
+      await queueCall(endpoint, { action: 'release', job: claim.job, runner: id, token: claim.token, reason: `[${error.code}] ${error.message}` }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      jobs.push({ job: claim.job, outcome: 'released' });
+    })
       .finally(() => { ledger.drop(claim.kind); active.delete(task); free.push(slot); free.sort((a, b) => a - b); });
     active.add(task);
     task.learned = learned;
@@ -1094,7 +1108,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         const admitted = admit({ running: active.size, held: ledger.list() });
         if (!admitted) return null;
         const except = Array.isArray(admitted?.except) && admitted.except.length ? { except: admitted.except } : {};
-        const claimed = await reliably({ action: 'claim', runner: id, capabilities, ...except, jobs: slots, cores, ram: totalmem() });
+        const claimed = await reliably({ action: 'claim', runner: id, place: { host, root: cache }, capabilities, ...except, jobs: slots, cores, ram: totalmem() });
         if (claimed.claim) ledger.add(claimed.claim.kind);
         return claimed;
       });
