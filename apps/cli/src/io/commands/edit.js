@@ -10,6 +10,7 @@ import { guardBar } from '../../../../../packages/state/index.js';
 import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
+import { requireLinkedForeign } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
@@ -99,6 +100,8 @@ export async function run(io, args) {
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
+  // A prerequisite on another repository needs a live link to it; items already filed stay as they are [XB1].
+  if (change.after?.length) requireLinkedForeign(board, change.after);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'edit', item: id,
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
   if (confirmed !== null) return confirmed;
