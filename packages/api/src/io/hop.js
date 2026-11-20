@@ -1,8 +1,8 @@
 /** A pulled gate job's fenced hop: the runner that claims an item's gate job owns its gate_hop row, through the hop table and the store's compare-and-set [C7,#8352]. */
 import { Refused } from '../../../kernel/index.js';
-import { gateHopMove } from '../../../store/index.js';
-import { ensureGateHopTable } from '../../../store/index.js';
-import { readGateHop } from '../../../store/index.js';
+import { gateHopMove } from './store.js';
+import { ensureGateHopTable } from './store.js';
+import { readGateHop } from './store.js';
 import { LEASE_MS } from '../../../jobs/index.js';
 import { leaseLapsed } from '../../../jobs/index.js';
 

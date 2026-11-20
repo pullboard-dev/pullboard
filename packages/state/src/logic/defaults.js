@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  SLICE_PATHS: 'revert the outside path, or ask the parent holder for a slice that declares it',
   BOARD_LANDS_ACCEPTED: 'check pullboard next for other work; accepted work lands automatically',
   TOOL_BUILD_UNAVAILABLE: 'restore the published build Git objects or ask the coordinator to promote a gated build',
   TOOL_BUILD_REQUIRED: 'ask the coordinator to run pullboard tool-build promote <commit> --gate-receipt <gate-id>',
@@ -68,6 +69,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_FOLDER_UNFINISHED: 'shout the coordinator to finish or abort the operation in that item folder, and build another item meanwhile',
   BROWSER_UNDECLARED: 'make the first line of the named test file // pullboard: browser, then run it again',
   BAD_IDLE_REASON: 'run next again and use its structured idle observation',
+  BAD_IDLE_TIMEOUT: 'record the whole minutes waited and the non-empty thing awaited, at most 200 characters, on the next empty answer',
+  AFTER_WITHDRAWN: 'name a live item in --after, or leave --after off: a withdrawn item never verifies, so this item would wait forever',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
   CHECK_REQUIRED: 'intake a pull request with --criterion "behavior" --check "command" from the trusted coordinator checkout',
   ROW_VERIFY_RECEIPT: 'run pullboard spec verify <id> accepted|rejected --reason "why" before applying its verdict',
@@ -305,6 +308,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "EVENT_LOG_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "EXPORT_EXISTS": "name an empty folder for the export",
   "FLAG_NOT_ALLOWED": "drop the flag; pullboard help spec lists what each spec command takes",
+  "FACT_QUOTE_UNCITED": "if the quote says what the row claims, run the accept again with that quote inside --reason",
+  "FOREIGN_UNLINKED": "link the named repository with pullboard link <repo>, or drop that repo#id from --after",
   "GATE_ARGUMENT": "use pullboard resources for status, or pullboard gate with no extra words to run the gate",
   "GATE_SLOT_LEASE_LOST": "let the parent process take the gate slot again, then restart the child",
   "GATE_SLOT_LEASE_REQUIRED": "start the child test process with the live gate lease",
@@ -645,7 +650,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_REPROVE_RED: 'read the failure named in the item\'s note, fix it in the reopened item, then submit it again',
   NO_STORE_WRITER: 'update this pullboard to a build that has the writer for that operation, or ask the coordinator',
   RULING_CAUSE: 'give --cause one of the causes the refusal lists, or leave it out',
-  REVIEW_RELEASE_TWICE: 'a seat of another model family reviews the item, or ask the coordinator to rule'
+  REVIEW_RELEASE_TWICE: 'a seat of another model family reviews the item, or ask the coordinator to rule',
+  PROVEN_BREAK_REQUIRED: 'run pullboard verify <id> accept again with --broke "<the file, command or case you broke and the failure it showed>"'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

@@ -9,6 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
+import { sweepDerivedState } from '../../../../../packages/health/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { realGitAdapter } from '../../../../../packages/git/index.js';
@@ -23,9 +24,13 @@ import { temporaryDirectory } from '../board.js';
 
 /**
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
- * a git adapter wrapper that logs each git start, and the offer's logged lock seam. Returns what the offer did.
+ * a git adapter wrapper that logs each git start, and the offer's logged  lock seam. Returns what the offer did. With `before`, the case seeds board rows first. With `derived`, the machine turns health.derivedState on (`setting`, default true) and a table is swept
+ * before the offer at trunk (`swept: 'current'`, the default) or at another commit (`'older'`), holding `verdicts` by item id (a state, or null for fresh; an item left out gets null).
+ * Stale reopens go straight to the store, and `beforeLock` is the number of git starts before the lock was taken.
+ * With `ledger`, the case seeds test_result rows first: `reds` files recorded failing at main's commit and `filler` passing rows,
+ * and every statement the offer prepares on the board that names test_result is logged as `SQL test_result`, ordered against the lock [C7,#12533].
  */
-export async function offerWithLog(t, { concurrentOffer = false } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, derived = null, paces = {}, lapses = {}, held = [], config = {}, before = null, ledger = null } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -39,7 +44,8 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
   const main = git('rev-parse', 'HEAD');
   const board = openBoard(boardFile);
   t.after(() => closeBoard(board));
-  const FREEZE = item => ({ text: item.item_title, digest: `digest:${item.item_title}` });
+  // A frozen bar is JSON and the pace is read from it, as itemPace reads it; a title alone stays the plain text it was.
+  const FREEZE = item => ({ text: paces[item.item_id] ? JSON.stringify({ criterion: item.item_title, pace: paces[item.item_id] }) : item.item_title, digest: `digest:${item.item_title}` });
   const commits = {};
   for (const [number, name] of [[1, 'a'], [2, 'b']]) {
     git('checkout', '-q', '-b', `item-${number}`, main);
@@ -59,9 +65,18 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
     submitFixture(board, id, { agentId: `web-${number}`, commit: commits[number], tree: git('rev-parse', `${commits[number]}^{tree}`) });
     store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'accepted for the offer test', head: commits[number], digest: `digest:offer outside lock ${number}`, policy: 'any' });
   }
+  // Infrastructure failures a head item already met: item id -> lapsed landing leases counted on the board.
+  for (const [id, count] of Object.entries(lapses)) for (let lapse = 0; lapse < count; lapse += 1) store.countLeaseLapse(board, Number(id));
+  // Items a landing red on their own tests left held: item id list.
+  for (const id of held) store.holdItem(board, id, { agentId: 'coordinator', reason: 'a landing red on its own tests' });
+  // Rows a case seeds on the board before the offer runs (a post-land test job, an item mid pull-out): before({ board, main }).
+  before?.({ board, main });
+  // Ledger rows the offer's red-now read finds: red files failing at main, and passing filler rows that only make the read big.
+  if (ledger) seedLedger(board, main, ledger);
   // The offer reads machine settings from this private home: parallel gates on, so each entry's changed files are read.
   process.env.PULLBOARD_MACHINE_HOME = home;
-  fixtureMachineSettings(home, { landing: { parallelGates: true } });
+  fixtureMachineSettings(home, { landing: { parallelGates: true }, ...(derived && derived.setting !== false ? { health: { derivedState: true } } : {}) });
+  if (derived) sweepDerivedState(board, { mainCommit: derived.swept === 'older' ? '0'.repeat(40) : main, enabled: true, listItems: target => store.listItems(target, { all: true }), verdictState: item => derived.verdicts?.[item.item_id] ?? null, gateAtHead: () => null });
   // The git adapter seam logs each git start (the real adapter spawns an absolute binary, so a PATH shim sees nothing); the lock seam logs where the lock is held, so the log orders git against the lock.
   const log = join(home, 'git-and-lock.log');
   const mark = line => appendFileSync(log, `${line}\n`);
@@ -73,18 +88,39 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
       return underBoardWriteLock(target, work);
     } finally { mark('LOCK_EXIT'); }
   };
-  const policy = { config: { flakes: { rerun: true } }, commit: main };
+  const policy = { config: { flakes: { rerun: true }, ...config }, commit: main };
   const logged = { spawnSync: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.spawnSync(args, options); },
     execFileSync: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.execFileSync(args, options); },
     spawn: (args, options) => { mark(`git ${args[0]}`); return realGitAdapter.spawn(args, options); } };
-  const result = await withGitContractAdapter(logged, () => offerPulledLanding({ io: { say() {} }, file: boardFile }, directory,
+  const said = [];
+  // The statement seam: a test_result read the offer prepares is logged where it happens, inside or outside the lock.
+  const prepare = board.db.prepare, own = Object.hasOwn(board.db, 'prepare');
+  const restore = () => { if (own) board.db.prepare = prepare; else delete board.db.prepare; };
+  if (ledger) board.db.prepare = function logged(sql, ...rest) {
+    if (/\btest_result\b/u.test(String(sql))) mark('SQL test_result');
+    return prepare.call(this, sql, ...rest);
+  };
+  t.after(() => { if (ledger) restore(); });
+  const result = await withGitContractAdapter(logged, () => offerPulledLanding({ io: { say: line => said.push(line) }, file: boardFile }, directory,
     { mainPolicy: () => policy, listItems: store.listItems, checkedLandingCommit: (_board, item) => item.item_commit, pairPrefix: () => 'prefix' },
-    { local: async () => ({ running: true }), board, lock }));
+    { local: async () => ({ running: true }), board, lock, write: async (operation, args) => store[operation](board, args[0], args[1]) }));
+  if (ledger) restore();
   const lines = readFileSync(log, 'utf8').trim().split('\n');
-  const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
+  const jobs = board.db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, rowid").all().map(job => {
     const offered = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job.job_id);
     return JSON.parse(offered.payload).payload;
   });
-  return { result, lines, jobs };
+  const beforeLock = lines.slice(0, Math.max(lines.indexOf('LOCK_ENTER'), 0)).filter(line => line.startsWith('git ')).length;
+  return { result, lines, jobs, board, main, beforeLock, said, home };
 }
 
+/** A 64-hex key for ledger row `index` under `salt`, so seeded rows never collide on the ledger's unique keys. */
+const ledgerKey = (salt, index) => `${salt}${index.toString(16)}`.padStart(64, '0');
+
+/** Seed `reds` (file names) failing at `main` and `filler` passing rows on distinct files in one ledger batch each [C7,#12533]. */
+function seedLedger(board, main, { reds = [], filler = 0 }) {
+  const context = 'c'.repeat(64);
+  store.recordTestResults(board.db, { receipt: 'fixture-red', origin: 'fixture', commit: main, at: 2_000, rows: reds.map((file, index) => ({ file, inputKey: ledgerKey('a', index), command: 'proof', context, status: 'fail' })) });
+  const rows = Array.from({ length: filler }, (_, index) => ({ file: `filler/${index}.test.js`, inputKey: ledgerKey('b', index), command: 'proof', context, status: 'pass' }));
+  if (rows.length) store.recordTestResults(board.db, { receipt: 'fixture-filler', origin: 'fixture', commit: main, at: 1_000, rows });
+}

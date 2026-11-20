@@ -4,6 +4,7 @@ import { fileSystemAdapter } from '../../../fs/index.js';
 const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { finishJob } from '../../../jobs/index.js';
 import { scratchBase } from '../../../kernel/light.js';
 import { environmentAdapter } from '../../../env/index.js';
 import { keyedResult } from './keyed.js';
@@ -102,7 +103,8 @@ export async function screenCommit(repo, { commit, base, staticCommand = null },
 /**
  * Run a sprint item's screen as a keyed job and record its receipt as the job's result: the stored receipt when any
  * driver already screened this commit, digest and base, else screened here under the job's lease.
- * Items at any other pace are never screened, so steady boards never see a screen job.
+ * Items at any other pace are never screened, so steady boards never see a screen job. Once the receipt is stored the job
+ * ends at done with no lease, as a finished landing does.
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {{ repo: string, item: { id: number, pace?: string | null, commit: string, digest?: string | null }, base: string, owner: string,
@@ -113,6 +115,9 @@ export async function runScreenJob(db, { repo, item, base, owner, staticCommand 
   if (!screenQueued(item)) return { state: 'skipped' };
   if (typeof recheck !== 'function') throw new Refused('SCREEN_RECHECK_MISSING', 'A screen needs the trusted range re-check.', 'pass { recheck: recheckRange } from the commits cell');
   const at = { commit: item.commit, digest: item.digest ?? null, base };
-  return keyedResult(db, { kind: SCREEN_KIND, key: screenKey(at), owner, now, runs,
+  const ran = await keyedResult(db, { kind: SCREEN_KIND, key: screenKey(at), owner, now, runs,
     produce: async () => screenReceipt({ item: item.id, ...at, ...await screenCommit(repo, { ...at, staticCommand }, { recheck }), leased: true }) });
+  // A stored receipt ends the job at done and frees its lease, so open-job counts and lease sweeps stop seeing it [#12196].
+  if (ran.state !== 'pending') finishJob(runs?.db ?? db, ran.job, owner, { now: now() });
+  return ran;
 }

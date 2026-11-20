@@ -1,12 +1,5 @@
 #!/usr/bin/env node
 /** Report cell import edges with --report, lower the ceilings with --write, or refuse an undeclared new cross-cell import or deep import [C7]. */
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
 import { spawn } from 'node:child_process';
 import { gitSpawn } from '../../../git/index.js';
 import {
@@ -28,6 +21,8 @@ import {
   packageAppReport,
 } from './edges/package-app.js';
 import { doorMatchesMain } from './edges/main-tree.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /**
  * The per-file cross-cell import ceilings, a committed listing this module writes with --write and so owns.
@@ -39,7 +34,7 @@ const CEILINGS = new URL(`../../../../${CELLS_EDGES_CEILINGS}`, import.meta.url)
 
 /** The committed cells-edges ceiling: file counts, cell rows and each package file's apps, for tests in other cells to assert on without reading the data file by path [C7]. */
 export function cellsEdgesCeiling() {
-  return JSON.parse(readFileSync(CEILINGS, 'utf8'));
+  return JSON.parse(fs.readFile(CEILINGS, 'utf8'));
 }
 
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
@@ -93,9 +88,9 @@ const LIGHT_DOOR_WIDE_MARGIN_MS = 25;
 export function lightDoorsOf(root) {
   const doors = [];
   try {
-    const index = JSON.parse(readFileSync(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8'));
+    const index = JSON.parse(fs.readFile(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8'));
     for (const row of index.cells ?? []) {
-      const cell = JSON.parse(readFileSync(resolve(root, row.file), 'utf8'));
+      const cell = JSON.parse(fs.readFile(resolve(root, row.file), 'utf8'));
       if (typeof cell.lightFrontDoor === 'string') doors.push(cell.lightFrontDoor);
     }
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -170,7 +165,7 @@ export async function mainRootOf(root) {
   });
   if (!out) return undefined;
   const main = resolve(out, '..');
-  return main === resolve(root) || !existsSync(main) ? undefined : main;
+  return main === resolve(root) || !fs.exists(main) ? undefined : main;
 }
 
 /**
@@ -188,7 +183,7 @@ export async function mainRootOf(root) {
  * @returns {Promise<{ candidate: number, main: number | undefined }>}
  */
 async function measureAgainstMain(root, door, mainRoot) {
-  const hasMain = mainRoot !== undefined && existsSync(resolve(mainRoot, door));
+  const hasMain = mainRoot !== undefined && fs.exists(resolve(mainRoot, door));
   let candidate = Infinity, main = Infinity;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     candidate = Math.min(candidate, await loadOnceMs(root, door));
@@ -318,7 +313,7 @@ export function forwardedEdges(file, source, readSource) {
 
 /** The cells plan, or an empty one when the tree has none. */
 function planOf(root) {
-  try { return JSON.parse(readFileSync(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8')); }
+  try { return JSON.parse(fs.readFile(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   return {};
 }
@@ -349,11 +344,11 @@ export function edgeFileName(edge) {
 /** Each `.json` file in the edge folder with the edge it declares, or null when it declares none; a tree without the folder has none. */
 function edgeFiles(root) {
   let names;
-  try { names = readdirSync(resolve(root, EDGE_FILES)); }
+  try { names = fs.list(resolve(root, EDGE_FILES)); }
   catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return []; throw error; }
   return names.filter(name => name.endsWith('.json')).sort().map(name => {
     let edge = null;
-    try { edge = JSON.parse(readFileSync(resolve(root, EDGE_FILES, name), 'utf8'))?.edge ?? null; } catch { /* reported by edgeFileProblems */ }
+    try { edge = JSON.parse(fs.readFile(resolve(root, EDGE_FILES, name), 'utf8'))?.edge ?? null; } catch { /* reported by edgeFileProblems */ }
     return { file: `${EDGE_FILES}/${name}`, edge: typeof edge === 'string' && /^[^\s>]+->[^\s>]+$/u.test(edge) ? edge : null };
   });
 }
@@ -388,7 +383,7 @@ export function edgeFileProblems(root) {
  * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options] - `edgesOf` lets a caller answer a file's edges from a cache.
  * @returns {{ files: Record<string, { cells: number, deep: number, edges: { from: string, to: string, deep: boolean, line: number }[] }>, cells: Record<string, { imports: string[], deepImporters: number }>, packageApps: ReturnType<typeof packageAppReport> }}
  */
-export function cellsEdgeReport(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
+export function cellsEdgeReport(root, { files, read = file => fs.readFile(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const declared = declaredEdges(root);
   const names = (files ?? walk(root, SOURCE)).filter(file => SOURCE.test(file) && !TESTISH.test(file));
   const result = { files: {}, cells: {}, packageApps: packageAppReport(names, read, edgesOf) };
@@ -432,10 +427,10 @@ export function ceilingsOf(current) {
  * Refuse a file or cell whose undeclared edges grew past its ceiling, naming the plan declaration that would allow it.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges>, ceilings?: ReturnType<typeof ceilingsOf> }} [options] - `files` limits the check to those files (the pre-commit run).
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges>, ceilings?: ReturnType<typeof ceilingsOf>, rule?: { cellOrder?: string[], upwardEdgesGrandfathered?: string[] } }} [options] - `rule` is passed to the upward-edge check; `files` limits the check to those files (the pre-commit run).
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.parse(readFileSync(CEILINGS, 'utf8')) } = {}) {
+export function cellsEdgeProblems(root, { files, read, edgesOf, rule, ceilings = JSON.parse(fs.readFile(CEILINGS, 'utf8')) } = {}) {
   const current = cellsEdgeReport(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) });
   const problems = [];
   const add = (path, line, text) => problems.push({ path, line, text });
@@ -460,7 +455,7 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
     }
   }
   problems.push(...packageAppProblems(current.packageApps, ceilings.packageApps ?? {}));
-  if (!files) for (const entry of upwardAllowedEdges(root)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
+  if (!files) for (const entry of upwardAllowedEdges(root, rule)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
   const fileOf = files ? new Map() : new Map(edgeFiles(root).filter(row => row.edge).map(row => [row.edge, row.file]));
   if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) {
     const file = fileOf.get(entry);
@@ -501,7 +496,7 @@ export async function lightDoorProblems(root, { mainRoot } = {}) {
  * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options] - `files` limits the check to those files (the pre-commit run).
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function durableEdgeProblems(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
+export function durableEdgeProblems(root, { files, read = file => fs.readFile(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const problems = [];
   for (const file of (files ?? walk(root, SOURCE)).filter(path => SOURCE.test(path) && !TESTISH.test(path))) {
     const from = cellOf(file).cell;
@@ -523,7 +518,7 @@ export function durableEdgeProblems(root, { files, read = file => readFileSync(r
  * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options]
  * @returns {string[]} The unused entries, in plan order.
  */
-export function unusedAllowedEdges(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
+export function unusedAllowedEdges(root, { files, read = file => fs.readFile(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const used = new Set();
   for (const file of (files ?? walk(root, SOURCE)).filter(path => SOURCE.test(path) && !TESTISH.test(path))) {
     const from = cellOf(file).cell;
@@ -538,13 +533,15 @@ export function unusedAllowedEdges(root, { files, read = file => readFileSync(re
  * A deep entry (`from->to/src`) is judged by its cell like any other; an entry naming a cell the plan does not order is left to the unused-entry check.
  *
  * @param {string} root
+ * @param {string} root
+ * @param {{ cellOrder?: string[], upwardEdgesGrandfathered?: string[] }} [rule] - when given, orders and the grandfathered list come from it, not the plan.
  * @returns {{ edge: string, from: string, to: string, fromOrder: number, toOrder: number }[]}
  */
-export function upwardAllowedEdges(root) {
-  const plan = planOf(root);
-  const orders = new Map((plan.cells ?? []).map(cell => [cell.name, cell.order]));
+export function upwardAllowedEdges(root, rule) {
+  const plan = rule ? {} : planOf(root);
+  const orders = rule ? new Map((rule.cellOrder ?? []).map((name, index) => [name, index + 1])) : new Map((plan.cells ?? []).map(cell => [cell.name, cell.order]));
   const orderOf = name => orders.get(name.startsWith('apps/') ? `app:${name.slice(5)}` : name);
-  const grandfathered = new Set(plan.upwardEdgesGrandfathered ?? []);
+  const grandfathered = new Set((rule ?? plan).upwardEdgesGrandfathered ?? []);
   const rows = [];
   for (const edge of declaredList(root)) {
     if (grandfathered.has(edge)) continue;
@@ -560,11 +557,11 @@ export function upwardAllowedEdges(root) {
 export async function writeCellsEdgeCeilings(root) {
   const lightDoors = {};
   for (const door of lightDoorsOf(root)) lightDoors[door] = await coldLoadMs(root, door);
-  writeFileSync(CEILINGS, `${JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), lightDoors }, null, 2)}\n`);
+  fs.writeFile(CEILINGS, `${JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), lightDoors }, null, 2)}\n`);
   return [];
 }
 
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && fs.exists(process.argv[1]) && fs.realpath(process.argv[1]) === fs.realpath(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write', '--no-cold-load'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
   else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);

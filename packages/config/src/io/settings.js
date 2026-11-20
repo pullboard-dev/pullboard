@@ -72,6 +72,11 @@ export function overlapStaticProofEnabled() {
   return loadMachineSettings().gate?.overlapStaticProof === true;
 }
 
+/** Let a gate red only in files red on main at the same input key settle for review, only when this machine opted in [C7,#12129]; off by default, and only an exact true turns it on. */
+export function excuseMainRedFilesEnabled() {
+  return loadMachineSettings().gate?.excuseMainRedFiles === true;
+}
+
 /** Whether gate.excuseMainTimingReds is on (#9753): off by default; only an exact `true` turns it on. */
 export function excuseMainTimingReds() {
   return loadMachineSettings().gate?.excuseMainTimingReds === true;
@@ -82,9 +87,9 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
-/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+/** Whether submit.residentChecks is on (#10275): on by default; only an exact `false` turns it off. */
 export function residentChecks() {
-  return loadMachineSettings().submit?.residentChecks === true;
+  return loadMachineSettings().submit?.residentChecks !== false;
 }
 
 /** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
@@ -138,6 +143,16 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** End a gate's remaining shards on an item-specific red only when this machine opted in [C7,#12038]; off by default, and only an exact true turns it on. */
+export function failFastShardsEnabled() {
+  return loadMachineSettings().gate?.failFastShards === true;
+}
+
+/** Seed main-test rows for wide-failing files only when this machine opted in [C7,#12094]; off by default, and only an exact true turns it on. */
+export function seedWideMainTestsEnabled() {
+  return loadMachineSettings().gate?.seedWideMainTests === true;
+}
+
 /** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
 export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
@@ -174,6 +189,7 @@ export function registryStrictEnabled() {
 }
 
 export { hunkFreshnessEnabled } from '../logic/settings.js';
+export { derivedStateEnabled } from '../logic/settings.js';
 export { typedFieldsEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -201,9 +217,9 @@ export function adapterLintSigningEnabled() {
   return loadMachineSettings().gate?.adapterLintSigning === true;
 }
 
-/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: off by default; only an exact `true` turns it on [C7,#1807]. */
+/** Whether the static check names exported functions with a missing JSDoc summary or mismatched @param names: on by default; only an exact `false` turns it off [C7,#1807]. */
 export function jsdocCheckEnabled() {
-  return loadMachineSettings().gate?.jsdocCheck === true;
+  return loadMachineSettings().gate?.jsdocCheck !== false;
 }
 
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
@@ -488,6 +504,11 @@ export function claimKeepWhileRunning() {
   return loadMachineSettings().claim?.keepWhileRunning === true;
 }
 
+/** Whether claim.checkCeiling is on: off by default; only an exact `true` makes claim refuse a check whose measured time is over its ceiling [C7,#1273]. */
+export function claimCheckCeilingEnabled() {
+  return loadMachineSettings().claim?.checkCeiling === true;
+}
+
 /** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
 export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
@@ -527,6 +548,11 @@ export function statsRecordCoordinatorUsage() {
 /** Whether a starved green review shouts the coordinator (#9682): off by default; only an exact `true` turns it on. */
 export function reviewStarveShout() {
   return loadMachineSettings().review?.starveShout === true;
+}
+
+/** Whether a builder's next skips reviews while a seat in lane review is alive (#11946): off by default; only an exact `true` turns it on. */
+export function reviewBuilderOffers() {
+  return loadMachineSettings().review?.builderOffers === true;
 }
 
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
@@ -572,11 +598,6 @@ export function nameBehindDeviceEnabled() {
   return loadMachineSettings().engine?.nameBehindDevice === true;
 }
 
-
-/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
-export function derivedStateEnabled() {
-  return loadMachineSettings().health?.derivedState === true;
-}
 
 /** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
 export function reofferTrunkBusyEnabled() {
@@ -643,6 +664,11 @@ export function itemsBarRulesAtAdd() {
   return loadMachineSettings().items?.barRulesAtAdd === true;
 }
 
+/** Whether route reservations are on (#9177, #11306): on by default; only an exact `false` turns it off. */
+export function routeReservations() {
+  return loadMachineSettings().route?.reservations !== false;
+}
+
 /** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
 export function itemsTestMirrorAtAdd() {
   return loadMachineSettings().items?.testMirrorAtAdd === true;
@@ -668,9 +694,9 @@ export function releaseStaleItemRevision() {
   return loadMachineSettings().release?.staleItemRevision === true;
 }
 
-/** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
+/** Whether a settled hold lifts when main moves (#9699, on by default since #12474): only an exact `false` in the settings file turns it off. */
 export function holdsLiftSettled() {
-  return loadMachineSettings().holds?.liftSettled === true;
+  return loadMachineSettings().holds?.liftSettled !== false;
 }
 
 /**
@@ -850,6 +876,11 @@ export function boardOpensCheckOn() {
 /** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
 export function servePullRoute() {
   return loadMachineSettings().serve?.pullRoute === true;
+}
+
+/** Whether `pullboard serve` runs the serve-restart trial: off by default; only an exact `true` of serve.restartTrial turns it on [C7]. */
+export function serveRestartTrial() {
+  return loadMachineSettings().serve?.restartTrial === true;
 }
 
 /**
@@ -1123,6 +1154,11 @@ export function setRunnerDrain(host, drain) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/** How long a queued gate job waits, in milliseconds, before it outranks shard jobs (gate.gateAgedMinutes, 5 minutes by default) [C7]. */
+export function gateAgedMs() {
+  return (loadMachineSettings().gate?.gateAgedMinutes ?? 5) * 60_000;
 }
 
 /**

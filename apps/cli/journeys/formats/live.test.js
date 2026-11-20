@@ -169,6 +169,8 @@ function recordEventContract() {
   // A strict builder must declare its vendor family when it joins, so the family event comes from a seat that joins without one and later names it (a join that names a family records it, #4086).
   const builder = register(board, { lane: 'docs', path: '/builder', family: 'codex' });
   recordNextIdle(board, { agentId: builder, reason: 'nothing-eligible' });
+  recordNextIdle(board, { agentId: builder, timeout: { minutes: 30, awaited: 'a free item' } });
+  recordNextIdle(board, { agentId: builder, finished: true });
   register(board, { lane: 'tests', path: '/family-seat' });
   register(board, { lane: 'tests', path: '/family-seat', family: 'codex' });
   assert.deepEqual(events(board).filter(event => event.event_kind === 'family').map(event => JSON.parse(event.event_detail).family), ['codex'], 'a later join that names a family writes one family event');
@@ -515,6 +517,8 @@ test('cli.journeys-formats-live.a5-schema-versions-event-kinds-and: clause 1: [A
     'activity-delivered': 'recipient',
     'activity-acted': 'recipient',
     'next-idle': 'idle seat',
+    'next-idle-timeout': 'idle seat',
+    'next-finished': 'idle seat',
     shout_news: 'sender',
     pass: 'coordinator',
     answer: 'answerer',

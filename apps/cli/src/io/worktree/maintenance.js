@@ -1,7 +1,5 @@
 /** Archive-first maintenance acts only on freshly observed native custody [B3,C7]. */
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -13,6 +11,7 @@ import { maintenanceDurations } from '../../../../../packages/config/index.js';
 import { retireIdleSeatHours } from '../../../../../packages/config/index.js';
 import { retireIdleSeats } from './maintenance/idle-seats.js';
 import { retireLandedSeats } from './maintenance/landed-seat.js';
+import { sweepFinishedFolders } from './maintenance/folder-sweep.js';
 import { classifyMaintenanceTree } from './maintenance/classify.js';
 import { archiveMaintenanceWorktree } from './maintenance/archive.js';
 import { removePartialArchives } from './maintenance/archive.js';
@@ -26,6 +25,9 @@ import { registeredMaintenanceTrees } from './maintenance/observation.js';
 import { takeMaintenanceCheckout } from './maintenance/observation.js';
 import { writeMaintenanceState } from './maintenance/observation.js';
 import { withMaintenanceLock } from './maintenance/observation.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Excluding a directory protects its descendants and a parent whose removal would erase it. */
 function contains(parent, child) {
@@ -62,7 +64,7 @@ function currentTree(root, common, path, head) {
   const row = registeredMaintenanceTrees(root).find(tree => resolve(tree.path) === resolve(path));
   if (!row || row.locked || row.bare || row.head !== head) throw new Error('maintenance registration changed; source retained');
   const info = repoInfo(path);
-  if (realpathSync(info.commonDir) !== common || realpathSync(info.root) !== resolve(path))
+  if (fs.realpath(info.commonDir) !== common || fs.realpath(info.root) !== resolve(path))
     throw new Error('maintenance worktree identity changed; source retained');
   return row;
 }
@@ -133,7 +135,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   const report = { version: 1, id: randomUUID(), at: new Date(now).toISOString(), enabled: config.worktreeMaintenance?.enabled === true,
     counts: { active: 0, finished: 0, orphaned: 0, scratch: 0 }, pruned: 0, archived: 0, freedBytes: 0, entries: [] };
   if (!report.enabled) return report;
-  const info = repoInfo(root), common = realpathSync(info.commonDir);
+  const info = repoInfo(root), common = fs.realpath(info.commonDir);
   return withMaintenanceLock(common, async () => {
   removePartialArchives(common);
   const trees = registeredMaintenanceTrees(root);
@@ -197,7 +199,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       const late = maintenanceDirtyPaths(tree.path);
       if (late.length) { await keepDirty(ports, fresh, late, entry); entry.action = 'archived-kept'; continue; }
       maintenanceGit(root, ['worktree', 'remove', tree.path]);
-      if (existsSync(tree.path)) throw new Error('maintenance removal did not complete');
+      if (fs.exists(tree.path)) throw new Error('maintenance removal did not complete');
       entry.action = 'pruned';
       report.pruned++;
       if (allocated === null || archiveSize === null) report.freedBytes = null;
@@ -211,10 +213,12 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   // A seat whose item landed or was withdrawn goes in this same cycle once it is clean, idle and claim-free (#10783).
   await retireLandedSeats(root, report.entries, { mainRoot, now, observed, ports, report, state: next,
     dirtyPaths: maintenanceDirtyPaths, commitsSafe: maintenanceCommitsSafe });
+  // Folders of landed, withdrawn and dead-seat items go each cycle, inside the grace; dirty ones keep their diff at a keep ref (#12537).
+  await sweepFinishedFolders(root, report.entries, { mainRoot, now, observed: await ports.readSnapshot(), ports, report, dirtyPaths: maintenanceDirtyPaths });
   // With maintenance.retireIdleSeats on, clean trees idle past the set hours whose HEAD is already on main go too (#9109).
   const idleHours = retireIdleSeatHours();
   if (idleHours !== null) await retireIdleSeats(root, report.entries, { mainRoot, hours: idleHours, now, observed, ports, report, dirtyPaths: maintenanceDirtyPaths });
-  for (const entry of report.entries) if (entry.action === 'retired-idle' || entry.action === 'retired-landed') delete next.trees[entry.path];
+  for (const entry of report.entries) if (['retired-idle', 'retired-landed', 'swept'].includes(entry.action)) delete next.trees[entry.path];
   // A dirty worktree remains a health finding only after repeated observations spanning a day.
   next.lastRun.finishedAt = new Date().toISOString();
   next.lastRun.nextAt = new Date(now + durations.everyMs).toISOString();
@@ -229,7 +233,7 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
   if (maintenanceProtectedPath(path)) return null;
   if (resolve(path) !== resolve(root) && !(retired && ports.completedTakeover === true)
     && !(withdrawn && ports.completedWithdrawal === true)) return null;
-  const info = repoInfo(root), common = realpathSync(info.commonDir), trees = registeredMaintenanceTrees(root);
+  const info = repoInfo(root), common = fs.realpath(info.commonDir), trees = registeredMaintenanceTrees(root);
   const tree = trees.find(row => resolve(row.path) === resolve(path));
   if (!tree || tree.locked || tree.bare || tree.path === trees[0].path) return null;
   const snapshot = await ports.readSnapshot();

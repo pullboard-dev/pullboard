@@ -240,17 +240,20 @@ export function cacheProfile(output) {
  * One run phase's proof-ledger rows from its own per-file frames: each file that ran under a key, its inputKey,
  * context class and pass or fail. A green phase passes every file; a red one fails the files its failing cases name and
  * passes the rest, since a red job still proves its green files (313 of 386 wasted reruns had a green in a red job,
- * 11 Nov). A red phase with no case account, or no keyed frame, gives null: no row is ever guessed [P7,CD2].
+ * 11 Nov). A file that fails as a whole (an import error, a crash) names no case, so the spec footer's `failedFiles` fail it
+ * at the same key a passing run would carry, which lets the board compare that red with main [C7,P7,CD2]. A red phase naming
+ * neither a case nor a file, or with no keyed frame, gives null: no row is ever guessed.
  * The rows fit `budget` bytes so the receipt stays under the queue's cap; `omitted` counts the rest, never hidden.
  *
  * @param {string} output the phase's full output
- * @param {{ status: number | null, failures?: Array<{ file: string }> | null, root?: string, budget?: number }} phase
+ * @param {{ status: number | null, failures?: Array<{ file: string }> | null, failedFiles?: string[] | null, root?: string, budget?: number }} phase
  * @returns {{ contexts: string[], files: Array<[string, string, number, 'pass' | 'fail']>, omitted: number } | null}
  */
-export function phaseLedger(output, { status, failures = null, root = '', budget = 40_000 }) {
-  if (typeof output !== 'string' || status !== 0 && !(Array.isArray(failures) && failures.length)) return null;
+export function phaseLedger(output, { status, failures = null, failedFiles = null, root = '', budget = 40_000 }) {
+  const cases = Array.isArray(failures) ? failures : [], whole = Array.isArray(failedFiles) ? failedFiles : [];
+  if (typeof output !== 'string' || status !== 0 && !cases.length && !whole.length) return null;
   const strip = file => root && String(file).startsWith(`${root}/`) ? String(file).slice(root.length + 1) : String(file);
-  const failed = new Set((status === 0 ? [] : failures).map(row => strip(row?.file)));
+  const failed = new Set(status === 0 ? [] : [...cases.map(row => row?.file), ...whole].map(strip));
   const contexts = [], files = [];
   let bytes = 0, omitted = 0;
   for (const line of output.split('\n')) {

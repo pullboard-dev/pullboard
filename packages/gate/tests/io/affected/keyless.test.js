@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { temporaryRepository } from '../../../../store/tests/fixtures/submit.js';
-import { keylessRows } from '../../../index.js';
-import { testClosures } from '../../../index.js';
+import { keylessRows } from '../../../heavy.js';
+import { testClosures } from '../../../heavy.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 
 const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));

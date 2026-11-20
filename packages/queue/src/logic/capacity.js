@@ -6,7 +6,10 @@ import { readyItems } from './readiness.js';
 export function routingCapacity(board, agents, foreignBlockers, reads = board.nativePorts) {
   // reads.lineSettings is the state capability, handed in by the composition root as a port.
   const seats = reads.withLocalSeatPresence(board, agents).filter(seat => seat.agent_id !== COORDINATOR);
+  const ready = readyItems(board, foreignBlockers, reads);
+  const readyByRoute = { mid: 0, strong: 0 };
+  for (const item of ready) if (item.item_route in readyByRoute) readyByRoute[item.item_route] += 1;
   return { liveOnly: reads.lineSettings(board)['route.liveOnly'],
     liveAgents: seats.filter(seat => seat.presence === 'live').length,
-    idleAgents: seats.filter(seat => seat.presence === 'idle').length, readyItems: readyItems(board, foreignBlockers, reads).length };
+    idleAgents: seats.filter(seat => seat.presence === 'idle').length, readyItems: ready.length, readyByRoute };
 }

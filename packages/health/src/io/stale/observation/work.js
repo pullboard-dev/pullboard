@@ -1,7 +1,7 @@
 import { gitSpawnSync } from '../../../../../git/index.js';
 import { staleRunQuiet } from './run.js';
 /** Capture actual local work without changing any checkout; replicas consume only the captured observation [B4,C7]. */
-import { lstatSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   dirname,
   resolve,
@@ -11,6 +11,8 @@ import {
   cleanGitEnvironment,
   tryGit,
 } from '../../../../../git/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Observe commit and changed-file times in a registered holder's real worktree; missing data stays unavailable. */
 export function observeStaleWork(board, actor) {
@@ -29,7 +31,7 @@ export function observeStaleWorkAt(root) {
     const changed = gitSpawnSync(['ls-files', '--modified', '--others', '--exclude-standard', '-z'],
       { cwd: root, env, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
     if (commit.status !== 0 || reflog.status !== 0 || changed.status !== 0) return { available: false, at: null };
-    let latest = Math.max(Date.parse(commit.stdout.trim()), lstatSync(resolve(root, reflog.stdout)).mtimeMs);
+    let latest = Math.max(Date.parse(commit.stdout.trim()), fs.lstat(resolve(root, reflog.stdout)).mtimeMs);
     if (!Number.isFinite(latest)) return { available: false, at: null };
     const files = (changed.stdout ?? '').split('\0').filter(Boolean);
     if (files.length > 10_000) return { available: false, at: null };
@@ -37,8 +39,8 @@ export function observeStaleWorkAt(root) {
       const path = resolve(root, file);
       if (!path.startsWith(root + sep)) return { available: false, at: null };
       let stat;
-      try { stat = lstatSync(path); }
-      catch (error) { if (error.code !== 'ENOENT') throw error; stat = lstatSync(dirname(path)); }
+      try { stat = fs.lstat(path); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; stat = fs.lstat(dirname(path)); }
       latest = Math.max(latest, stat.mtimeMs);
     }
     return { available: true, at: new Date(latest).toISOString(), commitAt: new Date(Date.parse(commit.stdout.trim())).toISOString() };
