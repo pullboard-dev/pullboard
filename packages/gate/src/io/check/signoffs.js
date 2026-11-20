@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /** Check every incoming PR or main-push commit against the event's trusted base policy [C1,C7]. */
-import { readFileSync } from 'node:fs';
 // The light commits door alone, not the commits barrel: the barrel's hooks load node:sqlite, whose
 // ExperimentalWarning would break the one-line refusal CI prints [C1,C7].
 import { contributionSignoffProblem } from '../../../../commits/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Use structured event data rather than interpolating contributor-controlled values into a shell. */
 function main() {
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+  const event = JSON.parse(fs.readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
   let range;
   if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
     range = { base: event.pull_request?.base?.sha, head: event.pull_request?.head?.sha };

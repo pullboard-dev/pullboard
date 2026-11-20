@@ -9,7 +9,7 @@ import { sameCommonDir } from '../../../../../git/index.js';
 import { itemPatchDigest } from '../../../../../items/index.js';
 import { agentById } from '../../../../../store/index.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   join,
   resolve,
@@ -28,6 +28,8 @@ import { handoffRecords } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { environmentAdapter } from '../../../../../env/index.js';
 
+const fs = fileSystemAdapter();
+
 const CONTEXTS = new WeakMap();
 const BOARDS = new WeakMap();
 const WRITES = new Set(['claim', 'recordProofRun', 'recordGateRun', 'recordFlakeObservation', 'appendFact', 'shout', 'submit', 'deferOwnership', 'completeSubmitHandoff', 'startSubmitHandoff']);
@@ -40,7 +42,7 @@ export function submitHandoffRoot(commonDir, job) {
 /** Whether this worker's checkout is the private source its native queue identity names. */
 function atHandoffRoot(ctx, job) {
   const expected = submitHandoffRoot(ctx.info.commonDir, job);
-  return realpathSync(ctx.info.root) === realpathSync(expected);
+  return fs.realpath(ctx.info.root) === fs.realpath(expected);
 }
 
 /** Install finite worker authority only after checking the exact native queued source on this board. */

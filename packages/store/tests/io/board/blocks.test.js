@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { addBlock } from "../../../index.js";
+import { claim } from "../../../index.js";
+import { claimBlock } from "../../../index.js";
+import { getItem } from "../../../index.js";
 import { listBlocks } from "../../../index.js";
 import { addItem } from "../../../index.js";
 import { BLOCK_ENGINE } from "../../../../state/light.js";
@@ -10,6 +13,9 @@ import { cellProject } from "../../fixtures/cell.js";
 import { cellSeat } from "../../fixtures/cell.js";
 
 const BRIEF = "Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n";
+
+const FREEZE = item => ({ text: item.item_title, digest: `digest:${item.item_title}` });
+const HOUR = 60 * 60 * 1000;
 
 /** A board with a coordinator seat and two open items; returns the board and the two ids. */
 function twoItems(t) {
@@ -50,4 +56,51 @@ test("store.blocks.real-path: clause 3: addBlock called through the store front 
   assert.throws(() => addBlock(board, { agentId: "coordinator", name: "solo", ids: [ids[0]], tier: "mid" }), { code: "USAGE" });
   addBlock(board, { agentId: "coordinator", name: "front-door", ids, tier: "strong" });
   assert.deepEqual(listBlocks(board).map(block => block.name), ["front-door"]);
+});
+
+test("store.blocks.claim-all-members: clause 1: claimBlock claims every open member for the seat in one write with the ordinary claim and one shared lease, and another seat claim of a member is refused [C7,#2202]", t => {
+  const { board, ids } = twoItems(t);
+  addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
+  const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
+  const claimed = claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE });
+  assert.deepEqual(claimed.claimed, ids);
+  const rows = ids.map(id => getItem(board, id));
+  assert.deepEqual(rows.map(row => row.item_owner), [seat.id, seat.id]);
+  assert.equal(rows[0].item_lease_until, rows[1].item_lease_until);
+  assert.equal(rows[0].item_lease_until, claimed.leaseUntil);
+  const events = board.db.prepare("SELECT event_kind FROM event WHERE event_kind = 'claim' AND event_by = ?").all(seat.id);
+  assert.equal(events.length, 2, "each member has its own claim event");
+  const rival = cellSeat(board, { lane: "web", path: "/block-rival", route: "strong" });
+  assert.throws(() => claim(board, ids[0], { agentId: rival.id, lane: "web", leaseMs: HOUR, freeze: FREEZE }), { code: "HELD" });
+});
+
+test("store.blocks.claim-refusals: clause 2: an unknown name refuses NO_BLOCK, a member held by another seat refuses BLOCK_CLAIMED naming it with nothing claimed, and a seat whose route is below the block tier refuses BLOCK_TIER [C7,#2202]", t => {
+  const { board, ids } = twoItems(t);
+  const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
+  assert.throws(() => claimBlock(board, { agentId: seat.id, name: "ghost", lane: "web", leaseMs: HOUR, freeze: FREEZE }), { code: "NO_BLOCK" });
+  addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
+  addBlock(board, { agentId: "coordinator", name: "heavy", ids, tier: "strong" });
+  const light = cellSeat(board, { lane: "web", path: "/block-light", route: "light" });
+  assert.throws(() => claimBlock(board, { agentId: light.id, name: "heavy", lane: "web", leaseMs: HOUR, freeze: FREEZE }), { code: "BLOCK_TIER" });
+  const rival = cellSeat(board, { lane: "web", path: "/block-rival", route: "strong" });
+  claim(board, ids[1], { agentId: rival.id, lane: "web", leaseMs: HOUR, freeze: FREEZE });
+  assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }), error => error.code === "BLOCK_CLAIMED" && error.message.includes(`#${ids[1]}`));
+  assert.equal(getItem(board, ids[0]).item_owner, null, "the refused block claimed no member");
+});
+
+test("store.blocks.claim-all-or-none: clause 1: a member whose bar cannot freeze refuses before any member is written, and a member whose write fails under the lock rolls back the earlier members, so a block claim takes every member or none [C7]", t => {
+  const { board, ids } = twoItems(t);
+  addBlock(board, { agentId: "coordinator", name: "pair", ids, tier: "mid" });
+  const seat = cellSeat(board, { lane: "web", path: "/block-seat", route: "strong" });
+  const claimEvents = () => board.db.prepare("SELECT COUNT(*) n FROM event WHERE event_kind = 'claim' AND event_by = ?").get(seat.id).n;
+  const failing = item => { if (item.item_id === ids[1]) throw new Error("second bar cannot freeze"); return FREEZE(item); };
+  assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: failing }), /second bar cannot freeze/u);
+  assert.deepEqual(ids.map(id => getItem(board, id).item_owner), [null, null], "a member refused while preparing left no member claimed");
+  assert.equal(claimEvents(), 0);
+  board.db.exec(`CREATE TEMP TRIGGER block_second_refuses BEFORE UPDATE ON item WHEN NEW.item_id = ${ids[1]} AND NEW.item_status = 'claimed' BEGIN SELECT RAISE(ABORT, 'second member write refused'); END`);
+  assert.throws(() => claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }), /second member write refused/u);
+  assert.deepEqual(ids.map(id => getItem(board, id).item_owner), [null, null], "a write that failed on the second member rolled the first back");
+  assert.equal(claimEvents(), 0);
+  board.db.exec("DROP TRIGGER block_second_refuses");
+  assert.deepEqual(claimBlock(board, { agentId: seat.id, name: "pair", lane: "web", leaseMs: HOUR, freeze: FREEZE }).claimed, ids);
 });
