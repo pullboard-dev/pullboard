@@ -25,7 +25,6 @@ import { pipelinePerHour } from '../../../../../packages/stats/index.js';
 import { pipelinePerHourLines } from '../../../../../packages/stats/index.js';
 import { movesStats } from '../../../../../packages/stats/index.js';
 import { movesLines } from '../../../../../packages/stats/index.js';
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
@@ -52,7 +51,8 @@ import {
 } from '../../../../../packages/verify/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { caughtLines } from '../../../../../packages/items/index.js';
-import * as gateReceipt from '../../../../../packages/gate/index.js';
+import { retainedReceipts } from '../../../../../packages/gate/index.js';
+import { gateWaitStats } from '../../../../../packages/gate/heavy.js';
 import { readRunnerStage } from '../../../../runner/index.js';
 import {
   compareFlowWindows,
@@ -76,6 +76,8 @@ import {
   context,
   withBoard,
 } from '../entry.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
@@ -106,7 +108,7 @@ export function run(io, { first, second, rest, values }) {
     if (kind !== undefined && !['weekly', 'release'].includes(kind)) throw new Refused('USAGE', 'record a checkpoint with --checkpoint weekly or --checkpoint release');
     const days = flowWindowMinutes(values.window ?? '7d') / 1440;
     const now = ctx.clock.now().getTime();
-    const receipts = gateReceipt.retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
+    const receipts = retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
     const catalog = criterionCells(ctx.info.root);
     const time = withBoard(ctx, board => {
       const history = store.events(board);
@@ -131,7 +133,7 @@ export function run(io, { first, second, rest, values }) {
     let transcripts;
     if (values.transcripts !== undefined) {
       try {
-        const bytes = readFileSync(resolve(io.cwd, values.transcripts));
+        const bytes = fs.readFile(resolve(io.cwd, values.transcripts), null);
         if (bytes.length > 4 * 1024 * 1024) throw new Error('larger than 4 MiB');
         transcripts = JSON.parse(bytes.toString('utf8'));
       } catch (error) { throw new Refused('USAGE', `cannot read supplied command transcripts: ${error.message}`); }
@@ -177,7 +179,7 @@ export function run(io, { first, second, rest, values }) {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
   });
-  const waits = gateReceipt.gateWaitStats(ctx.info.root, now);
+  const waits = gateWaitStats(ctx.info.root, now);
   const boardHolds = boardHoldStats({ since: window?.since ?? stats.since ?? undefined, until: now });
   const holdBaseline = readBoardHoldBaseline();
   boardHolds.allowance = { ...holdBaseline, status: holdBaseline.allowancePerDay === null ? 'unmeasured'

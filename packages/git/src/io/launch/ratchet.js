@@ -1,9 +1,5 @@
 /** Report remaining literal Git launches, with a per-file ratchet keyed by true location [C7]. */
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   join,
   relative,
@@ -12,6 +8,8 @@ import {
   lex,
   lineAt,
 } from "../../../../kernel/light.js";
+
+const fs = fileSystemAdapter();
 
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'tests', 'test']);
 const ADAPTERS = new Set(['packages/git/index.js', 'packages/git/src/io/adapter.js']);
@@ -44,19 +42,19 @@ export function gitLaunchReport(root) {
   const files = {};
   /** Walk production source without following symlinks, searching dependencies or counting test fixtures. */
   function walk(directory) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    for (const entry of fs.list(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) {
         if (!SKIPPED_DIRECTORIES.has(entry.name)) walk(path);
       } else if (entry.isFile() && entry.name.endsWith('.js') && !entry.name.endsWith('.test.js')) {
         const file = relative(root, path).replaceAll('\\', '/');
         if (ADAPTERS.has(file)) continue;
-        const launches = gitLaunches(readFileSync(path, 'utf8'));
+        const launches = gitLaunches(fs.readFile(path, 'utf8'));
         if (launches.length) files[file] = launches;
       }
     }
   }
-  for (const top of ['src', 'packages', 'apps']) if (existsSync(join(root, top))) walk(join(root, top));
+  for (const top of ['src', 'packages', 'apps']) if (fs.exists(join(root, top))) walk(join(root, top));
   return { total: Object.values(files).reduce((sum, launches) => sum + launches.length, 0), files };
 }
 

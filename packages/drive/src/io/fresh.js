@@ -1,11 +1,11 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 const run = promisify(execFile);
 
@@ -64,11 +64,11 @@ export function servedClosure(entries) {
   const queue = [...entries];
   while (queue.length) {
     const file = resolve(queue.pop());
-    if (seen.has(file) || !existsSync(file)) continue;
+    if (seen.has(file) || !fs.exists(file)) continue;
     seen.add(file);
     if (!/\.(?:m?js|cjs)$/u.test(file)) continue;
     let text;
-    try { text = readFileSync(file, 'utf8'); } catch { continue; }
+    try { text = fs.readFile(file, 'utf8'); } catch { continue; }
     for (const match of text.matchAll(SPECIFIER)) queue.push(join(dirname(file), match[1]));
   }
   return seen;
@@ -86,6 +86,6 @@ export function servedModuleMoved({ root, entries }) {
     try { changed = (await run('git', ['diff', '--name-only', '--no-renames', from, to], { cwd: root })).stdout.split('\n').filter(Boolean); }
     catch { return true; }
     const served = new Set([...servedClosure(entries)].map(file => relative(root, file)));
-    return changed.some(file => file === 'package.json' || served.has(file) || !existsSync(join(root, file)));
+    return changed.some(file => file === 'package.json' || served.has(file) || !fs.exists(join(root, file)));
   };
 }

@@ -12,6 +12,9 @@ import { storedCompilations } from '../parsed.js';
 import { foreignNodeOptions } from '../../../../kernel/index.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
+import { environmentAdapter } from '../../../../env/index.js';
+
+const environment = environmentAdapter();
 
 const COMPILER = `import vm from 'node:vm'; process.stdin.setEncoding('utf8'); let text=''; for await (const chunk of process.stdin) text+=chunk;
 const sources=JSON.parse(text);
@@ -26,7 +29,7 @@ process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextMo
 function compiles(sources) {
   const parser = currentCellLintParser();
   if (parser) return parser(sources).map(row => row.compiles);
-  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return compileFresh(sources);
+  if (foreignNodeOptions(environment.get('NODE_OPTIONS'), environment.all())) return compileFresh(sources);
   // Known owned preloads (a test run's per-run recorder path) never change what V8 compiles, so the key names them as one class, as the accepted inventory does.
   const epoch = JSON.stringify(['cell-bindings', process.execPath, process.versions.node, 'pullboard-known-owned-preloads-v1', COMPILER]);
   return storedCompilations(epoch, sources, missing => compileFresh(missing).map(valid => ({ compiles: valid, imports: [] }))).map(row => row.compiles);
@@ -179,7 +182,7 @@ function bindingCacheKey(modules) {
   if (!cacheableModules(modules)) return null;
   try {
     const values = modules.map(row => [row.file, row.source, row.body, row.scopeBraces, row.bindings.map(binding => binding.local)]);
-    return 'binding:' + createHash('sha256').update(JSON.stringify([...(bindingReadScopes.getStore()?.runtimeIdentity ? [bindingReadScopes.getStore().runtimeIdentity] : [process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null]), COMPILER, values])).digest('hex');
+    return 'binding:' + createHash('sha256').update(JSON.stringify([...(bindingReadScopes.getStore()?.runtimeIdentity ? [bindingReadScopes.getStore().runtimeIdentity] : [process.execPath, process.versions.node, environment.get('NODE_OPTIONS') ?? null]), COMPILER, values])).digest('hex');
   } catch { return null; }
 }
 
@@ -201,7 +204,7 @@ export function cachedBindingMetadata(source, edges, work) {
         || typeof specifier.value !== 'string' || typeof target.value !== 'string') return null;
       rows.push([specifier.value, target.value]);
     }
-    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([...(scope.runtimeIdentity ? [scope.runtimeIdentity] : [process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null]), source, rows])).digest('hex'); }
+    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([...(scope.runtimeIdentity ? [scope.runtimeIdentity] : [process.execPath, process.versions.node, environment.get('NODE_OPTIONS') ?? null]), source, rows])).digest('hex'); }
     catch { return null; }
   }
   if (!reusable(scope)) return work();
