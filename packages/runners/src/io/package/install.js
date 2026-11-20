@@ -1,4 +1,5 @@
 /** Path-safe fixed-bound capsule installation shared by bootstrap and private copy controls [C7,P3]. */
+import { environmentAdapter } from '../../../../env/index.js';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -16,7 +17,7 @@ import { gunzipSync } from 'node:zlib';
 
 /** Install a complete immutable module capsule without reading the job's stdin stream. */
 export function installRunnerPackage(payload, expected, configuredRoot) {
-  const home = process.env.HOME;
+  const home = environmentAdapter().get('HOME');
   if (!configuredRoot && (!home || !isAbsolute(home))) throw new Error('runner home must be absolute');
   const root = configuredRoot || join(home, '.pullboard-runner');
   const directory = join(root, 'runtime', expected);

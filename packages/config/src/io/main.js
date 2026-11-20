@@ -21,6 +21,7 @@ import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 const fileSystem = fileSystemAdapter();
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
@@ -602,6 +603,7 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
 /** The minutes a seat's next waits with nothing offered: next.idleMinutes, 10 when unset [C7,#12041]. */
 export function nextIdleMinutes(config) { return config?.next?.idleMinutes ?? 10; }
 
+/** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
 export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
@@ -657,8 +659,8 @@ function cadenceProblem(value) {
 export const DEFAULT_VIEW_PORT = 4890;
 
 /** Resolve an omitted --port; explicit command-line ports take precedence over this setting. */
-export function defaultViewPort(env = process.env) {
-  const value = env.PULLBOARD_VIEW_PORT;
+export function defaultViewPort(env) {
+  const value = environmentAdapter(env).get('PULLBOARD_VIEW_PORT');
   if (value === undefined) return DEFAULT_VIEW_PORT;
   if (!/^\d+$/u.test(value) || Number(value) > 65535) {
     throw new Refused('USAGE', 'PULLBOARD_VIEW_PORT is a number from 0 to 65535; unset it to use the default port');
