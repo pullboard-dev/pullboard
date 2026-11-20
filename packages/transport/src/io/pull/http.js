@@ -4,17 +4,15 @@ import { createHash } from 'node:crypto';
 import { createPrivateKey } from 'node:crypto';
 import { sign } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { Refused } from '../../../../kernel/light.js';
 import { pullStatement } from '../pull.js';
 import { createWireServer } from '../wire.js';
 import { wireRequest } from '../wire.js';
 
 // Budget: one posted result file or request body; a larger output belongs in a report file, not the result.
+const disk = fileSystemAdapter();
 const BODY_LIMIT = 16 * 1024 * 1024;
 
 /**
@@ -93,7 +91,7 @@ export function pullHandler(adapter) {
         const path = await adapter.bundle(bearer(request), name);
         if (!path) return reply(response, 404, { code: 'PULL_TREE', message: 'the board has no bundle for that tree' });
         response.writeHead(200, { 'content-type': 'application/x-tar' });
-        return createReadStream(path).pipe(response);
+        return disk.createReadStream(path).pipe(response);
       }
       if (request.method === 'POST' && route === 'heartbeat') return reply(response, 200, { renewed: adapter.heartbeat(bearer(request)) });
       if (request.method === 'POST' && route === 'result') {
@@ -202,13 +200,13 @@ export function pullRunner({ board, runner, publicKey, privateKey, workdir, now 
       const auth = { authorization: `Bearer ${job.token}` };
       const tree = join(workdir, 'trees', job.tree);
       let fetched = false;
-      if (!existsSync(tree)) {
+      if (!disk.exists(tree)) {
         const got = await boardCall(boardUrl(board, `/pull/bundle/${job.tree}`), { headers: auth });
         if (got.status !== 200) answer(got);
-        mkdirSync(join(workdir, 'bundles'), { recursive: true });
+        disk.mkdir(join(workdir, 'bundles'), { recursive: true });
         const file = join(workdir, 'bundles', `${job.tree}.tar`);
-        writeFileSync(file, got.bytes);
-        mkdirSync(tree, { recursive: true });
+        disk.writeFile(file, got.bytes);
+        disk.mkdir(tree, { recursive: true });
         await untar(file, tree);
         fetched = true;
       }

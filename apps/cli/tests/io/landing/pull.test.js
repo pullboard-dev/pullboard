@@ -171,3 +171,10 @@ test('cli.io-landing-pull.accept-order-production-wiring: clause 3: the offer re
   assert.doesNotMatch(offerPulledLanding.toString(), /GROUP BY/);
   assert.match(acceptOrderOf.toString(), /readDerivedState\(board, \{ mainCommit: main, enabled: true \}\)/);
 });
+
+test('cli.landing-pull.items-carry-pace: clause 1: a landing offered for one item frozen at sprint and one at steady carries each item pace in its job payload [V2,M1,#12227]', async t => {
+  const { jobs } = await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' } });
+  const paceOf = id => jobs.flatMap(job => job.items).find(entry => entry.id === id)?.pace;
+  assert.equal(paceOf(1), 'sprint');
+  assert.equal(paceOf(2), 'steady');
+});

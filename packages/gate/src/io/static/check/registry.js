@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { join } from 'node:path';
 import { importStyleViolations } from '../style.js';
 import { engineFolderProblems } from '../../../../../state/index.js';
@@ -45,7 +43,7 @@ import { inlineStyleProblems } from '../inline-style.js';
 /** Every cell folder: each directory directly under packages and apps. */
 function cellFolders(root) {
   return ['packages', 'apps'].flatMap(group => {
-    try { return readdirSync(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`); } catch { return []; }
+    try { return fileSystemAdapter().list(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`); } catch { return []; }
   });
 }
 
@@ -123,7 +121,7 @@ function stagedCeilings(text) {
 function loadBearingCheck({ root, files, staged, text, previous }) {
   const present = staged
     ? gitSpawnSync(['cat-file', '-e', `:${LOAD_BEARING_CEILINGS}`], { cwd: root, stdio: 'ignore' }).status === 0
-    : existsSync(join(root, LOAD_BEARING_CEILINGS));
+    : fileSystemAdapter().exists(join(root, LOAD_BEARING_CEILINGS));
   if (!present) return [];
   const ceilings = JSON.parse(text(LOAD_BEARING_CEILINGS));
   const changed = files.filter(loadBearingJudged).map(file => ({ file, source: text(file) }));
@@ -162,7 +160,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'export-only', run: ({ root, sources, text }) => {
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
-    return exportOnlyProblems(sources, allowed, declaredDoorFiles(cellFolders(root), file => existsSync(join(root, file)))).map(row => `${row.path}:${row.line}: ${row.text}`);
+    return exportOnlyProblems(sources, allowed, declaredDoorFiles(cellFolders(root), file => fileSystemAdapter().exists(join(root, file)))).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
   { name: 'markdown-allowlist', run: ({ root, text }) => {
@@ -211,7 +209,7 @@ export const STATIC_CHECKS = Object.freeze([
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;
-    try { baseline = JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')); } catch { return []; } // a plain project keeps no wait baseline to judge [#6544]
+    try { baseline = JSON.parse(fileSystemAdapter().readFile(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')); } catch { return []; } // a plain project keeps no wait baseline to judge [#6544]
     return files.filter(isTestSource).flatMap(file => testWaitGrowth(testWaitSites(read(file).source, file), baseline).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
 ]);

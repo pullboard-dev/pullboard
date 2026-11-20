@@ -103,6 +103,7 @@ export async function run(io, args) {
     check: values.check,
     ...(values['check-timing'] === undefined ? {} : { checkTiming: parseCheckTiming(values['check-timing']) }),
     after: editAfter(values.after),
+    afterGate: editAfter(values['after-gate']),
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
@@ -118,7 +119,10 @@ export async function run(io, args) {
     if (authors.length) change.referenceAuthors = authors;
   }
   requireOwnLaneCheck(ctx.config, me, store.getItem(board, id).item_lane, change.check);
-  const barWarnings = sealed ? [] : guardBar(change.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
+  // A new check is read against the stored criterion, so BAR_CHECK_NO_TEST speaks on a check-only edit too.
+  const storedBar = store.getItem(board, id);
+  const barWarnings = sealed ? [] : guardBar(change.criterion ?? (change.check !== undefined ? storedBar.item_criterion : undefined),
+    { allowLong: Boolean(values['force-size']?.trim()), check: change.check ?? (change.criterion !== undefined ? storedBar.item_check : undefined) });
   if (change.criterion !== undefined || change.brief !== undefined) {
     const before = store.getItem(board, id);
     briefFilesAbsentFromMain(ctx, { criterion: change.criterion ?? before.item_criterion, brief: change.brief ?? before.item_brief }, itemsBarRulesAtAdd());

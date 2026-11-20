@@ -1,12 +1,11 @@
 /** Filesystem evidence keeps editing seats alive without spawning Git on ordinary writes [B4,C7]. */
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 /**
  * Read the native item folder (or the original seat checkout) for changes within fifteen minutes.
@@ -15,23 +14,23 @@ import { resolve } from 'node:path';
  */
 export function claimFolderActive(root, id, now) {
   const folder = claimFolder(root, id);
-  if (!existsSync(folder)) return false;
+  if (!fs.exists(folder)) return false;
   const cutoff = now - 15 * 60_000;
   /** Only an actual filesystem timestamp in the observation's past proves recent activity. */
   const recent = stat => Number.isFinite(stat.mtimeMs) && stat.mtimeMs >= cutoff && stat.mtimeMs <= now;
   try {
     const log = headLog(folder);
     if (log === null) return null;
-    if (existsSync(log) && recent(lstatSync(log))) return true;
+    if (fs.exists(log) && recent(fs.lstat(log))) return true;
     const pending = [folder];
     let count = 0;
     while (pending.length) {
-      for (const entry of readdirSync(pending.pop(), { withFileTypes: true })) {
+      for (const entry of fs.list(pending.pop(), { withFileTypes: true })) {
         if (entry.name === '.git') continue;
         if (++count > 10_000) return null;
         const path = join(entry.parentPath, entry.name);
         if (entry.isDirectory()) pending.push(path);
-        else if (recent(lstatSync(path))) return true;
+        else if (recent(fs.lstat(path))) return true;
       }
     }
     return false;
@@ -45,13 +44,13 @@ export function claimFolderActive(root, id, now) {
 function commonGitDir(folder) {
   try {
     const dotGit = join(folder, '.git');
-    const metadata = lstatSync(dotGit);
+    const metadata = fs.lstat(dotGit);
     if (metadata.isDirectory()) return resolve(dotGit);
-    const pointer = /^gitdir: (.+)\s*$/u.exec(readFileSync(dotGit, 'utf8'));
+    const pointer = /^gitdir: (.+)\s*$/u.exec(fs.readFile(dotGit, 'utf8'));
     if (!metadata.isFile() || !pointer) return null;
     const gitDir = resolve(folder, pointer[1].trim());
     const common = join(gitDir, 'commondir');
-    return existsSync(common) ? resolve(gitDir, readFileSync(common, 'utf8').trim()) : gitDir;
+    return fs.exists(common) ? resolve(gitDir, fs.readFile(common, 'utf8').trim()) : gitDir;
   } catch { return null; }
 }
 
@@ -65,7 +64,7 @@ function adoptedItemFolder(root, id) {
     const repository = commonGitDir(root);
     if (!repository) return null;
     const parent = dirname(root);
-    const found = readdirSync(parent).filter(name => name.endsWith(suffix)).sort().reverse()
+    const found = fs.list(parent).filter(name => name.endsWith(suffix)).sort().reverse()
       .map(name => join(parent, name)).filter(folder => commonGitDir(folder) === repository);
     return found[0] ?? null;
   } catch { return null; }
@@ -77,16 +76,16 @@ function adoptedItemFolder(root, id) {
  */
 function claimFolder(root, id) {
   const itemRoot = join(dirname(root), `${basename(root)}-item-${id}`);
-  return existsSync(itemRoot) ? itemRoot : adoptedItemFolder(root, id) ?? root;
+  return fs.exists(itemRoot) ? itemRoot : adoptedItemFolder(root, id) ?? root;
 }
 
 /** The HEAD reflog path of a checkout or linked worktree, read without Git; null when .git is unreadable. Throws when .git is missing. */
 function headLog(folder) {
   const dotGit = join(folder, '.git');
-  const metadata = lstatSync(dotGit);
+  const metadata = fs.lstat(dotGit);
   if (metadata.isDirectory()) return join(dotGit, 'logs', 'HEAD');
   if (!metadata.isFile()) return null;
-  const pointer = /^gitdir: (.+)\s*$/u.exec(readFileSync(dotGit, 'utf8'));
+  const pointer = /^gitdir: (.+)\s*$/u.exec(fs.readFile(dotGit, 'utf8'));
   return pointer ? join(resolve(folder, pointer[1].trim()), 'logs', 'HEAD') : null;
 }
 
@@ -97,8 +96,8 @@ function headLog(folder) {
 export function claimFolderCommitAt(root, id, now) {
   try {
     const log = headLog(claimFolder(root, id));
-    if (log === null || !existsSync(log)) return null;
-    const at = Math.floor(lstatSync(log).mtimeMs);
+    if (log === null || !fs.exists(log)) return null;
+    const at = Math.floor(fs.lstat(log).mtimeMs);
     return Number.isFinite(at) && at <= now ? new Date(at).toISOString() : null;
   } catch { return null; }
 }
