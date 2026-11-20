@@ -13,6 +13,9 @@ import { openBoardForRead } from '../../../store/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
 import { offerJob } from '../../index.js';
 import { serveApi } from '../../index.js';
+import { createApiHandler } from '../../index.js';
+import { Refused } from '../../../kernel/index.js';
+import { createServer } from 'node:http';
 
 const SECRET = 'fixture-secret';
 const CELL = new URL('../../../store/tests/fixtures/cell.js', import.meta.url).href;
@@ -200,4 +203,27 @@ test('api.http.agent-route-skips-state: clause 2: the agent route answers withou
   const answered = await call(api, `/api/v1/boards/${id}/agents/${seat}`);
   assert.equal(answered.status, 200, JSON.stringify(answered.body));
   assert.equal(builds, 0, 'no view projection ran for the agent read');
+});
+
+/** The status and refusal code the job route answers when the board's job call refuses with this code, over a loopback server. */
+async function jobRefusal(t, code) {
+  const handler = createApiHandler({ refusalDocument,
+    authenticate: () => ({ local: true }),
+    board: (id) => ({ id }),
+    jobs: () => { throw new Refused(code, `the board refused ${code}`); },
+  });
+  const server = createServer(handler);
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { handler.close(); server.close(done); server.closeIdleConnections(); }));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/boards/fixture/jobs`, { method: 'POST', headers: { 'content-type': 'application/json', connection: 'close' }, body: JSON.stringify({ action: 'claim', runner: 'r-a', capabilities: [] }) });
+  return [response.status, (await response.json()).error.code];
+}
+
+test('api.io-refusal.board-busy-503: clause 1: a job call the board refuses BOARD_BUSY answers HTTP 503, so the runner retries it instead of ending its serve [C7]', async (t) => {
+  assert.deepEqual(await jobRefusal(t, 'BOARD_BUSY'), [503, 'BOARD_BUSY']);
+});
+
+test('api.io-refusal.job-write-timeout-503: clause 1: a job call the board refuses JOB_WRITE_TIMEOUT answers HTTP 503, and another refusal still answers 400 [C7]', async (t) => {
+  assert.deepEqual(await jobRefusal(t, 'JOB_WRITE_TIMEOUT'), [503, 'JOB_WRITE_TIMEOUT']);
+  assert.deepEqual(await jobRefusal(t, 'JOB_RECEIPT'), [400, 'JOB_RECEIPT'], 'a refusal of the call itself stays a 400');
 });
