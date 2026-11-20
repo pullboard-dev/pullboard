@@ -18,12 +18,12 @@ export const FS_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-fs.json
 
 const KERNEL = 'packages/kernel/';
 /**
- * The two submit files whose node:fs imports live inside generated child-process scripts, which cannot import the adapter.
+ * The files whose node:fs imports live inside generated child-process scripts (the two submit files, the runner probe, and the capsule installer stringified into the remote install script, #11632), which cannot import the adapter.
  *
  * Why: the lint counts import text, so these files can never reach zero by migration; exempting them by exact path keeps
  * the imports visible here instead of rewriting the generated scripts to dodge the count [C7].
  */
-const GENERATED_CHILD_SCRIPTS = new Set(['apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js']);
+const GENERATED_CHILD_SCRIPTS = new Set(['apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/submit/remote.js', 'packages/runners/src/io/probe.js', 'packages/runners/src/io/package/install.js']);
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const FS_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)(['"`])(?:node:)?fs(?:\/promises)?\1/gu;
 
