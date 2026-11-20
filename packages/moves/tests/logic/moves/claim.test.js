@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../../../../store/index.js";
-import { openCellBoard as openBoard } from "../../../../store/tests/fixtures/cell.js";
+import { openCellBoard as openBoard } from "../../../../board/tests/fixtures/cell-board.js";
 import { submitFixture } from "../../../../store/tests/fixtures/submit.js";
 
 const COMMIT = 'a'.repeat(40);

@@ -15,9 +15,9 @@ const BEFORE = [
   'boardRemote',
   'browserFreeChecksEnabled',
   'configFromSource',
+  'derivedStateEnabled',
   'doctrineFile',
   'environmentProblem',
-  'gitSyncMarkerLinked',
   'healthDiskFloorGb',
   'hunkFreshnessEnabled',
   'listThinRead',
@@ -29,6 +29,7 @@ const BEFORE = [
   'reofferInfraEndEnabled',
   'retireIdleSeatHours',
   'submitProofOnly',
+  'typedFieldsEnabled',
   'validateRunner',
 ];
 

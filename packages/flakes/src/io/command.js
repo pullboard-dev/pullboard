@@ -1,8 +1,4 @@
 /** Read durable observations or opt this board into one diagnostic pair, never into retry acceptance [C7,H16]. */
-import {
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { ciObservations } from "../../../github/index.js";
 import { CONFIG_FILE } from "../../../config/index.js";
@@ -11,6 +7,9 @@ import { laneOf } from "../../../seats/index.js";
 import { flakeLedger } from "./main.js";
 import { flakeQuarantines } from "./quarantine.js";
 import { Refused } from "../../../kernel/index.js";
+import { fileSystemAdapter } from "../../../fs/index.js";
+
+const fs = fileSystemAdapter();
 
 /**
  * Import CI results into the ledger (#918): each observation is an ordinary ordered board move, filed in the lane
@@ -40,9 +39,9 @@ export function flakesCommand(ctx, { first, second, rest }, withBoard, services 
   if (['rerun', 'quarantine'].includes(first) && ['on', 'off'].includes(second) && !rest.length) {
     if (!ctx.info.isMain) throw new Refused('NOT_MAIN', 'only the coordinator sets this board’s diagnostic policy; ask it to run pullboard flakes rerun on or off');
     const file = join(ctx.info.root, CONFIG_FILE);
-    const config = JSON.parse(readFileSync(file, 'utf8'));
+    const config = JSON.parse(fs.readFile(file, 'utf8'));
     config.flakes = { ...(config.flakes ?? {}), [first]: second === 'on' };
-    writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+    fs.writeFile(file, JSON.stringify(config, null, 2) + '\n');
     ctx.io.result?.({ flakes: config.flakes, file: CONFIG_FILE });
     ctx.io.say(first === 'rerun' ? `paired flake diagnostics ${second}; commit ${CONFIG_FILE} to apply this board policy. The original red remains red.`
       : `flake quarantine ${second}; commit ${CONFIG_FILE} to apply this board policy. Runs and repair items are recorded either way; only quarantine stops a proven flake from blocking a landing.`);

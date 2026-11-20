@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { duplicateClaims } from '../../../index.js';
-import { requireUniqueClaims } from '../../../index.js';
+import { duplicateClaims } from '../../../heavy.js';
+import { requireUniqueClaims } from '../../../heavy.js';
 
 const RECEIPT = fileURLToPath(new URL('../../../../receipt/tests/registry.json', import.meta.url));
 const record = claim => ({ proves: { specs: ['C7'], claim }, why: 'w', kind: 'cell unit', inputs: ['x'] });

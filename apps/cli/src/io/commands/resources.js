@@ -13,8 +13,8 @@ import {
   loadMachineSettings,
   memoryFloorMB,
 } from '../../../../../packages/config/index.js';
-import { isCoordinatorMachine } from '../../../../../packages/gate/index.js';
-import { testProcesses } from '../../../../../packages/gate/index.js';
+import { isCoordinatorMachine } from '../../../../../packages/gate/heavy.js';
+import { testProcesses } from '../../../../../packages/gate/heavy.js';
 import { spawnSync } from 'node:child_process';
 import {
   agentDisplayName,

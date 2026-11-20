@@ -1,17 +1,7 @@
 /** Move one leaf with exact reversible byte custody; never evaluate the moved module [C7]. */
 import { Refused } from '../../../kernel/index.js';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  rmdirSync,
-  unlinkSync,
-  writeFileSync,
-  chmodSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   isAbsolute,
   join,
@@ -20,6 +10,8 @@ import {
   resolve,
 } from 'node:path';
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** Refuse unknown input without changing the checkout. */
 function requireThat(condition, message) { if (!condition) throw new Refused('CELLS_MOVE', message, 'Restore the clean recorded checkout or resolve the named unsupported input before retrying.'); }
@@ -34,14 +26,14 @@ function filePath(path) {
 /** Read regular bytes only; absence is explicit custody, never a swallowed I/O failure. */
 function image(root, file) {
   const path = join(root, file);
-  if (!existsSync(path)) {
-    try { lstatSync(path); throw new Error('dangling symlink'); }
+  if (!fs.exists(path)) {
+    try { fs.lstat(path); throw new Error('dangling symlink'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     return null;
   }
-  const stat = lstatSync(path);
+  const stat = fs.lstat(path);
   requireThat(stat.isFile() && !stat.isSymbolicLink(), `${file} must be regular`);
-  return { bytes: readFileSync(path).toString('base64'), mode: stat.mode & 0o111 ? 0o755 : 0o644 }; // Git records only the executable bit, so a group-writable umask (0o664) is the same file as 0o644.
+  return { bytes: fs.readFile(path, null).toString('base64'), mode: stat.mode & 0o111 ? 0o755 : 0o644 }; // Git records only the executable bit, so a group-writable umask (0o664) is the same file as 0o644.
 }
 /** Compare exact content and executable bits; do not reinterpret text as an image. */
 function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
@@ -50,9 +42,9 @@ function parents(root, file) {
   let path = root;
   for (const part of file.split('/').slice(0, -1)) {
     path = join(path, part);
-    if (existsSync(path)) requireThat(lstatSync(path).isDirectory() && !lstatSync(path).isSymbolicLink(), `unsafe parent ${path}`);
+    if (fs.exists(path)) requireThat(fs.lstat(path).isDirectory() && !fs.lstat(path).isSymbolicLink(), `unsafe parent ${path}`);
     else {
-      try { lstatSync(path); throw new Error(`dangling parent ${path}`); }
+      try { fs.lstat(path); throw new Error(`dangling parent ${path}`); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
   }
@@ -174,7 +166,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
   }
   /** Capture closed source and fixture preimages before mutation; historical v2 custody keeps its original scope. */
   function derive({ root, from, to, frontDoor, purpose, keepExports = null }, recordedHead = null, version = 3) {
-    root = realpathSync(root);
+    root = fs.realpath(root);
     [from, to, frontDoor].forEach(filePath);
     requireThat(/^packages\/[a-z][a-z0-9-]*\/index\.js$/u.test(frontDoor), 'front door must be one package index');
     requireThat(to.startsWith(posix.dirname(frontDoor) + '/src/') && /\.(?:m?js)$/u.test(to), 'body must live under the package src tree');
@@ -191,7 +183,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       parents(root, file);
       let scope = posix.dirname(file);
       while (scope !== '.') {
-        requireThat(!existsSync(join(root, scope, 'package.json')), `nested package scope ${scope} is unsupported`);
+        requireThat(!fs.exists(join(root, scope, 'package.json')), `nested package scope ${scope} is unsupported`);
         scope = posix.dirname(scope);
       }
     });
@@ -232,7 +224,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     for (const row of fixtures) { before[row.file] = row.before; after[row.file] = row.after; }
     const directories = [...new Set([to, frontDoor, mapFile].flatMap(file => {
       const result = []; let directory = posix.dirname(file);
-      while (directory !== '.' && !existsSync(join(root, directory))) { result.unshift(directory); directory = posix.dirname(directory); }
+      while (directory !== '.' && !fs.exists(join(root, directory))) { result.unshift(directory); directory = posix.dirname(directory); }
       return result;
     }))].sort((a, b) => a.split('/').length - b.split('/').length);
     const value = { version, directories, root, head, from, to, frontDoor, mapFile, purpose, keepExports, before, after,
@@ -245,7 +237,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
   function validate(value) {
     const { digest: claimed, ...payload } = value;
     requireThat([2, 3].includes(payload.version) && digest(payload) === claimed, 'transaction custody digest changed');
-    requireThat(realpathSync(payload.root) === payload.root
+    requireThat(fs.realpath(payload.root) === payload.root
       && git(payload.root, ['rev-parse', '--show-toplevel']).trim() === payload.root, 'custody root must be the actual Git root');
     [payload.from, payload.to, payload.frontDoor].forEach(filePath);
     requireThat(/^src\/[^/]+\.(?:m?js)$/u.test(payload.from)
@@ -288,15 +280,15 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     let path = root;
     for (const part of file.split('/').slice(0, -1)) {
       path = join(path, part);
-      if (!existsSync(path)) { mkdirSync(path); created.push(relative(root, path)); }
+      if (!fs.exists(path)) { fs.mkdir(path); created.push(relative(root, path)); }
     }
   }
   /** Write a known owned image; no recursive deletion and no outside paths. */
   function put(root, file, value, created) {
-    if (value === null) { if (existsSync(join(root, file))) unlinkSync(join(root, file)); return; }
+    if (value === null) { if (fs.exists(join(root, file))) fs.unlink(join(root, file)); return; }
     makeParents(root, file, created);
-    writeFileSync(join(root, file), Buffer.from(value.bytes, 'base64'));
-    chmodSync(join(root, file), value.mode);
+    fs.writeFile(join(root, file), Buffer.from(value.bytes, 'base64'));
+    fs.chmod(join(root, file), value.mode);
   }
   /** Restore only known transaction images; preserve unexpected concurrent edits for manual recovery. */
   function restore(value, created = []) {
@@ -313,7 +305,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
     if (absent.length) git(value.root, ['update-index', '--force-remove', '--', ...absent]);
     git(value.root, ['add', '--', ...Object.keys(value.before).filter(file => value.before[file] !== null)]);
     for (const directory of [...new Set(created)].reverse()) {
-      try { rmdirSync(join(value.root, directory)); }
+      try { fs.rmdir(join(value.root, directory)); }
       catch (error) { if (!['ENOTEMPTY', 'ENOENT'].includes(error.code)) throw error; }
     }
   }
@@ -331,10 +323,10 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
       parents(value.root, file);
       requireThat(same(image(value.root, file), expected), `${file} changed since planning`);
     }
-    requireThat(existsSync(custodyDirectory) && realpathSync(custodyDirectory) === resolve(custodyDirectory),
+    requireThat(fs.exists(custodyDirectory) && fs.realpath(custodyDirectory) === resolve(custodyDirectory),
       'custody must be an existing canonical directory without symlink aliases');
     const record = join(custodyDirectory, value.digest + '.json');
-    writeFileSync(record, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.writeFile(record, JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
     const created = [];
     try {
       makeParents(value.root, value.to, created);
@@ -350,7 +342,7 @@ export function createMoveTool({ lex, importsIn, commonJsIn, engineFolderViolati
   }
   /** Reverse only this exact postimage; no reset, candidate execution, or collateral overwrite. */
   function undo(record) {
-    const value = JSON.parse(readFileSync(record, 'utf8'));
+    const value = JSON.parse(fs.readFile(record, 'utf8'));
     validate(value);
     requireThat(git(value.root, ['rev-parse', 'HEAD']).trim() === value.head, 'this bounded draft reverses before commit; use an ordinary reviewed revert afterward');
     const changed = [...git(value.root, ['diff', '--name-only', '-z']).split('\0'),

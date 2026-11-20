@@ -1,0 +1,3 @@
+{
+  "moves.register.abilities-floor": {"proves":{"specs":["C7"],"claim":"A register whose first argument carries abilities is floored at NEEDS_ENGINE; one with none keeps its old floor."},"why":"A join recording abilities must never replay under an engine older than the needs leaf.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/register.js","packages/moves/tests/logic/moves/register.test.js"]}
+}

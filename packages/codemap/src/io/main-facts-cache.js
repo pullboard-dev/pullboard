@@ -1,12 +1,5 @@
 /** Immutable derived facts live outside every checkout; never persist live board decisions. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -17,6 +10,11 @@ import { git } from '../../../git/index.js';
 import { indexedFiles } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { trunkRef } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
+
+const disk = fileSystemAdapter();
+const environment = environmentAdapter();
 
 const LIMIT = 64 * 1024 * 1024;
 const DEFAULT_CACHE_BYTES = 512 * 1024 * 1024;
@@ -24,8 +22,8 @@ const DEFAULT_RECENT_COMMITS = 8;
 
 /** Environment overrides are local cache limits, never board or proof authority. */
 function cacheLimits() {
-  const bytes = Number(process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES);
-  const recent = Number(process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS);
+  const bytes = Number(environment.get('PULLBOARD_MAIN_FACTS_MAX_BYTES'));
+  const recent = Number(environment.get('PULLBOARD_MAIN_FACTS_RECENT_COMMITS'));
   return { bytes: Number.isSafeInteger(bytes) && bytes >= 16384 ? bytes : DEFAULT_CACHE_BYTES,
     recent: Number.isSafeInteger(recent) && recent >= 1 && recent <= 1000 ? recent : DEFAULT_RECENT_COMMITS };
 }
@@ -42,15 +40,15 @@ const TOOL_PATHS = ['package.json', 'src', 'bin', 'packages'];
  * Null when the installation is not a plain git checkout, and the caller then walks it.
  */
 function indexedToolIdentity(root) {
-  const present = TOOL_PATHS.filter(name => existsSync(join(root, name)));
+  const present = TOOL_PATHS.filter(name => disk.exists(join(root, name)));
   const found = indexedFiles(root, present);
   if (!found || found.links.size) return null;
   const entries = new Map(found.clean);
   for (const file of [...found.dirty, ...found.untracked]) {
     let stat;
-    try { stat = lstatSync(join(root, file)); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    try { stat = disk.lstat(join(root, file)); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     if (!stat.isFile()) return null;
-    entries.set(file, { mode: stat.mode & 0o111 ? '100755' : '100644', oid: blobOid(readFileSync(join(root, file)), found.length) });
+    entries.set(file, { mode: stat.mode & 0o111 ? '100755' : '100644', oid: blobOid(disk.readFile(join(root, file), null), found.length) });
   }
   const hash = createHash('sha256');
   for (const name of TOOL_PATHS) if (!present.includes(name)) hash.update(JSON.stringify([name, null]));
@@ -73,14 +71,14 @@ export function mainFactToolIdentity() {
     /** Inventory the executing installation, even when its project owns a different package manifest. */
     function visit(file) {
       let stat;
-      try { stat = lstatSync(join(root, file)); }
+      try { stat = disk.lstat(join(root, file)); }
       catch (error) { if (error.code === 'ENOENT') { hash.update(JSON.stringify([file, null])); return; } throw error; }
       if (stat.isSymbolicLink()) throw new Error('tool fingerprint cannot follow a symlink');
       if (stat.isDirectory()) {
-        for (const name of readdirSync(join(root, file)).sort()) visit(`${file}/${name}`);
+        for (const name of disk.list(join(root, file)).sort()) visit(`${file}/${name}`);
       } else {
         if (!stat.isFile() || ++count > 20000 || (size += stat.size) > 128 * 1024 * 1024) throw new Error('tool fingerprint exceeds inventory bound');
-        const bytes = readFileSync(join(root, file));
+        const bytes = disk.readFile(join(root, file), null);
         hash.update(JSON.stringify([file, bytes.length]) + '\n');
         hash.update(bytes);
       }
@@ -102,12 +100,12 @@ function openCache(root, home) {
   // Git's files name the common directory without a launch; Git answers only when they cannot (#10823).
   const common = home ? null : checkoutCommonDir(root, { env: cleanGitEnvironment() }) ?? resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
   const directory = home ? join(home, 'main-facts') : join(common, 'pullboard-main-facts');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const parent = lstatSync(directory);
+  disk.mkdir(directory, { recursive: true, mode: 0o700 });
+  const parent = disk.lstat(directory);
   if (!parent.isDirectory() || parent.isSymbolicLink() || parent.mode & 0o077) throw new Error('non-private main facts cache');
   const file = join(directory, 'facts.sqlite');
-  try { closeSync(openSync(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-  const stat = lstatSync(file);
+  try { disk.close(disk.open(file, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const stat = disk.lstat(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.mode & 0o077) throw new Error('non-private main facts database');
   // Loaded on first use: this module rides the codemap barrel every check script imports, and a static node:sqlite import prints a warning there.
   const { DatabaseSync } = process.getBuiltinModule('node:sqlite');

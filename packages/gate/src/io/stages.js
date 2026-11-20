@@ -1,9 +1,5 @@
 /** Shared local and registered-runner gate accounting [B3,R3,C7]. */
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 
 /**
@@ -121,7 +117,8 @@ export function readPipes(split, pipes, limit = Infinity) {
   /** Read one private component file, or null when the component never wrote it. */
   const read = (index, at, kind) => {
     const path = join(pipes, `${index}-${at}.${kind}`);
-    return existsSync(path) && statSync(path).size <= limit ? readFileSync(path, 'utf8') : null;
+    const disk = fileSystemAdapter();
+    return disk.exists(path) && disk.stat(path).size <= limit ? disk.readFile(path, 'utf8') : null;
   };
   return split.map((stage, index) => (stage.pipeline.length > 1 ? stage.pipeline.map((_, at) => {
     const lines = (read(index, at, 'status') ?? '').split('\n').filter(Boolean);

@@ -1,14 +1,6 @@
 /** Exact person row decisions and coordinator file application [B26,S18,S19]. */
 import { answerFromText } from '../main.js';
 import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
 } from 'node:path';
@@ -29,6 +21,9 @@ import { Refused } from '../../../../kernel/index.js';
 import { rowDecisionReplacement } from '../../logic/row/replacement.js';
 import { rowDecisionContext } from './stale.js';
 import { staleRowDecision } from './stale.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Resolve qualified doctrine ids while bare ids continue to name the spec. A doctrine id no repo row
@@ -54,7 +49,7 @@ function decisionRows(root, config, ids, { loadDoctrine, standardDecisionLine },
     }
     if (matches.length !== 1) throw new Refused('NO_ROW', `${reference} names ${matches.length} repo rows; use one id from ${parsed.name}`);
     const file = kind === 'doctrine' ? doctrine.name : config.spec;
-    if (!lines.has(file)) lines.set(file, readFileSync(join(root, file), 'utf8').split(/\r?\n/u));
+    if (!lines.has(file)) lines.set(file, fs.readFile(join(root, file), 'utf8').split(/\r?\n/u));
     const source = lines.get(file)[matches[0].line - 1];
     return { kind, file, row: matches[0], source };
   });
@@ -215,12 +210,19 @@ export function planRowApply(root, config, records, { passkeyDecision = () => fa
     const file = record.kind === 'spec' ? config.spec : loadDoctrine(root, config).name;
     const aliases = new Set(['DOCTRINE.md', 'PRACTICE.md']);
     if (file !== record.file && !(record.kind === 'doctrine' && aliases.has(file) && aliases.has(record.file))) throw new Refused('STALE_ROW_DECISION', `${record.id}'s file changed; ask the person to approve its current row again`);
-    if (!files.has(file)) files.set(file, { file, before: readFileSync(join(root, file), 'utf8') });
+    if (!files.has(file)) files.set(file, { file, before: fs.readFile(join(root, file), 'utf8') });
     const change = files.get(file);
     const lines = (change.after ?? change.before).split('\n');
     const parsed = loadSpec(root, { ...config, spec: file });
     const matches = parsed.rows.filter((row) => row.id === record.id);
     if (verifiedPasskey && matches[0]?.signers?.length) throw new Refused('PERSON_SIGNER_REQUIRED', `${record.id} names its SSH signers ${matches[0].signers.join(', ')}`, 'a passkey does not claim any named SSH identity');
+    if (record.kind === 'doctrine' && record.source === '' && matches.length === 0) {
+      // A standard default has no repo line: append its decision line once [#2007].
+      const tail = lines.at(-1) === '' ? lines.length - 1 : lines.length;
+      lines.splice(tail, 0, record.replacement);
+      change.after = lines.join('\n');
+      continue;
+    }
     const index = matches.length === 1 ? matches[0].line - 1 : -1;
     const source = index < 0 ? '' : lines[index].replace(/\r$/u, '');
     if (source !== record.source && source !== record.replacement) throw new Refused('STALE_ROW_DECISION', `${record.id}'s exact row changed after the person's decision; ask the person to approve its current text again`);
@@ -228,7 +230,7 @@ export function planRowApply(root, config, records, { passkeyDecision = () => fa
     change.after = lines.join('\n');
   }
   const signoffPath = join(root, SIGNOFFS_FILE);
-  const before = existsSync(signoffPath) ? readFileSync(signoffPath, 'utf8') : null;
+  const before = fs.exists(signoffPath) ? fs.readFile(signoffPath, 'utf8') : null;
   const previous = before?.split('\n').filter(Boolean).map(JSON.parse) ?? [];
   const receipts = pending.filter((record) => record.signature).map(decisionReceipt)
     .filter((record) => !previous.some((old) => old.signature === record.signature));
@@ -240,13 +242,13 @@ export function writeRowApply(root, plan) {
   const written = [];
   try {
     for (const file of plan.files) {
-      writeFileSync(join(root, file.file), file.after);
+      fs.writeFile(join(root, file.file), file.after);
       written.push(file);
     }
     if (plan.signoffs.receipts.length) {
       const file = join(root, SIGNOFFS_FILE);
-      mkdirSync(dirname(file), { recursive: true });
-      appendFileSync(file, `${plan.signoffs.before && !plan.signoffs.before.endsWith('\n') ? '\n' : ''}${plan.signoffs.receipts.map((record) => JSON.stringify(record)).join('\n')}\n`);
+      fs.mkdir(dirname(file), { recursive: true });
+      fs.appendFile(file, `${plan.signoffs.before && !plan.signoffs.before.endsWith('\n') ? '\n' : ''}${plan.signoffs.receipts.map((record) => JSON.stringify(record)).join('\n')}\n`);
     }
   } catch (error) {
     restoreRowApply(root, { ...plan, files: written });
@@ -256,9 +258,9 @@ export function writeRowApply(root, plan) {
 
 /** Undo this apply's file writes when its board move or a later filesystem operation refuses. */
 export function restoreRowApply(root, plan) {
-  for (const file of [...plan.files].reverse()) writeFileSync(join(root, file.file), file.before);
+  for (const file of [...plan.files].reverse()) fs.writeFile(join(root, file.file), file.before);
   if (!plan.signoffs.receipts.length) return;
   const file = join(root, SIGNOFFS_FILE);
-  if (plan.signoffs.before === null) rmSync(file, { force: true });
-  else writeFileSync(file, plan.signoffs.before);
+  if (plan.signoffs.before === null) fs.rm(file, { force: true });
+  else fs.writeFile(file, plan.signoffs.before);
 }

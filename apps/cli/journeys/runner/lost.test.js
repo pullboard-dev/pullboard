@@ -99,7 +99,8 @@ caseTest('held:yield', 'a worker missing READY yields to a free runner in the ne
   writeFileSync(settings, JSON.stringify({ ...configured, runners: [box.runner, second],
     gate: { ...configured.gate, timingRunner: false, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
-  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+  const heavy = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/heavy.js')).href;
+  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(heavy)};
 ${executionServicesSource(gate)}
     import {DatabaseSync} from 'node:sqlite';
     const attempts=[],notices=[],waits=[];
@@ -136,8 +137,9 @@ caseTest('held:retry', 'an SSH-healthy host whose worker misses READY once stays
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
+  const heavy = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/heavy.js')).href;
   // The second miss (RUNNER_WAIT_DEADLINE, runner still in service) waits out the 90 s late-dispatch budget, so packages/gate/tests/runner/probe.test.js owns it.
-  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(heavy)};
 ${executionServicesSource(gate)}
     import {DatabaseSync} from 'node:sqlite';
     const attempts=[];

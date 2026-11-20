@@ -46,6 +46,7 @@ function fixture(t, { red = false } = {}) {
   put('package.json', '{"type":"module"}\n');
   put('bin/mark.js', MARK);
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', `import { mark } from '../../bin/mark.js';
 export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }

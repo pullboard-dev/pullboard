@@ -93,6 +93,31 @@ test('gate.add-check-baseline-runner.registered-runner-baseline-runs-there: clau
   assert.ok(readFileSync(box.requests, 'utf8').trim().length > 0, 'the run went through the runner transport, not a local process');
 });
 
+test('gate.add-check-baseline-runner.hung-runner-ends-at-cap: clause 1: a runner call that never settles until aborted ends as unavailable at a 50 ms cap, and the call saw its signal abort [C7,V2]', { timeout: 10000 }, async t => {
+  const box = runnerFixture(t);
+  const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME, agent: process.env.PULLBOARD_AGENT,
+    path: process.env.PATH, accountHome: process.env.HOME };
+  Object.assign(process.env, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine, PULLBOARD_AGENT: 'baseline-runner-fixture',
+    PATH: box.env.PATH, HOME: box.home });
+  t.after(() => {
+    for (const [name, value] of [['PULLBOARD_HOME', prior.home], ['PULLBOARD_MACHINE_HOME', prior.machine], ['PULLBOARD_AGENT', prior.agent], ['PATH', prior.path], ['HOME', prior.accountHome]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  });
+  let sawAbort = false;
+  const hung = { ...executionServices, runners: { ...executionServices.runners,
+    /** A runner that never reports READY: it settles only when the caller aborts it. */
+    runOnRunnerAsync: (_root, _command, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => { sawAbort = true; reject(new Error('aborted by the cap')); }, { once: true });
+    }) } };
+  const expected = { command: 'node test/runner.js ./test/failing.test.js', main: box.main };
+  const baseline = await measureBaseline(box.repo, 8, expected, { gateExecutionServices: async () => hung }, { capMs: 50 });
+  assert.equal(baseline.result, 'unavailable', 'a capped baseline is unavailable, neither red nor green');
+  assert.match(baseline.reason, /exceeded/u);
+  assert.equal(baseline.main, box.main);
+  assert.equal(sawAbort, true, 'the runner call saw its signal abort');
+});
+
 test('gate.add-check-baseline-runner.registered-runner-baseline-offered-check: clause 3: with no registered runner the baseline is offered as a check-baseline pull job that carries the check and main, never run here [C7,V2,#6560]', t => {
   const directory = privateFixtureFiles('pullboard-baseline-offer-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
