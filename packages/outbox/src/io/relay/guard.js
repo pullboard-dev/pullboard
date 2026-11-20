@@ -4,14 +4,13 @@
  * what the relay ordered. Neither holds it across a network call, so a move never waits on the relay.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {
-  mkdirSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { DatabaseSync } from 'node:sqlite';
 import {
   dirname,
   join,
 } from 'node:path';
+const fileSystem = fileSystemAdapter();
 
 // Budget: the guard is held only for local SQLite work (queue one move, or rebuild a board); a minute covers the
 // largest board's rebuild with room, and a holder that died releases its lock with its process.
@@ -90,7 +89,7 @@ async function beginExclusive(db) {
 
 /** Hold the actual cross-process SQLite lock for one active asynchronous operation and its genuine nested work. */
 async function ownFileLock(file, work) {
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  fileSystem.mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(file);
   const owner = { active: true };
   try {

@@ -5,13 +5,14 @@
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { tryGit } from '../../../git/index.js';
 import { CONFIG_FILE } from '../../../kernel/browser.js';
+
+const fs = fileSystemAdapter();
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
@@ -59,7 +60,7 @@ export function quarantinedReds(board, receipt, main, before = null) {
 /** Write one probe's output as immutable evidence and describe it as a flake observation receipt does. */
 function evidence(directory, id, label, text, green) {
   const bytes = Buffer.from(String(text ?? ''), 'utf8');
-  writeFileSync(join(directory, label + '.log'), bytes, { flag: 'wx', mode: 0o600 });
+  fs.writeFile(join(directory, label + '.log'), bytes, { flag: 'wx', mode: 0o600 });
   return { green, sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length, artifact: `flake-evidence/${id}/${label}.log`, profileSha256: null };
 }
 
@@ -85,8 +86,8 @@ function storedRun(ports, board, { item, submit, candidate, tree, main, runner, 
   const body = ports.receipts.receiptBody(run);
   const folder = ports.receipts.boardReceiptStore(board);
   if (!body || !folder) return null;
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
-  writeFileSync(join(folder, run.id + '.json'), body, { mode: 0o600, flag: 'wx' });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
+  fs.writeFile(join(folder, run.id + '.json'), body, { mode: 0o600, flag: 'wx' });
   return JSON.parse(body);
 }
 
@@ -118,7 +119,7 @@ export function recordPulledPairs(board, { job, receipt, item, candidate, main, 
     for (const name of pair.names) {
       try {
         const id = randomUUID(), directory = join(evidenceRoot, id);
-        mkdirSync(directory, { recursive: true, mode: 0o700 });
+        fs.mkdir(directory, { recursive: true, mode: 0o700 });
         const pairResult = pair.paired.results?.[name] ?? null, mainResult = pair.main ? pair.main.results?.[name] ?? null : null;
         const [classification, reason] = classify(pairResult, mainResult);
         const observation = { id, file: pair.file, name, head: candidate, tree, main: SHA.test(String(main)) ? main : null, kind: 'submit', classification, reason,
@@ -189,7 +190,7 @@ export function recordLandedRed(board, { job, receipt, item }) {
   for (const { file, name } of red.failures) {
     try {
       const id = randomUUID(), directory = join(evidenceRoot, id);
-      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      fs.mkdir(directory, { recursive: true, mode: 0o700 });
       const pair = pairs.find(row => row?.file === file && Array.isArray(row.names) && row.names.includes(name) && row.paired);
       const [classification, reason] = pair ? classify(pair.paired.results?.[name] ?? null, pair.main ? pair.main.results?.[name] ?? null : null)
         : ['unclassified', 'The landing ran no paired rerun for this case; its original red is retained.'];

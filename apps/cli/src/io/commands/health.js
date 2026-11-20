@@ -1,4 +1,4 @@
-import { recentReceipts } from '../../../../../packages/gate/index.js';
+import { recentReceipts } from '../../../../../packages/gate/heavy.js';
 import { runnerLossHealth } from '../../logic/runner/loss.js';
 import { runnerLossLines } from '../../logic/runner/loss.js';
 import { maintenanceTimerHealth } from '../worktree/maintenance/scheduler.js';
@@ -30,6 +30,7 @@ import { machineLoadVerdict } from '../../../../../packages/resources/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
 import { healthDiskFloorGb } from '../../../../../packages/config/index.js';
 import { diskFloorFinding } from '../health/disk.js';
+import { duplicateRunnerPlaces } from '../../../../../packages/api/index.js';
 
 const fs = fileSystemAdapter();
 
@@ -48,6 +49,7 @@ export async function run(io, { values = {}, statfs } = {}) {
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
   report.overdueRunnerLeases = runnerHealth.filter(row => row.deadline !== undefined);
   report.runnerLifecycleProblems = runnerHealth.filter(row => row.problem);
+  report.runnerDuplicates = duplicateRunnerPlaces(ctx.clock.now().getTime());
   report.dirtyWorktrees = [];
   if (ctx.config.worktreeMaintenance?.enabled === true) {
     const { maintenanceHealth } = await import('../worktree/maintenance.js');
@@ -73,6 +75,7 @@ export async function run(io, { values = {}, statfs } = {}) {
   if (report.toolBuild.newestEligible) io.say(`Newest eligible tool build ${report.toolBuild.newestEligible.commit}; gate age ${Math.floor(report.toolBuild.newestEligible.ageMs / 1000)}s`);
   for (const lease of report.overdueRunnerLeases) io.say(`runner execution deadline ${new Date(lease.deadline).toISOString()} passed; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; controller pid ${lease.controllerPid}; ${lease.repo}`);
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
+  for (const place of report.runnerDuplicates) io.say(`RUNNER_DUPLICATE: runners ${place.runners.join(' and ')} claim from host ${place.host}, runner folder ${place.root}; on the host, stop the older service (pullboard runner list shows how it was installed)`);
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   io.say(report.machineLoad.line);
@@ -82,7 +85,7 @@ export async function run(io, { values = {}, statfs } = {}) {
     ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
     : `worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
   for (const row of report.unfinishedFolders) io.say(`item folder with an unfinished ${row.operation}: ${JSON.stringify(row.path)}; seat ${row.seat ?? 'unregistered'}, #${row.item}; finish or abort it there`);
-  return report.stuck.length || report.unfinishedFolders.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.dirtyWorktrees.length ? 1 : 0;
+  return report.stuck.length || report.unfinishedFolders.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.runnerDuplicates.length || report.dirtyWorktrees.length ? 1 : 0;
 
 }
 

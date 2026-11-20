@@ -99,6 +99,11 @@ function idleReason(r) {
   return `Idle ${Math.floor(r.idleMs / 60_000)} minutes: no commit, file change, running check or item move since ${r.workActivity}; ${handoffText(r.handoff)}.`;
 }
 
+/** The closed release code of each idle kind when the move carries boardCodes: a waiting claim stays BLOCKED. */
+function idleCode(kind) {
+  return kind === 'seat-gone' ? 'SEAT_GONE' : kind === 'waiting' ? 'BLOCKED' : kind === 'progress' ? 'NO_PROGRESS' : 'BUILDER_SILENT';
+}
+
 /** The fact that a check of this move kind does not find the given problem code. */
 const passes = (kind, problem, code) => (s, m) => m.kind !== kind || problem(s, m) !== code;
 const free = () => ({ status: 'open', owner: null, leaseUntil: null });
@@ -151,23 +156,23 @@ export const RECLAIM_TABLE = Object.freeze({
           { kind: 'release', by: m.maintainer, detail: { reason,
             ...(r.idle === 'seat-gone' ? { reclaim: { seat: r.actor, heartbeatAt: r.deadSeat.heartbeatAt, worktreeMissing: r.deadSeat.worktreeMissing, observedAt: m.observedAt } } : {}),
             ...(r.idle === 'progress' ? { reopenFirstRefusal: { builder: r.actor, otherSeatFirst: true, until: new Date(Date.parse(m.observedAt) + 7_200_000).toISOString() } } : {}),
-            reasonCode: r.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
+            reasonCode: m.boardCodes ? idleCode(r.idle) : r.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
             idleClaim: { holder: r.actor, kind: r.idle, lastActivity: r.workActivity ?? null, observedAt: m.observedAt, claimEventId: r.claimEventId,
               ...(r.idle === 'waiting' ? { waitingOn: r.waitingOn } : { handoff: r.handoff }) } } },
         ];
       } },
     { id: 'expire-lapsed-claim', when: 'lapsedClaim', patch: free,
-      events: (s, m) => [{ kind: 'release', by: m.maintainer, detail: { reason: 'Lapsed claim idle past its stale interval.', reasonCode: 'OTHER',
+      events: (s, m) => [{ kind: 'release', by: m.maintainer, detail: { reason: 'Lapsed claim idle past its stale interval.', reasonCode: m.boardCodes ? 'LEASE_LAPSED' : 'OTHER',
         expiredClaim: { holder: m.row.actor, leaseUntil: m.row.leaseUntil, lastActivity: m.row.lastActivity, observedAt: m.observedAt, leaseEventId: m.row.leaseEventId },
         reopenFirstRefusal: { builder: s.item.owner, until: new Date(Date.parse(m.now) + m.row.leaseMs).toISOString() } } }] },
     { id: 'free-idle-review', when: 'idleReview', patch: () => ({ reviewer: null, reviewUntil: null }),
-      events: (s, m) => [{ kind: 'release', by: m.maintainer, detail: { review: true, reason: `Review idle for 30 minutes; last observed activity ${m.row.lastActivity}.`, reasonCode: 'OTHER',
+      events: (s, m) => [{ kind: 'release', by: m.maintainer, detail: { review: true, reason: `Review idle for 30 minutes; last observed activity ${m.row.lastActivity}.`, reasonCode: m.boardCodes ? 'REVIEW_IDLE' : 'OTHER',
         stale: { reviewer: m.row.reviewer, reservedAt: m.row.reservedAt, lastActivity: m.row.lastActivity } } }] },
     { id: 'free-lapsed-review', when: 'lapsedReview', patch: () => ({ reviewer: null, reviewUntil: null }),
       events: (s, m) => {
         const now = Date.parse(m.now), seen = m.seenAt ? Date.parse(m.seenAt) : null;
         const minutes = Math.round((now - (seen ?? now - m.lapse.lapsedMs)) / 60_000);
-        return [{ kind: 'release', by: 'coordinator', detail: { review: true, reason: `Review silent for ${minutes} minutes; its reservation lease lapsed.`, reasonCode: 'OTHER',
+        return [{ kind: 'release', by: 'coordinator', detail: { review: true, reason: `Review silent for ${minutes} minutes; its reservation lease lapsed.`, reasonCode: m.boardCodes ? 'REVIEW_LEASE_LAPSED' : 'OTHER',
           lapsed: { reviewer: m.lapse.reviewer, lapsedMs: m.lapse.lapsedMs } } }];
       } },
   ]),
