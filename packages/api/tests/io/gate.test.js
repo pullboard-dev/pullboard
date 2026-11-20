@@ -182,7 +182,7 @@ const proofRow = (file, status, inputKey = KEY) => ({ file, inputKey, command: '
 
 test('api.io-gate.shard-offer-ledger-hits-and-misses: clause 1: a shard offer carries the ledger hit for a file with a recorded pass and a reason none, red or changed for each other file [C7,P7]', t => {
   let reasons;
-  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [row('web/a.test.js', 'pass'), row('web/b.test.js', 'fail'), row('web/b.test.js', 'pass', '2'.repeat(64)), row('web/b.test.js', 'fail', '2'.repeat(64))] });
+  const seed = db => { recordTestResults(db, { receipt: 'r1', origin: 'fixture', rows: [proofRow('web/a.test.js', 'pass'), proofRow('web/b.test.js', 'fail'), proofRow('web/b.test.js', 'pass', '2'.repeat(64)), proofRow('web/b.test.js', 'fail', '2'.repeat(64))] });
     reasons = ledgerMissReasons(db, ['web/a.test.js', 'web/b.test.js', 'web/c.test.js']); };
   const [first, second] = shardData(t, undefined, seed);
   // Shard 1 holds a (a recorded pass: a hit) and c (no row at all); shard 2 holds b (a fail and a pass shadowed by a fail: red).
