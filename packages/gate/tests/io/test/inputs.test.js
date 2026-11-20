@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell gate */
 /** A test-input header names cells, and selection reruns that test only for a change in a named cell [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
