@@ -24,11 +24,13 @@ import { JOB_ENV_NAME } from '../../../../../packages/drive/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { ledgerHits } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
-import { LEDGER_HITS_ENV } from '../../../../../packages/gate/heavy.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { fileBudgetField } from './file-limit.js';
 import { fileLimitEnv } from './file-limit.js';
+
+// The run-tests ledger variable (packages/gate LEDGER_HITS_ENV), named here because the gate's heavy door does not export it.
+const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 
 /** The job kind of a pulled test run; the board records its receipt and applies nothing, since the caller reads it. */
 export const TEST_JOB_KIND = 'test';
