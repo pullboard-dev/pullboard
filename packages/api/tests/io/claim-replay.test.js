@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/api */
 /** replayClaims measures pull claims on a copy of the board database and leaves the source file untouched [C7,#12097]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
