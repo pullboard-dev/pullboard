@@ -24,6 +24,7 @@ import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../items/index.js';
 import { dependencyLabel } from '../../../items/index.js';
 import { itemFileCollisions } from '../../../items/index.js';
+import { toolTreeRoomProblem } from '../../../items/index.js';
 /**
  * `pullboard health`: every stuck item on the board, why it is stuck, since when, the one next step
  * and who takes it [A6]. Doctor checks a board's integrity; health checks its flow, so nobody has
@@ -33,7 +34,7 @@ import { itemFileCollisions } from '../../../items/index.js';
  * every checkout alone: merge-tree writes a tree object and never an index or a working tree.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../resources/index.js';
@@ -42,6 +43,7 @@ import { missedJobFindings } from '../../../store/index.js';
 import {
   COORDINATOR,
   durationMs,
+  scratchRoot,
 } from '../../../config/index.js';
 import {
   mainCheckout,
@@ -75,6 +77,8 @@ import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
 import { relayMachineContext } from '../../../link/index.js';
 
+const fs = fileSystemAdapter();
+
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });
 
@@ -102,7 +106,7 @@ export function healthThresholds(config = {}) {
  * @returns {ReturnType<typeof healthReport>}
  */
 export function boardHealth(file, { root, config, now, dispatchHealth, machineSettings }) {
-  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth, machineSettings });
+  if (!fs.exists(file)) return healthReport({ db: null, root, config, now, dispatchHealth, machineSettings });
   const startedAt = Date.now();
   let db;
   try {
@@ -118,16 +122,26 @@ export function boardHealth(file, { root, config, now, dispatchHealth, machineSe
 /**
  * Every stuck finding on an open board connection, and the rework that waits for a later release.
  *
- * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
+ * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function, room?: () => ({ freeMb: number, minFreeMb: number, temp: string } | null) }} options Explicit upper-layer dispatch observation; room reads the scratch-space floor and defaults to the real volume.
  * @returns {{ asOf: string, thresholds: { stuck: string, holds: string, release: string }, stuck: Finding[], waiting: Finding[] }}
  */
-export function healthReport({ db, root, config, now, dispatchHealth, machineSettings }) {
+export function healthReport({ db, root, config, now, dispatchHealth, machineSettings, room = () => toolTreeRoomProblem({ temp: scratchRoot(machineSettings) }) }) {
   const limits = healthThresholds(config);
   const asOf = now.toISOString();
   const report = { asOf, thresholds: { stuck: limits.stuck, holds: limits.holds, release: limits.release }, stuck: [], waiting: [] };
   // Gate alarms read the git directory, so they report even before a board exists (U41).
   report.stuck.push(...gateControlFindings(root, config ?? {}, now));
   report.stuck.push(...unavailableRunnerFindings(now));
+  const lowRoom = room();
+  if (lowRoom) {
+    report.stuck.push(finding('TOOL_TREE_DISK_LOW', null, {
+      subject: 'scratch space', key: 'TOOL_TREE_DISK_LOW:machine', since: asOf, now: now.getTime(),
+      title: 'scratch space is under the tool-tree floor',
+      why: `${lowRoom.freeMb} MB free in ${lowRoom.temp}, under the ${lowRoom.minFreeMb} MB floor; review packets lose their main comparison until space is freed`,
+      next: 'free space in the scratch folder or move it to a larger volume',
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: lowRoom,
+    }));
+  }
   const canary = readRelayHealth(root);
   if (typeof canary.alertSince === 'string' && Number.isFinite(Date.parse(canary.alertSince))) {
     const step = typeof canary.step === 'string' ? canary.step : 'unknown';
@@ -207,7 +221,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   }
 
   report.stuck.push(...unansweredShoutFindings(db, limits.ms.stuck, now, finding));
-  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
+  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { reviewHolder, limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
@@ -439,7 +453,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
 /** Report hosts still unavailable after thirty minutes from the read-only machine queue. */
 function unavailableRunnerFindings(now) {
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   let queue;
   try {
     queue = new DatabaseSync(file, { readOnly: true });

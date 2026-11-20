@@ -15,10 +15,6 @@
  * Without the marker, importing this module changes nothing.
  */
 import childProcess from 'node:child_process';
-import {
-  statSync,
-  realpathSync,
-} from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import {
   basename,
@@ -30,6 +26,9 @@ import {
 import { Refused } from '../../../../kernel/index.js';
 import { BROWSER_MARKER } from '../../logic/declaration.js';
 import { environmentAdapter } from '../../../../env/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 // Node registers this symbol globally; looking it up needs no util facade or dynamic loader.
 const PROMISIFY_CUSTOM = Symbol.for('nodejs.util.promisify.custom');
@@ -63,14 +62,14 @@ export function browserSlotRefusal(what) {
 
 /** A path with symlinks resolved when it exists, so a link to Chrome still reads as Chrome. */
 function canonical(path) {
-  try { return realpathSync(path); } catch { return resolve(path); }
+  try { return fs.realpath(path); } catch { return resolve(path); }
 }
 
 /** Find a bare command through PATH the way the spawn would, or null when it is not there. */
 function onPath(command, pathValue) {
   for (const directory of String(pathValue ?? '').split(delimiter)) {
     const candidate = resolve(directory || '.', command);
-    try { if (statSync(candidate).isFile()) return candidate; } catch { /* not in this PATH entry */ }
+    try { if (fs.stat(candidate).isFile()) return candidate; } catch { /* not in this PATH entry */ }
   }
   return null;
 }

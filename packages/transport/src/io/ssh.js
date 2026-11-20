@@ -1,13 +1,13 @@
 /** The SSH push adapter: a registered machine's channel is one ssh session running `sh`; its probe is its own call; all share one multiplexed connection per runner [C7]. */
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { environmentAdapter } from '../../../env/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { openChannel } from './channel.js';
 import { sshFetchResult } from './ssh/shards.js';
 import { sshResetShard } from './ssh/shards.js';
@@ -81,7 +81,7 @@ export function sshControlPath(host, { home = environmentAdapter().get('PULLBOAR
   if (typeof host !== 'string' || !host || process.platform === 'win32' || !isAbsolute(home ?? '')) return null;
   const folder = join(home, 'ssh');
   const path = join(folder, createHash('sha256').update(host).digest('hex').slice(0, 12));
-  try { mkdirSync(folder, { recursive: true, mode: 0o700 }); } catch { return null; }
+  try { fileSystemAdapter().mkdir(folder, { recursive: true, mode: 0o700 }); } catch { return null; }
   return path;
 }
 

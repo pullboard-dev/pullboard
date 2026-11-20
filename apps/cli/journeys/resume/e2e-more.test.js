@@ -20,7 +20,7 @@ import {
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { awaitNestedRun } from '../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../packages/gate/heavy.js';
 import { once } from 'node:events';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';

@@ -37,3 +37,12 @@ test('store.io-light-door.the-static-import-closure-of-packages: clause 1: the s
   assert.ok(modules.length > 100, `walked ${modules.length} modules`);
   assert.deepEqual(modules.filter(file => file.startsWith(`${REPO}/packages/config/`)), [], 'the store light door reaches a config module');
 });
+
+test("store.io-light-door.exports-relay-reads: clause 1: packages/store/light.js exports readReceivedBoardState and relayMachineDirectory, each the same function packages/store/index.js exports [C7]", async () => {
+  const light = await import("../../light.js");
+  const index = await import("../../index.js");
+  for (const name of ["readReceivedBoardState", "relayMachineDirectory"]) {
+    assert.equal(typeof light[name], "function", `${name} is exported by the light door`);
+    assert.equal(light[name], index[name], `${name} is the same function the index exports`);
+  }
+});
