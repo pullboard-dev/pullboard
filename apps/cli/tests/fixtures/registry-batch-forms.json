@@ -1,0 +1,44 @@
+{
+  "cli.land.batch-forms": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With a batch size of 4, four disjoint accepts give a first job of one item and a second job of the three that waited."
+    },
+    "why": "Without it, a lander that offered each accept at once, ignoring the open land job, would pass unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/land/batch-forms.test.js",
+      "apps/cli/tests/fixtures/landing/batch-offer.js"
+    ]
+  },
+  "cli.land.batch-collision-free": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Two items changing the same file are never offered in one land job."
+    },
+    "why": "Without it, an offer that batched overlapping items would conflict at the merge unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/land/batch-forms.test.js",
+      "apps/cli/tests/fixtures/landing/batch-offer.js"
+    ]
+  },
+  "cli.land.batch-defaults-unchanged": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With the line settings unset each accept still offers its own land job."
+    },
+    "why": "Without it, a batching change that leaks into the default pace would pass unnoticed.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/land/batch-forms.test.js",
+      "apps/cli/tests/fixtures/landing/batch-offer.js"
+    ]
+  }
+}
