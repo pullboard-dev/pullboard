@@ -120,6 +120,7 @@ const OPTIONS = {
   yes: { type: 'boolean' },
   diagnostics: { type: 'boolean' },
   hosts: { type: 'boolean' },
+  reconcile: { type: 'boolean' },
   landing: { type: 'boolean' },
   adopt: { type: 'boolean' },
   due: { type: 'boolean' },
