@@ -1,0 +1,4 @@
+{
+  "gate.io-edges-allowed.an-edge-file-declares-its-edge": {"proves":{"specs":["C7"],"claim":"an edge file in packages/codemap/data/edges declares its edge like an allowedEdges entry, and an unused one is reported naming the file to delete"},"why":"Without this case the one-edge files that keep env/fs slices from conflicting on the cells plan list could stop allowing their imports unnoticed.","kind":"cell unit","inputs":["packages/gate/src/io/edges.js"]},
+  "gate.io-edges-allowed.a-bad-or-twice-declared-edge-file-is-refused": {"proves":{"specs":["C7"],"claim":"an edge file that declares no edge, is not named after its edge, or repeats an allowedEdges entry is refused"},"why":"Without this case one edge could be declared twice or under a second name, and the one-path-per-edge rule that stops duplicate edges would not hold.","kind":"cell unit","inputs":["packages/gate/src/io/edges.js"]}
+}

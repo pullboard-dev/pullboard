@@ -1,9 +1,13 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { barOwnerOptions } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
@@ -26,7 +30,7 @@ import {
   refuseCheckSyntax,
   refuseCheckPullboardTest,
   sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,
@@ -44,6 +48,8 @@ import {
   ordered,
   CHECKOUT_LEASES,
 } from '../entry.js';
+
+const fs = fileSystemAdapter();
 
 /** Run `pullboard edit` and return its exit code. */
 export async function run(io, args) {
@@ -67,10 +73,16 @@ export async function run(io, args) {
   const brief = sealed ? sealed.brief : briefArg(io, values);
   if (values['machine-verified'] !== undefined && !['on', 'off'].includes(values['machine-verified'])) throw new Refused('USAGE', '--machine-verified on|off');
   if (values['machine-commands-file'] !== undefined && me.id !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator marks machine verification');
+  const asPerson = personBarMode(ctx, board, me, values, personMode);
+  // With items.barRulesAtAdd on, an edit that changes the Files list is judged by who owns the files it changes, as claim does [C7,#11777].
+  if (brief !== undefined && itemsBarRulesAtAdd()) {
+    const filed = store.getItem(board, id);
+    requireNoCoordinatorPath(ctx.config, me, { by: asPerson ? store.PERSON : me.id, lane: filed.item_lane, title: filed.item_title, brief }, barOwnerOptions(ctx, true));
+  }
   let change = {
     agentId: me.id,
     ...(values['machine-verified'] === undefined ? {} : { machineVerified: values['machine-verified'] === 'on' }),
-    ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(readFileSync(values['machine-commands-file'], 'utf8')) }),
+    ...(values['machine-commands-file'] === undefined ? {} : { machineCommands: JSON.parse(fs.readFile(values['machine-commands-file'], 'utf8')) }),
     ...(values.title === undefined ? {} : { title: values.title }),
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
@@ -87,7 +99,6 @@ export async function run(io, args) {
     ...(values.reason !== undefined ? { reason: values.reason } : {}),
   };
   if (sealed) change = { ...sealed };
-  const asPerson = personBarMode(ctx, board, me, values, personMode);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'edit', item: id,
     args: { as: 'person', ...(values.wait ? { wait: true } : {}) } }, change, asPerson);
   if (confirmed !== null) return confirmed;
@@ -106,6 +117,7 @@ export async function run(io, args) {
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
+    requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {
