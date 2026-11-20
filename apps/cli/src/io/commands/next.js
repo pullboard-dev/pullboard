@@ -32,7 +32,7 @@ import {
 import {
   retainedGateAssertions,
   sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   refuseNextIdle,
 } from '../next/steps.js';
