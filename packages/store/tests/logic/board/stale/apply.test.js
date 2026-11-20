@@ -6,6 +6,15 @@ import { getItem } from '../../../../index.js';
 import { maintainStaleState } from '../../../../index.js';
 import { staleStateLimits } from '../../../../index.js';
 import { fixture } from '../../../fixtures/dispatch.js';
+import { applyStaleState } from '../../../../src/logic/board/stale/apply.js';
+import { atomic } from '../../../../src/io/board/event/log.js';
+import { logEvent } from '../../../../src/io/board/event/log.js';
+import { getItem as readItem } from '../../../../src/io/board/query.js';
+import { itemById } from '../../../../src/io/board/query.js';
+import { setItem } from '../../../../src/io/board.js';
+import { moveItem } from '../../../../src/io/board.js';
+import { releaseItemHold } from '../../../../src/io/board/release/hold.js';
+import { insertShout } from '../../../../src/io/board/shout.js';
 
 const MINUTE = 60_000;
 
@@ -141,4 +150,53 @@ test('store.stale-apply.claim-release-codes-below-engine: clause 2: below the bo
   lapsed.pass(lapsed.rows.lapsed);
   assert.equal(lapsed.releases()[0].reasonCode, 'OTHER');
   assert.equal(lapsed.releases()[0].reason, 'Lapsed claim idle past its stale interval.');
+});
+
+/** A submitted item whose reviewer reserved it and went quiet for 31 minutes; `pass` hands the idle row to the production apply with a spy on the reclaim table. */
+function idleReview(t, engine) {
+  const box = fixture(t);
+  box.board.movesLive = { reclaim: false };
+  const id = box.add('Item whose review goes idle');
+  box.submit(id);
+  const reviewer = box.seats.sibling.id;
+  const reserved = box.clock.now();
+  const until = new Date(reserved.getTime() + 60 * MINUTE).toISOString();
+  logEvent(box.board, reviewer, 'reserve', id, {});
+  box.board.db.prepare('UPDATE item SET item_review_by=?, item_review_until=? WHERE item_id=?').run(reviewer, until, id);
+  const item = readItem(box.board, id);
+  const reservation = box.board.db.prepare("SELECT event_id, event_at FROM event WHERE item_id=? AND event_kind='reserve' ORDER BY event_id DESC LIMIT 1").get(id);
+  const submit = box.board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(id);
+  box.advance(31 * MINUTE);
+  const moves = [];
+  const releases = () => box.board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='release'").all(id).map(row => JSON.parse(row.event_detail));
+  const pass = () => {
+    if (engine !== undefined) box.board.executionEngineVersion = engine;
+    const observedAt = box.clock.now().toISOString();
+    const limits = staleStateLimits({}, { dependency: true });
+    const row = { id, reviewer, commit: item.item_commit, reviewUntil: until, reserveEventId: reservation.event_id, reservedAt: reservation.event_at,
+      sourceSubmitEventId: submit.event_id, lastActivity: reservation.event_at, since: reservation.event_at, evidence: { complete: true },
+      ageMs: Date.parse(observedAt) - Date.parse(reservation.event_at), limitMs: limits.review, expired: true };
+    const snapshot = { observedAt, observedRevision: box.board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, holds: [], claims: [], reviews: [row], limits };
+    const reclaim = { hook: () => {}, decide: (facts, move) => { moves.push(move); return { events: [] }; } };
+    return applyStaleState(box.board, { agentId: 'coordinator', snapshot }, { atomic, getItem: readItem, itemById, setItem, releaseItemHold, logEvent, insertShout, moveItem, reclaim, reclaimLive: null });
+  };
+  return { id, pass, releases, moves };
+}
+
+test('store.stale-apply.review-idle-code: clause 2: at the board-release-codes engine the idle-review release carries REVIEW_IDLE with its prose reason unchanged and the reclaim move carries boardCodes [C7,#12160]', t => {
+  const f = idleReview(t);
+  assert.deepEqual(f.pass().reviews, [f.id]);
+  const [release] = f.releases();
+  assert.equal(release.reasonCode, 'REVIEW_IDLE');
+  assert.match(release.reason, /^Review idle for 30 minutes; last observed activity /);
+  assert.equal(f.moves.length, 1);
+  assert.equal(f.moves[0].kind, 'review-idle');
+  assert.equal(f.moves[0].boardCodes, true);
+});
+
+test('store.stale-apply.review-idle-code-below-engine: clause 2: below the board-release-codes engine the idle-review release still carries OTHER and the move has no boardCodes [C7,#12160]', t => {
+  const f = idleReview(t, OLDER_BOARD_VERSION);
+  assert.deepEqual(f.pass().reviews, [f.id]);
+  assert.equal(f.releases()[0].reasonCode, 'OTHER');
+  assert.equal(f.moves[0].boardCodes, undefined);
 });
