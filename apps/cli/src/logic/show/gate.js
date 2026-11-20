@@ -92,6 +92,20 @@ const RED_ROWS = 10;
 /** Budget: one failing case's error is one line of at most 240 characters; the full log keeps the rest. */
 const RED_ERROR_CHARS = 240;
 
+/** node --test names a file that crashes before any case only "test failed"; the cause is in its output, not in the case error [C7]. */
+function isGenericError(error) {
+  const text = String(error ?? '').trim();
+  return text === '' || text === 'test failed';
+}
+
+/** The first line of a phase's output tail that names an error, without its leading "# ", or null when none does. */
+function causeLine(tail) {
+  for (const line of String(tail ?? '').split('\n')) {
+    if (/(\w*Error|error:|Cannot find|not defined)/u.test(line)) return line.replace(/^\s*#\s?/u, '').trim();
+  }
+  return null;
+}
+
 /**
  * The lines show prints for a claimed item whose newest pulled gate came back red, read from its receipt: GATE_RED with
  * the counts, each failing case once with its first error text, a bounded output tail for a red phase that names no
@@ -111,9 +125,11 @@ export function pulledRedLines(gateJob, item) {
     if (!phase || phase.status === 0) continue;
     if (typeof phase.command === 'string' && phase.command.trim()) commands.push(`command: ${oneLine(phase.command)}`);
     const rows = (Array.isArray(phase.errors) ? phase.errors : []).filter(row => row && typeof row.name === 'string');
+    const cause = causeLine(phase.tail);
     for (const row of rows) {
       const key = `${row.file}\0${row.name}`;
-      if (!seen.has(key)) { seen.add(key); cases.push(`  ${row.file ?? 'unknown file'} :: ${oneLine(row.name)}: ${oneLine(row.error)}`); }
+      const detail = cause && isGenericError(row.error) ? cause : row.error;
+      if (!seen.has(key)) { seen.add(key); cases.push(`  ${row.file ?? 'unknown file'} :: ${oneLine(row.name)}: ${oneLine(detail)}`); }
     }
     if (!rows.length) tails.push(...String(phase.exit || phase.tail || '').trimEnd().split('\n').slice(-RED_ROWS).map(line => `  ${phase.role} | ${line.slice(0, RED_ERROR_CHARS)}`));
   }
