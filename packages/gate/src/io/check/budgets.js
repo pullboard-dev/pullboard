@@ -8,7 +8,7 @@ import {
   evaluatePerfBudgets,
   perfBudgetTable,
   readPerfReport,
-} from '../../../index.js';
+} from '../../../heavy.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
 
 const fs = fileSystemAdapter();

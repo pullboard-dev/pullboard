@@ -23,6 +23,7 @@ import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
 import { ledgerHits } from './store.js';
 import { recordShadow } from './store.js';
+import { expeditedItems } from './store.js';
 import { firstDifference } from './store.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
@@ -128,6 +129,22 @@ function agedGateJobs(ordered, now, gateAgedMs = GATE_JOB_AGED_MS) {
   const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
   const rest = ordered.filter(entry => !isAged(entry) && !isFirst(entry));
   return [...ordered.filter(isFirst), ...ordered.filter(isAged), ...rest];
+}
+
+/**
+ * The claim order with the gate and gate-shard jobs of an expedited item moved ahead of everything but landing jobs and pre-push shards; each group keeps its order.
+ * Why: the coordinator's expedite mark names an item whose gate the lander waits on, so its shards must not queue by age behind other items' shards [C7,#11813].
+ * The expedited set is read once per claim, and only when a gate or gate-shard job is in the scan.
+ */
+function expeditedGateJobs(db, ordered) {
+  const gateKind = ({ row }) => row.job_kind === 'gate' || row.job_kind === SHARD_JOB_KIND;
+  if (!ordered.some(gateKind)) return ordered;
+  const expedited = new Set(expeditedItems({ db }));
+  if (!expedited.size) return ordered;
+  const isExpedited = entry => gateKind(entry) && expedited.has(Number(entry.row.job_item));
+  if (!ordered.some(isExpedited)) return ordered;
+  const isFirst = ({ row }) => row.job_kind === 'land' || isPushShard(row);
+  return [...ordered.filter(isFirst), ...ordered.filter(entry => isExpedited(entry) && !isFirst(entry)), ...ordered.filter(entry => !isExpedited(entry) && !isFirst(entry))];
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -465,7 +482,9 @@ export function claimJob(db, { runner, key = null, onCapped = null, capabilities
     // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
     const shardsFirst = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
     // A gate job that waited gateAgedMs goes ahead of shards and tests, behind landing jobs, when no reserve is set [C7,#11873].
-    const offered = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
+    const aged = reserve === null ? agedGateJobs(shardsFirst, now, gateAgedMs) : shardsFirst;
+    // An expedited item's gate jobs go ahead of the rest, behind landing jobs [C7,#11813].
+    const offered = reserve === null ? expeditedGateJobs(db, aged) : aged;
     for (const { row, offer } of offered) {
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }

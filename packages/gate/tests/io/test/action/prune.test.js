@@ -10,17 +10,17 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { packTestResults } from '../../../../index.js';
+import { packTestResults } from '../../../../heavy.js';
 import { temporaryDirectory } from '../../../../../board/tests/fixtures/board.js';
 import {
   firstChangedInput,
   recordInputParts,
-} from '../../../../index.js';
+} from '../../../../heavy.js';
 import {
   enforcePartsCap,
   maintainPartsStore,
   prunePartsStore,
-} from '../../../../index.js';
+} from '../../../../heavy.js';
 
 const DAY = 86_400_000;
 const hash = (character) => character.repeat(64);

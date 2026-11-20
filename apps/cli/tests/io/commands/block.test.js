@@ -1,8 +1,11 @@
-/** @pullboard-test-input apps/cli/src/io/commands/block.js apps/cli/tests/fixtures/e2e.js */
+/** @pullboard-test-input apps/cli/src/io/commands/block.js apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/next/take.js */
 /** pullboard block add names a block of items and block list prints it as one row; a one-id or wrong-tier add is refused USAGE [C7,#2202]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import * as store from '../../../../../packages/store/index.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fileFixtureItem } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
@@ -38,4 +41,17 @@ test('cli.block.refusals: clause 2: block add with one id or --tier gpt refuses 
   for (const tier of ['light', 'mid', 'strong']) assert.ok((wrong.err + wrong.out).includes(tier), `the refusal names ${tier}`);
   const listed = await box.runLocal(box.repo, 'block', 'list');
   assert.match(listed.out, /no blocks/u, 'a refused add records nothing');
+});
+
+test('cli.block.claim: clause 1: block claim <name> claims every member for this seat and prints them, and a second seat block claim of the same block is refused BLOCK_CLAIMED [C7,#2202]', async t => {
+  const box = await fixture(t, { route: 'strong' });
+  const ids = [box.add('First claimed member'), box.add('Second claimed member')];
+  store.addBlock(box.board, { agentId: 'coordinator', name: 'pair', ids, tier: 'mid' });
+  const claimed = await cli(box, box.seats.actor.path, ['block', 'claim', 'pair']);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  assert.deepEqual(claimed.document.claimed, ids);
+  for (const id of ids) assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id, `the seat holds #${id}`);
+  const refused = await cli(box, box.seats.builder.path, ['block', 'claim', 'pair']);
+  assert.notEqual(refused.code, 0, 'a second seat cannot take a held block');
+  assert.match(refused.out + refused.err, /BLOCK_CLAIMED/u);
 });

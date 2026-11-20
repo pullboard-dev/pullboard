@@ -24,6 +24,7 @@ import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
 import { recordedWriteLock } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/store/index.js';
+import { itemPace } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/heavy.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { mechanicalConflictFiles } from '../../../../../packages/landing/index.js';
@@ -302,7 +303,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
     const items = chosen.map(item => {
       const message = messages.get(item.item_id);
-      return { id: item.item_id, commit: commitOf(item), ref: landingItemRef(item.item_id), header: message.header, trailers: message.trailers };
+      return { id: item.item_id, commit: commitOf(item), ref: landingItemRef(item.item_id), header: message.header, trailers: message.trailers, pace: itemPace(item) };
     });
     if (ids && items.length !== ids.length) throw new Refused('LAND_NOT_ACCEPTED', `${ids.filter(id => !items.some(entry => entry.id === id)).map(id => `#${id}`).join(' ')} is not accepted`, 'land it after its verify, or go around the gate with --forced "<why>"');
     if (!items.length) return { offered: ids ? null : openLandingJob(board.db), items: [], waiting: false };

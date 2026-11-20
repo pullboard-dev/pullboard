@@ -108,7 +108,7 @@
   "packages/gate/tests/io/admission/cpu/load.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/main/resource.test.js": {
+  "packages/gate/tests/io/main/short.test.js": {
     "hand-policy": 1
   },
   "packages/gate/tests/io/main/output.test.js": {
