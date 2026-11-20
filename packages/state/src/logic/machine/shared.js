@@ -178,3 +178,6 @@ export const VERDICT_REACHED_REFUSALS = [
   // The strict accept path reaches the fact writer and the relay key code, so these fact and key refusals are raised there [M1,C7].
   ...['EMPTY_FACT', 'FACT_JUDGEMENT', 'BAD_FACT_ID', 'NO_FACT', 'FACT_INDEX_NOT_READY', 'BAD_FACT_KIND', 'BAR_SELF_SIGN', 'BAD_FACT_REF', 'RIGOR_PERSON_ONLY', 'PROVEN_BREAK_REQUIRED', 'BOARD_REFERENCE', 'RELAY_KEY_STORAGE', 'RELAY_KEY_MISSING', 'RELAY_KEY_FILE_ENV_MISMATCH', 'BAD_BOARD', 'SEAL_KEY', 'RELAY_KEYCHAIN'].map(reached),
 ];
+
+/** Refusals the claim move reaches when a gate-green after-gate claim records its parent note through the fact writer [M1,C7]. */
+export const CLAIM_REACHED_REFUSALS = ['EMPTY_FACT', 'FACT_JUDGEMENT', 'BAD_FACT_ID', 'NO_FACT', 'FACT_INDEX_NOT_READY', 'BAD_FACT_KIND', 'NOT_YOURS', 'BAR_SELF_SIGN', 'BAD_FACT_REF', 'RIGOR_PERSON_ONLY', 'BAD_CAUSE'].map(reached);

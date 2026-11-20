@@ -504,13 +504,14 @@ test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-declaration: clause 
 });
 
 test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
-  for (const [file, pattern] of [
-    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
-    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
+  // The strict accept path records its proven-break fact through the board link record reader (8836e3032a), so a refusal planted in boardLinkRecord reaches accept and reject uncaught.
+  for (const [file, pattern, expected] of [
+    ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m, ['MOON_PHASE is raised by accept and reject but not declared there']],
+    ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m, []],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
-    assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
+    assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), expected, 'only the exact foreign evidence reader is caught as unavailable; the record reader is audited where another move reaches it');
   }
   const inForeignCaller = editedSource('../packages/items/src/logic/cross/repo.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
