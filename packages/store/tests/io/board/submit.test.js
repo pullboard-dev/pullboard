@@ -1,8 +1,12 @@
 /** Submit hands the green proof's per-case outcomes to the clause inspection, so a run that skipped every case proves nothing [C7,#10653]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as store from '../../../index.js';
 import { openKitBoard } from '../../fixtures/cell.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 // fixture-subject: addItem (a store unit test of submit over a seeded item; the board is opened through the kit)
 
@@ -39,4 +43,31 @@ test('store.io-board-submit.a-run-with-a-passed-case-still-submits: clause 3: a 
   const f = fixture(t, [{ name: 'one', passed: true, skipped: true, runner: 'r2' }, { name: 'two', passed: true, skipped: false }]);
   f.submit();
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
+});
+
+test('store.io-board-submit.base-rows-read-once: clause 1: a second recordedBaseRows call for the same receipt store reads no receipt file again, and a main-red receipt written after the first call is read once and its rows returned on the next call [C7]', t => {
+  const dir = privateFixtureFiles('base-rows-').root;
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const BASE = 'c'.repeat(40);
+  const rows = [{ file: FILE, name: 'case one', passed: false, skipped: false, failure: 'assertion' }];
+  const receipts = {
+    '00000000-0000-4000-8000-000000000001': { kind: 'main-red', head: BASE, testOutcomes: rows },
+    '00000000-0000-4000-8000-000000000002': { kind: 'main-red', head: 'd'.repeat(40), testOutcomes: [{ file: FILE, name: 'other head', passed: false, skipped: false }] },
+    '00000000-0000-4000-8000-000000000003': { kind: 'gate', head: BASE },
+  };
+  for (const id of Object.keys(receipts)) writeFileSync(join(dir, `${id}.json`), '{}');
+  const reads = [];
+  const board = { nativePorts: { patchProof: { boardReceiptStore: () => dir, readGateReceipt: (_store, id) => { reads.push(id); return receipts[id] ?? null; } } } };
+  assert.deepEqual(store.recordedBaseRows(board, BASE), rows);
+  assert.equal(reads.length, 3, 'the first call reads each of the three files once');
+  assert.deepEqual(store.recordedBaseRows(board, BASE), rows);
+  assert.equal(reads.length, 3, 'the second call reads no file again');
+  const later = '00000000-0000-4000-8000-000000000004';
+  const laterRows = [{ file: FILE, name: 'case two', passed: false, skipped: false }];
+  receipts[later] = { kind: 'main-red', head: BASE, testOutcomes: laterRows };
+  writeFileSync(join(dir, `${later}.json`), '{}');
+  assert.deepEqual(store.recordedBaseRows(board, BASE), [...rows, ...laterRows]);
+  assert.deepEqual(reads.slice(3), [later], 'only the new receipt is read');
+  assert.deepEqual(store.recordedBaseRows(board, BASE), [...rows, ...laterRows]);
+  assert.equal(reads.length, 4, 'the next call reads nothing');
 });

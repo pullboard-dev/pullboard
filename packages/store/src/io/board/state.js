@@ -7,8 +7,7 @@ import { pipelineStats } from "../../../../stats/light.js";
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from "../../../../verify/index.js";
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { CONFIG_FILE } from "../../../../config/index.js";
 import { BLOCKS_FILE } from "../../../../items/index.js";
@@ -45,6 +44,8 @@ import {
   dependencyValues,
   hasForeignDependencies,
 } from "../../../../items/index.js";
+
+const fs = fileSystemAdapter();
 
 /**
  * Proof stats for one state build, taken from the stored counters [C7].
@@ -253,8 +254,8 @@ export function stateFileInputs(root, config, { fitFile }) {
 
 /** Hash the exact bytes of one named input, preserving a missing-file marker. */
 export function fileRevision(file) {
-  if (!existsSync(file.path)) return [file.name, null];
-  return [file.name, createHash('sha256').update(readFileSync(file.path)).digest('hex')];
+  if (!fs.exists(file.path)) return [file.name, null];
+  return [file.name, createHash('sha256').update(fs.readFile(file.path, null)).digest('hex')];
 }
 
 /**

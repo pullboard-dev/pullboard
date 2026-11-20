@@ -1,14 +1,28 @@
-import { spawnSync } from 'node:child_process';
 import { addWorktree } from '../../../../git/index.js';
+import { gitSpawn } from '../../../../git/index.js';
 
 /** Distinguishes the base worktrees one process makes. */
 let counter = 0;
 
-/** Run git in the trunk and return its stdout lines. */
-function lines(root, args) {
-  const out = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-  if (out.status !== 0) throw new Error(`git ${args[0]} failed: ${String(out.stderr).slice(0, 300)}`);
-  return out.stdout.split('\n').filter(Boolean);
+/** Run git in the trunk through the git adapter without blocking the lease timer, and answer its stdout. */
+function git(root, args) {
+  return new Promise((done, fail) => {
+    const child = gitSpawn(args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = [];
+    const err = [];
+    child.stdout.on('data', chunk => out.push(chunk));
+    child.stderr.on('data', chunk => err.push(chunk));
+    child.on('error', fail);
+    child.on('close', status => {
+      if (status === 0) done(Buffer.concat(out).toString('utf8'));
+      else fail(new Error(`git ${args[0]} failed: ${Buffer.concat(err).toString('utf8').slice(0, 300)}`));
+    });
+  });
+}
+
+/** Run git in the trunk and answer its stdout lines. */
+async function lines(root, args) {
+  return (await git(root, args)).split('\n').filter(Boolean);
 }
 
 /** One check result as the proof reads it: green, or red with the check's own words. */
@@ -40,11 +54,11 @@ export function runnerSprintPorts(root, { base, tip, sprint, check }) {
       try {
         return { result: verdict(await check([...sprint.testCommand, file])({ root: dir })).isGreen ? 'green' : 'red' };
       } finally {
-        spawnSync('git', ['worktree', 'remove', '--force', dir], { cwd: root, encoding: 'utf8' });
+        await git(root, ['worktree', 'remove', '--force', dir]).catch(() => { /* a worktree git cannot remove stays for git worktree prune */ });
       }
     },
     runCell: async cell => {
-      const files = lines(root, ['ls-tree', '-r', '--name-only', tip, '--', `${cell}/`]).filter(file => testFile.test(file));
+      const files = (await lines(root, ['ls-tree', '-r', '--name-only', tip, '--', `${cell}/`])).filter(file => testFile.test(file));
       if (!files.length) return { isGreen: true, files: [] };
       const run = verdict(await check([...sprint.testCommand, ...files])({ root }));
       if (run.isGreen) return run;
