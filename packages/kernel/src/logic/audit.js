@@ -6,12 +6,17 @@ export function auditAdapterEnvironment(audit) {
 /** The network-facing boundaries that register in the adapter switch beside Git, keyed by the name PULLBOARD_TEST_REAL lists [C7]. */
 export const NETWORK_BOUNDARIES = Object.freeze(['network', 'board-api']);
 
+/** The key-file and GitHub/npm boundaries that register in the adapter switch beside the network ones, keyed by the name PULLBOARD_TEST_REAL lists [C7]. */
+export const KEY_BOUNDARIES = Object.freeze(['keys', 'github-npm']);
+
+const REGISTERED_BOUNDARIES = Object.freeze([...NETWORK_BOUNDARIES, ...KEY_BOUNDARIES]);
+
 /**
  * Pick the real or fake adapter for one network-facing boundary: the run chooses through its environment, one test overrides with a mode, and an audit is always real.
  * Why: the scheduled audit must exercise the real network and board API even when a test asks for a fake, as the Git switch does [C7].
  */
 export function selectBoundaryAdapter(boundary, { fake, real, env = {}, mode } = {}) {
-  if (!NETWORK_BOUNDARIES.includes(boundary)) throw new TypeError(`unknown adapter boundary ${String(boundary)}; registered: ${NETWORK_BOUNDARIES.join(', ')}`);
+  if (!REGISTERED_BOUNDARIES.includes(boundary)) throw new TypeError(`unknown adapter boundary ${String(boundary)}; registered: ${REGISTERED_BOUNDARIES.join(', ')}`);
   if (!fake || !real) throw new TypeError(`${boundary} adapter switch needs a fake and a real adapter`);
   if (mode !== undefined && !['real', 'fake'].includes(mode)) throw new TypeError(`choose real or fake for ${boundary}, not ${String(mode)}`);
   if (env.PULLBOARD_ADAPTER_AUDIT === '1') return real;

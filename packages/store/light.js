@@ -16,3 +16,5 @@ export { allItemsNeedingRescope } from './src/io/cooldown.js';
 export { rotateBoardWritesLog, BOARD_WRITES_MAX_BYTES } from './src/io/board/hold/rotate.js';
 /** One seat heartbeat from the board file alone: every CLI command beats its seat, and presence.js already loads through query.js [C7,#10873]. */
 export { beatSeatFile } from './src/io/presence.js';
+/** The local-presence projection status reads for capacity; presence.js is already behind this door through beatSeatFile, so the export adds no module [C7,#12322]. */
+export { withLocalSeatPresence } from './src/io/presence.js';
