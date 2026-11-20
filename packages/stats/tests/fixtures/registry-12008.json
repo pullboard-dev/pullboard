@@ -1,0 +1,5 @@
+{
+  "stats.flow-tune-fixes.maps-each-window-stage": {"proves":{"specs":["C7"],"claim":"tuneFixes maps build and review to a seat call and reviewWait, mergeWait and sendBackIdle to one in-range setting each, omitting a non-numeric value."},"why":"flow tune passed an empty fixes map, so --apply had nothing to write.","kind":"cell unit","inputs":["packages/stats/src/logic/flow/tune/fixes.js"]},
+  "stats.flow-tune-fixes.last-change-round-trips": {"proves":{"specs":["C7"],"claim":"tuneRecord and lastTuneChange store and read back the last flow tune change from line_setting events."},"why":"Nothing stored the last change that revertTuning compares.","kind":"cell unit","inputs":["packages/stats/src/logic/flow/tune/fixes.js"]},
+  "stats.flow-tune-fixes.exported-through-the-front-door": {"proves":{"specs":["C7"],"claim":"tuneFixes, tuneRecord and lastTuneChange are exported from the stats front door."},"why":"Every caller takes the one door.","kind":"cell unit","inputs":["packages/stats/index.js"]}
+}
