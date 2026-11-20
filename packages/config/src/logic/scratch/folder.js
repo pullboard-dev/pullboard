@@ -8,6 +8,7 @@ import {
 import { join } from 'node:path';
 import { loadMachineSettings } from '../settings.js';
 import { scratchRoot } from '../scratch.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /**
  * Makes a fresh throwaway folder under the scratch root, so every sentinel and sandbox lands in one place.
@@ -17,7 +18,7 @@ import { scratchRoot } from '../scratch.js';
  * @param {Record<string, string | undefined>} [env] - Environment, defaulting to process.env.
  * @returns {string} The new folder's path.
  */
-export function scratchFolder(prefix, settings = loadMachineSettings(), env = process.env) {
+export function scratchFolder(prefix, settings = loadMachineSettings(), env) {
   return mkdtempSync(join(scratchRoot(settings, env), prefix));
 }
 
@@ -47,11 +48,12 @@ export function moveAcross(from, to, { rename = renameSync } = {}) {
  * @param {Record<string, string | undefined>} [env] - Environment, defaulting to process.env.
  * @returns {void}
  */
-export function applyMachineScratch(env = process.env) {
-  if (env.PULLBOARD_SCRATCH) return;
+export function applyMachineScratch(env) {
+  const environment = environmentAdapter(env);
+  if (environment.get('PULLBOARD_SCRATCH')) return;
   try {
     const { scratch } = loadMachineSettings();
-    if (typeof scratch === 'string' && scratch) env.PULLBOARD_SCRATCH = scratch;
+    if (typeof scratch === 'string' && scratch) environment.set('PULLBOARD_SCRATCH', scratch);
   } catch {
     // Unreadable settings are reported by the commands that need them; the scratch root then stays os.tmpdir().
   }

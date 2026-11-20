@@ -736,6 +736,9 @@ export function heldKinds() {
   };
 }
 
+/** The board refusals that end one job, never the serve: the job is released and its slot claims again [C7]. */
+const PER_JOB_REFUSALS = new Set(['JOB_RECEIPT', 'JOB_WRITE_TIMEOUT', 'HOP_FENCED', 'BOARD_BUSY', 'HOP_HELD']);
+
 /**
  * Serve jobs from one board until the signal aborts, or after one job with `once`.
  * Why `once` never waits: a sandboxed runner starts, takes at most one job, and is thrown away, so an empty queue ends it.
@@ -1068,7 +1071,13 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const slot = free.shift();
     let task, known;
     const learned = new Promise(resolve => { known = resolve; });
-    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, error => { failure ??= error; })
+    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, async error => {
+      // A refusal that belongs to this one job (its receipt, its write, its hop) hands the job back and the serve keeps its other slots running [C7].
+      if (!(error instanceof Refused) || !PER_JOB_REFUSALS.has(error.code)) { failure ??= error; return; }
+      say(`releasing ${claim.job}: [${error.code}] ${error.message}`);
+      await queueCall(endpoint, { action: 'release', job: claim.job, runner: id, token: claim.token, reason: `[${error.code}] ${error.message}` }, fetchImpl).catch(() => { /* the lease lapses instead */ });
+      jobs.push({ job: claim.job, outcome: 'released' });
+    })
       .finally(() => { ledger.drop(claim.kind); active.delete(task); free.push(slot); free.sort((a, b) => a - b); });
     active.add(task);
     task.learned = learned;
@@ -1097,7 +1106,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         const admitted = admit({ running: active.size, held: ledger.list() });
         if (!admitted) return null;
         const except = Array.isArray(admitted?.except) && admitted.except.length ? { except: admitted.except } : {};
-        const claimed = await reliably({ action: 'claim', runner: id, capabilities, ...except, jobs: slots, cores, ram: totalmem() });
+        const claimed = await reliably({ action: 'claim', runner: id, place: { host, root: cache }, capabilities, ...except, jobs: slots, cores, ram: totalmem() });
         if (claimed.claim) ledger.add(claimed.claim.kind);
         return claimed;
       });

@@ -4,9 +4,11 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { adapterLintSshEnabled } from '../../index.js';
+import { failFastShardsEnabled } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
 import { jsdocCheckEnabled } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
+import { claimCheckCeilingEnabled } from '../../index.js';
 import { adapterLintGithubEnabled } from '../../index.js';
 import { adapterLintSigningEnabled } from '../../index.js';
 import { loadMachineSettings } from '../../index.js';
@@ -44,6 +46,13 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.claim-check-ceiling-reads-false-unset: clause 1: claim.checkCeiling reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and claimCheckCeilingEnabled() follows it [C7,#1273]', () => {
+  assert.equal(withSettings({}, claimCheckCeilingEnabled), false);
+  assert.equal(withSettings({ claim: { checkCeiling: false } }, claimCheckCeilingEnabled), false);
+  assert.equal(withSettings({ claim: { checkCeiling: true } }, claimCheckCeilingEnabled), true);
+  assert.throws(() => withSettings({ claim: { checkCeiling: 'yes' } }, claimCheckCeilingEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /claim\.checkCeiling/u.test(error.message));
 });
 
 test('config.io-settings.adapter-lint-github-enabled: clause 1: adapterLintGithubEnabled() reads false when unset and true only when gate.adapterLintGithub is set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#1429]', () => {
@@ -108,4 +117,13 @@ test('config.io-settings.cores-per-shard-reads-three-unset: clause 1: runnersCor
 test('config.io-settings.cores-per-shard-described-default-three: clause 2: MACHINE_DEFAULTS holds runners.coresPerShard 3 and describeSetting names cores in its description [C7,#11866]', () => {
   assert.equal(MACHINE_DEFAULTS['runners.coresPerShard'], 3);
   assert.match(JSON.stringify(describeSetting('runners.coresPerShard')), /cores/u);
+});
+
+test('config.io-settings.fail-fast-shards-setting: clause 1: gate.failFastShards defaults to false, rejects a non-boolean with BAD_MACHINE_SETTINGS, has a description row, and failFastShardsEnabled() is true only for an exact true [C7,#12038]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.failFastShards'], false);
+  assert.match(describeSetting('gate.failFastShards').description, /remaining shards/iu);
+  assert.equal(withSettings({}, failFastShardsEnabled), false);
+  assert.equal(withSettings({ gate: { failFastShards: false } }, failFastShardsEnabled), false);
+  assert.equal(withSettings({ gate: { failFastShards: true } }, failFastShardsEnabled), true);
+  assert.throws(() => withSettings({ gate: { failFastShards: 'true' } }, failFastShardsEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.failFastShards/u.test(error.message));
 });
