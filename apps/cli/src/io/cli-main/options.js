@@ -240,7 +240,7 @@ export function parseCommandArgs(argv) {
     ...(['add', 'edit'].includes(command) ? { review: { type: 'string' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
-  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
+  const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' }, apply: { type: 'boolean' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
   foldLevelIntoRoute(parsed.values);
   if (['add', 'edit'].includes(command)) foldReviewIntoReviewTier(parsed.values);
