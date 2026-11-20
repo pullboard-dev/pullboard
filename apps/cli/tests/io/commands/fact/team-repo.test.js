@@ -79,7 +79,7 @@ test('cli.journeys-fact-team-repo.an-item-waits-across-repos: an item waits acro
   const transportApi = linkStore;
   const { createSshBoardLinkAuthority } = linkStore;
   const { createBoardLinkCapability } = linkStore;
-  const { generateBoardKey } = await import('../../../../../../packages/kernel/src/logic/seal.js');
+  const { generateBoardKey } = await import('../../../../../../packages/kernel/index.js');
   const authority = createSshBoardLinkAuthority([parent, child]);
   const record = await consent(api, authority, parent, child, 'dependency');
   await api.applyBoardLink(local, record, authority);
