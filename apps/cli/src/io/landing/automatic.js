@@ -33,9 +33,11 @@ import {
 } from '../../../../../packages/store/index.js';
 import { setTimeout as pause } from 'node:timers/promises';
 import { LANDING_BOARD_BUSY_MS } from '../../../../../packages/landing/index.js';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const fs = fileSystemAdapter();
 
 const FILE = fileURLToPath(import.meta.url);
 
@@ -91,7 +93,7 @@ function landingObservation(root, ioOptions = {}) {
   const ctx = context(wakeIo(root, ioOptions));
   const trunk = mainCheckout(root);
   // A repository with no board has nothing to land; reading must never create one (withBoardRead would open it for write).
-  const { verified, pulling } = !existsSync(ctx.file) ? { verified: [], pulling: [] } : withBoardRead(ctx, board => {
+  const { verified, pulling } = !fs.exists(ctx.file) ? { verified: [], pulling: [] } : withBoardRead(ctx, board => {
     const items = listItems(board, { all: true });
     // A sprint item whose landing a reject left pulling waits for its pull-out, so one that failed runs again [M2,R3,#12181].
     return { verified: items.filter(item => !item.item_merged_commit && (item.item_status === 'verified' || sprintLandable(board, item, trunk?.commit ?? null))).map(item => `${item.item_id}:${item.item_commit}`).sort(),
