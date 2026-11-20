@@ -32,7 +32,7 @@ function headerNeedsGui(source, tag = '@pullboard-test-gui') {
 /** The files whose leading comments carry a @pullboard-test-timing line: each needs an exclusive runner for its timing measurements; a missing file never counts [C7]. */
 export function timingTestFiles(root, files) {
   return files.filter(file => {
-    try { return headerNeedsGui(readFileSync(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
+    try { return headerNeedsGui(fs.readFile(resolve(root, file), 'utf8'), '@pullboard-test-timing'); }
     catch { return false; }
   });
 }
@@ -56,7 +56,7 @@ export function declaredReads(source) {
 export function readsDeclared(root, files) {
   const reads = new Map();
   for (const file of files) {
-    try { reads.set(file, declaredReads(readFileSync(resolve(root, file), 'utf8'))); }
+    try { reads.set(file, declaredReads(fs.readFile(resolve(root, file), 'utf8'))); }
     catch { reads.set(file, []); }
   }
   return reads;
