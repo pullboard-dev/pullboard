@@ -7,13 +7,10 @@
  * `guard: patch <path>` (a patch file in the submitted commit, applied in reverse).
  */
 import { spawnSync } from 'node:child_process';
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 const GUARD = /\bguard:\s+(?:patch\s+(\S+)|(\S+?):(\d+)-(\d+))/u;
 
@@ -42,16 +39,16 @@ export function guardOf(item) {
  */
 function revert(directory, guard) {
   if (guard.patch) {
-    if (!existsSync(join(directory, guard.patch))) return `${guard.patch} is not in the submitted commit`;
+    if (!fs.exists(join(directory, guard.patch))) return `${guard.patch} is not in the submitted commit`;
     const applied = spawnSync('git', ['apply', '-R', '--whitespace=nowarn', guard.patch], { cwd: directory, encoding: 'utf8' });
     return applied.status === 0 ? '' : `${guard.patch} does not reverse cleanly: ${String(applied.stderr).trim().split('\n')[0]}`;
   }
   const file = join(directory, guard.path);
-  if (guard.path.startsWith('/') || guard.path.split('/').includes('..') || !existsSync(file)) return `${guard.path} is not in the submitted commit`;
-  const lines = readFileSync(file, 'utf8').split('\n');
+  if (guard.path.startsWith('/') || guard.path.split('/').includes('..') || !fs.exists(file)) return `${guard.path} is not in the submitted commit`;
+  const lines = fs.readFile(file, 'utf8').split('\n');
   if (guard.from < 1 || guard.to < guard.from || guard.to > lines.length) return `${guard.path} has no lines ${guard.from}-${guard.to}`;
   lines.splice(guard.from - 1, guard.to - guard.from + 1);
-  writeFileSync(file, lines.join('\n'));
+  fs.writeFile(file, lines.join('\n'));
   return '';
 }
 

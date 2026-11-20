@@ -1,0 +1,3 @@
+{
+  "store.blocks.claim-all-or-none": {"proves":{"specs":["C7"],"claim":"claimBlock prepares every open member before any write and commits all prepared claims in one write, so a refusal at any member leaves no member claimed and no claim event."},"why":"A block is one unit of work for one seat, so a failure mid-block must not leave earlier members claimed.","kind":"cell unit","inputs":["packages/store/tests/io/board/blocks.test.js"]}
+}

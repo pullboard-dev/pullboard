@@ -1,0 +1,28 @@
+{
+  "gate.logic-jsdoc.untagged-and-destructured-not-stale": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: jsdocFindings reports no PARAM_MISMATCH for a summary with no @param tags or for a documented name that stands for a destructured parameter, and still reports a documented top-level name the signature lacks."
+    },
+    "why": "Without it, the JSDoc check would flag house-style summaries and destructured parameters as stale, or miss a real stale name.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/gate/src/logic/jsdoc.js"
+    ]
+  },
+  "gate.logic-jsdoc.missing-summary-still-named": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: an exported function with no JSDoc or an empty summary is still MISSING_SUMMARY."
+    },
+    "why": "Without it, the JSDoc check would flag house-style summaries and destructured parameters as stale, or miss a real stale name.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/gate/src/logic/jsdoc.js"
+    ]
+  }
+}

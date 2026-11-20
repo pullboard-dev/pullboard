@@ -62,3 +62,16 @@ test('cli.journeys-hooks-main-part3.with-test-inprocesshooks-on-the-installed: c
     assert.match(readFileSync(join(root, '.githooks', name), 'utf8'), new RegExp(`hook ${name}`, 'u'), `${name} runs pullboard hook ${name}`);
   }
 });
+
+test('cli.hooks-main-part3.long-header-refused: clause 1: the real commit-msg hook refuses the 79-character header with its length and the limit, and leaves the message file unchanged [C1,C7]', async () => {
+  const { box, root } = await hookedRepo(false);
+  const header = 'chore(env): jest; speed text; builders only build; guesses become rulings today';
+  assert.equal(header.length, 79, 'the header is 79 characters');
+  writeFileSync(join(root, 'notes.txt'), 'notes\n');
+  box.git(root, 'add', '--', 'notes.txt');
+  const refused = await box.tryGit(root, 'commit', '-q', '-m', header);
+  assert.equal(refused.status, 1, 'the real commit-msg hook exits 1');
+  assert.match(refused.stderr, /79/u, 'the refusal names the header length 79');
+  assert.match(refused.stderr, /72/u, 'the refusal names the limit 72');
+  assert.equal(readFileSync(join(root, '.git', 'COMMIT_EDITMSG'), 'utf8'), `${header}\n`, 'the commit message file is byte-identical, never cut');
+});

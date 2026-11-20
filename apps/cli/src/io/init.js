@@ -5,19 +5,6 @@
  * write.
  */
 import {
-  accessSync,
-  appendFileSync,
-  constants as fsConstants,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   delimiter,
   basename,
   dirname,
@@ -37,6 +24,7 @@ import {
 } from '../../../../packages/config/index.js';
 import { loadDoctrine } from '../../../../packages/doctrine/index.js';
 import { installHooks } from '../../../../packages/commits/index.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import {
   configureAgentHooks,
   LEGACY_RESUME_HOOK,
@@ -46,8 +34,8 @@ import {
   detectLanguages,
   detectTestGlobs,
   settingCommand,
-} from '../../../../packages/gate/index.js';
-export { detectGate } from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
+export { detectGate } from '../../../../packages/gate/heavy.js';
 import {
   gitPath,
   tryGit,
@@ -77,6 +65,9 @@ import {
   specTemplate,
 } from '../../../../packages/config/index.js';
 import { doctrineText } from '../../../../packages/doctrine/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Resolve a directory through symlinks, retaining a missing suffix for a not-yet-created private home. */
 function canonicalDirectoryPath(candidate) {
@@ -84,12 +75,12 @@ function canonicalDirectoryPath(candidate) {
   const missing = [];
   while (true) {
     try {
-      const physical = realpathSync(cursor);
-      if (!statSync(physical).isDirectory()) return null;
+      const physical = fs.realpath(cursor);
+      if (!fs.stat(physical).isDirectory()) return null;
       return resolve(physical, ...missing.reverse());
     } catch (error) {
       if (error.code !== 'ENOENT') return null;
-      try { lstatSync(cursor); return null; } catch (statError) {
+      try { fs.lstat(cursor); return null; } catch (statError) {
         if (statError.code !== 'ENOENT') return null;
       }
       const parent = dirname(cursor);
@@ -121,8 +112,8 @@ const NOT_LANE_FOLDERS = new Set(['node_modules', 'dist', 'build', 'out', 'targe
  * @returns {string[]}
  */
 function visibleFolders(dir) {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true })
+  if (!fs.exists(dir)) return [];
+  return fs.list(dir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.') && !NOT_LANE_FOLDERS.has(entry.name))
     .map((entry) => entry.name).sort();
 }
@@ -254,13 +245,14 @@ export function laneProposalNotes(proposals) {
 
 /** Check whether a command can be found on PATH or in a named project environment without running it. */
 function gateCommandAvailable(root, command) {
+  const env = environmentAdapter();
   /** Check one file without executing it or resolving arbitrary shell syntax. */
   const executableFile = (file) => {
     try {
-      const info = statSync(file);
+      const info = fs.stat(file);
       if (!info.isFile()) return false;
       if (process.platform === 'win32') return true;
-      accessSync(file, fsConstants.X_OK);
+      fs.access(file, fs.constants.X_OK);
       return true;
     } catch {
       return false;
@@ -270,13 +262,13 @@ function gateCommandAvailable(root, command) {
   const commandFiles = (directory) => {
     const base = join(directory, command);
     if (process.platform !== 'win32' || /\.[^\\/]+$/u.test(command)) return [base];
-    return (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').map((extension) => `${base}${extension}`);
+    return (env.get('PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';').map((extension) => `${base}${extension}`);
   };
   /** Check a PATH directory entry, using the process working directory for an empty entry. */
   const onPath = (directory) => {
     return commandFiles(directory || process.cwd()).some(executableFile);
   };
-  if ((process.env.PATH ?? '').split(delimiter).some(onPath)) return true;
+  if ((env.get('PATH') ?? '').split(delimiter).some(onPath)) return true;
 
   /** Check conventional executable directories inside a named environment. */
   const hasEnvironmentCommand = (environment) => [
@@ -285,26 +277,27 @@ function gateCommandAvailable(root, command) {
   ].some(executableFile);
 
   const environments = new Set([join(root, '.venv')]);
-  if (process.env.UV_PROJECT_ENVIRONMENT) {
-    const configured = process.env.UV_PROJECT_ENVIRONMENT;
+  if (env.get('UV_PROJECT_ENVIRONMENT')) {
+    const configured = env.get('UV_PROJECT_ENVIRONMENT');
     environments.add(resolve(root, configured));
   }
-  if (process.env.POETRY_ACTIVE && process.env.VIRTUAL_ENV) environments.add(process.env.VIRTUAL_ENV);
+  if (env.get('POETRY_ACTIVE') && env.get('VIRTUAL_ENV')) environments.add(env.get('VIRTUAL_ENV'));
   if ([...environments].some(hasEnvironmentCommand)) return true;
   return false;
 }
 
 /** Describe a detected gate that init cannot resolve without executing it. */
 function missingGateNote(root, gate) {
+  const env = environmentAdapter();
   if (!gate) return '';
   const command = gate.trim().split(/\s+/u)[0];
   if (gateCommandAvailable(root, command)) return '';
   if (command === 'pytest') {
-    const hasPoetry = existsSync(join(root, 'poetry.lock'));
-    const hasUv = existsSync(join(root, 'uv.lock')) || Boolean(process.env.UV_PROJECT_ENVIRONMENT);
+    const hasPoetry = fs.exists(join(root, 'poetry.lock'));
+    const hasUv = fs.exists(join(root, 'uv.lock')) || Boolean(env.get('UV_PROJECT_ENVIRONMENT'));
     const searched = ['PATH', 'project `.venv`'];
-    if (process.env.UV_PROJECT_ENVIRONMENT) searched.push('configured uv environment');
-    if (process.env.POETRY_ACTIVE && process.env.VIRTUAL_ENV) searched.push('active Poetry environment');
+    if (env.get('UV_PROJECT_ENVIRONMENT')) searched.push('configured uv environment');
+    if (env.get('POETRY_ACTIVE') && env.get('VIRTUAL_ENV')) searched.push('active Poetry environment');
     const setupHint = hasUv ? 'run `uv sync` and activate its `.venv`'
       : hasPoetry ? 'run `poetry install` and activate that environment'
         : 'install pytest or activate the project `.venv`';
@@ -321,7 +314,7 @@ function missingGateNote(root, gate) {
  */
 function readPackageJson(root) {
   try {
-    return JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    return JSON.parse(fs.readFile(join(root, 'package.json'), 'utf8'));
   } catch {
     return null;
   }
@@ -336,9 +329,9 @@ function readPackageJson(root) {
  */
 export function detectFixers(root) {
   const file = join(root, 'package.json');
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   try {
-    const pkg = JSON.parse(readFileSync(file, 'utf8'));
+    const pkg = JSON.parse(fs.readFile(file, 'utf8'));
     const hasPrettier = Boolean(pkg?.devDependencies?.prettier ?? pkg?.dependencies?.prettier);
     return hasPrettier ? [{ run: 'npx --no-install prettier --write --ignore-unknown', files: ['*'] }] : [];
   } catch {
@@ -354,7 +347,7 @@ export function detectFixers(root) {
  */
 function configuredGate(root) {
   try {
-    return String(JSON.parse(readFileSync(join(root, CONFIG_FILE), 'utf8')).gate ?? '').trim();
+    return String(JSON.parse(fs.readFile(join(root, CONFIG_FILE), 'utf8')).gate ?? '').trim();
   } catch {
     return '';
   }
@@ -370,8 +363,8 @@ function configuredGate(root) {
  * @returns {string} What happened.
  */
 function writeNew(file, text, name, onWrite) {
-  if (existsSync(file)) return `kept ${name}`;
-  writeFileSync(file, text);
+  if (fs.exists(file)) return `kept ${name}`;
+  fs.writeFile(file, text);
   onWrite(name);
   return `wrote ${name}`;
 }
@@ -380,10 +373,10 @@ function writeNew(file, text, name, onWrite) {
 function ignoreAgentWorktrees(root, onWrite) {
   const file = join(root, '.gitignore');
   const pattern = '.claude/worktrees/';
-  const existing = existsSync(file);
-  const previous = existing ? readFileSync(file, 'utf8') : '';
+  const existing = fs.exists(file);
+  const previous = existing ? fs.readFile(file, 'utf8') : '';
   if (previous.split(/\r?\n/u).includes(pattern)) return 'kept .gitignore (already ignores .claude/worktrees/)';
-  appendFileSync(file, (previous && !previous.endsWith('\n') ? '\n' : '') + pattern + '\n');
+  fs.appendFile(file, (previous && !previous.endsWith('\n') ? '\n' : '') + pattern + '\n');
   onWrite('.gitignore');
   return existing ? 'added .claude/worktrees/ to .gitignore' : 'wrote .gitignore (ignores .claude/worktrees/)';
 }
@@ -401,16 +394,16 @@ function writeAgentDocs(root, onWrite) {
   const agents = join(root, 'AGENTS.md');
   const doctrine = loadDoctrine(root, loadConfig(root));
   const block = renderAgentsBlock(doctrine, doctrineText(doctrine));
-  if (!existsSync(agents)) {
-    writeFileSync(agents, `# AGENTS.md\n\n${block}`);
+  if (!fs.exists(agents)) {
+    fs.writeFile(agents, `# AGENTS.md\n\n${block}`);
     onWrite('AGENTS.md');
     notes.push('wrote AGENTS.md');
-  } else if (!readFileSync(agents, 'utf8').includes(AGENTS_START)) {
-    appendFileSync(agents, `\n${block}`);
+  } else if (!fs.readFile(agents, 'utf8').includes(AGENTS_START)) {
+    fs.appendFile(agents, `\n${block}`);
     onWrite('AGENTS.md');
     notes.push('added the pullboard section to AGENTS.md');
   } else {
-    const previous = readFileSync(agents, 'utf8');
+    const previous = fs.readFile(agents, 'utf8');
     const start = previous.indexOf(AGENTS_START);
     const end = previous.indexOf(AGENTS_END, start);
     if (end < 0) notes.push('kept AGENTS.md (incomplete pullboard markers; restore the closing marker to refresh)');
@@ -418,7 +411,7 @@ function writeAgentDocs(root, onWrite) {
       const updated = previous.slice(0, start) + block.trimEnd() + previous.slice(end + AGENTS_END.length);
       if (updated === previous) notes.push('kept AGENTS.md');
       else {
-        writeFileSync(agents, updated);
+        fs.writeFile(agents, updated);
         onWrite('AGENTS.md');
         notes.push('updated the pullboard section in AGENTS.md');
       }
@@ -427,12 +420,12 @@ function writeAgentDocs(root, onWrite) {
   const guide = writeNew(join(root, COORDINATOR_GUIDE_FILE), renderCoordinatorGuide(), COORDINATOR_GUIDE_FILE, onWrite);
   if (guide.startsWith('wrote')) notes.push(`${guide} (the coordinator's guide)`);
   const claude = join(root, 'CLAUDE.md');
-  if (!existsSync(claude)) {
-    writeFileSync(claude, '@AGENTS.md\n');
+  if (!fs.exists(claude)) {
+    fs.writeFile(claude, '@AGENTS.md\n');
     onWrite('CLAUDE.md');
     notes.push('wrote CLAUDE.md (points at AGENTS.md)');
-  } else if (!readFileSync(claude, 'utf8').includes('AGENTS.md')) {
-    appendFileSync(claude, '\n@AGENTS.md\n');
+  } else if (!fs.readFile(claude, 'utf8').includes('AGENTS.md')) {
+    fs.appendFile(claude, '\n@AGENTS.md\n');
     onWrite('CLAUDE.md');
     notes.push('pointed CLAUDE.md at AGENTS.md');
   }
@@ -684,8 +677,8 @@ function writeMcpConfig(root, onWrite) {
   const notes = [];
   const claude = join(root, '.mcp.json');
   let config = {};
-  if (existsSync(claude)) {
-    try { config = JSON.parse(readFileSync(claude, 'utf8')); } catch { config = null; }
+  if (fs.exists(claude)) {
+    try { config = JSON.parse(fs.readFile(claude, 'utf8')); } catch { config = null; }
   }
   const servers = config?.mcpServers;
   if (!config || typeof config !== 'object' || Array.isArray(config) || (servers !== undefined && (!servers || typeof servers !== 'object' || Array.isArray(servers)))) {
@@ -694,12 +687,12 @@ function writeMcpConfig(root, onWrite) {
     notes.push('kept the Claude Code MCP server in .mcp.json');
   } else {
     config.mcpServers = { ...servers, pullboard: { command: 'sh', args: ['-c', MCP_COMMAND] } };
-    writeFileSync(claude, `${JSON.stringify(config, null, 2)}\n`);
+    fs.writeFile(claude, `${JSON.stringify(config, null, 2)}\n`);
     onWrite('.mcp.json');
     notes.push('added pullboard mcp to .mcp.json for Claude Code');
   }
   const codex = join(root, '.codex', 'config.toml');
-  const contents = existsSync(codex) ? readFileSync(codex, 'utf8') : '';
+  const contents = fs.exists(codex) ? fs.readFile(codex, 'utf8') : '';
   if (!codexConfigEditable(contents)) {
     // Outside the simple subset init never rewrites what the person wrote: it prints the block for them to add (#961).
     notes.push(`${CODEX_MANUAL_NOTE} To run pullboard mcp in Codex, add this server yourself, as this table or as a pullboard entry in your mcp_servers table:\n${CODEX_MCP_BLOCK}`);
@@ -709,8 +702,8 @@ function writeMcpConfig(root, onWrite) {
     // A new table at the end is valid TOML after any simple content, so nothing already there is rewritten.
     const prefix = contents && !contents.endsWith('\n') ? `${contents}\n` : contents;
     const table = `${prefix ? `${prefix}\n` : ''}${CODEX_MCP_BLOCK}\n`;
-    mkdirSync(join(root, '.codex'), { recursive: true });
-    writeFileSync(codex, table);
+    fs.mkdir(join(root, '.codex'), { recursive: true });
+    fs.writeFile(codex, table);
     onWrite('.codex/config.toml');
     notes.push('added pullboard mcp to .codex/config.toml for Codex; trust this project so Codex loads it');
   }
@@ -728,9 +721,9 @@ function writeMcpConfig(root, onWrite) {
 function writeClaudeLoopPermissions(root, gate, onWrite) {
   const file = join(root, '.claude', 'settings.json');
   let settings = {};
-  if (existsSync(file)) {
+  if (fs.exists(file)) {
     try {
-      settings = JSON.parse(readFileSync(file, 'utf8'));
+      settings = JSON.parse(fs.readFile(file, 'utf8'));
     } catch {
       settings = null;
     }
@@ -775,8 +768,8 @@ function writeClaudeLoopPermissions(root, gate, onWrite) {
         filesystem: { ...filesystem, allowWrite: [...machineWrites, machinePath] },
       };
     }
-    mkdirSync(join(root, '.claude'), { recursive: true });
-    writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
+    fs.mkdir(join(root, '.claude'), { recursive: true });
+    fs.writeFile(file, `${JSON.stringify(settings, null, 2)}\n`);
     onWrite('.claude/settings.json');
   }
   const gateWords = plainGateWords(gate);
@@ -802,13 +795,13 @@ function writeCodexLoopRules(root, gate, onWrite) {
   const machinePath = machineHome();
   const rules = codexLoopRules(gate);
   let contents = '';
-  if (existsSync(file)) contents = readFileSync(file, 'utf8');
+  if (fs.exists(file)) contents = fs.readFile(file, 'utf8');
   const lines = new Set(contents.split(/\r?\n/u));
   const missing = rules.filter(rule => !lines.has(rule));
   if (missing.length) {
-    mkdirSync(join(root, '.codex', 'rules'), { recursive: true });
+    fs.mkdir(join(root, '.codex', 'rules'), { recursive: true });
     const prefix = contents && !contents.endsWith('\n') ? `${contents}\n` : contents;
-    writeFileSync(file, `${prefix}${missing.join('\n')}\n`);
+    fs.writeFile(file, `${prefix}${missing.join('\n')}\n`);
     onWrite('.codex/rules/pullboard.rules');
   }
   const gateNote = plainGateWords(gate) ? '' : gate ? '; the configured shell gate was left for manual approval' : '';
@@ -835,8 +828,8 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   const { root } = info;
   // Read before any write: setup's own CLAUDE.md and .claude files must not count as the project's declaration.
   const agentTools = declaredAgentTools(root);
-  const worktreeMode = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).worktrees : 'inside';
-  const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
+  const worktreeMode = fs.exists(join(root, CONFIG_FILE)) ? loadConfig(root).worktrees : 'inside';
+  const doctrine = fs.exists(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const configured = configuredGate(root);
   const config = withAffectedDefault(JSON.parse(configTemplate(gate, detectFixers(root))), detectLanguages(root), readPackageJson(root));
@@ -929,7 +922,7 @@ function continuousIntegration(environment) {
  * @param {{ enabled: boolean, shared: boolean, environment?: Record<string, string | undefined>, stdin?: { isTTY?: boolean }, stdout?: { isTTY?: boolean } }} facts
  * @returns {'ask' | 'print' | 'none'}
  */
-export function relayOfferAtInit({ enabled, shared, environment = process.env, stdin, stdout }) {
+export function relayOfferAtInit({ enabled, shared, environment = environmentAdapter().all(), stdin, stdout }) {
   if (!enabled || shared) return 'none';
   if (AGENT_SHELL_MARKERS.some((name) => Boolean(environment[name]))) return 'print';
   if (continuousIntegration(environment) || remoteShell(environment)) return 'print';

@@ -16,7 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { createInstallCache } from '../../../index.js';
+import { createInstallCache } from '../../../heavy.js';
 
 /** A counting installer that writes a small prefix with a relative bin link, standing in for npm install. */
 function setup(t) {

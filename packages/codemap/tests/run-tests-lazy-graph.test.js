@@ -29,7 +29,7 @@ test('codemap.run-tests-lazy-graph.the-moved-src-run-js: clause 1: the moved src
     const deferred = scanSource(file, source).imports.filter(edge => edge.dynamic).map(edge => edge.from);
     const retainsGate = file === 'packages/gate/src/io/test/run.js'
       ? ['../main.js', '../execution.js'].every(edge => deferred.includes(edge))
-      : deferred.some(edge => edge.endsWith('/gate.js') || edge === '../../../gate/index.js');
+      : deferred.some(edge => edge.endsWith('/gate.js') || edge === '../../../gate/index.js' || edge === '../../../gate/heavy.js');
     assert.ok(retainsGate, `${file} retains its real gate dependency on demand`);
   }
 });

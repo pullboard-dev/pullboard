@@ -53,8 +53,9 @@ function takeLock(lock) {
 const pause = ms => new Promise(done => setTimeout(done, ms));
 
 /**
+ * Open the cross-process write queue in a directory, so a caller can submit writes and read their results later.
  * @param {string} dir the queue directory shared by every process; each write's `run` receives its queue sequence number
- * @param {{ transaction?: <T>(work: () => T) => T, savepoint?: <T>(work: () => T) => T }} [ports]
+ * @param {{ transaction?: <T>(work: () => T) => T, savepoint?: <T>(work: () => T) => T }} [ports] the transaction and savepoint wrappers
  * @returns {{ submit: (write: { id: string, run: () => unknown }) => Promise<{ ok: boolean, value?: unknown, error?: { code: string, message: string } }>,
  *   result: (id: string) => { ok: boolean, value?: unknown, error?: { code: string, message: string } } | null }}
  */

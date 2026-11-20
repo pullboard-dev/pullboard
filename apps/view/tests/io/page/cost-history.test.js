@@ -96,3 +96,14 @@ test('view.x-io-page-cost-history.clause-1-a-gap-that-holds-a: clause 1: a gap t
   read({ sequence: 40, events: [{ event_id: 40, event_kind: 'claim' }, { event_id: 39, event_kind: 'submit' }] });
   assert.equal(calls.length, 2, 'the usage event in the gap reads again');
 });
+
+test('view.page.cost-gap-paged: clause 2: the Cost gap scan asks for events with a limit on every page [N26]', async () => {
+  const { read, settle, logs, gap } = page();
+  read(board(10, 'claim'));
+  await settle();
+  gap.events = Array.from({ length: 28 }, (_, index) => ({ event_id: 11 + index, event_kind: 'claim' }));
+  read({ sequence: 40, events: [{ event_id: 40, event_kind: 'claim' }, { event_id: 39, event_kind: 'submit' }] });
+  await quiet();
+  assert.ok(logs.length >= 1, 'the gap was read from the event log');
+  assert.deepEqual(logs.filter(path => !/[?&]limit=50000(?:&|$)/u.test(path)), [], 'no events read omits its limit');
+});

@@ -8,8 +8,8 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { coordinatorLocal } from '../../../journeys/submit/gate/local.js';
-import { runLocal } from '../../../journeys/submit/gate/local.js';
+import { coordinatorLocal } from './local.js';
+import { runLocal } from './local.js';
 import { privateRepo } from './gate.js';
 import { builderRepo } from './gate.js';
 import { put } from './gate.js';
