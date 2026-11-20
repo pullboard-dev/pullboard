@@ -116,6 +116,7 @@ import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
 import { addBlock } from "./board/blocks.js";
+import { claimBlock } from "./board/blocks.js";
 import { listBlocks } from "./board/blocks.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
@@ -189,7 +190,7 @@ export { landingLeaseMove, landingLeaseState } from "../logic/board/landing/leas
 export { boardBusyError } from "./board/access.js";
 export { schemaMissing, writeRefused } from "./board/migrate.js";
 export { itemFiles };
-export { ROUTES, canTake };
+export { ROUTES, canTake, routeOf };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
@@ -512,6 +513,7 @@ export {
   holdItem,
   reserveItem,
   addBlock,
+  claimBlock,
   listBlocks,
   releaseItemHold,
   maintainStaleState,
