@@ -13,6 +13,7 @@ import { Refused } from "../../../kernel/index.js";
 import { sentinels } from "./main.js";
 import { gitChildEnv } from "../../../git/index.js";
 import { mainCheckout } from "../../../git/index.js";
+import { environmentAdapter } from "../../../env/index.js";
 import { fileSystemAdapter } from '../../../fs/index.js';
 
 /** The one file-system adapter this file reads through [C7]. */
@@ -84,7 +85,7 @@ async function drainWatch(pgid, anchor, parseProcessCensus) {
 }
 
 /** Run one owned process group in the approved directory, with a bounded hang and drained shutdown. */
-export function executeSentinel(root, row, { signal, environment = process.env, parseProcessCensus } = {}) {
+export function executeSentinel(root, row, { signal, environment = environmentAdapter().all(), parseProcessCensus } = {}) {
   return new Promise((settle, reject) => {
     if (typeof parseProcessCensus !== 'function') {
       reject(new Refused('SENTINEL_DRAIN', 'supply the process census parser from the sentinel command owner before running a watch'));
