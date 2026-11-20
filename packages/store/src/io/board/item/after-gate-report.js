@@ -1,5 +1,6 @@
 /** The notes the after-gate flow leaves: a dependent's claim, the minutes a parent's verify saved its dependents, and each dependent sent back for a rebuild [C7,#12325,#12326]. */
 import { appendFact } from '../fact.js';
+import { itemThread } from '../query.js';
 
 /**
  * Record one note fact on a dependent whose claim took a gate-green after-gate parent, so the thread shows what the build started from.
@@ -58,4 +59,22 @@ export function recordAfterGateSaved(board, parent, dependents, { agentId }) {
  */
 export function recordAfterGateRebuild(board, parent, dependent, { agentId = 'coordinator' } = {}) {
   return appendFact(board, parent, { agentId, kind: 'note', text: `after-gate rebuild: #${dependent} goes back and is rebuilt` });
+}
+
+/**
+ * Read back what the after-gate notes on a parent record: the whole minutes its dependents saved and how many rebuilds a send-back caused.
+ * Why a read of the thread's notes by their fixed prefixes: the two recorders write plain notes, so nothing is stored beside them and no engine or setting is involved [C7,#12327].
+ *
+ * @param {any} board The open board.
+ * @param {number} id The after-gate parent.
+ * @returns {{ savedMinutes: number, rebuilds: number }} The minutes summed over every 'after-gate saved:' note, and the count of 'after-gate rebuild:' notes; zero for both when there are none.
+ */
+export function afterGateReport(board, id) {
+  const report = { savedMinutes: 0, rebuilds: 0 };
+  for (const entry of itemThread(board, id)) {
+    if (entry.type !== 'fact' || entry.kind !== 'note' || typeof entry.text !== 'string') continue;
+    if (entry.text.startsWith('after-gate saved:')) for (const found of entry.text.matchAll(/ (\d+) min\b/gu)) report.savedMinutes += Number(found[1]);
+    else if (entry.text.startsWith('after-gate rebuild:')) report.rebuilds += 1;
+  }
+  return report;
 }

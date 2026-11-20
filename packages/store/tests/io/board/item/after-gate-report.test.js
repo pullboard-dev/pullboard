@@ -10,7 +10,9 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import * as store from "../../../../index.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { afterGateReport } from "../../../../index.js";
 import { recordAfterGateClaim } from "../../../../src/io/board/item/after-gate-report.js";
+import { recordAfterGateRebuild } from "../../../../src/io/board/item/after-gate-report.js";
 import { cellBoard } from "../../../fixtures/cell.js";
 import { cellItem } from "../../../fixtures/cell.js";
 import { cellSeat } from "../../../fixtures/cell.js";
@@ -112,4 +114,18 @@ test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 
   assert.equal(rebuilds.length, 1, "one rebuild note on the parent");
   assert.ok(rebuilds[0].includes(`#${rebuilt}`), "it names the dependent sent back");
   assert.equal(notesStarting(board, parent, "after-gate rebuild:").length, 0, "a verified parent records no rebuild");
+});
+
+test("store.io-board-item-after-gate-report.report-reads-back: clause 1: afterGateReport sums the minutes of every saved note and counts the rebuild notes on a parent, and reads zero for a parent with none [C7,#12327]", t => {
+  const { box, parent } = seeded(t);
+  const agentId = box.seats.builder.id;
+  assert.deepEqual(afterGateReport(box.board, parent), { savedMinutes: 0, rebuilds: 0 });
+  store.appendFact(box.board, parent, { agentId, kind: "note", text: "after-gate saved: #11 12 min, #12 5 min" });
+  store.appendFact(box.board, parent, { agentId, kind: "note", text: "after-gate saved: #13 3 min" });
+  recordAfterGateRebuild(box.board, parent, 14, { agentId });
+  recordAfterGateRebuild(box.board, parent, 15, { agentId });
+  store.appendFact(box.board, parent, { agentId, kind: "note", text: "an unrelated note: 99 min" });
+  assert.deepEqual(afterGateReport(box.board, parent), { savedMinutes: 20, rebuilds: 2 });
+  const plain = box.add("Parent with no after-gate notes");
+  assert.deepEqual(afterGateReport(box.board, plain), { savedMinutes: 0, rebuilds: 0 });
 });
