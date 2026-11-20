@@ -298,9 +298,9 @@ function shellWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
-/** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. Why SHARD_JOBS_SQL reads a key range on job_id (the primary key), ';' being the character after ':': substr() scanned every gate-shard row on each pull claim; +job_kind keeps the planner off the job_kind index [C7]. */
+/** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. Why SHARD_JOBS_SQL reads a key range on job_id (the primary key) from the prefix to the prefix plus U+FFFF (job ids are plain text, so none holds it): substr() scanned every gate-shard row on each pull claim, and +job_kind keeps the planner off job_kind_created, which it picks for a plain key range [C7]. */
 export function shardJobs(db, job, { runs = null } = {}) {
-  return (runs ? runs.db : db).prepare(SHARD_JOBS_SQL).all(SHARD_JOB_KIND, `${job}:shard:`, `${job}:shard;`);
+  return (runs ? runs.db : db).prepare(SHARD_JOBS_SQL).all(SHARD_JOB_KIND, `${job}:shard:`, `${job}:shard:\uFFFF`);
 }
 export const SHARD_JOBS_SQL = 'SELECT job_id, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? ORDER BY job_created, job_id';
 
