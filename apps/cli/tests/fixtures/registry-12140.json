@@ -1,0 +1,17 @@
+{
+  "cli.io-commands-doctor-reconcile.default-doctor-takes-no-write": {
+    "proves": {
+      "specs": [
+        "B2",
+        "C7",
+        "P7"
+      ],
+      "claim": "A default doctor on a board with the flag on and one lost job prints no reconciler line and leaves the job unsettled."
+    },
+    "why": "Without it, a regression where a default doctor takes the board write lock to settle runs would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/doctor-reconcile.test.js"
+    ]
+  }
+}

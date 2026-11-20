@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../env/index.js';
 import { relayFetch } from '../../../person/index.js';
 import { operationIntent } from '../../../state/index.js';
 import { orderedMoveCommand } from '../logic/relay/order.js';
@@ -297,7 +298,7 @@ export async function request(state, path, options = {}, io) {
 async function rawRequest(state, path, { method = 'GET', body, allowMissing = false, initialBaseline = false, signal } = {}, io) {
   signal ??= io?.relaySignal;
   io?.onRelayRequest?.({ method, path });
-  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : process.env.PULLBOARD_RELAY_TOKEN;
+  const supplied = io?.ignoreRelayEnvironmentToken ? undefined : environmentAdapter().get('PULLBOARD_RELAY_TOKEN');
   const readToken = method === 'GET' && /^\/api\/v[12]\/boards\//u.test(path) ? supplied : undefined;
   if (readToken !== undefined && !/^pa_[A-Za-z0-9_-]{43}$/.test(readToken)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token without including it in command arguments');
   const token = readToken ?? state.token;
@@ -840,7 +841,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     moves.add(state.board);
     let requestedMove;
     try {
-      const requiresAcknowledgment = process.env.PULLBOARD_RELAY_TOKEN !== undefined || state.environment || io.relayCanary;
+      const requiresAcknowledgment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || state.environment || io.relayCanary;
       let ordered;
       const queue = guarded.queue;
       try { ordered = await ensureOrdered(root, file, state, io); }

@@ -14,6 +14,7 @@ import { itemNotesText } from '../../../items/index.js';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { briefFiles } from '../../../items/index.js';
 import {
   CONFIG_FILE,
@@ -85,7 +86,7 @@ function boundedInt(text, low, high, flag) {
  * @param {{ cwd: string, env?: NodeJS.ProcessEnv, timeoutMs: number, log?: string }} options
  * @returns {Promise<{ status: number | null, output: string, timedOut: boolean, seconds: number }>}
  */
-function runCommand(command, { cwd, env = process.env, timeoutMs, log }) {
+function runCommand(command, { cwd, env = environmentAdapter().all(), timeoutMs, log }) {
   const started = Date.now();
   return new Promise((done) => {
     const child = spawn(command, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -257,7 +258,7 @@ export function commitWork(root, item, config, paths) {
  */
 function pinAttempt(root, id) {
   const index = join(git(root, ['rev-parse', '--path-format=absolute', '--git-dir']), 'pullboard-attempt-index');
-  const env = { ...process.env, GIT_INDEX_FILE: index };
+  const env = { ...environmentAdapter().all(), GIT_INDEX_FILE: index };
   const step = (args) => {
     const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
     if (result.status !== 0) throw new Refused('PIN_FAILED', `could not pin the attempt: git ${args[0]} said ${result.stderr.trim()}`);
@@ -315,7 +316,7 @@ async function mergeDependencies(ctx, item, deps) {
  * @returns {Promise<{ green: boolean, digest: string, tries: number, seconds: number }>}
  */
 async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start, inScope, packs, earlier }) {
-  const { digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = await import('../../../gate/index.js');
+  const { digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate } = await import('../../../gate/heavy.js');
   const { root } = ctx.info;
   const id = item.item_id;
   const tag = item.item_route;
@@ -333,7 +334,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
     const pack = join(packs, `${id}-${tag}-${attempt}.md`);
     fs.writeFile(pack, packText(root, fresh, { attempt, attempts, digest, earlier, related, thread }));
     ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
-    const env = { ...process.env, PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
+    const env = { ...environmentAdapter().all(), PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
     const built = await runCommand(command, { cwd: root, env, timeoutMs: minutes * 60_000, log: join(packs, `${id}-${tag}-${attempt}.log`) });
     const outside = changedSince(root, start).filter((path) => !inScope(path));
     restore(root, start, outside);
@@ -423,7 +424,7 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
 export async function runItems(io, values, deps) {
   // Keep package import light; unattended work is the first point that needs board and gate machinery.
   const [board, gate] = await Promise.all([
-    import('../../../store/index.js'), import('../../../gate/index.js'),
+    import('../../../store/index.js'), import('../../../gate/heavy.js'),
   ]);
   store = board;
   ({ digestOf, refuseSandboxBlocked, sandboxBlockedOperation, runGate, missingGate } = gate);
@@ -442,7 +443,7 @@ export async function runItems(io, values, deps) {
   const limit = values.items === undefined ? Infinity : boundedInt(values.items, 1, 1000, '--items');
   const waitMinutes = values.wait === undefined ? 0 : boundedInt(values.wait, 0, 240, '--wait');
   if (!ctx.config.gate.trim()) {
-    const { missingGate } = await import('../../../gate/index.js');
+    const { missingGate } = await import('../../../gate/heavy.js');
     throw missingGate(ctx.info.root);
   }
   if (!isClean(ctx.info.root) || untracked(ctx.info.root).length) {

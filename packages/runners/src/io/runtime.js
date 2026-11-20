@@ -2,6 +2,7 @@
 import { homedir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { resolve } from 'node:path';
 import { fileSystemAdapter } from '../../../fs/index.js';
 
@@ -13,7 +14,7 @@ const HELD_MS = 24 * 60 * 60_000;
 export const REUSE_CAPSULE = 'REUSE';
 
 /** This machine's record, in its machine home as gateMachineHome finds it (a machine or account home isolates tests). */
-function heldFile(env = process.env) {
+function heldFile(env = environmentAdapter().all()) {
   const home = env.PULLBOARD_MACHINE_HOME ? resolve(env.PULLBOARD_MACHINE_HOME) : join(resolve(env.PULLBOARD_ACCOUNT_HOME || homedir()), '.pullboard');
   return join(home, 'runner-runtimes.json');
 }

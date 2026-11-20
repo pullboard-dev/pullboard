@@ -1,0 +1,5 @@
+{
+  "cli.io-item-bar-empty-check.refused": {"proves":{"specs":["C7"],"claim":"With items.barRulesAtAdd on, a pass-with-no-tests check naming a test file absent from main is refused CHECK_PASSES_EMPTY naming the test -f fix."},"why":"Without it add filed a check that was green before any work existed and proved nothing.","kind":"cell unit","inputs":["apps/cli/tests/io/item/bar/empty-check.test.js","apps/cli/src/io/item/bar.js"]},
+  "cli.io-item-bar-empty-check.allowed": {"proves":{"specs":["C7"],"claim":"A guarded check, one without the flag, a test file on main, --accept-green and the setting off are accepted."},"why":"Without it legal checks would be refused at add.","kind":"cell unit","inputs":["apps/cli/tests/io/item/bar/empty-check.test.js","apps/cli/src/io/item/bar.js"]},
+  "cli.io-item-bar-empty-check.real-add": {"proves":{"specs":["C7"],"claim":"The real add command refuses CHECK_PASSES_EMPTY with the setting on."},"why":"Without it the rule could pass its unit cases while add never called it.","kind":"cell unit","inputs":["apps/cli/tests/io/item/bar/empty-check.test.js","apps/cli/src/io/commands/add.js","apps/cli/src/io/item/bar.js"]}
+}
