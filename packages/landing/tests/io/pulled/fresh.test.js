@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { withoutStaleVerdicts } from '../../../index.js';
 import * as store from '../../../../store/index.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { verifiedThenMainMoves } from '../../fixtures/stale-verdict.js';
 
 test('landing.fresh.main-changing-a-reviewed-file-reopens: clause 2: main changing a reviewed file reopens the verified item to its lane and names the file [B3,C7]', async t => {
-  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js');
+  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js', cellBoard);
   assert.equal(store.getItem(board, item).item_status, 'verified');
   const said = [];
   const written = [];
@@ -20,7 +21,7 @@ test('landing.fresh.main-changing-a-reviewed-file-reopens: clause 2: main changi
 });
 
 test('landing.fresh.main-changing-only-an-unreviewed-file: clause 2: main changing only an unreviewed file leaves the verified item landable and writes nothing [B3,C7]', async t => {
-  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/y.js');
+  const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/y.js', cellBoard);
   const written = [];
   const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board, { all: true }), { candidate: () => true, write: async operation => { written.push(operation); }, say: () => {} });
   assert.deepEqual(written, []);

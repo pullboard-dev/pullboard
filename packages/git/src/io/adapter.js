@@ -75,21 +75,36 @@ function xcrunGit() {
 /** The one synchronous launch of this file: git and the xcrun lookup share it, so the leased-work call count does not grow. */
 function launchSync(command, args, options) { return spawnSync(command, args, options); }
 
-let resolvedGit;
-/** The git binary for this process, resolved on first use and reused: each call through the shim cost two execs. */
-export function realGitPath() {
-  resolvedGit ??= resolveGitPath();
-  return resolvedGit;
+const resolvedGit = new Map();
+/**
+ * The git binary for one PATH, resolved on first use and reused: each call through the shim cost two execs.
+ * Why per PATH, rechecked: one long-lived process kept the first git it found, so a caller with another PATH, or any
+ * command after that git was removed, spawned a missing file and read it as NOT_A_REPO [C7].
+ *
+ * @param {string} [path] - The PATH the call runs under; the process PATH when left out.
+ * @returns {string}
+ */
+export function realGitPath(path = process.env.PATH ?? '') {
+  const known = resolvedGit.get(path);
+  if (known !== undefined && (!known.includes('/') || isExecutable(known))) return known;
+  const found = resolveGitPath({ path });
+  resolvedGit.set(path, found);
+  return found;
+}
+
+/** The PATH one Git call runs under: its own environment's, else this process's. */
+function callPath(options) {
+  return options?.env?.PATH ?? process.env.PATH ?? '';
 }
 
 /** The real implementation forwards every argument and option without interpreting Git output. */
 export const realGitAdapter = Object.freeze({
   /** Run a synchronous Git process and preserve its complete Node result. */
-  spawnSync(args, options) { return launchSync(realGitPath(), args, options); },
+  spawnSync(args, options) { return launchSync(realGitPath(callPath(options)), args, options); },
   /** Run Git with Node's throwing synchronous contract, including binary output. */
-  execFileSync(args, options) { return execFileSync(realGitPath(), args, options); },
+  execFileSync(args, options) { return execFileSync(realGitPath(callPath(options)), args, options); },
   /** Start a streaming Git process; framing remains the caller's responsibility. */
-  spawn(args, options) { return spawn(realGitPath(), args, options); },
+  spawn(args, options) { return spawn(realGitPath(callPath(options)), args, options); },
 });
 
 /** Return the implementation belonging to this async call chain, defaulting to real Git. */

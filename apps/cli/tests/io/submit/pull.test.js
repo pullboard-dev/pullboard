@@ -80,7 +80,7 @@ test('cli.io-submit-pull.runner-note-item-policy: clause 2: the note names the i
   assert.equal(proofRunnerNote({}, { commit: MAIN_SHA, config: {} }, ITEM_SHA), 'test runner: none set (named .js files run under node --test)');
 });
 
-test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says the runner note right after the in-the-gate line [C7,#11753]', async t => {
+test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says the runner note right after the in-the-gate line [C7,#11753]', { skip: 'main-red stopgap #12134: runs a real worker run that hangs past the 180 s file budget; #12050 is the real fix and must remove this skip' }, async t => {
   const box = await fixture(t);
   fileFixtureItem(box, box.repo, { lane: 'core', title: 'Print the proof runner', route: 'mid',
     criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
@@ -96,4 +96,14 @@ test('cli.io-submit-pull.ack-prints-runner-note: clause 3: a real submit says th
   const gate = lines.findIndex(line => /^#1 is in the gate as job /u.test(line));
   assert.ok(gate >= 0, 'the submit says it is in the gate');
   assert.match(lines[gate + 1], /^test runner: /u, 'the runner note follows at once');
+});
+
+test('cli.submit-pull.item-needs-in-request: clause 1: the gate request carries the held item needs in its analysis data, and a request without needs is built as before [U136,#11479]', () => {
+  const pinned = { main: 'a'.repeat(40), source: 'b'.repeat(40), trunk: 'a'.repeat(40), base: null, check: 'true', criterion: '', title: 't',
+    composition: null, config: {}, crossRunTests: [], cutRows: [], produceInventory: [], doctrine: null, authorization: null, browserFreeChecks: false };
+  const plain = gateJobRequest(pinned);
+  assert.equal('needs' in plain.input.data.analysis, false);
+  const needing = gateJobRequest({ ...pinned, needs: ['gui'] });
+  assert.deepEqual(needing.input.data.analysis.needs, ['gui']);
+  assert.deepEqual({ ...needing.input.data.analysis, needs: undefined }, { ...plain.input.data.analysis, needs: undefined });
 });

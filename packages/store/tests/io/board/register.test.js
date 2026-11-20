@@ -6,6 +6,8 @@ import { agentAt } from '../../../index.js';
 import { closeBoard } from '../../../index.js';
 import { register } from '../../../index.js';
 import { ADVISOR_ROLE_ENGINE } from '../../../../state/light.js';
+import { NEEDS_ENGINE } from '../../../../state/light.js';
+import { agentAbilities } from '../../../src/io/needs.js';
 import { openKitBoard } from '../../fixtures/cell.js';
 
 const MAIN = '/fixture/project';
@@ -53,4 +55,24 @@ test('store.io-board-register.clause-2-a-bad-role-is-refused: clause 2: a role o
   board.executionEngineVersion = ADVISOR_ROLE_ENGINE - 1;
   assert.throws(() => register(board, { lane: 'core', path: '/fixture/old', role: 'advisor' }), error => error.code === 'ENGINE_VERSION' && /upgrade/u.test(error.message));
   assert.equal(agentAt(board, '/fixture/old'), undefined, 'no seat is registered');
+});
+
+test('store.io-board-register.abilities-real-path: register stores who.abilities for a fresh join and for a rejoin of the same seat, leaves them when none are given, and refuses ENGINE_VERSION below NEEDS_ENGINE [C7,U136]', t => {
+  const board = openKitBoard(':memory:');
+  t.after(() => closeBoard(board));
+  const id = register(board, { lane: 'core', path: '/fixture/abilities', abilities: ['browser'] });
+  assert.deepEqual(agentAbilities(board, id), ['browser'], 'a fresh join stores the declaration');
+  assert.equal(register(board, { lane: 'core', path: '/fixture/abilities' }), id);
+  assert.deepEqual(agentAbilities(board, id), ['browser'], 'a rejoin that names none leaves it');
+  assert.equal(register(board, { lane: 'core', path: '/fixture/abilities', abilities: ['browser', 'gui'] }), id);
+  assert.deepEqual(agentAbilities(board, id), ['browser', 'gui'], 'a rejoin of the same seat stores the new declaration');
+  const plain = register(board, { lane: 'core', path: '/fixture/plain' });
+  assert.deepEqual(agentAbilities(board, plain), [], 'a seat that declared none reads []');
+  assert.throws(() => register(board, { lane: 'core', path: '/fixture/bad', abilities: ['gpu'] }), { code: 'USAGE' });
+  assert.equal(agentAt(board, '/fixture/bad'), undefined, 'a refused declaration registers no seat');
+  const current = board.executionEngineVersion;
+  try {
+    board.executionEngineVersion = NEEDS_ENGINE - 1;
+    assert.throws(() => register(board, { lane: 'core', path: '/fixture/old', abilities: ['browser'] }), { code: 'ENGINE_VERSION' });
+  } finally { board.executionEngineVersion = current; }
 });
