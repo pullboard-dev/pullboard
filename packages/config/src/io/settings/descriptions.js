@@ -344,7 +344,7 @@ const ROWS = [
   ['queue.contention', 'Steer next away from hot files', 'On, next starts the least contended ready item of equal priority and makes an item wait when its files are in flight elsewhere; off, next orders ready items as before.', 'Claims', 'on/off'],
   ['queue.contentionThreshold', 'Contention score that waits', 'With queue.contention on, an item whose score (file conflict rate times changes in flight on it) passes this waits.', 'Claims', 'count'],
   ['reviewLease', 'Review claim length', 'How long a review reservation lasts before it expires.', 'Claims', 'duration'],
-  ['route.reservations', 'Route reservations', 'When enabled, the route command may hold an item for a named seat as a reservation; off (default), nothing reads this setting and routing is unchanged.', 'Order', 'on/off'],
+  ['route.reservations', 'Route reservations', 'The route command may hold an item for a named seat as a reservation, and next skips it for other seats; on by default, and set off to refuse route --to and offer every item as before.', 'Order', 'on/off'],
   ['seat.checkpoints', 'Record seat checkpoints', 'On, a seat records a checkpoint fact at claim, submit, an exit-rule stop and handoff: what is done, what is left, decisions taken, evidence and tokens used; off (default) records none.', 'Agents', 'on/off'],
   // This repo: Landing
   ['confinedImportSelection', 'Confined import selection', 'How far the gate narrows its proof for a change confined to one import closure: off (default), tests (only when every changed file sits under a cell tests folder) or all; nothing reads it yet.', 'Landing', 'choice'],
