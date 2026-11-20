@@ -18,6 +18,8 @@ import { noteLease } from '../../../jobs/index.js';
 import { atomically } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
+import { endShardsOnItemRed } from './gate/fail-fast.js';
+import { endedDetail } from './gate/fail-fast.js';
 import { boardRun } from '../../../store/index.js';
 import { applyRunReceipt } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
@@ -398,6 +400,7 @@ export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}
 export function applyShardReceipt(board, { job }, ports = {}) {
   const parent = offeredRequest(board.db, job)?.gate;
   if (typeof parent !== 'string') return { applied: false, outcome: 'not-shard' };
+  if (ports.failFastShards === true) endShardsOnItemRed(board, { parent, job, ports }, { postedReceipt, shardJobs, combinedReceipt, compareGateWithMain, offeredGate });
   const every = shardJobs(board.db, parent);
   // The one retry shard (gate.retryNewRedsOnce) is no part of the proof's own split; it only replaces red shards when green [C7,P7].
   const retry = every.find(row => row.job_id === retryShardId(parent)) ?? null;
@@ -451,16 +454,6 @@ export function applyShardReceipt(board, { job }, ports = {}) {
       text: `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.` });
   }
   return applied;
-}
-
-/**
- * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
- * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
- */
-function endedDetail(db, job) {
-  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
-  if (!row) return null;
-  try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
@@ -1151,9 +1144,9 @@ export function provideMainComparison(lookup) {
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, retryNewRedsOnce = false, reofferTrunkBusy = false, failFastShards = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
-  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, receiptNow: options.now };
+  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, retryNewRedsOnce, reofferTrunkBusy, failFastShards, receiptNow: options.now };
   if (body?.action === 'claim' && options.mode === 'pull') {
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
