@@ -18,7 +18,7 @@ import { repositoryOfBoardFile } from '../../../../packages/store/index.js';
 import { sealClauseInspection } from '../../../../packages/store/index.js';
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
 
-test('an absent binding is refreshed from the board file and the submit seals once, with no NO_POLICY [C7]', t => {
+test('lib.no-rebinds.an-absent-binding-is-refreshed-from: an absent binding is refreshed from the board file and the submit seals once, with no NO_POLICY [C7]', t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-rebind-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.com',
@@ -39,7 +39,7 @@ test('an absent binding is refreshed from the board file and the submit seals on
   assert.deepEqual(sealClauseInspection(board, 1, options), sealed, 'a second seal on the rebound board gives the same answer');
 });
 
-test('a board file outside a repository still refuses with NO_POLICY, naming the next step [C7]', t => {
+test('lib.no-rebinds.a-board-file-outside-a-repository: a board file outside a repository still refuses with NO_POLICY, naming the next step [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-no-repository-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   // @pullboard-board-file persistence: the refusal under test reads a board file outside any repository
@@ -79,7 +79,7 @@ function policyFixture(t) {
   return { dir, root, board, reads, git, gitAt };
 }
 
-test('a nonempty stale repository binding retries the real policy refusal exactly once [C7]', t => {
+test('lib.no-rebinds.a-nonempty-stale-repository-binding-retries: a nonempty stale repository binding retries the real policy refusal exactly once [C7]', t => {
   const box = policyFixture(t);
   const stale = join(box.dir, 'stale');
   mkdirSync(stale);
@@ -97,7 +97,7 @@ test('a nonempty stale repository binding retries the real policy refusal exactl
   assert.deepEqual(box.reads, [stale, box.root, box.root], 'a refreshed healthy binding needs one read');
 });
 
-test('a genuine accepted policy change still refuses after exactly one binding retry [C7]', t => {
+test('lib.no-rebinds.a-genuine-accepted-policy-change-still: a genuine accepted policy change still refuses after exactly one binding retry [C7]', t => {
   const box = policyFixture(t);
   box.board.gitRoot = box.root;
   const policyCommit = box.git('rev-parse', 'HEAD');
@@ -109,7 +109,7 @@ test('a genuine accepted policy change still refuses after exactly one binding r
   assert.equal(box.board.gitRoot, box.root);
 });
 
-test('a non-policy configuration refusal is propagated without a repository retry [C7]', t => {
+test('lib.no-rebinds.a-non-policy-configuration-refusal-is: a non-policy configuration refusal is propagated without a repository retry [C7]', t => {
   const box = policyFixture(t);
   box.board.gitRoot = box.root;
   writeFileSync(join(box.root, 'pullboard.json'), '{"gate":17}\n');

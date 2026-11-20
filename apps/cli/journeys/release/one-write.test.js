@@ -15,7 +15,7 @@ function look(box, fn) {
 const events = box => look(box, db => db.prepare('SELECT COUNT(*) AS n FROM event').get().n);
 const owner = (box, id) => look(box, db => db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id).item_owner);
 
-test('clause 1: a claim issues exactly one board write, with no inline lapsed-claim expiry, when health.lapsedSweep is on [C7,#8924]', async t => {
+test('cli.journeys-release-one-write.a-claim-issues-exactly-one-board: clause 1: a claim issues exactly one board write, with no inline lapsed-claim expiry, when health.lapsedSweep is on [C7,#8924]', async t => {
   const box = crossLaneFixture(t);
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { health: { lapsedSweep: true } });
   const first = box.seat('one-write-first', 'web', box.session);
@@ -33,7 +33,7 @@ test('clause 1: a claim issues exactly one board write, with no inline lapsed-cl
   assert.equal(owner(box, lapsing), first.agent, 'the lapsed claim is left for the sentinel');
 });
 
-test('clause 2: claim, submit and verify run no inline lapsed-claim capture when health.lapsedSweep is on, and still do when it is off [C7,#8924]', async () => {
+test('cli.journeys-release-one-write.claim-submit-and-verify-run-no: clause 2: claim, submit and verify run no inline lapsed-claim capture when health.lapsedSweep is on, and still do when it is off [C7,#8924]', async () => {
   const captured = [];
   const ports = lapsedOn => ({ lapsedOn: () => lapsedOn, recovered: () => false, capture: () => { captured.push(lapsedOn); return null; } });
   const ctx = { io: {}, info: { root: '.' } };

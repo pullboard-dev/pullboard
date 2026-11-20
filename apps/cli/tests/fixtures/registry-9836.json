@@ -1,0 +1,28 @@
+{
+  "cli.io-landing-pull.parallel-on-offers-group": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with parallel on, landingOfferBatches returns one single-item batch per id of the first start group, so disjoint items are offered together and items sharing a file or test are not"
+    },
+    "why": "Without it the lander could offer two items that touch the same file or test together.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js"
+    ]
+  },
+  "cli.io-landing-pull.parallel-off-as-today": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with parallel off, landingOfferBatches cuts free into batches of size exactly as the slice loop on main does"
+    },
+    "why": "Without it turning the setting off could change how offers are batched today.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/landing/pull.js"
+    ]
+  }
+}

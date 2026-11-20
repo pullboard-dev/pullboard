@@ -39,7 +39,7 @@ function starveShouts(box) {
   return box.board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE 'Stuck: review starved.%'").all();
 }
 
-test('clause 1: with review.starveShout on, a starved green submission yields exactly one coordinator shout naming the refusing guard [C7,#9682]', async t => {
+test('cli.journeys-queue-starve-shout.with-review-starveshout-on-a-starved: clause 1: with review.starveShout on, a starved green submission yields exactly one coordinator shout naming the refusing guard [C7,#9682]', async t => {
   const box = await fixture(t, { family: 'require', projectConfig: ONE_FAMILY });
   const id = starved(box);
   reviewSettings({ starveShout: true });
@@ -53,7 +53,7 @@ test('clause 1: with review.starveShout on, a starved green submission yields ex
   assert.match(shouts[0].shout_text, /Refused by: [A-Z0-9_]+ x\d/u, 'the shout names the refusing guard');
 });
 
-test('clause 2: with review.starveShout off, a starved green submission sends no shout [C7,#9682]', async t => {
+test('cli.journeys-queue-starve-shout.with-review-starveshout-off-a-starved: clause 2: with review.starveShout off, a starved green submission sends no shout [C7,#9682]', async t => {
   const box = await fixture(t, { family: 'require', projectConfig: ONE_FAMILY });
   starved(box);
   const answer = await cli(box, box.seats.actor.path, ['next']);

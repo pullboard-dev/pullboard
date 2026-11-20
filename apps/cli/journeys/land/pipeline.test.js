@@ -58,7 +58,7 @@ function pipeline(t) {
   return { run, trunk, landed, gates, recorded, base, tipN, tipM };
 }
 
-test('clause 1: with landing.pipeline on, when batch N lands, batch N+1 lands without re-gating [C7,#3155,#8938]', async t => {
+test('cli.journeys-land-pipeline.with-landing-pipeline-on-when-batch: clause 1: with landing.pipeline on, when batch N lands, batch N+1 lands without re-gating [C7,#3155,#8938]', async t => {
   const p = pipeline(t);
   await p.run('N');
   assert.equal(p.trunk(), p.tipN, 'batch N moved trunk');
@@ -70,7 +70,7 @@ test('clause 1: with landing.pipeline on, when batch N lands, batch N+1 lands wi
   assert.equal(before.base, p.tipN, 'batch N+1 kept the base it gated on');
 });
 
-test('clause 2: with landing.pipeline on, when batch N fails, batch N+1 is discarded and gated again on main [C7,#3155,#8938]', async t => {
+test('cli.journeys-land-pipeline.with-landing-pipeline-on-when-batch-2: clause 2: with landing.pipeline on, when batch N fails, batch N+1 is discarded and gated again on main [C7,#3155,#8938]', async t => {
   const p = pipeline(t);
   p.recorded.set('N', { ...p.recorded.get('N'), state: 'blocked' });
   await p.run('M').then(() => assert.fail('N+1 must not publish on top of a failed batch'), error => assert.equal(error.code, 'LAND_MAIN_MOVED'));

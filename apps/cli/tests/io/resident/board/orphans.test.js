@@ -96,7 +96,7 @@ const reachable = path => new Promise(done => {
   client.once('error', () => done(false));
 });
 
-test('a resident whose socket path another process now owns exits, leaving the successor socket in place [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.a-resident-whose-socket-path-another-process: a resident whose socket path another process now owns exits, leaving the successor socket in place [C7,H24]', async () => {
   const socket = join(dir, 'a.sock');
   const pid = join(dir, 'a.pid');
   const first = resident(socket, pid);
@@ -117,7 +117,7 @@ test('a resident whose socket path another process now owns exits, leaving the s
   }
 });
 
-test('a new resident never takes the path of a live resident that refused its probe [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.a-new-resident-never-takes-the-path: a new resident never takes the path of a live resident that refused its probe [C7,H24]', async () => {
   // A plain file at the path refuses every connect, as a full backlog does, and the pid file names a live process.
   const socket = join(dir, 'b.sock');
   const pid = join(dir, 'b.pid');
@@ -134,7 +134,7 @@ test('a new resident never takes the path of a live resident that refused its pr
   } finally { holder.kill('SIGKILL'); }
 });
 
-test('a new resident takes the path when the recorded holder is gone [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.a-new-resident-takes-the-path-when: a new resident takes the path when the recorded holder is gone [C7,H24]', async () => {
   const socket = join(dir, 'c.sock');
   const pid = join(dir, 'c.pid');
   writeFileSync(socket, '');
@@ -148,7 +148,7 @@ test('a new resident takes the path when the recorded holder is gone [C7,H24]', 
   }
 });
 
-test('releasing the socket removes only this process\'s own socket, even when a successor took the path before the check [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.releasing-the-socket-removes-only-this-process: releasing the socket removes only this process\'s own socket, even when a successor took the path before the check [C7,H24]', async () => {
   const path = join(dir, 'd.sock');
   const mine = await listenAt(path);
   const own = identity(path);
@@ -185,7 +185,7 @@ test('releasing the socket removes only this process\'s own socket, even when a 
   await new Promise(done => again.close(done));
 });
 
-test('a retiring process\'s last response is written in full before it may exit [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.a-retiring-process-s-last-response-is: a retiring process\'s last response is written in full before it may exit [C7,H24]', async () => {
   const path = join(dir, 'f.sock');
   const payload = 'x'.repeat(4 * 1024 * 1024);
   let flushedAt = null;
@@ -224,7 +224,7 @@ test('a retiring process\'s last response is written in full before it may exit 
   assert.equal(calls, 1, 'a client that already left releases the exit once');
 });
 
-test('an owner retiring idle frees its own path and exits [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.an-owner-retiring-idle-frees-its-own: an owner retiring idle frees its own path and exits [C7,H24]', async () => {
   const socket = join(dir, 'g.sock');
   const pid = join(dir, 'g.pid');
   const owner = resident(socket, pid, { PULLBOARD_RESIDENT_IDLE_MS: '200' });
@@ -237,7 +237,7 @@ test('an owner retiring idle frees its own path and exits [C7,H24]', async () =>
   } finally { owner.child.kill('SIGKILL'); }
 });
 
-test('clause 1: two residents starting at one stale path at once leave exactly one listening there [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.two-residents-starting-at-one-stale-path: clause 1: two residents starting at one stale path at once leave exactly one listening there [C7,H24]', async () => {
   const socket = join(dir, 'h.sock');
   const pid = join(dir, 'h.pid');
   writeFileSync(socket, '');
@@ -257,7 +257,7 @@ test('clause 1: two residents starting at one stale path at once leave exactly o
   }
 });
 
-test('the path lock is exclusive while its holder lives and free once it dies, with nothing to break [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.the-path-lock-is-exclusive-while-its: the path lock is exclusive while its holder lives and free once it dies, with nothing to break [C7,H24]', async () => {
   const path = join(dir, 'i.sock');
   const holder = await lockHolder(path);
   try { assert.equal(lockPath(path), null, 'a live holder keeps its lock'); }
@@ -274,7 +274,7 @@ test('the path lock is exclusive while its holder lives and free once it dies, w
   after();
 });
 
-test('an orphaned resident finishes the client response in flight, then exits within 5 s [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.an-orphaned-resident-finishes-the-client-response: an orphaned resident finishes the client response in flight, then exits within 5 s [C7,H24]', async () => {
   const socket = join(dir, 'j.sock');
   const pid = join(dir, 'j.pid');
   const traceFile = join(dir, 'j.trace');
@@ -323,7 +323,7 @@ test('an orphaned resident finishes the client response in flight, then exits wi
   }
 });
 
-test('an orphaned resident whose client never reads its response still exits within 5 s of the takeover [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.an-orphaned-resident-whose-client-never-reads: an orphaned resident whose client never reads its response still exits within 5 s of the takeover [C7,H24]', async () => {
   const socket = join(dir, 'k.sock');
   const pid = join(dir, 'k.pid');
   const traceFile = join(dir, 'k.trace');
@@ -357,7 +357,7 @@ test('an orphaned resident whose client never reads its response still exits wit
   }
 });
 
-test('a resident that cannot record itself in the pid file gives up its socket instead of serving unnamed [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.a-resident-that-cannot-record-itself-in: a resident that cannot record itself in the pid file gives up its socket instead of serving unnamed [C7,H24]', async () => {
   const socket = join(dir, 'l.sock');
   const pid = join(dir, 'missing-folder', 'l.pid');
   const unnamed = resident(socket, pid);
@@ -370,7 +370,7 @@ test('a resident that cannot record itself in the pid file gives up its socket i
   unlock();
 });
 
-test('a response queued after retirement, by a command that ran long, gets its own whole flush window [C7,H24]', () => {
+test('cli.io-resident-board-orphans.a-response-queued-after-retirement-by-a: a response queued after retirement, by a command that ran long, gets its own whole flush window [C7,H24]', () => {
   const retiredAt = 1_000;
   assert.equal(flushesDue([], retiredAt, retiredAt, 2_000), true, 'nothing pending exits at once');
   assert.equal(flushesDue([{ at: 500 }], retiredAt, 2_999, 2_000), false, 'a response queued before retiring waits from the retirement');
@@ -381,7 +381,7 @@ test('a response queued after retirement, by a command that ran long, gets its o
   assert.equal(flushesDue([{ at: 500 }, { at: 6_000 }], retiredAt, 7_000, 2_000), false, 'every pending response must be due');
 });
 
-test('clause 2: every resident this file started has exited, so the file finishes within its time limit [C7,H24]', async () => {
+test('cli.io-resident-board-orphans.every-resident-this-file-started-has-exited: clause 2: every resident this file started has exited, so the file finishes within its time limit [C7,H24]', async () => {
   assert.ok(started.length > 0);
   await within(Promise.all(started), 5_000, 'every resident started here exits');
 });

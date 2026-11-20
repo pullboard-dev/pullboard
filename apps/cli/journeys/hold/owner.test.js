@@ -33,7 +33,7 @@ async function project(t, requireOwner) {
   return box;
 }
 
-test('clause 1: pullboard hold --owner and --deadline record both on the hold, and a hold without an owner is refused when holds.requireOwner is on [C7,#8540]', async t => {
+test('cli.journeys-hold-owner.pullboard-hold-owner-and-deadline-record: clause 1: pullboard hold --owner and --deadline record both on the hold, and a hold without an owner is refused when holds.requireOwner is on [C7,#8540]', async t => {
   const box = await project(t, true);
   const refused = await coordinator(box, 'hold', '1', 'waiting on the design');
   assert.notEqual(refused.code, 0);
@@ -50,7 +50,7 @@ test('clause 1: pullboard hold --owner and --deadline record both on the hold, a
   assert.equal(Date.parse(record.deadline) - Date.parse(record.heldAt), DAY, 'the default deadline is one day after the hold');
 });
 
-test('clause 1: with holds.requireOwner off a hold needs no owner and records none [C7,#8540]', async t => {
+test('cli.journeys-hold-owner.with-holds-requireowner-off-a-hold: clause 1: with holds.requireOwner off a hold needs no owner and records none [C7,#8540]', async t => {
   const box = await project(t, false);
   const held = await coordinator(box, 'hold', '1', 'plain hold', '--json');
   assert.equal(held.code, 0, held.err + held.out);

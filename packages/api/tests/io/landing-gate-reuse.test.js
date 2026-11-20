@@ -1,7 +1,7 @@
 /** With landing.reuseGateReceipts on, the land request's hit list carries the item's own green gate results first; off, it is exactly today's [C7,#9243]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { recordTestResults } from '../../../store/index.js';
 import { offerLandingJob } from '../../index.js';
 

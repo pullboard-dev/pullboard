@@ -35,13 +35,13 @@ registerHooks({ load(url, context, next) { loaded.add(url); return next(url, con
   return new Set(message);
 }
 
-test('clause 1: openBoard composes its provider modules lazily: a write board opens loading none of the deferred provider packages [C7,#7033]', async () => {
+test('lib.logic-native-lazy.openboard-composes-its-provider-modules-lazily: clause 1: openBoard composes its provider modules lazily: a write board opens loading none of the deferred provider packages [C7,#7033]', async () => {
   const loaded = await doorsLoaded();
   assert.ok(loaded.has('store') && loaded.has('rigor'), 'the board opened and warmed its rigor counters');
   assert.deepEqual(DEFERRED.filter(name => loaded.has(name)), [], 'no deferred provider package loads at open');
 });
 
-test('clause 1: a deferred port loads its own package at its first call, and only that package [C7,#7033]', async () => {
+test('lib.logic-native-lazy.a-deferred-port-loads-its-own: clause 1: a deferred port loads its own package at its first call, and only that package [C7,#7033]', async () => {
   const loaded = await doorsLoaded('try { board.nativePorts.landingEnvironment.requireTrunk(); } catch { /* Only the load matters here. */ }');
   assert.ok(loaded.has('landing'), 'the first landing check loads the landing package');
   assert.deepEqual(['blueprints', 'github', 'sentinels'].filter(name => loaded.has(name)), [], 'packages no call reached stay unloaded');

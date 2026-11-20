@@ -3,36 +3,29 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { recoveryIdentity } from '../../../resources/light.js';
 import { openPoolReadOnly } from '../../../resources/light.js';
-import { mkdirSync } from 'node:fs';
-import { linkSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readlinkSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { userInfo } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 import { parseProcessCensus } from '../../../kernel/light.js';
 import { liveJobSet } from './holders.js';
 import { sortHolders } from './holders.js';
 import { stopOrphanWorkers } from './holders.js';
 
+const fs = fileSystemAdapter();
+
 /** Atomically reserve the same nonce path for worker startup or cancellation; a loser must never launch. */
 export function claimRunnerLaunch(root, identity, neverStarted = false) {
   if (!recoveryIdentity(identity) || identity.launchFence !== 1) throw new Error('invalid runner launch identity');
   const directory = join(root, 'recovery-launches');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const claim = join(directory, identity.request);
-  try { mkdirSync(claim, { mode: 0o700 }); }
+  try { fs.mkdir(claim, { mode: 0o700 }); }
   catch (error) { if (error.code === 'EEXIST') return false; throw error; }
-  writeFileSync(join(claim, 'identity.json'), JSON.stringify({ ...identity, neverStarted }) + '\n', { mode: 0o600, flag: 'wx' });
+  fs.writeFile(join(claim, 'identity.json'), JSON.stringify({ ...identity, neverStarted }) + '\n', { mode: 0o600, flag: 'wx' });
   return true;
 }
 
@@ -41,8 +34,8 @@ export function runnerLaunchAllowed(root, identity) {
   if (!recoveryIdentity(identity) || identity.launchFence !== 1) return false;
   try {
     const file = join(root, 'recovery-launches', identity.request, 'identity.json');
-    if (!statSync(file).isFile() || statSync(file).size > 4096) return false;
-    const actual = JSON.parse(readFileSync(file, 'utf8'));
+    if (!fs.stat(file).isFile() || fs.stat(file).size > 4096) return false;
+    const actual = JSON.parse(fs.readFile(file, 'utf8'));
     return actual.neverStarted === false && actual.cancelled !== true && sameRecovery(actual, identity);
   } catch { return false; /* Unknown launch custody never permits a job to start. */ }
 }
@@ -51,10 +44,10 @@ export function runnerLaunchAllowed(root, identity) {
 function claimStartup(root, identity, payload) {
   const directory = join(root, 'recovery-launches', identity.request);
   const temporary = join(directory, `.startup-${randomUUID()}.json`);
-  writeFileSync(temporary, JSON.stringify({ ...identity, ...payload }) + '\n', { flag: 'wx', mode: 0o600 });
-  try { linkSync(temporary, join(directory, 'startup.json')); return true; }
+  fs.writeFile(temporary, JSON.stringify({ ...identity, ...payload }) + '\n', { flag: 'wx', mode: 0o600 });
+  try { fs.link(temporary, join(directory, 'startup.json')); return true; }
   catch (error) { if (error.code === 'EEXIST') return false; throw error; }
-  finally { unlinkSync(temporary); }
+  finally { fs.unlink(temporary); }
 }
 
 /** Claim the same startup boundary that idle cancellation uses, recording custody before work can spawn. */
@@ -73,16 +66,16 @@ function cancelRunnerLaunch(root, identity, processCensus) {
   try {
     if (claimRunnerLaunch(root, identity, true)) return { cancelled: true };
     const directory = join(root, 'recovery-launches', identity.request), file = join(directory, 'identity.json');
-    const stat = lstatSync(file);
+    const stat = fs.lstat(file);
     if (!stat.isFile() || stat.size > 4096) throw new Error('invalid launch custody');
-    const actual = JSON.parse(readFileSync(file, 'utf8'));
+    const actual = JSON.parse(fs.readFile(file, 'utf8'));
     if (!sameRecovery(actual, identity)) throw new Error('foreign launch custody');
     if (actual.neverStarted === true) return { cancelled: true };
     if (actual.neverStarted !== false && actual.cancelled !== true) throw new Error('unknown launch state');
     if (!claimStartup(root, identity, { cancelled: true })) {
-      const startup = join(directory, 'startup.json'), entry = lstatSync(startup);
+      const startup = join(directory, 'startup.json'), entry = fs.lstat(startup);
       if (!entry.isFile() || entry.size > 4096) throw new Error('invalid startup custody');
-      const state = JSON.parse(readFileSync(startup, 'utf8'));
+      const state = JSON.parse(fs.readFile(startup, 'utf8'));
       if (!sameRecovery(state, identity)) throw new Error('foreign startup custody');
       if (state.cancelled !== true) {
         const owner = state.owner;
@@ -100,8 +93,8 @@ function cancelRunnerLaunch(root, identity, processCensus) {
     // Omitting neverStarted fences older workers too, without falsely claiming this request never started.
     const { neverStarted, ...retained } = actual;
     const temporary = join(directory, `.cancelled-${randomUUID()}.json`);
-    writeFileSync(temporary, JSON.stringify({ ...retained, cancelled: true, priorNeverStarted: actual.priorNeverStarted ?? neverStarted }) + '\n', { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, file);
+    fs.writeFile(temporary, JSON.stringify({ ...retained, cancelled: true, priorNeverStarted: actual.priorNeverStarted ?? neverStarted }) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.rename(temporary, file);
     return { cancelled: true };
   } catch { return { cancelled: false, reason: 'exact launch cancellation custody could not be verified' }; }
 }
@@ -111,11 +104,11 @@ export function recordRunnerCompletion(root, identity, job) {
   if (!recoveryIdentity(identity) || typeof job !== 'string' || !job.startsWith(identity.request + '-')
     || !/^[A-Za-z0-9]{6}$/u.test(job.slice(identity.request.length + 1))) return;
   const directory = join(root, 'recovery');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const file = join(directory, identity.request + '.json');
   const temporary = file + '.tmp';
-  writeFileSync(temporary, JSON.stringify({ ...identity, drained: true, job }) + '\n', { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify({ ...identity, drained: true, job }) + '\n', { mode: 0o600 });
+  fs.rename(temporary, file);
 }
 
 /** Require exact identity equality without interpreting an unrelated filesystem record as this request. */
@@ -131,9 +124,9 @@ export function runnerJobReply(root, request, { census = processCensus, inspect 
     || request.job !== request.recovery.request) return base;
   try {
     const directory = join(root, 'recovery-launches', request.recovery.request);
-    const file = join(directory, 'startup.json'), stat = lstatSync(file);
+    const file = join(directory, 'startup.json'), stat = fs.lstat(file);
     if (!stat.isFile() || stat.size > 4096) return base;
-    const startup = JSON.parse(readFileSync(file, 'utf8'));
+    const startup = JSON.parse(fs.readFile(file, 'utf8'));
     const owner = startup.owner;
     if (!sameRecovery(startup, request.recovery) || !Number.isSafeInteger(owner?.pid) || owner.pid < 1
       || typeof owner.started !== 'string' || !Number.isFinite(Date.parse(owner.started))) return base;
@@ -157,14 +150,14 @@ export function runnerHealthReply(root, request) {
   for (const identity of identities) {
     try {
       const file = join(root, 'recovery', identity.request + '.json');
-      if (!statSync(file).isFile() || statSync(file).size > 4096) return { ...base, reason: 'invalid exact drainage record' };
-      const actual = JSON.parse(readFileSync(file, 'utf8'));
+      if (!fs.stat(file).isFile() || fs.stat(file).size > 4096) return { ...base, reason: 'invalid exact drainage record' };
+      const actual = JSON.parse(fs.readFile(file, 'utf8'));
       if (sameRecovery(actual, identity)) {
         // The earlier complete-record format was written only after actual job-file removal.
         if (actual.clean === true && actual.drained === undefined) continue;
         if (actual.drained === true && typeof actual.job === 'string' && actual.job.startsWith(identity.request + '-')
           && /^[A-Za-z0-9]{6}$/u.test(actual.job.slice(identity.request.length + 1))) {
-          try { lstatSync(join(root, 'jobs', actual.job)); }
+          try { fs.lstat(join(root, 'jobs', actual.job)); }
           catch (error) { if (error.code === 'ENOENT') continue; return { ...base, reason: 'exact job-directory absence could not be verified' }; }
           return { ...base, reason: 'exact job files are still present' };
         }
@@ -175,8 +168,8 @@ export function runnerHealthReply(root, request) {
     try {
       if (claimRunnerLaunch(root, identity, true)) continue;
       const claim = join(root, 'recovery-launches', identity.request, 'identity.json');
-      if (!statSync(claim).isFile() || statSync(claim).size > 4096) return { ...base, reason: 'invalid launch custody record' };
-      const actual = JSON.parse(readFileSync(claim, 'utf8'));
+      if (!fs.stat(claim).isFile() || fs.stat(claim).size > 4096) return { ...base, reason: 'invalid launch custody record' };
+      const actual = JSON.parse(fs.readFile(claim, 'utf8'));
       if (actual.neverStarted === true && sameRecovery(actual, identity)) continue;
       if (sameRecovery(actual, identity) && (actual.neverStarted === false || actual.cancelled === true))
         return { ...base, idleRequired: true, reason: 'started request has no exact completion record' };
@@ -191,13 +184,13 @@ export function runnerHealthReply(root, request) {
 export function recordRunnerOwner(directory, processCensus) {
   const owner = processCensus()?.get(process.pid);
   if (!owner) throw new Error('runner worker process identity could not be observed');
-  writeFileSync(join(directory, 'worker-owner.json'), JSON.stringify({ pid: owner.pid, started: owner.started }) + '\n',
+  fs.writeFile(join(directory, 'worker-owner.json'), JSON.stringify({ pid: owner.pid, started: owner.started, pgid: owner.pgid }) + '\n',
     { mode: 0o600, flag: 'wx' });
 }
 
 /** Recognize only an actual pinned worker command at the canonical path boundary, excluding health probes. */
 export function runnerWorkerMatcher(root, { exactEntrypoint = false, includeLegacy = true } = {}) {
-  const canonicalRoot = realpathSync(root);
+  const canonicalRoot = fs.realpath(root);
   const roots = [...new Set([root, canonicalRoot])].map(value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'));
   // The worker entry moved with the layout freeze: apps/runner/src/io/scripts/worker.js inside each pinned runtime [V32].
   const prefix = '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/';
@@ -231,7 +224,7 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [], liv
   })) return false;
   const ignored = new Set(ignoredWorkers.map(row => row.pid));
   const pids = [...census.values()].filter(row => row.pid !== process.pid && !row.state.startsWith('Z')).map(row => row.pid);
-  const canonicalRoot = realpathSync(root);
+  const canonicalRoot = fs.realpath(root);
   const isWorker = runnerWorkerMatcher(root);
   for (const line of commands.stdout.trim().split('\n')) {
     const row = /^\s*([1-9][0-9]*)\s+\d+\s+\d+\s+[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}\s+\S+\s+(.+)$/u.exec(line);
@@ -243,14 +236,14 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [], liv
   const jobs = join(canonicalRoot, 'jobs');
   const liveFolders = new Set();
   let directories;
-  try { directories = readdirSync(jobs, { withFileTypes: true }); }
+  try { directories = fs.list(jobs, { withFileTypes: true }); }
   catch (error) { if (error.code !== 'ENOENT') return false; directories = []; }
   for (const entry of directories) {
     if (!entry.isDirectory()) continue;
     const file = join(jobs, entry.name, 'worker-owner.json');
     try {
-      if (!lstatSync(file).isFile() || lstatSync(file).size > 4096) return false;
-      const owner = JSON.parse(readFileSync(file, 'utf8'));
+      if (!fs.lstat(file).isFile() || fs.lstat(file).size > 4096) return false;
+      const owner = JSON.parse(fs.readFile(file, 'utf8'));
       if (!Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.started !== 'string' || !owner.started.trim()) return false;
       const actual = census.get(owner.pid);
       if (!actual) {
@@ -272,7 +265,7 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [], liv
   if (process.platform === 'linux') {
     for (const pid of pids) {
       try {
-        if (statSync(`/proc/${pid}`).uid === process.getuid() && inJobs(readlinkSync(`/proc/${pid}/cwd`))) { diagnostic.pid = pid; return false; }
+        if (fs.stat(`/proc/${pid}`).uid === process.getuid() && inJobs(fs.readlink(`/proc/${pid}/cwd`))) { diagnostic.pid = pid; return false; }
       } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) return false; }
     }
     return true;
@@ -308,7 +301,7 @@ export function holderProcessAlive(pid) {
 export function runnerIdleReply(root, request, processCensus, orphanObserver = null) {
   const base = { version: 1, nonce: request?.nonce, worker: true, idle: false, writable: false };
   try {
-    if (!/^[a-f0-9-]{36}$/u.test(request?.nonce ?? '') || !statSync(root).isDirectory())
+    if (!/^[a-f0-9-]{36}$/u.test(request?.nonce ?? '') || !fs.stat(root).isDirectory())
       return { ...base, reason: 'runner root is unavailable' };
     if (request.previous !== undefined) {
       const identities = Array.isArray(request.previous) ? request.previous : [request.previous];
@@ -321,15 +314,16 @@ export function runnerIdleReply(root, request, processCensus, orphanObserver = n
     }
     const jobs = join(root, 'jobs');
     let jobDirectory;
-    try { jobDirectory = lstatSync(jobs); }
+    try { jobDirectory = fs.lstat(jobs); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (jobDirectory && !jobDirectory.isDirectory()) return { ...base, reason: 'runner jobs location is not a directory' };
-    const home = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
-    const machineHome = process.env.PULLBOARD_MACHINE_HOME ?? join(home, '.pullboard');
+    const environment = environmentAdapter();
+    const home = isAbsolute(environment.get('HOME') || '') ? environment.get('HOME') : userInfo().homedir;
+    const machineHome = environment.get('PULLBOARD_MACHINE_HOME') ?? join(home, '.pullboard');
     if (!isAbsolute(machineHome)) return { ...base, reason: 'runner resource location is unknown' };
     const file = join(machineHome, 'resources.sqlite');
     let resourceFile;
-    try { resourceFile = lstatSync(file); }
+    try { resourceFile = fs.lstat(file); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     const liveOwners = new Set();
     if (resourceFile) {
@@ -352,9 +346,9 @@ export function runnerIdleReply(root, request, processCensus, orphanObserver = n
       for (const holder of sorted.liveSlots) liveOwners.add(holder.pid);
     }
     const marker = join(root, `.idle-probe-${request.nonce}`);
-    writeFileSync(marker, '', { flag: 'wx', mode: 0o600 });
-    unlinkSync(marker);
-    try { jobDirectory = lstatSync(jobs); }
+    fs.writeFile(marker, '', { flag: 'wx', mode: 0o600 });
+    fs.unlink(marker);
+    try { jobDirectory = fs.lstat(jobs); }
     catch (error) { if (error.code !== 'ENOENT') throw error; jobDirectory = null; }
     const diagnostic = {};
     if (jobDirectory && !jobDirectory.isDirectory() || !runnerProcessesIdle(root, diagnostic, { liveOwners }))

@@ -49,7 +49,7 @@ async function twoMachines(t, title, { beforeLink } = {}) {
   return { box, other, contested };
 }
 
-test('clause 1: an item added while the relay is down keeps its queued moves when another machine adds one first [B26,H16,H17]', async (t) => {
+test('cli.journeys-relay-outbox-offline.an-item-added-while-the-relay: clause 1: an item added while the relay is down keeps its queued moves when another machine adds one first [B26,H16,H17]', async (t) => {
   const { box, other } = await twoMachines(t, 'Added before the outage');
   await box.stopRelay();
   const added = await box.cliLocal('add', box.lane, 'Added here while the relay is down');
@@ -80,7 +80,7 @@ test('clause 1: an item added while the relay is down keeps its queued moves whe
   }
 });
 
-test('clause 2: an offline hand-off keeps its own item number after another machine adds [B3,B26,H16,H17]', async (t) => {
+test('cli.journeys-relay-outbox-offline.an-offline-hand-off-keeps-its: clause 2: an offline hand-off keeps its own item number after another machine adds [B3,B26,H16,H17]', async (t) => {
   const { box, other } = await twoMachines(t, 'Before the offline hand-off');
   /** Join a real local worktree before the outage so both hand-off actors have authenticated seats. */
   async function seat(name) {
@@ -125,7 +125,7 @@ test('clause 2: an offline hand-off keeps its own item number after another mach
   }
 });
 
-test('clause 3: an offline item stays bound to its queued moves through a replay that stops part way and new work after it [B26,H16,H17]', async (t) => {
+test('cli.journeys-relay-outbox-offline.an-offline-item-stays-bound-to: clause 3: an offline item stays bound to its queued moves through a replay that stops part way and new work after it [B26,H16,H17]', async (t) => {
   const { box, other } = await twoMachines(t, 'Added before the outage');
   await box.stopRelay();
   const first = (await box.cliLocal('add', box.lane, 'First item added here offline')).document.item.item_id;

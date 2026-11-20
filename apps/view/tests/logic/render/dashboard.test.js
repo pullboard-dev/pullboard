@@ -15,7 +15,7 @@ function section(html, name) {
 }
 
 
-test('Dashboard time and number labels depend on supplied locale and zone, not the test host [N26,C7]', () => {
+test('view.x-render-dashboard.dashboard-time-and-number-labels-depend-on: Dashboard time and number labels depend on supplied locale and zone, not the test host [N26,C7]', () => {
   const input = dashboardData({ populated: true });
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
   const before = JSON.stringify(model);
@@ -30,7 +30,7 @@ test('Dashboard time and number labels depend on supplied locale and zone, not t
   assert.equal(JSON.stringify(model), before, 'formatting never changes its model');
 });
 
-test('Dashboard renders the flow, the release, the strip, agents, the four lists and lanes from plain input [N26]', () => {
+test('view.x-render-dashboard.dashboard-renders-the-flow-the-release-the: Dashboard renders the flow, the release, the strip, agents, the four lists and lanes from plain input [N26]', () => {
   const input = dashboardData({ populated: true });
   const { clockBase } = input;
   const quietModel = dashboardModel(input.project, input.events, { now: clockBase + 21 * 60_000, complete: true });
@@ -85,7 +85,7 @@ test('Dashboard renders the flow, the release, the strip, agents, the four lists
   assert.match(section(html, 'Your lanes'), /<td class="ln">web<\/td>/u);
 });
 
-test('Dashboard draws no hero, Rulings card, comparison or Pipeline section, and prints no raw milliseconds [N26]', () => {
+test('view.x-render-dashboard.dashboard-draws-no-hero-rulings-card-comparison: Dashboard draws no hero, Rulings card, comparison or Pipeline section, and prints no raw milliseconds [N26]', () => {
   const input = dashboardData({ populated: true });
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
   model.comparison = { version: 1, available: false, reason: 'not drawn here' };
@@ -96,7 +96,7 @@ test('Dashboard draws no hero, Rulings card, comparison or Pipeline section, and
   assert.ok(!/\d\s?ms\b|milliseconds/u.test(html), 'no duration is printed in raw milliseconds');
 });
 
-test('Dashboard strip counts a verified item in a live landing batch as Landing, like Items Pipeline [N38]', () => {
+test('view.x-render-dashboard.dashboard-strip-counts-a-verified-item-in: Dashboard strip counts a verified item in a live landing batch as Landing, like Items Pipeline [N38]', () => {
   const input = dashboardData({ populated: true });
   const open = input.project.items.find(item => item.status === 'open');
   const verified = { ...open, status: 'verified', merged: false };

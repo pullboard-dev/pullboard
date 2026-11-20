@@ -263,6 +263,12 @@ export function previousShardMs(rows) {
   return [...byShard.values()];
 }
 
+/**
+ * The measured milliseconds of each file that ran green or red, keyed by file.
+ *
+ * @param {Array} rows
+ * @returns {object}
+ */
 export function rowFileTimes(rows) {
   const measured = {};
   for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);
@@ -357,3 +363,56 @@ export function censusPlan(files, count, times, balanceByTime, base, jobMinutes 
   else jobs = balanceByTime ? balancedJobs(rest, count, times) : base(rest);
   return solo.length ? [...alone, ...jobs].sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0])) : jobs;
 }
+
+/**
+ * The minutes each host's slots sat idle while jobs were still queued. Every job is queued from the census start, so the
+ * queue holds work until the last claim; a host's slots are the most jobs it ran at once, and its idle slot-minutes are
+ * those slots times that span, less the minutes its jobs held them inside it. Reruns (rows that keep `outcomes`) were
+ * never queued with the rest and rows with no host never ran, so neither counts. Why: 14 busy slots of 36 allowed could
+ * not be told from a slow job, and this names the host that sat idle [C7,#10526].
+ *
+ * @param {Iterable<{ host?: string, shard?: string, claimedAt?: string, endedAt?: string, outcomes?: unknown }>} rows - The census rows.
+ * @param {number} start - The census start, epoch milliseconds.
+ * @returns {Record<string, number>} Idle slot-minutes by host, to one decimal, hosts with some job only.
+ */
+export function censusIdleSlots(rows, start) {
+  const jobs = new Map();
+  for (const row of rows) {
+    const from = Date.parse(row.claimedAt), to = Date.parse(row.endedAt);
+    if (row.outcomes || !row.host || row.host === 'none' || !Number.isFinite(from) || !Number.isFinite(to)) continue;
+    jobs.set(`${row.host}\t${row.shard}\t${row.claimedAt}`, { host: row.host, from, to });
+  }
+  const lastClaim = Math.max(start, ...[...jobs.values()].map(job => job.from));
+  const byHost = new Map();
+  for (const job of jobs.values()) byHost.set(job.host, [...(byHost.get(job.host) ?? []), job]);
+  const idle = {};
+  for (const [host, list] of [...byHost].sort(([a], [b]) => a.localeCompare(b))) {
+    const edges = list.flatMap(job => [[job.from, 1], [job.to, -1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let open = 0, slots = 0;
+    for (const [, step] of edges) { open += step; slots = Math.max(slots, open); }
+    const busy = list.reduce((sum, job) => sum + Math.max(0, Math.min(job.to, lastClaim) - Math.max(job.from, start)), 0);
+    idle[host] = Math.round(Math.max(0, slots * (lastClaim - start) - busy) / 6000) / 10;
+  }
+  return idle;
+}
+
+/** The summary line for idle slot-minutes by host; none when no host ran a job [C7,#10526]. */
+export const censusIdleLine = idle => (Object.keys(idle).length ? `census idle slot-minutes while jobs were queued: ${Object.entries(idle).map(([host, minutes]) => `${host} ${minutes}`).join(', ')}` : null);
+
+/**
+ * The seconds a census spent in each phase, cut from four clock readings in milliseconds: the start, the first job's
+ * answer, the end of pass 1 and the end of the last rerun. The three parts add up to the wall clock exactly
+ * because each is a difference of whole seconds since the start, so a slow phase names itself [C7,#10525].
+ *
+ * @param {{ start: number, first: number | null, pass1: number, end: number }} marks - Clock readings, in milliseconds.
+ * @returns {{ firstJobSecs: number, pass1Secs: number, rerunSecs: number, wallSecs: number }}
+ */
+export function censusPhases({ start, first, pass1, end }) {
+  const firstAt = Math.min(Math.max(first ?? pass1, start), pass1), lastAt = Math.max(end, pass1);
+  const upTo = at => Math.round((at - start) / 1000);
+  return { firstJobSecs: upTo(firstAt), pass1Secs: upTo(pass1) - upTo(firstAt), rerunSecs: upTo(lastAt) - upTo(pass1), wallSecs: upTo(lastAt) };
+}
+
+/** The one summary line for a census's phases [C7,#10525]. */
+export const censusPhaseLine = ({ firstJobSecs, pass1Secs, rerunSecs, wallSecs }) =>
+  `census phases: ${firstJobSecs}s to the first job, ${pass1Secs}s from the first job to the end of pass 1, ${rerunSecs}s of reruns after it; ${wallSecs}s in all`;

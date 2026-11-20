@@ -16,7 +16,7 @@ import { docsRepository } from '../../tests/fixtures/generated/docs.js';
 import { addDocumentedCommand } from '../../tests/fixtures/generated/docs.js';
 
 // The command-line child below only adds the fixture's declarations and checks the result of the in-process regeneration (#8276).
-test('clause 1: a commit that adds declarations leaves the generated copies matching update-docs output once regenerateStagedDocs ran [C7,#9664]', t => {
+test('cli.journeys-init-docs-regenerate.a-commit-that-adds-declarations-leaves: clause 1: a commit that adds declarations leaves the generated copies matching update-docs output once regenerateStagedDocs ran [C7,#9664]', t => {
   const box = docsRepository(t);
   addDocumentedCommand(box, 'fixture-regen');
   box.git('add', '.');
@@ -33,7 +33,7 @@ test('clause 1: a commit that adds declarations leaves the generated copies matc
   assert.ok(!regenerateStagedDocs(box.root, { openBoard }).some(note => note.includes('docs/formats.md')), 'a second run leaves formats.md alone');
 });
 
-test('clause 1: a commit that touches no declaration source regenerates nothing [C7,#9664]', t => {
+test('cli.journeys-init-docs-regenerate.a-commit-that-touches-no-declaration: clause 1: a commit that touches no declaration source regenerates nothing [C7,#9664]', t => {
   const box = docsRepository(t);
   writeFileSync(join(box.root, 'notes.txt'), 'plain\n');
   box.git('add', '.');

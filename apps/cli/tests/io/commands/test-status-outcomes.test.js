@@ -46,7 +46,7 @@ function turnOn(box) {
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), test: { statusOutcomes: true } }));
 }
 
-test('clause 1: with test.statusOutcomes on, test --status --json of a finished run carries the outcomes read from its frames, even when the log is cut to its last 40 KB (#9085) [C7]', async () => {
+test('cli.io-commands-test-status-outcomes.with-test-statusoutcomes-on-test-status-json: clause 1: with test.statusOutcomes on, test --status --json of a finished run carries the outcomes read from its frames, even when the log is cut to its last 40 KB (#9085) [C7]', async () => {
   const { box, run, cases } = finishedRun();
   turnOn(box);
   const status = await box.inProcess(box.repo, 'test', '--status', run.id, '--json');
@@ -55,7 +55,7 @@ test('clause 1: with test.statusOutcomes on, test --status --json of a finished 
   assert.deepEqual(document.outcomes, cases.map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })));
 });
 
-test('clause 2: with test.statusOutcomes off the test --status --json document is the same as before, with no outcomes key (#9085) [C7]', async () => {
+test('cli.io-commands-test-status-outcomes.with-test-statusoutcomes-off-the-test-status: clause 2: with test.statusOutcomes off the test --status --json document is the same as before, with no outcomes key (#9085) [C7]', async () => {
   const { box, run } = finishedRun();
   const status = await box.inProcess(box.repo, 'test', '--status', run.id, '--json');
   const document = JSON.parse(status.out);
@@ -64,7 +64,7 @@ test('clause 2: with test.statusOutcomes off the test --status --json document i
   assert.equal(document.id, run.id);
 });
 
-test('clause 3: test.statusOutcomes is a described setting, off by default, and on only for an exact true (#9085) [C7]', async () => {
+test('cli.io-commands-test-status-outcomes.test-statusoutcomes-is-a-described-setting-off: clause 3: test.statusOutcomes is a described setting, off by default, and on only for an exact true (#9085) [C7]', async () => {
   const { box } = finishedRun();
   const row = () => {
     const saved = process.env.PULLBOARD_MACHINE_HOME;

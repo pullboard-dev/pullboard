@@ -14,6 +14,8 @@ function ticking(t) {
   let reads = 0;
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT + 5 * reads++) });
   board.movesShadow = true;
+  // The shadow compare runs only while the writer decides; with moves.live.claim on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { claim: false };
   cellSeat(board, { lane: 'coordinator', path: '/seat/coordinator' });
   const seat = cellSeat(board, { lane: 'core', path: '/seat/builder' });
   const { item_id: id } = cellItem(board, { lane: 'core', title: 'Ticking claim', criterion: '1. the claim is recorded [test].', route: 'strong', check: 'true' });

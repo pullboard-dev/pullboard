@@ -15,7 +15,7 @@ async function picked(t, box) {
   return decisions[0];
 }
 
-test('cli.next.cross-lane.with-lanemode-off-next-offers-a: clause 1: with laneMode off, next offers a light seat an open light item from another lane [C7]', async t => {
+test('cli.io-next-cross-lane.cli-next-cross-lane-with-lanemode-off: cli.next.cross-lane.with-lanemode-off-next-offers-a: clause 1: with laneMode off, next offers a light seat an open light item from another lane [C7]', async t => {
   const box = await fixture(t, { route: 'light', projectConfig: { laneMode: 'off' } });
   const docs = box.add('Light docs-lane work', { lane: 'docs', route: 'light' });
   const decision = await picked(t, box);
@@ -26,7 +26,7 @@ test('cli.next.cross-lane.with-lanemode-off-next-offers-a: clause 1: with laneMo
   assert.equal(store.getItem(box.board, docs).item_lane, 'docs');
 });
 
-test('cli.next.cross-lane.with-lanemode-on-the-same-seat: clause 2: with laneMode on, the same seat is offered only its own lane items [C7]', async t => {
+test('cli.io-next-cross-lane.cli-next-cross-lane-with-lanemode-on: cli.next.cross-lane.with-lanemode-on-the-same-seat: clause 2: with laneMode on, the same seat is offered only its own lane items [C7]', async t => {
   const box = await fixture(t, { route: 'light', projectConfig: { laneMode: 'on' } });
   const docs = box.add('Light docs-lane work', { lane: 'docs', route: 'light' });
   const decision = await picked(t, box);
@@ -34,7 +34,7 @@ test('cli.next.cross-lane.with-lanemode-on-the-same-seat: clause 2: with laneMod
   assert.deepEqual(decision.move && { lane: decision.move.lane, item: decision.move.item }, { lane: 'docs', item: docs }, 'it moves the seat to that lane instead');
 });
 
-test('cli.next.cross-lane.with-lanemode-on-a-seat-with: clause 2: with laneMode on, a seat with work in its own lane is offered that item [C7]', async t => {
+test('cli.io-next-cross-lane.cli-next-cross-lane-with-lanemode-on-2: cli.next.cross-lane.with-lanemode-on-a-seat-with: clause 2: with laneMode on, a seat with work in its own lane is offered that item [C7]', async t => {
   const box = await fixture(t, { route: 'light', projectConfig: { laneMode: 'on' } });
   box.add('Light docs-lane work', { lane: 'docs', route: 'light' });
   const own = box.add('Light web-lane work', { route: 'light' });

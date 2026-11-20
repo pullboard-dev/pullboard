@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
-import { handoffQueueDirectory } from '../../../../../packages/resources/index.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { FIXTURE_MODEL } from '../../../tests/fixtures/testkit.js';
 import { cli } from '../../../tests/fixtures/next/take.js';
@@ -18,13 +18,14 @@ function sentinelShouts(box) {
     .map(event => JSON.parse(event.event_detail));
 }
 
-test('clause 1: a sentinel shout from waits record declares the model of the seat that ran it [I13,C7]', async t => {
+test('cli.journeys-shout-sentinel-model.a-sentinel-shout-from-waits-record: clause 1: a sentinel shout from waits record declares the model of the seat that ran it [I13,C7]', async t => {
   const box = await fixture(t);
   const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
   assert.equal(joined.code, 0, joined.out + joined.err);
-  // A reservation held by a gone submitter is reclaimed at once, and a reclaim is what the audit shouts about.
-  mkdirSync(handoffQueueDirectory(), { recursive: true });
-  writeFileSync(join(handoffQueueDirectory(), '000000000002-job-b.reserved'), JSON.stringify({ pid: 4194301, started: 'x' }));
+  // A resource write lock held by a gone process is reclaimed at once, and a reclaim is what the audit shouts about.
+  const queue = join(resolve(box.root, box.git(box.root, 'rev-parse', '--git-common-dir').trim()), 'pullboard', 'resources.sqlite.writes');
+  mkdirSync(queue, { recursive: true });
+  writeFileSync(join(queue, 'writer.lock'), `4194301 ${Date.now() - 4_000} owner`);
   const recorded = await cli(box, box.root, ['waits', 'record']);
   assert.equal(recorded.code, 0, recorded.out + recorded.err);
   const shouts = sentinelShouts(box);
@@ -32,7 +33,7 @@ test('clause 1: a sentinel shout from waits record declares the model of the sea
   assert.equal(shouts[0].model, FIXTURE_MODEL);
 });
 
-test('clause 1: a sentinel notice from claim maintenance declares the model of the seat that ran it [I13,C7]', async t => {
+test('cli.journeys-shout-sentinel-model.a-sentinel-notice-from-claim-maintenance: clause 1: a sentinel notice from claim maintenance declares the model of the seat that ran it [I13,C7]', async t => {
   const box = await fixture(t);
   const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
   assert.equal(joined.code, 0, joined.out + joined.err);
@@ -46,7 +47,7 @@ test('clause 1: a sentinel notice from claim maintenance declares the model of t
   for (const detail of shouts) assert.equal(detail.model, FIXTURE_MODEL, JSON.stringify(detail));
 });
 
-test('clause 2: a detached wake timer ends under an inherited frozen clock instead of waiting forever [C7]', async t => {
+test('cli.journeys-shout-sentinel-model.a-detached-wake-timer-ends-under: clause 2: a detached wake timer ends under an inherited frozen clock instead of waiting forever [C7]', async t => {
   const box = await fixture(t);
   const frozen = `data:text/javascript,${encodeURIComponent('const fixed = Date.parse("2026-10-06T12:00:00.000Z"); const Native = Date; globalThis.Date = class extends Native { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } };')}`;
   const scheduler = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/src/io/main/audit/scheduler.js')).href;

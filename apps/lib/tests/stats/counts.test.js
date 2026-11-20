@@ -176,7 +176,7 @@ function resequenceEvents(document, history) {
   if (counter) counter.seq = document.tables.event.length;
 }
 
-test('[R1,R2] repeated submissions and rejections count attempts while merges count distinct items', (t) => {
+test('lib.stats-counts.repeated-submissions-and-rejections-count-attempts: [R1,R2] repeated submissions and rejections count attempts while merges count distinct items', (t) => {
   const { board } = rejectedThenMerged(t);
   const counts = eventCounts(board, {}, statsReadPorts);
   assert.deepEqual(counts, {
@@ -192,7 +192,7 @@ test('[R1,R2] repeated submissions and rejections count attempts while merges co
   assert.equal(getItem(board, 1).item_status, 'verified');
 });
 
-test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance still proves a merge', (t) => {
+test('lib.stats-counts.date-and-timestamp-windows-are-inclusive: [R1,R2] date and timestamp windows are inclusive and earlier acceptance still proves a merge', (t) => {
   const { board } = rejectedThenMerged(t);
   assert.deepEqual(eventCounts(board, { since: '2026-01-05' }, statsReadPorts), {
     since: '2026-01-05T00:00:00.000Z',
@@ -216,7 +216,7 @@ test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance st
   }, 'the acceptance before the selected window remains proof for the later merge');
 });
 
-test('[R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => {
+test('lib.stats-counts.empty-windows-normalize-cleanly-and-invalid: [R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => {
   const { board } = rejectedThenMerged(t);
   assert.deepEqual(eventCounts(board, { since: '2026-02-01' }, statsReadPorts), {
     since: '2026-02-01T00:00:00.000Z',
@@ -232,7 +232,7 @@ test('[R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => 
   assert.throws(() => eventCounts(board, { since: '2026-01-07T10:00:00+00:00' }, statsReadPorts), { code: 'BAD_SINCE' });
 });
 
-test('[R1,R2] imported historical merges without a matching current acceptance remain anomalies', (t) => {
+test('lib.stats-counts.imported-historical-merges-without-a-matching: [R1,R2] imported historical merges without a matching current acceptance remain anomalies', (t) => {
   const { board, id } = rejectedThenMerged(t);
   const original = exportBoard(board);
   const accepts = original.tables.event.filter((event) => event.item_id === id && event.event_kind === 'accept');
@@ -270,7 +270,7 @@ test('[R1,R2] imported historical merges without a matching current acceptance r
 });
 
 
-test('clause 1: [R1,R2,C7] proof stats counters match a full re-parse after every event', t => {
+test('lib.stats-counts.proof-stats-counters-match-a-full: clause 1: [R1,R2,C7] proof stats counters match a full re-parse after every event', t => {
   const f = fixture(t);
   const { board } = f;
   let parsed = [];

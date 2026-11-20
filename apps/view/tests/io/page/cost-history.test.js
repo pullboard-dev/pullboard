@@ -6,7 +6,7 @@ import { pageScriptPart3 } from '../../../index.js';
 
 /** Build the served readCostHistory against a stand-in page whose cost-analytics replies the test releases. */
 function page() {
-  const script = pageScriptPart3({ applyStateDelta() {}, costPrices: {}, costTabScript: () => '', expandItemSummaries() {}, privateCost: true });
+  const script = pageScriptPart3({ applyStateDelta() {}, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, costPrices: {}, costTabScript: () => '', expandItemSummaries() {}, privateCost: true });
   const start = script.indexOf('function readCostHistory'), end = script.indexOf('function costPaneHtml');
   const source = script.slice(start, end);
   const calls = [], waiting = [], drawn = [], logs = [];
@@ -24,7 +24,7 @@ function page() {
 }
 const board = (sequence, ...kinds) => ({ sequence, events: kinds.map((event_kind, index) => ({ event_id: sequence - index, event_kind })) });
 
-test('clause 1: a board event that is not cost-bearing does not start another read [N26]', async () => {
+test('view.x-io-page-cost-history.clause-1-a-board-event-that-is: clause 1: a board event that is not cost-bearing does not start another read [N26]', async () => {
   const { read, calls, settle } = page();
   read(board(10, 'claim'));
   await settle();
@@ -43,7 +43,7 @@ test('clause 1: a board event that is not cost-bearing does not start another re
   assert.equal(calls.length, 4, 'a shared-usage event reads again');
 });
 
-test('clause 1: each window is read once and a window already read is not read again [N26]', async () => {
+test('view.x-io-page-cost-history.clause-1-each-window-is-read-once: clause 1: each window is read once and a window already read is not read again [N26]', async () => {
   const { read, calls, view, settle } = page();
   read(board(10, 'claim'));
   await settle();
@@ -56,7 +56,7 @@ test('clause 1: each window is read once and a window already read is not read a
   assert.match(calls[1], /window=30d/u);
 });
 
-test('clause 2: while a new read is on its way the pane keeps the numbers it drew [N26]', async () => {
+test('view.x-io-page-cost-history.clause-2-while-a-new-read-is: clause 2: while a new read is on its way the pane keeps the numbers it drew [N26]', async () => {
   const { read, settle } = page();
   read(board(10, 'claim'));
   await settle();
@@ -69,7 +69,7 @@ test('clause 2: while a new read is on its way the pane keeps the numbers it dre
 
 const quiet = async () => { for (let turn = 0; turn < 10; turn += 1) await Promise.resolve(); };
 
-test('clause 1: a gap of ids with no cost-bearing event visible or in the gap does not read cost-analytics again [N26]', async () => {
+test('view.x-io-page-cost-history.clause-1-a-gap-of-ids-with: clause 1: a gap of ids with no cost-bearing event visible or in the gap does not read cost-analytics again [N26]', async () => {
   const { read, calls, settle, logs, gap } = page();
   read(board(10, 'claim'));
   await settle();
@@ -84,7 +84,7 @@ test('clause 1: a gap of ids with no cost-bearing event visible or in the gap do
   assert.equal(logs.length, 1);
 });
 
-test('clause 1: a gap that holds a usage event reads cost-analytics again [N26]', async () => {
+test('view.x-io-page-cost-history.clause-1-a-gap-that-holds-a: clause 1: a gap that holds a usage event reads cost-analytics again [N26]', async () => {
   const { read, calls, settle, gap, drawn } = page();
   read(board(10, 'claim'));
   await settle();
@@ -95,4 +95,15 @@ test('clause 1: a gap that holds a usage event reads cost-analytics again [N26]'
   assert.ok(drawn.length >= 1, 'the pane draws again to start the read');
   read({ sequence: 40, events: [{ event_id: 40, event_kind: 'claim' }, { event_id: 39, event_kind: 'submit' }] });
   assert.equal(calls.length, 2, 'the usage event in the gap reads again');
+});
+
+test('view.page.cost-gap-paged: clause 2: the Cost gap scan asks for events with a limit on every page [N26]', async () => {
+  const { read, settle, logs, gap } = page();
+  read(board(10, 'claim'));
+  await settle();
+  gap.events = Array.from({ length: 28 }, (_, index) => ({ event_id: 11 + index, event_kind: 'claim' }));
+  read({ sequence: 40, events: [{ event_id: 40, event_kind: 'claim' }, { event_id: 39, event_kind: 'submit' }] });
+  await quiet();
+  assert.ok(logs.length >= 1, 'the gap was read from the event log');
+  assert.deepEqual(logs.filter(path => !/[?&]limit=50000(?:&|$)/u.test(path)), [], 'no events read omits its limit');
 });

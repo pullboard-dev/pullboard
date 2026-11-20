@@ -24,7 +24,7 @@ async function splitParent(t) {
   return { parent, children, items };
 }
 
-test('clause 1: split adds one child item per numbered clause of the parent, each carrying its clause and check [C7,#8916]', async t => {
+test('cli.journeys-add-split.split-adds-one-child-item-per: clause 1: split adds one child item per numbered clause of the parent, each carrying its clause and check [C7,#8916]', async t => {
   const { parent, items } = await splitParent(t);
   assert.equal(items.length, 2);
   assert.match(items[0].item_criterion, /canonical result/u);
@@ -37,13 +37,13 @@ test('clause 1: split adds one child item per numbered clause of the parent, eac
   }
 });
 
-test('clause 2: split files each child after the previous one and the first after nothing [C7,#8916]', async t => {
+test('cli.journeys-add-split.split-files-each-child-after-the: clause 2: split files each child after the previous one and the first after nothing [C7,#8916]', async t => {
   const { children, items } = await splitParent(t);
   assert.equal(items[0].item_after ?? '', '');
   assert.equal(String(items[1].item_after), String(children[0]));
 });
 
-test('clause 1: split refuses a parent with fewer than two numbered clauses and files nothing [C7,#8916]', async t => {
+test('cli.journeys-add-split.split-refuses-a-parent-with-fewer: clause 1: split refuses a parent with fewer than two numbered clauses and files nothing [C7,#8916]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

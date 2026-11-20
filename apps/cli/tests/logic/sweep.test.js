@@ -10,7 +10,7 @@ import { sweepItems } from '../../index.js';
 
 const ROOT = '/repo';
 
-test('reads ESLint JSON, with absolute paths made relative [N15]', () => {
+test('cli.logic-sweep.reads-eslint-json-with-absolute-paths-made: reads ESLint JSON, with absolute paths made relative [N15]', () => {
   const report = JSON.stringify([
     { filePath: '/repo/web/a.js', messages: [{ line: 3, column: 5, ruleId: 'no-unused-vars', message: "'x' is unused." }] },
     { filePath: '/repo/web/b.js', messages: [] },
@@ -20,7 +20,7 @@ test('reads ESLint JSON, with absolute paths made relative [N15]', () => {
   ]);
 });
 
-test('reads TypeScript and file:line:col reports [N15]', () => {
+test('cli.logic-sweep.reads-typescript-and-file-line-col-reports: reads TypeScript and file:line:col reports [N15]', () => {
   const text = [
     'src/store.ts(12,7): error TS2322: Type string is not assignable to type number.',
     './api/server.py:4:1: F401 os imported but unused',
@@ -43,7 +43,7 @@ test('reads TypeScript and file:line:col reports [N15]', () => {
   ]);
 });
 
-test('files one complete light item per file, most problems first, skipping covered files [N15, B14]', () => {
+test('cli.logic-sweep.files-one-complete-light-item-per-file: files one complete light item per file, most problems first, skipping covered files [N15, B14]', () => {
   const problems = [
     { file: 'web/a.js', line: 1, col: 1, rule: 'semi', message: 'Missing semicolon.' },
     { file: 'api/b.js', line: 2, col: 1, rule: 'eqeqeq', message: 'Expected ===.' },

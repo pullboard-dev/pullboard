@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/cost.css apps/view/src/io/no-link.css */
 /** Every page takes the design sheet's shapes: 6 px cards, 4 px chips, round dots only, shadows only on floating panels [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ const decl = (body, property) => body.match(new RegExp(`(?:^|[;\\s])${property}:
 const rule = selector => rules().filter(([sel]) => sel === selector).map(([, body]) => body).join(' ');
 const root = () => rules().filter(([sel]) => sel === ':root').map(([, body]) => body).join(' ');
 
-test('clause 1: the shared tokens give cards 6 px corners and a 1 px #e5e5e5 border, and no card rule carries a shadow [N26]', () => {
+test('view.x-io-shapes.clause-1-the-shared-tokens-give-cards: clause 1: the shared tokens give cards 6 px corners and a 1 px #e5e5e5 border, and no card rule carries a shadow [N26]', () => {
   const tokens = root();
   assert.match(tokens, /--round: 1;/u, 'one is the sheet');
   assert.match(tokens, /--radius-card: calc\(6px \* var\(--round\)\)/u, 'cards are 6 px');
@@ -35,7 +35,7 @@ test('clause 1: the shared tokens give cards 6 px corners and a 1 px #e5e5e5 bor
   for (const [selector, value] of shadows.filter(([selector]) => !/^(?:from|to)$/u.test(selector))) assert.match(value, /^(?:none|var\(--shadow-float\)|var\(--(?:inset|ring)[\w-]*\)|inset .*|0 0 0 \d+px .*)$/u, `${selector}: ${value} is no card shadow`);
 });
 
-test('clause 2: chips and buttons have 4 px corners, only dots are round, and the selected Insights entry has no fill [N26]', () => {
+test('view.x-io-shapes.clause-2-chips-and-buttons-have-4: clause 2: chips and buttons have 4 px corners, only dots are round, and the selected Insights entry has no fill [N26]', () => {
   const css = sheets();
   assert.doesNotMatch(css, /radius-pill|999px/u, 'no pill radius is left');
   assert.match(root(), /--radius-chip: calc\(4px/u, 'chips are 4 px');
@@ -52,7 +52,7 @@ test('clause 2: chips and buttons have 4 px corners, only dots are round, and th
   assert.doesNotMatch(css, /\.tab-menu \.tab:hover, :root\[data-nav="top"\] \.tab-menu \.tab\.on/u, 'the entry is not filled together with hover');
 });
 
-test('clause 2: floating panels (menus, palette, dialogs, find results) keep the shadow and 8 px corners [N26]', () => {
+test('view.x-io-shapes.clause-2-floating-panels-menus-palette-dialogs: clause 2: floating panels (menus, palette, dialogs, find results) keep the shadow and 8 px corners [N26]', () => {
   for (const selector of [':root[data-nav] .acct-menu', ':root[data-nav="top"] .tab-menu', '.projpop', '.pal-box', '.pal-help', '.find-results', '.spec-reason-dialog']) {
     const body = rule(selector);
     assert.equal(decl(body, 'box-shadow'), 'var(--shadow-float)', `${selector} floats`);

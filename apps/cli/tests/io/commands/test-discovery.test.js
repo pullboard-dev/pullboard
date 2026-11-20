@@ -29,9 +29,9 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { importsIn } from '../../../../../packages/gate/index.js';
+import { importsIn } from '../../../../../packages/gate/heavy.js';
 import { commandDocs } from '../../../src/io/docs.js';
-import { readTestOutcomes } from '../../../../../packages/gate/index.js';
+import { readTestOutcomes } from '../../../../../packages/gate/heavy.js';
 
 /** Copy the runner and its transitive local imports without evaluating their code. */
 function copyRunnerImports(sourceRoot, root) {
@@ -143,7 +143,7 @@ function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../../../../../
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
-test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x'));
+test('cli.io-commands-test-discovery.one-discovered-test: one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x'));
 `);
   return { root, bin, marker };
 }
@@ -155,11 +155,11 @@ function runDiscovery({ root, bin, marker }) {
   assert.equal(readFileSync(marker, 'utf8'), 'x', 'one test ran exactly once under default discovery');
 }
 
-test('default discovery runs one fixture and does not recurse into the runner [C7, S13]', (t) => {
+test('cli.io-commands-test-discovery.default-discovery-runs-one-fixture-and-does: default discovery runs one fixture and does not recurse into the runner [C7, S13]', (t) => {
   runDiscovery(discoveryFixture(t));
 });
 
-test('discovery follows a new runner src import and its transitive dependency [C7, S13]', (t) => {
+test('cli.io-commands-test-discovery.discovery-follows-a-new-runner-src-import: discovery follows a new runner src import and its transitive dependency [C7, S13]', (t) => {
   const source = mkdtempSync(join(tmpdir(), 'pullboard-discovery-source-'));
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
@@ -174,7 +174,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
 });
 
 
-test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.a-name-pattern-that-matches-no-test: a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
@@ -210,7 +210,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
   const defaultDestination = execute('--test-name-pattern', 'one discovered test',
     '--test-reporter-destination', output, file);
   assert.equal(defaultDestination.status, 0, `${defaultDestination.stdout}${defaultDestination.stderr}`);
-  assert.match(readFileSync(output, 'utf8'), /ok 1 - one discovered test/u);
+  assert.match(readFileSync(output, 'utf8'), /ok 1 - cli\.io-commands-test-discovery\.one-discovered-test: one discovered test/u);
   assert.equal(readFileSync(box.marker, 'utf8'), 'xxxx');
   const absentWithDestination = execute('--test-reporter-destination=' + output,
     '--test-name-pattern=absent default reporter case 1018', file);
@@ -219,7 +219,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
 });
 
 
-test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.a-name-pattern-that-matches-no-test-2: a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
@@ -242,7 +242,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landi
 });
 
 
-test('runner option values that resemble a name pattern remain values [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.runner-option-values-that-resemble-a-name: runner option values that resemble a name pattern remain values [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const empty = join(box.root, 'test/empty.test.js');
   writeFileSync(empty, 'export {};\n');
@@ -256,7 +256,7 @@ test('runner option values that resemble a name pattern remain values [C7,S13]',
 });
 
 
-test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.a-name-pattern-with-sharded-discovery-keeps: a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify({ landingShards: 2 }));
   writeFileSync(join(box.root, '.gitignore'), 'ran-once\n');

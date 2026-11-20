@@ -34,7 +34,7 @@ const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../../index.js';
 import { REGISTRY_AT } from '../../tests/fixtures/move/registry.js';
 import { registryFixtureBoard } from '../../tests/fixtures/move/registry.js';
-import { importsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
 import { readdirSync } from 'node:fs';
 import { minimumMoveEngine } from '../../../../packages/moves/index.js';
 import { SPEC_REVISION_ENGINE } from '../../../../packages/state/light.js';
@@ -90,7 +90,7 @@ export default { operation: ${JSON.stringify(name)}, order: ${engine + 1000}, en
 `;
 }
 
-test('live registry invariants and historical actors, order and SQLite replay hold [C7,V4,H3,H16]', t => {
+test('cli.journeys-move-registry.live-registry-invariants-and-historical-actors: live registry invariants and historical actors, order and SQLite replay hold [C7,V4,H3,H16]', t => {
   assert.deepEqual(ENGINE_OPERATIONS.filter(operation => SNAPSHOT.operations.includes(operation)), SNAPSHOT.operations, 'historical operation order is retained while new declarations append independently');
   const repository = fileURLToPath(new URL('../../../../', import.meta.url));
   // The old src/ files are named by the committed map, which points each at the cell or app file that holds it now.
@@ -155,7 +155,7 @@ test('live registry invariants and historical actors, order and SQLite replay ho
   assert.equal(JSON.stringify(replay), JSON.stringify(replayExpected), 'items, events, receipts and replay cursor retain accepted-main bytes for the exact historical moves');
 });
 
-test('two new board moves declared in two files need no edit to engine.js, board-engine-ports.js or next-step-words.js [C7,V4,H3,H16]', t => {
+test('cli.journeys-move-registry.two-new-board-moves-declared-in: two new board moves declared in two files need no edit to engine.js, board-engine-ports.js or next-step-words.js [C7,V4,H3,H16]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-discovery-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -189,7 +189,7 @@ const result={operations:ENGINE_OPERATIONS,alphaActor:relayMoveActor({operation:
   alphaStep:NEXT_STEPS.SEEDALPHA,betaStep:NEXT_STEPS.SEEDBETA};
 if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta')) {
   const {MOVE_REGISTRY,minimumMoveEngine,discoverMoves}=await import('./packages/moves/index.js');
-  const {importsIn}=await import('./packages/gate/index.js');
+  const {importsIn}=await import('./packages/gate/heavy.js');
   const snapshot=JSON.parse(readFileSync('./apps/cli/tests/fixtures/move/registry/baseline.json','utf8'));
   const boards=new Map();
   try {
@@ -255,7 +255,7 @@ process.stdout.write(JSON.stringify(result));`;
 });
 
 
-test('move import closure stays process-free on a seeded revision board [C7,V4,H16]', t => {
+test('cli.journeys-move-registry.move-import-closure-stays-process-free: move import closure stays process-free on a seeded revision board [C7,V4,H16]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-move-closure-'));
   const board = registryFixtureBoard(directory, 'revision-closure');
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
@@ -299,14 +299,14 @@ installStaleStateRegistryCases();
 
 /** Exercise each live invariant without mutating the accepted source or a historical oracle. */
 /** Proves the named 145 pair passes while any other duplicate engine number still fails [C7,V4]. */
-test('clause 1: a new duplicate engine number outside the named historical exception still fails [C7,V4]', () => {
+test('cli.journeys-move-registry.a-new-duplicate-engine-number-outside: clause 1: a new duplicate engine number outside the named historical exception still fails [C7,V4]', () => {
   const base = { registry: {}, sources: [], nextSteps: {} };
   assert.deepEqual(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }] }), [], 'the named pair is the one exception');
   assert.match(registryProblems({ ...base, leaves: [{ name: 'ITEM_PATCH_AUTO_ENGINE', number: 145 }, { name: 'UNCHANGED_REFREEZE_ENGINE', number: 145 }, { name: 'THIRD_ENGINE', number: 145 }] }).join(), /duplicate or invalid engine number 145/u);
   assert.match(registryProblems({ ...base, leaves: [{ name: 'NEW_ENGINE', number: 146 }, { name: 'OTHER_NEW_ENGINE', number: 146 }] }).join(), /duplicate or invalid engine number 146/u);
 });
 
-test('registry invariants reject missing recovery, slots and allocation collisions [C7,V4]', () => {
+test('cli.journeys-move-registry.registry-invariants-reject-missing-recovery-slots: registry invariants reject missing recovery, slots and allocation collisions [C7,V4]', () => {
   const declaration = { operation: 'sample', engine: 1, itemIdFirstArgument: true, nextSteps: { SAMPLE: 'repair the sample' } };
   const input = { registry: { sample: declaration }, leaves: [{ name: 'SAMPLE_ENGINE', number: 1 }],
     sources: ["throw new Refused('SAMPLE', 'repair it');"], nextSteps: declaration.nextSteps };
@@ -321,7 +321,7 @@ test('registry invariants reject missing recovery, slots and allocation collisio
 });
 
 
-test('shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
+test('cli.journeys-move-registry.shipped-engine-records-and-the-legacy: shipped engine records and the legacy replay retain their first committed bytes [C7,V4]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const git = (...args) => run(root, 'git', args);
   assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git), []);
@@ -330,7 +330,7 @@ test('shipped engine records and the legacy replay retain their first committed 
 installRegistryMergeCase();
 
 /** Proves every refusal code a registered move declares carries a non-empty recovery step, with no fixed count [C7]. */
-test('clause 1: every refusal a registered move raises has a recovery next step [C7]', () => {
+test('cli.journeys-move-registry.every-refusal-a-registered-move-raises: clause 1: every refusal a registered move raises has a recovery next step [C7]', () => {
   const codes = new Set(Object.values(MOVE_REGISTRY).flatMap(declaration => Object.keys(declaration.nextSteps ?? {})));
   assert.ok(codes.size > 0, 'the registry declares refusal codes to check');
   for (const code of codes) {

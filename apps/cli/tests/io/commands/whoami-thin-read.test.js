@@ -63,7 +63,7 @@ async function countFor(on) {
   return new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean)).size;
 }
 
-test('clause 1: with read.thinCommands on, pullboard whoami prints the same output and exit code as with it off [C7,#9811]', async () => {
+test('cli.io-commands-whoami-thin-read.with-read-thincommands-on-pullboard-whoami-prints: clause 1: with read.thinCommands on, pullboard whoami prints the same output and exit code as with it off [C7,#9811]', async () => {
   for (const args of [[], ['--json']]) {
     setThin(false);
     const off = await whoamiOnce(...args);
@@ -77,20 +77,20 @@ test('clause 1: with read.thinCommands on, pullboard whoami prints the same outp
   setThin(null);
 });
 
-test('clause 2: with read.thinCommands on, pullboard whoami loads fewer than 300 modules [C7,#9811]', async () => {
+test('cli.io-commands-whoami-thin-read.with-read-thincommands-on-pullboard-whoami-loads: clause 2: with read.thinCommands on, pullboard whoami loads fewer than 300 modules [C7,#9811]', async () => {
   const loaded = await countFor(true);
   setThin(null);
   assert.ok(loaded < 300, `whoami loaded ${loaded} modules with read.thinCommands on`);
 });
 
-test('clause 2: with read.thinCommands on, whoami never loads more modules than with it off [C7,#9811]', async () => {
+test('cli.io-commands-whoami-thin-read.with-read-thincommands-on-whoami-never-loads: clause 2: with read.thinCommands on, whoami never loads more modules than with it off [C7,#9811]', async () => {
   const off = await countFor(false);
   const on = await countFor(true);
   setThin(null);
   assert.ok(on <= off, `thin ${on} modules, full ${off}`);
 });
 
-test('clause 3: with read.thinCommands off, the full path serves whoami as today, in a seat and in the main checkout [C7,#9811]', async () => {
+test('cli.io-commands-whoami-thin-read.with-read-thincommands-off-the-full-path: clause 3: with read.thinCommands off, the full path serves whoami as today, in a seat and in the main checkout [C7,#9811]', async () => {
   setThin(false);
   const seat = await whoamiOnce();
   assert.equal(seat.code, 0, seat.err);

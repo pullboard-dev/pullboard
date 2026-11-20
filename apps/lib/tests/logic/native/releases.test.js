@@ -63,7 +63,7 @@ function fixture(t) {
   return { board, id, first, second, take, sweep, base };
 }
 
-test('an idle sweep followed by one blocked builder release does not hold work [C7]', t => {
+test('lib.logic-native-releases.an-idle-sweep-followed-by-one: an idle sweep followed by one blocked builder release does not hold work [C7]', t => {
   const f = fixture(t);
   f.take(f.first); f.sweep();
   assert.equal(getItem(f.board, f.id).item_status, 'open', 'the native sweep released the claim');
@@ -71,7 +71,7 @@ test('an idle sweep followed by one blocked builder release does not hold work [
   assert.equal(getItem(f.board, f.id).item_hold_reason, null);
 });
 
-test('two builder quality releases still hold, while routing and nonwork releases do not count [C7]', t => {
+test('lib.logic-native-releases.two-builder-quality-releases-still-hold: two builder quality releases still hold, while routing and nonwork releases do not count [C7]', t => {
   const f = fixture(t);
   for (const [reason, note] of [['ROUTED_ELSEWHERE', 'redirect'], ['OTHER', 'dead handoff a8f5b22'], ['OTHER', 'profiling claim latency only; no work done'], ['OTHER', 'arbitrary free-form reason']]) {
     f.take(f.first); release(f.board, f.id, f.first, note, reason);
@@ -83,7 +83,7 @@ test('two builder quality releases still hold, while routing and nonwork release
   assert.match(getItem(f.board, f.id).item_hold_reason, /Released twice/u);
 });
 
-test('old-engine replay keeps its original released-twice semantics [H16]', t => {
+test('lib.logic-native-releases.old-engine-replay-keeps-its-original: old-engine replay keeps its original released-twice semantics [H16]', t => {
   const f = fixture(t); f.board.executionEngineVersion = RELEASE_QUALITY_HOLD_ENGINE - 1;
   f.take(f.first); release(f.board, f.id, f.first, 'redirect', 'ROUTED_ELSEWHERE');
   f.take(f.second); release(f.board, f.id, f.second, 'blocked', 'BLOCKED');
@@ -91,7 +91,7 @@ test('old-engine replay keeps its original released-twice semantics [H16]', t =>
 });
 
 
-test('an untouched automatic claim release does not count toward the hold [C7]', t => {
+test('lib.logic-native-releases.an-untouched-automatic-claim-release-does: an untouched automatic claim release does not count toward the hold [C7]', t => {
   const f = fixture(t), digest = 'c'.repeat(64);
   f.take(f.first, { autoNext: true, autoNextSnapshot: { head: f.base, digest } });
   release(f.board, f.id, f.first, 'untouched', { worktreeSnapshot: { head: f.base, digest } }, 'BLOCKED');
@@ -99,7 +99,7 @@ test('an untouched automatic claim release does not count toward the hold [C7]',
   assert.equal(getItem(f.board, f.id).item_hold_reason, null);
 });
 
-test('a budget exit handoff does not count toward the hold [C7]', t => {
+test('lib.logic-native-releases.a-budget-exit-handoff-does-not: a budget exit handoff does not count toward the hold [C7]', t => {
   const board = fixtureBoard(t), policy = { enabled: true, tokens: 100, calls: 3 };
   register(board, { id: 'coordinator', lane: 'coordinator', path: '/exit-fixture/main', session: 'fixture-coordinator', model: 'Fixture coordinator' });
   register(board, { id: 'core-1', lane: 'core', path: '/exit-fixture/one', family: 'openai', session: 'fixture-first', model: 'Fixture model' });

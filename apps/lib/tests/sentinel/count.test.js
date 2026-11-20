@@ -42,7 +42,7 @@ function finding(item, owner, since, suffix = owner, cause = 'CLAIM_LAPSED') {
     why: `${owner} observed the expired lease`, next: 'renew the item claim', owner: { who: owner } };
 }
 
-test('one stuck item observed by three seats and five ready items counts one subject on the real board [A6,N26]', t => {
+test('lib.sentinel-count.one-stuck-item-observed-by-three: one stuck item observed by three seats and five ready items counts one subject on the real board [A6,N26]', t => {
   const box = fixture(t);
   const since = new Date(box.clock.now().getTime() - 3600000).toISOString();
   const findings = box.seats.map(owner => finding(box.ids[0], owner, since));
@@ -70,7 +70,7 @@ test('one stuck item observed by three seats and five ready items counts one sub
   assert.equal(embedded.stuck, 1, 'the actual standalone browser serialization retains the same count');
 });
 
-test('a new cause and an old cause for one item count once across failing and stuck [A6,N26]', () => {
+test('lib.sentinel-count.a-new-cause-and-an-old: a new cause and an old cause for one item count once across failing and stuck [A6,N26]', () => {
   const since = '2026-10-30T01:00:00Z';
   const old = finding(1, 'core-1', since, 'old');
   const added = finding(1, 'coordinator', since, 'new', 'HOLD_STALE');
@@ -82,7 +82,7 @@ test('a new cause and an old cause for one item count once across failing and st
   assert.equal(run.findings.length + run.stillStuck.length, 2, 'both causes remain visible');
 });
 
-test('stuck item, seat and runner identities remain distinct while repeated causes count once [A6,N26]', () => {
+test('lib.sentinel-count.stuck-item-seat-and-runner-identities: stuck item, seat and runner identities remain distinct while repeated causes count once [A6,N26]', () => {
   const entries = [finding(1, 'core-1', '2026-10-30T01:00:00Z'), finding(1, 'core-2', '2026-10-30T01:00:00Z'),
     { cause: 'AGENT_CPU', subject: 'same-name' }, { cause: 'IDLE_AGENT', subject: 'same-name' },
     { cause: 'RUNNER_UNAVAILABLE', subject: 'same-name' }];

@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-review.review-lines-match-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "reviewLines returns the machine-verified, review tier, eligible reviewers and builder parent lines exactly as show printed them for a ready and a not-submitted item, a known and an unknown builder parent."
+    },
+    "why": "Without it, moving these lines out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/review.js"
+    ]
+  }
+}

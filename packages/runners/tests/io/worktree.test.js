@@ -13,6 +13,8 @@ import { temporaryRepository } from '../../../store/tests/fixtures/submit.js';
 import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
 import { runFixtureChildAsync } from '../../../gate/tests/fixtures/child.js';
 import { createHostedItemFolder } from '../../index.js';
+import { runOnRunnerShell } from '../../index.js';
+import { createFakeSshAdapter } from '../../src/io/adapter/ssh.js';
 import { hostedItemFolderPath } from '../../index.js';
 import { returnHostedBranch } from '../../index.js';
 import { runInHostedItemFolder } from '../../index.js';
@@ -23,7 +25,9 @@ import { boardEndpoint } from '../../../drive/index.js';
 import { boardTrunkPack } from '../../../drive/index.js';
 import { createApiHandler } from '../../../api/index.js';
 import { servedTrunkPack } from '../../index.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+
+/** One request on a connection of its own, so each meets a fresh connection as the CLI fixture did. */
+const fetchFresh = (url, init = {}) => fetch(url, { ...init, headers: new Headers({ ...init.headers, connection: 'close' }) });
 
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
 
@@ -189,4 +193,13 @@ test('runners.worktree.n5945-clause-1-the-board-serves: #5945 clause 1: the boar
   const keyless = await fetchFresh(`${board}/trunk/${commit}.pack`);
   assert.equal(keyless.status, 401, 'the pack is served only with the board key');
   await keyless.body?.cancel();
+});
+
+test('runners.worktree.ssh-adapter-fake-answer: clause 1: runOnRunnerShell runs its script through the ssh adapter and, with the fake adapter injected, returns the fake answer without spawning ssh [C7,#1427]', async () => {
+  const seen = [];
+  const adapter = createFakeSshAdapter((runner, script) => { seen.push({ host: runner.host, script }); return { status: 7, stdout: 'from-fake', stderr: 'warn' }; });
+  const run = await runOnRunnerShell({ host: 'runner-a' }, 'echo hi', { ssh: '/nonexistent/ssh-must-not-spawn', adapter });
+  assert.deepEqual(seen, [{ host: 'runner-a', script: 'echo hi' }]);
+  assert.deepEqual(run, { status: 7, signal: null, stdout: 'from-fake', stderr: 'warn', host: 'runner-a', error: null });
+  await assert.rejects(async () => runOnRunnerShell({ host: '-oProxyCommand=x' }, 'true', { adapter }), /registered runner host/u);
 });

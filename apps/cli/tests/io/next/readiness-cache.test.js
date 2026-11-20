@@ -37,7 +37,7 @@ async function counted(t, cache) {
   return { box, item, ready, runs };
 }
 
-test('cli.next.readiness-cache.a-second-next-on-the-same: clause 1: a second next on the same main commit does not rerun the readiness command [C7,#8794]', async t => {
+test('cli.io-next-readiness-cache.cli-next-readiness-cache-a-second-next: cli.next.readiness-cache.a-second-next-on-the-same: clause 1: a second next on the same main commit does not rerun the readiness command [C7,#8794]', async t => {
   const { box, item, runs } = await counted(t, true);
   assert.match(await printed(box), new RegExp(`skipped #${item}:`, 'u'));
   assert.equal(runs(), 1, 'the first next ran the command once');
@@ -45,7 +45,7 @@ test('cli.next.readiness-cache.a-second-next-on-the-same: clause 1: a second nex
   assert.equal(runs(), 1, 'the second next on the same main commit read the kept result');
 });
 
-test('cli.next.readiness-cache.a-not-ready-item-is-offered: clause 2: a not-ready item is offered again once a new main commit makes its readiness command pass [C7,#8794]', async t => {
+test('cli.io-next-readiness-cache.cli-next-readiness-cache-a-not-ready: cli.next.readiness-cache.a-not-ready-item-is-offered: clause 2: a not-ready item is offered again once a new main commit makes its readiness command pass [C7,#8794]', async t => {
   const { box, item, ready, runs } = await counted(t, true);
   assert.match(await printed(box), new RegExp(`skipped #${item}:`, 'u'));
   writeFileSync(ready, 'yes');
@@ -56,7 +56,7 @@ test('cli.next.readiness-cache.a-not-ready-item-is-offered: clause 2: a not-read
   assert.equal(runs(), 2);
 });
 
-test('cli.next.readiness-cache.with-next-readinesscache-off-every-next: clause 1: with next.readinessCache off every next reruns the readiness command [C7,#8794]', async t => {
+test('cli.io-next-readiness-cache.cli-next-readiness-cache-with-next-readinesscache: cli.next.readiness-cache.with-next-readinesscache-off-every-next: clause 1: with next.readinessCache off every next reruns the readiness command [C7,#8794]', async t => {
   const { box, runs } = await counted(t, false);
   await printed(box);
   await printed(box);

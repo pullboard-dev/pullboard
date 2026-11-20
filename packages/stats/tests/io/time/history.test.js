@@ -9,7 +9,7 @@ import { appendTimeCheckpoint } from '../../../src/io/time/history.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { statsHistoryFile } from '../../../src/io/time/history.js';
 
-const CHECKPOINT = join(import.meta.dirname, '..', '..', '..', 'src', 'io', 'time', 'checkpoint.js');
+const CHECKPOINT = join(import.meta.dirname, '../../../src/io/time/checkpoint.js');
 
 test('stats.time.history-path: clause 1: statsHistoryFile names the history file under the common dir and checkpoint.js builds its path through it [C7]', () => {
   assert.equal(statsHistoryFile('/x/.git'), join('/x/.git', 'pullboard', 'stats-history.jsonl'));

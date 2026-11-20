@@ -26,7 +26,7 @@ const {
   attackCommit, LIGHT_BRIEF, project,
 } = e2e;
 
-test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', async t => {
+test('cli.journeys-show-policy-e2e.the-blind-gate-bypass-repro-refuses: the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Append notes', '--specs', 'G1', '--criterion', 'append one note', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
@@ -74,7 +74,7 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   assert.deepEqual(readFileSync(file), before, 'doctor keeps the historical evidence unchanged');
 });
 
-test('a shared config edit cannot replace the gate frozen from the coordinator [V4,V16]', async t => {
+test('cli.journeys-show-policy-e2e.a-shared-config-edit-cannot-replace: a shared config edit cannot replace the gate frozen from the coordinator [V4,V16]', async t => {
   const box = project('test ! -f web/RED');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.shared.push('pullboard.json');

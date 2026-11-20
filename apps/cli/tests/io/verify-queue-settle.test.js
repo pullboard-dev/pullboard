@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { addItem } from '../../../../packages/store/index.js';
 import { register } from '../../../../packages/store/index.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { submitFixture } from '../../../../packages/store/tests/fixtures/submit.js';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { claimJob } from '../../../../packages/api/index.js';
@@ -39,7 +39,7 @@ function post({ board, checkJob }, receipt) {
   return boardJobQueueCall(board, { action: 'receipt', job: checkJob, runner: 'r-accept', token: lease.token, receipt }, { mode: 'pull', now: 3 });
 }
 
-test('clause 1: a queued accept is recorded when its check job passes [C7,V4]', t => {
+test('cli.io-verify-queue-settle.a-queued-accept-is-recorded-when-its: clause 1: a queued accept is recorded when its check job passes [C7,V4]', t => {
   const f = queued(t);
   post(f, { status: 0, gate: { green: true, phases: [{ status: 0 }] } });
   const item = store.getItem(f.board, f.id);
@@ -48,7 +48,7 @@ test('clause 1: a queued accept is recorded when its check job passes [C7,V4]', 
   assert.equal(item.item_status, 'verified');
 });
 
-test('clause 1: a queued accept reopens the item to its builder with the failing reason when its check job fails [C7,V4]', t => {
+test('cli.io-verify-queue-settle.a-queued-accept-reopens-the-item-to: clause 1: a queued accept reopens the item to its builder with the failing reason when its check job fails [C7,V4]', t => {
   const f = queued(t);
   post(f, { status: 1, gate: { green: false, phases: [{ status: 1, failures: [{ file: 'src/queued.test.js', name: 'it holds' }] }] } });
   const item = store.getItem(f.board, f.id);

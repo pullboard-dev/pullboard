@@ -7,12 +7,12 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';
-import { fileTimesPath } from '../../../index.js';
-import { readFileTimes } from '../../../index.js';
-import { readFileSamples } from '../../../index.js';
-import { writeFileTimes } from '../../../index.js';
-import { landingBalance } from '../../../index.js';
-import { planLandingShards } from '../../../index.js';
+import { fileTimesPath } from '../../../heavy.js';
+import { readFileTimes } from '../../../heavy.js';
+import { readFileSamples } from '../../../heavy.js';
+import { writeFileTimes } from '../../../heavy.js';
+import { landingBalance } from '../../../heavy.js';
+import { planLandingShards } from '../../../heavy.js';
 import { describeSetting } from '../../../../config/index.js';
 
 /** A private git repository whose common dir holds the record. */

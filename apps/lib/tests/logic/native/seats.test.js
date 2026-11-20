@@ -71,7 +71,7 @@ function timed(action) {
   return performance.now() - started;
 }
 
-test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, submit and verdict and report busy share and p50/p99 per command', t => {
+test('lib.logic-native-seats.clause-1-1-000-simulated-seats: [C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, submit and verdict and report busy share and p50/p99 per command', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-scale-'));
   // @pullboard-board-file journey: the board sits where the native CLI keeps it inside a repository
   const board = openBoard(repositoryBoardFile(directory));
@@ -127,7 +127,7 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   assert.deepEqual(scaleProblems(report), []);
 });
 
-test('[C7,#3008] clause 2: the scale test fails when writer busy share passes 50%, p99 next passes 200 ms or a write p99 passes 2 s', () => {
+test('lib.logic-native-seats.clause-2-the-scale-test-fails: [C7,#3008] clause 2: the scale test fails when writer busy share passes 50%, p99 next passes 200 ms or a write p99 passes 2 s', () => {
   const quick = Array.from({ length: 100 }, () => 1);
   const base = { heartbeat: quick, next: quick, shout: quick, claim: quick, submit: quick, verdict: quick };
   assert.deepEqual(scaleProblems(scaleReport(base)), [], 'a fast board passes');

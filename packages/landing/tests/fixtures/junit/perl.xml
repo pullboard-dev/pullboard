@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: prove --formatter TAP::Formatter::JUnit t/ > report.xml (the formatter writes to stdout).
+     Assumption: the TAP description is the case name, so each reads "clause N: ...". The formatter writes no file attribute. -->
+<testsuites>
+  <testsuite name="t_calc_t" tests="3" failures="1" errors="0" skipped="1" time="0.021">
+    <testcase name="clause 1: adds two numbers" classname="t_calc_t" time="0.001"/>
+    <testcase name="clause 2: halves a number" classname="t_calc_t" time="0.002">
+      <failure message="not ok 2 - clause 2: halves a number" type="TestFailed"><![CDATA[#   Failed test 'clause 2: halves a number'
+#   at t/calc.t line 9.
+#          got: '1'
+#     expected: '2']]></failure>
+    </testcase>
+    <testcase name="clause 3: later" classname="t_calc_t" time="0.000">
+      <skipped message="not yet"/>
+    </testcase>
+  </testsuite>
+</testsuites>

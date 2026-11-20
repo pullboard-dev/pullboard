@@ -30,7 +30,7 @@ const local = (device) => async (...args) => {
   return { code: run.code, stderr: run.stderr, document: parseCommandDocument(run.stdout) };
 };
 
-test('a clone of a linked repo joins its board; a member device hands over the key [E1,E12,E17]', { timeout: relayWorkBudgetMs(20) }, async (t) => { // budget: hang ceiling for four devices' real CLI runs, ssh-keygen and relay calls; not a speed target.
+test('cli.journeys-export-team-link.a-clone-of-a-linked-repo: a clone of a linked repo joins its board; a member device hands over the key [E1,E12,E17]', { timeout: relayWorkBudgetMs(20) }, async (t) => { // budget: hang ceiling for four devices' real CLI runs, ssh-keygen and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
   // Each computer has OpenSSH's ssh-keygen, and reads SSH keys from the stand-in GitHub.
   const tools = join(box.root, '..', 'tools-bin');
@@ -114,7 +114,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   assert.equal(withBoard(box.root, board => store.listAgents(board).find(agent => agent.agent_id === 'coordinator').agent_path), coordinatorPath, 'the ordinary member leaves Alice’s coordinator holder unchanged');
 });
 
-test('a relink turns the old link off with its receipt, so a repository keeps one active board [E12]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real relay calls; not a speed target.
+test('cli.journeys-export-team-link.a-relink-turns-the-old-link: a relink turns the old link off with its receipt, so a repository keeps one active board [E12]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real relay calls; not a speed target.
   const box = await teamBoard(t, null);
   const old = JSON.parse(box.readLink()).board;
   const alice = await personSession(box, 'alice');

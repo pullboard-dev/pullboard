@@ -44,6 +44,7 @@ const shoutsHtml = (${shoutsHtml.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const itemPanelModel = (${itemPanelModel.toString()});
 const itemPanelHtml = (${itemPanelHtml.toString()});
+const itemTimelines = new Map();
 const ruleListModel = (${ruleListModel.toString()});
 const filterByField = (${filterByField.toString()});
 const selectItemsView = (${selectItemsView.toString()});
@@ -567,6 +568,18 @@ function render({ tab: switching = false } = {}) {
   }).join('');
   /** The items this one waits on, each a link. */
   const waitsOf = (item) => (item.blockedBy || []).map(id => '<a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a>').join(', ');
+  /** The opened item's timeline for its strip (#12162): read once, kept 30 s, a failed read (a hosted page, a relay board) leaves no strip. */
+  const stripOf = (item) => {
+    const key = view.root + '\\n' + item.id, kept = itemTimelines.get(key);
+    if (kept && (kept.loading || Date.now() - kept.at < 30_000)) return kept.strip;
+    const entry = { loading: true, at: Date.now(), strip: kept?.strip ?? null };
+    itemTimelines.set(key, entry);
+    api('/item-timeline/' + encodeURIComponent(String(item.id))).then((reply) => { entry.strip = reply; }, () => {}).finally(() => {
+      entry.loading = false; entry.at = Date.now();
+      if (entry.strip && view.item === item.id && key === view.root + '\\n' + item.id) render();
+    });
+    return entry.strip;
+  };
   /** The opened item's whole panel from its model: the header alone while its detail loads, every section once it has arrived (#7571). */
   const drawPanel = (item) => {
     const baseline = item.checkBaseline;
@@ -576,7 +589,7 @@ function render({ tab: switching = false } = {}) {
       milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name,
       reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(item.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(item.brief || ''),
       baseline: { label: baselineLabel, warn: baseline?.warning === 'CRITERION_PROVES_NOTHING' }, historyOpen: view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true });
-    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), verdicts: item.verdicts?.length ? '<ul class="item-panel-verdicts">' + verdictRowsOf(item) + '</ul>' : '', refs: referencedCodeOf(item), waits: waitsOf(item), marks: itemStageMarks(item, p).filter(mark => !/aria-label="(?:Sent back|Withdrawn)/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
+    return itemPanelHtml(model, { strip: stripOf(item), esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), verdicts: item.verdicts?.length ? '<ul class="item-panel-verdicts">' + verdictRowsOf(item) + '</ul>' : '', refs: referencedCodeOf(item), waits: waitsOf(item), marks: itemStageMarks(item, p).filter(mark => !/aria-label="(?:Sent back|Withdrawn)/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
       note: verdict ? inline(visibleVerdictNote(verdict.reason, verdict.note), titles) : '' });
   };
   /** The brief without its Files section, whose paths the panel lists as rows. */
@@ -600,10 +613,6 @@ function render({ tab: switching = false } = {}) {
   }
 
   if (draw && view.tab === 'shouts') {
-  if ($('hold-lane').dataset.lanes !== working.join()) {
-    $('hold-lane').dataset.lanes = working.join();
-    $('hold-lane').innerHTML = working.map(lane => '<option>' + esc(lane) + '</option>').join('');
-  }
   // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
   // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
   // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
@@ -711,9 +720,6 @@ function render({ tab: switching = false } = {}) {
     activeAgent: view.agent, allAgents: view.allAgents, idleOpen: Boolean(view.open.idle) });
   if (panelSelection.idle.some((agent) => agent.agentId === view.agent)) view.open.idle = true;
   store.paint($('agents'), agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) }, { now: panelNow, dashboardHref: tabHref('dashboard') }));
-  const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
-  if (held.size && $('lanes-fold')) $('lanes-fold').open = true;
-  store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
 
   }
 
@@ -812,7 +818,17 @@ function render({ tab: switching = false } = {}) {
     store.paint($(kind + '-detail'), row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3 class="hd2">Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>');
   }
 
-  if (draw && view.tab === 'activity') activityView.draw(p, switching);
+  // The Lanes fold and its hold form sit on Activity, so Activity draws them: drawn with Shouts, a release or hold made there never repainted (#10661).
+  if (draw && view.tab === 'activity') {
+    if ($('hold-lane').dataset.lanes !== working.join()) {
+      $('hold-lane').dataset.lanes = working.join();
+      $('hold-lane').innerHTML = working.map(lane => '<option>' + esc(lane) + '</option>').join('');
+    }
+    const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
+    if (held.size && $('lanes-fold')) $('lanes-fold').open = true;
+    store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
+    activityView.draw(p, switching);
+  }
   if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
   drawPageControls();

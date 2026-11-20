@@ -34,9 +34,19 @@ export async function stagedStaticProblems(root, env) {
   const file = resolve(TREE, named);
   const path = relative(TREE, file).split('\\').join('/');
   if (!HOOK_STATIC_CHECKS.includes(path)) return [`PULLBOARD_HOOK_STATIC names ${named}, which apps/cli/src/io/hook/static.js does not declare; name one of ${HOOK_STATIC_CHECKS.join(', ')}`];
-  const { stagedHookFailures } = await import(pathToFileURL(file).href);
+  const { stagedHookFailures } = await loadStaged(file);
   const companions = new Set(JSON.parse(env.PULLBOARD_HOOK_COMPANION_PATHS || '[]'));
   return stagedHookFailures(root).filter((line) => !companions.has(line.slice(0, line.indexOf(':'))));
+}
+
+/**
+ * The named staged-check module, loaded at its file path. Why: the one computed import this file declares, so both readers share it [P3,#10242].
+ *
+ * @param {string} file - Absolute path of a declared staged check.
+ * @returns {Promise<Record<string, any>>}
+ */
+function loadStaged(file) {
+  return import(pathToFileURL(file).href);
 }
 
 /**
@@ -52,5 +62,8 @@ export async function stagedCeilingTables(env) {
   if (!named) return {};
   const file = resolve(TREE, named);
   if (!HOOK_STATIC_CHECKS.includes(relative(TREE, file).split('\\').join('/'))) return {};
-  return (await import(pathToFileURL(file).href)).CEILING_ROW_TABLES ?? {};
+  const module = await loadStaged(file);
+  const tables = module.CEILING_ROW_TABLES ?? {};
+  const covered = module.splitRowCovered;
+  return typeof covered === 'function' ? Object.fromEntries(Object.entries(tables).map(([path, shape]) => [path, path.endsWith('/cells-edges.json') ? { ...shape, splitCovered: covered } : shape])) : tables;
 }

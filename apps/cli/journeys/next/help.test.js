@@ -69,7 +69,7 @@ function flagsFrom(text) {
   return lines.slice(start + 1, end).map((line) => line.trim()).filter((line) => line !== 'none');
 }
 
-test('bare help is a short first-run overview generated from its command groups [N37,I1]', async () => {
+test('cli.journeys-next-help.bare-help-is-a-short-first: bare help is a short first-run overview generated from its command groups [N37,I1]', async () => {
   const bare = (await run());
   const helpFlag = (await run('--help'));
   const helpCommand = (await run('help'));
@@ -98,7 +98,7 @@ test('bare help is a short first-run overview generated from its command groups 
   assert.equal(JSON.parse((await run('help', '--json')).stdout).help, HELP.overview);
 });
 
-test('command help forms and flags match the declaration, with a full list only on --all [N37]', async () => {
+test('cli.journeys-next-help.command-help-forms-and-flags-match: command help forms and flags match the declaration, with a full list only on --all [N37]', async () => {
   for (const [name, declaration] of Object.entries(HELP.commands)) {
     const result = (await run('help', ...name.split(' ')));
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
@@ -142,7 +142,7 @@ test('command help forms and flags match the declaration, with a full list only 
   assert.match(all.stdout, /pullboard next --verify/);
 });
 
-test('an unknown command names its closest match and where to see every command [N37]', async () => {
+test('cli.journeys-next-help.an-unknown-command-names-its-closest: an unknown command names its closest match and where to see every command [N37]', async () => {
   const result = (await run('cliam'));
   assert.equal(result.status, 2);
   assert.match(result.stderr, /no command "cliam"; closest match is "claim"/);
@@ -153,7 +153,7 @@ test('an unknown command names its closest match and where to see every command 
   assert.match(help.stderr, /closest match is "claim"/);
 });
 
-test('next help exposes explicit build intent alongside review reservations [Q1,V15,N37]', async () => {
+test('cli.journeys-next-help.next-help-exposes-explicit-build-intent: next help exposes explicit build intent alongside review reservations [Q1,V15,N37]', async () => {
   const detail = (await run('help', 'next'));
   assert.equal(detail.status, 0, detail.stderr);
   assert.match(detail.stdout, /^       pullboard next --build$/mu);
@@ -165,7 +165,7 @@ test('next help exposes explicit build intent alongside review reservations [Q1,
   assert.match(all.stdout, /pullboard next --build\s+claim a build explicitly, recording a skipped review offer/u);
 });
 
-test('help names come from the command declarations [C7,N37]', async (t) => {
+test('cli.journeys-next-help.help-names-come-from-the-command: help names come from the command declarations [C7,N37]', async (t) => {
   const overview = (await run('help'));
   const all = (await run('help', '--all'));
   assert.equal(overview.status, 0, overview.failure);
@@ -228,7 +228,7 @@ test('help names come from the command declarations [C7,N37]', async (t) => {
   assert.equal(privateCli.HELP.all, HELP.all);
 });
 
-test('init help names --blueprint [I1,N37]', async () => {
+test('cli.journeys-next-help.init-help-names-blueprint: init help names --blueprint [I1,N37]', async () => {
   const result = (await run('init', '--help'));
   assert.equal(result.status, 0, result.failure ?? result.stderr);
   assert.ok(flagsFrom(result.stdout).some((line) => /^--blueprint <name or file> — \S/u.test(line)),
@@ -238,7 +238,7 @@ test('init help names --blueprint [I1,N37]', async () => {
   assert.match((await run('help', '--all')).stdout, /pullboard init \[--model <name>\] \[--blueprint <name or file>\]/u);
 });
 
-test('clause 1: help add example runs on a fresh board and its help adds no next line [I1,L3]', async (t) => {
+test('cli.journeys-next-help.help-add-example-runs-on-a: clause 1: help add example runs on a fresh board and its help adds no next line [I1,L3]', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-help-add-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
@@ -270,7 +270,7 @@ test('clause 1: help add example runs on a fresh board and its help adds no next
   }
 });
 
-test('help covers every dispatched subcommand [N2]', async () => {
+test('cli.journeys-next-help.help-covers-every-dispatched-subcommand: help covers every dispatched subcommand [N2]', async () => {
   // Every printed subcommand phrase is one the CLI dispatches; each must have help, and an unknown name still refuses.
   const subcommands = [...new Set([...helpDeclaration.commandPhrases(HELP).filter((phrase) => phrase.includes(' ')), ...helpDeclaration.SETTING_FORMS.map((form) => `settings ${form}`)])];
   assert.ok(subcommands.includes('milestone items') && subcommands.includes('relay devices') && subcommands.includes('spec approve'),
@@ -285,7 +285,7 @@ test('help covers every dispatched subcommand [N2]', async () => {
   assert.equal(unknown.stdout, '');
 });
 
-test('the settings forms the CLI dispatches have help and reach their own refusal [N2]', async () => {
+test('cli.journeys-next-help.the-settings-forms-the-cli-dispatches: the settings forms the CLI dispatches have help and reach their own refusal [N2]', async () => {
   // The expected forms are written out here, not read from the parser: each one must have help, and
   // each must reach its own value check in settingsCommand, which proves the dispatcher knows it (#824).
   assert.deepEqual([...helpDeclaration.SETTING_FORMS], ['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses', 'runnerRates', 'budget.dailyUsd', 'budget.totalUsd', 'scratch', 'gate.diskFloorMB', 'gate.memoryFloorMB', 'gate.queue.agingMinutes', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.browserFreeChecks', 'gate.browserByLaunch', 'health.sentinel', 'view.background', 'relay.offerAtInit']);
@@ -303,7 +303,7 @@ test('the settings forms the CLI dispatches have help and reach their own refusa
   }
 });
 
-test('every command comes from its own module [C7,V4]', async () => {
+test('cli.journeys-next-help.every-command-comes-from-its-own: every command comes from its own module [C7,V4]', async () => {
   const source = resolve(import.meta.dirname, '../../src/io');
   const registry = await import(pathToFileURL(join(source, 'commands/index.js')).href).catch(() => null);
   assert.ok(registry?.COMMANDS, 'src/commands/index.js registers the commands');
@@ -329,7 +329,7 @@ test('every command comes from its own module [C7,V4]', async () => {
   }
 });
 
-test('each command body lives in its own module, not in apps/cli/src/io/entry.js [C7,V4]', async () => {
+test('cli.journeys-next-help.each-command-body-lives-in-its: each command body lives in its own module, not in apps/cli/src/io/entry.js [C7,V4]', async () => {
   const source = resolve(import.meta.dirname, '../../src/io');
   const cli = readFileSync(join(source, 'entry.js'), 'utf8');
   const bodies = {

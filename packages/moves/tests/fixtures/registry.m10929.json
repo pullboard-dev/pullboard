@@ -1,0 +1,56 @@
+{
+  "moves.release.review-twice-hold": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: boardReleaseEngine() turns the second review release since the latest submit by a seat of the first releaser's family into a coordinator hold_item event with automatic review-release-twice whose reason names both releases, with io.holdAfterTwoReleases on, at or above REVIEW_RELEASE_TWICE_ENGINE."
+    },
+    "why": "Without it a reviewer family could free the same review forever and the item would never get a verdict or a hold.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/logic/table/release.table.js",
+      "packages/moves/src/io/table/board-release.js"
+    ]
+  },
+  "moves.release.review-twice-off": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: with io.holdAfterTwoReleases false or absent, below REVIEW_RELEASE_TWICE_ENGINE, on an already held item, or with releases by two families, a review release only frees the review."
+    },
+    "why": "Without it the hold could fire when the setting is off, on older boards, or on mixed families, and main would change behaviour.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/logic/table/release.table.js",
+      "packages/moves/src/io/table/board-release.js"
+    ]
+  },
+  "moves.selection.derived-gate-port": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with ports.derivedGateAtHead returning a reader, nextSelection.pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is"
+    },
+    "why": "Without this test, a regression where with ports.derivedGateAtHead returning a reader, nextSelection.pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
+  },
+  "moves.selection.derived-gate-port-absent": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with no derivedGateAtHead port, or a port returning null, nextSelection.pick returns the same item as before and no reader reaches nextFor"
+    },
+    "why": "Without this test, a regression where with no derivedGateAtHead port, or a port returning null, nextSelection.pick returns the same item as before and no reader reaches nextFor would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
+  }
+}

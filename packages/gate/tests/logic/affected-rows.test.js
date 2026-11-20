@@ -1,8 +1,8 @@
 /** @pullboard-test-input source-cell gate */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AFFECTED_LANGUAGES } from '../../src/logic/affected-rows.js';
-import { affectedRow } from '../../src/logic/affected-rows.js';
+import { AFFECTED_LANGUAGES } from '../../src/logic/junit.js';
+import { affectedRow } from '../../src/logic/junit.js';
 
 test('gate.affected-rows.rows: clause 1: affectedRow gives each language its test command and selection unit [C7]', () => {
   const want = {

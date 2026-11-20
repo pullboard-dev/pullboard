@@ -28,7 +28,7 @@ export function plainCommitArgs(args) {
  * Commit as `git commit -m` would with the repository's hooks: pre-commit, then commit-msg (which may rewrite the message),
  * then the commit itself with hooks off. Returns null when the real hooks must run instead.
  * Why: each real hook is a Node start; the dispatcher is the same code without it, and parity tests hold the two equal.
- * The answer is a promise, because the hooks run in this process; a refusal returns git's own status 1 and the hook's stderr.
+ * The answer is a promise, because the hooks run in this process; a refusal returns git's own status 1 and the hook's stderr, and a commit carries both hooks' stderr before git's.
  *
  * @param {{ env: Record<string, string> }} box - A fixture box, whose env is git's and the hooks' environment.
  * @param {string} cwd - The checkout being committed in.
@@ -46,6 +46,8 @@ export function commitInProcess(box, cwd, args) {
     if (pre.status !== 0) return { status: 1, stdout: '', stderr: pre.stderr };
     const msg = await runCommitMsgInProcess(box, cwd, plain.message);
     if (msg.status !== 0) return { status: 1, stdout: '', stderr: msg.stderr };
-    return git('-c', 'core.hooksPath=/dev/null', 'commit', ...plain.flags, '-m', msg.message);
+    // git passes a passing hook's stderr through to the commit's own, so a note such as a partly staged file left unfixed reaches the caller here too [C7,#10655].
+    const commit = git('-c', 'core.hooksPath=/dev/null', 'commit', ...plain.flags, '-m', msg.message);
+    return { ...commit, stderr: `${pre.stderr}${msg.stderr}${commit.stderr}` };
   })();
 }

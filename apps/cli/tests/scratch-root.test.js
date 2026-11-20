@@ -5,7 +5,7 @@ import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { checkBaseline } from '../../../packages/gate/index.js';
+import { checkBaseline } from '../../../packages/gate/heavy.js';
 import { captureTestRuntimes } from '../../../packages/sandbox/index.js';
 import { privateFixtureFiles } from '../../../packages/gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../packages/gate/tests/fixtures/child.js';
@@ -23,13 +23,13 @@ function withScratch(body) {
   }
 }
 
-test('clause 1: with scratch set, the sandbox capture folder is created under it [C7]', () => withScratch(scratch => {
+test('cli.scratch-root.with-scratch-set-the-sandbox-capture-folder: clause 1: with scratch set, the sandbox capture folder is created under it [C7]', () => withScratch(scratch => {
   const capture = captureTestRuntimes({});
   const directory = capture.env.PULLBOARD_RUNTIME_CAPTURE_DIR;
   try { assert.equal(realpathSync(directory).startsWith(scratch), true, `${directory} is not under ${scratch}`); } finally { capture.finish(); rmSync(directory, { recursive: true, force: true }); }
 }));
 
-test('clause 1: with scratch set, the check-baseline tree is created under it [C7]', () => withScratch(scratch => {
+test('cli.scratch-root.with-scratch-set-the-check-baseline-tree: clause 1: with scratch set, the check-baseline tree is created under it [C7]', () => withScratch(scratch => {
   const repo = policyRepository(privateFixtureFiles('pullboard-scratch-repo-').root);
   try {
     const seen = join(scratch, 'where.txt');
@@ -39,7 +39,7 @@ test('clause 1: with scratch set, the check-baseline tree is created under it [C
   } finally { rmSync(repo, { recursive: true, force: true }); }
 }));
 
-test('clause 2: with scratch set, worktrees stay where the worktrees setting puts them [C7]', () => withScratch(scratch => {
+test('cli.scratch-root.with-scratch-set-worktrees-stay-where-the: clause 2: with scratch set, worktrees stay where the worktrees setting puts them [C7]', () => withScratch(scratch => {
   assert.equal(worktreeLocation('/repo/main', { worktrees: 'inside' }), '/repo/main/.claude/worktrees/<lane>-N');
   assert.equal(worktreeLocation('/repo/main', { worktrees: 'beside' }), '/repo/main-<lane>-N');
   assert.equal(worktreeLocation('/repo/main', {}).startsWith(scratch), false);

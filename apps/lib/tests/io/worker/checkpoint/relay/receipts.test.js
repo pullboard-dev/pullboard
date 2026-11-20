@@ -59,7 +59,7 @@ function execution(board, document, operation, args) {
   return move;
 }
 
-test('machine receipts cannot invent, alter, redirect or repeat a phone action on two replicas [H12,H16,B26]', t => {
+test('lib.io-worker-checkpoint-relay-receipts.machine-receipts-cannot-invent-alter-redirect: machine receipts cannot invent, alter, redirect or repeat a phone action on two replicas [H12,H16,B26]', t => {
   const box = replicas(t);
   const board = box.boards[0];
   const document = preparePersonRequest({ verb: 'shout', args: { to: 'coordinator', text: 'Phone approved this literal text' } }, 'phone-intent');
@@ -101,7 +101,7 @@ test('machine receipts cannot invent, alter, redirect or repeat a phone action o
 
 });
 
-test('a waiting row decision has one machine execution and one fixed coordinator request [H12,H16,B26]', t => {
+test('lib.io-worker-checkpoint-relay-receipts.a-waiting-row-decision-has-one: a waiting row decision has one machine execution and one fixed coordinator request [H12,H16,B26]', t => {
   const box = replicas(t);
   const board = box.boards[0];
   const document = preparePersonRequest({ verb: 'spec-approve', args: { ids: 'G1', text: 'A precise phone choice' } }, 'row-intent');

@@ -18,3 +18,4 @@ An RFC records a decision. Accepted means decided, not built; the [CHANGELOG](..
 | [0008](0008-durable-jobs-and-runner-protocol.md) | Durable jobs and the runner protocol | proposed |
 | [0009](0009-contribution-records.md) | Contribution records | proposed |
 | [0010](0010-cut-clear-ship.md) | Releases: Cut. Clear. Ship. | proposed |
+| [0011](0011-proof-on-the-exact-tree.md) | Proof on the exact tree | approved (narrowed) |

@@ -30,10 +30,10 @@ function quarantineSeenUnderLock(t, command) {
   return seen;
 }
 
-test('clause 1: a release reads quarantine from the main it started on, so no policy read, and no Git, runs under the writer lock [C7]', t => {
+test('cli.io-read-lock.a-release-reads-quarantine-from-the-main: clause 1: a release reads quarantine from the main it started on, so no policy read, and no Git, runs under the writer lock [C7]', t => {
   assert.equal(quarantineSeenUnderLock(t, 'release'), false);
 });
 
-test('clause 2: a claim, which the same rule covers, also holds the writer lock without reading policy [C7]', t => {
+test('cli.io-read-lock.a-claim-which-the-same-rule-covers: clause 2: a claim, which the same rule covers, also holds the writer lock without reading policy [C7]', t => {
   assert.equal(quarantineSeenUnderLock(t, 'claim'), false);
 });

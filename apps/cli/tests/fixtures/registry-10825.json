@@ -1,0 +1,4 @@
+{
+  "cli.io-runner-service.self-update-on-passes-the-port-and-exits-0": {"proves":{"specs":["C7"],"claim":"With runners.selfUpdate on, the entry passes serveRunner the runnerCode port for its own install folder and exits 0 when serveRunner returns asking for a restart."},"why":"Without it, a regression where with runners.selfUpdate on, the entry passes serveRunner the runnerCode port for its own install folder and exits 0 when serveRunner returns asking for a restart would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/service.test.js"]},
+  "cli.io-runner-service.self-update-off-passes-no-port": {"proves":{"specs":["C7"],"claim":"With runners.selfUpdate off, the entry passes no runnerCode port and serves as today."},"why":"Without it, a regression where with runners.selfUpdate off, the entry passes no runnerCode port and serves as today would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/runner/service.test.js"]}
+}

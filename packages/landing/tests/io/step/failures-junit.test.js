@@ -43,3 +43,15 @@ test('landing.failures-junit.node-tap-and-spec-output-with: clause 3: Node TAP a
     assert.deepEqual(landingFailures(output, '/repo', { junitFailures: true, junitXml: null }), landingFailures(output, '/repo'));
   }
 });
+
+const PYTEST = '<testsuites><testsuite name="pytest"><testcase classname="tests.test_math" name="halves"><failure message="assert 1 == 2">boom</failure></testcase></testsuite></testsuites>';
+
+test('landing.failures-junit.junitlanguage-names-the-file-of-a-report-case: clause 1: landingFailures with junitLanguage python names a pytest case with no file attribute by the python row of junitFile [C7]', () => {
+  const rows = landingFailures('', '/repo', { junitFailures: true, junitXml: PYTEST, junitLanguage: 'python' });
+  assert.deepEqual(rows, [{ name: 'halves', file: 'tests/test_math.py', assertion: 'assert 1 == 2\nboom' }]);
+});
+
+test('landing.failures-junit.no-junitlanguage-leaves-the-file-null: clause 2: with no junitLanguage the same call leaves the file null as before [C7]', () => {
+  assert.deepEqual(landingFailures('', '/repo', { junitFailures: true, junitXml: PYTEST }).map(row => row.file), [null]);
+  assert.deepEqual(landingFailures('', '/repo', { junitFailures: true, junitXml: PYTEST, junitLanguage: 'cobol' }).map(row => row.file), [null]);
+});

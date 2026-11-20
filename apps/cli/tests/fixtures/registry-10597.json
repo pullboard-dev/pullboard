@@ -1,0 +1,5 @@
+{
+  "cli.io-test-pull-runs.a-file-red-only-on-timing-at-load-reruns": {"proves":{"specs":["C7"],"claim":"With test.loadRerun on, a file red only on timing-shaped cases at a load over the cap is offered once more."},"why":"Runs red only because a runner was overloaded cost a builder a full run and a remeasure each.","kind":"cell unit","inputs":["apps/cli/src/io/test/pull.js"]},
+  "cli.io-test-pull-runs.a-file-with-a-real-failure-or-low-load-stays-red": {"proves":{"specs":["C7"],"claim":"A file with a non-timing failing case, or red under the load cap, is reported red with no rerun."},"why":"Runs red only because a runner was overloaded cost a builder a full run and a remeasure each.","kind":"cell unit","inputs":["apps/cli/src/io/test/pull.js"]},
+  "cli.io-test-pull-runs.with-test-loadrerun-off-no-file-reruns": {"proves":{"specs":["C7"],"claim":"With test.loadRerun off, no file reruns."},"why":"Runs red only because a runner was overloaded cost a builder a full run and a remeasure each.","kind":"cell unit","inputs":["apps/cli/src/io/test/pull.js"]}
+}

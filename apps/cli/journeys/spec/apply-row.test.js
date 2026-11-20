@@ -37,7 +37,7 @@ async function applyEvents(box) {
   return { events, applies: events.filter(event => event.event_kind === 'row_apply').map(event => JSON.parse(event.event_detail).events) };
 }
 
-test('clause 1: spec apply --row writes only that row and records only its decision event [C7]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-row.spec-apply-row-writes-only-that: clause 1: spec apply --row writes only that row and records only its decision event [C7]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await approvedProposal(box, 'G1', 'The page renders accessibly.');
   await approvedProposal(box, 'G2', 'The API answers quickly.');
@@ -50,7 +50,7 @@ test('clause 1: spec apply --row writes only that row and records only its decis
   assert.deepEqual(applies, [[decision.event_id]], 'one row_apply event names only the first decision');
 });
 
-test('clause 2: the other approval is still pending after spec apply --row [C7]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-row.the-other-approval-is-still-pending: clause 2: the other approval is still pending after spec apply --row [C7]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   const first = await approvedProposal(box, 'G1', 'The page renders accessibly.');
   const second = await approvedProposal(box, 'G2', 'The API answers quickly.');
@@ -64,7 +64,7 @@ test('clause 2: the other approval is still pending after spec apply --row [C7]'
   assert.equal(row(box, 'G2').text, 'The API answers quickly.', 'the second row applies when named in turn');
 });
 
-test('clause 3: spec apply with no --row applies every pending decision as before [C7]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-row.spec-apply-with-no-row-applies: clause 3: spec apply with no --row applies every pending decision as before [C7]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await approvedProposal(box, 'G1', 'The page renders accessibly.');
   await approvedProposal(box, 'G2', 'The API answers quickly.');

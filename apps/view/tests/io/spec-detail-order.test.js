@@ -8,7 +8,7 @@ import { test } from 'node:test';
 const file = name => readFileSync(new URL('../../src/io/' + name, import.meta.url), 'utf8');
 const paint = (render, id) => render.slice(render.indexOf("store.paint($('" + id + "')"));
 
-test('clause 1: the buttons come right after the row text and chips, before Proved by and Cited by [N26]', () => {
+test('view.x-io-spec-detail-order.clause-1-the-buttons-come-right-after: clause 1: the buttons come right after the row text and chips, before Proved by and Cited by [N26]', () => {
   const render = file('page/render.js');
   const spec = paint(render, 'spec-detail').split('continue;')[0];
   assert.ok(spec.indexOf('spec-detail-actions') > spec.indexOf('class="meta"'), 'Spec: buttons follow the chips');
@@ -19,7 +19,7 @@ test('clause 1: the buttons come right after the row text and chips, before Prov
   assert.ok(doctrine.indexOf('rowDecisionActions') < doctrine.indexOf('+ facts'), 'Doctrine: buttons sit above the proof and citation facts');
 });
 
-test('clause 2: Cited by shows five items, then one line with the rest of the count that expands in place [N26]', () => {
+test('view.x-io-spec-detail-order.clause-2-cited-by-shows-five-items: clause 2: Cited by shows five items, then one line with the rest of the count that expands in place [N26]', () => {
   const render = file('page/render.js');
   assert.match(render, /list\.slice\(0, 5\)\.map\(link\)/u, 'the first five items are drawn');
   assert.match(render, /<details class="spec-more"><summary>' \+ rest\.length \+ ' more<\/summary>' \+ rest\.map\(link\)/u, 'one summary line holds the rest and opens in place');
@@ -27,7 +27,7 @@ test('clause 2: Cited by shows five items, then one line with the rest of the co
   assert.doesNotMatch(render, /citing\.map\(item =>/u, 'neither draws the full list');
 });
 
-test('clause 3: row text uses the sheet level-2 size and Proved by and Cited by share one quiet label column [N26]', () => {
+test('view.x-io-spec-detail-order.clause-3-row-text-uses-the-sheet: clause 3: row text uses the sheet level-2 size and Proved by and Cited by share one quiet label column [N26]', () => {
   const css = file('main.css'), doctrine = file('doctrine.css');
   assert.match(css, /#spec-detail h2, #doctrine-detail h2 \{ font: 400 12\.5px\/1\.5 var\(--sans\); margin: 0; \}/u, 'the row text is 12.5px regular, the level-2 size');
   assert.doesNotMatch(css + doctrine, /#(spec|doctrine)-detail h2 \{[^}]*text-spec-title/u, 'the large title size is gone');

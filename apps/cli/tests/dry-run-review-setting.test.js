@@ -16,7 +16,7 @@ function boardWith(stored) {
   return { db };
 }
 
-test('clause 1: bar.dryRunReview accepts off, on and ab, with off the default [C7]', () => {
+test('cli.dry-run-review-setting.bar-dryrunreview-accepts-off-on-and-ab: clause 1: bar.dryRunReview accepts off, on and ab, with off the default [C7]', () => {
   for (const value of [false, true, 'ab']) validateLineSetting('bar.dryRunReview', value);
   for (const value of ['yes', 'on', 1, null]) assert.throws(() => validateLineSetting('bar.dryRunReview', value), { code: 'LINE_SETTING_RANGE' });
   assert.throws(() => validateLineSetting('bar.check', 'ab'), { code: 'LINE_SETTING_RANGE' }, 'ab belongs to the dry-run review setting alone');
@@ -26,7 +26,7 @@ test('clause 1: bar.dryRunReview accepts off, on and ab, with off the default [C
   assert.throws(() => dryRunReviewMode(boardWith('maybe')), { code: 'LINE_SETTING_RANGE' });
 });
 
-test('clause 2: with ab each submitted item receives one recorded arm, on or off, and the arms alternate [C7]', () => {
+test('cli.dry-run-review-setting.with-ab-each-submitted-item-receives-one: clause 2: with ab each submitted item receives one recorded arm, on or off, and the arms alternate [C7]', () => {
   assert.equal(dryRunReviewArm(false, 8631), null, 'off records no arm');
   assert.equal(dryRunReviewArm(true, 8631), 'on');
   const arms = [8630, 8631, 8632, 8633].map(id => dryRunReviewArm('ab', id));
@@ -34,7 +34,7 @@ test('clause 2: with ab each submitted item receives one recorded arm, on or off
   assert.equal(dryRunReviewArm('ab', 8631), dryRunReviewArm('ab', 8631), 'the same item always gets the same arm');
 });
 
-test('clause 2: under ab, submitting two items on a real board writes each item its recorded arm note [C7]', async t => {
+test('cli.dry-run-review-setting.under-ab-submitting-two-items-on-a: clause 2: under ab, submitting two items on a real board writes each item its recorded arm note [C7]', async t => {
   const { createE2eHelpers } = await import('./fixtures/e2e.js');
   const { join } = await import('node:path');
   const fixtures = createE2eHelpers();

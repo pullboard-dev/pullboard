@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { gateRunnerLoadPolicy } from '../../index.js';
+import { gateRunnerLoadPolicy } from '../../heavy.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { runFixtureChildAsync } from '../fixtures/child.js';
 
@@ -54,7 +54,7 @@ finally { for (const entry of pending) entry.control.cancel = true; for (const l
   assert.equal(result.status, 0, `${result.context}\n${result.stdout}\n${result.stderr}`);
 }
 
-test('a timed check runs on the runner kept by measured headroom while ordinary runs keep every slot on the others [C7]', async t => {
+test('gate.timing.kept-runner-timed-checks: a timed check runs on the runner kept by measured headroom while ordinary runs keep every slot on the others [C7]', async t => {
   await scenario(t, `
 const hosts = [];
 for (let n = 0; n < 6; n++) hosts.push((await ordinary('ordinary-' + n)).runner.host);
@@ -72,7 +72,7 @@ assert.equal(db.prepare("SELECT count(*) AS n FROM runner_timing_event WHERE kin
 `);
 });
 
-test('with the kept runner busy, timed checks queue for it and ordinary runs are unaffected [C7]', async t => {
+test('gate.timing.busy-runner-queues-timed: with the kept runner busy, timed checks queue for it and ordinary runs are unaffected [C7]', async t => {
   await scenario(t, `
 const first = await timed('timed-first').promise;
 db ??= new DatabaseSync(first.pool);
@@ -91,7 +91,7 @@ assert.equal(on('busy-a') + on('small-c'), 6, 'ordinary runs were never disturbe
 `);
 });
 
-test('a configured runner is kept, and false returns to the drain rule [C7]', async t => {
+test('gate.timing.configured-runner-kept: a configured runner is kept, and false returns to the drain rule [C7]', async t => {
   await scenario(t, `
 policy = { enabled: false, timingRunner: 'small-c' };
 const lease = await timed('timed-configured').promise;
@@ -107,7 +107,7 @@ assert.equal(db.prepare('SELECT count(*) AS n FROM runner_timing_reserve').get()
 `);
 });
 
-test('a timed check off the runner-only path still waits for the kept runner, never the local slot [C7]', async t => {
+test('gate.timing.off-runner-path-waits: a timed check off the runner-only path still waits for the kept runner, never the local slot [C7]', async t => {
   await scenario(t, `
 const lease = await timed('timed-default', { runnerOnly: false }).promise;
 db ??= new DatabaseSync(lease.pool);
@@ -121,7 +121,7 @@ assert.equal((await second.promise).runner?.host, 'quiet-b');
 `);
 });
 
-test('a host restriction that cannot meet the kept runner is refused, and one that can is honoured [C7]', async t => {
+test('gate.timing.host-restriction-refused-or-honoured: a host restriction that cannot meet the kept runner is refused, and one that can is honoured [C7]', async t => {
   await scenario(t, `
 await assert.rejects(takeResource({ ...base, timing: true, agent: 'timed-elsewhere', requiredExecutor: { kind: 'ssh', host: 'busy-a' } }),
   error => error.code === 'TIMING_RUNNER_RESTRICTION' && /quiet-b/u.test(error.message), 'a timed check restricted away from the kept runner is refused');
@@ -136,14 +136,14 @@ assert.equal(timedLease.runner.host, 'quiet-b', 'a timed check whose restriction
 `);
 });
 
-test('the gate keeps a runner by default and the setting names one or turns it off [C7]', () => {
+test('gate.timing.default-kept-runner-setting: the gate keeps a runner by default and the setting names one or turns it off [C7]', () => {
   assert.equal(gateRunnerLoadPolicy({}).timingRunner, 'auto');
   assert.equal(gateRunnerLoadPolicy({ gate: { timingRunner: 'runner-7' } }).timingRunner, 'runner-7');
   assert.equal(gateRunnerLoadPolicy({ gate: { timingRunner: false } }).timingRunner, false);
 });
 
 
-test('reserved timed checks keep queueing past ordinary runner deadlines with free local and other runner slots [C7]', async t => {
+test('gate.timing.reserved-timed-queue-past-deadlines: reserved timed checks keep queueing past ordinary runner deadlines with free local and other runner slots [C7]', async t => {
   await scenario(t, `
 let first = await timed('deadline-first').promise;
 db ??= new DatabaseSync(first.pool);
@@ -167,7 +167,7 @@ for (const runnerOnly of [false, true]) {
 `);
 });
 
-test('a reserved timed check explicitly refuses a local-only executor [C7]', async t => {
+test('gate.timing.reserved-timed-refuses-local: a reserved timed check explicitly refuses a local-only executor [C7]', async t => {
   await scenario(t, `
 await assert.rejects(takeResource({ ...base, runnerOnly: false, timing: true, agent: 'timed-local', requiredExecutor: { kind: 'local' } }),
   error => error.code === 'TIMING_RUNNER_RESTRICTION', 'local execution cannot satisfy the reserved runner');

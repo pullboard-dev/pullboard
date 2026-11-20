@@ -101,7 +101,8 @@ function treeText(root, dir) {
  */
 function signature(box) {
   if (!box.runSync || box.runSync.of !== box.run || box.declareFamilies) return null;
-  const env = JSON.stringify(Object.entries(box.env).sort(([a], [b]) => a < b ? -1 : 1)).replaceAll(box.dir, '@');
+  // NODE_COMPILE_CACHE names the journey file's shared cache folder (#10415): it differs per helpers instance, not per project shape.
+  const env = JSON.stringify(Object.entries(box.env).filter(([key]) => key !== 'NODE_COMPILE_CACHE').sort(([a], [b]) => a < b ? -1 : 1)).replaceAll(box.dir, '@');
   return createHash('sha256').update(env).update(treeText(box.dir, box.dir)).digest('hex');
 }
 

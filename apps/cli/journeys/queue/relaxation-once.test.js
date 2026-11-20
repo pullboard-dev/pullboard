@@ -37,7 +37,7 @@ function busyBoard(t) {
   return { board, ids };
 }
 
-test('clause 1: a selection over 10 submitted items on a 30-seat board builds the witness once [C7]', t => {
+test('cli.journeys-queue-relaxation-once.a-selection-over-10-submitted-items: clause 1: a selection over 10 submitted items on a 30-seat board builds the witness once [C7]', t => {
   const { board, ids } = busyBoard(t);
   let queueReads = 0;
   const ports = { reviewerChecks: store.reviewerChecks, reviewHolder, reviewReleaseCooldown: store.reviewReleaseCooldown,
@@ -47,7 +47,7 @@ test('clause 1: a selection over 10 submitted items on a 30-seat board builds th
   assert.equal(queueReads, 1, `the queue was read ${queueReads} times for ${ids.length} candidates`);
 });
 
-test('clause 2: the shared witness equals the one each candidate would build alone [C7]', t => {
+test('cli.journeys-queue-relaxation-once.the-shared-witness-equals-the-one: clause 2: the shared witness equals the one each candidate would build alone [C7]', t => {
   const { board, ids } = busyBoard(t);
   const ports = { reviewerChecks: store.reviewerChecks, reviewHolder, reviewReleaseCooldown: store.reviewReleaseCooldown,
     listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy };

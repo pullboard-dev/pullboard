@@ -20,6 +20,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -43,8 +44,9 @@ function commitFile(box, cwd, path, text, message) {
 // Joins, adds, claims, submits and verifies stay processes: with any of them in-process, a later write by another identity
 // runs the lapsed-claim sweep and returns a claim that waits on an unlanded dependency (NOT_YOURS at submit). Only the
 // read-only show calls run in-process (#6003).
-test("clause 2: a dependency's own verified dependency admits its files [N16,V4]", async () => {
+test('cli.journeys-show-policy-dependency.a-dependency-s-own-verified-dependency: clause 2: a dependency\'s own verified dependency admits its files [N16,V4]', async () => {
   const box = project('true');
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: false } });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.design = { owns: ['design/'], specs: ['G1'] };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));

@@ -12,7 +12,7 @@ const MACHINE_KEYS = new Set(settingsInventory([], null, { defaultViewPort: () =
 
 const OUTSIDE_LIVE_KEYS = 'gate.fencedHop';
 
-test('clause 1: every moves.live. machine default is a LIVE_SWITCH value, and every LIVE_SWITCH value but gate.fencedHop is a machine default [C7,#9366]', () => {
+test('cli.io-commands-moves-switches.every-moves-live-machine-default-is-a: clause 1: every moves.live. machine default is a LIVE_SWITCH value, and every LIVE_SWITCH value but gate.fencedHop is a machine default [C7,#9366]', () => {
   const liveKeys = [...MACHINE_KEYS].filter(key => key.startsWith('moves.live.'));
   assert.ok(liveKeys.length > 0, 'the machine defaults list at least one moves.live. key');
   const switches = new Set(Object.values(LIVE_SWITCH));
@@ -23,7 +23,7 @@ test('clause 1: every moves.live. machine default is a LIVE_SWITCH value, and ev
   }
 });
 
-test('clause 2: a recorded table with no switch still lists with liveSwitch null and does not throw [C7,#9366]', () => {
+test('cli.io-commands-moves-switches.a-recorded-table-with-no-switch-still: clause 2: a recorded table with no switch still lists with liveSwitch null and does not throw [C7,#9366]', () => {
   const shadows = { mystery: { compared: 3, disagreed: 0, since: '2026-11-15T12:00:00.000Z', lastDisagreedAt: null, last: [] } };
   const rows = movesReport(shadows, [], {});
   assert.equal(rows.length, 1);

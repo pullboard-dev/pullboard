@@ -1,4 +1,4 @@
-import { recentReceipts } from '../../../../../packages/gate/index.js';
+import { recentReceipts } from '../../../../../packages/gate/heavy.js';
 import { runnerLossHealth } from '../../logic/runner/loss.js';
 import { runnerLossLines } from '../../logic/runner/loss.js';
 import { maintenanceTimerHealth } from '../worktree/maintenance/scheduler.js';
@@ -9,8 +9,7 @@ import { toolBuildLocation } from '../pinned/tool/build.js';
 import { unfinishedFolders } from '../item/folder.js';
 import { fileURLToPath } from 'node:url';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import {
   boardHealth,
   healthLines,
@@ -31,6 +30,9 @@ import { machineLoadVerdict } from '../../../../../packages/resources/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
 import { healthDiskFloorGb } from '../../../../../packages/config/index.js';
 import { diskFloorFinding } from '../health/disk.js';
+import { duplicateRunnerPlaces } from '../../../../../packages/api/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Run `pullboard health` and return its exit code. */
 export async function run(io, { values = {}, statfs } = {}) {
@@ -47,6 +49,7 @@ export async function run(io, { values = {}, statfs } = {}) {
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
   report.overdueRunnerLeases = runnerHealth.filter(row => row.deadline !== undefined);
   report.runnerLifecycleProblems = runnerHealth.filter(row => row.problem);
+  report.runnerDuplicates = duplicateRunnerPlaces(ctx.clock.now().getTime());
   report.dirtyWorktrees = [];
   if (ctx.config.worktreeMaintenance?.enabled === true) {
     const { maintenanceHealth } = await import('../worktree/maintenance.js');
@@ -72,6 +75,7 @@ export async function run(io, { values = {}, statfs } = {}) {
   if (report.toolBuild.newestEligible) io.say(`Newest eligible tool build ${report.toolBuild.newestEligible.commit}; gate age ${Math.floor(report.toolBuild.newestEligible.ageMs / 1000)}s`);
   for (const lease of report.overdueRunnerLeases) io.say(`runner execution deadline ${new Date(lease.deadline).toISOString()} passed; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; controller pid ${lease.controllerPid}; ${lease.repo}`);
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
+  for (const place of report.runnerDuplicates) io.say(`RUNNER_DUPLICATE: runners ${place.runners.join(' and ')} claim from host ${place.host}, runner folder ${place.root}; on the host, stop the older service (pullboard runner list shows how it was installed)`);
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   io.say(report.machineLoad.line);
@@ -81,13 +85,13 @@ export async function run(io, { values = {}, statfs } = {}) {
     ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
     : `worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
   for (const row of report.unfinishedFolders) io.say(`item folder with an unfinished ${row.operation}: ${JSON.stringify(row.path)}; seat ${row.seat ?? 'unregistered'}, #${row.item}; finish or abort it there`);
-  return report.stuck.length || report.unfinishedFolders.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.dirtyWorktrees.length ? 1 : 0;
+  return report.stuck.length || report.unfinishedFolders.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.runnerDuplicates.length || report.dirtyWorktrees.length ? 1 : 0;
 
 }
 
 /** Each seat's id by its worktree path, so a block names who was stopped; a missing board names none. */
 function seatsByPath(file) {
-  if (!existsSync(file)) return new Map();
+  if (!fs.exists(file)) return new Map();
   const db = openBoardReadOnly(file);
   try { return new Map(db.prepare('SELECT agent_id, agent_path FROM agent').all().map(seat => [seat.agent_path, seat.agent_id])); }
   finally { db.close(); }
@@ -139,7 +143,7 @@ export function blockLines({ codes, drafts }, { detail = true } = {}) {
 
 /** Read active automatic quarantines without opening a mutable board or exposing private log bytes; the clock lets each item's stage be read. */
 function automaticQuarantines(file, clock) {
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   const db = openBoardReadOnly(file);
   try { return flakeQuarantines({ db, clock }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
   finally { db.close(); }
@@ -147,5 +151,5 @@ function automaticQuarantines(file, clock) {
 
 /** The board file's real path, which is how the hold log names it; the given path when it cannot be resolved. */
 function realBoardFile(file) {
-  try { return realpathSync(file); } catch { return file; }
+  try { return fs.realpath(file); } catch { return file; }
 }

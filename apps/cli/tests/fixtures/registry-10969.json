@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-join-level.join-json-carries-level-beside-route": {"proves":{"specs":["C7"],"claim":"The --json result of pullboard join carries a level key equal to its route key, with route kept as an alias, on the new-registration and already-joined paths."},"why":"Without it, the approved level name would be missing from join --json and callers moving to level would read nothing.","kind":"journey","inputs":["apps/cli/tests/io/commands/join.test.js","apps/cli/src/io/commands/join.js"]}
+}

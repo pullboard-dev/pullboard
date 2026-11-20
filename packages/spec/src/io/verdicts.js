@@ -1,5 +1,4 @@
 /** Recorded outside-parent verdicts for known board-drafted spec rows [S1,V4,H16]. */
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   lintSpec,
@@ -11,6 +10,9 @@ import {
   rowVerificationSource,
   verifiedRowSource,
 } from '../logic/format.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Read immutable recorded parent/session identity without treating an unknown seat as independent. */
 function recordedParent(board, id) {
@@ -133,7 +135,7 @@ export function rowVerificationFindings(board, parsed, source, { rowDrafts }) {
 /** Plan only matching current rows; stale verdicts never overwrite changed requirements or signed decisions. */
 export function planRowVerificationApply(root, config, records, decisions) {
   const file = config.spec;
-  const before = readFileSync(join(root, file), 'utf8');
+  const before = fs.readFile(join(root, file), 'utf8');
   const parsed = parseSpec(before);
   const lines = before.split('\n');
   const applied = [];

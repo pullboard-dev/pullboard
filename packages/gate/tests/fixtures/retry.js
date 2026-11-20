@@ -6,11 +6,12 @@ import { takeResource } from ${JSON.stringify(resourcesUrl)};
 const runner = ${JSON.stringify(runner)};
 const blocker = await takeResource({name:'gate',root:process.cwd(),capacity:0,remote:true,scope:'machine',runnerProvider:()=>[runner],runnerWaitMs:15000,agent:'infra-retry-blocker',kind:'submit',itemCheck:true});
 const deadline = Date.now() + 75;
-const releaseTimer = setTimeout(() => blocker.release(), 250);
+// The blocker frees on the retry's wait, never on a clock: at most one poll after the deadline belongs to the first attempt, so the second is the retry's and no load can free the slot before the deadline fires.
+let latePolls = 0;
+const releaseOnRetry = () => { if (Date.now() >= deadline && ++latePolls === 2) blocker.release(); };
 const receipts = [];
 const result = await withGateSlot(process.cwd(), lease => runProfiledShellAsync(process.cwd(), ${JSON.stringify(shellCommand)}, {gateLease:lease}),
-  {executionServices,remote:true,runnerOnly:true,runnerWaitMs:15000,runnerDeadlineAt:deadline,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});
-clearTimeout(releaseTimer);
+  {executionServices,remote:true,runnerOnly:true,runnerWaitMs:15000,runnerDeadlineAt:deadline,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait:releaseOnRetry,onReceipt:receipt=>receipts.push(receipt)});
 const pool = (await import(${JSON.stringify(resourcesUrl)})).listResources({scope:'machine'}).find(row=>row.name==='gate');
 console.log(JSON.stringify({green:result.isGreen,output:result.output,receipts,pool:{holders:pool.holders.length,line:pool.line.length}}));`;
 }

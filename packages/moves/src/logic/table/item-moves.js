@@ -1,5 +1,6 @@
 /** The item-move half of the backbone table: every declared guard as a rule fact, and the rows that run them over a recorded move [C7,#8100]. */
 import { MACHINE } from '../../../../state/light.js';
+import { soloLowStakesHolds } from '../lifecycle/rules.js';
 import { leaseLive } from '../lifecycle/rules.js';
 import { unmetWaits } from '../lifecycle/rules.js';
 
@@ -42,7 +43,7 @@ const FROM_BOARD = {
   isHolder: (s, m) => s.item?.owner === m.actor,
   holderOrCoordinator: (s, m) => m.actor === 'coordinator' || s.item?.owner === m.actor || maintenance(m),
   releaseOwnsWork: (s, m) => m.actor === 'coordinator' || s.item?.owner === m.actor || maintenance(m),
-  notBuilder: (s, m) => !(s.item?.builder && s.item.builder === m.actor),
+  notBuilder: (s, m) => !(s.item?.builder && s.item.builder === m.actor) || soloLowStakesHolds(s, m.name),
   notMerged: (s) => !s.item?.merged,
   // A spec refreeze reopens verified work only while it is unmerged (store refreeze.js); the CLI may still say it does not hold.
   specRefreezeAllowed: (s) => s.facts?.specRefreezeAllowed !== false && !(s.item?.status === 'verified' && s.item.merged),

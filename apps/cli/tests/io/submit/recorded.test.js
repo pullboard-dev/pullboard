@@ -45,7 +45,7 @@ function runner() {
   return { asked, compare };
 }
 
-test('clause 1: a red file with a recorded red result at the current main is a main red without running on main [C7]', async t => {
+test('cli.io-submit-recorded.a-red-file-with-a-recorded-red: clause 1: a red file with a recorded red result at the current main is a main red without running on main [C7]', async t => {
   const { root, main } = project(t, 'web/known.test.js');
   const { asked, compare } = runner();
   const retained = [];
@@ -59,7 +59,7 @@ test('clause 1: a red file with a recorded red result at the current main is a m
   assert.deepEqual(retained, ['mr-known'], 'the recorded receipt is retained as the comparison evidence');
 });
 
-test('clause 2: a red file with no recorded main result at the current main still reruns on main, and only that file [C7]', async t => {
+test('cli.io-submit-recorded.a-red-file-with-no-recorded-main: clause 2: a red file with no recorded main result at the current main still reruns on main, and only that file [C7]', async t => {
   const { root, main } = project(t, 'web/known.test.js');
   const { asked, compare } = runner();
   const profile = { tests: [{ file: 'web/known.test.js', passed: false }, { file: 'web/fresh.test.js', passed: false }] };

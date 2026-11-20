@@ -35,14 +35,14 @@ function peak(results) {
   return Math.max(...spans.map(([start]) => spans.filter(([from, to]) => from <= start && start < to).length));
 }
 
-test('clause 1: with landing.staticParallelMax at 2, at most 2 child-process checks are in flight at once [C7]', async () => {
+test('gate.io-static-parallel-children.with-landing-staticparallelmax-at-2-at: clause 1: with landing.staticParallelMax at 2, at most 2 child-process checks are in flight at once [C7]', async () => {
   const results = await runChildren(Array.from({ length: 5 }, napper), 2);
   assert.equal(results.length, 5);
   assert.ok(results.every(result => result.status === 0));
   assert.equal(peak(results), 2, 'two overlap, never three');
 });
 
-test('clause 1: the parallel registry run returns the same rows as the serial run, in registry order [C7]', async () => {
+test('gate.io-static-parallel-children.the-parallel-registry-run-returns-the: clause 1: the parallel registry run returns the same rows as the serial run, in registry order [C7]', async () => {
   const args = (name, ms) => ['-e', `setTimeout(() => process.stdout.write('${name}'), ${ms})`];
   const mk = (name, ms) => ({ name, reads: () => true, child: () => ({ args: args(name, ms), options: { cwd: ROOT } }),
     run: (root, sources, context) => [`${name}: ${context.children?.get(name)?.stdout ?? name}`] });
@@ -54,11 +54,11 @@ test('clause 1: the parallel registry run returns the same rows as the serial ru
   assert.deepEqual(parallel, serial);
 });
 
-test('clause 2: with landing.staticParallelMax unset, the checks run serially and the sync entry is the default [C7]', () => {
+test('gate.io-static-parallel-children.with-landing-staticparallelmax-unset-the-checks: clause 2: with landing.staticParallelMax unset, the checks run serially and the sync entry is the default [C7]', () => {
   assert.equal(withSettings({}, staticParallelMax), null);
 });
 
-test('clause 3: landing.staticParallelMax is a described setting, unset by default, and a value below 1 is refused [C7]', async () => {
+test('gate.io-static-parallel-children.landing-staticparallelmax-is-a-described-setting: clause 3: landing.staticParallelMax is a described setting, unset by default, and a value below 1 is refused [C7]', async () => {
   assert.match(describeSetting('landing.staticParallelMax').description, /static/u);
   assert.equal(withSettings({ landing: { staticParallelMax: 3 } }, staticParallelMax), 3);
   for (const bad of [0, -1, 1.5, '2']) {

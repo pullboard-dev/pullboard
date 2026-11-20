@@ -26,13 +26,15 @@ import { checkReceiptKey } from '../../../../git/index.js';
 import { readCheckReceipt } from '../../../../git/index.js';
 import { writeCheckReceipt } from '../../../../git/index.js';
 import { fileURLToPath } from 'node:url';
+import { loadMachineSettings } from '../../../../config/index.js';
+import { splitByMain } from '../../logic/static/findings.js';
 /** Quote a fixed executable or selected path without permitting shell expansion. */
 export function commandWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
-/** Run the project's declared static guard before proof, retaining normal queue classification. */
-export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {}, executionServices, artifactDirectory, signal, onReceipt = (receipt, reused) => { if (reused) process.stderr.write(`${receiptLine(receipt)}\n`); } } = {}) {
+/** Run the project's declared static guard before proof, retaining normal queue classification; `mainFindings` reads main's findings when gate.knownMainStatic is on. */
+export async function runStaticChecks(root, config, { agent, item = '', onWait, onBrowserFallback, runnerAdmission = {}, executionServices, artifactDirectory, signal, mainFindings, onReceipt = (receipt, reused) => { if (reused) process.stderr.write(`${receiptLine(receipt)}\n`); } } = {}) {
   const command = config.staticChecks?.trim();
   if (!command) return null;
   // A green run on this exact tree, command, runner code and config is cited, not repeated (#2230).
@@ -47,7 +49,13 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
   return withGateSlot(root, async lease => {
     const run = await runProfiledShellAsync(root, command, { waitMs: lease.waitMs, artifactDirectory, artifactPrefix: 'pullboard-static-checks', persistLog: true, gateLease: lease, signal, readOnlyGit: true });
     refuseSandboxBlocked(run);
-    if (!run.isGreen) throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${digestOf(run.output)}`);
+    if (!run.isGreen) {
+      // With gate.knownMainStatic on, a finding main also has never refuses the item; only the rest does, naming just those rows [C7,#10450].
+      const split = loadMachineSettings().gate?.knownMainStatic === true && typeof mainFindings === 'function' ? splitByMain(run.output, await mainFindings()) : null;
+      if (split?.known.length && !split.rows.length) return { ...run, knownMain: split.known };
+      if (split?.known.length) throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${split.rows.join('\n')}`);
+      throw new Refused('GATE_RED', `static checks are red; fix the named source before running proof:\n${digestOf(run.output)}`);
+    }
     const receipt = writeCheckReceipt(root, key, { by: agent ?? '' });
     if (receipt) onReceipt?.(receipt, false);
     return { ...run, receipt };

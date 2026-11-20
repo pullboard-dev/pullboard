@@ -55,7 +55,7 @@ function indexTree(repo, snapshot) {
   return execFileSync('git', ['-C', repo, `--work-tree=${snapshot}`, 'write-tree'], { encoding: 'utf8', env: { ...process.env, GIT_INDEX_FILE: join(snapshot, TOOLS_INDEX) } }).trim();
 }
 
-test('clause 1: a tooling change moves the idle kept snapshot, writing only the files that differ, at the commit tree id [C7]', t => {
+test('cli.io-toolsnapshot.a-tooling-change-moves-the-idle-kept: clause 1: a tooling change moves the idle kept snapshot, writing only the files that differ, at the commit tree id [C7]', t => {
   const { repo } = sandbox(t);
   const first = toolsSnapshot(repo, 'job-1');
   const untouched = statSync(join(first, 'packages', 'a.js')).ino;
@@ -71,7 +71,7 @@ test('clause 1: a tooling change moves the idle kept snapshot, writing only the 
   assert.equal(existsSync(join(second, 'apps', 'b.js')), true, 'an added file is written');
 });
 
-test('clause 1: an idle snapshot whose files differ from its index is never moved; the full snapshot is built [C7]', t => {
+test('cli.io-toolsnapshot.an-idle-snapshot-whose-files-differ-from: clause 1: an idle snapshot whose files differ from its index is never moved; the full snapshot is built [C7]', t => {
   const { repo } = sandbox(t);
   const first = toolsSnapshot(repo, 'job-1');
   writeFileSync(join(first, 'packages', 'a.js'), 'export const packages = "edited";\n');
@@ -82,7 +82,7 @@ test('clause 1: an idle snapshot whose files differ from its index is never move
   assert.equal(readFileSync(join(second, 'packages', 'a.js'), 'utf8'), 'export const packages = 1;\n', 'the edit never reaches a gate');
 });
 
-test('clause 1: a snapshot used within the idle limit stays where it is and the full snapshot is built [C7]', t => {
+test('cli.io-toolsnapshot.a-snapshot-used-within-the-idle-limit: clause 1: a snapshot used within the idle limit stays where it is and the full snapshot is built [C7]', t => {
   const { repo } = sandbox(t);
   const first = toolsSnapshot(repo, 'job-1');
   toolingChange(repo);

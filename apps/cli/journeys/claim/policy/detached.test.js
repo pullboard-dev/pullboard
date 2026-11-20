@@ -46,7 +46,7 @@ for (const decision of ['accept', 'reject']) {
   });
 }
 
-test('a detached old candidate cannot hide a changed approved row on accepted main [V4,B6]', async t => {
+test('cli.journeys-claim-policy-detached.a-detached-old-candidate-cannot-hide: a detached old candidate cannot hide a changed approved row on accepted main [V4,B6]', async t => {
   const box = await submitted(t);
   // A person-approved Git edit can arrive without spec apply's atomic native refreeze.
   await success(box, box.repo, 'spec', 'approve', 'G1', '--text', 'The page renders a new heading.');
@@ -62,7 +62,7 @@ test('a detached old candidate cannot hide a changed approved row on accepted ma
   assert.equal(shown.item_status, 'submitted', 'the stale candidate receives no acceptance');
 });
 
-test('verification preserves planted policy refusals rather than changing their code [V4,C7]', () => {
+test('cli.journeys-claim-policy-detached.verification-preserves-planted-policy-refusals-rather: verification preserves planted policy refusals rather than changing their code [V4,C7]', () => {
   for (const code of ['NO_POLICY', 'NO_CONFIG', 'BAD_CONFIG', 'MAIN_FACTS_BUSY', 'A5_GRAMMAR_VERSION']) {
     const refusal = new Refused(code, 'Planted policy refusal');
     assert.throws(() => verificationCriterionDigest(() => { throw refusal; }, {}), error => error === refusal);

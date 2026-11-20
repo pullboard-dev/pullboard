@@ -75,13 +75,13 @@ function realDetail(file, event) {
   return { to: null, text: fields };
 }
 
-test('clause 1: with watch.quietReads on and --kinds shout, 50 non-shout events make zero detail lookups and print nothing [C7,#9844]', async (t) => {
+test('cli.journeys-watch-quiet-detail.with-watch-quietreads-on-and-kinds: clause 1: with watch.quietReads on and --kinds shout, 50 non-shout events make zero detail lookups and print nothing [C7,#9844]', async (t) => {
   const { lookups, lines } = await follow(t, true, { kinds: 'shout' });
   assert.equal(lookups, 0);
   assert.deepEqual(lines, []);
 });
 
-test('clause 2: with no filter the printed lines are identical with watch.quietReads on and off [C7,#9844]', async (t) => {
+test('cli.journeys-watch-quiet-detail.with-no-filter-the-printed-lines: clause 2: with no filter the printed lines are identical with watch.quietReads on and off [C7,#9844]', async (t) => {
   const on = await follow(t, true, {});
   const off = await follow(t, false, {});
   assert.ok(on.lines.length >= COUNT, 'every event prints');
@@ -89,7 +89,7 @@ test('clause 2: with no filter the printed lines are identical with watch.quietR
   assert.equal(on.lookups, off.lookups);
 });
 
-test('clause 3: with watch.quietReads off every event is looked up as today, even under --kinds shout [C7,#9844]', async (t) => {
+test('cli.journeys-watch-quiet-detail.with-watch-quietreads-off-every-event: clause 3: with watch.quietReads off every event is looked up as today, even under --kinds shout [C7,#9844]', async (t) => {
   const { lookups, lines } = await follow(t, false, { kinds: 'shout' });
   assert.ok(lookups >= COUNT, 'each of the 50 events is looked up');
   assert.deepEqual(lines, []);

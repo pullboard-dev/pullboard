@@ -42,7 +42,7 @@ function unlockedFreeze(peer, observed) {
   };
 }
 
-test('registration heartbeat and nested sidecars wait for the outer commit [B2,C7]', t => {
+test('cli.journeys-status-writer.registration-heartbeat-and-nested-sidecars-wait: registration heartbeat and nested sidecars wait for the outer commit [B2,C7]', t => {
   const board = fixtureBoard(t, { storage: 'file', purpose: 'locking' });
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
   const peer = new DatabaseSync(file);
@@ -65,7 +65,7 @@ test('registration heartbeat and nested sidecars wait for the outer commit [B2,C
   assert.deepEqual(observed, ['released'], 'rolled-back callbacks never run and committed callbacks see a free writer');
 });
 
-test('claim prepares its criterion before the real SQLite write lock [B2,C7,V2]', t => {
+test('cli.journeys-status-writer.claim-prepares-its-criterion-before-the: claim prepares its criterion before the real SQLite write lock [B2,C7,V2]', t => {
   const { board, agentId, id, peer } = setup(t);
   const observed = { calls: 0 };
   const result = store.claim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000,
@@ -76,7 +76,7 @@ test('claim prepares its criterion before the real SQLite write lock [B2,C7,V2]'
   assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 1);
 });
 
-test('a refused claim keeps the original guard priority before criterion preparation [B2,V2]', t => {
+test('cli.journeys-status-writer.a-refused-claim-keeps-the-original: a refused claim keeps the original guard priority before criterion preparation [B2,V2]', t => {
   const { board, agentId, id } = setup(t);
   const before = store.events(board);
   let calls = 0;
@@ -89,7 +89,7 @@ test('a refused claim keeps the original guard priority before criterion prepara
 });
 
 
-test('the native command prepares before its enclosing writer too [B2,C7,V2]', t => {
+test('cli.journeys-status-writer.the-native-command-prepares-before-its: the native command prepares before its enclosing writer too [B2,C7,V2]', t => {
   const { board, agentId, id, peer } = setup(t);
   const observed = { calls: 0 };
   const result = writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: 7_200_000,
@@ -99,7 +99,7 @@ test('the native command prepares before its enclosing writer too [B2,C7,V2]', t
   assert.equal(store.getItem(board, id).item_owner, agentId);
 });
 
-test('an intervening native edit invalidates prepared source without a partial claim [B2,C7,V2]', t => {
+test('cli.journeys-status-writer.an-intervening-native-edit-invalidates-prepared: an intervening native edit invalidates prepared source without a partial claim [B2,C7,V2]', t => {
   const { board, agentId, id, peer } = setup(t);
   const observed = { calls: 0 };
   const prepared = store.prepareClaim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000,
@@ -112,7 +112,7 @@ test('an intervening native edit invalidates prepared source without a partial c
   assert.equal(observed.calls, 1, 'a stale binding never repeats external work while locked');
 });
 
-test('claim preparation rechecks original guards after an intervening native hold [B2,C7,V2]', t => {
+test('cli.journeys-status-writer.claim-preparation-rechecks-original-guards-after: claim preparation rechecks original guards after an intervening native hold [B2,C7,V2]', t => {
   const { board, agentId, id, peer } = setup(t);
   const observed = { calls: 0 };
   const freeze = unlockedFreeze(peer, observed);
@@ -127,7 +127,7 @@ test('claim preparation rechecks original guards after an intervening native hol
   assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
 });
 
-test('continuous native edits exhaust bounded preparation without a partial claim [B2,C7,V2]', t => {
+test('cli.journeys-status-writer.continuous-native-edits-exhaust-bounded-preparation: continuous native edits exhaust bounded preparation without a partial claim [B2,C7,V2]', t => {
   const { board, agentId, id, peer } = setup(t);
   const observed = { calls: 0 };
   const freeze = unlockedFreeze(peer, observed);
@@ -143,7 +143,7 @@ test('continuous native edits exhaust bounded preparation without a partial clai
 });
 
 
-test('a non-claim native command retains its own arguments and domain guards [B2,C7]', t => {
+test('cli.journeys-status-writer.a-non-claim-native-command-retains: a non-claim native command retains its own arguments and domain guards [B2,C7]', t => {
   const { board, agentId, id } = setup(t);
   const result = writeBoardCommand(board, 'shout', [{ from: agentId, to: 'all', text: 'A native non-claim message' }], agentId);
   assert.ok(result);
@@ -159,7 +159,7 @@ function guardSources(source, extra = []) {
     { file: 'src/fixture-writer.js', source }, ...extra];
 }
 
-test('the write guard follows named, aliased and reexported I/O without running source [C7,CD39]', () => {
+test('cli.journeys-status-writer.the-write-guard-follows-named-aliased: the write guard follows named, aliased and reexported I/O without running source [C7,CD39]', () => {
   const cases = [
     "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {readFileSync as load} from 'node:fs'; atomic(board, () => load('private'));",
     "import {atomic as tx} from '../packages/store/src/io/board/event/log.js'; import fs from 'node:fs'; const io=fs; const write=() => io.readFileSync('private'); tx(board, () => write());",
@@ -175,7 +175,21 @@ test('the write guard follows named, aliased and reexported I/O without running 
   assert.deepEqual(boardWriteIoProblems(guardSources(pure), { pending: {} }), []);
 });
 
-test('network imports and global requests cannot run inside a board writer [B2,C7,CD39]', () => {
+test('cli.journeys-status-writer.the-runs-store-opener-is-refused-inside: clause 1: the runs store opener is refused inside an atomic board write, with its chain, and allowed outside one [C7,CD39,#7430]', () => {
+  const atomic = "import {atomic} from '../packages/store/src/io/board/event/log.js';";
+  const extra = [{ file: 'packages/store/index.js', source: "export { openRunsStore } from './src/io/board/sqlite.js';" },
+    { file: 'packages/store/src/io/board/sqlite.js', source: 'export function openRunsStore(file, options) { return { file, options }; }' },
+    { file: 'src/opener.js', source: "import {openRunsStore} from '../packages/store/index.js'; export function openRuns() { return openRunsStore('runs.sqlite', {}); }" }];
+  const direct = boardWriteIoProblems(guardSources(`${atomic} import {openRunsStore} from '../packages/store/index.js'; atomic(board, () => openRunsStore('runs.sqlite', {}));`, extra), { pending: {} });
+  assert.deepEqual(direct.map(row => row.call), ['openRunsStore']);
+  const chained = boardWriteIoProblems(guardSources(`${atomic} import {openRuns} from './opener.js'; atomic(board, () => openRuns());`, extra), { pending: {} });
+  assert.deepEqual(chained.map(row => row.call), ['openRunsStore']);
+  assert.deepEqual(chained[0].chain.slice(-1), ['src/opener.js#openRuns'], 'the chain names the caller that opens the runs store');
+  const outside = boardWriteIoProblems(guardSources(`${atomic} import {openRunsStore} from '../packages/store/index.js'; export function open() { return openRunsStore('runs.sqlite', {}); } atomic(board, () => 1);`, extra), { pending: {} });
+  assert.deepEqual(outside, [], 'the same call made outside any write is not a problem');
+});
+
+test('cli.journeys-status-writer.network-imports-and-global-requests-cannot: network imports and global requests cannot run inside a board writer [B2,C7,CD39]', () => {
   const cases = [
     "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {request as send} from 'node:https'; atomic(board, () => send('https://invalid.test'));",
     "import {atomic} from '../packages/store/src/io/board/event/log.js'; import * as net from 'node:net'; atomic(board, () => net.connect(1234));",
@@ -190,12 +204,12 @@ test('network imports and global requests cannot run inside a board writer [B2,C
   assert.deepEqual(boardWriteIoProblems(guardSources(address), { pending: {} }), [], 'pure address validation performs no network I/O');
 });
 
-test('opaque atomic callbacks are refused rather than silently certified [C7,CD39]', () => {
+test('cli.journeys-status-writer.opaque-atomic-callbacks-are-refused-rather: opaque atomic callbacks are refused rather than silently certified [C7,CD39]', () => {
   const source = "import {atomic} from '../packages/store/src/io/board/event/log.js'; atomic(board, callbacks[name]);";
   assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).some(row => row.call === 'unresolved atomic callback'));
 });
 
-test('the native write publication admits no filesystem or process call [C7,CD39]', () => {
+test('cli.journeys-status-writer.the-native-write-publication-admits-no: the native write publication admits no filesystem or process call [C7,CD39]', () => {
   const source = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {beginBoardWrite} from './board-write-lock.js'; atomic(board, () => beginBoardWrite());";
   const writer = "import {writeFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function beginBoardWrite() { writeFileSync('marker', 'owned'); execFileSync('git'); }";
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-write-lock.js', source: writer }]), { pending: {} });
@@ -203,7 +217,7 @@ test('the native write publication admits no filesystem or process call [C7,CD39
   assert.ok(problems.some(row => row.call === 'node:fs#writeFileSync'));
 });
 
-test('the named policy witness cannot hide unrelated reads or a child process [C7,CD39]', () => {
+test('cli.journeys-status-writer.the-named-policy-witness-cannot-hide: the named policy witness cannot hide unrelated reads or a child process [C7,CD39]', () => {
   const policy = { file: 'apps/cli/src/io/read.js', source:
     "import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; function policyRefBytes() { return readFileSync('ref'); } function writePolicySignature() { policyRefBytes(); readFileSync('unrelated'); execFileSync('git'); }" };
   const problems = boardWriteIoProblems(guardSources('', [policy]));
@@ -211,7 +225,7 @@ test('the named policy witness cannot hide unrelated reads or a child process [C
   assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
 });
 
-test('calling the hold append inside a writer exempts no I/O [C7,CD39]', () => {
+test('cli.journeys-status-writer.calling-the-hold-append-inside-a: calling the hold append inside a writer exempts no I/O [C7,CD39]', () => {
   const source = "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {recordBoardHold} from './board-hold-log.js'; atomic(board, () => recordBoardHold());";
   const writer = "import {writeSync, readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function recordBoardHold() { writeSync(1, 'line'); readFileSync('unrelated'); execFileSync('git'); }";
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-hold-log.js', source: writer }]), { pending: {} });
@@ -220,7 +234,7 @@ test('calling the hold append inside a writer exempts no I/O [C7,CD39]', () => {
   assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
 });
 
-test('receipt reads are refused in every writer, including the train writer [C7,CD39]', () => {
+test('cli.journeys-status-writer.receipt-reads-are-refused-in-every: receipt reads are refused in every writer, including the train writer [C7,CD39]', () => {
   const receipt = { file: 'src/gate-run-receipt.js', source:
     "import {readFileSync} from 'node:fs'; export function readGateReceipt() { return readFileSync('receipt'); }" };
   const train = { file: 'src/record-train-landing.js', source:
@@ -234,7 +248,7 @@ test('receipt reads are refused in every writer, including the train writer [C7,
     'removing the named repair exposes the actual deferred read');
 });
 
-test('the transaction implementation is audited after acquisition, keeping preparation outside [C7,CD39]', () => {
+test('cli.journeys-status-writer.the-transaction-implementation-is-audited-after: the transaction implementation is audited after acquisition, keeping preparation outside [C7,CD39]', () => {
   const kernel = { file: 'packages/store/src/io/board/event/log.js', source:
     "import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; function prepareBoardWriteIdentity() { execFileSync('ps'); } export function atomic(board, work) { prepareBoardWriteIdentity(); beginImmediateQueued(board.db); readFileSync('inside'); return work(); }" };
   const problems = boardWriteIoProblems(guardSources('', [kernel]), { pending: {} });
@@ -242,11 +256,11 @@ test('the transaction implementation is audited after acquisition, keeping prepa
   assert.ok(!problems.some(row => row.call === 'node:child_process#execFileSync'), 'pre-acquisition process identity work holds no SQLite writer lock');
 });
 
-test('native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
+test('cli.journeys-status-writer.native-transaction-source-contains-no-unassigned: native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
   assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('../../../..', import.meta.url)))), []);
 });
 
-test('exact moved store writer identities preserve guard coverage and reject adjacent I/O [C7,CD39]', () => {
+test('cli.journeys-status-writer.exact-moved-store-writer-identities-preserve: exact moved store writer identities preserve guard coverage and reject adjacent I/O [C7,CD39]', () => {
   for (const atomicPath of ['packages/store/src/io/board/event/log.js']) {
     const atomic = { file: atomicPath, source: 'export function atomic(board, work) { beginImmediateQueued(board.db); return work(); }' };
     const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from '../${atomicPath}'; import {readFileSync} from 'node:fs'; export function write(board) { return atomic(board, () => readFileSync('bad')); }` };

@@ -5,9 +5,9 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { sealStatus } from '../../../../packages/gate/index.js';
-import { recordSeal } from '../../../../packages/gate/index.js';
-import { sealStoreFile } from '../../../../packages/gate/index.js';
+import { sealStatus } from '../../../../packages/gate/heavy.js';
+import { recordSeal } from '../../../../packages/gate/heavy.js';
+import { sealStoreFile } from '../../../../packages/gate/heavy.js';
 import { apiHttpFixture } from '../../tests/fixtures/api.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -38,7 +38,7 @@ function sealedAndEdited(t) {
   return { box, changed };
 }
 
-test('clause 1: cells --json reports the sealed cell as sealed and the edited cell as unsealed with the commit that changed it [C7,SC1,SC16]', async t => {
+test('cli.journeys-cells-seals.cells-json-reports-the-sealed-cell: clause 1: cells --json reports the sealed cell as sealed and the edited cell as unsealed with the commit that changed it [C7,SC1,SC16]', async t => {
   const { box, changed } = sealedAndEdited(t);
   const ran = await runCliInProcess(['cells', '--json'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
@@ -54,7 +54,7 @@ test('clause 1: cells --json reports the sealed cell as sealed and the edited ce
   assert.deepEqual((report.result ?? report).unsealed, ['packages/beta']);
 });
 
-test('clause 2: cells prints one line per cell naming its state and the breaking commit [C7,SC1,SC16]', async t => {
+test('cli.journeys-cells-seals.cells-prints-one-line-per-cell: clause 2: cells prints one line per cell naming its state and the breaking commit [C7,SC1,SC16]', async t => {
   const { box, changed } = sealedAndEdited(t);
   const ran = await runCliInProcess(['cells'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
@@ -62,7 +62,7 @@ test('clause 2: cells prints one line per cell naming its state and the breaking
   assert.match(ran.stdout, new RegExp(`^packages/beta  unsealed  [0-9a-f]{12}  broken by ${changed.slice(0, 12)} chore\\(beta\\): change the beta answer$`, 'mu'));
 });
 
-test('clause 1: after an unrelated merge, an unsealed cell names the commit that edited it, not the merge or a side-branch commit [C7,SC1,SC16]', async t => {
+test('cli.journeys-cells-seals.after-an-unrelated-merge-an-unsealed: clause 1: after an unrelated merge, an unsealed cell names the commit that edited it, not the merge or a side-branch commit [C7,SC1,SC16]', async t => {
   const { box, changed } = sealedAndEdited(t);
   const git = (...args) => runFixtureGit(args, { cwd: box.root, env: box.env, stdio: 'pipe', encoding: 'utf8' }).trim();
   const trunk = git('rev-parse', '--abbrev-ref', 'HEAD');

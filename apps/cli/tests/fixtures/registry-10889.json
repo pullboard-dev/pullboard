@@ -1,0 +1,4 @@
+{
+  "cli.item-folder.config-count-no-launch": {"proves":{"specs":["C7"],"claim":"parallelCheckout launches no git process and returns what git returns when GIT_CONFIG_COUNT carries three pairs that do not name checkout.workers."},"why":"Without it, a claim run under GIT_CONFIG_COUNT would launch git config on every next and no test would notice.","kind":"cell unit","inputs":["apps/cli/src/io/item/folder.js","apps/cli/tests/io/item/folder.test.js","apps/cli/tests/fixtures/child.js"]},
+  "cli.item-folder.config-count-sets-workers": {"proves":{"specs":["C7"],"claim":"parallelCheckout returns what git returns when a GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n pair sets checkout.workers, with no git launch."},"why":"Without it, reading past GIT_CONFIG_COUNT could ignore a pair that really sets checkout.workers and differ from git.","kind":"cell unit","inputs":["apps/cli/src/io/item/folder.js","apps/cli/tests/io/item/folder.test.js","apps/cli/tests/fixtures/child.js"]}
+}

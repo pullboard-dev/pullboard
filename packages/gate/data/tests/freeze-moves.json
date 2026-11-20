@@ -9499,6 +9499,17 @@
       "because": "the same ten-round paired claim loop as the kept golden replica race, run over item ids eleven to twenty; the race and its refusal receipts are proven once"
     },
     {
+      "file": "apps/cli/journeys/relay/client/claims/second-pair.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/journeys/relay/client/claims.test.js",
+      "because": "the same two-round paired claim loop as the kept golden replica race, run over item ids three and four; the race and its refusal receipts are proven once"
+    },
+    {
       "file": "apps/cli/journeys/resume/tour-slow.test.js",
       "specs": [
         "N10"

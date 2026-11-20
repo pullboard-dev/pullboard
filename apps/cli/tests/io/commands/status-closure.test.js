@@ -1,4 +1,4 @@
-/** The static import closure of the status command loads no more heavy startup modules than today's 11 [C7,#6480]. @pullboard-test-input source-cell apps/cli */
+/** The static import closure of the status command loads no more heavy startup modules than today's 10 [C7,#6480]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import {
   existsSync,
@@ -23,7 +23,6 @@ const ALLOWED = [
   'packages/gate/src/io/check/baseline.js',
   'packages/gate/src/io/run/shell.js',
   'packages/resources/index.js',
-  'packages/sandbox/src/io/trusted/policy.js',
   'packages/sentinels/src/io/main.js',
   'packages/state/src/io/machine.js',
   'packages/store/index.js',
@@ -65,18 +64,50 @@ const heavyInClosure = () => {
   return [...staticClosure(entry)].map((file) => relative(root, file)).filter((file) => heavy.has(file)).sort();
 };
 
-test('clause 1: the allow-list matches the 11 recorded status heavy modules and every closure member is on it [C7,#6480]', () => {
+test('cli.io-commands-status-closure.the-allow-list-matches-the-11-recorded: clause 1: the allow-list matches the 10 recorded status heavy modules and every closure member is on it [C7,#6480]', () => {
   const recorded = JSON.parse(readFileSync(heavyPath, 'utf8')).status;
-  assert.equal(ALLOWED.length, 11, 'the allow-list holds today\'s 11');
+  assert.equal(ALLOWED.length, 10, 'the allow-list holds today\'s 10');
   assert.deepEqual([...ALLOWED].sort(), [...recorded].sort(), 'the allow-list names the same modules as startup-heavy.json');
   const extra = heavyInClosure().filter((file) => !ALLOWED.includes(file));
   assert.deepEqual(extra, [], `status now loads heavy modules beyond the allow-list: ${extra.join(', ')}`);
 });
 
-test('clause 1: a twelfth heavy module in the closure would be caught [C7,#6480]', () => {
+test('cli.io-commands-status-closure.a-twelfth-heavy-module-in-the-closure: clause 1: a twelfth heavy module in the closure would be caught [C7,#6480]', () => {
   const inClosure = heavyInClosure();
   assert.ok(inClosure.length > 0, 'the walker finds at least one heavy module, so an empty result cannot pass the check');
   assert.ok(inClosure.length <= ALLOWED.length, `closure holds ${inClosure.length} heavy modules, over ${ALLOWED.length}`);
   const withTwelfth = [...inClosure, 'packages/extra/index.js'].filter((file) => !ALLOWED.includes(file));
   assert.deepEqual(withTwelfth, ['packages/extra/index.js'], 'a module outside the list is reported');
 });
+
+/** The 5 board-read modules every board command needs; no other heavy module may stay in status's static closure [#7084]. */
+const BOARD_READ = [
+  'packages/state/src/io/machine.js',
+  'packages/store/index.js',
+  'packages/store/src/io/board.js',
+  'packages/store/src/io/board/event/log.js',
+  'packages/store/src/logic/board/landing/lease.js',
+];
+
+test('cli.io-commands-status-closure.status-reaches-no-heavy-module-beyond: clause 1: the static closure of status reaches no module of the startup-heavy status row beyond the 5 board-read modules [C7,#7084]', () => {
+  const inClosure = heavyInClosure();
+  const extra = inClosure.filter((file) => !BOARD_READ.includes(file));
+  assert.deepEqual(extra, [], `status still reaches heavy modules beyond the board-read five: ${extra.join(', ')}`);
+});
+
+/** The four board-read modules the full store door pulls in; status loads that door lazily, so none may sit in its static closure [#6480]. */
+const STORE_DOOR = [
+  'packages/store/index.js',
+  'packages/store/src/io/board.js',
+  'packages/store/src/io/board/event/log.js',
+  'packages/store/src/logic/board/landing/lease.js',
+];
+
+test('cli.io-commands-status-closure.status-closure-holds-no-store-index: clause 2: the static closure of status reaches none of the four board-read modules behind the full store door, which status loads with await import [C7,#6480]', () => {
+  const reached = heavyInClosure().filter((file) => STORE_DOOR.includes(file));
+  assert.deepEqual(reached, [], `status still statically reaches the full store door: ${reached.join(', ')}`);
+  const source = readFileSync(entry, 'utf8');
+  assert.equal(/^import .*store\/index\.js/mu.test(source), false, 'status.js holds no static import of the full store door');
+  assert.match(source, /await import\('[^']*packages\/store\/index\.js'\)/u, 'the full store door loads lazily inside run');
+});
+

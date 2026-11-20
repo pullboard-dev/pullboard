@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { gateClauseTickNotes } from '../../../../../packages/state/index.js';
@@ -42,7 +42,7 @@ function boardItem(t) {
   return { board, id };
 }
 
-test('clause 1: verify.titleTicks defaults to false and, when on, a changed test titled for the clause is a gate file, so submit does not refuse CLAUSE_UNTICKED [C7]', t => {
+test('cli.io-gate-title-ticks.verify-titleticks-defaults-to-false-and-when: clause 1: verify.titleTicks defaults to false and, when on, a changed test titled for the clause is a gate file, so submit does not refuse CLAUSE_UNTICKED [C7]', t => {
   assert.equal(defaults().verify.titleTicks, false);
   assert.equal(configFromSource('{}').verify.titleTicks, false);
   assert.equal(configFromSource(JSON.stringify({ verify: { titleTicks: true } })).verify.titleTicks, true);
@@ -57,7 +57,7 @@ test('clause 1: verify.titleTicks defaults to false and, when on, a changed test
   assert.equal(clauseInspectionProblem(held, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: 'b'.repeat(40) })?.code, 'CLAUSE_UNTICKED');
 });
 
-test('clause 2: with verify.titleTicks on, a green gate run of the changed test records the clause tick note on the item [C7]', t => {
+test('cli.io-gate-title-ticks.with-verify-titleticks-on-a-green-gate: clause 2: with verify.titleTicks on, a green gate run of the changed test records the clause tick note on the item [C7]', t => {
   const head = 'c'.repeat(40);
   const outcomes = [{ file: NEW_TEST, name: 'clause 1: the dry run prints its checklist', passed: true, skipped: false }];
   const notes = ({ board, id }, options) => {

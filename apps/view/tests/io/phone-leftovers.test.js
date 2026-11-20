@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css */
 /** #7400: phone tab labels keep their counts, Settings values line up without a copy button, Roadmap after chips never read after with no id [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -18,7 +18,7 @@ const tabs = kind => {
   return segmentedToggle({ label: 'Rows', attribute: 'data-rows', value: kind + ':all', options: Object.keys(labels).map(key => ({ value: kind + ':' + key, label: labels[key], short: shorts[key], count: counts[key] })) });
 };
 
-test('clause 1: Spec and Doctrine tab labels have a one-word phone form and keep their full count [N26]', () => {
+test('view.x-io-phone-leftovers.clause-1-spec-and-doctrine-tab-labels: clause 1: Spec and Doctrine tab labels have a one-word phone form and keep their full count [N26]', () => {
   for (const kind of ['spec', 'doctrine']) {
     const html = tabs(kind);
     assert.match(html, /<span class="seg-full">All rows<\/span><span class="seg-short">All<\/span><\/span><b>2<\/b>/u);
@@ -31,7 +31,7 @@ test('clause 1: Spec and Doctrine tab labels have a one-word phone form and keep
   assert.match(css.match(/@media \(max-width: 700px\) \{\n  #spec-chips \.seg, [\s\S]*?\n\}/u)?.[0] ?? '', /text-overflow: ellipsis/u, 'a phone tab label too wide for its chip ends in an ellipsis');
 });
 
-test('clause 2: a Settings row with a copy button reserves the copy column, and one without it ends flush at the value [N26,#7718]', () => {
+test('view.x-io-phone-leftovers.clause-2-a-settings-row-with-a: clause 2: a Settings row with a copy button reserves the copy column, and one without it ends flush at the value [N26,#7718]', () => {
   const entry = { rows: [
     { key: 'gate.slots', scope: 'machine', cli: 'gate-slots', value: 2, default: 2, description: 'd' },
     { key: 'gate.runnerDispatch', scope: 'machine', value: 'pull', default: 'pull', description: 'd' },
@@ -45,7 +45,7 @@ test('clause 2: a Settings row with a copy button reserves the copy column, and 
   assert.match(css, /\n\.set\.has-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto 28px;/u, 'a row with a copy button reserves the copy column');
 });
 
-test('clause 3: an after chip with no id is not drawn, and the chips are inline text that can end in an ellipsis [N26]', () => {
+test('view.x-io-phone-leftovers.clause-3-an-after-chip-with-no: clause 3: an after chip with no id is not drawn, and the chips are inline text that can end in an ellipsis [N26]', () => {
   const source = cockpitRoadmap({ milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml });
   assert.match(source, /\(row\.after \|\| \[\]\)\.filter\(id => id !== null && id !== undefined && String\(id\)\.trim\(\) !== ''\)/u);
   const css = composeViewStyles();

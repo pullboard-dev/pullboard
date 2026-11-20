@@ -4,10 +4,10 @@
 /** Observed value controls conversion priority; missing metrics remain unknown [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { testConversionPlan } from '../../../index.js';
-import { capacitySummary } from '../../../index.js';
-import { declaredTestBoundary } from '../../../index.js';
-import { landedBatchCount } from '../../../index.js';
+import { testConversionPlan } from '../../../heavy.js';
+import { capacitySummary } from '../../../heavy.js';
+import { declaredTestBoundary } from '../../../heavy.js';
+import { landedBatchCount } from '../../../heavy.js';
 
 /** Build an input report, never a gate receipt or authority witness. */
 function report(files = []) {
@@ -28,7 +28,7 @@ function landing(id, at) {
     event_detail: JSON.stringify({ batch: { id, state: 'landed' } }) };
 }
 
-test('conversion follows positive-catch value-report order before lower-value heavy work [C7]', () => {
+test('gate.logic-test-conversion.conversion-follows-positive-catch-value: conversion follows positive-catch value-report order before lower-value heavy work [C7]', () => {
   const input = report([row('valuable.test.js', 90_000, 2), row('second.test.js', 120_000, 1),
     row('costly.test.js', 900_000), row('unknown.test.js', null)]);
   const plan = testConversionPlan(input);
@@ -38,7 +38,7 @@ test('conversion follows positive-catch value-report order before lower-value he
   assert.ok(plan.order.every(entry => entry.requiresPersonApprovalForRemoval));
 });
 
-test('without recorded catches measured cost orders conversions, never missing time or unapproved deletion [C7]', () => {
+test('gate.logic-test-conversion.without-recorded-catches-measured-cost: without recorded catches measured cost orders conversions, never missing time or unapproved deletion [C7]', () => {
   const slow = row('slow.test.js', null);
   slow.lastObservedRuntime = { durationMs: 300_000, source: 'native-single-file-receipt' };
   const plan = testConversionPlan(report([row('fast.test.js', 1000), slow, row('unknown.test.js', null)]));
@@ -49,7 +49,7 @@ test('without recorded catches measured cost orders conversions, never missing t
   assert.deepEqual(plan.unknown, ['unknown.test.js']);
 });
 
-test('capacity reports serial measured work, retries, landed batches and declared lower-bound share [C7]', () => {
+test('gate.logic-test-conversion.capacity-reports-serial-measured-work: capacity reports serial measured work, retries, landed batches and declared lower-bound share [C7]', () => {
   const history = [landing('a', '2026-10-14T00:00:00Z'), landing('a', '2026-10-15T00:00:00Z'),
     landing('b', '2026-10-16T00:00:00Z')];
   const input = report([row('a.test.js', 60_000), row('b.test.js', 120_000)]);
@@ -68,7 +68,7 @@ test('capacity reports serial measured work, retries, landed batches and declare
   assert.match(output.suite.measure, /not elapsed parallel wall time/u);
 });
 
-test('partial timing and no landings keep all headline costs unknown with a known subtotal [C7]', () => {
+test('gate.logic-test-conversion.partial-timing-and-no-landings: partial timing and no landings keep all headline costs unknown with a known subtotal [C7]', () => {
   const value = report([row('measured.test.js', 60_000), row('missing.test.js', null)]);
   const output = capacitySummary({ value, history: [], inventory: [],
     latestAudit: { id: 'audit', head: 'source', green: true, collection: { files: ['measured.test.js', 'missing.test.js'] } },
@@ -86,7 +86,7 @@ test('partial timing and no landings keep all headline costs unknown with a know
   assert.equal(absent.perLanding.minutes, null);
 });
 
-test('landings use the first actual landed transition and declarations only come from leading comments [C7]', () => {
+test('gate.logic-test-conversion.landings-use-the-first-actual: landings use the first actual landed transition and declarations only come from leading comments [C7]', () => {
   const since = Date.parse('2026-10-13T00:00:00Z'), until = Date.parse('2026-10-27T00:00:00Z');
   assert.equal(landedBatchCount([landing('old', '2026-10-12T00:00:00Z'), landing('old', '2026-10-14T00:00:00Z'),
     landing('new', '2026-10-15T00:00:00Z')], since, until), 1);
@@ -96,7 +96,7 @@ test('landings use the first actual landed transition and declarations only come
 });
 
 
-test('untimed real catches remain unknown without claiming that no catches exist [C7]', () => {
+test('gate.logic-test-conversion.untimed-real-catches-remain-unknown: untimed real catches remain unknown without claiming that no catches exist [C7]', () => {
   const plan = testConversionPlan(report([row('caught.test.js', null, 1), row('costly.test.js', 90_000)]));
   assert.match(plan.basis, /recorded catches lack timed conversion candidates/u);
   assert.deepEqual(plan.unknown, ['caught.test.js']);
@@ -109,7 +109,7 @@ function nativeEvent(kind, at, detail, item = null) {
   return { event_kind: kind, event_at: at, item_id: item, event_detail: JSON.stringify(detail) };
 }
 
-test('capacity counts actual merged history and groups explicit successful train receipts, never unfinished snapshots [C7]', () => {
+test('gate.logic-test-conversion.capacity-counts-actual-merged-history: capacity counts actual merged history and groups explicit successful train receipts, never unfinished snapshots [C7]', () => {
   const since = Date.parse('2026-10-13T00:00:00Z'), until = Date.parse('2026-10-27T00:00:00Z');
   const old = 'a'.repeat(40), first = 'b'.repeat(40), second = 'c'.repeat(40), third = 'd'.repeat(40);
   const history = [nativeEvent('merged', '2026-10-12T00:00:00Z', { commit: old }, 1),
@@ -135,7 +135,7 @@ test('capacity counts actual merged history and groups explicit successful train
   assert.equal(landedBatchCount(history.filter(event => event.event_kind === 'landing_batch' && JSON.parse(event.event_detail).batch.state !== 'landed'), since, until), 0);
 });
 
-test('unknown suite measurement identifies the required complete audit receipt and missing file timings [C7]', () => {
+test('gate.logic-test-conversion.unknown-suite-measurement-identifies-the: unknown suite measurement identifies the required complete audit receipt and missing file timings [C7]', () => {
   const absent = capacitySummary({ value: report(), history: [], inventory: [], latestAudit: null, timings: null });
   assert.equal(absent.suite.minutes, null);
   assert.match(absent.suite.unavailableReason, /complete.*full.*native.*audit.*receipt/iu);
@@ -146,7 +146,7 @@ test('unknown suite measurement identifies the required complete audit receipt a
   assert.deepEqual(partial.suite.missingFiles, ['a.test.js']);
 });
 
-test('explicit batch cost belongs to its first success, while manual commits retain their first landing [C7]', () => {
+test('gate.logic-test-conversion.explicit-batch-cost-belongs-to: explicit batch cost belongs to its first success, while manual commits retain their first landing [C7]', () => {
   const since = Date.parse('2026-10-13T00:00:00Z'), until = Date.parse('2026-10-27T00:00:00Z');
   const old = 'e'.repeat(40), fresh = 'f'.repeat(40);
   const history = [nativeEvent('merged', '2026-10-12T23:59:59Z', { commit: old }, 11),

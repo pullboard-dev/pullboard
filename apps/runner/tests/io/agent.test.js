@@ -59,12 +59,25 @@ function enqueue(root, id, { command, input = '', extra = {} }) {
   renameSync(tmp, join(root, 'queue', id));
 }
 
-/** Resolve when a condition holds, rechecking on every file event under the runner root; fail with the label after ms. */
+/**
+ * Resolve when a condition holds, rechecking on every file event under the runner root. Fail with the label only when a
+ * whole period of ms passes with no file event under the root and no live agent. Why progress, not a longer budget: on
+ * a loaded runner the agent starts and ticks late, so a fixed wall budget timed out six cases while the agent was alive
+ * and moving (OR1 run 3482df3b, #10752); the wait now follows the agent's own state.
+ */
 function until(label, root, condition, ms = 15_000) {
+  const agentAlive = () => {
+    try { process.kill(Number(readFileSync(join(root, 'agent.lock', 'pid'), 'utf8')), 0); return true; } catch { return false; }
+  };
   return new Promise((resolve, reject) => {
     mkdirSync(root, { recursive: true });
-    const watcher = watch(root, { recursive: true }, () => check());
-    const timer = setTimeout(() => finish(new Error(`timed out waiting for ${label}`)), ms);
+    let moved = false;
+    const watcher = watch(root, { recursive: true }, () => { moved = true; check(); });
+    let timer = setTimeout(expired, ms);
+    function expired() {
+      if (moved || agentAlive()) { moved = false; timer = setTimeout(expired, ms); return; }
+      finish(new Error(`timed out waiting for ${label}`));
+    }
     function finish(error) { watcher.close(); clearTimeout(timer); if (error) reject(error); else resolve(); }
     function check() { if (condition()) finish(); }
     check();

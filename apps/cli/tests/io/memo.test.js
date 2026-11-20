@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
+/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/env/index.js packages/env/src/io/env.js packages/fs/index.js packages/fs/src/io/fs.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
 /** Runners share one cells fixture-analysis memo through the controller; a bad memo never replaces good entries [C7]. */
 /** @pullboard-world-pin: the runner fixture carries the shipped memo-share module, the code a pinned main's archive holds. */
 import { test } from 'node:test';
@@ -47,7 +47,7 @@ function folder(t, prefix) {
   return files.root;
 }
 
-test('clause 1: an absorbed memo is copied, then unioned with later memos while stored entries win [C7]', t => {
+test('cli.io-memo.an-absorbed-memo-is-copied-then-unioned: clause 1: an absorbed memo is copied, then unioned with later memos while stored entries win [C7]', t => {
   const directory = folder(t, 'fixture-memo-store-');
   assert.equal(absorbFixtureMemo(directory, { name: NAME, data: memoBytes(['one', 'two'], 'first').toString('base64') }), true);
   assert.deepEqual(stored(directory), { one: 'first', two: 'first' });
@@ -56,7 +56,7 @@ test('clause 1: an absorbed memo is copied, then unioned with later memos while 
   assert.equal(absorbFixtureMemo(directory, { name: NAME, data: memoBytes(['one'], 'third').toString('base64') }), false, 'nothing new changes nothing');
 });
 
-test('clause 2: a malformed, oversized or misnamed memo is ignored and never replaces good entries [C7]', t => {
+test('cli.io-memo.a-malformed-oversized-or-misnamed-memo-is: clause 2: a malformed, oversized or misnamed memo is ignored and never replaces good entries [C7]', t => {
   const directory = folder(t, 'fixture-memo-bad-');
   absorbFixtureMemo(directory, { name: NAME, data: memoBytes(['good']).toString('base64') });
   const bad = [
@@ -72,7 +72,7 @@ test('clause 2: a malformed, oversized or misnamed memo is ignored and never rep
   assert.deepEqual(stored(directory), { good: 'result' });
 });
 
-test('clause 1: a runner seeds its memo from carried memos, and the controller keeps what a job returns [C7]', t => {
+test('cli.io-memo.a-runner-seeds-its-memo-from-carried: clause 1: a runner seeds its memo from carried memos, and the controller keeps what a job returns [C7]', t => {
   const runner = folder(t, 'fixture-memo-runner-'), controller = folder(t, 'fixture-memo-controller-');
   const memos = runnerFixtureMemos({ cellsCacheDirectory: kind => join(runner, kind) }, [{ name: NAME, data: memoBytes(['carried']).toString('base64') }]);
   assert.deepEqual(stored(join(runner, 'fixtures')), { carried: 'result' });
@@ -103,12 +103,17 @@ function fixture(t) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('apps/cli/src/io/memo.js', readFileSync(fileURLToPath(new URL('../../src/io/memo.js', import.meta.url)), 'utf8'));
+  // The memo module reads node:fs through the file-system adapter, so the runner clone carries the real adapter cell.
+  for (const path of ['packages/fs/index.js', 'packages/fs/src/io/fs.js']) put(path, readFileSync(fileURLToPath(new URL(`../../../../${path}`, import.meta.url)), 'utf8'));
+  for (const path of ['packages/env/index.js', 'packages/env/src/io/env.js']) put(path, readFileSync(fileURLToPath(new URL('../../../../' + path, import.meta.url)), 'utf8'));
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { return { proofFiles: ['test/a.test.js'], check: options.check }; }
 export async function submitGateAdmission() { return { browser: false, gui: false }; }
 `);
+  // The runner entries import the gate heavy door (684e8be2d7); the stand-in door re-exports the index stand-in.
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
   put('apps/cli/src/io/cells/cache.js', `import { join } from 'node:path';
@@ -147,7 +152,7 @@ function lease(box, runner, commands = []) {
   return { runner: { host: 'runner-1', node: process.execPath }, source: { commit: box.source, tree: box.tree }, executionServices: { runners: { runOnRunnerAsync } } };
 }
 
-test('clause 1: one runner\'s memo reaches the controller store, and no request carries memo bytes [C7]', async t => {
+test('cli.io-memo.one-runner-s-memo-reaches-the-controller: clause 1: one runner\'s memo reaches the controller store, and no request carries memo bytes [C7]', async t => {
   const box = fixture(t), home = folder(t, 'fixture-memo-machine-');
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;

@@ -42,7 +42,7 @@ async function withoutRunnerJob(work) {
   finally { if (saved === undefined) delete process.env.PULLBOARD_RUNNER_JOB; else process.env.PULLBOARD_RUNNER_JOB = saved; }
 }
 
-test('clause 1: a linked worktree with an inherited GIT_DIR still registers the timer without an error [B3,C7]', async t => {
+test('cli.io-worktree-maintenance-archive.a-linked-worktree-with-an-inherited-git: clause 1: a linked worktree with an inherited GIT_DIR still registers the timer without an error [B3,C7]', async t => {
   await withoutRunnerJob(async () => {
     const { linked } = repository(t), saved = process.env.GIT_DIR;
     process.env.GIT_DIR = maintenanceGit(linked.info.root, ['rev-parse', '--absolute-git-dir']).trim();
@@ -53,7 +53,7 @@ test('clause 1: a linked worktree with an inherited GIT_DIR still registers the 
   });
 });
 
-test('clause 1: a linked worktree skips quietly when the repository identity cannot be proved [B3,C7]', async t => {
+test('cli.io-worktree-maintenance-archive.a-linked-worktree-skips-quietly-when-the: clause 1: a linked worktree skips quietly when the repository identity cannot be proved [B3,C7]', async t => {
   await withoutRunnerJob(async () => {
     const { linked, commonDir } = repository(t);
     linked.info = { ...linked.info, commonDir: join(commonDir, 'elsewhere') };
@@ -62,7 +62,7 @@ test('clause 1: a linked worktree skips quietly when the repository identity can
   });
 });
 
-test('clause 2: a real registration failure in the main checkout is still thrown once [B3,C7]', async t => {
+test('cli.io-worktree-maintenance-archive.a-real-registration-failure-in-the-main: clause 2: a real registration failure in the main checkout is still thrown once [B3,C7]', async t => {
   await withoutRunnerJob(async () => {
     const { primary, commonDir } = repository(t);
     primary.info = { ...primary.info, commonDir: join(commonDir, 'elsewhere') };
@@ -76,7 +76,7 @@ function fakeStatfs(seen, free = 100) {
   return path => { seen.push(path); return { bavail: free, bsize: 1, blocks: 1000 }; };
 }
 
-test('clause 1: the space check measures the volume a symlinked archive directory points to [C7,#5444]', t => {
+test('cli.io-worktree-maintenance-archive.the-space-check-measures-the-volume-a: clause 1: the space check measures the volume a symlinked archive directory points to [C7,#5444]', t => {
   const root = privateFixtureFiles('pullboard-archive-volume-').root;
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const common = join(root, 'git'), elsewhere = join(root, 'elsewhere');
@@ -90,7 +90,7 @@ test('clause 1: the space check measures the volume a symlinked archive director
   assert.equal(space.totalBytes, 1000);
 });
 
-test('clause 1: without a symlink the space check measures the archive directory or its nearest parent [C7,#5444]', t => {
+test('cli.io-worktree-maintenance-archive.without-a-symlink-the-space-check-measures: clause 1: without a symlink the space check measures the archive directory or its nearest parent [C7,#5444]', t => {
   const root = privateFixtureFiles('pullboard-archive-volume-').root;
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const common = join(root, 'git');
@@ -102,7 +102,7 @@ test('clause 1: without a symlink the space check measures the archive directory
   assert.deepEqual(seen, [common, join(common, 'pullboard', 'worktree-archives')]);
 });
 
-test('clause 1: a short archive volume still refuses and an unreadable one refuses as unknown [C7,#5444]', t => {
+test('cli.io-worktree-maintenance-archive.a-short-archive-volume-still-refuses-and: clause 1: a short archive volume still refuses and an unreadable one refuses as unknown [C7,#5444]', t => {
   const root = privateFixtureFiles('pullboard-archive-volume-').root;
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const repo = join(root, 'repo');
@@ -140,19 +140,19 @@ function symlinkedArchive(t, mode) {
 }
 const roomy = () => ({ freeBytes: 1024 ** 4, totalBytes: 1024 ** 4 });
 
-test('clause 1: a symlinked archive folder with a private target of the user is archived into and matches [C7,#5445]', t => {
+test('cli.io-worktree-maintenance-archive.a-symlinked-archive-folder-with-a-private: clause 1: a symlinked archive folder with a private target of the user is archived into and matches [C7,#5445]', t => {
   const { repo, common, target } = symlinkedArchive(t, 0o700);
   const archive = archiveMaintenanceWorktree(repo, common, { volume: roomy });
   assert.ok(fs.existsSync(join(target, archive.manifest.id, 'manifest.json')));
   assert.equal(maintenanceArchiveMatches(repo, archive), true);
 });
 
-test('clause 1: a symlinked archive folder whose target is not private is refused [C7,#5445]', t => {
+test('cli.io-worktree-maintenance-archive.a-symlinked-archive-folder-whose-target-is: clause 1: a symlinked archive folder whose target is not private is refused [C7,#5445]', t => {
   const { repo, common } = symlinkedArchive(t, 0o755);
   assert.throws(() => archiveMaintenanceWorktree(repo, common, { volume: roomy }), /not private/);
 });
 
-test('clause 1: a symlinked archive folder whose target another user owns is refused [C7,#5445]', t => {
+test('cli.io-worktree-maintenance-archive.a-symlinked-archive-folder-whose-target-another: clause 1: a symlinked archive folder whose target another user owns is refused [C7,#5445]', t => {
   const { repo, common } = symlinkedArchive(t, 0o700);
   const saved = process.getuid;
   process.getuid = () => saved.call(process) + 1;
@@ -169,7 +169,7 @@ function shareArchive(t) {
   return { repo, archive, directory, blob };
 }
 
-test('clause 1: an archive whose files read back with share-mapped modes and times still verifies [C7,#5454]', t => {
+test('cli.io-worktree-maintenance-archive.an-archive-whose-files-read-back-with: clause 1: an archive whose files read back with share-mapped modes and times still verifies [C7,#5454]', t => {
   const { repo, archive, directory, blob } = shareArchive(t);
   for (const file of [blob, join(directory, 'manifest.json'), join(directory, 'staged.patch')]) {
     fs.chmodSync(file, 0o700);
@@ -178,20 +178,20 @@ test('clause 1: an archive whose files read back with share-mapped modes and tim
   assert.equal(maintenanceArchiveMatches(repo, archive), true);
 });
 
-test('clause 1: a changed archived file of the same size still fails verification [C7,#5454]', t => {
+test('cli.io-worktree-maintenance-archive.a-changed-archived-file-of-the-same: clause 1: a changed archived file of the same size still fails verification [C7,#5454]', t => {
   const { repo, archive, blob } = shareArchive(t);
   const bytes = fs.readFileSync(blob);
   fs.writeFileSync(blob, Buffer.alloc(bytes.length, 0x78));
   assert.equal(maintenanceArchiveMatches(repo, archive), false);
 });
 
-test('clause 1: a truncated archived file still fails verification [C7,#5454]', t => {
+test('cli.io-worktree-maintenance-archive.a-truncated-archived-file-still-fails-verification: clause 1: a truncated archived file still fails verification [C7,#5454]', t => {
   const { repo, archive, blob } = shareArchive(t);
   fs.truncateSync(blob, 1);
   assert.equal(maintenanceArchiveMatches(repo, archive), false);
 });
 
-test('clause 1: an archive root that others can read still fails verification [C7,#5454]', t => {
+test('cli.io-worktree-maintenance-archive.an-archive-root-that-others-can-read: clause 1: an archive root that others can read still fails verification [C7,#5454]', t => {
   const { repo, archive, directory } = shareArchive(t);
   fs.chmodSync(directory, 0o755);
   assert.equal(maintenanceArchiveMatches(repo, archive), false);

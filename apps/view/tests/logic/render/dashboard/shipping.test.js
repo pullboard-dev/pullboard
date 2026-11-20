@@ -34,7 +34,7 @@ function shipping(html) {
   return html.slice(start, html.indexOf('</section>', start));
 }
 
-test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of T landed, one stage bar and its legend in the stage colours [N26]', () => {
+test('view.x-render-dashboard-shipping.clause-1-shipping-now-the-release-name: clause 1: SHIPPING NOW, the release name in the body face, N to go · M of T landed, one stage bar and its legend in the stage colours [N26]', () => {
   const { project, events } = board();
   const card = shipping(dashboardHtml(dashboardModel(project, events, { now, complete: true }), { locale: 'en-US', timeZone: 'UTC' }));
   assert.match(card, /^aria-label="Release"><div class="dash-shd"><h2 class="dash-lbl">Release<\/h2><button type="button" class="dash-lk" data-tab="roadmap">Roadmap ›<\/button><\/div><div class="dash-card dash-ship"><div class="dash-ship-head">/u, 'the Release header sits above the card, with its way to the Roadmap (sheet v1.1)');
@@ -51,7 +51,7 @@ test('clause 1: SHIPPING NOW, the release name in the body face, N to go · M of
   assert.ok(card.indexOf('dash-sbar') < card.indexOf('dash-keys') && card.indexOf('dash-keys') < card.indexOf('dash-inflight'));
 });
 
-test('clause 2: In flight shows Building and In review side by side as one-line rows with no pills, then three pace tiles [N26]', () => {
+test('view.x-render-dashboard-shipping.clause-2-in-flight-shows-building-and: clause 2: In flight shows Building and In review side by side as one-line rows with no pills, then three pace tiles [N26]', () => {
   const { project, events } = board();
   const card = shipping(dashboardHtml(dashboardModel(project, events, { now, complete: true }), { locale: 'en-US', timeZone: 'UTC' }));
   assert.match(card, /<div class="dash-inflight">[\s\S]*?<h3 class="dash-ct">In flight<button type="button" class="dash-n dash-pill" data-dashboard-list="active">3<\/button>[\s\S]*?<div class="dash-ifcols"><div class="dash-ifcol building">/u, 'two columns, Building first');

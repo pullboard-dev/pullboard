@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/shout/journeys/fixture-setup.test.js', cases: ["the cockpit fixture inits its board without a model [N26]"] }];
+const SAMPLES = [{ journey: 'apps/cli/journeys/shout/journeys/fixture-setup.test.js', cases: ["cli.journeys-shout-journeys-fixture-setup.the-cockpit-fixture-inits-its-board: the cockpit fixture inits its board without a model [N26]"] }];
 
 test('gate.parity-shout-fixture-setup.sample-gives-same-results: clause 1: a sample of the shout fixture-setup journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);

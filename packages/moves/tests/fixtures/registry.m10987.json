@@ -1,0 +1,4 @@
+{
+  "moves.logic-moves-withdraw.a-withdraw-citing-a-main-commit-is-floored": {"proves":{"specs":["C7","H16"],"claim":"A withdraw whose options carry a metCommit string is floored at WITHDRAW_AS_MET_ENGINE."},"why":"A withdraw-as-met must never replay under an engine older than its own leaf.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/withdraw.js","packages/moves/tests/logic/moves/withdraw.test.js"]},
+  "moves.logic-moves-withdraw.the-existing-withdraw-floors-are-unchanged": {"proves":{"specs":["C7","H16"],"claim":"The conflict, landingFence, sentinel and expected floors and the plain withdraw floor of 1 are unchanged."},"why":"Historical withdraw moves must replay under the engines they were written at.","kind":"cell unit","inputs":["packages/moves/src/logic/moves/withdraw.js","packages/moves/tests/logic/moves/withdraw.test.js"]}
+}

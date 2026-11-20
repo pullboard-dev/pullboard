@@ -27,7 +27,7 @@ function crowded(box) {
   return { review, held, open };
 }
 
-test('cli.next.cap-builders.with-next-capbuilders-on-and-builders: clause 1: with next.capBuilders on and builders past the cap, next offers a review instead of a build [C7,#8545]', async t => {
+test('cli.io-next-cap-builders.cli-next-cap-builders-with-next-capbuilders: cli.next.cap-builders.with-next-capbuilders-on-and-builders: clause 1: with next.capBuilders on and builders past the cap, next offers a review instead of a build [C7,#8545]', async t => {
   const box = await fixture(t);
   const { review, open } = crowded(box);
   nextSettings({ capBuilders: 1 });
@@ -38,7 +38,7 @@ test('cli.next.cap-builders.with-next-capbuilders-on-and-builders: clause 1: wit
   assert.equal(store.getItem(box.board, open).item_status, 'open', 'the open build stays unclaimed');
 });
 
-test('cli.next.cap-builders.next-capbuilders-is-off-by-default: clause 2: next.capBuilders is off by default and next answers as before [C7,#8545]', async t => {
+test('cli.io-next-cap-builders.cli-next-cap-builders-next-capbuilders-is: cli.next.cap-builders.next-capbuilders-is-off-by-default: clause 2: next.capBuilders is off by default and next answers as before [C7,#8545]', async t => {
   const box = await fixture(t);
   crowded(box);
   assert.equal(nextCapBuilders(), 0, 'the default is off');

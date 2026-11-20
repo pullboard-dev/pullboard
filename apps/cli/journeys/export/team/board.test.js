@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { fixtureAddArgv } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoinArgv } from '../../../tests/fixtures/testkit.js';
 
-test('clause 2: a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
+test('cli.journeys-export-team-board.a-private-board-sits-beside-the: clause 2: a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
   const box = await teamBoard(t, ['alice']);
   const shared = await box.journeyCli('add', box.lane, 'repo item');
   assert.equal(shared.code, 0, 'ordinary add stays on the linked repo board');

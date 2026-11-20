@@ -36,7 +36,7 @@ function assertMachineStop(box, board, error) {
   assert.ok(added.some(row => row.to_ === 'coordinator' && row.text.includes(error.code)), `${error.code} shouts the coordinator: ${JSON.stringify(added)}`);
 }
 
-test('machine refusals RUNNER_RESULT_INVALID, RESOURCE_LEASE_LOST, GIT_SYNC_LOCK_BUSY and GIT_SYNC_REMOTE end infrastructure, stay claimed and shout the coordinator, clause 1 of #3111 [C7]', t => {
+test('cli.journeys-submit-handoff-machine-stops.machine-refusals-runner-result-invalid-resource: machine refusals RUNNER_RESULT_INVALID, RESOURCE_LEASE_LOST, GIT_SYNC_LOCK_BUSY and GIT_SYNC_REMOTE end infrastructure, stay claimed and shout the coordinator, clause 1 of #3111 [C7]', t => {
   const box = fixture(t);
   const board = queueBoard(box);
   try {
@@ -46,7 +46,7 @@ test('machine refusals RUNNER_RESULT_INVALID, RESOURCE_LEASE_LOST, GIT_SYNC_LOCK
   } finally { board.db.close(); }
 });
 
-test('a worker that exits on a signal without a terminal result ends the same way, clause 2 of #3111 [C7]', t => {
+test('cli.journeys-submit-handoff-machine-stops.a-worker-that-exits-on-a: a worker that exits on a signal without a terminal result ends the same way, clause 2 of #3111 [C7]', t => {
   const box = fixture(t);
   const board = queueBoard(box);
   try {
@@ -54,7 +54,7 @@ test('a worker that exits on a signal without a terminal result ends the same wa
   } finally { board.db.close(); }
 });
 
-test('GATE_RED and MERGE_CONFLICT still return a red to the builder, clause 3 of #3111 [C7]', t => {
+test('cli.journeys-submit-handoff-machine-stops.gate-red-and-merge-conflict-still: GATE_RED and MERGE_CONFLICT still return a red to the builder, clause 3 of #3111 [C7]', t => {
   for (const code of ['GATE_RED', 'MERGE_CONFLICT']) {
     const box = fixture(t);
     const board = queueBoard(box);

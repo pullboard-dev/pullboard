@@ -1,7 +1,5 @@
 /** The cells plan model: the plan files' names, shape, reader, writer and path placement [C7,D3,CD60,CD64]. */
-import { mkdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { tryGit as realTryGit } from '../../../git/index.js';
@@ -19,6 +17,8 @@ import { entryPlacementProblems } from './cells-plan-placement.js';
 import { ownedStayProblems } from './cells-plan-placement.js';
 import { retiredProblems } from './cells-plan-placement.js';
 import { storeName } from './store-names.js';
+
+const fs = fileSystemAdapter();
 
 export { formatJson };
 export const PLAN_FILE = 'packages/codemap/data/plan/cells.json';
@@ -97,19 +97,19 @@ export function writePlan(root, plan, { readPathMap } = {}) {
     const { placedBy: _cachedPlacement, ...rows } = cell;
     return rows;
   });
-  mkdirSync(join(root, PLAN_DIR), { recursive: true });
+  fs.mkdir(join(root, PLAN_DIR), { recursive: true });
   const shards = cells.map(cell => [shardFile(cell), cell]);
   const keep = keptPlanFiles(cells);
-  for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
+  for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) fs.rm(join(root, PLAN_DIR, name));
   for (const [file, cell] of shards) {
     // A shard whose data is unchanged keeps its bytes, so one row's edit never reformats an unrelated cell.
     let current = null;
     try { current = JSON.parse(readFileSync(join(root, file), 'utf8')); } catch { current = null; }
-    if (current === null || JSON.stringify(current) !== JSON.stringify(cell)) writeFileSync(join(root, file), formatJson(cell) + '\n');
+    if (current === null || JSON.stringify(current) !== JSON.stringify(cell)) fs.writeFile(join(root, file), formatJson(cell) + '\n');
   }
   const { totals: _cachedTotals, ...metadata } = plan;
   const index = { ...metadata, cells: cells.map(cell => ({ order: cell.order, name: cell.name, file: shardFile(cell) })) };
-  writeFileSync(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
+  fs.writeFile(join(root, PLAN_FILE), JSON.stringify(index, null, 2) + '\n');
 }
 
 /** Read the committed plan back as one object, refusing an index whose shard is missing. */

@@ -43,11 +43,11 @@ function absentGates() {
   return found;
 }
 
-test('clause 2 [C7]: the real SPEC.md rows naming absent gate files are exactly the listed exception set', () => {
+test('gate.io-static-spec-gate-paths.clause-2-the-real-spec-md: clause 2 [C7]: the real SPEC.md rows naming absent gate files are exactly the listed exception set', () => {
   assert.deepEqual(absentGates(), ABSENT, 'a new absent gate file, or a landed one still listed, changes this set');
 });
 
-test('clause 1 [C7]: an approved must-row whose committed gate file was removed is an error naming the removal', () => {
+test('gate.io-static-spec-gate-paths.clause-1-an-approved-must-row: clause 1 [C7]: an approved must-row whose committed gate file was removed is an error naming the removal', () => {
   const fixture = privateFixtureFiles('gate-paths-');
   try {
     const run = (...args) => runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: fixture.root, encoding: 'utf8' });

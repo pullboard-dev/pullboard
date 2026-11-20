@@ -1,10 +1,11 @@
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 /** Released headline summaries shared by resume and the view [N19]. */
-import { readFileSync } from 'node:fs';
 
 /** Return the first headline paragraph for each release after `previous` through `current`. */
 export function releaseHeadlinesBetween(previous, current) {
   if (!/^\d+\.\d+\.\d+$/u.test(previous) || !/^\d+\.\d+\.\d+$/u.test(current)) return [];
-  const changelog = readFileSync(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8');
+  const changelog = fileSystem.readFile(new URL('../../../../CHANGELOG.md', import.meta.url), 'utf8');
   /** Split a numeric release into components for version comparison. */
   const parts = (version) => version.split('.').map(Number);
   /** Compare numeric version components without treating 0.8.10 as older than 0.8.9. */

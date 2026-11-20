@@ -91,7 +91,7 @@ async function refusesUncarried(box, candidate) {
   assert.equal(mergeEvent(box), null, 'a refusal does not record a merge');
 }
 
-test('[R3,R1] merged refuses the root and deleted side-branch commits', async (t) => {
+test('cli.journeys-engine-merged.r3-r1-merged-refuses-the-root: [R3,R1] merged refuses the root and deleted side-branch commits', async (t) => {
   const rootCase = await fixture(t);
   await refusesUncarried(rootCase, rootCase.base);
 
@@ -108,7 +108,7 @@ test('[R3,R1] merged refuses the root and deleted side-branch commits', async (t
   await refusesUncarried(sideCase, deleted);
 });
 
-test('[R3,R1] merged records fast-forward, merge, rebased and squashed work', async t => {
+test('cli.journeys-engine-merged.r3-r1-merged-records-fast-forward: [R3,R1] merged records fast-forward, merge, rebased and squashed work', async t => {
   for (const mode of ['fast-forward', 'merge', 'rebased', 'squashed']) {
     await t.test(`[R3,R1] records ${mode} work`, async () => {
       const box = await fixture(t);
@@ -133,7 +133,7 @@ test('[R3,R1] merged records fast-forward, merge, rebased and squashed work', as
   }
 });
 
-test('[R3,R1] --note records an otherwise uncarried merge receipt', async (t) => {
+test('cli.journeys-engine-merged.r3-r1-note-records-an-otherwise: [R3,R1] --note records an otherwise uncarried merge receipt', async (t) => {
   const box = await fixture(t);
   const result = await command(box, ['merged', String(box.id), box.base, '--note', 'recorded outside trunk']);
   assert.equal(result.code, 0, `${result.stdout}${result.stderr}`);
@@ -142,7 +142,7 @@ test('[R3,R1] --note records an otherwise uncarried merge receipt', async (t) =>
 });
 
 
-test('[R3,H16] a released client stops before losing an exceptional merged note', async t => {
+test('cli.journeys-engine-merged.r3-h16-a-released-client-stops: [R3,H16] a released client stops before losing an exceptional merged note', async t => {
   const box = await fixture(t);
   const directory = join(box.dir, 'released');
   mkdirSync(directory);

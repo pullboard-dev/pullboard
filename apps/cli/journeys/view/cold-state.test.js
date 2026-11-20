@@ -7,7 +7,7 @@ import { coldStateReads } from '../../tests/fixtures/api.js';
 /** How many of the statements read one item's thread: the per-item activity read ends in its board-wide main-move branch, which no other read has. */
 const threadReads = statements => statements.filter(sql => /item_id IS NULL AND event_kind = 'main-moved'/.test(sql)).length;
 
-test('clause 1: a cold state build over 70 items reads no thread item by item, taking them all from the one read of the event list [C7,#8480]', t => {
+test('cli.journeys-view-cold-state.a-cold-state-build-over-70: clause 1: a cold state build over 70 items reads no thread item by item, taking them all from the one read of the event list [C7,#8480]', t => {
   const { ids, built, statements, control, threads, expected } = coldStateReads(apiHttpFixture(t), 70);
   assert.deepEqual(ids.filter(id => !built.includes(id)), [], 'the build projected every item');
   for (const id of ids) assert.deepEqual(threads.get(id), expected.get(id), `item ${id}: the built thread equals itemThread`);
@@ -20,14 +20,23 @@ test('clause 1: a cold state build over 70 items reads no thread item by item, t
 const verdictReads = statements => statements.filter(sql => /\bFROM verdict (?:WHERE item_id|JOIN item)/.test(sql));
 const reopenReads = statements => statements.filter(sql => /event_kind = 'reopen'/.test(sql));
 
-test('clause 1: a cold state build over 70 items reads verdict rows once in total, not once per item [C7,#8848]', t => {
+test('cli.journeys-view-cold-state.a-cold-state-build-over-70-2: clause 1: a cold state build over 70 items reads verdict rows once in total, not once per item [C7,#8848]', t => {
   const { ids, built, statements } = coldStateReads(apiHttpFixture(t), 70);
   assert.ok(ids.length >= 70);
   assert.deepEqual(ids.filter(id => !built.includes(id)), [], 'the build projected every item');
   assert.equal(verdictReads(statements).length, 1, verdictReads(statements).join('\n'));
 });
 
-test('clause 2: the same build reads reopen rows once in total [C7,#8848]', t => {
+test('cli.journeys-view-cold-state.the-same-build-reads-reopen-rows: clause 2: the same build reads reopen rows once in total [C7,#8848]', t => {
   const { statements } = coldStateReads(apiHttpFixture(t), 70);
   assert.equal(reopenReads(statements).length, 1, reopenReads(statements).join('\n'));
+});
+
+test('cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under: clause 1: a cold state build over 300 items takes under 10 s, built through the same view ports the API serves [C7,#8480]', t => {
+  const started = performance.now();
+  const { ids, built } = coldStateReads(apiHttpFixture(t), 300);
+  const seconds = (performance.now() - started) / 1000;
+  assert.ok(ids.length >= 300);
+  assert.deepEqual(ids.filter(id => !built.includes(id)), [], 'the build projected every item');
+  assert.ok(seconds < 10, `the cold build of ${ids.length} items took ${seconds.toFixed(2)} s`);
 });

@@ -60,7 +60,7 @@ function fixture(t, { item = true, now } = {}) {
   return board;
 }
 
-test('an empty indexed board has a measured empty report rather than a missing capability [R1,R2]', t => {
+test('lib.flow-report-cache.an-empty-indexed-board-has-a: an empty indexed board has a measured empty report rather than a missing capability [R1,R2]', t => {
   const board = fixture(t, { item: false });
   const report = proofStats(board, {}, statsReadPorts).flow.report;
   assert.deepEqual(report.items, []);
@@ -70,7 +70,7 @@ test('an empty indexed board has a measured empty report rather than a missing c
   assert.equal(report.overall.submissionsPerLanded, null);
 });
 
-test('clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
+test('lib.flow-report-cache.flow-report-indexed-projection-matches-canonical: clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
   const board = fixture(t);
   const now = Date.now() + 60_000;
   const history = store.events(board);
@@ -86,7 +86,7 @@ test('clause 2: flow report indexed projection matches canonical replay without 
   assert.equal(proofStats(board, { now, since: '2026-10-01' }, statsReadPorts).flow.report.scope, 'all-time', 'a date-filtered legacy summary visibly labels the report scope');
 });
 
-test('old v2 counters retain fast metrics and explicitly unavailable reports until a writer rebuilds [R1,R2]', t => {
+test('lib.flow-report-cache.old-v2-counters-retain-fast-metrics: old v2 counters retain fast metrics and explicitly unavailable reports until a writer rebuilds [R1,R2]', t => {
   const board = fixture(t);
   olderWriterRestores(board, `${REPORT}summary`, []);
   const prepare = board.db.prepare.bind(board.db);
@@ -103,7 +103,7 @@ test('old v2 counters retain fast metrics and explicitly unavailable reports unt
   assert.deepEqual(store.events(board), before, 'writer backfill changes only local derived counters');
 });
 
-test('an older writer cannot make retained report capability look current [R1,R2,H16]', t => {
+test('lib.flow-report-cache.an-older-writer-cannot-make-retained: an older writer cannot make retained report capability look current [R1,R2,H16]', t => {
   const board = fixture(t);
   const reportKeys = 'local:proof-stats:v2:report-*';
   const retained = heldRows(board, reportKeys);
@@ -126,7 +126,7 @@ test('an older writer cannot make retained report capability look current [R1,R2
   assert.deepEqual(store.events(board), before, 'repair changes derived counters only');
 });
 
-test('retained refreezes keep active build time and prototype-like recorded names remain ordinary groups [R1,R2]', () => {
+test('lib.flow-report-cache.retained-refreezes-keep-active-build-time: retained refreezes keep active build time and prototype-like recorded names remain ordinary groups [R1,R2]', () => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   const commit = 'a'.repeat(40);
   const entries = [
@@ -151,7 +151,7 @@ test('retained refreezes keep active build time and prototype-like recorded name
 });
 
 
-test('an item fact after claim expiry cannot reclassify the preceding active build [R1,R2]', () => {
+test('lib.flow-report-cache.an-item-fact-after-claim-expiry: an item fact after claim expiry cannot reclassify the preceding active build [R1,R2]', () => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   const entries = [
     [0, 'add', { lane: 'core' }],
@@ -175,7 +175,7 @@ test('an item fact after claim expiry cannot reclassify the preceding active bui
 });
 
 
-test('cached flow retains every native milestone membership through edits removals and shipping [R1,R2]', t => {
+test('lib.flow-report-cache.cached-flow-retains-every-native-milestone: cached flow retains every native milestone membership through edits removals and shipping [R1,R2]', t => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
@@ -231,7 +231,7 @@ test('cached flow retains every native milestone membership through edits remova
   assert.deepEqual(report.milestones.map(row => row.milestone), [null]);
 });
 
-test('automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
+test('lib.flow-report-cache.automatic-placement-overrides-agree-in-cached: automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
   const board = fixture(t);
   const who = { agentId: 'coordinator' };
   const id = 1;
@@ -258,7 +258,7 @@ test('automatic placement overrides agree in cached and replayed flow after ship
   observe(['B']);
 });
 
-test('repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
+test('lib.flow-report-cache.repeated-native-landing-receipts-preserve-the: repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
@@ -286,7 +286,7 @@ test('repeated native landing receipts preserve the first measured landing inter
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
 });
 
-test('clause 3: writers alternating between a v2-shaped and the current report version keep legacy keys, replay only the missed tail, and never write over 1 s [R1,R2]', t => {
+test('lib.flow-report-cache.writers-alternating-between-a-v2-shaped: clause 3: writers alternating between a v2-shaped and the current report version keep legacy keys, replay only the missed tail, and never write over 1 s [R1,R2]', t => {
   const board = fixture(t);
   const key = `${REPORT}summary`;
   const legacy = JSON.stringify({ data: { version: FLOW_REPORT_VERSION - 1, last: 1, invalid: false }, numbers: [] });

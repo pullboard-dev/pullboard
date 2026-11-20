@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: ctest --output-junit report.xml (CMake 3.21+; gtest binaries may also use --gtest_output=xml).
+     Assumption: the add_test name is the case name, so each reads "clause N: ...". ctest writes no file attribute; classname repeats the test name. -->
+<testsuite name="ctest" tests="3" failures="1" disabled="0" skipped="1" hostname="runner" time="0.03" timestamp="2026-11-17T12:00:00">
+  <testcase name="clause 1: adds two numbers" classname="clause 1: adds two numbers" time="0.01" status="run"/>
+  <testcase name="clause 2: halves a number" classname="clause 2: halves a number" time="0.02" status="run">
+    <failure message="Failed"/>
+  </testcase>
+  <testcase name="clause 3: later" classname="clause 3: later" time="0" status="notrun">
+    <skipped message="Skipped"/>
+  </testcase>
+</testsuite>

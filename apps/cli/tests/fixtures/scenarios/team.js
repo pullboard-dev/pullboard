@@ -105,6 +105,8 @@ import {
   parityRecord,
 } from '../e2e.js';
 import { appendFileSync } from 'node:fs';
+import { settleLand } from '../land/settle.js';
+import { settleSubmit } from '../submit/settle.js';
 import {
   executeMove,
   serveApi,
@@ -205,8 +207,30 @@ function quick(box, root, ...args) {
   return result;
 }
 
-/** Run a fixture CLI command, retaining the refusal or successful document verbatim. */
+/** Commands that run through the box's in-process dispatcher and settle their pulled runner job before they answer [C7,#10464]. */
+const SETTLED_STEPS = new Set(['submit', 'verify', 'land']);
+/** Local runners a settled submit started; stopped when the file ends, as settleSubmit's test context would. */
+const startedRunners = [];
+after(() => { for (const stop of startedRunners.splice(0)) stop(); });
+
+/**
+ * One submit, verify or land through the production dispatcher in this process, refused unless it exits 0.
+ * Why: each as its own node process cost a start-up; a submit waits for its gate job (settleSubmit) and a land for its receipt (settleLand), as #10411 did for repair-landing [C7,#10464].
+ * Returns the command's output text, with the settled document for submit and land.
+ */
+async function settledStep(box, root, args) {
+  const json = args[0] !== 'verify' && !args.includes('--json') ? [...args, '--json'] : args;
+  const result = await box.runIn(root, ...json);
+  assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
+  if (args[0] === 'verify') return result.out;
+  const document = JSON.parse(result.out);
+  const settled = args[0] === 'submit' ? await settleSubmit({ after: stop => startedRunners.push(stop) }, box, document) : await settleLand(box, document);
+  return JSON.stringify(settled);
+}
+
+/** Run a fixture CLI command, retaining the refusal or successful document verbatim; submit, verify and land answer as a promise. */
 function run(box, root, ...args) {
+  if (SETTLED_STEPS.has(args[0]) && typeof box.runIn === 'function' && !args.includes('--help')) return settledStep(box, root, args);
   const result = quick(box, root, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
   return result.out;

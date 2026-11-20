@@ -1,7 +1,11 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { requireLandingCompanions } from '../guards.js';
+import { environmentAdapter } from '../../../../env/index.js';
 import { timedPhase } from '../timing.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { quarantineBatchGates } from '../../../../verify/index.js';
+import { receiptBlockingGreen } from '../../../../verify/index.js';
+import { verdictProjector } from '../../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from '../land/envelope.js';
@@ -9,8 +13,6 @@ import { prepareNativeTrainLanding } from '../trainrecord.js';
 import { finishLanding } from '../finish.js';
 import { mergeOnlyLandingProblem } from '../../../../merge/index.js';
 import { requireOutsideOwner } from '../../../../items/index.js';
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import * as store from '../../../../store/index.js';
 import { git } from '../../../../git/index.js';
 import { headCommit } from '../../../../git/index.js';
@@ -21,10 +23,12 @@ import { repoInfo } from '../../../../git/index.js';
 import { sameCommonDir } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { untracked } from '../../../../git/index.js';
-import { isStampedGreen } from '../../../../gate/index.js';
+import { isStampedGreen } from '../../../../gate/heavy.js';
 import { Refused } from '../../../../kernel/index.js';
 import { save } from './merge.js';
+import { exactTreeRecord } from './merge.js';
 import { landingRunObserver } from './gate.js';
+import { sprintPorts } from './gate.js';
 import { spawn } from 'node:child_process';
 import { refreshSource } from '../main/red.js';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +44,8 @@ import { hopFenceRefusal } from '../land/fence.js';
 import { hopFenceLeaseFrom } from '../land/fence.js';
 import { carryLandingHops } from '../land/fence.js';
 import { requireCarriedHops } from '../land/fence.js';
+
+const fs = fileSystemAdapter();
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -96,7 +102,7 @@ export function startBaseRefresh(state, batch, { source = refreshSource, launch 
  * anything it starts never act under, or queue for, a checkout's lease. Why: a refresh is a read plus a cache write, and
  * a refresh started by a write command inherited that command's checkout authority [C7].
  */
-export function refreshEnvironment(env = process.env) {
+export function refreshEnvironment(env = environmentAdapter().all()) {
   const clean = { ...env };
   for (const name of ['PULLBOARD_CHECKOUT_SESSION_TOKEN', ...AGENT_SESSION_IDS]) delete clean[name];
   return clean;
@@ -154,7 +160,7 @@ function parallelPublicationRoot(state, batch) {
   if (root === batch.root) return root;
   const owner = (batch.parallelCandidates ?? []).some(candidate => candidate.snapshot.root === root
     && (candidate.gate?.tree === batch.proof?.tree || candidate.snapshot.gateResults?.some(gate => gate.tree === batch.proof?.tree && gate.logPath === batch.proof?.logPath)));
-  if (!owner || !existsSync(root) || !sameCommonDir(realpathSync(repoInfo(root).commonDir), realpathSync(repoInfo(batch.root).commonDir))) {
+  if (!owner || !fs.exists(root) || !sameCommonDir(fs.realpath(repoInfo(root).commonDir), fs.realpath(repoInfo(batch.root).commonDir))) {
     throw new Refused('LAND_MOVED', 'the recorded gate-owning worktree is missing or belongs to another repository; restore it before adopting');
   }
   const tree = git(state.root, ['rev-parse', `${batch.tip}^{tree}`]);
@@ -276,7 +282,7 @@ export async function publish(state, { batches, finish = finishLanding } = {}) {
   }
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
-    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
+    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip, ...exactTreeArgument(state) }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
   await finish(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
@@ -430,6 +436,132 @@ export async function moveTrunkRef(state) {
     : `finish: ${ref} moved from ${base} to ${tip}; the primary checkout's tracked files did not follow (${(tree.stderr || tree.stdout).trim().split('\n')[0]}); run git reset --keep ${tip} there; refreshing the code map`);
 }
 
+/** What a red Sprint proof says about the file it reran once: the file, the rerun and main's receipt for it, or that main has none [V37]. */
+function redFileDetail(proof) {
+  if (!proof.file) return '';
+  const receipt = proof.mainReceipt;
+  const main = receipt ? `main's receipt for it is ${receipt.result}${receipt.main ? ` at ${String(receipt.main).slice(0, 12)}` : ''}` : 'main has no receipt for it';
+  return ` (file ${proof.file} was ${proof.rerun === 'red' ? 'red again on its rerun' : 'green on its rerun'}; ${main})`;
+}
+
+/**
+ * Whether the item a landing re-proof red reopens keeps its accepted verdict: kept unless main at the batch base changed a file the review covered [C7,U159,#10777].
+ * Why: the red is the tree's fault, not the review's; a verdict read that fails never blocks the reopen, it just keeps nothing.
+ */
+function reopenedVerdict(state, id) {
+  try {
+    const reads = state.verdictReads ?? { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, getItem: store.getItem };
+    const projector = verdictProjector(state.root, state.board, { main: state.batch.base },
+      { events: reads.events, acceptedVerdict: reads.acceptedVerdict, verdictReviewProblem: reads.verdictReviewProblem, trunkRef: reads.trunkRef });
+    return projector.reopened(reads.getItem(state.board, id), { composedEquality: state.config.landing?.composedEquality === true });
+  } catch { return { keep: false }; }
+}
+
+/**
+ * Prove the batch's exact tree at Sprint depth before main moves: static checks, then the tests of each cell the batch changes [V37].
+ * The record lands on the batch as exactTree.pin, .cells and .result beside exactTree.tree. A red leaves main where it was, records
+ * the batch blocked with the failing cell named, and refuses LAND_EXACT_RED.
+ * Why before the finish write: a red tree must never get a main-moved receipt, and a green record must name the tree that lands.
+ *
+ * @param {object} state The landing state.
+ * @param {object} [ports] What the proof reads and runs; the batch's own checkout by default.
+ * @returns {Promise<object>} The exact-tree record as saved.
+ */
+export async function requireSprintProof(state, ports = state.sprintPorts ?? sprintPorts(state)) {
+  const recorded = exactTreeRecord(state.batch.root, state.batch.tip, state.batch.exactTree);
+  const tree = recorded?.tree;
+  // An adopted batch keeps the green proof it already holds for this tree; with landing.sprintBarTests on, that proof must carry its bar-test record [U147].
+  if (recorded?.result === 'green' && (state.config.landing?.sprintBarTests !== true || recorded.barTests)) return recorded;
+  // With landing.composedEquality on, a one-item batch whose staged tree equals the proven composition lands with no retest, when the receipt on the batch is green for this same tree id, not only this commit [C7,#10975].
+  const receipt = state.batch.proof?.receipt;
+  if (state.config.landing?.composedEquality === true && tree && recorded.composedEqual === true && receipt?.tree === tree && receiptBlockingGreen(receipt)) {
+    await save(state, { exactTree: { ...recorded, result: 'green', composition: 'same-tree', receipt: receipt.id } });
+    return state.batch.exactTree;
+  }
+  if (!tree) throw new Refused('LAND_EXACT_TREE', `the batch tip ${state.batch.tip} has no readable tree id, so no proof can name the tree main will point to; rebuild the batch`);
+  state.say?.(`finish: proving tree ${tree} at Sprint depth before main moves`);
+  // exact.js loads only when a landing proves its tree, so commands that never land skip it (closure-budget) [C7].
+  const { sprintProof } = await import('../exact.js');
+  const proof = await sprintProof({ tree }, ports);
+  if (proof.result === 'green') {
+    // With landing.composedEquality on, a staged tree that differs from the composition (or a multi-item batch) is re-proved here and the record says so [C7,#10976].
+    const reproved = state.config.landing?.composedEquality === true && recorded.composedEqual === false;
+    await save(state, { exactTree: reproved ? { ...proof, composition: 're-proved' } : proof });
+    return state.batch.exactTree;
+  }
+  const barFile = proof.barFile ?? proof.file;
+  const where = proof.failed === 'bar' ? `the frozen bar tests of item #${proof.item}${barFile ? ` (file ${barFile})` : ''}` : proof.failed;
+  const message = `the Sprint proof is red on tree ${tree} in ${where}${proof.barFile ? '' : redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : proof.failed === 'bar' ? `the bar tests of item #${proof.item}` : `the tests of ${proof.failed}`} and resubmit`;
+  // With landing.composedEquality on, a red in one item's frozen bar tests sends that item back to its lane naming the file and main-at, and the batch's other items are not blamed [C7,#10776].
+  if (state.config.landing?.composedEquality === true && proof.failed === 'bar' && Number.isInteger(proof.item)) {
+    const kept = reopenedVerdict(state, proof.item);
+    const note = `the re-proved tree is red in the frozen bar tests of this item (file ${barFile ?? 'unknown'}) at main ${String(state.batch.base).slice(0, 12)}; main was not moved; fix that test and resubmit${kept.keep ? '; its accepted review stays bound, since main changed no file the review covered' : kept.stale?.file ? `; its review is stale, since main changed ${JSON.stringify(kept.stale.file)}, so another agent re-reviews it` : ''}`;
+    await state.write('reopen', [proof.item, { agentId: 'coordinator', note }]);
+    await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: barFile ?? null, name: note }], refusal: { code: 'LAND_REPROVE_RED', message: `item #${proof.item} reopened: ${note}`, at: state.board.clock.now().toISOString() } });
+    state.say?.(`finish: item #${proof.item} reopened to its lane: ${note}`);
+    throw new Refused('LAND_REPROVE_RED', `item #${proof.item} reopened: ${note}`);
+  }
+  await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
+  state.say?.(`finish: ${message}`);
+  throw new Refused('LAND_EXACT_RED', message);
+}
+
+/** The trunk branch's ref name and its current commit, read the way moveTrunkRef reads them. */
+function trunkRefState(state) {
+  const branch = (mainCheckout(state.root)?.branch ?? 'main').replace(/^refs\/heads\//u, '');
+  const ref = `refs/heads/${branch}`;
+  return { branch, ref, current: tryGit(state.root, ['rev-parse', '--verify', '-q', ref]).stdout.trim() };
+}
+
+/**
+ * The ports of the restage loop for this batch: the same compare moveTrunkRef's update-ref makes, a merge of the staged tip onto the new main, the Sprint proof, and the yield [V35].
+ * A restage merges the old tip into the current main in the batch's checkout, so the item merges stay in history and only the new tip is proved;
+ * a merge that conflicts is abandoned and refuses LAND_ITEM_MOVED so the batch is rebuilt from current verified work.
+ */
+function restagePorts(state) {
+  const verify = async () => {
+    const { branch, current } = trunkRefState(state);
+    if (current === state.batch.base || current === state.batch.tip) return;
+    throw new Refused('LAND_MAIN_MOVED', `${branch} is at ${current || 'missing'}, no longer the batch base ${state.batch.base}; restaging the batch on it`);
+  };
+  const restage = async () => {
+    const { current: main } = trunkRefState(state);
+    const { root, tip, id } = state.batch;
+    const who = ['-c', `user.name=${tryGit(root, ['config', 'user.name']).stdout.trim() || 'pullboard'}`, '-c', `user.email=${tryGit(root, ['config', 'user.email']).stdout.trim() || 'pullboard@localhost'}`];
+    git(root, ['checkout', '--detach', '--quiet', main]);
+    const merged = tryGit(root, [...who, 'merge', '--no-ff', '--no-edit', '-m', `chore(merge): restage batch ${id} on ${main.slice(0, 12)} [C7]`, tip]);
+    if (merged.status !== 0) {
+      tryGit(root, ['merge', '--abort']);
+      git(root, ['checkout', '--detach', '--quiet', tip]);
+      throw new Refused('LAND_ITEM_MOVED', `main moved to ${main.slice(0, 12)} and the batch does not merge onto it cleanly; rebuild the batch from current verified work: pullboard land`);
+    }
+    await save(state, { base: main, tip: headCommit(root) });
+    state.say?.(`finish: main moved to ${main.slice(0, 12)}; restaged the batch on it at ${state.batch.tip}`);
+  };
+  const yieldTurn = async restages => {
+    const message = `main moved ${restages + 1} times while batch ${state.batch.id} was staged; its items yield their turn and land behind the others`;
+    await save(state, { state: 'blocked', yielded: { restages, at: state.board.clock.now().toISOString() },
+      refusal: { code: 'LAND_YIELDED', message, at: state.board.clock.now().toISOString() } });
+    for (const entry of state.batch.items) while (store.stepAsideCount(state.board, entry.id) < 2) store.countLeaseLapse(state.board, entry.id);
+    state.say?.(`finish: ${message}`);
+  };
+  return { verify, restage, prove: () => requireSprintProof(state), yieldTurn };
+}
+
+/**
+ * Stage, prove, then check the move is still a compare-and-set from the base the batch was staged on, restaging up to RESTAGE_LIMIT times; a batch that keeps losing yields and refuses LAND_YIELDED [V35].
+ * Why before the receipts: the store records the landing before the ref moves, so a restage after that would leave receipts naming a tip that never lands.
+ */
+export async function settleOnMain(state, ports = state.restagePorts ?? restagePorts(state)) {
+  const { stageUntilCurrent } = await import('../exact.js');
+  const settled = await stageUntilCurrent(ports);
+  if (settled.yielded) throw new Refused('LAND_YIELDED', state.batch.refusal.message);
+  return settled;
+}
+
+/** The exact-tree check as an argument of the finish write: only an exact `true` setting adds it, so a move recorded with the setting off replays unchanged [V36]. */
+function exactTreeArgument(state) { return state.config.landing?.exactTreeCheck === true ? { exactTreeCheck: true } : {}; }
+
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export function finishTrunk(state) {
   return landingSpan('record', () => finishTrunkSteps(state));
@@ -442,10 +574,12 @@ async function finishTrunkSteps(state) {
   state.say?.('finish: envelope recorded; checking module resolution');
   if (!scanRidesRunner(state)) await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
-  state.say?.('finish: module resolution checked; recording the finished batch');
+  state.say?.('finish: module resolution checked; proving the exact tree');
+  await requireSprintProof(state);
+  await settleOnMain(state);
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
-    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
+    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip, ...exactTreeArgument(state) }]);
   await state.checkLease();
   await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => timedPhase(state.say, 'push', () => moveTrunkRef(state)) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);

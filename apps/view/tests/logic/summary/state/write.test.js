@@ -16,7 +16,7 @@ import { openCellBoard } from '../../../../../../packages/store/tests/fixtures/c
  * (decisions), a raw verdict row with no event (items), and a raw event row with no store call (events). The control
  * read with no write keeps the derived fields.
  */
-test('clause 3: every kind of board write shows in the next state read, and a read with no write keeps the fields [N26,C7]', t => {
+test('view.x-summary-state-write.clause-3-every-kind-of-board-write: clause 3: every kind of board write shows in the next state read, and a read with no write keeps the fields [N26,C7]', t => {
   const project = cellProject(t);
   const board = cellBoard(t, project.boardFile);
   const read = () => projectState(project.repo, { board });
@@ -49,13 +49,13 @@ test('clause 3: every kind of board write shows in the next state read, and a re
   assert.equal(read().events[0].event_id, newest, 'a raw event shows first in the activity');
 });
 
-test('the view proof summary leaves out the two lists only pullboard stats reads [N26]', () => {
+test('view.x-summary-state-write.the-view-proof-summary-leaves-out-the: the view proof summary leaves out the two lists only pullboard stats reads [N26]', () => {
   const summary = viewProofSummary({ total: 3, notesPerSubmit: [{ seat: 'web-1', notes: 1, submits: 0, notesPerSubmit: null }],
     workFreeReleases: [{ day: '2026-11-02', seat: 'web-1', reason: 'BLOCKED', count: 1 }], agents: [], bars: [], caught: [], flow: null });
   assert.deepEqual(Object.keys(summary).sort(), ['flow', 'total']);
 });
 
-test('the view state lists only the landings of the last 24 hours, each with its commit [N26]', t => {
+test('view.x-summary-state-write.the-view-state-lists-only-the-landings: the view state lists only the landings of the last 24 hours, each with its commit [N26]', t => {
   const project = cellProject(t);
   const board = cellBoard(t, project.boardFile);
   const make = title => cellItem(board, { lane: 'web', title, specIds: ['G1'], criterion: 'The fixture item is valid.', check: 'true',

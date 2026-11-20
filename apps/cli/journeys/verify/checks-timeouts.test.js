@@ -32,7 +32,7 @@ const {
   project, attackCommit, privateCheckSubmission,
 } = e2e;
 
-test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async () => {
+test('cli.journeys-verify-checks-timeouts.accept-reports-a-frozen-check-timeout: accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async () => {
   const box = privateCheckSubmission({ timeout: '100ms', check: 'echo timeout-marker; case "$PULLBOARD_HOME" in */pullboard-criterion-*/home/.pullboard) while :; do :; done;; *) exit 1;; esac' });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the frozen check exceeded its configured timeout', '--json');
   assert.equal(refused.code, 1);
@@ -45,7 +45,7 @@ test('accept reports a frozen check timeout as CHECK_UNVERIFIED [V18,V2]', async
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', async () => {
+test('cli.journeys-verify-checks-timeouts.a-frozen-check-whose-shell-cannot: a frozen check whose shell cannot start is identified as a startup failure [V18,V2]', async () => {
   const box = privateCheckSubmission({ check: 'echo forbidden-shell-ran' });
   const isolatedPath = join(box.dir, 'git-only-path');
   mkdirSync(isolatedPath);
@@ -61,7 +61,7 @@ test('a frozen check whose shell cannot start is identified as a startup failure
   assert.match(error.message, /full output file:/);
 });
 
-test('accept reports a frozen install timeout before running the check [V18,V2]', async () => {
+test('cli.journeys-verify-checks-timeouts.accept-reports-a-frozen-install-timeout: accept reports a frozen install timeout before running the check [V18,V2]', async () => {
   const box = privateCheckSubmission({ timeout: '100ms', install: 'echo install-started; while :; do :; done', check: 'echo forbidden-check-ran' });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the install must finish within its frozen deadline', '--json');
   assert.equal(refused.code, 1);
@@ -73,7 +73,7 @@ test('accept reports a frozen install timeout before running the check [V18,V2]'
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', async () => {
+test('cli.journeys-verify-checks-timeouts.private-check-timeout-kills-a-term: clause 1: private check timeout kills a TERM-resistant shell and its tracked child [V18,V2]', async () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   // The shell must start and write both pid files inside this budget; on a loaded machine that takes seconds.

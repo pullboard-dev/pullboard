@@ -44,7 +44,7 @@ async function catchUp(page, shown) {
   }
 }
 
-test('the shouts tab counts shouts you have not seen [N26]', async () => {
+test('cli.journeys-shout-shouts.the-shouts-tab-counts-shouts-you: the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.runIn(alpha.repo, 'shout', 'web', 'first');
@@ -116,7 +116,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
   }
 });
 
-test('an empty feed says so on one line [N26]', async () => {
+test('cli.journeys-shout-shouts.an-empty-feed-says-so-on: an empty feed says so on one line [N26]', async () => {
   const box = machine();
   project(box, 'alpha');
   const view = await startView(box);
@@ -132,7 +132,7 @@ test('an empty feed says so on one line [N26]', async () => {
     await view.stop();
   }
 });
-test('clause 2: a shout shows the evidence it carries [B22]', async () => {
+test('cli.journeys-shout-shouts.a-shout-shows-the-evidence-it: clause 2: a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.runIn(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -152,7 +152,7 @@ test('clause 2: a shout shows the evidence it carries [B22]', async () => {
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
     assert.match(feed, /<b class="sx-id">#1<\/b><b class="sx-tt">Greeting<\/b>/, 'the opened conversation names the real item above its messages');
-    page.run("view.shoutThread = 'none'; render();");
+    page.run("view.shoutThread = 'from:web-1'; render();");
     const plain = page.show('feed');
     assert.ok(plain.includes('nothing to show</span>'), 'the No item conversation retains its native words');
     assert.doesNotMatch(plain, /class="receipt"/, 'a shout with no evidence has no receipt');
@@ -162,7 +162,7 @@ test('clause 2: a shout shows the evidence it carries [B22]', async () => {
 });
 
 /** The person's own words carry the person's name, and only the view's secret can give it [N26,A9,B26]. */
-test('a shout from the view shows the person as its author [N26,A9]', { timeout: 60_000 }, async (t) => {
+test('cli.journeys-shout-shouts.a-shout-from-the-view-shows: a shout from the view shows the person as its author [N26,A9]', { timeout: 60_000 }, async (t) => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.runIn(alpha.web, 'shout', 'all', 'web-1 is on the greeting');
@@ -181,13 +181,15 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     page.element('shout-to').value = 'web';
     page.element('shout-text').value = 'Web, keep it short';
     await page.fire('shout-form', 'submit');
-    await catchUp(page, () => { page.run("view.shoutThread = 'none'; render();"); return page.show('feed').includes('Web, keep it short'); });
+    await catchUp(page, () => { page.run("view.shoutThread = 'from:person'; render();"); return page.show('feed').includes('Web, keep it short'); });
     const cards = () => [...page.show('feed').matchAll(/<span class="sx-snd [a-z]+" title="([^"]*)"><i[^>]*><\/i><span class="sx-sn">([^<]*)<\/span><\/span><span class="sx-tx">(?:<span class="sx-mk[^>]*>[^<]*<\/span>)?([^<]*)<\/span>/g)].map((m) => m.slice(1));
+    // An item-less shout sits in its sender's own thread (5084b13705): the person's two words in theirs, web-1's in its own.
     assert.deepEqual(cards(), [
-      [`web-1 (${MACHINE_MODEL}) to coordinator and you`, 'web-1', 'web-1 is on the greeting'],
       ['you to coordinator', 'you', 'Hello from the person'],
       ['you to web', 'you', 'Web, keep it short'],
     ], 'the conversation keeps native author and recipient order, naming the model and recipient only on hover');
+    page.run("view.shoutThread = 'from:web-1'; render();");
+    assert.deepEqual(cards(), [[`web-1 (${MACHINE_MODEL}) to coordinator and you`, 'web-1', 'web-1 is on the greeting']], 'web-1 keeps its own thread, naming the model and recipient only on hover');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
     assert.deepEqual(said(JSON.parse(await box.runIn(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');

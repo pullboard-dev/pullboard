@@ -228,9 +228,9 @@ test('gate.io-static-operations.case-8055-the-mutation-adapter-is-the: #8055 [C7
 
 const WRITE_RENAME = "import { renameSync, writeFileSync } from 'node:fs';\nexport function save(file, text) {\n  writeFileSync(`${file}.tmp`, text);\n  renameSync(`${file}.tmp`, file);\n}\n";
 
-test('gate.io-static-operations.case-6740-clause-2-write-state-file: #6740 clause 2: write-state-file is entered at the kernel writeFileAtomic, and a private write-then-rename outside it is a known violation [C7]', () => {
+test('gate.io-static-operations.case-6740-clause-2-write-state-file: #6740 clause 2: write-state-file is entered at the store writeFileAtomic, and a private write-then-rename outside it is a known violation [C7]', () => {
   const entry = OPERATIONS.find(row => row.name === 'write-state-file');
-  assert.equal(entry?.entry, 'packages/kernel/src/logic/atomic.js');
+  assert.equal(entry?.entry, 'packages/store/src/io/atomic.js');
   assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function writeFileAtomic/u);
   assert.deepEqual(operationSites(WRITE_RENAME, 'packages/demo/src/io/save.js').map(row => [row.operation, row.line]), [['write-state-file', 3]]);
   assert.deepEqual(operationSites(WRITE_RENAME, entry.entry), [], 'the entry itself is not a second path');
@@ -242,7 +242,7 @@ test('gate.io-static-operations.case-6740-clause-2-write-state-file: #6740 claus
 test('gate.io-static-operations.case-6740-clause-2-the-baseline-records: #6740 clause 2: the baseline records every private write-then-rename as a known violation, and the list can only shrink [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
   assert.deepEqual(baseline['write-state-file'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['write-state-file']);
-  assert.equal(baseline['write-state-file'].length, 92, 'measured: 89 private helpers at claim, 5 added and 2 removed on main since (publishCacheEntry in codemap, #9883 removes it), the bar said 59');
+  assert.equal(baseline['write-state-file'].length, 82, 'measured: 89 private helpers at claim, 5 added and 6 removed on main since (publishCacheEntry in codemap, #9883 removes it; setup.js, prune.js, compaction.js and diagnostics.js now write through the fs adapter and no longer match the write-then-rename scan), cleanup.js writes owner-only through the adapter open/write/close and no longer matches the scan, activity inbox.js and observations.js rename through the adapter and no longer match the scan, init/finish.js, memo.js and the pinned tool build.js no longer match the scan, the bar said 59');
   const grown = { ...baseline, 'write-state-file': [...baseline['write-state-file'], 'packages/demo/src/io/save.js'] };
   assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /write-state-file gains a second entry point/u);
   const { 'write-state-file': recorded, ...before } = baseline;

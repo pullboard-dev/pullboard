@@ -1,4 +1,5 @@
 /** The controller-side SSH health probe, apart from the transport the worker loads so the worker bundle leaves out its SSH and GUI-session closure [C7]. */
+import { environmentAdapter } from '../../../env/index.js';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
@@ -6,10 +7,10 @@ import { spawnSsh } from '../../../transport/index.js';
 import { guiSession } from '../../../gate/light.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
-function environment() {
+function environment(source = environmentAdapter()) {
   const env = { LC_ALL: 'C', LANG: 'C', TZ: 'UTC' };
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR', 'SystemRoot', 'WINDIR']) {
-    if (process.env[key] !== undefined) env[key] = process.env[key];
+    if (source.has(key)) env[key] = source.get(key);
   }
   return env;
 }
@@ -41,6 +42,19 @@ export const DISCOVERABLE_TOOLCHAINS = Object.freeze(['python3', 'go', 'cargo', 
 const VERSION_FLAG = { go: 'version', java: '-version' };
 
 /**
+ * Find cargo through rustup when it is not on PATH, and return its version answer.
+ * Why: Homebrew's rustup is keg-only, so cargo sits in a folder the job PATH lacks (#10386); asked only after the PATH answer failed [C7].
+ */
+function viaRustup(spawn) {
+  try {
+    const which = spawn('rustup', ['which', 'cargo'], { encoding: 'utf8', timeout: 1500 });
+    const path = which && !which.error && which.status === 0 ? String(which.stdout ?? '').trim() : '';
+    if (!isAbsolute(path) || /[\u0000-\u001f\u007f]/u.test(path)) return null;
+    return spawn(path, ['--version'], { encoding: 'utf8', timeout: 1500 });
+  } catch { return null; }
+}
+
+/**
  * Ask each known toolchain name for its version through the injected spawn and return name to version for those that answer.
  * Why: toolchains are declared by hand today, so most runners declare none and admission cannot route a Python job to the runner that has python3.
  * A command that is missing, exits non-zero, times out or prints no version is left out, never recorded empty [C7].
@@ -53,6 +67,7 @@ export function discoverToolchains({ spawn = spawnSync } = {}) {
   for (const name of DISCOVERABLE_TOOLCHAINS) {
     let result;
     try { result = spawn(name, [VERSION_FLAG[name] ?? '--version'], { encoding: 'utf8', timeout: 1500 }); } catch { continue; }
+    if (name === 'cargo' && (!result || result.error || result.status !== 0)) result = viaRustup(spawn);
     if (!result || result.error || result.status !== 0) continue;
     const version = /\d+(?:\.\d+)+/u.exec(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)?.[0];
     if (version) found[name] = version;
@@ -65,21 +80,23 @@ function word(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
 /**
  * Confirm SSH and the configured Node answer a fresh nonce; this does not attest worker cleanup or test success.
+ * `discover` asks the runner about every name in DISCOVERABLE_TOOLCHAINS and returns the versions it answered as `discovered` (#10376).
  * `timeoutMs` bounds the whole observation (default 3 s); a confirming probe after a failed call passes a longer
  * budget so a loaded runner is not mistaken for a dead one [C7].
  */
-export async function probeRunnerTransport(runner, { observeGui = false, observeLoad = false, discoverNode = false, enrollSigningKey = false, toolchains, timeoutMs = 3_000, spawn = spawnSsh } = {}) {
+export async function probeRunnerTransport(runner, { observeGui = false, observeLoad = false, discoverNode = false, enrollSigningKey = false, toolchains, discover = false, timeoutMs = 3_000, spawn = spawnSsh } = {}) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u.test(runner?.host ?? '')
     || runner.node !== undefined && (typeof runner.node !== 'string' || /[\u0000-\u001f\u007f]/u.test(runner.node)
       || !(runner.node === 'node' || runner.node.startsWith('/')))) {
     return { healthy: false, reason: 'invalid runner destination' };
   }
   const nonce = randomUUID();
-  const names = toolchains ? Object.keys(toolchains).filter(name => /^[a-z][a-z0-9+_-]{0,31}$/u.test(name)) : [];
+  const names = discover ? [...DISCOVERABLE_TOOLCHAINS] : toolchains ? Object.keys(toolchains).filter(name => /^[a-z][a-z0-9+_-]{0,31}$/u.test(name)) : [];
   // Each declared toolchain prints its own version; a missing or failing command reports null.
   const checks = names.length ? `const tcRun=require('node:child_process');const tcOut={};for(const n of ${JSON.stringify(names)}){const r=tcRun.spawnSync(n,[n==='go'?'version':'--version'],{encoding:'utf8',timeout:1500});const m=r.error||r.status!==0?null:/(\\d+(?:\\.\\d+)*)/.exec((r.stdout||'')+(r.stderr||''));tcOut[n]=m?m[1]:null;}` : '';
   const desktop = observeGui || observeLoad || enrollSigningKey ? `/* pullboard registration GUI probe */const {spawnSync}=require('node:child_process');const guiSession=${guiSession.toString()};const os=require('node:os');` : '';
-  const signing = enrollSigningKey ? `const fs=require('node:fs');const path=require('node:path');const crypto=require('node:crypto');const signingHome=process.env.PULLBOARD_MACHINE_HOME||path.join(process.env.HOME||os.homedir(),'.pullboard');if(!path.isAbsolute(signingHome))throw new Error('runner signing home must be absolute');fs.mkdirSync(signingHome,{recursive:true,mode:0o700});fs.chmodSync(signingHome,0o700);const pair=crypto.generateKeyPairSync('ed25519');const der=pair.publicKey.export({type:'spki',format:'der'});const enrolledPublicKey=der.toString('base64url');const keyId=crypto.createHash('sha256').update(der).digest('hex');const keyPath=path.join(signingHome,'runner-signing-'+keyId+'.pem');const temporary=keyPath+'.'+crypto.randomUUID()+'.tmp';try{fs.writeFileSync(temporary,pair.privateKey.export({type:'pkcs8',format:'pem'}),{flag:'wx',mode:0o600});fs.renameSync(temporary,keyPath);fs.chmodSync(keyPath,0o600);}finally{fs.rmSync(temporary,{force:true});}` : '';
+  // The signing snippet runs on the runner and reads the runner's own environment, not this process's.
+  const signing = enrollSigningKey ? `const fs=require('node:fs');const path=require('node:path');const crypto=require('node:crypto');const remote=process['env'];const signingHome=remote.PULLBOARD_MACHINE_HOME||path.join(remote.HOME||os.homedir(),'.pullboard');if(!path.isAbsolute(signingHome))throw new Error('runner signing home must be absolute');fs.mkdirSync(signingHome,{recursive:true,mode:0o700});fs.chmodSync(signingHome,0o700);const pair=crypto.generateKeyPairSync('ed25519');const der=pair.publicKey.export({type:'spki',format:'der'});const enrolledPublicKey=der.toString('base64url');const keyId=crypto.createHash('sha256').update(der).digest('hex');const keyPath=path.join(signingHome,'runner-signing-'+keyId+'.pem');const temporary=keyPath+'.'+crypto.randomUUID()+'.tmp';try{fs.writeFileSync(temporary,pair.privateKey.export({type:'pkcs8',format:'pem'}),{flag:'wx',mode:0o600});fs.renameSync(temporary,keyPath);fs.chmodSync(keyPath,0o600);}finally{fs.rmSync(temporary,{force:true});}` : '';
   const answer = `process.stdout.write(JSON.stringify({nonce:${JSON.stringify(nonce)},node:process.versions.node${discoverNode ? ',nodePath:process.execPath' : ''}${observeGui ? ',gui:guiSession(),cores:os.availableParallelism(),memoryMB:Math.floor(os.totalmem()/1048576)' : ''}${observeLoad ? ',cpuLoad:{at:new Date().toISOString(),busyPercent:busy,average:os.loadavg()}' : ''}${enrollSigningKey ? ',publicKey:enrolledPublicKey' : ''}${names.length ? ',toolchains:tcOut' : ''}}))`;
   // Both snapshots run on the destination; controller CPU counters never stand in for a runner.
   const script = observeLoad ? `${desktop}${signing}${checks}const first=os.cpus();setTimeout(()=>{const last=os.cpus();let idle=0,total=0;for(let i=0;i<last.length;i++){if(!first[i])continue;for(const key of Object.keys(last[i].times)){const delta=last[i].times[key]-first[i].times[key];total+=delta;if(key==='idle')idle+=delta;}}const busy=total>0?100*(1-idle/total):null;${answer}},100);` : `${desktop}${signing}${checks}${answer}`;
@@ -110,7 +127,7 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   const measured = cpu && Number.isFinite(Date.parse(cpu.at)) && Number.isFinite(cpu.busyPercent) && cpu.busyPercent >= 0 && cpu.busyPercent <= 100
     && Array.isArray(cpu.average) && cpu.average.length === 3 && cpu.average.every(n => Number.isFinite(n) && n >= 0);
   // Arbitrary stderr is deliberately not returned by a health-only probe; the failed job retains its sanitized diagnostics.
-  return { healthy: Boolean(healthy), ...(healthy && toolchains ? { toolchains: toolchainVerdict(toolchains, reply?.toolchains) } : {}), ...(healthy && discoverNode && typeof reply?.nodePath === 'string' && isAbsolute(reply.nodePath) && !/[\u0000-\u001f\u007f]/u.test(reply.nodePath) ? { nodePath: reply.nodePath } : {}), ...(healthy && enrollSigningKey ? { publicKey: reply.publicKey } : {}), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
+  return { healthy: Boolean(healthy), ...(healthy && toolchains && !discover ? { toolchains: toolchainVerdict(toolchains, reply?.toolchains) } : {}), ...(healthy && discover ? { discovered: Object.fromEntries(DISCOVERABLE_TOOLCHAINS.flatMap(name => typeof reply?.toolchains?.[name] === 'string' ? [[name, reply.toolchains[name]]] : [])) } : {}), ...(healthy && discoverNode && typeof reply?.nodePath === 'string' && isAbsolute(reply.nodePath) && !/[\u0000-\u001f\u007f]/u.test(reply.nodePath) ? { nodePath: reply.nodePath } : {}), ...(healthy && enrollSigningKey ? { publicKey: reply.publicKey } : {}), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
     ...(healthy && Number.isSafeInteger(reply?.cores) && reply.cores > 0 && Number.isSafeInteger(reply?.memoryMB) && reply.memoryMB > 0 ? { cores: reply.cores, memoryMB: reply.memoryMB } : {}) } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
     ...result, error, timedOut, stderrBytes: Buffer.byteLength(stderr), reason: healthy ? 'configured Node answered nonce' : 'transport health not confirmed' };
 }

@@ -30,6 +30,7 @@ import * as verify from '../../../logic/engine/move/verify.js';
 export const ENGINE_MOVE_STEPS = Object.freeze({
   deferOwnership,
   queueSubmitHandoff,
+  recaptureSubmitHandoff: queueSubmitHandoff,
   advanceItemSource,
   answerDecision,
   applyRowDecisions,

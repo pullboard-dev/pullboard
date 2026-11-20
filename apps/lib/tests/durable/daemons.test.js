@@ -29,6 +29,7 @@ const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.js
 
 const DAEMON = [
   "import { spawn } from 'node:child_process';",
+  '/** Start the fixture daemon. */',
   'export async function start(pause) {',
   "  const child = spawn('sh', ['-c', 'sleep 9'], { detached: true, stdio: 'ignore' });",
   '  child.unref();',
@@ -83,24 +84,24 @@ function stageAndCheck(box, files) {
   return { status: run.status, out: `${run.stderr}${run.stdout}` };
 }
 
-test('clause 1: a detached child, an unref and a daemon loop outside the drive, transport, jobs and pin cells are refused [C7]', () => {
+test('lib.durable-daemons.a-detached-child-an-unref-and: clause 1: a detached child, an unref and a daemon loop outside the drive, transport, jobs and pin cells are refused [C7]', () => {
   assert.deepEqual(kinds(DAEMON, 'packages/items/src/io/daemon.js'), ['detached', 'unref', 'daemon-loop', 'daemon-loop']);
   for (const cell of ['drive', 'transport', 'jobs', 'pin']) assert.deepEqual(kinds(DAEMON, `packages/${cell}/src/shell/daemon.js`), [], `the ${cell} cell owns processes`);
   assert.deepEqual(kinds(DAEMON, 'packages/items/tests/daemon.test.js'), [], 'tests are not judged');
   assert.deepEqual(kinds("spawn('sh', [], { detached: false });\nfor (;;) { if (step()) break; }\n", 'src/x.js'), [], 'an attached child and a loop with no await are not daemons');
   const refused = loadBearingFailures([{ file: 'packages/items/src/io/daemon.js', source: DAEMON }], {});
   assert.equal(refused.length, 4);
-  assert.match(refused[0], /^packages\/items\/src\/io\/daemon\.js:3: load-bearing detached: .* make the work a job the drive cell runs/u);
+  assert.match(refused[0], /^packages\/items\/src\/io\/daemon\.js:4: load-bearing detached: .* make the work a job the drive cell runs/u);
 });
 
-test('clause 1: a state file under .git/pullboard or the OS temp folder outside the four cells is refused [C7]', () => {
+test('lib.durable-daemons.a-state-file-under-git-pullboard: clause 1: a state file under .git/pullboard or the OS temp folder outside the four cells is refused [C7]', () => {
   assert.deepEqual(kinds(STATE, 'apps/cli/src/shell/state.js'), ['state-file', 'state-file']);
   assert.deepEqual(kinds(STATE, 'packages/pin/src/io/state.js'), [], 'the pin cell owns keyed caches');
   assert.deepEqual(kinds("import { writeFileSync } from 'node:fs';\nexport const put = (dir, v) => writeFileSync(dir + '/out.txt', v);\n", 'src/out.js'), [], 'a write that names no state root is not a state file');
   assert.match(loadBearingFailures([{ file: 'apps/cli/src/shell/state.js', source: STATE }], {}).join('\n'), /apps\/cli\/src\/shell\/state\.js:4: load-bearing state-file/u);
 });
 
-test('clause 1: existing sites sit in a ceiling that only falls, and the shared staged check enforces it [C7]', () => {
+test('lib.durable-daemons.existing-sites-sit-in-a-ceiling: clause 1: existing sites sit in a ceiling that only falls, and the shared staged check enforces it [C7]', () => {
   const file = 'packages/items/src/io/daemon.js';
   const box = ceilingProject({ [file]: { detached: 1, unref: 1, 'daemon-loop': 2 } });
   assert.equal(stageAndCheck(box, { [file]: DAEMON }).status, 0, 'sites within the ceiling pass');
@@ -108,7 +109,7 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
   assert.notEqual(grown.status, 0);
   assert.match(grown.out, /packages\/items\/src\/io\/daemon\.js:\d+: load-bearing unref/u);
   const fresh = stageAndCheck(box, { [file]: DAEMON, 'src/new-daemon.js': DAEMON });
-  assert.match(fresh.out, /src\/new-daemon\.js:3: load-bearing detached/u, 'a file the ceilings do not list allows none');
+  assert.match(fresh.out, /src\/new-daemon\.js:4: load-bearing detached/u, 'a file the ceilings do not list allows none');
   box.git(box.repo, 'rm', '-q', '--cached', 'src/new-daemon.js');
   const raised = stageAndCheck(box, { [file]: DAEMON, [LOAD_BEARING_CEILINGS]: JSON.stringify({ [file]: { detached: 2, unref: 1, 'daemon-loop': 2 } }) });
   assert.notEqual(raised.status, 0);
@@ -117,7 +118,7 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
   assert.equal(lowered.status, 0, `a ceiling may fall: ${lowered.out}`);
 });
 
-test('clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
+test('lib.durable-daemons.the-repository-ceilings-list-every-existing: clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
   const root = join(import.meta.dirname, '../../../..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER,
     LOAD_BEARING_CEILINGS, 'packages/resources/src/io/handoff/worker/cap.js', 'packages/gate/src/logic/load/bearing.js'], { cwd: root, encoding: 'utf8' });

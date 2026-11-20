@@ -25,7 +25,7 @@ const {
   project, LIGHT_BRIEF,
 } = e2e;
 
-test('the runner returns a claimed dependent item when its verified dependency conflicts [B8,V1,R1]', async () => {
+test('cli.journeys-runner-e2e-runner-dependent.the-runner-returns-a-claimed-dependent: the runner returns a claimed dependent item when its verified dependency conflicts [B8,V1,R1]', async () => {
   const box = project();
   const localRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'light')).out.match(/^made (\S+) /)[1];
   const dependencyRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'light')).out.match(/^made (\S+) /)[1];

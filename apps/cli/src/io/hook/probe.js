@@ -1,11 +1,11 @@
 /** What `pullboard --version` answers when a git hook asks, so hooks one release back keep running (#7760, R4). */
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { hookStanding } from '../../../../../packages/commits/light.js';
+import { hookProbeAnswer } from '../../../../../packages/commits/browser.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * The version a hook's probe is told. A hook script refuses any binary whose version differs from its own `want`,
@@ -21,10 +21,9 @@ export function hookProbeVersion(release, { cwd, env }) {
   if (!env.GIT_EXEC_PATH) return release;
   for (let folder = resolve(cwd); ; folder = dirname(folder)) {
     const hooks = join(folder, '.githooks');
-    if (existsSync(hooks)) {
-      const scripts = readdirSync(hooks).map((name) => { try { return readFileSync(join(hooks, name), 'utf8'); } catch { return ''; } });
-      const standing = hookStanding(release, scripts);
-      return standing.state === 'accepted' ? standing.versions[0] : release;
+    if (fs.exists(hooks)) {
+      const scripts = fs.list(hooks).map((name) => { try { return fs.readFile(join(hooks, name), 'utf8'); } catch { return ''; } });
+      return hookProbeAnswer(release, scripts);
     }
     if (dirname(folder) === folder) return release;
   }

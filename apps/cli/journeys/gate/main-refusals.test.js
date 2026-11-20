@@ -46,7 +46,7 @@ after(() => {
 });
 const repoWithGate = gateRepoFixture(dirs);
 
-test('the gate stops before the suite on a missing clock-budget comment [C7]', () => {
+test('cli.journeys-gate-main-refusals.the-gate-stops-before-the-suite: the gate stops before the suite on a missing clock-budget comment [C7]', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-gate-clock-budget-')));
   dirs.push(root);
   mkdirSync(join(root, 'bin'));
@@ -64,9 +64,14 @@ test('the gate stops before the suite on a missing clock-budget comment [C7]', (
   mkdirSync(scanner, { recursive: true });
   copyFileSync(resolve(import.meta.dirname, '../../../../packages/gate/src/io/budgets.js'), join(scanner, 'wall-clock-budgets.js'));
   writeFileSync(join(root, 'packages/gate/index.js'), "export { fixedWallMargins, wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
+  // The scanner entry also reads the scan through the gate heavy door; the fixture door names only the scanner.
+  writeFileSync(join(root, 'packages/gate/heavy.js'), "export { wallClockViolations } from './src/shell/wall-clock-budgets.js';\n");
   // The scanner lists tracked files through the git package; the fixture supplies a plain git launcher for it.
   mkdirSync(join(root, 'packages/git'), { recursive: true });
   writeFileSync(join(root, 'packages/git/index.js'), "import { execFileSync } from 'node:child_process';\nexport const gitExecFileSync = (args, options) => execFileSync('git', args, options);\n");
+  // The scanner reads files through the fs package; the fixture supplies the three plain calls it makes.
+  mkdirSync(join(root, 'packages/fs'), { recursive: true });
+  writeFileSync(join(root, 'packages/fs/index.js'), "import * as realFs from 'node:fs';\nexport const fileSystemAdapter = () => ({ exists: path => realFs.existsSync(path), lstat: path => realFs.lstatSync(path), readFile: (path, encoding) => realFs.readFileSync(path, encoding) });\n");
   mkdirSync(join(root, 'apps/cli'), { recursive: true });
   writeFileSync(join(root, 'apps/cli/pullboard.js'), `if (process.argv.slice(2).join(' ') !== 'spec check') process.exit(2);
 process.stdout.write('fixture spec check reached\\n');
@@ -102,7 +107,7 @@ assert.ok(Date.now() - started < 500, 'planted assertion without a budget commen
   assert.equal(existsSync(suiteMarker), true, 'a clean scanner result continues into the suite');
 });
 
-test('pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
+test('cli.journeys-gate-main-refusals.pullboard-gate-status-refuses-instead-of: pullboard gate status refuses instead of running the gate [C7,P4]', async () => {
   const box = await repoWithGate('echo run >> ../runs.log');
   for (const name of [BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV]) delete box.env[name];
   assert.equal((await box.runLocal('settings', 'gateSlots', '1')).status, 0, 'the fixture uses the holder pool\'s single gate slot');
@@ -199,7 +204,7 @@ try {
   assert.equal(holderResult?.status, 0, JSON.stringify(holderResult));
 });
 
-test('gate before the first commit names the uncommitted config [I1,C7]', async () => {
+test('cli.journeys-gate-main-refusals.gate-before-the-first-commit-names: gate before the first commit names the uncommitted config [I1,C7]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-first-commit-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -239,7 +244,7 @@ test('gate before the first commit names the uncommitted config [I1,C7]', async 
     'other genuine NO_POLICY failures keep their specific message');
 });
 
-test('gate after init in an existing repo says to commit the init files [I1,C7]', async () => {
+test('cli.journeys-gate-main-refusals.gate-after-init-in-an-existing: gate after init in an existing repo says to commit the init files [I1,C7]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-init-history-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');

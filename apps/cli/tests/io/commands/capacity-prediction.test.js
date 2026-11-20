@@ -25,7 +25,7 @@ function seed(box, rows) {
   });
 }
 
-test('clause 1: pullboard capacity prints prediction accuracy from recorded misses [C7,#8523]', async () => {
+test('cli.io-commands-capacity-prediction.pullboard-capacity-prints-prediction-accuracy-from-recorded: clause 1: pullboard capacity prints prediction accuracy from recorded misses [C7,#8523]', async () => {
   const box = e2e.project();
   seed(box, [
     { files: 'web/a.html' },
@@ -39,7 +39,7 @@ test('clause 1: pullboard capacity prints prediction accuracy from recorded miss
   assert.deepEqual(json.report.predictions, { predicted: 3, missed: 1, hit: 2, accuracy: 2 / 3, filesMissed: 1, filesUnpredicted: 1 });
 });
 
-test('clause 1: with no recorded submit the line says the accuracy is unknown instead of printing zero [C7,#8523]', async () => {
+test('cli.io-commands-capacity-prediction.with-no-recorded-submit-the-line-says: clause 1: with no recorded submit the line says the accuracy is unknown instead of printing zero [C7,#8523]', async () => {
   const box = e2e.project();
   const text = await box.runLocal(box.repo, 'capacity');
   assert.equal(text.code, 0, text.err + text.out);

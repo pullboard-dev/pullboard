@@ -11,9 +11,23 @@ import {
 } from '../../../tests/fixtures/scenarios/team.js';
 import { join } from 'node:path';
 import { settleLand } from '../../../tests/fixtures/land/settle.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
+import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
-test('clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', async () => {
+/**
+ * One CLI step through the production dispatcher in this process (a real process under PULLBOARD_JOURNEY_MODE=process), refused unless it exits 0.
+ * Why: each submit, verify and land as its own process cost a Node start-up; a refusal keeps its complete output [C7,#10411].
+ */
+async function step(box, cwd, ...args) {
+  const result = await box.runIn(cwd, ...args);
+  assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
+  return result.out;
+}
+
+test('cli.journeys-verify-team-repair-landing.landing-retains-the-exact-repair-that: clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]', async t => {
   const box = helpers.project();
+  // The six commits run both hooks in this process; the one merge commit keeps hooks off (git -c core.hooksPath) [C7,#10411].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const source = (feature, expected) => `feature = ${feature}\n${'// independent caller line\n'.repeat(12)}expected = ${expected}\n`;
   assert.equal((await helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 1), 'feat(web): baseline caller [G1]')).status, 0);
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -22,20 +36,20 @@ test('clause 2: landing retains the exact repair that passed stale re-review [E8
   run(box, box.web, 'claim', '1');
   assert.equal((await helpers.commitFile(box, box.web, 'web/feature.txt', source(1, 1), 'feat(web): original feature [G1]')).status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
-  run(box, box.web, 'submit', '1');
+  await settleSubmit(t, box, JSON.parse(await step(box, box.web, 'submit', '1', '--json')));
   const reviewer = join(box.dir, 'repair-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
   run(box, reviewer, 'join', 'web');
-  run(box, reviewer, 'verify', '1', 'accept', '--note', 'The original feature matches the original caller.');
+  await step(box, reviewer, 'verify', '1', 'accept', '--note', 'The original feature matches the original caller.');
   const original = withBoard(box.repo, board => store.verdictsFor(board, 1));
   assert.equal((await helpers.commitFile(box, box.repo, 'web/feature.txt', source(0, 2).replace('feature = 0\n', 'feature = 0\n// the caller reads this beside the feature\n'), 'feat(web): caller now requires two [G1]')).status, 0);
   // Main inserts directly beside the line the item changed: the patch no longer merges cleanly, so the accept is stale [#2896].
   assert.equal(JSON.parse(run(box, box.repo, 'show', '1', '--json')).item_verdict_state?.code, 'STALE_VERDICT');
-  box.git(reviewer, 'merge', '-q', '--no-edit', '-X', 'theirs', 'main');
+  box.git(reviewer, '-c', 'core.hooksPath=/dev/null', 'merge', '-q', '--no-edit', '-X', 'theirs', 'main');
   assert.equal((await helpers.commitFile(box, reviewer, 'web/feature.txt', source(2, 2), 'feat(web): repair against the new caller [G1]')).status, 0);
   assert.equal((await helpers.commitFile(box, reviewer, 'web/repair.txt', 'ready\n', 'feat(web): add the repair companion [G1]')).status, 0);
   const checked = box.git(reviewer, 'rev-parse', 'HEAD');
-  run(box, reviewer, 'verify', '1', 'accept', '--note', 'The repaired composition matches the new caller; the original feature does not.');
+  await step(box, reviewer, 'verify', '1', 'accept', '--note', 'The repaired composition matches the new caller; the original feature does not.');
   const reviewed = withBoard(box.repo, board => store.verdictsFor(board, 1));
   assert.deepEqual(reviewed.slice(0, original.length), original);
   assert.equal(reviewed.at(-1).verdict_head, checked);
@@ -52,7 +66,7 @@ test('clause 2: landing retains the exact repair that passed stale re-review [E8
   box.git(box.repo, 'remote', 'add', 'origin', remote);
   box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
   // Under pull `land` offers a runner job and returns at once; settleLand waits for its receipt [C7].
-  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  const landed = await settleLand(box, JSON.parse(await step(box, box.repo, 'land', '--json')));
   assert.deepEqual(landed.landed, [1], JSON.stringify(landed));
   assert.equal(box.git(box.repo, 'show', landed.batch.tip + ':web/feature.txt'), source(2, 2).trim(), 'landing must retain the exact repaired file that passed the frozen check');
   assert.equal(box.git(box.remote ?? remote, 'rev-parse', 'main'), landed.batch.tip);

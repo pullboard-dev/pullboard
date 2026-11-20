@@ -1,9 +1,8 @@
 /** Private heartbeat observations travel as sealed display state, never native board history [B3,H5]. */
-import { existsSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { DatabaseSync } from 'node:sqlite';
+
+const fs = fileSystemAdapter();
 
 const memory = new WeakMap();
 const HEARTBEAT_INTERVAL_MS = 60_000;
@@ -13,12 +12,12 @@ const PRESENCE_BUSY_TIMEOUT_MS = 250;
 const PRESENCE_BUSY_BACKOFF_MS = 30_000;
 /** A marker beside the sidecar that a busy read left: later processes of a command skip the wait while it is fresh. */
 function busyRecently(file) {
-  try { return Date.now() - statSync(`${file}.busy`).mtimeMs < PRESENCE_BUSY_BACKOFF_MS; } catch { return false; }
+  try { return Date.now() - fs.stat(`${file}.busy`).mtimeMs < PRESENCE_BUSY_BACKOFF_MS; } catch { return false; }
 }
 
 /** Leave the busy marker; best effort, a display cache never fails a command. */
 function markBusy(file) {
-  try { writeFileSync(`${file}.busy`, ''); } catch { /* best-effort display cache */ }
+  try { fs.writeFile(`${file}.busy`, ''); } catch { /* best-effort display cache */ }
 }
 
 const LOCAL_TABLE = 'heartbeat';
@@ -61,7 +60,7 @@ function observationIsFresh(at, now) {
 
 /** Read one existing observation without opening a writer or creating any sidecar schema. */
 function persistedObservation(file, key) {
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout=250');
@@ -105,6 +104,17 @@ export function heartbeatSeat(board, id) {
   }
 }
 
+/**
+ * Refresh `seat`'s presence observation for the board at `file`, opening the board read-only; the heartbeat throttle holds.
+ * Why: every CLI command beats its seat from the board file alone, without the board graph [C7,#10873]. The beat is stamped
+ * by the command's own clock (the wall clock unless one is injected), or a fake-clock board reads a beat from its future and
+ * never sees a killed holder gone [C7,#10899].
+ */
+export function beatSeatFile(file, seat, clock = null) {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try { heartbeatSeat({ db, clock: clock ?? { now: () => new Date() } }, seat); } finally { db.close(); }
+}
+
 /** A busy class keeps its last rows, says so once per process, and is not read again for the backoff. */
 function busyRows(cached, kind) {
   cached.busyUntil.set(kind, Date.now() + PRESENCE_BUSY_BACKOFF_MS);
@@ -122,7 +132,7 @@ function observationRows(board, table, kind) {
   if (!file) return cached[kind];
   // Why: one next reads presence per seat; a locked sidecar would otherwise cost the full timeout on each read.
   if (Date.now() < (cached.busyUntil.get(kind) ?? 0)) return cached[kind];
-  if (!existsSync(file)) { cached[kind] = new Map(); return cached[kind]; }
+  if (!fs.exists(file)) { cached[kind] = new Map(); return cached[kind]; }
   if (busyRecently(file)) return busyRows(cached, kind);
   let db;
   try {
@@ -134,7 +144,7 @@ function observationRows(board, table, kind) {
     cached[kind] = rows;
     cached.warned.delete(kind);
     cached.busyUntil.delete(kind);
-    rmSync(`${file}.busy`, { force: true });
+    fs.rm(`${file}.busy`, { force: true });
     return rows;
   } catch (error) {
     const sqliteCode = Number.isInteger(error.errcode) ? error.errcode & 0xff : null;

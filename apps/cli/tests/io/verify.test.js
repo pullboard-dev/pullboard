@@ -42,14 +42,14 @@ function fixture(t) {
 /** The open Main red repair whose own check runs the shared file. */
 const repair = { item_id: 7, item_status: 'open', item_title: 'Main red: x case', item_check: CHECK, item_criterion: "The case 'x case [G1]' passes on main." };
 
-test('a re-run whose only red case an open Main red repair names is known main, not CHECK_RED [C7]', async t => {
+test('cli.io-verify.a-re-run-whose-only-red-case: a re-run whose only red case an open Main red repair names is known main, not CHECK_RED [C7]', async t => {
   const { root, main, check } = fixture(t);
   const known = await knownMainCheck(root, check, { main, item: 9, items: () => [repair] });
   assert.ok(known, 'the owned case never fails the re-run');
   assert.deepEqual(known.failures.map(row => [row.file, row.name, row.item]), [['test/affected.test.js', 'x case [G1]', 7]]);
 });
 
-test('control: with no open Main red repair naming that case, the re-run stays red [C7]', async t => {
+test('cli.io-verify.with-no-open-main-red-repair-naming: control: with no open Main red repair naming that case, the re-run stays red [C7]', async t => {
   const { root, main, check } = fixture(t);
   assert.equal(await knownMainCheck(root, check, { main, item: 9, items: () => [] }), null);
 });

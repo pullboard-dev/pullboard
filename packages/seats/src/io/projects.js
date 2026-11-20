@@ -2,18 +2,6 @@
  * The projects on this machine: every initialized repo, with optional project and display names.
  * The registry lives in the user's home (or PULLBOARD_HOME for isolated runs).
  */
-import {
-  closeSync,
-  chmodSync,
-  existsSync,
-  fsyncSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
 import { homedir } from 'node:os';
 import { projectRegistrationAllowed } from './registration.js';
 import {
@@ -26,12 +14,15 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { loadConfig } from '../../../config/index.js';
 import { remoteRepository } from '../logic/github/remote.js';
-import { withMachineHomeWrite } from '../../../resources/index.js';
+import { withMachineHomeWrite } from '../../../resources/light.js';
 import { boardReferenceId } from '../../../kernel/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /**
  * The registry file.
@@ -39,7 +30,7 @@ import { withProjectGitTimeout } from '../../../git/index.js';
  * @returns {string}
  */
 export function registryFile() {
-  return join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'projects.json');
+  return join(environmentAdapter().get('PULLBOARD_HOME') || join(homedir(), '.pullboard'), 'projects.json');
 }
 
 /** Return a stable team handle only when Git origin and the opened board identity are both exact. */
@@ -57,7 +48,7 @@ export function projectBoardIdentity(root, boardId) {
  * @param {string} [home]
  * @returns {string}
  */
-export function privateBoardPath(repoBoardId, home = process.env.PULLBOARD_HOME || join(homedir(), '.pullboard')) {
+export function privateBoardPath(repoBoardId, home = environmentAdapter().get('PULLBOARD_HOME') || join(homedir(), '.pullboard')) {
   const id = boardReferenceId(repoBoardId);
   return join(resolve(home), 'private', id, 'board.sqlite');
 }
@@ -73,17 +64,17 @@ export function preparePrivateBoardPath(repoBoardId, home) {
   const directory = dirname(file);
   const privateRoot = dirname(directory);
   withMachineHomeWrite(privateRoot, () => {
-    mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
-    chmodSync(privateRoot, 0o700);
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-    chmodSync(directory, 0o700);
+    fileSystem.mkdir(privateRoot, { recursive: true, mode: 0o700 });
+    fileSystem.chmod(privateRoot, 0o700);
+    fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
+    fileSystem.chmod(directory, 0o700);
   });
   return file;
 }
 
 /** Keep the private SQLite file readable and writable only by this machine account. */
 export function protectPrivateBoard(file) {
-  withMachineHomeWrite(file, () => chmodSync(file, 0o600));
+  withMachineHomeWrite(file, () => fileSystem.chmod(file, 0o600));
 }
 
 /**
@@ -97,7 +88,7 @@ export function protectPrivateBoard(file) {
 export async function withPrivateBoard(repoBoardId, work, { create = false, clock, reference = null, store }) {
   const ownerBoardId = boardReferenceId(repoBoardId);
   const file = create ? preparePrivateBoardPath(repoBoardId) : privateBoardPath(repoBoardId);
-  if (!create && !existsSync(file)) throw new Refused('PRIVATE_BOARD_NOT_FOUND', 'this device has no private board for that repo; open it from the repo checkout first');
+  if (!create && !fileSystem.exists(file)) throw new Refused('PRIVATE_BOARD_NOT_FOUND', 'this device has no private board for that repo; open it from the repo checkout first');
   const board = store.openBoard(file, clock, { isMain: true });
   try {
     protectPrivateBoard(file);
@@ -139,9 +130,9 @@ export async function withPrivateBoard(repoBoardId, work, { create = false, cloc
  */
 function readRegistry() {
   const file = registryFile();
-  if (!existsSync(file)) return { projects: [], readable: true };
+  if (!fileSystem.exists(file)) return { projects: [], readable: true };
   try {
-    const projects = JSON.parse(readFileSync(file, 'utf8')).projects;
+    const projects = JSON.parse(fileSystem.readFile(file, 'utf8')).projects;
     return Array.isArray(projects)
       ? { projects: projects.filter((project) => typeof project?.root === 'string'), readable: true }
       : { projects: [], readable: false };
@@ -190,7 +181,7 @@ function openRegistryLock(file) {
 function withRegistry(mutate) {
   const file = registryFile();
   return withMachineHomeWrite(join(file, '..'), () => {
-    mkdirSync(join(file, '..'), { recursive: true });
+    fileSystem.mkdir(join(file, '..'), { recursive: true });
     const database = openRegistryLock(file);
     try {
       const state = readRegistry();
@@ -218,7 +209,7 @@ function withRegistry(mutate) {
  */
 function isDirectory(path) {
   try {
-    return statSync(path).isDirectory();
+    return fileSystem.stat(path).isDirectory();
   } catch (error) {
     return error.code !== 'ENOENT' && error.code !== 'ENOTDIR';
   }
@@ -267,14 +258,14 @@ function configMetadata(root, provided = {}) {
 function writeRegistry(projects) {
   const file = registryFile();
   const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
-  const descriptor = openSync(temporary, 'wx', 0o600);
+  const descriptor = fileSystem.open(temporary, 'wx', 0o600);
   try {
-    writeFileSync(descriptor, `${JSON.stringify({ projects }, null, 2)}\n`);
-    fsyncSync(descriptor);
+    fileSystem.writeFile(descriptor, `${JSON.stringify({ projects }, null, 2)}\n`);
+    fileSystem.fsync(descriptor);
   } finally {
-    closeSync(descriptor);
+    fileSystem.close(descriptor);
   }
-  renameSync(temporary, file);
+  fileSystem.rename(temporary, file);
 }
 
 /**
@@ -408,7 +399,7 @@ export async function registerProjectAndLink(root, now, config, io, identity, { 
   let exactIdentity = identity;
   if (!exactIdentity) {
     const file = join(withProjectGitTimeout(root, () => repoInfo(root)).commonDir, 'pullboard', 'board.sqlite');
-    if (existsSync(file)) {
+    if (fileSystem.exists(file)) {
       const board = store.openBoardForRead(file);
       try { exactIdentity = projectBoardIdentity(root, store.boardId(board)); }
       finally { store.closeBoard(board); }

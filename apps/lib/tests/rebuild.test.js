@@ -22,7 +22,7 @@ import {
 
 after(cleanupFixtureChildren);
 
-test('clause 1: nudgeAcceptedCells treats a ready record whose checker differs from the identity as absent and starts a producer [C7]', { timeout: 120_000 }, async t => {
+test('lib.rebuild.nudgeacceptedcells-treats-a-ready-record-whose-checker: clause 1: nudgeAcceptedCells treats a ready record whose checker differs from the identity as absent and starts a producer [C7]', { timeout: 120_000 }, async t => {
   isolateMachine(t);
   const { root, commit } = toolingRepo(t);
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);

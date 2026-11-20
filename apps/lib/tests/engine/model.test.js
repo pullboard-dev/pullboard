@@ -38,7 +38,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-test('model declarations and event snapshots retain all supported engine semantics [O8,O3,H16]', (t) => {
+test('lib.engine-model.model-declarations-and-event-snapshots-retain: model declarations and event snapshots retain all supported engine semantics [O8,O3,H16]', (t) => {
   assert.equal(STRONG_REJECTION_NOTICE_ENGINE, 54, 'ceiling notices retain their allocated feature engine');
   assert.ok(ENGINE_VERSION >= STRONG_REJECTION_NOTICE_ENGINE, 'the current writer retains paired ceiling notices');
   assert.equal(AUTO_ESCALATE_ENGINE, 50, 'automatic escalation retains its allocated engine');
@@ -82,7 +82,7 @@ test('model declarations and event snapshots retain all supported engine semanti
   }
 });
 
-test('exchanged replicas keep models and record identical later agent moves [O8,O3,H16]', (t) => {
+test('lib.engine-model.exchanged-replicas-keep-models-and-record: exchanged replicas keep models and record identical later agent moves [O8,O3,H16]', (t) => {
   const source = openBoard(':memory:');
   const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(source); store.closeBoard(replica); });
@@ -100,7 +100,7 @@ test('exchanged replicas keep models and record identical later agent moves [O8,
   assert.deepEqual(exportBoard(replica), exportBoard(source));
 });
 
-test('agent name options preserve valid defaults and refuse invalid objects [O8]', (t) => {
+test('lib.engine-model.agent-name-options-preserve-valid-defaults: agent name options preserve valid defaults and refuse invalid objects [O8]', (t) => {
   assert.equal(defaults().agents.names, 'suffix');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-agent-names-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));

@@ -15,7 +15,7 @@ const DOOR = fileURLToPath(new URL('../../../src/io/list/thin.js', import.meta.u
 /** The board barrel and its door: what the full list path loads through apps/cli/src/io/ports/process.js. */
 const BARREL = ['packages/board/index.js', 'apps/lib/light.js'];
 
-test('clause 1: the thin door returns the same rows as the full list path for 20 items in mixed states [C7]', async (t) => {
+test('cli.io-list-thin.the-thin-door-returns-the-same-rows: clause 1: the thin door returns the same rows as the full list path for 20 items in mixed states [C7]', async (t) => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
@@ -29,7 +29,7 @@ test('clause 1: the thin door returns the same rows as the full list path for 20
     const full = await box.runLocal(box.repo, 'list', ...(all ? ['--all'] : []), '--json');
     assert.equal(full.code, 0, full.err);
     const expected = JSON.parse(full.out);
-    const thin = thinListRows({ cwd: box.repo, all });
+    const thin = await thinListRows({ cwd: box.repo, all });
     assert.ok(thin, 'the door served a current board');
     assert.equal(thin.items.length, expected.items.length);
     assert.deepEqual(JSON.parse(JSON.stringify(thin.items)), expected.items);
@@ -48,7 +48,7 @@ function loadedByDoor(countFile) {
   });
 }
 
-test('clause 2: loading the thin door pulls in none of the board barrel modules [C7]', async () => {
+test('cli.io-list-thin.loading-the-thin-door-pulls-in-none: clause 2: loading the thin door pulls in none of the board barrel modules [C7]', async () => {
   const files = privateFixtureFiles('thin-list-');
   files.write('seen.txt', '');
   assert.equal(await loadedByDoor(`${files.root}/seen.txt`), 'loaded');

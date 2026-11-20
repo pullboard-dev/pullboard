@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runSubmitGateWithRunnerPlan } from '../../../../src/io/submit/gate.js';
 import { submitTableReplay } from '../../../../src/io/submit/gate.js';
-import { runSubmitGate } from '../../../../../../packages/gate/index.js';
+import { runSubmitGate } from '../../../../../../packages/gate/heavy.js';
 import { emptyRepo } from '../../../fixtures/blueprint.js';
 import { fixtureMachineSettings } from '../../../fixtures/testkit.js';
 
@@ -43,26 +43,26 @@ function fakeReplay(byTable, calls) {
 /** Run the real gate entry with the submit's replay hook until it plans, which the stub planner turns into `reached`. */
 const gate = (root, tableReplay) => runSubmitGate(root, { gate: 'true' }, { staticChecked: true, changed: CHANGED, tableReplay, planners });
 
-test('clause 1: with gate.tableReplay on, a submit that changes a move table runs the table replay [C7,#8117]', async t => {
+test('cli.io-submit-gate-replay.with-gate-tablereplay-on-a-submit-that: clause 1: with gate.tableReplay on, a submit that changes a move table runs the table replay [C7,#8117]', async t => {
   const root = fixture(t, true);
   const calls = [];
   await assert.rejects(gate(root, submitTableReplay(root, fakeReplay({}, calls))), error => error === reached);
   assert.deepEqual(calls, ['hop']);
 });
 
-test('clause 2: with gate.tableReplay on, a replay disagreement refuses the submit with TABLE_REPLAY [C7,#8117]', async t => {
+test('cli.io-submit-gate-replay.with-gate-tablereplay-on-a-replay-disagreement: clause 2: with gate.tableReplay on, a replay disagreement refuses the submit with TABLE_REPLAY [C7,#8117]', async t => {
   const root = fixture(t, true);
   await assert.rejects(gate(root, submitTableReplay(root, fakeReplay({ hop: [7, 9] }, []))), error => error.code === 'TABLE_REPLAY' && /hop disagrees with the board on 2 recorded moves/u.test(error.message));
 });
 
-test('clause 3: with gate.tableReplay off, a submit that changes a move table runs no replay [C7,#8117]', async t => {
+test('cli.io-submit-gate-replay.with-gate-tablereplay-off-a-submit-that: clause 3: with gate.tableReplay off, a submit that changes a move table runs no replay [C7,#8117]', async t => {
   const root = fixture(t, false);
   const calls = [];
   await assert.rejects(gate(root, submitTableReplay(root, fakeReplay({ hop: [7] }, calls))), error => error === reached);
   assert.deepEqual(calls, []);
 });
 
-test('the item submit gate entry hands runSubmitGate the replay hook unless the caller gave one [C7,#8117]', () => {
+test('cli.io-submit-gate-replay.the-item-submit-gate-entry-hands-runsubmitgate: the item submit gate entry hands runSubmitGate the replay hook unless the caller gave one [C7,#8117]', () => {
   const seen = [];
   const take = (root, config, options) => seen.push(options.tableReplay);
   const own = () => {};

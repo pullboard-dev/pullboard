@@ -1,0 +1,4 @@
+{
+  "cli.tests-fixtures-submitted-seam.verify-accept-after-the-seam": {"proves":{"specs":["C7"],"claim":"verify accept on the seam-submitted item succeeds and the item reads verified"},"why":"Without it the seam could submit items a later accept refuses or reads differently.","kind":"journey","inputs":["apps/cli/tests/fixtures/submitted-seam.js","apps/cli/tests/fixtures/submitted-seam.test.js"]},
+  "cli.tests-fixtures-submitted-seam-accept.accept-record-equals-a-real-gate": {"proves":{"specs":["C7"],"claim":"the accept record of the seam-submitted item equals the literal captured from a real pulled gate"},"why":"Without it the seam could leave an accept record that differs from a real gate's and journeys built on it would prove the wrong thing.","kind":"journey","inputs":["apps/cli/tests/fixtures/submitted-seam-accept.test.js","apps/cli/tests/fixtures/submitted-seam.js"]}
+}

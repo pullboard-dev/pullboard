@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../../../jobs/index.js';
 import * as store from '../../../index.js';
+import { register } from '../../../index.js';
 import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 
 const freeze = () => ({ text: '{}', digest: 'stage-fixture' });
+
+/** A web seat that joined the board, as every claim requires; the first call for a number registers it and the id comes back. */
+const join = (board, n) => register(board, { lane: 'web', path: `/fixture/web-${n}` });
 
 /** Run a raw status write under the move token the board's status trigger requires. */
 function asMove(board, sql, ...args) {
@@ -22,7 +26,7 @@ test('store.logic-item-stage.show-list-and-the-board-read: clause 1: show, list 
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [building, gated, running, red, review, accepted, landed] = ['b', 'g', 'r', 'x', 'v', 'a', 'l'].map(make);
-  [building, gated, running, red].forEach((id, n) => store.claim(board, id, { agentId: `web-${n + 1}`, lane: 'web', leaseMs: 3_600_000, freeze }));
+  [building, gated, running, red].forEach((id, n) => store.claim(board, id, { agentId: join(board, n + 1), lane: 'web', leaseMs: 3_600_000, freeze }));
   handoff(board, gated, { state: 'queued' });
   handoff(board, running, { state: 'running' });
   handoff(board, red, { state: 'red' });
@@ -49,7 +53,7 @@ test('store.logic-item-stage.status-counts-items-per-stage-not: clause 2: status
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [a, b, c] = ['a', 'b', 'c'].map(make);
-  [a, b, c].forEach((id, n) => store.claim(board, id, { agentId: `web-${n + 1}`, lane: 'web', leaseMs: 3_600_000, freeze }));
+  [a, b, c].forEach((id, n) => store.claim(board, id, { agentId: join(board, n + 1), lane: 'web', leaseMs: 3_600_000, freeze }));
   handoff(board, a, { state: 'queued' });
   handoff(board, b, { state: 'running' });
   const { stages, items } = store.stats(board);

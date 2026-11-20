@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Hand-written in the shape of: vitest run --reporter=junit
+     The testsuite name is the file path, each testcase classname is the same path, name is the full describe chain, and there is no file attribute.
+     Case names read "clause N: ..." as the test titles would write them. No tool is needed to read it. -->
+<testsuites name="vitest tests" tests="3" failures="1" errors="0" time="0.021">
+    <testsuite name="src/math.test.ts" timestamp="2026-11-17T12:00:00.000Z" hostname="runner" tests="3" failures="1" errors="0" skipped="1" time="0.011">
+        <testcase classname="src/math.test.ts" name="clause 1: adds two numbers" time="0.001">
+        </testcase>
+        <testcase classname="src/math.test.ts" name="clause 2: halves a number" time="0.002">
+            <failure message="expected 1 to be 2 // Object.is equality" type="AssertionError">AssertionError: expected 1 to be 2 // Object.is equality
+ ❯ src/math.test.ts:9:21</failure>
+        </testcase>
+        <testcase classname="src/math.test.ts" name="clause 3: later" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+</testsuites>

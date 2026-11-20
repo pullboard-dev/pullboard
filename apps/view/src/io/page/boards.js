@@ -32,7 +32,8 @@ function readCostHistory(project, switching = false) {
       if (kept.gapUpTo !== oldest) {
         kept.gapUpTo = oldest;
         const gapKey = key;
-        const scan = after => api(boardPath(root) + '/events?after=' + after).then(reply => {
+        // The gap is read in pages, never one unbounded read of the whole event log.
+        const scan = after => api(boardPath(root) + '/events?after=' + after + '&limit=50000').then(reply => {
           const batch = Array.isArray(reply.events) ? reply.events : [];
           const missing = batch.filter(event => event.event_id < oldest);
           if (missing.some(event => ['usage', 'shared-usage', 'merged'].includes(event.event_kind))) throw { found: true };
@@ -379,7 +380,7 @@ const sentStates = new Map();
 const applyStateDelta = (${applyStateDelta.toString()});
 // state.milestoneDelta (#9849): with it on, a milestone's forecast is derived here from its count left and the pace the page holds.
 const MILESTONE_DELTA = ${JSON.stringify(typeof milestoneForecast === 'function')};
-const deriveMilestoneForecasts = (${deriveMilestoneForecasts.toString()});
+const deriveMilestoneForecasts = ${typeof deriveMilestoneForecasts === 'function' ? '(' + deriveMilestoneForecasts.toString() + ')' : '(state) => state'};
 const milestoneForecast = ${typeof milestoneForecast === 'function' ? '(' + milestoneForecast.toString() + ')' : 'null'};
 // Expand the opt-in wire dictionary before holding a delta base or rendering any item.
 const expandItemSummaries = (${expandItemSummaries.toString()});

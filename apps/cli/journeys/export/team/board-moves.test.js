@@ -8,7 +8,7 @@ import {
 } from '../../../tests/fixtures/scenarios/team.js';
 import { seedPrivateBoard } from '../../../tests/fixtures/move.js';
 
-test('a private board moves between the private and the team boards [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
+test('cli.journeys-export-team-board-moves.a-private-board-moves-between-the: a private board moves between the private and the team boards [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
   const box = await teamBoard(t, ['alice']);
   const privateFile = await seedPrivateBoard(box);
   await privateBoardMoves(box, privateFile);

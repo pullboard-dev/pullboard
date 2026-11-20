@@ -1,0 +1,16 @@
+{
+  "store.io-board-item-after-gate-report.report-reads-back": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "afterGateReport returns the minutes summed from a parent's after-gate saved notes and its after-gate rebuild note count, and zero for both for a parent with none"
+    },
+    "why": "Without it the umbrella readout has no single read of what the after-gate flow saved and rebuilt.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/item/after-gate-report.js",
+      "packages/store/index.js"
+    ]
+  }
+}

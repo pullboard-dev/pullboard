@@ -16,26 +16,16 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { waitForState } from '../../fixtures/check-baseline.js';
+import { startFixtureResident } from '../../fixtures/resident.js';
+import { stopFixtureResidents } from '../../fixtures/resident.js';
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runPreflight } from '../../../src/io/submit/preflight.js';
 import { PULLBOARD_ENTRY } from '../../../src/io/resident/client.js';
-import { codeVersion } from '../../../src/io/resident/client.js';
-import { residentPoolSize } from '../../../src/io/resident/client.js';
 import { residentSocket } from '../../../src/io/resident/client.js';
-import { startResident } from '../../../src/io/resident/client.js';
 
 const CLEAN = ['packages/x/src/a.js'];
 const REFUSED = ['packages/x/src/b.js', 'test/w.test.js'];
 const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exec', 'fork'];
-
-/** Stop every resident board process this board started, so the sandbox can be removed. */
-function stopResidents(repo) {
-  for (let slot = 0; slot < residentPoolSize({}); slot += 1) {
-    const place = residentSocket(repo, PULLBOARD_ENTRY, slot);
-    if (!place) continue;
-    try { process.kill(Number(readFileSync(place.pid, 'utf8').trim()), 'SIGKILL'); } catch { /* None started, or it already exited. */ }
-  }
-}
 
 /** Run `work` while counting the child processes it starts whose executable is node; the calls themselves run unchanged. */
 async function countNodeChildren(work) {
@@ -65,7 +55,7 @@ async function preflightProject(t, { running }) {
   const box = helpers.project('true');
   const saved = { home: process.env.PULLBOARD_MACHINE_HOME, resident: process.env.PULLBOARD_RESIDENT };
   t.after(() => {
-    try { stopResidents(box.repo); } finally {
+    try { stopFixtureResidents(box.repo); } finally {
       for (const [name, value] of [['PULLBOARD_MACHINE_HOME', saved.home], ['PULLBOARD_RESIDENT', saved.resident]]) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
       helpers.cleanup();
     }
@@ -83,9 +73,7 @@ async function preflightProject(t, { running }) {
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_RESIDENT = '1';
   if (running) {
-    const place = residentSocket(box.repo, PULLBOARD_ENTRY, 0);
-    await startResident(place, PULLBOARD_ENTRY, codeVersion(PULLBOARD_ENTRY).version, { ...process.env });
-    await waitForState(() => existsSync(place.pid), 'the resident process listens');
+    await startFixtureResident(box);
   }
   return box;
 }
@@ -98,7 +86,7 @@ async function preflight(box, files, residentChecks) {
   return { findings: report.results.map(({ name, failures }) => ({ name, failures })).sort((a, b) => a.name.localeCompare(b.name)), nodeChildren };
 }
 
-test('clause 1: with submit.residentChecks on, the preflight is answered by the resident process, starts no node child, and finds what it finds with the setting off, for a clean and a refused change [C7,#5330]', { timeout: 240_000 }, async (t) => {
+test('cli.io-submit-resident-preflight.with-submit-residentchecks-on-the-preflight-is: clause 1: with submit.residentChecks on, the preflight is answered by the resident process, starts no node child, and finds what it finds with the setting off, for a clean and a refused change [C7,#5330]', { timeout: 240_000 }, async (t) => {
   const box = await preflightProject(t, { running: true });
   for (const files of [CLEAN, REFUSED]) {
     const off = await preflight(box, files, false);
@@ -111,7 +99,7 @@ test('clause 1: with submit.residentChecks on, the preflight is answered by the 
   assert.ok((await preflight(box, CLEAN, true)).findings.every(row => !row.failures.length), 'the clean change is clean');
 });
 
-test('clause 1: with submit.residentChecks on and no resident process running, the preflight falls back to its children and finds the same [C7,#5330]', { timeout: 240_000 }, async (t) => {
+test('cli.io-submit-resident-preflight.with-submit-residentchecks-on-and-no-resident: clause 1: with submit.residentChecks on and no resident process running, the preflight falls back to its children and finds the same [C7,#5330]', { timeout: 240_000 }, async (t) => {
   const box = await preflightProject(t, { running: false });
   const on = await preflight(box, REFUSED, true);
   assert.ok(on.nodeChildren > 0, 'no resident process: the children ran');
@@ -119,8 +107,27 @@ test('clause 1: with submit.residentChecks on and no resident process running, t
   assert.equal(existsSync(residentSocket(box.repo, PULLBOARD_ENTRY, 0).pid), false, 'asking never starts a resident process');
 });
 
-test('clause 2: with submit.residentChecks off, the preflight starts its node children as today even with a resident process running [C7,#5330]', { timeout: 240_000 }, async (t) => {
+test('cli.io-submit-resident-preflight.with-submit-residentchecks-off-the-preflight-starts: clause 2: with submit.residentChecks off, the preflight starts its node children as today even with a resident process running [C7,#5330]', { timeout: 240_000 }, async (t) => {
   const box = await preflightProject(t, { running: true });
   const off = await preflight(box, REFUSED, false);
   assert.ok(off.nodeChildren >= 2, `the list child and a child per check started (${off.nodeChildren})`);
+});
+
+test('cli.io-submit-resident-preflight.fixture-resident-starts-and-stops-a-live-process: clause 1: the fixture starts a resident board process on an e2e board and stops it, leaving no live pid [C7,#10936]', { timeout: 240_000 }, async () => {
+  const helpers = createE2eHelpers();
+  const box = helpers.project('true');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
+  try {
+    const place = await startFixtureResident(box, { ...process.env, PULLBOARD_MACHINE_HOME: box.env.PULLBOARD_MACHINE_HOME });
+    const pid = Number(readFileSync(place.pid, 'utf8').trim());
+    assert.doesNotThrow(() => process.kill(pid, 0), 'the pid names a live process');
+    stopFixtureResidents(box.repo);
+    await waitForState(() => { try { process.kill(pid, 0); return false; } catch { return true; } }, 'the resident process is gone');
+    assert.throws(() => process.kill(pid, 0), 'no live resident pid is left');
+  } finally {
+    stopFixtureResidents(box.repo);
+    if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
+    helpers.cleanup();
+  }
 });

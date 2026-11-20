@@ -24,14 +24,14 @@ import {
 const observed = (file, eventId) => ({ file, name: 'case', status: 'active', count: 1, lastEventId: eventId });
 const quarantine = (file, item, eventId) => ({ file, name: 'case', status: 'quarantined', item, eventId });
 
-test('a new unquarantined flake refuses the landing by test name [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.a-new-unquarantined-flake-refuses-the: a new unquarantined flake refuses the landing by test name [C7,T12]', () => {
   const result = flakeRatchet({ previous: { version: 1, eventId: 10, count: 0, quarantines: [] }, eventId: 12,
     observations: [observed('test/new.test.js', 11)], quarantines: [] });
   assert.equal(result.allowed, false);
   assert.deepEqual(result.unprotected, [{ file: 'test/new.test.js', name: 'case' }]);
 });
 
-test('a filed newly observed quarantine can raise the count, and repair lowers it [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.a-filed-newly-observed-quarantine-can: a filed newly observed quarantine can raise the count, and repair lowers it [C7,T12]', () => {
   const previous = { version: 1, eventId: 10, count: 0, quarantines: [] };
   const first = flakeRatchet({ previous, eventId: 13, observations: [observed('test/new.test.js', 11)],
     quarantines: [quarantine('test/new.test.js', 7, 12)] });
@@ -44,7 +44,7 @@ test('a filed newly observed quarantine can raise the count, and repair lowers i
   assert.equal(fixed.snapshot.quarantines.length, 0);
 });
 
-test('old or unfiled quarantine cannot justify increasing the landing baseline [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.old-or-unfiled-quarantine-cannot-justify: old or unfiled quarantine cannot justify increasing the landing baseline [C7,T12]', () => {
   const previous = { version: 1, eventId: 10, count: 0, quarantines: [] };
   const old = flakeRatchet({ previous, eventId: 12, observations: [observed('test/old.test.js', 9)],
     quarantines: [quarantine('test/old.test.js', 4, 11)] });
@@ -56,7 +56,7 @@ test('old or unfiled quarantine cannot justify increasing the landing baseline [
 });
 
 /** Quarantine's native source is a pair of actual verdicts on the same tree. */
-test('native paired test verdicts identify new flakes without mixing trees [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.native-paired-test-verdicts-identify-new: native paired test verdicts identify new flakes without mixing trees [C7,T12]', () => {
   const run = (id, eventId, tree, passed, extra = {}) => ({ id, eventId, tree, version: 1, kind: 'landing',
     testOutcomes: [{ file: 'test/a.test.js', name: 'case', passed, skipped: false }], ...extra });
   const red = run('red', 5, 'tree-a', false), green = run('green', 8, 'tree-a', true);
@@ -67,7 +67,7 @@ test('native paired test verdicts identify new flakes without mixing trees [C7,T
 });
 
 /** A later repair must not rewrite the count that was true at an earlier landing. */
-test('historical quarantines use the landing boundary, including later reopens and merges [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.historical-quarantines-use-the-landing-boundary: historical quarantines use the landing boundary, including later reopens and merges [C7,T12]', () => {
   const event = (event_id, event_kind, item_id, event_detail = {}) => ({ event_id, event_kind, item_id, event_detail });
   const history = [event(1, 'test-quarantine', 7, { file: 'test/a.test.js', name: 'case', engine: 2 }),
     event(2, 'accept', 7), event(3, 'reopen', 7), event(4, 'test-quarantine', 8, { file: 'test/b.test.js', name: 'case', engine: 3, autoSubmit: true }),
@@ -81,7 +81,7 @@ test('historical quarantines use the landing boundary, including later reopens a
 });
 
 /** The first post-activation landing reconstructs the previous landing, not the later current state. */
-test('native event adapter reconstructs and advances the previous landing snapshot [C7,T12]', async t => {
+test('cli.journeys-merged-ratchet.native-event-adapter-reconstructs-and-advances: native event adapter reconstructs and advances the previous landing snapshot [C7,T12]', async t => {
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
@@ -108,7 +108,7 @@ test('native event adapter reconstructs and advances the previous landing snapsh
 });
 
 /** A changed board never produces a mixed event boundary and quarantine snapshot. */
-test('native ratchet refuses a concurrently changed board [C7,T12]', async t => {
+test('cli.journeys-merged-ratchet.native-ratchet-refuses-a-concurrently-changed: native ratchet refuses a concurrently changed board [C7,T12]', async t => {
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
@@ -120,7 +120,7 @@ test('native ratchet refuses a concurrently changed board [C7,T12]', async t => 
 });
 
 /** A standalone merged receipt becomes the next baseline just like a landed batch. */
-test('a merged receipt advances the landing baseline [C7,T12]', t => {
+test('cli.journeys-merged-ratchet.a-merged-receipt-advances-the-landing: a merged receipt advances the landing baseline [C7,T12]', t => {
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
@@ -135,7 +135,7 @@ test('a merged receipt advances the landing baseline [C7,T12]', t => {
 });
 
 /** A landed repair clears older paired evidence, but never a later recurrence. */
-test('paired evidence respects the repair landing boundary [C7,T12]', t => {
+test('cli.journeys-merged-ratchet.paired-evidence-respects-the-repair-landing: paired evidence respects the repair landing boundary [C7,T12]', t => {
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
@@ -152,7 +152,7 @@ test('paired evidence respects the repair landing boundary [C7,T12]', t => {
 });
 
 /** Legacy proof is coordinator-owned and requires the same exact tree and distinct runs. */
-test('legacy coordinator gate pairs retain their named flake evidence [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.legacy-coordinator-gate-pairs-retain-their: legacy coordinator gate pairs retain their named flake evidence [C7,T12]', () => {
   const red = { id: 'red', by: 'coordinator', eventId: 4, tree: 'tree', kind: 'landing', green: false,
     failures: [{ file: 'test/a.test.js', name: 'case' }] };
   const green = { id: 'green', by: 'coordinator', eventId: 8, tree: 'tree', kind: 'landing', green: true, failures: [] };
@@ -162,7 +162,7 @@ test('legacy coordinator gate pairs retain their named flake evidence [C7,T12]',
 });
 
 /** Publication refuses before any batch write, then records an allowed lower count. */
-test('landing guard names unquarantined flakes and records the lower count [C7,T12]', async () => {
+test('cli.journeys-merged-ratchet.landing-guard-names-unquarantined-flakes-and: landing guard names unquarantined flakes and records the lower count [C7,T12]', async () => {
   let result = flakeRatchet({ previous: { version: 1, eventId: 10, count: 0, quarantines: [] }, eventId: 11,
     observations: [observed('test/new.test.js', 11)], quarantines: [] });
   let writes = 0;
@@ -178,7 +178,7 @@ test('landing guard names unquarantined flakes and records the lower count [C7,T
 });
 
 /** Historical reconstruction agrees with native projection and retains the earlier boundary. */
-test('historical quarantine matches native state across a real board withdrawal [C7,T12]', async t => {
+test('cli.journeys-merged-ratchet.historical-quarantine-matches-native-state-across: historical quarantine matches native state across a real board withdrawal [C7,T12]', async t => {
   const { board } = boardFixture();
   t.after(() => closeBoard(board));
   const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Flake repair', route: 'strong' });
@@ -193,7 +193,7 @@ test('historical quarantine matches native state across a real board withdrawal 
 });
 
 /** Only twenty observed, non-skipped clean runs can release a structured quarantine. */
-test('historical structured quarantine requires twenty clean runs before the boundary [C7,T12]', () => {
+test('cli.journeys-merged-ratchet.historical-structured-quarantine-requires-twenty-clean: historical structured quarantine requires twenty clean runs before the boundary [C7,T12]', () => {
   const events = [{ event_id: 1, event_kind: 'test-quarantine', item_id: 7,
     event_detail: { file: 'test/a.test.js', name: 'case', engine: 2 } }];
   const runs = Array.from({ length: 20 }, (_, index) => ({ id: `run-${index}`, eventId: index + 2, version: 1,

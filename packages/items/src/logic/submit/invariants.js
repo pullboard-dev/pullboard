@@ -125,6 +125,13 @@ export function validateLandingBatch(batch, revision) {
     || !Number.isSafeInteger(revision) || revision < 0) {
     throw new Refused('LAND_BATCH', 'a landing batch needs its exact base, tip, items, state, owner and log path; run pullboard land');
   }
+  // The exact-tree record is optional (batches recorded before it have none); when present it names a full tree id [V16,RFC 0011 ET1].
+  if (batch.exactTree !== undefined && (!batch.exactTree || typeof batch.exactTree !== 'object' || !/^[a-f0-9]{40,64}$/u.test(batch.exactTree.tree ?? ''))) {
+    throw new Refused('LAND_BATCH', `a landing batch's exact-tree record needs the full tree id of its tip, not ${JSON.stringify(batch.exactTree?.tree ?? null)}; run pullboard land`);
+  }
+  if (batch.exactTree?.result !== undefined && batch.exactTree.result !== 'green' && batch.exactTree.result !== 'red') {
+    throw new Refused('LAND_BATCH', `a landing batch's exact-tree result is green or red, not ${JSON.stringify(batch.exactTree.result)}; run pullboard land`);
+  }
 }
 
 /** Preserve earlier normalized gate and diagnostic receipts when an engine-38 batch is adopted. */

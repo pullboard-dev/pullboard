@@ -24,7 +24,7 @@ function bigBoard(t) {
   return { box, run: (...args) => box.runIn(box.repo, ...args) };
 }
 
-test('clause 1: pullboard log --json --since --kind streams NDJSON on a board with 200,000 events without error [C7]', async (t) => {
+test('cli.io-read-log-large.pullboard-log-json-since-kind-streams-ndjson: clause 1: pullboard log --json --since --kind streams NDJSON on a board with 200,000 events without error [C7]', async (t) => {
   const { run } = bigBoard(t);
   const since = new Date((1800000000 + EVENTS / 2) * 1000).toISOString();
   const answer = await run('log', '--json', '--since', since, '--kind', 'merged');
@@ -34,7 +34,7 @@ test('clause 1: pullboard log --json --since --kind streams NDJSON on a board wi
   assert.ok(rows.every(row => row.event_kind === 'merged' && row.event_at >= since));
 });
 
-test('clause 2: pullboard log --all prints every event on a board with 200,000 events, not stopping early [C7]', async (t) => {
+test('cli.io-read-log-large.pullboard-log-all-prints-every-event-on: clause 2: pullboard log --all prints every event on a board with 200,000 events, not stopping early [C7]', async (t) => {
   const { run } = bigBoard(t);
   const answer = await run('log', '--all');
   assert.equal(answer.status, 0, answer.stderr);

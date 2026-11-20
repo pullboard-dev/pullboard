@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import { readSignoffs } from '../../../../../packages/spec/index.js';
 import { specBox } from '../../../tests/fixtures/spec/box.js';
 
-test('signoff prints cited tests, preserves its note and escapes that note in the spec view [S14, S15]', async (t) => {
+test('cli.journeys-spec-main-signoff.signoff-prints-cited-tests-preserves-its: signoff prints cited tests, preserves its note and escapes that note in the spec view [S14, S15]', async (t) => {
   const box = specBox(t);
   mkdirSync(join(box.root, 'test'));
   writeFileSync(join(box.root, 'test/greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
@@ -33,7 +33,7 @@ test('signoff prints cited tests, preserves its note and escapes that note in th
   assert.doesNotMatch(html, /<img>/);
 });
 
-test('signoff reads --note-file exactly [S14]', async (t) => {
+test('cli.journeys-spec-main-signoff.signoff-reads-note-file-exactly-s14: signoff reads --note-file exactly [S14]', async (t) => {
   const box = specBox(t);
   mkdirSync(join(box.root, 'test'));
   writeFileSync(join(box.root, 'test/greeting.test.js'), "import { test } from 'node:test';\ntest('greeting [G1]', () => {});\n");
@@ -47,14 +47,14 @@ test('signoff reads --note-file exactly [S14]', async (t) => {
   assert.equal(readSignoffs(box.root)[0].note, note);
 });
 
-test('signoff refuses a flag it does not take [P4]', async (t) => {
+test('cli.journeys-spec-main-signoff.signoff-refuses-a-flag-it-does: signoff refuses a flag it does not take [P4]', async (t) => {
   const box = specBox(t);
   const unsupported = await box.spec('signoff', 'G1', '--by', 'CO', '--must');
   assert.notEqual(unsupported.status, 0, 'an option for a different spec command must not be ignored');
   assert.match(unsupported.stderr, /FLAG_NOT_ALLOWED.*spec signoff.*--must/);
 });
 
-test('spec view emits JSON and refuses an unsupported flag before writing [S13, P4]', async (t) => {
+test('cli.journeys-spec-main-signoff.spec-view-emits-json-and-refuses: spec view emits JSON and refuses an unsupported flag before writing [S13, P4]', async (t) => {
   const box = specBox(t);
   const htmlFile = join(box.root, 'requested-spec.html');
   const result = await box.spec('view', '--json', '--out', htmlFile);
@@ -77,7 +77,7 @@ test('spec view emits JSON and refuses an unsupported flag before writing [S13, 
   assert.equal(existsSync(refusedFile), false, 'refusal happens before creating the HTML output');
 });
 
-test('spec unmet and signoff do not create a board when reading a repo without one [S14, P4]', async (t) => {
+test('cli.journeys-spec-main-signoff.spec-unmet-and-signoff-do-not: spec unmet and signoff do not create a board when reading a repo without one [S14, P4]', async (t) => {
   const box = specBox(t);
   const boardDir = join(box.root, '.git', 'pullboard');
   rmSync(boardDir, { recursive: true, force: true });

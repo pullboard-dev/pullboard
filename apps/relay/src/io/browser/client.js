@@ -42,6 +42,8 @@ import {
   storedOwnedRequestState,
 } from './notice.js';
 import {
+  detectInstallContext,
+  homeScreenStepNeeded,
   registerApp,
   requestPairingPersistence,
 } from './install.js';
@@ -161,6 +163,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
   let available = [];
   let inventoryLoaded = false;
   let browserPaired = false;
+  let knownDevice = false;
   let waitingBoards = new Map();
   const approvedBoards = new Set();
   let pendingLinks = [];
@@ -348,7 +351,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
     // A phone has no local-view screen to fall back to: keep its shell and the real reason until a board is readable.
     const root = document.documentElement;
     const phoneWaiting = root.dataset.relayDevice === 'phone' && (!rendered || paired.size === 0);
-    const step = emptyBoardStep({ available, waitingBoards, sizeProblems, approvedBoards, loaded: inventoryLoaded, browserPaired, failure, exclusions });
+    const step = emptyBoardStep({ available, waitingBoards, sizeProblems, approvedBoards, loaded: inventoryLoaded, browserPaired, knownDevice, failure, exclusions });
     showRelayScreen(root, phoneWaiting || paired.size === 0 ? 'share' : null,
       phoneWaiting && (failure || waitingBoards.size || warnings.some(value => ['ACCOUNT_STORAGE_WARNING', 'ACCOUNT_STORAGE_LIMIT'].includes(value?.code))) ? lines.join(' ') : '', step);
     placePhoneApprovals(document);
@@ -358,7 +361,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
   function keepPairingStorage() {
     persistenceRequest ??= requestPairingPersistence().then(kept => {
       const current = document.getElementById('pairing-storage-notice');
-      if (kept || homeLineDismissed(localStorage)) { current?.remove(); return; }
+      if (!homeScreenStepNeeded({ kept, ...detectInstallContext() }) || homeLineDismissed(localStorage)) { current?.remove(); return; }
       const main = document.querySelector('main');
       // The answer comes later: a board lost meanwhile, or access lost, leaves no line about keeping it.
       if (!main || accessLost || current || paired.size === 0) return;
@@ -677,6 +680,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
     browserPaired = device.paired || Boolean(pair) || Object.values(keys).some(value => {
       try { decodeBoardKey(value); return true; } catch { return false; }
     });
+    knownDevice = device.knownDevice === true;
     if (device.failure) { failure = device.failure; failureBoard = null; }
     available = document.boards.filter(board => BOARD.test(board.id) && typeof board.repository === 'string');
     const loaded = statusFromLoad({ openBoard: (available.find(board => board.id === pair?.board) ?? available[0])?.repository ?? null, exclusions }); setRelayStatus(loaded.excluded ? loaded : null); // only an exclusion names a cause here [C7,#9667]

@@ -88,7 +88,7 @@ function assertComputedReview(f, id, agentId, expectedCode = null, options = {})
   }
 }
 
-test('a release without a reason code is refused naming the list, and a coded release records it [C7]', async () => {
+test('cli.journeys-show-rules.a-release-without-a-reason-code: a release without a reason code is refused naming the list, and a coded release records it [C7]', async () => {
   const box = helpers.project('true');
   const added = JSON.parse((await fixtureAdd(box.runLocal, box.repo, 'web', 'Release target', '--json')).out).item.item_id;
   const claim = (await box.runLocal(box.web, 'claim', String(added), '--json'));
@@ -106,7 +106,7 @@ test('a release without a reason code is refused naming the list, and a coded re
   assert.equal(JSON.parse(log.event_detail ?? JSON.stringify(log.detail ?? {})).reasonCode, 'OTHER');
 });
 
-test('native and ordered releases require a reason code while historical releases keep their meaning [C7,H16]', async t => {
+test('cli.journeys-show-rules.native-and-ordered-releases-require-a: native and ordered releases require a reason code while historical releases keep their meaning [C7,H16]', async t => {
   const f = fixture(t), id = f.add();
   store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
   const before = store.getItem(f.board, id), events = store.events(f.board);
@@ -134,7 +134,7 @@ test('native and ordered releases require a reason code while historical release
   assert.equal(store.getItem(old.board, historicalId).item_status, 'open', 'the pre-routing engine preserves an old uncoded release');
 });
 
-test('computed parent identity rejects the builder pool across native review paths [C7,V1,H16]', async t => {
+test('cli.journeys-show-rules.computed-parent-identity-rejects-the-builder: computed parent identity rejects the builder pool across native review paths [C7,V1,H16]', async t => {
   const shared = fixture(t), sharedId = shared.add();
   shared.submit(sharedId);
   shared.join('core-5', 'claude', 'a', 'd');
@@ -148,7 +148,7 @@ test('computed parent identity rejects the builder pool across native review pat
   assertComputedReview(independent, id, 'core-5');
 });
 
-test('CLI next and verify reject the original building session through its real local ledger [C7,V1,B3]', async t => {
+test('cli.journeys-show-rules.cli-next-and-verify-reject-the: CLI next and verify reject the original building session through its real local ledger [C7,V1,B3]', async t => {
   const box = crossLaneFixture(t);
   // The kit joins box.web as an ordinary seat; the original session builds in its own fresh worktree instead (#3103).
   const built = join(box.dir, 'original-session-build');
@@ -223,7 +223,7 @@ test('CLI next and verify reject the original building session through its real 
   assert.equal(accepted.decision, 'ACCEPT');
 });
 
-test('computed strict, required family, route and policy rules agree with native reservation and verdict [C7,V1,B13]', async t => {
+test('cli.journeys-show-rules.computed-strict-required-family-route-and: computed strict, required family, route and policy rules agree with native reservation and verdict [C7,V1,B13]', async t => {
   for (const [itemOptions, agentId, code, policy] of [
     [{ sensitive: true }, 'core-4', 'SAME_FAMILY', {}],
     [{ reviewFamily: 'claude' }, 'core-4', 'REQUIRED_REVIEW_FAMILY', {}],
@@ -245,7 +245,7 @@ test('computed strict, required family, route and policy rules agree with native
   }
 });
 
-test('computed review selection preserves held diagnostics, coded-release cooldown and another eligible seat [C7,V1]', async t => {
+test('cli.journeys-show-rules.computed-review-selection-preserves-held-diagnostics: computed review selection preserves held diagnostics, coded-release cooldown and another eligible seat [C7,V1]', async t => {
   const f = fixture(t), id = f.add();
   f.submit(id);
   store.reserveReview(f.board, id, { agentId: 'core-2', leaseMs: LEASE, policy: 'any' });
@@ -263,7 +263,7 @@ test('computed review selection preserves held diagnostics, coded-release cooldo
   assertComputedReview(f, id, 'core-4');
 });
 
-test('computed review filtering preserves native urgency, skip and omit ordering [C7,V1,N2]', async t => {
+test('cli.journeys-show-rules.computed-review-filtering-preserves-native-urgency: computed review filtering preserves native urgency, skip and omit ordering [C7,V1,N2]', async t => {
   const f = fixture(t), first = f.add(), second = f.add();
   f.submit(first);
   f.submit(second);
@@ -278,7 +278,7 @@ test('computed review filtering preserves native urgency, skip and omit ordering
   assert.deepEqual(store.events(f.board), before, 'all ordering probes remain read-only');
 });
 
-test('clause 1 and clause 2: a claim whose own gate stopped on infrastructure leaves its seat free to review; other claims stay held [C7,N41]', async t => {
+test('cli.journeys-show-rules.clause-1-and-clause-2-a: clause 1 and clause 2: a claim whose own gate stopped on infrastructure leaves its seat free to review; other claims stay held [C7,N41]', async t => {
   const f = fixture(t), waiting = f.add(), own = f.add();
   f.submit(waiting);
   store.claim(f.board, own, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze });

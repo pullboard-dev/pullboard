@@ -30,7 +30,7 @@ function world(t) {
   return { seat, host, git, commit };
 }
 
-test('clause 1: a submit by a seat with board.commits pushed sends the head it pushed and its ref, and sends nothing when the setting is off [P7]', async (t) => {
+test('cli.io-submit-remote-commit.a-submit-by-a-seat-with-board: clause 1: a submit by a seat with board.commits pushed sends the head it pushed and its ref, and sends nothing when the setting is off [P7]', async (t) => {
   const w = world(t);
   w.git(w.seat, 'checkout', '--quiet', '-b', 'work');
   const head = w.commit(w.seat, 'b.txt', 'pushed work');
@@ -40,7 +40,7 @@ test('clause 1: a submit by a seat with board.commits pushed sends the head it p
   assert.equal(await carriedCommits(PUSHED, { ...BODY, verb: 'claim' }, w.seat), undefined, 'only a submit carries commits');
 });
 
-test('clause 2: a pushed commit that does not descend from main is refused with the next step merge main, push, resubmit [P7]', async (t) => {
+test('cli.io-submit-remote-commit.a-pushed-commit-that-does-not-descend: clause 2: a pushed commit that does not descend from main is refused with the next step merge main, push, resubmit [P7]', async (t) => {
   const w = world(t);
   w.git(w.seat, 'checkout', '--quiet', '-b', 'work');
   w.commit(w.seat, 'b.txt', 'pushed work on the old main');
@@ -52,7 +52,7 @@ test('clause 2: a pushed commit that does not descend from main is refused with 
   await assert.rejects(() => carriedCommits(PUSHED, BODY, w.seat), (error) => error.code === 'NOT_ON_MAIN' && /merge main, push, and submit again/u.test(error.message));
 });
 
-test('clause 3: a commit that is not pushed is refused COMMIT_NOT_PUSHED naming the push [P7]', async (t) => {
+test('cli.io-submit-remote-commit.a-commit-that-is-not-pushed-is: clause 3: a commit that is not pushed is refused COMMIT_NOT_PUSHED naming the push [P7]', async (t) => {
   const w = world(t);
   w.git(w.seat, 'checkout', '--quiet', '-b', 'work');
   w.commit(w.seat, 'b.txt', 'pushed work');

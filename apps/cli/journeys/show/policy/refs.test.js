@@ -49,9 +49,9 @@ async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
 }
 
 
-test('accept independently refuses a historically unchecked foreign submission [L3,M3]', async () => {
+test('cli.journeys-show-policy-refs.accept-independently-refuses-a-historically-unchecked: accept independently refuses a historically unchecked foreign submission [L3,M3]', async () => {
   const box = project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Foreign receipt', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
+  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Foreign receipt', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true')).code, 0);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized');
   const commit = attackCommit(box, box.web);
@@ -60,15 +60,15 @@ test('accept independently refuses a historically unchecked foreign submission [
   finally { store.closeBoard(board); }
   const review = join(box.dir, 'foreign-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
+  assert.equal((await fixtureJoin(box.runIn, review, 'api')).code, 0);
   const refused = await box.inProcess(review, 'verify', '1', 'accept', '--note', 'a green check cannot authorize this path', '--json');
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'OUTSIDE_LANE');
 });
 
-test('clause 1: replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3]', async () => {
+test('cli.journeys-show-policy-refs.replacement-refs-cannot-conceal-the-real: clause 1: replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3]', async () => {
   const box = project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Replacement probe', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true').code, 0);
+  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Replacement probe', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'true')).code, 0);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   writeFileSync(join(box.web, 'coordinator.txt'), 'underlying unauthorized object');
@@ -84,15 +84,15 @@ test('clause 1: replacement refs cannot conceal the real submitted foreign paths
   finally { store.closeBoard(board); }
   const review = join(box.dir, 'replacement-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
+  assert.equal((await fixtureJoin(box.runIn, review, 'api')).code, 0);
   const accepted = await box.inProcess(review, 'verify', '1', 'accept', '--note', 'the replacement is not the pinned object', '--json');
   assert.equal(accepted.code, 1);
   assert.equal(JSON.parse(accepted.out).error.code, 'OUTSIDE_LANE');
 });
 
-test('replacement refs cannot turn a red committed owned tree into a clean green submission [V4,V16]', async () => {
+test('cli.journeys-show-policy-refs.replacement-refs-cannot-turn-a-red: replacement refs cannot turn a red committed owned tree into a clean green submission [V4,V16]', async () => {
   const box = project('test ! -f web/RED');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Exact red tree', '--specs', 'G1').code, 0);
+  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Exact red tree', '--specs', 'G1')).code, 0);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   const base = box.git(box.web, 'rev-parse', 'HEAD');
   mkdirSync(join(box.web, 'web'));
@@ -106,9 +106,9 @@ test('replacement refs cannot turn a red committed owned tree into a clean green
   assert.equal(JSON.parse(submitted.out).error.code, 'DIRTY', 'the underlying tree differs from the files the gate would execute');
 });
 
-test('a detached coordinator review cannot become a new claim policy [V4,V16]', async t => {
+test('cli.journeys-show-policy-refs.a-detached-coordinator-review-cannot-become: a detached coordinator review cannot become a new claim policy [V4,V16]', async t => {
   const box = project('test ! -f web/RED');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Detached policy', '--specs', 'G1').code, 0);
+  assert.equal((await fixtureAdd(box.runIn, box.repo, 'web', 'Detached policy', '--specs', 'G1')).code, 0);
   const config = JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8'));
   config.gate = 'true';
   config.lanes.web.owns.push('pullboard.json');

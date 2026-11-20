@@ -108,7 +108,7 @@ export function settledGate(job, posted, recorded = new Set()) {
   const phasePlan = Array.isArray(plan?.phasePlan) ? plan.phasePlan : [];
   const check = phases.find(phase => phase.role === 'check');
   const steps = gate.steps && typeof gate.steps === 'object' ? gate.steps : {};
-  return { ...gate, ...(counts ? { counts } : {}),
+  return { ...gate, ...(Number.isFinite(posted.receipt.queueWaitSeconds) ? { queueWaitSeconds: posted.receipt.queueWaitSeconds } : {}), ...(counts ? { counts } : {}),
     ...(logged && folder ? { logPath: join(folder, logged.kept), logRunner: output.runner ?? posted.runner ?? null } : {}),
     ...(plan ? { files: Array.isArray(plan.files) ? plan.files : [], testTiers: plan.testTiers ?? null, phasePlan,
       check: { command: phasePlan.find(phase => phase.role === 'criterion')?.command ?? null, checked: Boolean(check), green: check ? check.status === 0 : null },

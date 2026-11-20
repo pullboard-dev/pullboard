@@ -22,7 +22,7 @@ const {
   attackCommit, historicalCheckSubmission, LIGHT_BRIEF, project,
 } = e2e;
 
-test('accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', async t => {
+test('cli.journeys-show-policy-merge-rerun.accept-reruns-the-frozen-check-at: accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Exact check', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);

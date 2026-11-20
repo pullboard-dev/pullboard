@@ -6,19 +6,12 @@
  * thin path stays under 20 modules, and every case it cannot serve returns null so the entry runs the command
  * in-process exactly as before.
  */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import {
   spawn,
   spawnSync,
 } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  unlinkSync,
-} from 'node:fs';
 import { connect } from 'node:net';
 import {
   dirname,
@@ -27,6 +20,9 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The CLI entry this client serves; the resident process runs its code. */
 export const PULLBOARD_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
@@ -63,7 +59,7 @@ export const RESIDENT_COMMAND_CEILING_MS = 60_000;
 export const RESIDENT_WEDGED_GRACE_MS = 10_000;
 
 /** The ceiling in effect: PULLBOARD_RESIDENT_COMMAND_MS when set to a positive number, else the default. */
-export function residentCommandCeiling(env = process.env) {
+export function residentCommandCeiling(env = environmentAdapter().all()) {
   const ms = Number(env.PULLBOARD_RESIDENT_COMMAND_MS);
   return Number.isFinite(ms) && ms > 0 ? ms : RESIDENT_COMMAND_CEILING_MS;
 }
@@ -77,9 +73,9 @@ export function residentBusyFile(pidFile) {
  * Whether the resident process has been running one command for longer than RESIDENT_BUSY_DIRECT_MS. Read from a file
  * so it holds while that command blocks the process's event loop, which then answers nothing on its socket.
  */
-export function residentBusy(pidFile, now = Date.now(), env = process.env) {
+export function residentBusy(pidFile, now = Date.now(), env = environmentAdapter().all()) {
   try {
-    const [pid, at] = readFileSync(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
+    const [pid, at] = fs.readFile(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
     if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
     process.kill(pid, 0);
     // A command past its ceiling and grace is wedged (its own timer never fired, so its event loop is blocked or the
@@ -95,9 +91,9 @@ export function residentBusy(pidFile, now = Date.now(), env = process.env) {
  */
 function reapWedged(pidFile, pid) {
   try {
-    if (Number(readFileSync(pidFile, 'utf8').trim()) !== pid) return false;
+    if (Number(fs.readFile(pidFile, 'utf8').trim()) !== pid) return false;
     process.kill(pid, 'SIGKILL');
-    for (const file of [residentBusyFile(pidFile), pidFile]) try { unlinkSync(file); } catch { /* Already gone. */ }
+    for (const file of [residentBusyFile(pidFile), pidFile]) try { fs.unlink(file); } catch { /* Already gone. */ }
     return true;
   } catch { return false; }
 }
@@ -105,32 +101,32 @@ function reapWedged(pidFile, pid) {
 /** Find the Git metadata above a directory without starting Git: the checkout root, its Git dir and the shared one. */
 export function gitLocation(start, { walk = true } = {}) {
   let root = resolve(start);
-  while (!existsSync(join(root, '.git'))) {
+  while (!fs.exists(join(root, '.git'))) {
     const parent = dirname(root);
     if (!walk || parent === root) return null;
     root = parent;
   }
   const marker = join(root, '.git');
   let gitDir = marker;
-  if (!statSync(marker).isDirectory()) {
-    const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(marker, 'utf8').trim());
+  if (!fs.stat(marker).isDirectory()) {
+    const match = /^gitdir:\s*(.+)$/u.exec(fs.readFile(marker, 'utf8').trim());
     if (!match) return null;
     gitDir = resolve(root, match[1].trim());
   }
   const commonFile = join(gitDir, 'commondir');
-  const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+  const commonDir = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile, 'utf8').trim()) : gitDir;
   return { root, gitDir, commonDir, linked: gitDir !== commonDir };
 }
 
 /** Resolve a checkout's HEAD commit from its files: a detached hash, a loose ref, or a packed ref. */
 export function headCommit({ gitDir, commonDir }) {
-  const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim();
+  const head = fs.readFile(join(gitDir, 'HEAD'), 'utf8').trim();
   if (!head.startsWith('ref:')) return head;
   const ref = head.slice('ref:'.length).trim();
   for (const dir of [gitDir, commonDir]) {
-    try { return readFileSync(join(dir, ref), 'utf8').trim(); } catch { /* Try the next place a ref can live. */ }
+    try { return fs.readFile(join(dir, ref), 'utf8').trim(); } catch { /* Try the next place a ref can live. */ }
   }
-  const packed = readFileSync(join(commonDir, 'packed-refs'), 'utf8').split('\n').find(line => line.endsWith(` ${ref}`));
+  const packed = fs.readFile(join(commonDir, 'packed-refs'), 'utf8').split('\n').find(line => line.endsWith(` ${ref}`));
   return packed ? packed.split(' ')[0] : null;
 }
 
@@ -140,7 +136,7 @@ const CODE_PATHS = ['apps', 'bin', 'package.json', 'packages', 'src'];
 /** One loose Git object's type and body, or null when it is packed or absent so Git itself must answer. */
 function looseObject(commonDir, oid) {
   try {
-    const raw = inflateSync(readFileSync(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2))));
+    const raw = inflateSync(fs.readFile(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2)), null));
     return { type: raw.subarray(0, raw.indexOf(32)).toString(), body: raw.subarray(raw.indexOf(0) + 1) };
   } catch { return null; }
 }
@@ -194,7 +190,7 @@ export function codeVersion(entry) {
     const tree = codeTreeName(location, commit);
     return { version: tree ? `code:${tree}` : `commit:${commit}`, linked: location.linked };
   }
-  const stamp = file => { const stat = statSync(file); return `${stat.size}.${stat.mtimeMs}`; };
+  const stamp = file => { const stat = fs.stat(file); return `${stat.size}.${stat.mtimeMs}`; };
   return { version: `files:${stamp(join(codeRoot, 'package.json'))}:${stamp(entry)}`, linked: false };
 }
 
@@ -236,8 +232,8 @@ export function residentStarts(argv) {
  */
 function shortSocketFolder() {
   const folder = join('/tmp', `pullboard-${process.getuid()}`);
-  try { mkdirSync(folder, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') return null; }
-  const stat = lstatSync(folder);
+  try { fs.mkdir(folder, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') return null; }
+  const stat = fs.lstat(folder);
   return stat.isDirectory() && stat.uid === process.getuid() && (stat.mode & 0o077) === 0 ? folder : null;
 }
 
@@ -250,7 +246,7 @@ export function residentSocket(cwd, entry, slot = 0) {
   const location = gitLocation(cwd);
   if (!location) return null;
   const folder = join(location.commonDir, 'pullboard');
-  if (!existsSync(join(folder, 'board.sqlite'))) return null;
+  if (!fs.exists(join(folder, 'board.sqlite'))) return null;
   const name = createHash('sha256').update(resolve(entry)).digest('hex').slice(0, 12) + (slot ? `-${slot}` : '');
   const home = dirname(location.commonDir);
   const pid = join(folder, `resident-${name}.pid`);
@@ -290,6 +286,42 @@ export function residentPlace(cwd, entry, env) {
 }
 
 /**
+ * How old a slot's start lock may grow before another client may start the slot again: a starter that died before it
+ * listened never blocks its slot for longer. Why this long: on 17 Nov, at load 130, a resident took over a minute from
+ * spawn to listening.
+ */
+export const RESIDENT_START_STALE_MS = 120_000;
+
+/** The start lock a client creates beside a slot's pid file before it starts that slot's resident process. */
+export function residentStartFile(pidFile) {
+  return pidFile.replace(/\.pid$/u, '') + '.starting';
+}
+
+/**
+ * Take a slot's start lock: true when this client may start the slot's resident process, false when another client
+ * already is (the command then runs in-process, as it would anyway). The lock is a file created exclusively; the
+ * resident removes it once it listens or leaves, and a lock older than RESIDENT_START_STALE_MS is taken over.
+ * Why: while a slot's resident loaded cold under load, every concurrent command found no socket and started another,
+ * so 41 resident processes ran at once, 34 on one slot, and the load reached 130 (17 Nov).
+ */
+export function claimResidentStart(pidFile, now = Date.now()) {
+  const file = residentStartFile(pidFile);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      fs.close(fs.open(file, 'wx'));
+      return true;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') return false;
+    }
+    try {
+      if (now - fs.stat(file).mtimeMs <= RESIDENT_START_STALE_MS) return false;
+      fs.unlink(file);
+    } catch (error) { if (error?.code !== 'ENOENT') return false; }
+  }
+  return false;
+}
+
+/**
  * Start the resident process through spawnReachable, which runs it as a one-shot launchd job where launchd exists and
  * falls back to a plain detached spawn; the command in hand still runs in-process. Why: a resident started from an app
  * inherits that app's denied Local Network permission, so the board it serves cannot reach a runner [C7,#5760].
@@ -301,7 +333,7 @@ export function residentPlace(cwd, entry, env) {
  */
 export function startResident({ socket, pid, home }, entry, version, env, launch = launchReachable) {
   try {
-    const args = [RESIDENT_ENTRY, socket, entry, version, pid], options = { cwd: existsSync(home) ? home : process.cwd(), env };
+    const args = [RESIDENT_ENTRY, socket, entry, version, pid], options = { cwd: fs.exists(home) ? home : process.cwd(), env };
     return Promise.resolve(launch(process.execPath, args, options)).catch(() => detach(args, options));
   } catch { return Promise.resolve(); /* The command runs in-process either way. */ }
 }
@@ -329,7 +361,7 @@ function detach(args, { cwd, env }) {
  *
  * Why: every agent polls `test --status`, and each poll that started a resident process cost 15-25% CPU [C7,#5888].
  */
-export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr, start = startResident, call = null, payload = null, onResult = () => {} } = {}) {
+export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd(), env = environmentAdapter().all(), stdout = process.stdout, stderr = process.stderr, start = startResident, call = null, payload = null, onResult = () => {} } = {}) {
   let code, place, starts;
   try {
     if (!call && !residentCommand(argv)) return Promise.resolve(null);
@@ -351,7 +383,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       clearTimeout(waited);
       socket.destroy();
       // The start settles before the command runs in-process: a launchd job is loaded by a child the entry must outlive.
-      if (restart && starts) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
+      // Only the client holding the slot's start lock starts it; the rest run in-process while that resident loads.
+      if (restart && starts && claimResidentStart(place.pid)) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
       else done(status);
     };
     // A command that has not started by now waits behind another; the process never starts it past the cutoff, so
@@ -399,7 +432,7 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
  * @param {{ cwd?: string, env?: object, entry?: string }} [options]
  * @returns {Promise<object | null>} The call's answer, or null.
  */
-export async function callResident(call, payload, { cwd = process.cwd(), env = process.env, entry = PULLBOARD_ENTRY } = {}) {
+export async function callResident(call, payload, { cwd = process.cwd(), env = environmentAdapter().all(), entry = PULLBOARD_ENTRY } = {}) {
   let value = null;
   const code = await runResident([], { entry, cwd, env, call, payload, onResult: (answer) => { value = answer; } });
   return code === 0 ? value : null;

@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 import { requireOwnLaneCheck } from '../lane.js';
 import {
   COORDINATOR,
@@ -16,10 +18,22 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireNonEmptyCheck } from '../item/bar.js';
+import { briefFilesAbsentFromMain } from '../item/bar.js';
+import { requireTestMirror } from '../item/bar.js';
+import { requireAfterNeeded } from '../item/bar.js';
+import { requireBarInLane } from '../item/bar.js';
+import { barOwnerOptions } from '../item/bar.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
+import { requireSpecRow } from '../item/bar.js';
+import { requireCellTestFixture } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
+import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
+import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
+import { requireLinkedForeign } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
@@ -29,6 +43,7 @@ import { checkTestFiles } from '../../../../../packages/items/index.js';
 import { shapeRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
+import { githubRepository } from '../../../../../packages/github/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -46,9 +61,10 @@ import {
   refuseCheckSyntax,
   refuseCheckPullboardTest,
   sayCheckBaseline,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   isLane,
+  listProjects,
 } from '../../../../../packages/seats/index.js';
 import {
   Refused,
@@ -76,6 +92,19 @@ import {
 } from '../entry.js';
 import { anyRunnerLive } from '../runner/local.js';
 
+/** A path in a bar that leaves this board's folder: absolute, home-relative or climbing out with `../`. */
+const LEAVES_BOARD = /(?:^|[\s`'"(\[,])(?:~?\/|\.\.\/)/u;
+
+/**
+ * Whether the other-board check can matter: the bar names a path outside this board's folder, or another registered board sits inside it.
+ * Why: the guard module loads only then, so a plain one-board add pays no module load for it [C7].
+ */
+function mayNameOtherBoard(ctx, item) {
+  if (LEAVES_BOARD.test([item.criterion, item.check, item.brief].filter(Boolean).join('\n'))) return true;
+  const root = resolve(ctx.info.root);
+  try { return listProjects({ pruneMissing: false }).some(project => resolve(project.root).startsWith(root + sep)); } catch { return false; }
+}
+
 /**
  * The route an add files for a shape route. A diagnosis can only follow the add, so on a board that requires one a light
  * route would refuse DIAGNOSIS_REQUIRED on every plain add; it is filed mid, the route next already offers (#3120, #8628).
@@ -95,7 +124,8 @@ export async function run(io, args) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
     const id = recovered.result;
-    io.result?.({ item: store.getItem(board, id) });
+    const filed = store.getItem(board, id);
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard' });
     io.say(`#${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
@@ -107,7 +137,9 @@ export async function run(io, args) {
   if (problems.length) throw new Refused('UNKNOWN_SPEC', `${problems.join('; ')}`);
   const parentId = values.parent ? idArg(values.parent, 'a parent item id') : null;
   const after = dependencyValues(idList(values.after));
+  const afterGate = dependencyValues(idList(values['after-gate']));
   const title = [second, ...rest].filter(Boolean).join(' ');
+  requireSpecRow({ lane: first, title, specIds }, itemsBarRulesAtAdd());
   const wholeBar = { criterion: values.criterion ?? '', check: values.check, brief: briefArg(io, values) ?? '' };
   // With --split-coordinator the coordinator-owned part of the bar leaves for its own item, filed after this one [C7,#3246].
   const split = values['split-coordinator'] === true ? splitBar(ctx.config, wholeBar) : null;
@@ -115,7 +147,8 @@ export async function run(io, args) {
     splitAdvice(first, title, split.paths));
   const laneBar = split ? split.lane : wholeBar;
   // Before the brief's own lane check, so a coordinator-owned path gets the cross-ownership code and the split, not a bare lane refusal [C7,#2650].
-  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title, ...laneBar });
+  const owners = barOwnerOptions(ctx, itemsBarRulesAtAdd());
+  requireNoCoordinatorPath(ctx.config, me, { by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id, lane: first, title, ...laneBar }, owners);
   let item = {
     by: io.personRequest?.phase === 'execute' ? store.PERSON : me.id,
     lane: first,
@@ -124,9 +157,11 @@ export async function run(io, args) {
     specIds,
     parentId,
     after,
+    afterGate,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
+    ...(values.needs === undefined ? {} : { needs: values.needs.split(',').map(need => need.trim()).filter(Boolean) }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
     route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,
@@ -139,13 +174,15 @@ export async function run(io, args) {
   };
   const sealed = executingBarEffect(ctx, board, 'add');
   if (sealed) item = { ...sealed };
+  // A prerequisite on another repository needs a live link to it, so the refusal comes before anything is filed [XB1].
+  if (item.after?.length) requireLinkedForeign(board, item.after);
   if (sealed) {
     const sealedProblems = idProblems(loadSpec(ctx.info.root, ctx.config), item.specIds, ctx.doctrine);
     if (sealedProblems.length) throw new Refused('UNKNOWN_SPEC', sealedProblems.join('; '));
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief, check: item.check });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
@@ -163,17 +200,26 @@ export async function run(io, args) {
   const authors = referenceAuthors(ctx.info.root, item.brief, { githubPullClient });
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
-  requireNoCoordinatorPath(ctx.config, me, item);
+  requireNoCoordinatorPath(ctx.config, me, item, owners);
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
+  briefFilesAbsentFromMain(ctx, { criterion: item.criterion, brief: item.brief }, itemsBarRulesAtAdd());
+  await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  requireAfterNeeded(ctx, { criterion: item.criterion, check: item.check }, { on: itemsBarRulesAtAdd(), after: item.after ?? [], items: () => store.listItems(board, { all: true }) });
+  requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
+  requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
+  await requireCellTestFixture(ctx, { criterion: item.criterion, check: item.check, brief: item.brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || item.by === 'person');
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
-  if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) item.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() ? { strict: true } : {}) };
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
+  // The guard module loads only when the bar can name another board's files (or --here is given), so a one-board add pays nothing for it [C7].
+  const elsewhere = values.here !== undefined || mayNameOtherBoard(ctx, item) ? (await import('../item/other-board.js')).guardOtherBoard(ctx, item, values.here) : null;
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (elsewhere) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Filed here though its files belong to the ${elsewhere.boards.join(', ')} board: ${elsewhere.reason}` }]);
   if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
@@ -190,7 +236,8 @@ export async function run(io, args) {
     }
   }
   const warnings = [...evidenceWarnings, ...barWarnings];
-  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
+  const filed = store.getItem(board, id);
+  io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, review: filed.item_review_tier ?? 'standard', review_tier: filed.item_review_tier ?? 'standard', ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
@@ -229,7 +276,7 @@ async function fileCoordinatorPiece(ctx, board, { id, item, split, title, specId
   const { command, brief } = store.validateItemAddition(board, piece);
   piece.brief = brief;
   if (command) refuseCheckSyntax(command);
-  if (command) piece.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) piece.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() ? { strict: true } : {}) };
   try { return await ordered(ctx, board, 'addItem', [piece]); }
   catch (error) {
     if (!String(error?.code).startsWith('AGENT_GRANT_')) throw error;
@@ -281,3 +328,6 @@ export function splitBar(config, bar) {
     lane: { criterion: joinClauses(parts, parts.clauses.filter(clause => !owned(clause))), check: checkOwned ? undefined : bar.check, brief: laneLines.join('\n') },
     coordinator: { criterion: joinClauses(parts, parts.clauses.filter(owned)), check: checkOwned ? bar.check : undefined, brief: pieceLines.join('\n') } };
 }
+
+/** The one GitHub read client and repository resolver the commands share, so contribute check --issue reaches GitHub through this front-door import and adds no client of its own. */
+export { githubPullClient, githubRepository };
