@@ -1135,6 +1135,11 @@ export function setRunnerDrain(host, drain) {
   }, { observation: true });
 }
 
+/** How long a queued gate job waits, in milliseconds, before it outranks shard jobs (gate.gateAgedMinutes, 5 minutes by default) [C7]. */
+export function gateAgedMs() {
+  return (loadMachineSettings().gate?.gateAgedMinutes ?? 5) * 60_000;
+}
+
 /**
  * The share of each runner's slots every job class keeps (gate.jobReserve), or null: unset keeps today's claim order,
  * set makes a claim take the highest class first while each class keeps its reserve [C7].

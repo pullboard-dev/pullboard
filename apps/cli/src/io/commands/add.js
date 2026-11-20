@@ -20,6 +20,7 @@ import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { requireSpecRow } from '../item/bar.js';
@@ -155,6 +156,7 @@ export async function run(io, args) {
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
     ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
+    ...(values.needs === undefined ? {} : { needs: values.needs.split(',').map(need => need.trim()).filter(Boolean) }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
     route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,
@@ -197,6 +199,7 @@ export async function run(io, args) {
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  requireBarInLane(ctx, me, item, itemsBarRulesAtAdd());
   requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
