@@ -121,8 +121,9 @@ export const GATE_SLOT_HELD_ENV = 'PULLBOARD_GATE_SLOT_HELD';
 export const GATE_SLOT_POOL_ENV = 'PULLBOARD_GATE_SLOT_POOL';
 export const GATE_SLOT_TOKEN_ENV = 'PULLBOARD_GATE_SLOT_TOKEN';
 export const BROWSER_SLOT_HELD_ENV = 'PULLBOARD_BROWSER_SLOT_HELD';
-/** Where a runner asks the lease guard to record its own browser-slot refusal (#1043). */
+/** Where a runner asks the lease guard to record its own browser-slot refusal (#1043), and that receipt file name, its one home [CD2]. */
 export const BROWSER_REFUSAL_FILE_ENV = 'PULLBOARD_BROWSER_REFUSAL_FILE';
+export const BROWSER_REFUSAL_FILE = 'browser-refusal.json';
 /** Reserve a distinct resource row for each configured remote host. */
 function runnerResourceName(host) { return `runner:${host}`; }
 
@@ -1399,8 +1400,7 @@ function dropWaiterRow(db, token) {
 }
 
 /** Reuse a same-machine gate lease in a child without queueing or acquiring a partial browser slot.
- * The live holder row says whether the lease is a short slot; only a run that names its test files
- * (namedFiles) may reuse one, so a whole suite started under a short check queues for a real slot.
+ * The live holder row says whether the lease is a short slot; only a run that names its test files (namedFiles) may reuse one, so a whole suite started under a short check queues for a real slot.
  */
 export function inheritedGateSlot({ root = process.cwd(), browser = false, namedFiles = false, timing = false } = {}) {
   // Taken by the first guard in this process, so nothing it starts (a test body) can write the receipt.

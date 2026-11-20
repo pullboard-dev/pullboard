@@ -2,6 +2,7 @@
 /** Report cell import edges with --report, lower the ceilings with --write, or refuse an undeclared new cross-cell import or deep import [C7]. */
 import {
   existsSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   writeFileSync,
@@ -323,14 +324,61 @@ function planOf(root) {
 }
 
 /**
- * The edges the plan declares: `from->to` allows a cross-cell import, `from->to/src` allows a deep one.
+ * The edges the plan's allowedEdges list and the edge files declare: `from->to` allows a cross-cell import, `from->to/src` allows a deep one.
  *
  * @param {string} root
  * @returns {Set<string>}
  */
 export function declaredEdges(root) {
-  const plan = planOf(root);
-  return new Set(plan.allowedEdges ?? []);
+  return new Set(declaredList(root));
+}
+
+/**
+ * The folder of one-edge files the edge check reads beside the plan's allowedEdges list: each file declares one edge as
+ * `{ "edge": "from->to" }` and is named after it (see edgeFileName).
+ * Why: every slice appended its edge to the end of that one list, so any two slices conflicted on merge and main changing
+ * the list sent accepted reviews stale (#11473); a new file per edge touches no other item's file, and one edge has one path [C7].
+ */
+export const EDGE_FILES = 'packages/codemap/data/edges';
+
+/** The file name that declares one edge: `/` is written `.` and `->` is written `__`, so `apps/cli->gate/src` is `apps.cli__gate.src.json`. */
+export function edgeFileName(edge) {
+  return String(edge).replace('->', '__').replaceAll('/', '.') + '.json';
+}
+
+/** Each `.json` file in the edge folder with the edge it declares, or null when it declares none; a tree without the folder has none. */
+function edgeFiles(root) {
+  let names;
+  try { names = readdirSync(resolve(root, EDGE_FILES)); }
+  catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return []; throw error; }
+  return names.filter(name => name.endsWith('.json')).sort().map(name => {
+    let edge = null;
+    try { edge = JSON.parse(readFileSync(resolve(root, EDGE_FILES, name), 'utf8'))?.edge ?? null; } catch { /* reported by edgeFileProblems */ }
+    return { file: `${EDGE_FILES}/${name}`, edge: typeof edge === 'string' && /^[^\s>]+->[^\s>]+$/u.test(edge) ? edge : null };
+  });
+}
+
+/** Every declared edge: the plan's allowedEdges list, then each edge file that declares one. */
+function declaredList(root) {
+  return [...(planOf(root).allowedEdges ?? []), ...edgeFiles(root).flatMap(row => row.edge ? [row.edge] : [])];
+}
+
+/**
+ * The edge files that cannot stand: one that declares no `from->to` edge, one not named after its edge, and one whose edge
+ * the plan's allowedEdges list also carries, so no edge is declared twice [C7].
+ *
+ * @param {string} root
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+export function edgeFileProblems(root) {
+  const listed = new Set(planOf(root).allowedEdges ?? []);
+  const problems = [];
+  for (const { file, edge } of edgeFiles(root)) {
+    if (!edge) problems.push({ path: file, line: 1, text: 'edge file declares no edge; write {"edge": "<from>-><to>"} in it' });
+    else if (file !== `${EDGE_FILES}/${edgeFileName(edge)}`) problems.push({ path: file, line: 1, text: `edge file for "${edge}" must be named ${EDGE_FILES}/${edgeFileName(edge)}` });
+    else if (listed.has(edge)) problems.push({ path: file, line: 1, text: `edge "${edge}" is declared twice, here and in allowedEdges of the cells plan; delete this file` });
+  }
+  return problems;
 }
 
 /**
@@ -413,7 +461,12 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
   }
   problems.push(...packageAppProblems(current.packageApps, ceilings.packageApps ?? {}));
   if (!files) for (const entry of upwardAllowedEdges(root)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
-  if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) add('packages/codemap', 1, `allowedEdges entry "${entry}" is used by no import; remove it from allowedEdges in the cells plan`);
+  const fileOf = files ? new Map() : new Map(edgeFiles(root).filter(row => row.edge).map(row => [row.edge, row.file]));
+  if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) {
+    const file = fileOf.get(entry);
+    add(file ?? 'packages/codemap', 1, `allowedEdges entry "${entry}" is used by no import; ${file ? `delete ${file}` : 'remove it from allowedEdges in the cells plan'}`);
+  }
+  if (!files) problems.push(...edgeFileProblems(root));
   problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) }));
   return problems;
 }
@@ -493,7 +546,7 @@ export function upwardAllowedEdges(root) {
   const orderOf = name => orders.get(name.startsWith('apps/') ? `app:${name.slice(5)}` : name);
   const grandfathered = new Set(plan.upwardEdgesGrandfathered ?? []);
   const rows = [];
-  for (const edge of plan.allowedEdges ?? []) {
+  for (const edge of declaredList(root)) {
     if (grandfathered.has(edge)) continue;
     const [from, rest] = edge.split('->');
     const to = (rest ?? '').replace(/\/src$/u, '');
@@ -512,9 +565,10 @@ export async function writeCellsEdgeCeilings(root) {
 }
 
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
-  const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
+  const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write', '--no-cold-load'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
   else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);
+  else if (process.argv.includes('--no-cold-load')) refuse(cellsEdgeProblems(root));
   else lightDoorProblems(root).then(light => refuse([...cellsEdgeProblems(root), ...light]));
 }
 
