@@ -340,8 +340,8 @@ export async function runnerServiceInstaller() {
     `  <key>Label</key><string>${xml(plan.label)}</string>`,
     ...(daemon && uid !== 0 ? [`  <key>UserName</key><string>${xml(user)}</string>`] : []),
     '  <key>ProgramArguments</key>', '  <array>', ...args.map(arg => `    <string>${xml(arg)}</string>`), '  </array>',
-    // The serve's job count and per-run ceiling: without PULLBOARD_RUNNER_JOBS serveSlots() falls to 3 and a minis' gate jobs go unclaimed [#11871].
-    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string>${[['PULLBOARD_RUNNER_JOBS', plan.jobs], ['PULLBOARD_RUNNER_RUN_CEILING_MS', plan.ceilingMs]].filter(([, value]) => Number.isFinite(value)).map(([name, value]) => `<key>${name}</key><string>${value}</string>`).join('')}</dict>`,
+    // The serve's session (gui for the agent, daemon for the daemon), job count and per-run ceiling: without PULLBOARD_RUNNER_JOBS serveSlots() falls to 3 and a minis' gate jobs go unclaimed [#11871].
+    '  <key>EnvironmentVariables</key>', `  <dict><key>PATH</key><string>${xml(path)}</string><key>HOME</key><string>${xml(homedir())}</string>${[['PULLBOARD_RUNNER_JOBS', plan.jobs], ['PULLBOARD_RUNNER_RUN_CEILING_MS', plan.ceilingMs]].filter(([, value]) => Number.isFinite(value)).map(([name, value]) => `<key>${name}</key><string>${value}</string>`).join('')}<key>PULLBOARD_RUNNER_SESSION</key><string>${daemon ? 'daemon' : 'gui'}</string></dict>`,
     `  <key>WorkingDirectory</key><string>${xml(dir)}</string>`,
     '  <key>RunAtLoad</key><true/>', '  <key>KeepAlive</key><true/>', '  <key>ThrottleInterval</key><integer>10</integer>',
     `  <key>StandardOutPath</key><string>${xml(log)}</string>`, `  <key>StandardErrorPath</key><string>${xml(log)}</string>`,
