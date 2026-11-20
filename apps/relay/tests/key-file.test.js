@@ -15,6 +15,8 @@ import { delimiter } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 import { relayOff } from '../../../packages/link/index.js';
 import { relayOperation } from '../../../packages/link/index.js';
 import { syncRelay } from '../../../packages/link/index.js';
@@ -66,7 +68,7 @@ function securityStandIn(t) {
 }
 
 test('relay.key-file.owner-only-key-file-links-and: owner-only key file links and reads with a locked keychain, migrates once, and supports the environment key [H15,H17]', async (t) => {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   const home = process.env.PULLBOARD_HOME;
   const legacyStore = securityStandIn(t);
   /** A coordinator's add, sent as a linked move through the link door. */

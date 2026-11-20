@@ -52,8 +52,6 @@ const EXTRA_REQUEST_BLOCKERS = Object.freeze({
  * inside a request froze the board API for 10 hours on 12 Nov [#6718].
  */
 export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
-  'apps/relay/src/io/retention.js#backupFiles': 'relay retention lists its backup files with a whole-directory synchronous read',
-  'apps/relay/src/io/retention.js#createRelayRetention': 'relay retention lists its backup folder with a whole-directory synchronous read',
   'packages/activity/src/io/inbox.js#gitPaths': 'state read lists claim worktree files with synchronous git',
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
@@ -73,7 +71,6 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/keys/src/io/relay.js#removeKeychainValue': 'relay forget removes a keychain value through a synchronous child process',
   'packages/keys/src/io/relay.js#readBoardKey': 'relay move reads the board key through a synchronous child process',
   'packages/keys/src/io/relay.js#forgetBoardKey': 'relay forget deletes the board key through a synchronous child process',
-  'packages/keys/src/io/relay.js#scrubLegacyPersonSessions': 'relay move lists legacy person sessions with a synchronous directory read',
   'packages/landing/src/io/main/red/receipt.js#treeOf': 'mainReceipts resolves the main tree with synchronous git on every submit-time comparison',
   'packages/landing/src/io/main/red/receipt.js#unchangedDescendants': 'one synchronous git log per cached main candidate file',
   'packages/link/src/io/relay/lock.js#locked': 'relay lock check lists the lock folder with a synchronous directory read',
