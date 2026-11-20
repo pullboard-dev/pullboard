@@ -1,0 +1,41 @@
+{
+  "moves.selection.derived-seat-family-port": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with ports.derivedSeatFamily returning a map or a reader, nextSelection.pick passes it to nextFor as derivedSeatFamily and the answer is the port's"
+    },
+    "why": "Without this test, a regression with a seat-family answer from the port never reaching nextFor would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
+  },
+  "moves.selection.derived-seat-family-port-absent": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with no derivedSeatFamily port, or a port returning null, nextSelection.pick passes no derivedSeatFamily and returns the same item as before"
+    },
+    "why": "Without this test, a regression with the absent port changing the pick would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
+  },
+  "moves.selection.derived-seat-family-beside-gate": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextSelection.pick reads ports.derivedSeatFamily beside ports.derivedGateAtHead, each answering on its own"
+    },
+    "why": "Without this test, a regression with one derived port displacing the other would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
+  }
+}

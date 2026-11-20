@@ -7,6 +7,7 @@ import { fixture } from '../../fixtures/plan.js';
 import { git } from '../../fixtures/plan.js';
 import { landingMainReds } from '../../../index.js';
 import { mainOwnedReds } from '../../../src/io/runner/contracts.js';
+import { rerunRedOnce } from '../../../src/io/runner/contracts.js';
 
 const ON = { landing: { ledgerMainReds: true } };
 // redNow's answer over the ledger rows: one red per file and context class, with the commit its newest red row ran at.
@@ -70,4 +71,32 @@ test('landing.main-reds.with-landing-ledgermainreds-off-a-land: clause 3: with l
   assert.deepEqual(reran, [failures], 'off, every red is rerun on the base as before');
   const shared = await mainOwnedReds({ root: box.root, base: box.base }, failures, { mainReds: null, rerun: async rows => rows });
   assert.deepEqual(shared, { known: failures, ledger: [] }, 'off, a red the base fails case for case is main\'s, as before');
+});
+
+const fails = (...files) => files.map((file, index) => ({ file, name: `case ${index}` }));
+
+test('landing.main-reds.a-red-that-passes-on-one-rerun: clause 1: rerunRedOnce calls rerun once with the failing files and returns [] when the rerun is green [C7,#11744]', async () => {
+  const calls = [];
+  const again = await rerunRedOnce(fails('tests/a.test.js', 'tests/a.test.js', 'tests/b.test.js'), { rerun: async files => { calls.push(files); return []; } });
+  assert.deepEqual(again, [], 'a green rerun leaves no failures');
+  assert.deepEqual(calls, [['tests/a.test.js', 'tests/b.test.js']], 'one rerun, each file once');
+});
+
+test('landing.main-reds.a-red-that-fails-again-on-rerun: clause 1: rerunRedOnce returns the failures that fail again, and null when the rerun cannot say [C7,#11744]', async () => {
+  const red = fails('tests/a.test.js', 'tests/b.test.js');
+  const calls = [];
+  const again = await rerunRedOnce(red, { rerun: async files => { calls.push(files); return [red[1]]; } });
+  assert.deepEqual(again, [red[1]], 'only what still fails comes back');
+  assert.equal(calls.length, 1, 'never a second rerun');
+  assert.equal(await rerunRedOnce(red, { rerun: async () => null }), null, 'a rerun with no account keeps the red');
+});
+
+test('landing.main-reds.more-than-three-red-files-are-not-rerun: clause 1: no failures or more than three distinct files call nothing and return null [C7,#11744]', async () => {
+  const calls = [];
+  const rerun = async files => { calls.push(files); return []; };
+  assert.equal(await rerunRedOnce([], { rerun }), null);
+  assert.equal(await rerunRedOnce(null, { rerun }), null);
+  assert.equal(await rerunRedOnce(fails('a', 'b', 'c', 'd'), { rerun }), null, 'four files is a real break');
+  assert.deepEqual(calls, [], 'nothing was rerun');
+  assert.deepEqual(await rerunRedOnce(fails('a', 'b', 'c'), { rerun }), [], 'three files still qualify');
 });

@@ -1,6 +1,6 @@
 /** Explicitly materialize board proposals before the existing person-only exact-row decision [D1,S1]. */
-import { readFileSync } from 'node:fs';
 import { loadDoctrine } from '../../../../doctrine/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   loadSpec,
   insertSectionRows,
@@ -15,6 +15,8 @@ import {
   rowDecisionContext,
   staleRowDecision,
 } from '../../../../spec/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Preflight every definition and both id namespaces before returning even the first file write; a colliding draft is listed and skipped, never written or thrown. */
 export function planAutomaticRigorApply(root, config, drafts, decisions = []) {
@@ -46,7 +48,7 @@ export function planAutomaticRigorApply(root, config, drafts, decisions = []) {
   }
   const files = [...byTarget].map(([target, entries]) => {
     const file = parsed.get(target);
-    const before = readFileSync(file.file, 'utf8');
+    const before = fs.readFile(file.file, 'utf8');
     const lines = entries.map(draft => `- ${draft.id} [draft, ${draft.tier}] ${draft.text} | gate: ${draft.gate}`);
     const section = file.sections.find(entry => /^RG\s*[·.:-]/u.test(entry.name));
     const after = section ? insertSectionRows(before, file, section, lines)

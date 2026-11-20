@@ -30,13 +30,7 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   dirname,
   join,
@@ -48,6 +42,8 @@ import {
 } from './main.js';
 import { requirePersonChannel } from '../../../person/index.js';
 import { Refused } from '../../../kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 /** What a fit proposal can say about one target. */
 export const FIT_DECISIONS = Object.freeze(['keep', 'adapt', 'drop', 'answer']);
@@ -76,9 +72,9 @@ export function fitFile(commonDir) {
  */
 export function readFit(commonDir) {
   const file = fitFile(commonDir);
-  if (!existsSync(file)) return [];
+  if (!fs.exists(file)) return [];
   let value;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); }
+  try { value = JSON.parse(fs.readFile(file, 'utf8')); }
   catch (error) { throw new Refused('FIT_FILE', `${file} is not readable JSON (${error.message.split('\n')[0]})`); }
   if (!value || value.version !== 1 || !Array.isArray(value.proposals)) throw new Refused('FIT_FILE', `${file} is not a blueprint fit file`);
   // Every proposal has its own id. Two sharing one could let an unread proposal pass as the read
@@ -101,10 +97,10 @@ export function readFit(commonDir) {
  */
 function writeFit(commonDir, proposals) {
   const file = fitFile(commonDir);
-  mkdirSync(dirname(file), { recursive: true });
+  fs.mkdir(dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-  writeFileSync(temp, `${JSON.stringify({ version: 1, proposals }, null, 2)}\n`);
-  renameSync(temp, file);
+  fs.writeFile(temp, `${JSON.stringify({ version: 1, proposals }, null, 2)}\n`);
+  fs.rename(temp, file);
 }
 
 /**
@@ -452,9 +448,9 @@ export function batchCode(reading) {
  */
 function readViewed(commonDir) {
   const file = viewedFile(commonDir);
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   let value;
-  try { value = JSON.parse(readFileSync(file, 'utf8')); }
+  try { value = JSON.parse(fs.readFile(file, 'utf8')); }
   catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
     // A damaged reading is no reading; approve refuses it and the person reads the batch again.
@@ -479,10 +475,10 @@ export function readFitBatch(commonDir, { isMain, channel, at = new Date().toISO
   const reading = readingOf(proposals);
   if (isMain && isPersonTerminal(channel)) {
     const file = viewedFile(commonDir);
-    mkdirSync(dirname(file), { recursive: true });
+    fs.mkdir(dirname(file), { recursive: true });
     const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-    writeFileSync(temp, `${JSON.stringify({ version: 1, at, reading }, null, 2)}\n`);
-    renameSync(temp, file);
+    fs.writeFile(temp, `${JSON.stringify({ version: 1, at, reading }, null, 2)}\n`);
+    fs.rename(temp, file);
   }
   return { proposals, batch: batchCode(reading) };
 }

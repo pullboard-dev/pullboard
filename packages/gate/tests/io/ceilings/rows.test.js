@@ -11,14 +11,16 @@ import { STATIC_CHECKS } from '../../../heavy.js';
 import { CELLS_EDGES_CEILINGS } from '../../../src/io/edges.js';
 import { CELLS_EDGES_CEILINGS as SELECTION_CEILINGS } from '../../../src/io/test/tier/selection.js';
 import { CLOCK_CEILING_FILE } from '../../../src/io/adapter-lints/clock.js';
+import { ENV_CEILING_FILE } from '../../../src/io/adapter-lints/env.js';
 import { FS_CEILING_FILE } from '../../../src/io/adapter-lints/fs.js';
 import { SSH_CEILING_FILE } from '../../../src/io/adapter-lints/ssh.js';
+import { GITHUB_CEILING_FILE } from '../../../src/io/adapter-lints/github.js';
 import { LOAD_BEARING_CEILINGS } from '../../../src/logic/load/bearing.js';
 import { STORE_BASELINE } from '../../../src/io/stores.js';
 import { storeBaselineGrowth } from '../../../src/io/stores.js';
 
 test('gate.ceiling-rows.owned-tables: the moveable ceiling tables are the six per-file source tables, each named by its owning module [L3,C7]', () => {
-  assert.deepEqual(Object.keys(CEILING_ROW_TABLES).sort(), [LOAD_BEARING_CEILINGS, STORE_BASELINE, CLOCK_CEILING_FILE, FS_CEILING_FILE, SSH_CEILING_FILE, CELLS_EDGES_CEILINGS].sort());
+  assert.deepEqual(Object.keys(CEILING_ROW_TABLES).sort(), [LOAD_BEARING_CEILINGS, STORE_BASELINE, CLOCK_CEILING_FILE, FS_CEILING_FILE, SSH_CEILING_FILE, GITHUB_CEILING_FILE, CELLS_EDGES_CEILINGS].sort());
   assert.deepEqual(CEILING_ROW_TABLES[CLOCK_CEILING_FILE], { files: true, bare: true });
   assert.deepEqual(CEILING_ROW_TABLES[CELLS_EDGES_CEILINGS], { files: true });
   assert.deepEqual(CEILING_ROW_TABLES[STORE_BASELINE], {});
@@ -59,4 +61,12 @@ test('gate.ceiling-rows.leaf-path: clause 2: the cells-edges ceiling path comes 
   const reached = gateClosure('src/io/changed/scripts/static.js');
   assert.ok(reached.has(resolve(GATE, 'src/io/edges.js')), 'the walk reaches the path\'s owner, so it follows the checker');
   assert.equal(reached.has(resolve(GATE, 'src/io/test/tier/selection.js')), false, 'the one-second staged checker (#2571) loads no test tier selection');
+});
+
+test('gate.ceiling-rows.no-stored-total: clause 1: the env and fs adapter-lint ceiling files hold version and files only, so no slice edits a shared total line [C7,#11937]', () => {
+  for (const table of [ENV_CEILING_FILE, FS_CEILING_FILE]) {
+    const doc = JSON.parse(readFileSync(resolve(GATE, '../..', table), 'utf8'));
+    assert.deepEqual(Object.keys(doc), ['version', 'files'], table);
+    assert.ok(Object.values(doc.files).every(count => Number.isInteger(count) && count > 0), `${table} rows are positive counts`);
+  }
 });
