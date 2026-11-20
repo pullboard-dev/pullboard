@@ -1,0 +1,77 @@
+{
+  "cli.io-hook-static.runner-answer-is-the-hook-answer": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: with a free runner the hook reports the runner job's findings, less companion paths, and never runs the check on the host."
+    },
+    "why": "Without it the pre-commit hook runs its staged static check on a loaded host while runners sit idle, and commits hit the 120 s HOOK_TIMEOUT.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/hook/static.js",
+      "apps/cli/src/io/hook/runner.js",
+      "apps/cli/tests/io/hook/static.test.js"
+    ]
+  },
+  "cli.io-hook-static.host-runs-when-no-runner-answers": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: when no runner takes the job in time the host runs the staged check itself."
+    },
+    "why": "Without it the pre-commit hook runs its staged static check on a loaded host while runners sit idle, and commits hit the 120 s HOOK_TIMEOUT.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/hook/static.js",
+      "apps/cli/src/io/hook/runner.js",
+      "apps/cli/tests/io/hook/static.test.js"
+    ]
+  },
+  "cli.io-hook-static.no-runner-no-wait": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: a machine with no runner, a check other than the gate's own, or a hook with no context never offers a job and runs the check on the host."
+    },
+    "why": "Without it the pre-commit hook runs its staged static check on a loaded host while runners sit idle, and commits hit the 120 s HOOK_TIMEOUT.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/hook/static.js",
+      "apps/cli/src/io/hook/runner.js",
+      "apps/cli/tests/io/hook/static.test.js"
+    ]
+  },
+  "cli.io-hook-static.staged-commit-holds-the-index": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: the runner job's commit holds exactly the staged tree with HEAD as its parent, and HEAD does not move."
+    },
+    "why": "Without it the pre-commit hook runs its staged static check on a loaded host while runners sit idle, and commits hit the 120 s HOOK_TIMEOUT.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/hook/static.js",
+      "apps/cli/src/io/hook/runner.js",
+      "apps/cli/tests/io/hook/static.test.js"
+    ]
+  },
+  "cli.io-hook-static.runner-job-answers-or-falls-back": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: stagedOnRunner returns a posted job's findings or none when green, and null with the job cancelled when no runner takes it within the claim budget, the runner cannot run the check, or the offer is refused."
+    },
+    "why": "Without it the pre-commit hook runs its staged static check on a loaded host while runners sit idle, and commits hit the 120 s HOOK_TIMEOUT.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/hook/static.js",
+      "apps/cli/src/io/hook/runner.js",
+      "apps/cli/tests/io/hook/static.test.js"
+    ]
+  }
+}

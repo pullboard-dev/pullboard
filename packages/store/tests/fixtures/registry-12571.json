@@ -1,0 +1,30 @@
+{
+  "store.io-board-next.needs-read-uses-key-range": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextFor reads item_needs rows through a primary-key range, so no statement it prepares scans board_meta."
+    },
+    "why": "Without this test the item_needs read was a LIKE ... ESCAPE that scanned all 815,588 board_meta rows, 0.7 s on every nextFor call (20 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/next.js",
+      "packages/store/tests/io/board/next.test.js"
+    ]
+  },
+  "store.io-board-next.cost-flat-with-meta-history": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "nextFor's median time with 81,559 board_meta history rows stays under 200 ms and within 2x of the same board without them."
+    },
+    "why": "Without this test next's cost grew with every board_meta row the board kept, and a 200 ms budget on an empty fixture proved nothing about the live board.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/next.js",
+      "packages/store/tests/io/board/next.test.js"
+    ]
+  }
+}

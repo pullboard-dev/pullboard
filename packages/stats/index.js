@@ -8,6 +8,7 @@ export { readCarryingCapacity } from './src/io/carrying.js';
 export { escapeReport, escapeLines } from './src/logic/review/escapes.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
+export { costlyTests } from './src/logic/runners/costly-tests.js';
 export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
 export { readJobSpans } from './src/io/runners/utilization.js';
 export { buildTimeStats, buildTimeLines } from './src/logic/build/time.js';
@@ -28,6 +29,7 @@ export {
 } from './src/logic/flow/replay/history.js';
 export {
   replayFlow,
+  replayTuned,
 } from './src/logic/flow/replay.js';
 export {
   emptyReportCounter,

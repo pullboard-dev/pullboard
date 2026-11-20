@@ -306,8 +306,6 @@
     "packages/kernel/src/logic/literal-shell-words.js->packages/kernel/index.js": 1,
     "packages/kernel/src/logic/refused.js->packages/kernel/index.js": 1,
     "packages/kernel/src/logic/registry-guards.js->packages/kernel/index.js": 1,
-    "packages/kernel/tests/logic/seal.test.js->apps/cli/tests/fixtures/child.js": 1,
-    "packages/kernel/tests/logic/seal.test.js->apps/cli/tests/fixtures/chrome.js": 1,
     "packages/kernel/tests/logic/seal.test.js->src/seal.js": 2,
     "packages/landing/src/io/advance.js->src/cli.js": 1,
     "packages/landing/src/io/advance.js->src/gate.js": 1,
