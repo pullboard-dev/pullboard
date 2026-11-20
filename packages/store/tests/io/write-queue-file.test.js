@@ -206,3 +206,15 @@ test('store.io-write-queue-file.a-write-published-beside-a-far-ahead-record-take
   assert.equal(outcome.ok, true);
   assert.ok(taken > far, `the late write took ${taken}, not above the visible ${far}`);
 });
+
+test('store.io-write-queue-file.two-hundred-waiters-in-order: clause 1: 200 writes submitted in one turn by one process, with transaction ports, each return their own stored result and apply in queue order [C7]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-many-').root;
+  const db = new DatabaseSync(join(dir, 'board.sqlite'));
+  db.exec('CREATE TABLE events (name TEXT)');
+  const counts = { transactions: 0 };
+  const queue = createFileWriteQueue(join(dir, 'queue'), sqlitePorts(db, counts));
+  const ids = Array.from({ length: 200 }, (_, n) => `w${String(n).padStart(3, '0')}`);
+  const results = await Promise.all(ids.map(id => queue.submit({ id, run: () => { db.prepare('INSERT INTO events (name) VALUES (?)').run(id); return id; } })));
+  assert.deepEqual(results.map(result => result.value), ids, 'each waiter returns its own stored result');
+  assert.deepEqual(db.prepare('SELECT name FROM events ORDER BY rowid').all().map(row => row.name), ids, 'the writes applied in queue order');
+});

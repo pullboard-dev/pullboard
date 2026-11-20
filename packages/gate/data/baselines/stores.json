@@ -1713,6 +1713,10 @@
     "table:push_subscription": {
       "kind": "table",
       "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "runs.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/conformance-rows.js"
     }
   },
   "exceptions": [],
