@@ -78,7 +78,7 @@ function marker(t) {
 
 /** The local runner's last heartbeat time; the runner process that applied the receipt writes it on a timer. */
 function heartbeatAt(box) {
-  return Number(localRunnerState(fixtureRunnerFolder(box.env))?.heartbeatAt ?? 0);
+  return Number(localRunnerState(fixtureRunnerFolder(box.env), Date.now(), box.env.PULLBOARD_HOME || null)?.heartbeatAt ?? 0);
 }
 
 /** Wait until the board records a merged commit for the item. */

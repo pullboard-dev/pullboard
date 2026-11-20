@@ -1,15 +1,15 @@
 /** The land job's proof: run the items' ledger-proved test files on the merged tree, reusing every ledger hit [P7]. */
 import { environmentAdapter } from '../../../../env/index.js';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { gitSpawn } from '../../../../git/index.js';
 import { timeoutDetail } from './deadline.js';
 import { watchDeadline } from './deadline.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The environment this file reads, through the one adapter [C7]. */
 const environment = environmentAdapter();
@@ -46,9 +46,9 @@ const LOG_CHARS = 4_000_000;
 function keepLog(root, command, output, env) {
   try {
     const dir = env.PULLBOARD_LAND_LOG_DIR || join(root, '.git', 'land-red-logs');
-    mkdirSync(dir, { recursive: true });
+    fs.mkdir(dir, { recursive: true });
     const path = join(dir, `proof-${new Date().toISOString().replace(/[:.]/gu, '-')}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.log`);
-    writeFileSync(path, `$ ${command}\n${output}`);
+    fs.writeFile(path, `$ ${command}\n${output}`);
     return path;
   } catch { return null; }
 }
@@ -68,7 +68,7 @@ export function accountedRed(output, root) {
   let active = null, yaml = null, counted = 0, summaries = 0;
   // A test runner may print the checkout's real path (macOS /private/var for /var), so either names a file inside it.
   let real = root;
-  try { real = realpathSync(root); } catch { /* the given root stands */ }
+  try { real = fs.realpath(root); } catch { /* the given root stands */ }
   const inside = path => [root, real].map(base => relative(base, path)).find(file => file && !file.startsWith('../') && !isAbsolute(file)) ?? null;
   for (const line of output.split('\n')) {
     if (REFUSAL.test(line) || /^# cancelled [1-9]/u.test(line)) return null;
@@ -118,7 +118,7 @@ export function waivedRed(failures, waivers, now) {
  */
 export function redSummary(output, root) {
   let real = root;
-  try { real = realpathSync(root); } catch { /* the given root stands */ }
+  try { real = fs.realpath(root); } catch { /* the given root stands */ }
   const files = new Set(), cases = [];
   let waiting = false;
   for (const line of output.split('\n')) {

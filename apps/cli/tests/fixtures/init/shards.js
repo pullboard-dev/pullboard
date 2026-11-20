@@ -2,7 +2,7 @@
 import { executionServicesSource } from '../gate/execution.js';
 import { repoPath } from '../../../../../packages/kernel/light.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
-import { awaitNestedRun } from '../../../../../packages/gate/index.js';
+import { awaitNestedRun } from '../../../../../packages/gate/heavy.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {

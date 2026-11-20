@@ -72,6 +72,7 @@ const OPTIONS = {
   withdraw: { type: 'string' },
   after: { type: 'string', multiple: true },
   'after-gate': { type: 'string', multiple: true },
+  'from-record': { type: 'string' },
   'stale-before': { type: 'string' },
   on: { type: 'string' },
   brief: { type: 'string' },

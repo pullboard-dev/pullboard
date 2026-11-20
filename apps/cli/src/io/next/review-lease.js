@@ -77,7 +77,7 @@ export async function withReviewLease(boardFile, itemId, work, options = {}) {
 }
 
 /**
- * The ordered port with its reserveReview move run under the item's review lease; every other move passes through.
+ * The ordered port with its reserveReview move run under the item's review lease; every other move passes through. The lease runs on the command's own clock (the system clock in a real run), so a journey on a fixture clock lets a mark run out by advancing it.
  *
  * @param {(ctx: any, board: any, operation: string, args: any[], options?: any) => Promise<any>} ordered
  * @param {(ctx: any) => string} boardFileOf
@@ -85,6 +85,6 @@ export async function withReviewLease(boardFile, itemId, work, options = {}) {
  */
 export function leasedOrdered(ordered, boardFileOf) {
   return (ctx, board, operation, args, options) => operation === 'reserveReview'
-    ? withReviewLease(boardFileOf(ctx), args[0], () => ordered(ctx, board, operation, args, options), { holder: args[1]?.agentId })
+    ? withReviewLease(boardFileOf(ctx), args[0], () => ordered(ctx, board, operation, args, options), { holder: args[1]?.agentId, ...(ctx?.clock ? { now: () => ctx.clock.now().getTime() } : {}) })
     : ordered(ctx, board, operation, args, options);
 }

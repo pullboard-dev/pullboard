@@ -1,0 +1,3 @@
+{
+  "gate.io-test-tier-selection.test-only-change-adds-cell-readers": {"proves":{"specs":["C7"],"claim":"A change of only a cell test and its registry record also selects the cell's registry, inputs and stable tests and the tests whose header names a changed file, and no other test of the cell."},"why":"Without this case a narrowed gate could drop the registry or inputs test that checks the new record, or leave landing with the narrowed proof.","kind":"contract","inputs":["packages/gate/tests/io/test/tier/selection.test.js"]}
+}

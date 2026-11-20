@@ -42,3 +42,10 @@ test('runner.worker-receipt.no-lockfile-stamps-none: clause 2: a tree with no pa
   assert.equal((await sent({ dependencies: lockfileHash(bare.root) })).dependencies, 'none');
   assert.equal((await sent({})).dependencies, 'none');
 });
+
+test('runner.io-worker-receipt.screenshots-in-body: clause 1: receipt puts fields.screenshots into the body of the result line and leaves the key out when the list is absent or empty [C7]', async () => {
+  const shots = [{ path: 'shots/home.png', bytes: 4, sha256: 'a'.repeat(64), base64: 'AAAAAA==' }];
+  assert.deepEqual((await sent({ screenshots: shots })).screenshots, shots);
+  assert.equal('screenshots' in (await sent({ screenshots: [] })), false);
+  assert.equal('screenshots' in (await sent({})), false);
+});

@@ -12,7 +12,7 @@ import { normalizedHealthFindings } from "../../logic/board/receipts.js";
 import { healthFindingIdentity } from "../../logic/board/receipts.js";
 import { healthTargets } from "../../logic/board/receipts.js";
 import { deliverHealthNotices } from "../../logic/board/receipts.js";
-import { HEALTH_SENTINEL_ENGINE } from "../../logic/board/receipts.js";
+import { HEALTH_SENTINEL_ENGINE } from "../../../../state/browser.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { adviceThroughNextEnabled } from "../../../../config/index.js";
 import { PERSON } from "./query.js";

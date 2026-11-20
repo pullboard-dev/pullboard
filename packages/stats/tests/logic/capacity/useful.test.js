@@ -2,6 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { maxUsefulBuilders } from '../../../index.js';
+import { staffingLines } from '../../../src/logic/capacity/useful.js';
+import { staffingSeats } from '../../../src/logic/capacity/useful.js';
+import * as light from '../../../light.js';
 
 const NOW = Date.parse('2026-11-15T00:00:00.000Z');
 const HOUR = 3_600_000;
@@ -36,4 +39,27 @@ test('stats.useful.c7-max-useful-builder-seats-are: clause 1: [C7] max useful bu
 
   // One observed seat count is unknown, never zero or a guess.
   assert.equal(maxUsefulBuilders(history([[3, 9, 0, 5]]), { now: NOW }).max, null);
+});
+
+test('stats.logic-capacity-staffing.counts: clause 1: staffingSeats caps builders at the max useful when known and gives one reviewer per 8 builders, at least 1 when any builder runs [C7,#11832]', () => {
+  assert.deepEqual(staffingSeats({ ready: 8 }), { builders: 8, reviewers: 1, ratio: 8 });
+  assert.equal(staffingSeats({ ready: 9 }).reviewers, 2);
+  assert.deepEqual(staffingSeats({ ready: 0 }), { builders: 0, reviewers: 0, ratio: 8 });
+  assert.equal(staffingSeats({ ready: 1 }).reviewers, 1);
+  assert.equal(staffingSeats({ ready: 20, maxUseful: 5 }).builders, 5);
+  assert.equal(staffingSeats({ ready: 3, maxUseful: 5 }).builders, 3);
+  assert.equal(staffingSeats({ ready: 20, maxUseful: null }).builders, 20);
+  assert.equal(staffingSeats({ ready: 16, ratio: 4 }).reviewers, 4);
+});
+
+test('stats.logic-capacity-staffing.line: clause 1: staffingLines prints one line naming the builder seats, the review seats and the ratio [C7,#11832]', () => {
+  assert.equal(staffingLines(staffingSeats({ ready: 8 })), 'Staffing: 8 builders, 1 reviewer (8:1)');
+  assert.equal(staffingLines(staffingSeats({ ready: 9 })), 'Staffing: 9 builders, 2 reviewers (8:1)');
+});
+
+test('stats.logic-capacity-staffing.exported: clause 2: staffingSeats and staffingLines are exported statically through the light door and answer as the useful module does [C7,#12397]', () => {
+  assert.equal(light.staffingSeats, staffingSeats);
+  assert.equal(light.staffingLines, staffingLines);
+  assert.equal(light.usefulBuilderLines.name, 'usefulBuilderLines');
+  assert.deepEqual(light.staffingSeats({ ready: 9 }), staffingSeats({ ready: 9 }));
 });

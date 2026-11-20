@@ -4,6 +4,7 @@ import { startFixtureChild as spawn } from '../child.js';
 import { runFixtureChild as spawnSync } from '../child.js';
 import { reportFixtureChildFailure } from '../child.js';
 import { runFixtureChild } from '../child.js';
+import { runFixtureChildAsync } from '../child.js';
 import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -391,5 +392,15 @@ after(async () => {
   for (const child of running) child.lines.close();
   TEMP.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
 });
+
+/** Start a node child with these arguments, so a cell test needs no direct process launch. */
+export function startNodeChild(args, options) {
+  return spawn(process.execPath, args, options);
+}
+
+/** Run a node child with these arguments and wait for it, so a cell test needs no direct process launch. */
+export function runNodeChildAsync(args, options) {
+  return runFixtureChildAsync(process.execPath, args, options);
+}
 
 export { CHILDREN, GATE_MODULE, MEMORY_WORKER, MODULE, PERL_FORK, POOL_MODULE_WORKER, PRE_RUNNER_MODULE, PROCESS_INFO_POLICY, SANDBOX_EXEC, SETTINGS_MODULE, SUBMIT_CHECK, TEMP, TEST_RUNNER, WORKER, acquired, delay, event, fixture, insertExpiredHolder, memoryWorker, poolWorker, privateList, privateTake, processState, release, requeuedRemoteRun, setBrowserFreeChecks, setQueueOrder, waitForMarker, waitForProcessState, waitUntil, worker, writeMemoryReading };
