@@ -2,6 +2,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { ADVISOR_ROLE_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by register, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERIFIER_STANDING_ENGINE } from "../../../../state/light.js";
+import { NEEDS_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { createHash } from 'node:crypto';
@@ -23,7 +24,7 @@ function historicalMinimum(args) {
  * older-engine rejoin of a declared seat would skip the declared-family rule whatever cause or fence it carries.
  */
 function minimumEngine(args, board, at) {
-  return Math.max(historicalMinimum(args), args[0]?.role === undefined ? 1 : ADVISOR_ROLE_ENGINE, familyDeclareFloor(board, args[0], sha256));
+  return Math.max(historicalMinimum(args), args[0]?.role === undefined ? 1 : ADVISOR_ROLE_ENGINE, args[0]?.abilities === undefined ? 1 : NEEDS_ENGINE, familyDeclareFloor(board, args[0], sha256));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

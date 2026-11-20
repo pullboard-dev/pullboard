@@ -46,8 +46,8 @@ import {
   detectLanguages,
   detectTestGlobs,
   settingCommand,
-} from '../../../../packages/gate/index.js';
-export { detectGate } from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
+export { detectGate } from '../../../../packages/gate/heavy.js';
 import {
   gitPath,
   tryGit,
@@ -311,6 +311,20 @@ function missingGateNote(root, gate) {
     return `gate command "pytest" is not available on ${searched.join(', ')}; ${setupHint} before running it`;
   }
   return `gate command "${command}" is not available on PATH; install it before running the gate`;
+}
+
+/**
+ * The repo root's parsed package.json, or null when it is absent or unreadable.
+ *
+ * @param {string} root
+ * @returns {object | null}
+ */
+function readPackageJson(root) {
+  try {
+    return JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -825,7 +839,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const configured = configuredGate(root);
-  const config = withAffectedDefault(JSON.parse(configTemplate(gate, detectFixers(root))), detectLanguages(root));
+  const config = withAffectedDefault(JSON.parse(configTemplate(gate, detectFixers(root))), detectLanguages(root), readPackageJson(root));
   // A repo's own test files are protected as bar files for every detected language, not only Node's [#3707].
   const testGlobs = detectTestGlobs(root);
   if (testGlobs.length) config.claim = { barTestFiles: [...defaults().claim.barTestFiles, ...testGlobs] };

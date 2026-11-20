@@ -56,6 +56,7 @@ import { Refused } from "../../../../kernel/index.js";
 import { routeOf } from "../../../../seats/index.js";
 import { canTake } from "../../../../seats/index.js";
 import { cappedRoute } from "../../../../seats/index.js";
+import { takeoverReady } from "../../../../seats/index.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { firstRefusalProblem } from "../../../../items/index.js";
 import { seatGone } from "../presence.js";
@@ -447,7 +448,7 @@ function commitClaim(board, id, prepared, binding, ports) {
   // refuses before any write opens, and the events it names are the ones written. Boards below the grant engine keep the writer's rules [C7,#8383].
   const live = (board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE && (board.movesLive?.claim ?? movesLiveEnabled('claim')) === true;
   const hook = live ? null : shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
-  const decided = live ? claimDecision(board, id, { options, plan }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
+  const decided = live ? claimDecision(board, id, { options, plan, takeoverReady }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan, takeoverReady })) : null;
   if (live && decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
   return atomic(board, () => {
     const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;

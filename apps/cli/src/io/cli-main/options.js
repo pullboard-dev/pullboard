@@ -90,6 +90,7 @@ const OPTIONS = {
   field: { type: 'string' },
   family: { type: 'string' }, 'review-family': { type: 'string' },
   model: { type: 'string' },
+  issue: { type: 'string' },
   as: { type: 'string' },
   check: { type: 'string' },
   // The watch command's options.

@@ -4,8 +4,10 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
+import { once } from 'node:events';
+import { Worker } from 'node:worker_threads';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
@@ -16,8 +18,12 @@ import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
 import { claimJob } from '../../index.js';
+import { endJobs } from '../../index.js';
 import { renewJob } from '../../index.js';
 import { postReceipt } from '../../index.js';
+import { gateClaimHop } from '../../index.js';
+import { provideGateHopTable } from '../../index.js';
+import { readGateHop } from '../../../store/index.js';
 import { runnerCommitPort } from '../../index.js';
 import { MACHINE_DEFAULTS } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
@@ -258,9 +264,10 @@ test('api.jobs.claim-runner-commit-off: clause 3: with runners.reportCommit off 
 });
 
 /** A board with one claimed gate job and a shadow whose decide takes `spinMs` inside the write transaction. */
-function claimedWithShadow(t, spinMs, boundMs) {
+function claimedWithShadow(t, spinMs, boundMs, real = false) {
   const { root } = privateFixtureFiles('pullboard-jobs-bound-');
-  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  const file = join(root, 'board.sqlite');
+  const { db } = cellBoard(t, file, undefined, { real });
   offerJob(db, { id: 'gate:bound', kind: 'gate', now: 1000 });
   const claim = claimJob(db, { runner: 'mill', now: 10_000, leaseMs: 120_000 });
   db.jobWriteBoundMs = boundMs;
@@ -268,7 +275,7 @@ function claimedWithShadow(t, spinMs, boundMs) {
     decide: () => { const end = Date.now() + spinMs; while (Date.now() < end); return { patch: {} }; },
     seen: () => {},
   };
-  return { db, claim };
+  return { db, claim, file };
 }
 
 test('api.io-jobs.write-time-bound: clause 1: a renewJob whose write runs past the bound rolls back and refuses, and a peer BEGIN IMMEDIATE succeeds right after [C7,#11029]', (t) => {
@@ -287,6 +294,38 @@ test('api.io-jobs.fast-write-unchanged: clause 2: a renewJob and a postReceipt i
   assert.equal(db.prepare("SELECT job_step AS step FROM job WHERE job_id = 'gate:bound'").get().step, 'done');
 });
 
+/** Hold the board lock from another thread for `holdMs`, returning once it is held: the caller's next write queues behind it. */
+function holdLockFromThread(file, holdMs) {
+  const flag = new Int32Array(new SharedArrayBuffer(4));
+  const code = `const { workerData: w } = require('node:worker_threads');
+    const { DatabaseSync } = require('node:sqlite');
+    const db = new DatabaseSync(w.file);
+    db.exec('BEGIN IMMEDIATE');
+    Atomics.store(w.flag, 0, 1); Atomics.notify(w.flag, 0);
+    const end = Date.now() + w.holdMs; while (Date.now() < end);
+    db.exec('COMMIT'); db.close();`;
+  const worker = new Worker(code, { eval: true, workerData: { file, holdMs, flag } });
+  Atomics.wait(flag, 0, 0, 10_000);
+  return worker;
+}
+
+test('api.io-jobs.bound-counts-hold-not-wait: clause 1: a job write queued behind another connection holding the lock past the bound commits once that lock frees, when its own hold is short [C7,#11914]', async (t) => {
+  const { db, claim, file } = claimedWithShadow(t, 0, 100, true);
+  const holder = holdLockFromThread(file, 400);
+  const renewed = renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 });
+  await once(holder, 'exit');
+  assert.deepEqual(renewed, { renewed: true, leaseUntil: 140_000 });
+  assert.equal(db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'gate:bound'").get().until, 140_000, 'the renewal committed');
+});
+
+test('api.io-jobs.bound-still-rolls-back-long-hold: clause 2: a job write whose own hold passes the bound is still rolled back with JOB_WRITE_TIMEOUT [C7,#11914]', async (t) => {
+  const { db, claim, file } = claimedWithShadow(t, 150, 100, true);
+  const holder = holdLockFromThread(file, 200);
+  assert.throws(() => renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 }), { code: 'JOB_WRITE_TIMEOUT' });
+  await once(holder, 'exit');
+  assert.equal(db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'gate:bound'").get().until, 130_000, 'the renewal rolled back');
+});
+
 test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the claim action a runner holding one test job and offered shards plus tests is handed a shard [C7,#11146]', (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-shard-first-');
   const { db } = cellBoard(t, join(root, 'board.sqlite'));
@@ -299,6 +338,57 @@ test('api.jobs.claims-shards-before-tests-over-claim-action: clause 3: over the 
   assert.equal(claim(5002), 'test:two');
 });
 
+test('api.jobs.claims-aged-gate-job-over-claim-action: clause 3: over the claim action a runner holding a test job is handed a gate job offered 6 minutes earlier before the queued shards [C7,#11873]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-gate-aged-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 280_000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  offerJob(db, { id: 'gate:9', kind: 'gate', now: 1002 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(290_000), 'test:one', 'a runner holding no test job takes the test job; the gate job is 4.8 minutes old');
+  assert.equal(claim(302_000), 'gate:9', 'the gate job is now 5 minutes old and is handed before the queued shard');
+  assert.equal(claim(302_001), 'gate:9:shard:1');
+});
+
+/** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */
+function budgetBoard(t, { cores, shards, tests, offered }) {
+  const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  let at = 1000;
+  for (let i = 0; i < shards; i += 1) offerJob(db, { id: `gate:11148:shard:${i}`, kind: 'gate-shard', now: at += 1 });
+  for (let i = 0; i < tests; i += 1) offerJob(db, { id: `test:held:${i}`, kind: 'test', now: at += 1 });
+  const take = (now) => claimJob(db, { runner: 'r-a', cores, jobs: 20, now })?.job ?? null;
+  for (let i = 0; i < shards + tests; i += 1) take(5000 + i);
+  for (const [id, kind] of offered) offerJob(db, { id, kind, now: at += 1 });
+  return { db, take, now: 6000 };
+}
+
+test('api.jobs.cores-budget-shared-by-heavy-kinds: clause 1: a runner reporting 10 cores holding 3 gate shards and 1 test job is offered no further shard or test job, while a landing job is still offered [C7,#11148]', (t) => {
+  const { db, take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 1, offered: [['gate:11148:shard:late', 'gate-shard'], ['test:late', 'test'], ['land:late', 'land']] });
+  assert.equal(take(now), 'land:late', 'the shard and the test job wait; the landing job is not weighed');
+  assert.equal(take(now + 1), null, 'nothing heavy is offered while the held weight fills the cores');
+  assert.deepEqual(endJobs(db, ['test:held:0'], { now: now + 2 }), ['test:held:0'], 'the held test job ends');
+  assert.equal(take(now + 3), 'test:late', 'once a held job ends, the waiting test job fits the freed core and is offered; the shard still waits for three');
+  assert.equal(take(now + 4), null, 'the budget is full again');
+});
+
+test('api.jobs.test-floor-under-full-shard-budget: clause 2: a runner holding no test job is offered one even when its shards fill its budget, and no second one [C7,#11148]', (t) => {
+  const { take, now } = budgetBoard(t, { cores: 9, shards: 3, tests: 0, offered: [['test:first', 'test'], ['test:second', 'test']] });
+  assert.equal(take(now), 'test:first', 'the builder floor offers one test job over a full shard budget');
+  assert.equal(take(now + 1), null, 'a second test job waits for the budget');
+});
+
+test('api.jobs.no-cores-and-shard-cap-unchanged: clause 3: a claim reporting no cores takes shards and tests as on main, and 10 cores still cap a runner at 3 shards [C7,#11148]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-off-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  for (let i = 0; i < 4; i += 1) offerJob(db, { id: `gate:11148:shard:${i}`, kind: 'gate-shard', now: 1000 + i });
+  for (let i = 0; i < 4; i += 1) offerJob(db, { id: `test:${i}`, kind: 'test', now: 2000 + i });
+  const none = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => claimJob(db, { runner: 'r-none', now: 5000 + i })?.job ?? null);
+  assert.ok(none.every(Boolean), 'a claim with no cores weighs nothing, so eight jobs are handed out');
+  const { take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 0, offered: [['gate:11148:shard:extra', 'gate-shard']] });
+  assert.equal(take(now), null, 'the per-runner cap of floor(10 / 3) shards holds');
+});
+
 test('api.jobs.claims-aged-test-before-shards-over-claim-action: clause 3: over the claim action a runner holding one test job and offered a 3-minute-old test job and queued shards is handed the test job [C7,#11190]', (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-aged-test-');
   const { db } = cellBoard(t, join(root, 'board.sqlite'));
@@ -309,4 +399,55 @@ test('api.jobs.claims-aged-test-before-shards-over-claim-action: clause 3: over 
   assert.equal(claim(181_000), 'test:one', 'a runner holding no test job takes the oldest test job');
   assert.equal(claim(182_000), 'test:old', 'a runner holding a test job is handed the 3-minute-old test job before the queued shard');
   assert.equal(claim(182_001), 'gate:9:shard:1');
+});
+
+/** A hop table as pullboard serve provides the moves cell's (a cell test may not import it): create, acquire a queued or lapsed hop, refuse HOP_HELD while another runner's lease lives. */
+function hopTable(t) {
+  provideGateHopTable((leaseMs) => ({ item, hop, now }, { name, actor }) => {
+    if (name === 'create') return { patch: { hop: { state: 'queued', owner: null, epoch: 0, leaseUntil: 0, attempts: 0, commit: item.commit, digest: item.digest } } };
+    if (hop.state === 'driven' && hop.owner !== actor && hop.leaseUntil >= now) return { refused: { code: 'HOP_HELD', message: `the hop is driven by ${hop.owner} and its lease has not lapsed` } };
+    return { patch: { hop: { ...hop, state: 'driven', owner: actor, epoch: hop.epoch + 1, leaseUntil: now + leaseMs } } };
+  });
+  t.after(() => provideGateHopTable(null));
+}
+
+/** A board with two gate jobs for item 7 at one candidate and a gate job for item 9 behind them. */
+function hopBoard(t, name) {
+  const { root } = privateFixtureFiles(name);
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  hopTable(t);
+  const candidate = 'c0ffee'.padEnd(40, '0');
+  offerJob(db, { id: 'gate:7:a', kind: 'gate', item: 7, candidate, now: 1000 });
+  offerJob(db, { id: 'gate:7:b', kind: 'gate', item: 7, candidate, now: 1001 });
+  offerJob(db, { id: 'gate:9:x', kind: 'gate', item: 9, candidate: 'beef'.padEnd(40, '0'), now: 1002 });
+  return db;
+}
+
+const leaseRow = (db, job) => db.prepare('SELECT job_step, job_attempt, job_lease_owner, job_lease_until, job_updated FROM job WHERE job_id = ?').get(job);
+
+test('api.io-refusal.hop-held-leaves-lease: clause 1: a claim reaching a gate job whose hop another live runner holds skips that job, leaves its lease row unchanged, and takes the next job [C7]', (t) => {
+  const db = hopBoard(t, 'pullboard-jobs-hop-held-');
+  const claim = (runner, now) => jobQueueCall(db, { action: 'claim', runner, capabilities: [] }, { mode: 'pull', now, hop: gateClaimHop(true) }).claim;
+  assert.equal(claim('r1', 5000).job, 'gate:7:a', 'r1 takes the first gate job and the item hop');
+  const before = leaseRow(db, 'gate:7:b');
+  const next = claim('r2', 5001);
+  assert.equal(next.job, 'gate:9:x', 'r2 skips the held gate job and takes the job behind it; no refusal ends its serve');
+  assert.deepEqual(leaseRow(db, 'gate:7:b'), before, 'the skipped job\'s lease row is unchanged');
+  assert.equal(jobView(db, 'gate:7:b').steps.some((step) => step.name === 'claimed'), false, 'no claim step was written for it');
+  assert.deepEqual([readGateHop(db, 7).owner, readGateHop(db, 7).epoch], ['r1', 1], 'r1 keeps the hop');
+  assert.equal(claim('r2', 5002), null, 'with nothing else open, the claim answers no job rather than a refusal');
+});
+
+test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job claim with the hop on makes the same 33 board statements as before the hop check moved [C7]', (t) => {
+  const db = hopBoard(t, 'pullboard-jobs-hop-reads-');
+  let statements = 0;
+  const counted = new Proxy(db, { get(target, key) {
+    const value = Reflect.get(target, key, target);
+    if (key === 'prepare') return (...args) => { statements += 1; return value.apply(target, args); };
+    if (key === 'exec') return (...args) => { statements += 1; return value.apply(target, args); };
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+  const taken = claimJob(counted, { runner: 'r1', now: 5000, hop: gateClaimHop(true) });
+  assert.equal(taken.job, 'gate:7:a');
+  assert.equal(statements, 33, 'the success path prepares and runs the same statements as on main');
 });

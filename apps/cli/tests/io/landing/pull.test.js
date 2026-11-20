@@ -7,6 +7,13 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { landingOfferBatches } from '../../../src/io/landing/pull.js';
+import { offerPulledLanding } from '../../../src/io/landing/pull.js';
+import { acceptOrderOf } from '../../../src/io/landing/pull.js';
+import { sweepDerivedState } from '../../../../../packages/health/index.js';
+import { addItem } from '../../../../../packages/store/index.js';
+import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js';
+import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
+import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
 import { offerWithLog } from '../../fixtures/landing/offer.js';
 import { fixtureBoard } from '../../fixtures/board.js';
@@ -34,6 +41,17 @@ test('cli.io-landing-pull.parallel-off-as-today: clause 2: with parallel off, fr
   assert.deepEqual(landingOfferBatches(free, { size: 1, parallel: false }).map(batch => batch.map(entry => entry.id)), [[1], [2], [3], [4]]);
   assert.deepEqual(landingOfferBatches(free, { size: 4, parallel: false }).map(batch => batch.length), [4]);
   assert.deepEqual(landingOfferBatches([], { size: 2 }), []);
+});
+
+test('cli.io-landing-pull.conflict-repos-mechanical-only: clause 1: the conflict-repos helper builds a mechanical-only conflict [C7,#3064]', () => {
+  const { root, main, head } = mechanicalOnlyConflictRepo();
+  assert.deepEqual(mechanicalConflictFiles(root, main, head), []);
+  assert.deepEqual(mechanicalConflictFiles(root, head, main), []);
+});
+
+test('cli.io-landing-pull.conflict-repos-real: clause 2: the conflict-repos helper builds a real conflict [C7,#3064]', () => {
+  const { root, main, head, file } = realConflictRepo();
+  assert.deepEqual(mechanicalConflictFiles(root, main, head), [file]);
 });
 
 /** A real file board whose machine logs go to a private home; returns the board, its holder folder and a reader of board-writes.jsonl. */
@@ -94,4 +112,46 @@ test('cli.io-landing-pull.offer-unchanged-outside-lock: clause 2: the offered jo
   // #2 was offered by the concurrent accept before this offer's lock; this offer adds a job for #1 only.
   assert.deepEqual(raced.jobs.map(job => job.items.map(entry => entry.id)).sort(), [[1], [2]]);
   assert.deepEqual(raced.result.items, [1], 'only #1 is left to this offer');
+});
+
+const SWEPT = 'a'.repeat(40);
+const MOVED = 'b'.repeat(40);
+
+/** A file board with two accepted unlanded items, #second accepted before #first, swept at SWEPT with a table order the events do not give; returns the board, both ids and the SQL its prepares saw. */
+function acceptedBoard(t) {
+  const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
+  const [first, second] = [1, 2].map(n => addItem(board, { by: 'coordinator', lane: 'web', title: `Accepted item ${n}` }));
+  const accept = id => board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES ('2026-11-16T00:00:00.000Z', 'fixture', 'accept', ?, '{}')").run(id);
+  accept(second);
+  accept(first);
+  const listItems = () => board.db.prepare('SELECT * FROM item ORDER BY item_id').all().map(item => ({ ...item, item_status: 'verified' }));
+  sweepDerivedState(board, { mainCommit: SWEPT, enabled: true, listItems, verdictState: () => null, gateAtHead: () => null });
+  const sql = [];
+  const prepare = board.db.prepare.bind(board.db);
+  board.db.prepare = text => { sql.push(text); return prepare(text); };
+  return { board, first, second, sql };
+}
+
+test('cli.io-landing-pull.accept-order-from-table: clause 1: with health.derivedState on and a table current for main, the offer orders accepted items by the table accept order and runs no GROUP BY scan of accept events [C7,#11381]', async t => {
+  const { board, first, second, sql } = acceptedBoard(t);
+  const order = await acceptOrderOf('/unused', board, [first, second], { enabled: true, mainCommit: SWEPT });
+  assert.deepEqual([...order.keys()].sort((a, b) => order.get(a) - order.get(b)), [second, first], 'the table orders #2 (accepted first) before #1');
+  assert.ok(!sql.some(text => /GROUP BY/i.test(text)), 'no accept-event scan ran');
+});
+
+test('cli.io-landing-pull.accept-order-as-on-main: clause 2: with a table swept at an older main, or with the setting off, the offer orders items exactly as on main from the accept events [C7,#11381]', async t => {
+  const { board, first, second, sql } = acceptedBoard(t);
+  const scanned = [...(await acceptOrderOf('/unused', board, [first, second], { enabled: false })).entries()];
+  assert.deepEqual(scanned.sort((a, b) => a[1] - b[1]).map(([id]) => id), [second, first]);
+  assert.ok(sql.some(text => /GROUP BY/i.test(text)), 'the setting off scans the events');
+  sql.length = 0;
+  const stale = [...(await acceptOrderOf('/unused', board, [first, second], { enabled: true, mainCommit: MOVED })).entries()];
+  assert.deepEqual(stale.sort((a, b) => a[1] - b[1]), scanned, 'a table swept at an older main is not read');
+  assert.ok(sql.some(text => /GROUP BY/i.test(text)), 'the older table scans the events');
+});
+
+test('cli.io-landing-pull.accept-order-production-wiring: clause 3: the offer reads acceptOrderOf in place of its accept-event query, and acceptOrderOf reads readDerivedState [C7,#11381]', () => {
+  assert.match(offerPulledLanding.toString(), /await acceptOrderOf\(root, board,/);
+  assert.doesNotMatch(offerPulledLanding.toString(), /GROUP BY/);
+  assert.match(acceptOrderOf.toString(), /readDerivedState\(board, \{ mainCommit: main, enabled: true \}\)/);
 });

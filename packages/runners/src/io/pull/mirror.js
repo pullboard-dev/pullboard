@@ -12,9 +12,13 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { statusScript } from './scripts.js';
 import { pullJobId } from './scripts.js';
-import { runRunnerScript } from './ssh.js';
+import { createSshAdapter } from '../adapter/ssh.js';
 import { runnerStatusDir } from './ssh.js';
 import { storeName } from '../store-names.js';
+import { environmentAdapter } from '../../../../env/index.js';
+
+/** Every ssh call in this file goes through the ssh runner adapter. */
+const sshAdapter = createSshAdapter();
 
 export const MIRROR_INTERVAL_MS = 3_000;
 export const MIRROR_LOCK_STALE_MS = 15_000;
@@ -142,7 +146,7 @@ function lockRefresh(file, now) {
  * @param {{ dir?: string, now?: () => number, intervalMs?: number, ssh?: string, env?: object, timeoutMs?: number, force?: boolean }} [options]
  * @returns {Promise<{ mirror: object|null, refreshed: boolean }>} The mirror now on disk and whether this call refreshed it.
  */
-export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now = Date.now, intervalMs = MIRROR_INTERVAL_MS, ssh = 'ssh', env = process.env, timeoutMs = 10_000, force = false } = {}) {
+export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now = Date.now, intervalMs = MIRROR_INTERVAL_MS, ssh = 'ssh', env = environmentAdapter().all(), timeoutMs = 10_000, force = false } = {}) {
   const file = mirrorFile(runner.host, dir), fresh = () => { const m = readRunnerMirror(runner.host, { dir }); return m && now() - m.at < intervalMs ? m : null; };
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!force && fresh()) return { mirror: fresh(), refreshed: false };
@@ -153,7 +157,7 @@ export async function refreshRunnerStatus(runner, { dir = runnerStatusDir(), now
     const sent = markers(runner.host, dir), previous = readRunnerMirror(runner.host, { dir });
     const stdin = [...sent.wanted.map(id => `W ${id}`), ...sent.cancel.map(id => `C ${id}`), ...sent.ack.map(id => `A ${id}`)].join('\n');
     const at = now();
-    const run = await runRunnerScript(runner, statusScript(runner), { stdin: stdin ? `${stdin}\n` : '', ssh, env, dir, timeoutMs });
+    const run = await sshAdapter.run(runner, statusScript(runner), { stdin: stdin ? `${stdin}\n` : '', ssh, env, dir, timeoutMs });
     const parsed = run.status === 0 && !run.error ? parseStatus(run.stdout.toString('utf8')) : null;
     const failures = parsed ? 0 : (previous?.failures ?? 0) + 1;
     const mirror = parsed ? { version: 1, at, reachable: true, failures, ...parsed }

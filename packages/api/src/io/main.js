@@ -23,9 +23,6 @@ import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
 import { boardFilePath } from '../../../store/index.js';
-import { WHOLE_STATE_DELTA_FIELDS } from '../logic/fields.js';
-import { milestonePace } from '../logic/milestone-pace.js';
-import { milestoneWithoutPace } from '../logic/milestone-pace.js';
 import { capacityAtRead } from '../../../stats/light.js';
 import { nativeStateClockMatches } from '../../../store/index.js';
 import {
@@ -33,7 +30,6 @@ import {
 } from '../../../items/index.js';
 /** The local API v1: the CLI's moves, persistent board identities and live events (A2). */
 import {
-  createHash,
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
@@ -43,11 +39,6 @@ import {
   join,
   resolve,
 } from 'node:path';
-import {
-  existsSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { displayAgentName } from '../../../seats/index.js';
 import { withProjectGitTimeout } from '../../../git/index.js';
 import { sameCommonDir } from '../../../git/index.js';
@@ -84,7 +75,6 @@ import {
 import {
   itemSummary,
 } from '../../../items/index.js';
-import { finishedCounts } from './items.js';
 import { finishedText } from './items.js';
 import { openOnly } from './items.js';
 import { searchText } from './items.js'; import { seatClaims } from './items.js';
@@ -112,10 +102,11 @@ import { fencedHopEnabled } from '../../../config/index.js';
 import { codeStampCacheEnabled } from '../../../config/index.js';
 import { milestoneDeltaEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
+import { retryNewRedsOnceEnabled } from '../../../config/index.js';
 import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
-import { recordLapseEnabled } from '../../../config/index.js';
+import { recordLapseEnabled } from '../../../config/index.js'; import { runnersCoresPerShard } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
 import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
@@ -132,10 +123,17 @@ import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
 import { watchEventSignals } from './event-signals.js';
-import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js';
+import * as snapshotDelta from './snapshot-delta.js';
+import { registeredBoard } from './registered.js'; import { summaryTextOf } from './summary.js'; import { withApplied } from './spec-apply.js'; import { commitOnApplyEnabled } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Native file events arrive in real time, so their coalescing timer keeps the real clock captured at load even when a caller mocks the global one [A2,N26]. */
 const FILE_CLOCK = { schedule: setTimeout, cancel: clearTimeout, now: Date.now };
+
+/** The cached-build builders, given the sibling-cell functions they derive summaries and fingerprints from. */
+const { snapshotEntry, withCurrentIdle } = snapshotDelta.snapshotBuilders({ itemSummary, milestoneDeltaEnabled, idleEntry: store.idleEntry });
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -225,16 +223,16 @@ function localRelayMarker(info) {
 
 /** Read HEAD and its selected ref without spawning Git on every 200 ms poll. */
 function headFileRevision(info) {
-  const head = readFileSync(join(info.gitDir, 'HEAD'), 'utf8').trim();
+  const head = fs.readFile(join(info.gitDir, 'HEAD'), 'utf8').trim();
   if (/^[0-9a-f]{40,64}$/iu.test(head)) return head.toLowerCase();
   const symbolic = /^ref: (.+)$/.exec(head);
   if (!symbolic) return head;
   const ref = symbolic[1];
-  try { return readFileSync(join(info.commonDir, ref), 'utf8').trim(); }
+  try { return fs.readFile(join(info.commonDir, ref), 'utf8').trim(); }
   catch (error) {
     if (error.code !== 'ENOENT') throw error;
     let packed;
-    try { packed = readFileSync(join(info.commonDir, 'packed-refs'), 'utf8'); }
+    try { packed = fs.readFile(join(info.commonDir, 'packed-refs'), 'utf8'); }
     catch (packedError) {
       if (packedError.code === 'ENOENT') return head;
       throw packedError;
@@ -249,7 +247,7 @@ function headFileRevision(info) {
  */
 function registeredProjects() {
   try {
-    const value = JSON.parse(readFileSync(registryFile(), 'utf8'));
+    const value = JSON.parse(fs.readFile(registryFile(), 'utf8'));
     if (!Array.isArray(value.projects)) return [];
     return value.projects.filter((project) => typeof project?.root === 'string').map((project) => ({
       ...project,
@@ -360,7 +358,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
     const relay = relayFiles(info.commonDir);
     const heads = [...new Set([join(info.gitDir, 'HEAD'), join(info.commonDir, 'HEAD')])];
     const refs = heads.flatMap(path => {
-      try { const ref = /^ref: (.+)$/mu.exec(readFileSync(path, 'utf8')); return ref ? [join(info.commonDir, ref[1])] : []; }
+      try { const ref = /^ref: (.+)$/mu.exec(fs.readFile(path, 'utf8')); return ref ? [join(info.commonDir, ref[1])] : []; }
       catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     });
     const paths = [dbPath, dbPath + '-wal', ...files.map(file => file.path), registryFile(), ...heads, ...refs, join(info.commonDir, 'packed-refs'),
@@ -487,91 +485,8 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
   };
 }
 
-/** One cached board build: the full state, its item summaries, its delta fingerprint and the lookups that serve them. */
-function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta = new Map(), itemMoveCounts = new Map(), clockWindow = null, comparisonHistory = null } = {}) {
-  const summary = { ...state, items: state.items.map(itemSummary), finished: finishedCounts(state.items) };
-  const reportValidator = { json: JSON.stringify(state.proofStats?.flow?.report), expiries: [...new Set(preparedFlow.items.flatMap(item =>
-    item.state === 'claimed' ? [item.leaseUntil] : item.state === 'submitted' ? [item.reserve?.until] : []).filter(Number.isFinite))].sort((a, b) => a - b) };
-  reportValidator.comparisonEvents = [...new Set((comparisonHistory ?? []).map(event => Date.parse(event.event_at)).filter(Number.isFinite))].sort((a, b) => a - b);
-  reportValidator.comparisonWindowMs = state.statsComparison?.durationMinutes * 60_000;
-  reportValidator.digest = createHash('sha256').update(reportValidator.json ?? 'null').digest('hex');
-  return { revision, sequence: state.sequence, state, summary, preparedFlow, comparisonHistory, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
-    print: fingerprint(summary), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
-}
-
-/** A cached build with its idle minutes current for the observed time, its summary views derived again only when they changed. */
-const withCurrentIdle = (entry, at) => store.idleEntry(entry, at, state => { const summary = { ...state, items: state.items.map(itemSummary) };
-  return { summary, summaryFields: prepareStateJson(summary), print: fingerprint(summary) }; });
-
-/** Per-read projections, including observation time, are not part of a cached build fingerprint. */
-const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
-/** The state lists a delta merges entry by entry, and the field that names each entry. */
-const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** The sibling-cell functions an item detail reads, given to its reader on each thread. */
 const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled, hunkFreshnessEnabled };
-/** How many recent builds of each board a server keeps as possible delta bases. */
-const DELTA_BASES = 24;
-
-/** A digest of one value's JSON, which is what a client holds of it. */
-function jsonDigest(value) {
-  return createHash('sha256').update(JSON.stringify(value) ?? 'undefined').digest('base64');
-}
-
-/**
- * Fingerprint a summary build without keeping it: a digest of each field, and for each keyed list
- * its entry order and each entry's digest. A list whose keys repeat or are missing is a whole field.
- */
-function fingerprint(state) {
-  const derived = milestoneDeltaEnabled();
-  const fields = new Map();
-  const lists = new Map();
-  for (const [field, value] of Object.entries(state)) {
-    if (DELTA_WHOLE.has(field)) continue;
-    const key = Object.hasOwn(DELTA_KEYS, field) ? DELTA_KEYS[field] : null;
-    const ids = key && Array.isArray(value) ? value.map((entry) => entry?.[key]) : null;
-    if (ids && ids.every((id) => typeof id === 'number' || typeof id === 'string') && new Set(ids).size === ids.length) {
-      const own = field === 'milestones' ? (entry) => milestoneWithoutPace(entry, derived) : (entry) => entry;
-      lists.set(field, { key, ids, digests: new Map(value.map((entry) => [entry[key], jsonDigest(own(entry))])) });
-    } else fields.set(field, jsonDigest(value));
-  }
-  return { fields, lists, pace: jsonDigest(milestonePace(state.milestones)) };
-}
-
-/** Whether two key lists name the same entries in the same order. */
-function sameIds(left, right) {
-  return left.length === right.length && left.every((id, at) => id === right[at]);
-}
-
-/**
- * What changed from each of these bases to the current build. Changed values travel whole, so the
- * delta applied to any one of the bases gives the current state; the request's own fields and the
- * Needs-you lists always come whole. A keyed list sends only its changed entries, and its full key
- * order when entries were added, removed or moved.
- *
- * @param {{ fields: Map<string, string>, lists: Map<string, any> }[]} bases
- * @param {{ fields: Map<string, string>, lists: Map<string, any> }} current
- * @param {any} state The current summary state, projected for this request.
- * @returns {{ replace: object, merge: object, milestonePace?: object, remove?: string[] }}
- */
-function stateDelta(bases, current, state) {
-  const replace = {};
-  const merge = {};
-  for (const [field, value] of Object.entries(state)) {
-    if (DELTA_WHOLE.has(field)) { replace[field] = value; continue; }
-    const list = current.lists.get(field);
-    if (list && bases.every((base) => base.lists.get(field)?.key === list.key)) {
-      const set = value.filter((entry) => bases.some((base) => base.lists.get(field).digests.get(entry[list.key]) !== list.digests.get(entry[list.key])));
-      const moved = bases.some((base) => !sameIds(base.lists.get(field).ids, list.ids));
-      if (set.length || moved) merge[field] = { key: list.key, set, ...(moved ? { ids: list.ids } : {}) };
-    } else if (list || bases.some((base) => base.fields.get(field) !== current.fields.get(field))) {
-      replace[field] = value;
-    }
-  }
-  const remove = [...new Set(bases.flatMap((base) => [...base.fields.keys(), ...base.lists.keys()]))].filter((field) => !Object.hasOwn(state, field));
-  const pace = milestonePace(state.milestones), paced = pace !== undefined && bases.some((base) => base.pace !== current.pace);
-  return { replace, merge, ...(paced ? { milestonePace: pace } : {}), ...(remove.length ? { remove } : {}) };
-}
-
 /** Add the request-specific unread count without mutating the reusable snapshot. */
 function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary) {
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
@@ -600,86 +515,6 @@ function readProjection(state, root, preparedFlow, refreshFlow, isMain, observed
     };
   }
   return projection;
-}
-
-/** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
-function prepareStateJson(state) {
-  const fields = Object.entries(state).map(([key, value]) => {
-    if (key === 'claimOverlaps' || key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison' || key === 'dashboardRecent') return { dynamic: key };
-    if (key === 'proofStats') {
-      const stats = Object.entries(value).filter(([name]) => name !== 'flow').map(([name, entry]) => jsonField(name, entry)).filter(Boolean);
-      return { dynamic: key, stats };
-    }
-    return { static: jsonField(key, value) };
-  });
-  if (!fields.some((field) => field.dynamic === 'unseen')) fields.push({ dynamic: 'unseen' });
-  if (!fields.some((field) => field.dynamic === 'claimOverlaps')) fields.push({ dynamic: 'claimOverlaps' });
-  return fields;
-}
-
-/** Serialize a state field through JSON.stringify, omitting values JSON would omit. */
-function jsonField(key, value) {
-  const encoded = JSON.stringify(value);
-  return encoded === undefined ? '' : JSON.stringify(key) + ':' + encoded;
-}
-
-/** Count crossed native boundaries without scanning the retained history on every read. */
-function crossedBoundaries(values, now) {
-  let low = 0, high = values.length;
-  while (low < high) { const middle = (low + high) >>> 1; if (values[middle] <= now) low = middle + 1; else high = middle; }
-  return low;
-}
-
-/** Reuse recorded report material while retaining native leases and sliding-window event membership. */
-function reportValidation(entry, now = Date.now()) {
-  const { expiries, comparisonEvents, comparisonWindowMs } = entry.reportValidator;
-  let crossed = crossedBoundaries(expiries, now);
-  if (Number.isFinite(comparisonWindowMs) && comparisonWindowMs > 0) {
-    for (const offset of [0, comparisonWindowMs, 2 * comparisonWindowMs]) crossed += crossedBoundaries(comparisonEvents, now - offset);
-  }
-  return entry.reportValidator.digest + ':' + crossed;
-}
-
-/** Normalize only known elapsed-clock measures; counts, unavailable values and future fields stay material. */
-function comparisonForValidation(comparison) {
-  if (comparison?.available !== true || !Number.isFinite(comparison.durationMinutes) || comparison.durationMinutes <= 0) return comparison;
-  const normalized = { ...comparison };
-  for (const name of ['current', 'previous', 'change']) {
-    const window = comparison[name];
-    if (!window || typeof window !== 'object') continue;
-    const value = { ...window };
-    for (const field of ['since', 'until']) if (typeof value[field] === 'string') value[field] = null;
-    for (const field of ['agentHours', 'idleHours', 'idleShare', 'agentHoursPerLanding', 'unknownStageHours']) {
-      if (typeof value[field] === 'number') value[field] = 0;
-    }
-    for (const field of ['idleReasonHours', 'idleReasons', 'stageHours', 'stageShares']) {
-      if (value[field] && typeof value[field] === 'object') value[field] = Object.fromEntries(Object.entries(value[field])
-        .map(([key, entry]) => [key, typeof entry === 'number' ? 0 : entry]));
-    }
-    normalized[name] = value;
-  }
-  return normalized;
-}
-
-/** Reuse static state fragments while encoding request-specific unread and flow data. */
-function serializeState(state, fields, reportJson, validator = false) {
-  if (!fields) return JSON.stringify(state);
-  const encoded = fields.map((field) => {
-    if (field.static !== undefined) return field.static;
-    if (field.dynamic === 'statsComparison' && validator) return jsonField(field.dynamic, comparisonForValidation(state.statsComparison));
-    // The hero window's since and until move with every read clock (3a91cbbc28, #7964), so a poll's validator blanks them like observedAt.
-    if (field.dynamic === 'dashboardRecent' && validator && state.dashboardRecent && typeof state.dashboardRecent === 'object') return jsonField(field.dynamic, { ...state.dashboardRecent, since: null, until: null });
-    if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison' || field.dynamic === 'dashboardRecent') return jsonField(field.dynamic, state[field.dynamic]);
-    if (field.dynamic === 'proofStats') {
-      const value = state.proofStats?.flow;
-      const flow = reportJson === undefined || !value ? jsonField('flow', value)
-        : '"flow":{' + Object.entries(value).map(([key, entry]) => key === 'report'
-          ? '"report":' + reportJson : jsonField(key, entry)).filter(Boolean).join(',') + '}';
-      return '"proofStats":{' + [...field.stats, flow].filter(Boolean).join(',') + '}';
-    }
-    return '';
-  }).filter(Boolean);
-  return '{' + encoded.join(',') + '}';
 }
 
 /** Require actual native connection providers before any API board discovery or writes. */
@@ -928,7 +763,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   const event = events.find((row) => row.event_kind === kind) ?? events.at(-1);
   if (!event && body.verb === 'next') return { status: 200, body: { version: VERSION, event: null, result } };
   if (!event) throw new Error(`move ${body.verb} produced no event${diagnostics ? `: ${diagnostics}` : ''}`);
-  return { status: 200, body: { version: VERSION, event, result } };
+  return { status: 200, body: { version: VERSION, event, result: await withApplied(body, personChannel, result, seat, runCommand, commitOnApplyEnabled) } };
 }
 
 /** The relay ports a board API move sends with: the higher composition root's, saying nothing on this process's stderr; extra adds or replaces ports. */
@@ -1103,25 +938,25 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
       const split = (text) => [text.slice(0, text.indexOf(marker)), text.slice(text.indexOf(marker) + marker.length)];
       const stamped = { ...readProjection(entry.summary, board.root, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary),
         unseen: JSON.parse(marker), observedAt: new Date(observedAt).toISOString() };
-      const reportValidator = reportValidation(entry, observedAt);
-      const variant = (base, fields, suffix = '') => ({ json: split(serializeState({ ...base, ...stamped }, fields)),
-        validator: split(serializeState({ ...base, ...stamped }, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + suffix) });
+      const reportValidator = snapshotDelta.reportValidation(entry, observedAt);
+      const variant = (base, fields, suffix = '') => ({ json: split(snapshotDelta.serializeState({ ...base, ...stamped }, fields)),
+        validator: split(snapshotDelta.serializeState({ ...base, ...stamped }, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + suffix) });
       const kept = builtPrints.get(entry.cacheId) ?? { builds: [], forgottenThrough: -1 };
       builtPrints.set(entry.cacheId, kept);
       if (!kept.builds.some((build) => build.print === entry.print)) kept.builds.push({ sequence: entry.sequence, print: entry.print });
-      while (kept.builds.length > DELTA_BASES) kept.forgottenThrough = Math.max(kept.forgottenThrough, kept.builds.shift().sequence);
+      while (kept.builds.length > snapshotDelta.DELTA_BASES) kept.forgottenThrough = Math.max(kept.forgottenThrough, kept.builds.shift().sequence);
       const deltas = {};
       for (const since of new Set([...held, ...kept.builds.slice(-4).map((build) => build.sequence)])) {
         const bases = since > kept.forgottenThrough && since <= entry.sequence ? kept.builds.filter((build) => build.sequence === since).map((build) => build.print) : [];
-        if (bases.length) deltas[since] = split(JSON.stringify(stateDelta(bases, entry.print, { ...entry.summary, ...stamped })));
+        if (bases.length) deltas[since] = split(JSON.stringify(snapshotDelta.stateDelta(bases, entry.print, { ...entry.summary, ...stamped })));
       }
       const compact = entry.compact ??= compactItemSummaries(entry.summary);
       const open = entry.open ??= compactItemSummaries(openOnly(entry.summary));
       return {
         cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, rowAgesPending: entry.rowAgesPending === true, reportValidator,
-        summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
-        open: variant(open, entry.openFields ??= prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
-        full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
+        summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= snapshotDelta.prepareStateJson(compact), '\0items:compact-v1'),
+        open: variant(open, entry.openFields ??= snapshotDelta.prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
+        full: full ? variant(entry.state, entry.stateJsonFields ??= snapshotDelta.prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
         search: entry.searchTexts ??= entry.state.items.map((item) => [item.id, searchText(item)]),
         shouts: Float64Array.from(withBoard(board.root, (current) => current.db.prepare('SELECT shout_id FROM shout ORDER BY shout_id').all().map((row) => row.shout_id), codeIsMain, boardOpeners)),
       };
@@ -1214,7 +1049,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     const kept = deltaBases.get(entry.cacheId) ?? { builds: [], forgottenThrough: -1 };
     kept.builds = kept.builds.filter((build) => build.print !== entry.print);
     kept.builds.push({ sequence: entry.sequence, print: entry.print });
-    while (kept.builds.length > DELTA_BASES) kept.forgottenThrough = Math.max(kept.forgottenThrough, kept.builds.shift().sequence);
+    while (kept.builds.length > snapshotDelta.DELTA_BASES) kept.forgottenThrough = Math.max(kept.forgottenThrough, kept.builds.shift().sequence);
     deltaBases.set(entry.cacheId, kept);
   }
   /** Return item summaries or every item in full, as asked or by this server's default, and the JSON for either. */
@@ -1226,11 +1061,11 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       const base = full ? entry.state : compact ? (finished === 'omit' ? (entry.open ??= compactItemSummaries(openOnly(entry.summary))) : (entry.compact ??= compactItemSummaries(entry.summary))) : entry.summary;
       const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
-      const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
-        : compact ? (finished === 'omit' ? (entry.openFields ??= prepareStateJson(base)) : (entry.compactFields ??= prepareStateJson(base))) : entry.summaryFields;
-      const reportValidator = reportValidation(entry, observedAt);
-      const validator = serializeState(state, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + (compact ? (finished === 'omit' ? '\0items:compact-open-v1' : '\0items:compact-v1') : '');
-      return { state, json: serializeState(state, fields), validator, reportValidator, entry };
+      const fields = full ? (entry.stateJsonFields ??= snapshotDelta.prepareStateJson(entry.state))
+        : compact ? (finished === 'omit' ? (entry.openFields ??= snapshotDelta.prepareStateJson(base)) : (entry.compactFields ??= snapshotDelta.prepareStateJson(base))) : entry.summaryFields;
+      const reportValidator = snapshotDelta.reportValidation(entry, observedAt);
+      const validator = snapshotDelta.serializeState(state, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + (compact ? (finished === 'omit' ? '\0items:compact-open-v1' : '\0items:compact-v1') : '');
+      return { state, json: snapshotDelta.serializeState(state, fields), validator, reportValidator, entry };
     }, observedAt);
     // Only the build actually returned is sent; a delta extends summaries, never a full state.
     if (!full) keepSentBase(sent.entry);
@@ -1257,11 +1092,11 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       const kept = deltaBases.get(entry.cacheId) ?? { builds: [], forgottenThrough: -1 };
       const bases = since <= kept.forgottenThrough ? [] : kept.builds.filter((build) => build.sequence === since).map((build) => build.print);
       if (!bases.length) return reset('BASE_NOT_KEPT', `this server keeps no snapshot it sent at event ${since}; use GET ${path} for a fresh snapshot`);
-      return { ...answer, delta: stateDelta(bases, entry.print, state) };
+      return { ...answer, delta: snapshotDelta.stateDelta(bases, entry.print, state) };
     };
     const sent = withSnapshot(board, (entry, cached) => ({ entry, answer: answerFor(entry, cached) }), observedAt);
     if (sent.answer.delta) keepSentBase(sent.entry);
-    return Object.defineProperty(sent.answer, 'reportValidator', { value: reportValidation(sent.entry, observedAt) });
+    return Object.defineProperty(sent.answer, 'reportValidator', { value: snapshotDelta.reportValidation(sent.entry, observedAt) });
   }
   /** The ids of the items the view's search would show for this text, in board-state order. */
   function localSearch(board, text) {
@@ -1367,7 +1202,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }

@@ -1,0 +1,68 @@
+{
+ "order": 15,
+ "name": "config",
+ "kind": "package",
+ "root": "packages/config",
+ "frontDoor": "packages/config/index.js",
+ "paths": [
+  ["src/exit-rules-config.js","packages/config/src/logic/exit/rules.js","rule"],
+  ["src/command-declaration-read.js","packages/config/src/io/declaration.js","rule"],
+  ["src/config.js","packages/config/src/io/main.js","seed"],
+  ["src/json-output.js","packages/config/src/logic/json/output.js","seed"],
+  ["src/json.js","packages/config/src/logic/json.js","seed"],
+  ["src/settings-inventory.js","packages/config/src/io/settings/inventory.js","seed"],
+  ["src/cost-prices.js","packages/config/src/logic/prices.js","rule"],
+  ["src/settings-read.js","packages/config/src/logic/settings.js","rule"],
+  ["src/settings.js","packages/config/src/io/settings.js","seed"],
+  ["src/templates.js","packages/config/src/io/templates.js","seed"],
+  ["test/submit-infra.test.js","packages/config/tests/submit/infra.test.js","seed"],
+  ["test/submit-registry-guards.test.js","packages/config/tests/submit/guards.test.js","seed"],
+  ["test/submit-size.test.js","packages/config/tests/submit/size.test.js","seed"],
+  ["src/release-headlines.js","packages/config/src/io/headlines.js","rule"],
+  ["src/release-version.js","packages/config/src/logic/version.js","rule"],
+  ["src/git-sync-files.js","packages/config/src/io/git/sync.js","rule"],
+  ["src/settings-descriptions.js","packages/config/src/io/settings/descriptions.js","rule"],
+  ["src/worktree-maintenance-config.js","packages/config/src/logic/maintenance.js","rule"],
+  ["test/worktree-maintenance-config.fixture.js","packages/config/tests/fixtures/maintenance.js","rule"],
+  ["src/config-forward-compat.js","packages/config/src/io/compat.js","rule"],
+  ["test/config-forward-compat.test.js","packages/config/tests/io/compat.test.js","rule"]
+ ],
+ "reexports": [],
+ "imports": [
+  {"cell":"kernel","imports":6,"before":true},
+  {"cell":"git","imports":1,"before":true},
+  {"cell":"queue","imports":3,"before":true},
+  {"cell":"resources","imports":1,"before":true},
+  {"cell":"seats","imports":1,"before":false},
+  {"cell":"sandbox","imports":2,"before":false},
+  {"cell":"doctrine","imports":1,"before":false},
+  {"cell":"link","imports":2,"before":false},
+  {"cell":"gate","imports":1,"before":false},
+  {"cell":"runners","imports":4,"before":false},
+  {"cell":"landing","imports":1,"before":false},
+  {"cell":"app:view","imports":1,"before":false},
+  {"cell":"app:cli","imports":1,"before":false}
+ ],
+ "cuts": [
+  {"cell":"queue","imports":1,"edges":["src/routing-capacity.js->src/config.js"]}
+ ],
+ "ratchets": {
+  "legacySource": 0,
+  "shims": 8,
+  "boundaries": -6,
+  "strays": -7,
+  "documents": 0,
+  "cyclesIfUncut": 11,
+  "assetReads": 0
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 6/43: config moves into packages/config behind shims",
+  "criterion": "Cells move 6 of 43 (RFC 0006; plan entry 6 in packages/codemap/data/plan/cells.json): the 15 paths the entry lists for package config move with git mv to their planned targets under packages/config, and packages/config/index.js is the front door, re-exporting the 8 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the 3 imports from earlier cells into it that the entry lists as cuts are gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource 0, shims +8, boundaries -6) and none rises; node packages/codemap/src/io/cells/scripts/plan.js --moved config passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node packages/codemap/src/io/cells/scripts/plan.js --moved config",
+  "after": ["kernel","git","queue","resources"]
+ },
+ "lightFrontDoor": "packages/config/light.js",
+ "pureDoor": "packages/config/browser.js"
+}
