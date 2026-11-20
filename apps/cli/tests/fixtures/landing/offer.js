@@ -39,7 +39,8 @@ export async function offerWithLog(t, { concurrentOffer = false, paces = {} } = 
   const main = git('rev-parse', 'HEAD');
   const board = openBoard(boardFile);
   t.after(() => closeBoard(board));
-  const FREEZE = item => ({ text: item.item_title, digest: `digest:${item.item_title}`, ...(paces[item.item_id] ? { pace: paces[item.item_id] } : {}) });
+  // A frozen bar is JSON and the pace is read from it, as itemPace reads it; a title alone stays the plain text it was.
+  const FREEZE = item => ({ text: paces[item.item_id] ? JSON.stringify({ criterion: item.item_title, pace: paces[item.item_id] }) : item.item_title, digest: `digest:${item.item_title}` });
   const commits = {};
   for (const [number, name] of [[1, 'a'], [2, 'b']]) {
     git('checkout', '-q', '-b', `item-${number}`, main);
