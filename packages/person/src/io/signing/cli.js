@@ -21,7 +21,8 @@ import { Refused } from "../../../../kernel/index.js";
 import { awaitPersonConfirmation } from "../confirmation.js";
 import { loadMachineSettings } from "../../../../config/index.js";
 import { repoInfo } from "../../../../git/index.js";
-import { fileSystemAdapter } from '../../../../fs/index.js';
+import { fileSystemAdapter } from "../../../../fs/index.js";
+import { environmentAdapter } from "../../../../env/index.js";
 import { join } from 'node:path';
 
 const fs = fileSystemAdapter();
@@ -35,7 +36,7 @@ const AUTHORITY_PATH = '/.well-known/pullboard-person-authority';
  * path, never in pullboard.json, a board row, an environment variable or a global, so no shell can set it (#408).
  */
 function authorityOrigin(origin, io, builtInOrigin) {
-  if (origin === builtInOrigin) return process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+  if (origin === builtInOrigin) return environmentAdapter().get('NODE_TLS_REJECT_UNAUTHORIZED') !== '0';
   return typeof io?.trustedRelayOrigin === 'string' && io.trustedRelayOrigin === origin;
 }
 

@@ -13,6 +13,7 @@ export { maintenanceDurations } from './src/logic/maintenance.js';
 export {
   boardRemote,
   browserFreeChecksEnabled,
+  derivedStateEnabled,
   healthDiskFloorGb,
   hunkFreshnessEnabled,
   listThinRead,
