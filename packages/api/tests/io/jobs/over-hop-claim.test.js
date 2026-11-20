@@ -56,7 +56,7 @@ test('api.jobs-over-hop-claim.lapsed-gate-job-whose-hop: clause 1: a lapsed gate
   assert.equal(claim(db, 'r3', later + 1).job, 'gate:9:x', 'the next claim takes the other item\'s gate job');
 });
 
-test('api.jobs-over-hop-claim.live-hop-another-runner-holds: clause 1: a live hop another runner holds still refuses the claim HOP_FENCED, and its job stays open [C7,#8352]', t => {
+test('api.jobs-over-hop-claim.live-hop-another-runner-holds: clause 1: a live hop another runner holds still keeps the claim off its job, which the claim skips, and the job stays open [C7,#8352,#12147]', t => {
   const db = board(t);
   provideGateHopTable(leaseMs => ({ item, hop, now }, { name, actor }) => {
     if (name === 'create') return hop ? { refused: { code: 'HOP_EXISTS', message: 'exists' } } : { patch: { hop: { state: 'queued', owner: null, epoch: 0, leaseUntil: 0, attempts: 0, commit: item.commit, digest: item.digest } } };
@@ -66,6 +66,6 @@ test('api.jobs-over-hop-claim.live-hop-another-runner-holds: clause 1: a live ho
   t.after(() => provideGateHopTable(null));
   claim(db, 'r1', 5000);
   offerJob(db, { id: 'gate:7:again', kind: 'gate', needs: [], item: 7, candidate: OLD, now: 5500 });
-  assert.throws(() => claim(db, 'r2', 6000), { code: 'HOP_FENCED' });
+  assert.equal(claim(db, 'r2', 6000), null, 'the held job is skipped, not refused');
   assert.equal(step(db, 'gate:7:again'), 'offered');
 });
