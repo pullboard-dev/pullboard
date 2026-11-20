@@ -1,7 +1,7 @@
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { openBoard } from '../../../../lib/index.js';
+import { apiBoardOpeners } from '../../fixtures/board.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { randomUUID } from 'node:crypto';
@@ -12,6 +12,8 @@ import {
   fixture,
   state,
 } from '../../fixtures/submit/handoff.js';
+
+const { openBoard } = apiBoardOpeners;
 
 test('cli.journeys-submit-handoff.queue-preparation-retries-a-real-peer: queue preparation retries a real peer commit and still bounds continuous changes [B2,V4,H16,E18]', t => {
   const box = fixture(t);
