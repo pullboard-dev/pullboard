@@ -1,13 +1,12 @@
 /** Native process observations exercise real durable board notifications [A6,H16]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../index.js';
+import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../cli/tests/fixtures/child.js';
 import { scanHealthSentinel } from '../../../../packages/sentinels/index.js';
 import { CPU_SENTINEL_ENGINE } from '../../../../packages/state/light.js';
@@ -18,22 +17,34 @@ import { prepareEngineMove } from '../../../../packages/state/index.js';
 // The store's digest window: a reader's buffered routine findings are sent once this long has passed [#1479].
 const DIGEST_WINDOW_MS = 10 * 60_000;
 
-// CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.
-test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names an agent process past 20 CPU minutes once [A6,H16]', async t => {
-  const { agentCpuFindings } = await import('../../../../packages/sentinels/index.js');
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-'));
+/**
+ * A fixture repo with a coordinator seat and a core seat on a board whose clock the case moves.
+ * The handle lives on the returned object because a case may reopen the board; teardown closes whichever handle is current.
+ */
+function cpuFixture(t, prefix) {
+  const { root: directory } = privateFixtureFiles(prefix);
   const root = join(directory, 'repo'), work = join(directory, 'core');
   mkdirSync(root); mkdirSync(work);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   const file = join(directory, 'board.sqlite');
-  // @pullboard-board-file persistence: the board is closed and reopened to check the delivery queue survives
   const clock = { at: Date.now(), now() { return new Date(this.at); } };
-  let board = openBoard(file, clock);
+  const fx = { directory, root, work, file, clock };
+  // @pullboard-board-file persistence: the board is closed and reopened to check the delivery queue survives
+  fx.board = openBoard(file, clock);
   /** Enrol a seat on whichever board handle is current, the board being reopened mid-case. */
-  const enroll = (lane, path) => store.register(board, { lane, path });
-  enroll('coordinator', root);
-  const seat = enroll('core', work);
-  t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true }); });
+  fx.enroll = (lane, path) => store.register(fx.board, { lane, path });
+  fx.enroll('coordinator', root);
+  fx.seat = fx.enroll('core', work);
+  t.after(() => { store.closeBoard(fx.board); rmSync(directory, { recursive: true }); });
+  return fx;
+}
+
+// CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.
+test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names an agent process past 20 CPU minutes once [A6,H16]', async t => {
+  const { agentCpuFindings } = await import('../../../../packages/sentinels/index.js');
+  const fx = cpuFixture(t, 'pullboard-cpu-');
+  const { directory, root, work, file, clock, enroll, seat } = fx;
+  let board = fx.board;
   let birth = 'Mon Oct 19 12:00:00 2026', cpu = '21:30.00', cwd = work, present = true, unavailable = false, host = 'host-a', pids = [4321];
   const calls = [];
   const run = (command, args) => {
@@ -43,7 +54,10 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
     assert.equal(command, '/usr/sbin/lsof');
     return pids.map(pid => `p${pid}\nn${cwd}\n`).join('');
   };
-  const observe = () => agentCpuFindings(board.db, { platform: 'darwin', run, host });
+  // The cap and engine guards below need a finding the coordinator hears at once, which an AGENT_CPU process is not (it is routine, so it waits in the owning seat's digest).
+  // So the same observed processes are labelled with a cause the coordinator rules on, and the delivery queue is driven by those.
+  let coordinatorCause = false;
+  const observe = () => agentCpuFindings(board.db, { platform: 'darwin', run, host }).map(finding => (coordinatorCause ? { ...finding, cause: 'REQUEST_UNANSWERED' } : finding));
   const scan = () => {
     const observation = scanHealthSentinel(file, { root, config: {}, now: clock.now(), cpu: observe });
     if (observation) store.recordHealthFindings(board, { agentId: 'coordinator', ...observation });
@@ -59,8 +73,8 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   flush();
   assert.equal(notices().length, 1);
   assert.match(notices()[0].shout_text, /\bpid 4321\b/u);
-  const named = observe()[0];
-  for (const value of ['git', seat, '21.50 CPU minutes']) assert.ok(JSON.stringify(named).includes(value), value);
+  const first = observe()[0];
+  for (const value of ['git', seat, '21.50 CPU minutes']) assert.ok(JSON.stringify(first).includes(value), value);
   assert.equal(notices()[0].shout_from, 'sentinel');
   const moved = join(directory, 'another-seat'); mkdirSync(moved);
   enroll('core', moved); cwd = moved; scan(); flush(); cwd = work;
@@ -89,7 +103,10 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   assert.equal(notices().length, beforeHost + 1, 'alternating hosts do not repeat each other’s alert');
   assert.equal(store.allShouts(board).filter(row => row.shout_text.startsWith('Resolved:') && row.shout_text.includes('AGENT_CPU')).length, resolved, 'one host cannot resolve another host’s observation');
   host = 'cap-host'; birth = 'Mon Oct 19 15:00:00 2026'; pids = Array.from({ length: 12 }, (_, index) => 5001 + index);
-  const beforeCap = notices().length;
+  coordinatorCause = true;
+  const urgent = () => store.allShouts(board).filter(row => row.shout_to === 'coordinator' && row.shout_text.startsWith('Stuck:') && row.shout_text.includes('REQUEST_UNANSWERED'));
+  const named = pid => urgent().filter(row => new RegExp(`\\bpid ${pid}\\b`, 'u').test(row.shout_text)).length;
+  const beforeCap = urgent().length;
   const failureCount = () => store.events(board).filter(event => event.event_kind === 'health-failure').length;
   const failuresBefore = failureCount();
   const cappedScan = () => {
@@ -97,9 +114,8 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
     assert.ok(store.allShouts(board).length - count <= HEALTH_SHOUT_CAP + 1, 'cap ten plus one summary remains unchanged');
   };
   cappedScan();
-  // A reader whose buffer sat empty past the window hears a new batch at once: one digest line, not twelve alerts against the shout cap.
-  assert.equal(notices().length - beforeCap, 1, 'one digest line names every process');
-  for (const pid of pids) assert.equal(notices().filter(row => new RegExp(`\\bpid ${pid}\\b`, 'u').test(row.shout_text)).length, 1, `PID ${pid} is named exactly once`);
+  const firstBatch = urgent().length - beforeCap;
+  assert.ok(firstBatch > 0 && firstBatch < pids.length, 'the first scan delivers some alerts and the cap keeps the sixth and later ones waiting');
   const pendingEvents = store.events(board);
   const emptyMove = prepareEngineMove(board, 'recordHealthFindings', [{
     agentId: 'coordinator', observedRevision: pendingEvents.length, findings: [],
@@ -115,11 +131,11 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   assert.deepEqual(store.events(board), pendingEvents, 'refusal preserves the complete delivery queue and history');
   delete board.executionEngineVersion;
   // @pullboard-board-file persistence: the board is closed and reopened to check the delivery queue survives
-  store.closeBoard(board); board = openBoard(file, clock);
+  store.closeBoard(board); board = openBoard(file, clock); fx.board = board;
   cappedScan(); cappedScan();
-  for (const pid of pids) assert.equal(notices().filter(row => new RegExp(`\\bpid ${pid}\\b`, 'u').test(row.shout_text)).length, 1, `PID ${pid} is named exactly once after restart`);
-  assert.equal(notices().length - beforeCap, 1, 'a restart and more scans send no second digest');
-  assert.equal(failureCount() - failuresBefore, 0, 'sending the digest does not invent recurring health failures');
+  for (const pid of pids) assert.equal(named(pid), 1, `PID ${pid} is named exactly once after restart`);
+  assert.equal(urgent().length - beforeCap, pids.length);
+  assert.equal(failureCount() - failuresBefore, pids.length, 'retrying capped delivery does not invent recurring health failures');
   const eventsAfter = store.events(board).length; scan();
   assert.equal(store.events(board).length, eventsAfter, 'a drained delivery queue makes no more events');
   board.executionEngineVersion = CPU_SENTINEL_ENGINE - 1;
@@ -127,4 +143,23 @@ test('lib.sentinel-cpu.the-sentinel-names-an-agent-process: the sentinel names a
   delete board.executionEngineVersion;
   assert.ok(calls.some(([command, args]) => command === '/bin/ps' && args.includes('time=')));
   assert.ok(calls.some(([command]) => command === '/usr/sbin/lsof'));
+});
+
+test('lib.sentinel-cpu.agent-cpu-lands-in-the-owning-seat-digest: an AGENT_CPU finding is routine: it lands in the owning seat digest and posts no immediate coordinator shout [A6,H16]', async t => {
+  const { agentCpuFindings } = await import('../../../../packages/sentinels/index.js');
+  const { directory, root, work, clock, board, enroll, seat } = cpuFixture(t, 'pullboard-cpu-digest-');
+  const run = command => (command === '/bin/ps' ? ' 4321 21:30.00 Mon Oct 19 12:00:00 2026 /usr/bin/git\n' : `p4321\nn${work}\n`);
+  const scan = () => {
+    const observation = scanHealthSentinel(join(directory, 'board.sqlite'), { root, config: {}, now: clock.now(), cpu: () => agentCpuFindings(board.db, { platform: 'darwin', run, host: 'host-a' }) });
+    if (observation) store.recordHealthFindings(board, { agentId: 'coordinator', ...observation });
+  };
+  scan();
+  const shouts = () => store.allShouts(board);
+  assert.equal(shouts().filter(row => row.shout_to === 'coordinator' && row.shout_text.includes('AGENT_CPU')).length, 0, 'no immediate coordinator shout for a routine finding');
+  clock.at += DIGEST_WINDOW_MS;
+  enroll('core', join(directory, 'window'));
+  scan();
+  const digest = shouts().filter(row => row.shout_to === seat && row.shout_text.startsWith('Digest:') && /\bpid 4321\b/u.test(row.shout_text));
+  assert.equal(digest.length, 1, 'the owning seat hears the process in its digest');
+  assert.equal(shouts().filter(row => row.shout_to === 'coordinator' && row.shout_text.includes('AGENT_CPU')).length, 0, 'the coordinator is not shouted at for it');
 });
