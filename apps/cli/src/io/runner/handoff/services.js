@@ -11,6 +11,7 @@ import { requireSubmitComposition } from '../../../../../../packages/items/index
 import { tapTests } from '../../../../../../packages/gate/heavy.js';
 import { withImportParseCache } from '../../../../../../packages/gate/heavy.js';
 import { withMainCheckout } from '../../../../../../packages/landing/index.js';
+import { regenerateToolChange } from '../../../../../../packages/sandbox/index.js';
 
 /**
  * The stage services for the runner's hand-off job. Why here: the runner app imports no other cell, so the job's entry
@@ -24,6 +25,7 @@ export function handoffStageServices() {
     cells: { requireSubmitCells, gate: { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions }, landing: { withMainCheckout } },
     composition: { requireSubmitComposition },
     regenerate: { regenerateDeclaredFiles },
+    toolRegeneration: { regenerateToolChange },
     failures: { tapTests, failureSignatures },
   };
 }
