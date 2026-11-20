@@ -70,6 +70,9 @@ import { publishCacheEntry } from '../cache-files.js';
 import { placeTests } from '../placement.js';
 import { planTestMove } from '../placement.js';
 import { applyTestMove } from '../placement.js';
+import { environmentAdapter } from '../../../../../env/index.js';
+
+const environment = environmentAdapter();
 
 /** Key source observations by the actual analyzer's portable import closure, independently of the job folder. */
 function fixtureAnalyzerDigest() {
@@ -79,7 +82,7 @@ function fixtureAnalyzerDigest() {
 }
 const { rememberedFixtureEdits, saveFixtureEdits, treeBlobs, baseUnsupported, unsupportedSite } = createFixtureMemo({
   fixtureSourceEdits, cellsCacheDirectory, publishCacheEntry, analyzerDigest: fixtureAnalyzerDigest,
-  eligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS, process.env),
+  eligible: () => !foreignNodeOptions(environment.get('NODE_OPTIONS'), environment.all()),
 });
 
 export { PLAN_DIR, PLAN_FILE, SEED_FILE, formatJson, planWrites, readPlan, readSeed, shardFile } from '../../../../index.js';

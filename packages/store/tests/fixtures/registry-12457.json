@@ -1,0 +1,16 @@
+{
+  "store.io-write-queue-file.publish-order-with-three-hundred-pending": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with 300 writes already pending in one queue directory, each newly published write takes a sequence number above every visible record and the 300 writes apply in publish order, and the case prints the milliseconds spent in the publish, drain and waiter-settle steps."
+    },
+    "why": "Without it a publish that stopped taking its number from the high-water record could reuse a number below a visible record, or go back to reading every pending record under the lock, and nothing would show it.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/write-queue-file.test.js",
+      "packages/store/src/io/write-queue-file.js"
+    ]
+  }
+}

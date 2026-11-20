@@ -250,3 +250,20 @@ test('stats.capacity-model.ready-width-with-history: with a usable fit the usefu
   assert.match(lines[0], /^Max useful agents now: 3 \(/u);
   assert.ok(lines.includes('3 items can be built at once now.'));
 });
+
+test('stats.capacity-model.fallback-without-cost-sample: with no cost sample for the route the recommended agents fall back to min(width, supply) instead of null [R1,R2]', () => {
+  const rows = samples().filter(row => row.kind !== 'build');
+  const result = plan([item(1)], fit(rows));
+  assert.equal(result.available, false, 'evaluate() has no estimate without a build sample');
+  assert.equal(result.agents.recommended, 1);
+  assert.equal(result.agents.basis, 'ready');
+  const wide = plan([item(1, { files: ['a'] }), item(2, { files: ['b'] }), item(3, { files: ['c'], after: [1] })], fit(rows));
+  assert.equal(wide.agents.recommended, 2, 'two ready items, the third waits on a dependency');
+});
+
+test('stats.capacity-model.fallback-line: the fallback prints "from ready work only" and the line is unchanged when evaluate() returns an estimate [R1,R2]', () => {
+  const rows = samples().filter(row => row.kind !== 'build');
+  const lines = capacityLines(plan([item(1), item(2)], fit(rows)));
+  assert.equal(lines[0], 'Max useful agents now: 2 from ready work only.');
+  assert.match(capacityLines(plan([item(1), item(2), item(3)]))[0], /^Max useful agents now: 3 \(/u);
+});

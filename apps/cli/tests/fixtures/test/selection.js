@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
-import { writeTestTiers } from '../../../../../packages/gate/index.js';
+import { writeTestTiers } from '../../../../../packages/gate/heavy.js';
 import { joinFixtureSeat } from '../testkit.js';
 
 /** Demand a real successful private CLI document. */

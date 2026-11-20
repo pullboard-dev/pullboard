@@ -1,7 +1,7 @@
 /** @pullboard-test-input docs/rfcs/0006-cells.md */
 /** RFC 0006's standing rules each name an enforcing check that exists [CD4,CD23,CD33,CD61]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { STATIC_CHECK_CLASSES } from '../../packages/gate/src/io/static/registry.js';
 import { CELL_METRICS } from '../../packages/codemap/src/io/cell/lints.js';
@@ -40,4 +40,19 @@ test('clause 2: a rule that names a check which does not exist fails the test [C
   assert.match(missing(fake[0]), /does not exist: no-such-check/u);
   assert.match(missing(fake[1]), /metric that does not exist: nope/u);
   assert.match(missing(fake[2]), /names no check/u);
+});
+
+test('docs.rfcs-0006.standing-rules-name-checks: the dated amendment names each standing rule\'s check and every named check file exists [CD4]', () => {
+  const source = readFileSync(RFC, 'utf8');
+  const amendment = source.split('\n## Amendment, 20 November 2026: standing cell rules after the restructure\n')[1]?.split('\n## ')[0];
+  assert.ok(amendment, 'the RFC has the dated standing-rules amendment');
+  const rules = amendment.split('\n').filter(line => line.startsWith('- '));
+  assert.ok(rules.length >= 6, 'the amendment lists each standing rule');
+  const root = new URL('../../', import.meta.url);
+  for (const rule of rules) {
+    assert.match(rule, /check: [a-z-]+/u, `names a check: ${rule}`);
+    const files = [...rule.matchAll(/`([^`]+\.(?:js|json))`/gu)].map(match => match[1]);
+    assert.ok(files.length > 0, `names a check file: ${rule}`);
+    for (const file of files) assert.ok(existsSync(new URL(file, root)), `named check file exists: ${file}`);
+  }
 });

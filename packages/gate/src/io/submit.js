@@ -8,6 +8,8 @@ import { testTierProofFiles } from './test/tier/selection.js';
 import { testTierReport } from './test/tier/selection.js';
 import { requireSealedSkips } from './test/tier/selection.js';
 import { canaryTests } from './test/tier/selection.js';
+import { testSourceAt } from './test/tier/selection.js';
+import { narrowConfinedTiers } from './test/tier/narrow.js';
 import { startReceipt } from './receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -28,10 +30,7 @@ import {
   projectNeedsGui,
   testsNeedGui,
 } from './gui/admission.js';
-import {
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   join,
 } from 'node:path';
@@ -81,6 +80,8 @@ import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
 import { proveBatches } from './shards/proof.js';
+
+const fs = fileSystemAdapter();
 import { reusedShardFiles } from './shards/proof.js';
 import { shardPassStore } from './shards/proof.js';
 import { plainCheckRun } from './shards/green.js';
@@ -96,8 +97,9 @@ import { staticFindingsOnMain } from './static/main-findings.js';
 export function submitGateConfig(config, accepted) {
   return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
+    confinedImportSelection: accepted.confinedImportSelection,
     registryGuards: accepted.registryGuards,
-    ...(accepted.submitInvariants.length || accepted.registryGuards.length ? { affectedTests: accepted.affectedTests } : {}) };
+    ...(accepted.affectedTests?.trim() ? { affectedTests: accepted.affectedTests } : {}) };
 }
 
 /**
@@ -119,7 +121,10 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
-  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly, componentTier: gateComponentTier() });
+  const wholeTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly, componentTier: gateComponentTier() });
+  // confinedImportSelection comes from accepted main (submitGateConfig), so a branch cannot narrow its own gate; the cell tests it drops ride in owedFiles for landing [C7].
+  const testTiers = wholeTiers && narrowConfinedTiers(wholeTiers, { mode: config.confinedImportSelection, canary: canaryTests(root, commit),
+    read: file => testSourceAt(root, commit, file), select: files => selectAffectedTests(root, { base, trunk, commit, changed: files ?? changed }) }) || wholeTiers;
   const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
@@ -147,7 +152,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const phases = [...(check ? [{ role: 'criterion', command: check }] : []),
     ...(hasFinalProof ? [{ role: 'proof', command: proofCommand }] : [])];
   return { check, selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
-    proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner };
+    proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner, ...(testTiers?.owedFiles?.length ? { owedFiles: testTiers.owedFiles } : {}) };
 }
 
 /**
@@ -168,7 +173,7 @@ export function reusedProofFiles(root, plan, runner = plan.testRunner) {
 }
 
 /** Decide whether a planned submit needs a browser or GUI slot; a remote analysis runs this beside its plan. */
-export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [] }) {
+export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [], needs = [] }) {
   const { check, selection, deferFullFallback, deferSelection } = plan;
   // Files whose recorded pass is reused run nowhere, so they ask for no browser or GUI slot [C7].
   const reused = new Set(reusedFiles);
@@ -180,7 +185,8 @@ export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, 
     : (selection.full || !allReused && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })));
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
-  return { browser: checkUsesBrowser || proofUsesBrowser, gui };
+  // An item that declares a need gets that slot even when no check or proof file asks [C7,#1888].
+  return { browser: checkUsesBrowser || proofUsesBrowser || (needs ?? []).includes('browser'), gui: gui || (needs ?? []).includes('gui') };
 }
 
 /** Retain all phase identities; conflicting observations never become an arbitrary file binding [V4,H16]. */
@@ -350,7 +356,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
-    try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
+    try { file = fs.stat(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
   // A requeued proof reuses the frozen check's own lease and result instead of running the check again.
@@ -398,7 +404,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const run = { ...await (proofFiles.length > 1
         ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
         : runProfiledShellAsync(root, command, options)), isCached: false, log: proofLog };
-      writeFileSync(proofLog, run.output);
+      fs.writeFile(proofLog, run.output);
       if (plan.testTiers) requireTestTierAccount(run, proofFiles);
       return run;
     };
@@ -442,14 +448,14 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         const done = await separate.promise;
         criterionLease = done.lease;
         if (done.run.reusedGreen) onMachineryNote(reusedCheckNote(done.lease));
-        writeFileSync(checkLog, safeLog(done.run.output), { mode: 0o600 });
+        fs.writeFile(checkLog, safeLog(done.run.output), { mode: 0o600 });
         return done.run;
       }
       const run = check
         ? await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, timedShell, signal }, executionServices)
         : { isGreen: true, output: '', seconds: 0 };
       if (run.reusedGreen) onMachineryNote(reusedCheckNote(criterionLease));
-      if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
+      if (check) fs.writeFile(checkLog, safeLog(run.output), { mode: 0o600 });
       return run;
     };
     // One remote lease holds one controller at a time: the proof's batches start on slots of their own beside the item
@@ -487,7 +493,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, ...(criterion.timedOut || proof.timedOut ? { timedOut: true } : {}), executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(plan.testTiers ? { testTiers: plan.testTiers } : {}), ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, ...(criterion.timedOut || proof.timedOut ? { timedOut: true } : {}), executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(plan.testTiers ? { testTiers: plan.testTiers } : {}), ...(plan.owedFiles ? { owedFiles: plan.owedFiles } : {}), ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         ...(criterion.blockingVerdict || proof.blockingVerdict ? { phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
@@ -500,7 +506,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
-    writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
+    fs.writeFile(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) diagnostics.push([proof, { root,
       command: !deferFullFallback && selection.full ? fullConfig.gate : affectedCommand(config, proofFiles), lease: proofLease }]);
     await recordRun(onFailure, proof);
@@ -511,7 +517,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (countTrials && criterion.isGreen && result.isGreen && observed.length) {
       try { trials = countTrialGate(outputRoot, { id: JSON.stringify(observed.sort()) }); } catch { /* A ledger failure cannot alter the recorded test proof. */ }
     }
-    if (trials.length) writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
+    if (trials.length) fs.writeFile(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
     result.refusalTrials = trials;
     // The span from the last test run's end through the merged result, so no time after the tests is unattributed [C7].
     recordSlotPhase('proof-finish', ranAt);

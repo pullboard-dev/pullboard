@@ -1,0 +1,4 @@
+{
+  "gate.logic-adapter-lints-fs.generated-child-is-exempt": {"proves":{"specs":["C7"],"claim":"The runner service installer path is not covered by the fs lint while a sibling file in its folder is, and its program text reports nothing with no ceiling entry."},"why":"The installer is sent to a runner as program text that imports node:fs itself, so the lint exempts that one file by exact path and no sibling.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/fs.js"]},
+  "gate.logic-adapter-lints-fs.real-tree-generated-child": {"proves":{"specs":["C7"],"claim":"The fs lint run over this checkout with the setting on returns no row naming the runner service installer or the slots module."},"why":"Without a real-tree run the exemption and the removed ceiling rows could pass their unit case yet fail the lint that runs in the gate.","kind":"cell unit","inputs":["packages/gate/src/io/adapter-lints/fs.js","packages/gate/src/io/static/registry.js"]}
+}

@@ -1,0 +1,15 @@
+{
+  "cli.io-commands-verify.solo-green-after-pass": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "soloLowStakesFacts sets greenAfter when the verify check result is checked with state pass, as every real check path returns."
+    },
+    "why": "Without it solo low-stakes accept never fires from the real command, because greenAfter stayed false for state pass.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/verify.js"
+    ]
+  }
+}

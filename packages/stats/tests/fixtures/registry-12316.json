@@ -1,0 +1,30 @@
+{
+  "stats.timeline.gate-settled-class": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The timeline reads a gate_settled event's outcome and class and labels the wait after a main-red or stale-base settle MAIN_RED or STALE_BASE."
+    },
+    "why": "Without it time lost to a red main or a stale base is counted as the builder's rework.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/timeline.js",
+      "packages/stats/tests/logic/timeline.test.js"
+    ]
+  },
+  "stats.timeline.gate-settled-absent-unchanged": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A gate job with no gate_settled event keeps the step-derived reason, class null and the rework bucket."
+    },
+    "why": "Without it boards from before the event would read differently.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/timeline.js",
+      "packages/stats/tests/logic/timeline.test.js"
+    ]
+  }
+}

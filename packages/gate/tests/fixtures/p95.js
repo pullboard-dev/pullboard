@@ -13,14 +13,14 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from './child.js';
 import { runFixtureChildAsync } from './child.js';
-import { awaitNestedRun } from '../../index.js';
-import { TEST_FILE_CORES_ENV } from '../../index.js';
-import { TEST_FILE_POOL_ENV } from '../../index.js';
+import { awaitNestedRun } from '../../heavy.js';
+import { TEST_FILE_CORES_ENV } from '../../heavy.js';
+import { TEST_FILE_POOL_ENV } from '../../heavy.js';
 import { GATE_SLOT_HELD_ENV } from '../../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../resources/index.js';
-import { testsNeedBrowser } from '../../index.js';
+import { testsNeedBrowser } from '../../heavy.js';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 /**

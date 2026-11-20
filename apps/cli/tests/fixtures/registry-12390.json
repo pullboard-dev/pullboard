@@ -1,0 +1,15 @@
+{
+  "cli.journeys-speed-release-median.profile": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The same five in-process releases run under a node:inspector profiler and print the top ten self-time functions with their source files."
+    },
+    "why": "Without it, the release median would stay over its 170 ms target with no recorded slow stage for the next cut to aim at.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/speed/release-median.test.js"
+    ]
+  }
+}

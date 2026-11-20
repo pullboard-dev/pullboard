@@ -1,0 +1,41 @@
+{
+  "store.io-board-next.compose-landing-holds-parent": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with composeLanding true, verify never offers a submitted slice and offers its submitted parent only once every slice child is submitted."
+    },
+    "why": "Without this test, a regression where with composeLanding true, verify never offers a submitted slice and offers its submitted parent only once every slice child is submitted would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/index.js"
+    ]
+  },
+  "store.io-board-next.compose-landing-off-offers-slices": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with composeLanding false or unset, a submitted slice is offered for review exactly as before."
+    },
+    "why": "Without this test, a regression where with composeLanding false or unset, a submitted slice is offered for review exactly as before would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/index.js"
+    ]
+  },
+  "store.io-board-next.compose-landing-review-offer": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "reviewOffer given who.composeLanding true never returns a submitted slice."
+    },
+    "why": "Without this test, a regression where reviewOffer given who.composeLanding true never returns a submitted slice would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/index.js"
+    ]
+  }
+}

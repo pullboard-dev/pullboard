@@ -82,6 +82,17 @@
 .ip-bc > .link { display: block; margin: 4px 0 0; padding: 0; }
 
 /* journey: the Activity item bar, slimmed, as SVG geometry */
+.ip-tl { padding: 10px var(--space-4) 8px; white-space: nowrap; }
+.ip-tl .tl-strip { display: block; width: 100%; height: 10px; }
+.ip-tl .tl-track { fill: var(--surface-2); }
+.ip-tl .tl-building { fill: var(--stage-building); }
+.ip-tl .tl-waiting-for-runner, .ip-tl .tl-wait { fill: var(--stage-wait); }
+.ip-tl .tl-testing { fill: var(--stage-gate); }
+.ip-tl .tl-waiting-for-review, .ip-tl .tl-reviewing { fill: var(--stage-review); }
+.ip-tl .tl-waiting-to-land, .ip-tl .tl-landing { fill: var(--stage-merged); }
+.ip-tl .tl-rework { fill: var(--mark-back); }
+.ip-tl .tl-unaccounted { fill: var(--surface-2); stroke: var(--mark-back); stroke-dasharray: 3 2; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.ip-tl .tl-gap { margin: 6px 0 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); font-size: var(--text-xs); }
 .ip-jc { padding: 10px var(--space-4) 6px; }
 .ip-journey { display: block; width: 100%; height: auto; overflow: visible; }
 .ip-journey .jtrack { fill: var(--surface-2); }

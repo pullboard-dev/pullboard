@@ -1,17 +1,15 @@
 /** Cheap filesystem observation of the primary or retained trunk [E8,A2]. */
-import {
-  readFileSync,
-  statSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { gitSpawn } from '../adapter.js';
 import { cleanGitEnvironment } from '../main.js';
 import { plainTrunkRef } from './ref.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const disk = fileSystemAdapter();
 
 /** Invalidate a retained branch lookup only when its local configuration changes. */
 function fileMarkerForPath(path) {
   try {
-    const stat = statSync(path);
+    const stat = disk.stat(path);
     return JSON.stringify([stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]);
   } catch (error) {
     if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return 'missing';
@@ -52,7 +50,7 @@ export function trunkRevisionReader(info) {
   let generation = 0;
   /** Read loose or packed refs without spawning Git in every event-stream poll. */
   const read = () => {
-    const head = readFileSync(join(info.commonDir, 'HEAD'), 'utf8').trim();
+    const head = disk.readFile(join(info.commonDir, 'HEAD'), 'utf8').trim();
     let ref = /^ref: (refs\/heads\/.+)$/u.exec(head)?.[1];
     if (!ref) {
       const marker = fileMarkerForPath(join(info.commonDir, 'config'));
@@ -66,10 +64,10 @@ export function trunkRevisionReader(info) {
       ref = retained;
     }
     if (!ref?.startsWith('refs/heads/') || ref.includes('\\') || ref.split('/').some(part => !part || part === '.' || part === '..')) return null;
-    try { return readFileSync(join(info.commonDir, ref), 'utf8').trim(); }
+    try { return disk.readFile(join(info.commonDir, ref), 'utf8').trim(); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     try {
-      return readFileSync(join(info.commonDir, 'packed-refs'), 'utf8').split('\n')
+      return disk.readFile(join(info.commonDir, 'packed-refs'), 'utf8').split('\n')
         .find(line => line.endsWith(' ' + ref))?.split(' ')[0] ?? null;
     } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   };

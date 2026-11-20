@@ -11,6 +11,7 @@ import {
   gateJob,
   state,
 } from './handoff.js';
+import { localRunnerState } from '../../../../../packages/drive/index.js';
 import { startFixtureLocalRunner } from '../runner/local-start.js';
 import { CLI_ENTRY } from '../runner/entry.js';
 
@@ -38,7 +39,8 @@ export function lines(file) {
 
 /** The pid of the machine's local runner, which holds the gate job's lease under pull, from its own state file. */
 export function runnerPid(box) {
-  return JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'state.json'), 'utf8')).pid;
+  const state = localRunnerState(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), Date.now(), box.env.PULLBOARD_HOME || null);
+  return state.pid;
 }
 
 /**

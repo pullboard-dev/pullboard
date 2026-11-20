@@ -1,10 +1,6 @@
 /** Tighten held doctrine counts on the exact composed landing tree, before its gate [D1,D3,B3,R3]. */
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './shards.js';
-import {
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   doctrineFile,
@@ -13,8 +9,8 @@ import {
   checkRulesAt,
   runRuleCheck,
 } from '../../../doctrine/index.js';
-import { checkNeedsBrowser } from '../../../gate/index.js';
-import { withGateSlot } from '../../../gate/index.js';
+import { checkNeedsBrowser } from '../../../gate/heavy.js';
+import { withGateSlot } from '../../../gate/heavy.js';
 import { gateSlotEnvironment } from '../../../resources/index.js';
 import {
   git,
@@ -24,6 +20,9 @@ import {
 } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { parseSpec } from '../../../spec/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The held submit rules of the doctrine at HEAD: the ones whose counts a landing tightens. */
 export function heldRules(root, config) {
@@ -71,7 +70,7 @@ export async function tightenLandingDoctrine(root, config, { onWait, measured } 
     .map(report => ({ id: report.id, before: report.count, count: report.found }));
   if (!lowered.length) return [];
   const file = doctrineFile(root, config.practice);
-  const source = readFileSync(join(root, file), 'utf8');
+  const source = fs.readFile(join(root, file), 'utf8');
   const rows = parseSpec(source, { strictGrammarVersion: false }).rows;
   const lines = source.split('\n');
   for (const change of lowered) {
@@ -82,7 +81,7 @@ export async function tightenLandingDoctrine(root, config, { onWait, measured } 
     if (next === previous) throw new Refused('LAND_DIRTY', `the measured count field for ${change.id} could not be tightened`);
     lines[row.line - 1] = next;
   }
-  writeFileSync(join(root, file), lines.join('\n'));
+  fs.writeFile(join(root, file), lines.join('\n'));
   git(root, ['add', '--', file]);
   git(root, ['commit', '-m', 'chore(doctrine): record lower held counts']);
   return lowered;
