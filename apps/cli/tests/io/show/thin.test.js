@@ -16,6 +16,7 @@ import { events } from '../../../../../packages/store/index.js';
 import { listAgents } from '../../../../../packages/store/index.js';
 import { openBoardForRead } from '../../../../../packages/store/index.js';
 import { ReadNeedsWrite } from '../../../../../packages/store/index.js';
+import { setItemField } from '../../../../../packages/store/index.js';
 import { thinShowFacts } from '../../../src/io/show/thin.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -88,10 +89,12 @@ test('cli.io-show-thin.steps-aside: clause 2: thinShowFacts returns null for no 
   };
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, open: failing(new ReadNeedsWrite('fixture write')) }), null, 'ReadNeedsWrite');
   assert.equal(await thinShowFacts({ cwd: box.repo, id: 9, open: failing(new Error('no such table: fixture_missing')) }), null, 'schemaMissing');
-  // The field tables join the board last: the item that holds no value is still served, so the item that holds one steps aside for its value alone.
-  onBoard(box, board => declareItemField(board, { by: 'fixture', name: 'size', type: 'text', enabled: true }));
-  await stepsAsideFor(box, 'a typed field', 7, (db, id) => db.prepare("INSERT INTO item_field (item_id, field_name, field_value, field_set_by, field_set_at) VALUES (?, 'size', 'small', 'fixture', ?)").run(id, NOW));
-  assert.ok(await thinShowFacts({ cwd: box.repo, id: 8 }), 'an item with no field value is still served');
+  // The field tables join the board last, made by the store's own calls; a board that holds them has changed shape, and the door steps aside for it.
+  onBoard(box, board => {
+    declareItemField(board, { by: 'fixture', name: 'size', type: 'text', enabled: true });
+    setItemField(board, { by: 'fixture', id: 7, name: 'size', value: 'small', enabled: true });
+  });
+  assert.equal(await thinShowFacts({ cwd: box.repo, id: 7 }), null, 'a typed field');
 });
 
 test('cli.io-show-thin.steps-aside-drifted-board: clause 2: thinShowFacts returns null for a board whose shape drifted [C7]', async (t) => {
