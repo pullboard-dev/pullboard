@@ -1,6 +1,6 @@
 /** Actual executor samples shared by local gate and registered worker receipts [C7]. */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { hostname } from 'node:os';
@@ -11,7 +11,7 @@ import { platform } from 'node:os';
  * Cumulative disk counters since boot, summed over every whole disk, or null when this host exposes none.
  * macOS has no iowait counter, so it reports only the time requests took; Linux also reads the CPU jiffies.
  */
-export function readDiskCounters(os = platform(), run = spawnSync, read = file => readFileSync(file, 'utf8')) {
+export function readDiskCounters(os = platform(), run = spawnSync, read = file => fileSystemAdapter().readFile(file)) {
   try {
     if (os === 'darwin') return parseIoreg(String(run('ioreg', ['-rc', 'IOBlockStorageDriver', '-w0'], { encoding: 'utf8', timeout: 2000 }).stdout ?? ''));
     if (os === 'linux') return parseProc(read('/proc/diskstats'), read('/proc/stat'));
@@ -61,16 +61,46 @@ export function diskSample(read = readDiskCounters, now = Date.now) {
   return { busyPct, ioWaitPct: jiffies > 0 ? Math.round((b.cpuWait - a.cpuWait) / jiffies * 1000) / 10 : null };
 }
 
+/** macOS `sysctl -n vm.swapusage` text ('total = 5120.00M  used = 3600.44M ...') as swap MB, or null when it does not parse. */
+export function parseSwapusage(text) {
+  const field = name => new RegExp(`${name}\\s*=\\s*([\\d.]+)M`, 'u').exec(text)?.[1];
+  const total = Number(field('total')), used = Number(field('used'));
+  return field('total') === undefined || field('used') === undefined ? null : { swapUsedMB: Math.round(used), swapTotalMB: Math.round(total) };
+}
+
+/** Linux /proc/meminfo SwapTotal and SwapFree (kB) as swap MB, used = total - free, or null when either is missing. */
+export function parseMeminfoSwap(text) {
+  const kb = name => new RegExp(`^${name}:\\s+(\\d+)\\s*kB`, 'mu').exec(text)?.[1];
+  const total = kb('SwapTotal'), free = kb('SwapFree');
+  return total === undefined || free === undefined ? null : { swapUsedMB: Math.round((Number(total) - Number(free)) / 1024), swapTotalMB: Math.round(Number(total) / 1024) };
+}
+
+/** Swap used and total in MB on this host, or null when it exposes none. */
+export function readSwapUsage(os = platform(), run = spawnSync, read = file => fileSystemAdapter().readFile(file)) {
+  try {
+    if (os === 'darwin') return parseSwapusage(String(run('sysctl', ['-n', 'vm.swapusage'], { encoding: 'utf8', timeout: 2000 }).stdout ?? ''));
+    if (os === 'linux') return parseMeminfoSwap(read('/proc/meminfo'));
+  } catch { /* A host that cannot report swap reports none. */ }
+  return null;
+}
+
 /**
  * Sample this executing machine now, never the controller on behalf of a remote run. With `diskIo` (the
- * gate.sampleDiskIo setting, read by the caller; off by default) the sample also carries `diskBusyPct` and `ioWaitPct`; without it
- * the sample is exactly the four load fields and no child is launched.
+ * gate.sampleDiskIo setting, read by the caller; off by default) the sample also carries `diskBusyPct` and `ioWaitPct`;
+ * with `swap` (read by the caller, off by default) it carries `swapUsedMB` and `swapTotalMB` from `readSwap`;
+ * without either the sample is exactly the four load fields and no child is launched.
  */
-export function sampleRunnerLoad({ diskIo = false, read, now } = {}) {
-  const sample = { at: new Date().toISOString(), average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
-  if (diskIo !== true) return sample;
-  const { busyPct, ioWaitPct } = diskSample(read, now);
-  return { ...sample, diskBusyPct: busyPct, ioWaitPct };
+export function sampleRunnerLoad({ diskIo = false, read, now, swap = false, readSwap = readSwapUsage } = {}) {
+  let sample = { at: new Date().toISOString(), average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
+  if (diskIo === true) {
+    const { busyPct, ioWaitPct } = diskSample(read, now);
+    sample = { ...sample, diskBusyPct: busyPct, ioWaitPct };
+  }
+  if (swap === true) {
+    const used = readSwap();
+    sample = { ...sample, swapUsedMB: used?.swapUsedMB ?? null, swapTotalMB: used?.swapTotalMB ?? null };
+  }
+  return sample;
 }
 
 /** Describe actual local admission capacity; unreported capabilities stay unknown. */

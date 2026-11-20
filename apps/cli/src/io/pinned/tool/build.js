@@ -1,22 +1,12 @@
 /** Immutable board-local tool installations; project source and the command's cwd never move. */
 import { spawnSync } from 'node:child_process';
 import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   join,
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { environmentAdapter } from '../../../../../../packages/env/index.js';
 import { inflateSync } from 'node:zlib';
 // Use the public browser-safe door to keep the thin resident client from loading the full kernel.
 import {
@@ -24,12 +14,15 @@ import {
   isConfigFile,
   Refused,
 } from '../../../../../../packages/kernel/browser.js';
+import { fileSystemAdapter } from '../../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 /** Read Git without inheriting a caller's alternate index or repository selector. */
 function git(root, args, binary = false) {
-  const env = { ...process.env };
+  const env = environmentAdapter().all();
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
   const result = spawnSync('git', ['--no-replace-objects', ...args], { cwd: root, env,
     encoding: binary ? undefined : 'utf8', maxBuffer: 128 * 1024 * 1024 });
@@ -44,26 +37,26 @@ function git(root, args, binary = false) {
  */
 function fileLocation(cwd) {
   try {
-    for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) if (process.env[name]) return null;
-    let top = realpathSync(cwd);
-    while (!existsSync(join(top, '.git'))) {
+    for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY']) if (environmentAdapter().has(name)) return null;
+    let top = fs.realpath(cwd);
+    while (!fs.exists(join(top, '.git'))) {
       const parent = dirname(top);
       if (parent === top) return null;
       top = parent;
     }
     let gitDir = join(top, '.git');
     let commonDir = gitDir;
-    if (!statSync(gitDir).isDirectory()) {
-      const pointer = /^gitdir: (.+)$/mu.exec(readFileSync(gitDir, 'utf8'));
+    if (!fs.stat(gitDir).isDirectory()) {
+      const pointer = /^gitdir: (.+)$/mu.exec(fs.readFile(gitDir, 'utf8'));
       if (!pointer) return null;
-      gitDir = realpathSync(resolve(top, pointer[1].trim()));
-      commonDir = realpathSync(resolve(gitDir, readFileSync(join(gitDir, 'commondir'), 'utf8').trim()));
+      gitDir = fs.realpath(resolve(top, pointer[1].trim()));
+      commonDir = fs.realpath(resolve(gitDir, fs.readFile(join(gitDir, 'commondir'), 'utf8').trim()));
     }
-    commonDir = realpathSync(commonDir);
-    const config = readFileSync(join(commonDir, 'config'), 'utf8');
+    commonDir = fs.realpath(commonDir);
+    const config = fs.readFile(join(commonDir, 'config'), 'utf8');
     if (/^\s*worktree\s*=/imu.test(config) || /^\s*bare\s*=\s*(?:true|yes|on|1)\s*$/imu.test(config)
       || /objectformat\s*=\s*sha256/iu.test(config) || /^\s*\[extensions\]/imu.test(config) && /refstorage/iu.test(config)
-      || existsSync(join(gitDir, 'config.worktree'))) return null;
+      || fs.exists(join(gitDir, 'config.worktree'))) return null;
     return { root: top, commonDir, directory: join(commonDir, 'pullboard', 'tool-builds') };
   } catch { return null; }
 }
@@ -71,7 +64,7 @@ function fileLocation(cwd) {
 /** Read one loose Git object's body, or null when it is packed or absent so Git itself must answer. */
 function looseObject(commonDir, oid) {
   try {
-    const raw = inflateSync(readFileSync(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2))));
+    const raw = inflateSync(fs.readFile(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2)), null));
     const end = raw.indexOf(0);
     return { type: raw.subarray(0, raw.indexOf(32)).toString(), body: raw.subarray(end + 1) };
   } catch { return null; }
@@ -81,17 +74,17 @@ function looseObject(commonDir, oid) {
 function primaryHead(commonDir) {
   try {
     // A real refs/main-worktree/HEAD would outrank the pseudo-ref, so only Git can name the commit then.
-    if (existsSync(join(commonDir, 'refs', 'main-worktree', 'HEAD'))
-      || /^[a-f0-9]+ refs\/main-worktree\/HEAD$/mu.test(existsSync(join(commonDir, 'packed-refs')) ? readFileSync(join(commonDir, 'packed-refs'), 'utf8') : '')) return undefined;
-    const head = readFileSync(join(commonDir, 'HEAD'), 'utf8').trim();
+    if (fs.exists(join(commonDir, 'refs', 'main-worktree', 'HEAD'))
+      || /^[a-f0-9]+ refs\/main-worktree\/HEAD$/mu.test(fs.exists(join(commonDir, 'packed-refs')) ? fs.readFile(join(commonDir, 'packed-refs'), 'utf8') : '')) return undefined;
+    const head = fs.readFile(join(commonDir, 'HEAD'), 'utf8').trim();
     if (/^[a-f0-9]{40}$/u.test(head)) return head;
     const name = /^ref: (refs\/.+)$/u.exec(head)?.[1];
     if (!name) return undefined;
-    if (existsSync(join(commonDir, name))) {
-      const value = readFileSync(join(commonDir, name), 'utf8').trim();
+    if (fs.exists(join(commonDir, name))) {
+      const value = fs.readFile(join(commonDir, name), 'utf8').trim();
       return /^[a-f0-9]{40}$/u.test(value) ? value : undefined;
     }
-    for (const line of readFileSync(join(commonDir, 'packed-refs'), 'utf8').split('\n')) {
+    for (const line of fs.readFile(join(commonDir, 'packed-refs'), 'utf8').split('\n')) {
       const [oid, ref] = line.split(' ');
       if (ref === name && /^[a-f0-9]{40}$/u.test(oid)) return oid;
     }
@@ -125,10 +118,10 @@ function committedConfigFromObjects(commonDir) {
 export function toolBuildLocation(cwd) {
   // A worktree needs a .git marker in its ancestry unless Git was explicitly pointed elsewhere.
   // Avoid starting Git for ordinary help from a directory that cannot contain a board.
-  if (!process.env.GIT_DIR) {
+  if (!environmentAdapter().get('GIT_DIR')) {
     let directory;
-    try { directory = realpathSync(cwd); } catch { directory = null; }
-    while (directory && !existsSync(join(directory, '.git'))) {
+    try { directory = fs.realpath(cwd); } catch { directory = null; }
+    while (directory && !fs.exists(join(directory, '.git'))) {
       const parent = dirname(directory);
       if (parent === directory) return null;
       directory = parent;
@@ -163,9 +156,9 @@ export function toolBuildPolicy(location) {
 /** Read the atomically published selection; absent and malformed selections cannot silently run trunk. */
 export function readToolBuild(location) {
   const path = join(location.directory, 'current.json');
-  if (!existsSync(path)) return null;
+  if (!fs.exists(path)) return null;
   let value;
-  try { value = JSON.parse(readFileSync(path, 'utf8')); } catch { value = null; }
+  try { value = JSON.parse(fs.readFile(path, 'utf8')); } catch { value = null; }
   if (value?.version !== 1 || !OID.test(value.commit ?? '') || !OID.test(value.tree ?? '')
     || !Number.isFinite(Date.parse(value.promotedAt)) || typeof value.receipt !== 'string') {
     throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the published tool build is malformed; ask the coordinator to promote a gated build');
@@ -176,22 +169,31 @@ export function readToolBuild(location) {
 /** Export an exact immutable commit into a private cache, publishing only a completed installation. */
 export function installToolBuild(location, build) {
   const target = join(location.directory, build.commit);
-  if (existsSync(target)) return target;
-  mkdirSync(location.directory, { recursive: true, mode: 0o700 });
-  const temporary = mkdtempSync(join(location.directory, '.install-'));
+  if (fs.exists(target)) return target;
+  fs.mkdir(location.directory, { recursive: true, mode: 0o700 });
+  const temporary = fs.mkdtemp(join(location.directory, '.install-'));
   try {
     if (git(location.root, ['rev-parse', `${build.commit}^{tree}`]) !== build.tree) {
       throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the published tool tree does not match its commit; promote a gated build');
     }
     const archive = git(location.root, ['archive', '--format=tar', build.commit], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', temporary], { input: archive, encoding: 'utf8' });
-    if (unpacked.status !== 0 || !existsSync(join(temporary, 'apps/cli/pullboard.js'))) {
+    if (unpacked.status !== 0 || !fs.exists(join(temporary, 'apps/cli/pullboard.js'))) {
       throw new Refused('TOOL_BUILD_UNAVAILABLE', 'the gated commit is not an installable Pullboard build; promote a Pullboard commit');
     }
-    try { renameSync(temporary, target); }
-    catch (error) { if (!existsSync(target)) throw error; }
+    try { fs.rename(temporary, target); }
+    catch (error) { if (!fs.exists(target)) throw error; }
     return target;
-  } finally { rmSync(temporary, { recursive: true, force: true }); }
+  } finally { fs.rm(temporary, { recursive: true, force: true }); }
+}
+
+/** Write a new file at a private mode through the adapter, which has no writeFile options; `flag` is open's flags. */
+function writePrivate(path, data, flag = 'w') {
+  const fd = fs.open(path, flag, 0o600);
+  try {
+    const bytes = typeof data === 'string' ? Buffer.from(data) : data;
+    for (let done = 0; done < bytes.length;) done += fs.write(fd, bytes, done, bytes.length - done);
+  } finally { fs.close(fd); }
 }
 
 /** Atomically publish a validated build; readers already running retain their installation. */
@@ -199,9 +201,9 @@ export function writeToolBuild(location, build) {
   installToolBuild(location, build);
   const temporary = join(location.directory, `.current-${randomUUID()}`);
   try {
-    writeFileSync(temporary, `${JSON.stringify(build)}\n`, { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, join(location.directory, 'current.json'));
-  } finally { rmSync(temporary, { force: true }); }
+    writePrivate(temporary, `${JSON.stringify(build)}\n`, 'wx');
+    fs.rename(temporary, join(location.directory, 'current.json'));
+  } finally { fs.rm(temporary, { force: true }); }
   return build;
 }
 

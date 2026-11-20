@@ -395,3 +395,52 @@ test('cli.journeys-spec-main.rejecting-a-row-sends-every-row: clause 1: rejectin
   const text = `${checked.out ?? checked.stdout}${checked.err ?? checked.stderr}`;
   assert.equal(text.match(new RegExp(`NEEDS_REVIEW: serves rejected ${fact}`, 'gu'))?.length, 2, `spec check names both rows: ${text}`);
 });
+
+test('cli.journeys-spec-main.verify-accept-cites-the-fact-quote: with spec.requireFactQuote on, an accept of a source-backed row must cite its quote in the reason; off, or rejected, nothing changes [C7,#11250]', async (t) => {
+  const { box, fact, verifier, verify } = await cascadeBox(t);
+  const quote = 'The programme ran for 31 years in all.';
+  // The verifier reads the row from its own seat's SPEC.md, so the source and quote are written there.
+  const file = join(verifier.root, 'SPEC.md');
+  writeFileSync(file, readFileSync(file, 'utf8').split('\n').map(line => line.startsWith(`- ${fact} `) ? `${line} | source: Report p.4 | quote: ${quote}` : line).join('\n'));
+  const text = result => `${result.out ?? result.stdout ?? ''}${result.err ?? result.stderr ?? ''}`;
+  const code = result => result.code ?? result.status;
+  const off = await verify(fact, 'accepted', 'checked it');
+  assert.equal(code(off), 0, `with the setting off nothing changes: ${text(off)}`);
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const saved = JSON.parse(readFileSync(settings, 'utf8'));
+  writeFileSync(settings, JSON.stringify({ ...saved, spec: { ...saved.spec, requireFactQuote: true } }));
+  const refused = await verify(fact, 'accepted', 'checked it');
+  assert.equal(code(refused), 1, text(refused));
+  assert.match(text(refused), /FACT_QUOTE_UNCITED/u);
+  assert.ok(text(refused).includes(quote), 'the refusal prints the quote');
+  assert.match(text(refused), /does this quote say what the row claims\?/u);
+  const rejected = await verify(fact, 'rejected', 'checked it');
+  assert.equal(code(rejected), 0, `a rejected verdict is untouched: ${text(rejected)}`);
+  const cited = await verify(fact, 'accepted', `the report says: ${quote}`);
+  assert.equal(code(cited), 0, `with the quote in the reason the verification records: ${text(cited)}`);
+});
+
+test('cli.journeys-spec-main.an-accepted-fact-must-cite-the: an accepted fact must cite the quote that supports it [B2,#9551]', async (t) => {
+  const row = quote => `# Spec
+
+## G · Goals
+
+- G1 [approved, must] It ran 31 years. | gate: review | source: Report p.4${quote}
+`;
+  const box = specBox(t, { specSource: row(' | quote: The programme ran for 31 years in all.') });
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let saved = {};
+  try { saved = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* A fixture with no settings file starts empty. */ }
+  writeFileSync(settings, JSON.stringify({ ...saved, spec: { ...saved.spec, requireFactQuote: true } }));
+  const text = result => `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  const held = await box.spec('check');
+  assert.equal(held.status, 0, text(held));
+  writeFileSync(join(box.root, box.specName), row(' | quote: The programme ran for a long time.'));
+  const lacking = await box.spec('check');
+  assert.equal(lacking.status, 1, text(lacking));
+  assert.match(text(lacking), /does not contain 31/u);
+  writeFileSync(join(box.root, box.specName), row(''));
+  const missing = await box.spec('check');
+  assert.equal(missing.status, 1, text(missing));
+  assert.match(text(missing), /needs the words it rests on/u);
+});

@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../packages/store/tests/fixtures/cell.js';
@@ -16,6 +16,7 @@ import { listAgents } from '../../../../packages/store/index.js';
 import { listItems } from '../../../../packages/store/index.js';
 import { heartbeatCommand } from '../../src/io/presence.js';
 import { stopSeatKeepalive } from '../../src/io/presence.js';
+import { claimHeartbeatOverlaps } from '../../src/io/presence.js';
 
 /** Two claims whose worktrees both edit shared.js, and the first seat's heartbeat context. */
 function twoClaims(t) {
@@ -64,4 +65,16 @@ test('cli.io-presence.overlaps-on-prints-line: clause 2: with overlaps on and tw
   const { board, ctx, seats, items } = twoClaims(t);
   const { lines } = beat(board, ctx, { overlaps: true });
   assert.deepEqual(lines, [`#${items[0]} overlaps #${items[1]} (${seats[1].id}) on shared.js`]);
+});
+
+test('cli.io-presence.default-loop-claim-no-item-query: clause 1: a claim heartbeat for a default-loop next sends no item-list query, and one for any other io still lists [C7,#5329]', t => {
+  assert.equal(claimHeartbeatOverlaps({ defaultLoop: true }), false);
+  assert.equal(claimHeartbeatOverlaps({}), true);
+  const { board, ctx } = twoClaims(t);
+  const quiet = beat(board, ctx, { overlaps: claimHeartbeatOverlaps({ defaultLoop: true }) });
+  assert.deepEqual(quiet.prepared.filter(sql => /FROM item\b/u.test(sql)), [], 'no statement lists items');
+  assert.deepEqual(quiet.lines, []);
+  const loud = twoClaims(t);
+  const listed = beat(loud.board, loud.ctx, { overlaps: claimHeartbeatOverlaps({}) });
+  assert.ok(listed.prepared.some(sql => /FROM item\b/u.test(sql)), 'a non-default next still lists items');
 });

@@ -1,5 +1,5 @@
 /** The pullboard contribute command: check a contribution record file and print every parser failure with its rule, fix and skill command [C7]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { CONTRIBUTION_SHAPES } from '../../../../../packages/commits/index.js';
@@ -8,7 +8,11 @@ import { contributionSecrets } from '../../../../../packages/commits/index.js';
 import { contributionSecretRefusal } from '../../../../../packages/commits/index.js';
 import { contributionFix } from '../../../../../packages/commits/index.js';
 import { parseContributionRecord } from '../../../../../packages/commits/index.js';
+import { githubPullClient as defaultClient } from './add.js';
+import { githubRepository as defaultRepository } from './add.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The most failures one check reports, so a hopeless file cannot loop forever. */
 const MAX_FAILURES = 50;
@@ -78,34 +82,52 @@ function failure(error, file, offset) {
 }
 
 /**
- * Run `pullboard contribute check <file> [shape]` and return its exit code: 0 for a record the parser accepts, 1 after printing every failure.
+ * Run `pullboard contribute check <file> [shape]` or `pullboard contribute check --issue N <shape>` and return its exit code: 0 for a record the parser accepts, 1 after printing every failure.
  * Why every failure: a contributor fixes the whole record in one pass instead of one refusal per run; each failure is blanked out and the parser run again.
  * A failure that names no line or key in the block (a missing required field) ends the list, as nothing can be taken out.
+ * Why the port: the issue form reads GitHub, so a test passes a fake client factory instead of reaching the network; it only reads, never posts.
  */
-export function run(io, { first, second, rest }) {
-  if (first !== 'check' || !second) throw new Refused('USAGE', 'use pullboard contribute check <file>', 'pullboard contribute check <file> [shape]');
-  const path = isAbsolute(second) ? second : join(io.cwd, second);
+export function run(io, { first, second, rest, values }, { githubPullClient = defaultClient, githubRepository = defaultRepository } = {}) {
+  const issue = values?.issue;
+  if (first !== 'check' || (!second && !issue)) throw new Refused('USAGE', 'use pullboard contribute check <file>', 'pullboard contribute check <file> [shape]');
   let text;
-  try { text = readFileSync(path, 'utf8'); } catch { throw new Refused('NO_FILE', `cannot read ${second}`, 'pass the path of the record file'); }
-  const shape = recordShape(text, rest?.[0]);
+  let label = second;
+  let given = rest?.[0];
+  if (issue) {
+    if (!/^[1-9][0-9]*$/u.test(issue)) throw new Refused('USAGE', `--issue takes an issue number, not "${issue}"`, 'pullboard contribute check --issue <number> <shape>');
+    label = `issue #${issue}`;
+    given = second;
+    try { text = String(githubPullClient(io.cwd, githubRepository(io.cwd, 'origin')).readIssue(Number(issue))?.body ?? ''); } catch (error) {
+      throw new Refused('ISSUE_READ', `cannot read issue ${issue}: ${error instanceof Refused ? error.message : 'the read failed'}`, 'check gh auth status, the origin remote and the issue number, then run the check again');
+    }
+  } else {
+    const path = isAbsolute(second) ? second : join(io.cwd, second);
+    try { text = fs.readFile(path, 'utf8'); } catch { throw new Refused('NO_FILE', `cannot read ${second}`, 'pass the path of the record file'); }
+  }
+  return check(io, text, label, given);
+}
+
+/** Check one record text under its label and print the result; shared by the file and issue forms so both print the same failures. */
+function check(io, text, label, given) {
+  const shape = recordShape(text, given);
   const { block, offset } = recordBlock(text);
   const failures = [];
   let current = block;
   while (failures.length < MAX_FAILURES) {
     try { parseContributionRecord(current, shape); break; } catch (error) {
       if (!(error instanceof Refused)) throw error;
-      const found = failure(error, second, offset);
+      const found = failure(error, label, offset);
       failures.push(found);
       current = blankOut(current, found.field);
       if (current === null) break;
     }
   }
-  failures.push(...secretFailures(text, second));
+  failures.push(...secretFailures(text, label));
   const summary = summaryOf(text).length;
   io.say(`summary ${summary} of ${MAX_SUMMARY_CHARS} characters`);
-  io.result?.({ file: second, shape, ok: failures.length === 0, summary: { length: summary, max: MAX_SUMMARY_CHARS }, failures });
-  if (!failures.length) { io.say(`${second}: a ${shape} record the parser accepts`); return 0; }
+  io.result?.({ file: label, shape, ok: failures.length === 0, summary: { length: summary, max: MAX_SUMMARY_CHARS }, failures });
+  if (!failures.length) { io.say(`${label}: a ${shape} record the parser accepts`); return 0; }
   for (const item of failures) io.say(`${item.where}: ${item.code}; rule: ${item.rule}; fix: ${item.fix}; skill: ${item.command}`);
-  io.say(`${failures.length} failure${failures.length === 1 ? '' : 's'} in ${second}`);
+  io.say(`${failures.length} failure${failures.length === 1 ? '' : 's'} in ${label}`);
   return 1;
 }

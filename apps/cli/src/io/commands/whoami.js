@@ -20,7 +20,7 @@ export async function run(io) {
   const env = process.env.PULLBOARD_MODEL;
   const modelMismatch = env && me.model !== 'unknown' && env !== me.model ? { env, seat: me.model } : null;
   io.result?.({ ...me, path: ctx.info.root, ...(modelMismatch ? { modelMismatch } : {}) });
-  io.say(`${me.displayName} (${me.lane} lane${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}\naddress ${me.address}`);
+  io.say(`${me.displayName} (${me.lane} lane${me.role ? `, ${me.role}` : ''}${me.route === 'light' ? ', light route' : ''}) at ${ctx.info.root}\naddress ${me.address}`);
   if (modelMismatch) io.say(`PULLBOARD_MODEL=${env} differs from this seat's recorded model ${me.model}; verdicts use ${me.model}; make a seat for ${env} with pullboard worktree ${me.lane} --model ${env}`);
   return 0;
 }

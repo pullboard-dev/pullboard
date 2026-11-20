@@ -5,23 +5,21 @@ import { writeCheckReceipt } from '../../../../git/index.js';
 import { receiptLine } from '../../../../git/index.js';
 /** Cache the cells checks per exact repository state so a repeat on unchanged inputs replays in well under a second [C7]. */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { storeName } from '../store-names.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
+const environment = environmentAdapter();
+
+const fs = fileSystemAdapter();
 const KEEP = 60;
 
 /** Run git quietly in a directory; null when it fails, so an odd checkout simply misses the cache. */
 function git(root, args) {
-  const run = gitSpawnSync(args, { cwd: root, encoding: 'buffer', maxBuffer: 1 << 28, env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_OPTIONAL_LOCKS: '0' } });
+  const run = gitSpawnSync(args, { cwd: root, encoding: 'buffer', maxBuffer: 1 << 28, env: { ...Object.fromEntries(Object.entries(environment.all()).filter(([key]) => !key.startsWith('GIT_'))), GIT_OPTIONAL_LOCKS: '0' } });
   return run.status === 0 ? run.stdout : null;
 }
 
@@ -30,7 +28,7 @@ function git(root, args) {
  * The setting is read straight from the file so a cache hit never loads the whole config.
  */
 export function cellsCacheEnabled(root) {
-  try { return JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'))?.cells?.cache === true; } catch { return false; }
+  try { return JSON.parse(fs.readFile(join(root, 'pullboard.json'), 'utf8'))?.cells?.cache === true; } catch { return false; }
 }
 
 /**
@@ -46,7 +44,7 @@ export function cellsStateKey(root) {
   if (!head || !diff || !untracked) return null;
   const hash = createHash('sha256').update(head).update('\0').update(process.version).update('\0').update(diff).update('\0');
   for (const name of untracked.toString().split('\0').filter(Boolean).sort()) {
-    try { hash.update(name).update('\0').update(readFileSync(join(root, name))).update('\0'); } catch { return null; }
+    try { hash.update(name).update('\0').update(fs.readFile(join(root, name), null)).update('\0'); } catch { return null; }
   }
   return hash.digest('hex');
 }
@@ -73,8 +71,8 @@ function replay(lines) {
 /** Drop the oldest entries beyond the keep limit; failures only leave extra files. */
 function prune(dir) {
   try {
-    const files = readdirSync(dir).map(name => ({ name, time: statSync(join(dir, name)).mtimeMs })).sort((a, b) => b.time - a.time);
-    for (const { name } of files.slice(KEEP)) rmSync(join(dir, name), { force: true });
+    const files = fs.list(dir).map(name => ({ name, time: fs.stat(join(dir, name)).mtimeMs })).sort((a, b) => b.time - a.time);
+    for (const { name } of files.slice(KEEP)) fs.rm(join(dir, name), { force: true });
   } catch { /* Pruning is best effort. */ }
 }
 
@@ -103,7 +101,7 @@ export function cachedCellsRun(root, label, fn, options = {}) {
   if (!state || !dir) return fn();
   const file = join(dir, `${storeName(createHash('sha256').update(JSON.stringify([state, label, key?.checkDigest, key?.configDigest])).digest('hex'))}`);
   try {
-    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    const saved = JSON.parse(fs.readFile(file, 'utf8'));
     if (Number.isInteger(saved.code) && Array.isArray(saved.lines)) {
       if (saved.code === 0) writeCheckReceipt(root, key, { result: saved });
       replay(saved.lines); return saved.code;
@@ -113,10 +111,10 @@ export function cachedCellsRun(root, label, fn, options = {}) {
   if (code === 0) writeCheckReceipt(root, key, { result: { code, lines } });
   replay(lines);
   try {
-    mkdirSync(dir, { recursive: true });
+    fs.mkdir(dir, { recursive: true });
     const temp = `${file}.${process.pid}.tmp`;
-    writeFileSync(temp, JSON.stringify({ code, lines }));
-    renameSync(temp, file);
+    fs.writeFile(temp, JSON.stringify({ code, lines }));
+    fs.rename(temp, file);
     prune(dir);
   } catch { /* A failed save only costs the next run a miss. */ }
   return code;

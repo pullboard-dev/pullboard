@@ -8,10 +8,6 @@
       "cells": 5,
       "deep": 0
     },
-    "apps/cli/src/io/alive.js": {
-      "cells": 2,
-      "deep": 0
-    },
     "apps/cli/src/io/bar.js": {
       "cells": 3,
       "deep": 0
@@ -1660,10 +1656,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/doctrine/src/io/paths.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/doctrine/src/io/rulings.js": {
       "cells": 3,
       "deep": 0
@@ -1969,6 +1961,14 @@
       "deep": 0
     },
     "packages/gate/tests/fixtures/diagnostics.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-runners.js": {
       "cells": 1,
       "deep": 0
     },
@@ -5976,12 +5976,6 @@
   },
   "packageApps": {
     "packages/git/tests/fixtures/flakes.js": [
-      "apps/cli"
-    ],
-    "packages/runners/tests/fixtures/advance.js": [
-      "apps/cli"
-    ],
-    "packages/runners/tests/fixtures/fleet.js": [
       "apps/cli"
     ],
     "packages/store/tests/fixtures/cell.js": [

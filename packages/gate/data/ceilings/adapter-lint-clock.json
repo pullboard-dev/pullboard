@@ -1,9 +1,8 @@
 {
   "version": 1,
-  "total": 1098,
+  "total": 1097,
   "files": {
     "apps/cli/src/io/add.js": 3,
-    "apps/cli/src/io/alive.js": 1,
     "apps/cli/src/io/claim.js": 1,
     "apps/cli/src/io/cli-main/run.js": 1,
     "apps/cli/src/io/cli-main/session.js": 1,

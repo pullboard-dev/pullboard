@@ -1,6 +1,5 @@
 /** Seal an owner wait only at the authenticated native source origin [B3,L1,V4]. */
 import { createHash } from 'node:crypto';
-import { realpathSync } from 'node:fs';
 import {
   repoInfo,
   headCommit,
@@ -24,12 +23,15 @@ import {
   boardFilePath,
 } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Derive routing data from the board's repository and the same strict lane refusal, never supplied paths. */
 export function sealOwnershipWait(board, id, request) {
   const item = itemById(board, id), root = request?.root;
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
-  if (typeof root !== 'string' || !file || realpathSync(boardFilePath(repoInfo(root).commonDir)) !== realpathSync(file)
+  if (typeof root !== 'string' || !file || fs.realpath(boardFilePath(repoInfo(root).commonDir)) !== fs.realpath(file)
     || headCommit(root) !== request.commit || headTree(root) !== request.tree || !isClean(root)) {
     throw new Refused('OWNERSHIP_WAIT_SOURCE', 'ownership routing must seal the clean proved source in this board\'s native item context');
   }
@@ -38,7 +40,7 @@ export function sealOwnershipWait(board, id, request) {
   const worker = captured?.state === 'running' && captured.agentId === request.agentId
     && captured.executionCommit === request.commit && captured.executionTree === request.tree
     && captured.digest === item.item_frozen_digest && captured.main === request.main
-    && typeof workerRoot === 'string' && realpathSync(root) === realpathSync(workerRoot);
+    && typeof workerRoot === 'string' && fs.realpath(root) === fs.realpath(workerRoot);
   const nativeMain = mainPolicy(root).commit;
   if (request.main !== nativeMain && !(worker && contains(root, request.main, nativeMain))) {
     throw new Refused('OWNERSHIP_WAIT_SOURCE', "ownership routing needs current main or the captured worker's still-ancestral pinned main");
@@ -49,7 +51,7 @@ export function sealOwnershipWait(board, id, request) {
       executionCommit: request.commit, executionTree: request.tree,
       companionDigest: board.enginePorts.itemPatchDigest(board, id, request.commit),
     }, { sourceOnly: true });
-    if (realpathSync(root) !== realpathSync(source.root)) {
+    if (fs.realpath(root) !== fs.realpath(source.root)) {
       throw new Refused('OWNERSHIP_WAIT_SOURCE', 'route only from the registered builder, its native item folder or its exact captured worker');
     }
   }

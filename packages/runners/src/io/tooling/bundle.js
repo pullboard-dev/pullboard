@@ -1,16 +1,14 @@
 /** Cache the captured worker bundle by its tooling digest, so a new commit with the same tooling skips the rebuild [C7,#8462]. */
 import { createHash } from 'node:crypto';
-import { chmodSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { scratchRoot } from '../../../../config/index.js';
 import { LEGACY_WORKER_ENTRY } from '../../logic/entries.js';
 import { WORKER_ENTRY } from '../../logic/entries.js';
 import { sourceGit } from '../source/scan.js';
+
+const fs = fileSystemAdapter();
 
 const sha256 = text => createHash('sha256').update(text).digest('hex');
 const DIGEST = /^[a-f0-9]{64}$/u;
@@ -25,16 +23,16 @@ function latestPath(root) { return join(scratchRoot(), `pullboard-tooling-bundle
 /** Write a file only this user can read, renamed into place whole. */
 function place(path, text) {
   const staging = `${path}.${process.pid}.tmp`;
-  writeFileSync(staging, text, { mode: 0o600 });
-  chmodSync(staging, 0o600);
-  renameSync(staging, path);
+  fs.writeFile(staging, text, { mode: 0o600 });
+  fs.chmod(staging, 0o600);
+  fs.rename(staging, path);
 }
 
 /** A file's text when it is this user's own and no one else can write it, else null. */
 function ownText(path) {
-  const state = statSync(path);
+  const state = fs.stat(path);
   if (!state.isFile() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return null;
-  return readFileSync(path, 'utf8');
+  return fs.readFile(path, 'utf8');
 }
 
 /**

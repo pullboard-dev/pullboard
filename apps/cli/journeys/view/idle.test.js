@@ -1,3 +1,4 @@
+// pullboard: browser
 // fixture-subject: addItem
 /** @pullboard-test-gui */
 import { viewApiPorts } from '../../../view/index.js';
@@ -44,6 +45,14 @@ async function idleFixture(t) {
     assert.equal(response.status, 200, path);
     return response.json();
   };
+  // A state read answers at once with a row age unknown (null) and never counts as current until the age worker lands it, so the
+  // warm baseline is taken only after every row age is known [A2].
+  const deadline = Date.now() + 20_000; // budget: the age worker walks the fixture history once, as row-ages-new-commit.test.js allows
+  let ages = (await get('state')).state.rowAgesAt;
+  while (Object.values(ages ?? {}).some(at => at === null) && Date.now() < deadline) {
+    ages = (await get('state')).state.rowAgesAt;
+  }
+  assert.ok(!Object.values(ages ?? {}).some(at => at === null), 'the row ages landed before the baseline');
   return { base, clock, board, get, api, id, secret, builds: () => builds, original: exportBoard(board) };
 }
 

@@ -1,0 +1,5 @@
+{
+  "store.next.derived-seat-family-used": {"proves":{"specs":["C7"],"claim":"nextFor given a derived seat-family answer uses it for the seat and builder families of the review family check."},"why":"Without it, a regression where nextFor ignores the derived seat families would pass unnoticed.","kind":"cell unit","inputs":["packages/store/tests/io/board/next.test.js"]},
+  "store.next.derived-seat-family-fallback": {"proves":{"specs":["C7"],"claim":"Without the answer, or for an id it does not name, nextFor computes the families as before and offers the same item."},"why":"Without it, a regression where a missing derived answer changes the item next offers would pass unnoticed.","kind":"cell unit","inputs":["packages/store/tests/io/board/next.test.js"]},
+  "store.next.derived-seat-family-beside-gate": {"proves":{"specs":["C7"],"claim":"nextFor reads the derived seat-family option beside the derived gate-at-head option from the same options."},"why":"Without it, a regression where the two derived options stop working together would pass unnoticed.","kind":"cell unit","inputs":["packages/store/tests/io/board/next.test.js"]}
+}

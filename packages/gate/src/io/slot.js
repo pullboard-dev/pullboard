@@ -6,10 +6,11 @@ import { Refused } from '../../../kernel/index.js';
 import { recordRunnerMeasurement } from '../../../config/index.js';
 import { declaredMachineSlots } from '../../../config/index.js';
 import { machineHome } from '../../../resources/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { withEnvironment } from '../../../resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import {
   confirmRunnerProbe,
@@ -94,7 +95,7 @@ export function infrastructureBackoffMs(failures, { startMs, maxMs }) {
  * @returns {{ windowMs: number, startMs: number, maxMs: number, sleep: (ms: number) => Promise<void>, now: () => number }}
  */
 export function infrastructureRetryPolicy(given = {}) {
-  const fromEnv = process.env.PULLBOARD_INFRA_RETRY_BACKOFF_MS;
+  const fromEnv = environmentAdapter().get('PULLBOARD_INFRA_RETRY_BACKOFF_MS');
   const envMs = fromEnv !== undefined && fromEnv !== '' && Number.isFinite(Number(fromEnv)) && Number(fromEnv) >= 0 ? Number(fromEnv) : null;
   return { windowMs: given.windowMs ?? INFRA_RETRY_WINDOW_MS, startMs: given.startMs ?? envMs ?? INFRA_BACKOFF_START_MS,
     maxMs: given.maxMs ?? INFRA_BACKOFF_MAX_MS, sleep: given.sleep ?? (ms => new Promise(done => setTimeout(done, ms))), now: given.now ?? Date.now };
@@ -120,12 +121,14 @@ export function rotateRunners(runners, avoided, tried) {
 export function requireGateExecutionServices(value) {
   const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
+  // Optional: carried when given, so a services object built before the release shard readers existed is still admitted [#11370].
+  const optional = ['offerReleaseShards', 'releaseParticipationShards'].filter(name => typeof value?.landing?.[name] === 'function');
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
     throw new TypeError('gate execution needs explicit canonical runner and landing services');
   }
   return Object.freeze({ runners: Object.freeze(Object.fromEntries(runners.map(name => [name, value.runners[name]]))),
-    landing: Object.freeze(Object.fromEntries(landing.map(name => [name, value.landing[name]]))) });
+    landing: Object.freeze(Object.fromEntries([...landing, ...optional].map(name => [name, value.landing[name]]))) });
 }
 
 /**
@@ -287,7 +290,7 @@ export function gateRunnerLoadPolicy(settings) {
  */
 function recordedCapacity(name) {
   const file = join(machineHome(), 'resources.sqlite');
-  if (!existsSync(file)) return null;
+  if (!fileSystemAdapter().exists(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout = 2000'); // a WAL read waits only on recovery; never stall an admission for it [C7]

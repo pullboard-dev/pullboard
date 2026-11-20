@@ -2,8 +2,8 @@
 /** Rebuild the shared test registries after an item merge and print the files that changed, one JSON list [C7,V24]. */
 import { git } from '../../../../../git/index.js';
 import { deriveTestRegistries } from '../../../../index.js';
-import { idRenames } from '../../../../index.js';
-import { testIdIndex } from '../../../../index.js';
+import { idRenames } from '../../../../heavy.js';
+import { testIdIndex } from '../../../../heavy.js';
 
 /**
  * What the item merge changed in test files: each rename (old path to new) and every path added, copied, modified or renamed to.

@@ -1,0 +1,51 @@
+{
+ "order": 21,
+ "name": "commits",
+ "kind": "package",
+ "root": "packages/commits",
+ "frontDoor": "packages/commits/index.js",
+ "lightFrontDoor": "packages/commits/light.js",
+ "paths": [
+  ["src/commit-message.js","packages/commits/src/logic/message.js","seed"],
+  ["src/commit-metadata.js","packages/commits/src/logic/metadata.js","seed"],
+  ["src/commit-signoff.js","packages/commits/src/io/signoff.js","seed"],
+  ["src/guard-revert.js","packages/commits/src/io/revert.js","seed"],
+  ["src/hooks.js","packages/commits/src/io/hooks.js","seed"],
+  ["src/infra-note.js","packages/commits/src/io/note.js","seed"],
+  ["src/why-file.js","packages/commits/src/logic/why.js","seed"],
+  ["test/agent-guidance.test.js","packages/commits/tests/guidance.test.js","seed"],
+  ["src/tier-row-change.js","packages/commits/src/logic/change/row/tier.js","rule"],
+  ["src/import-only-change.js","packages/commits/src/logic/import-only-change.js","rule"]
+ ],
+ "reexports": [],
+ "imports": [
+  {"cell":"kernel","imports":5,"before":true},
+  {"cell":"git","imports":4,"before":true},
+  {"cell":"codemap","imports":1,"before":true},
+  {"cell":"config","imports":1,"before":true},
+  {"cell":"seats","imports":2,"before":true},
+  {"cell":"spec","imports":2,"before":true},
+  {"cell":"items","imports":1,"before":false},
+  {"cell":"sandbox","imports":1,"before":false},
+  {"cell":"landing","imports":1,"before":false},
+  {"cell":"sync","imports":1,"before":false}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": 0,
+  "shims": 7,
+  "boundaries": 2,
+  "strays": -3,
+  "documents": 0,
+  "cyclesIfUncut": 2,
+  "assetReads": 0
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 12/43: commits moves into packages/commits behind shims",
+  "criterion": "Cells move 12 of 43 (RFC 0006; plan entry 12 in packages/codemap/data/plan/cells.json): the 10 paths the entry lists for package commits move with git mv to their planned targets under packages/commits, and packages/commits/index.js is the front door, re-exporting the 7 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the import from earlier cells into it that the entry lists as cuts is gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource 0, shims +7, boundaries +2) and none rises; node packages/codemap/src/io/cells/scripts/plan.js --moved commits passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node packages/codemap/src/io/cells/scripts/plan.js --moved commits",
+  "after": ["kernel","git","codemap","config","seats","spec"]
+ }
+}
