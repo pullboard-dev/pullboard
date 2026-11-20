@@ -72,6 +72,7 @@ import { companionInherits } from './gate/companion.js';
 import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
 import { mainRedFileExcuse } from './gate/main-red-files.js';
+import { handUnknownGatesToReview } from './gate/unknown-review.js';
 import { mainRedFileLines } from './gate/main-red-files.js';
 import { caseRows } from './gate/main-red-files.js';
 import { shardNote } from './gate/retry.js';
@@ -1155,7 +1156,11 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
     if (seedWide === true) seedWideMainTestsAtMain(board, { now: options.now });
     offerMainTests(board, { now: options.now });
     // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
-    settleWindow.run(board, options.now, () => settleDoneShardGates(board, ports, { now: options.now }));
+    // A claimed item whose gate settled unknown goes to review once main's receipts excuse every red file, so its claim never pins finished work (#12569).
+    settleWindow.run(board, options.now, () => {
+      settleDoneShardGates(board, ports, { now: options.now });
+      if (!queueFor(board, 'coordinator')) handUnknownGatesToReview(board, ports, { now: options.now ?? Date.now() }, { latestGateJob, offeredGate, postedReceipt, shardedResult, applyGateReceipt });
+    });
   }
   // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
