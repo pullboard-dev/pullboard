@@ -8,6 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { landedCutItemRows } from '../../../index.js';
+import { writeFileSync } from 'node:fs';
+import { runnerCommand } from '../../../src/io/commands/runner.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { remoteSubmitCells } from '../../../src/io/submit/remote.js';
 
 const LIMIT = 1024 ** 2;
@@ -57,4 +61,48 @@ test('cli.io-commands-runner.an-ordinary-candidate-s-remote-cell-request: an ord
   const everything = db.prepare("SELECT item_id, item_lane, item_title, item_status, item_merged_commit FROM item WHERE item_status='verified'").all();
   const bulk = await capturedRequest(root, () => everything);
   assert.ok(bulk.bytes > LIMIT, `the control request (${bulk.bytes} bytes) proves the fixture reaches the limit`);
+});
+
+const SUDO = 'sudo launchctl bootout system/dev.pullboard.runner';
+
+/** Run work with PULLBOARD_MACHINE_HOME on a folder holding one registered runner and, when given, its install-serve record. */
+async function withRunner(t, record, work) {
+  const { root: home } = privateFixtureFiles('pullboard-runner-pending-');
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  fixtureMachineSettings(home, { runners: [{ host: 'fixture-runner' }] });
+  if (record) writeFileSync(join(home, 'runner-services.json'), JSON.stringify({ 'fixture-runner': record }));
+  const before = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  try { return await work(); } finally { if (before === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = before; }
+}
+
+test('cli.io-commands-runner.list-shows-pending-removal: clause 1: runner list prints pending removal of the old service with the sudo line, and the json result carries pendingRemoval [P7]', async t => {
+  await withRunner(t, { board: 'http://board.test', form: 'agent', loaded: false, sudo: SUDO, pendingRemoval: true }, async () => {
+    const lines = [];
+    let result;
+    assert.equal(await runnerCommand({ say: line => lines.push(line), result: value => { result = value; } }, { first: 'list', rest: [], values: {} }), 0);
+    const row = result.runners.find(entry => entry.host === 'fixture-runner');
+    assert.equal(row.pendingRemoval, true);
+    assert.equal(row.sudo, SUDO);
+    assert.match(lines.join('\n'), /pending removal of old service/);
+    assert.ok(lines.join('\n').includes(SUDO));
+  });
+  await withRunner(t, { board: 'http://board.test', form: 'agent', loaded: true }, async () => {
+    const lines = [];
+    let result;
+    await runnerCommand({ say: line => lines.push(line), result: value => { result = value; } }, { first: 'list', rest: [], values: {} });
+    assert.equal(result.runners.find(entry => entry.host === 'fixture-runner').pendingRemoval, undefined);
+    assert.doesNotMatch(lines.join('\n'), /pending removal/);
+  });
+});
+
+test('cli.io-commands-runner.install-serve-pending-removal-not-ready: clause 2: install-serve for a result with pendingRemoval prints NOT READY with the sudo line and returns exit 1 [P7]', async t => {
+  await withRunner(t, undefined, async () => {
+    const lines = [];
+    const install = async runner => ({ host: runner.host, label: 'dev.pullboard.runner', form: 'agent', loaded: false, pendingRemoval: true, sudo: SUDO, plist: '/x.plist', log: '/x.log' });
+    const code = await runnerCommand({ say: line => lines.push(line), result: () => {} }, { first: 'install-serve', second: 'fixture-runner', rest: [], values: { board: 'http://board.test', key: 'fixture-key' } }, { install });
+    assert.equal(code, 1);
+    assert.match(lines.join('\n'), /NOT READY/);
+    assert.ok(lines.join('\n').includes(SUDO));
+  });
 });
