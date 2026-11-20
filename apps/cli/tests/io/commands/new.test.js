@@ -57,7 +57,7 @@ const PLAN = 'packages/codemap/data/plan';
 function projectWithNewCell(name) {
   const box = e2e.project();
   const index = { version: 1, names: {}, cells: [{ order: 1, name, file: `${PLAN}/01-${name}.json` }], stays: [], retired: [], entries: [], engineStays: [], allowedEdges: [], upwardEdgesGrandfathered: [] };
-  const shard = { order: 1, name, kind: 'package', root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, paths: [], reexports: [], imports: [], cuts: [] };
+  const shard = { order: 1, name, kind: 'package', root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, pureFrontDoor: `packages/${name}/light.js`, paths: [], reexports: [], imports: [], cuts: [] };
   return { box, index, shard };
 }
 
@@ -69,6 +69,9 @@ test('cli.io-commands-new.lints-cell-lint-report-clean: clause 1: a cell written
     mkdirSync(dirname(join(box.repo, path)), { recursive: true });
     writeFileSync(join(box.repo, path), JSON.stringify(body, null, 2) + '\n');
   }
+  // The report reaches a package only from an app front door, so the fixture app imports the new cell.
+  mkdirSync(join(box.repo, 'apps', 'shop'), { recursive: true });
+  writeFileSync(join(box.repo, 'apps', 'shop', 'index.js'), "import '../../packages/tidy-cell/index.js';\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the new cell and its plan row');
   const report = withCellLintParser(compile => cellLintReport(box.repo, cellLintParsers(compile)));
