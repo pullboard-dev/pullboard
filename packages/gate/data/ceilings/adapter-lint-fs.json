@@ -127,9 +127,6 @@
     "packages/store/src/io/board/sqlite.js": 2,
     "packages/store/src/io/board/state.js": 2,
     "packages/store/src/io/board/submit.js": 1,
-    "packages/store/src/io/board/write/lock.js": 12,
-    "packages/sync/src/io/git/lock.js": 1,
-    "packages/sync/src/io/git/repair.js": 6,
-    "packages/sync/src/io/main.js": 1
+    "packages/store/src/io/board/write/lock.js": 12
   }
 }
