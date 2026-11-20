@@ -43,7 +43,7 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
   assert.deepEqual(waits, { version: 1, key: 'fixture-wait-key', over: [] });
   // block, expedite and rulings are additive roots read through real CLI JSON on a board holding two items.
   const ids = [];
-  for (const title of ['Block item one', 'Block item two']) ids.push((await uncataloguedRootJSON(box, box.repo, 'add', ['coordinator', title, '--specs', 'G1', '--criterion', `${title} is verified`, '--check', 'true'])).item.item_id);
+  for (const title of ['Block fixture alpha: tighten the parser', 'Block fixture beta: rotate the cache keys']) ids.push((await uncataloguedRootJSON(box, box.repo, 'add', ['coordinator', title, '--specs', 'G1', '--criterion', `${title} is verified`, '--check', 'true'])).item.item_id);
   await uncataloguedRootJSON(box, box.repo, 'block', ['add', 'catalog-block', ...ids.map(String), '--tier', 'mid']);
   assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'block', ['list'])).blocks.map(block => block.name), ['catalog-block']);
   const expedited = await uncataloguedRootJSON(box, box.repo, 'expedite', [String(ids[0]), '--reason', 'catalog fixture expedite']);

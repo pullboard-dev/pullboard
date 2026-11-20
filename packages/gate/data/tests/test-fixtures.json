@@ -535,9 +535,6 @@
   "packages/codemap/tests/io/cells/backlog.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/edges/temporary.test.js": {
-    "tempdir": 1
-  },
   "apps/cli/tests/fixtures/check-baseline.js": {
     "tempdir": 1,
     "hand-policy": 1,
@@ -865,9 +862,6 @@
     "tempdir": 1
   },
   "packages/runners/tests/fixture-copiers.test.js": {
-    "tempdir": 1
-  },
-  "packages/gate/tests/logic/test/source/edits.test.js": {
     "tempdir": 1
   },
   "apps/cli/tests/fixtures/cases/quarantine-submit.js": {
@@ -1471,7 +1465,7 @@
     "tempdir": 2,
     "raw-board": 4
   },
-  "apps/cli/journeys/submit/steps.test.js": {
+  "apps/cli/tests/io/submit/steps.test.js": {
     "model": 5
   },
   "packages/board/tests/from-store/any.test.js": {

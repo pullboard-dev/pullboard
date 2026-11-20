@@ -62,7 +62,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-015.json",
-          "sha256": "04ab88e9f5d4a1fdd2a9219cc3be2100234544f9be47f9c010b276e4362b2cb3"
+          "sha256": "2682a66a6ccf48375c8c4bae799567089fb8d99896b4f4e0371a728fd118dbf5"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-016.json",
@@ -130,7 +130,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-002.json",
-          "sha256": "bbe84839d0fcd62095f1a8051db544880bc48cb5c0223ba7d67e559f649f75a7"
+          "sha256": "aeb8f426c9cb0278683ca9de99e66a9a284838f7d771d08b643aabe8d6a37b9a"
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-003.json",
