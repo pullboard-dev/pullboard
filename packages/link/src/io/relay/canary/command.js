@@ -87,7 +87,7 @@ export async function run(io, { first = 'status', second, rest = [], values = {}
     if (io.relaySignal?.aborted) controller.abort();
     let result;
     try {
-      result = await runRelayCanary(config, { io: { ...io, relaySignal: controller.signal }, notify: (notice, observation) => {
+      result = await runRelayCanary(config, { io: { ...io, relaySignal: controller.signal }, relayWake: ports.relayWake?.(ctx), notify: (notice, observation) => {
         if (controller.signal.aborted) throw new Refused('RELAY_CANARY_STOPPED', 'the canary stopped; pending notifications remain for its next ordinary run');
         return notify(ports, { ...ctx, io: { ...io, relaySignal: controller.signal } }, config, notice, observation);
       } });
@@ -123,7 +123,7 @@ async function watch(ports, ctx, config) {
     run: (selected, { io }) => {
       ports.withBoard(ctx, board => requireSeat(ports, ctx, board, selected));
       const current = { ...ctx, io: { ...ctx.io, ...io } };
-      return runRelayCanary(selected, { io: current.io, notify: (notice, observation) => notify(ports, current, selected, notice, observation) });
+      return runRelayCanary(selected, { io: current.io, relayWake: ports.relayWake?.(current), notify: (notice, observation) => notify(ports, current, selected, notice, observation) });
     },
     onError: error => ctx.io.err(`Relay canary has a pending observation or notice (${error.code ?? 'RELAY_CANARY_FAILURE'}); the next minute retries it.`),
   });
