@@ -106,8 +106,8 @@ test('cli.io-commands-join.move-refusal-reaches-builder: clause 2: a LANE_HELD r
   const seat = freshSeat(box, 'holder');
   const first = await joinFixtureSeat(box, seat, 'web', { model: FIXTURE_MODEL });
   assert.equal(first.code, 0, first.err);
-  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Held page', criterion: 'the held page exists', args: ['--specs', 'G1'] });
-  const claimed = await runCliInProcess(['claim', '--json'], { cwd: seat, env: box.env });
+  const { item } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Held page', criterion: 'the held page exists', args: ['--specs', 'G1'] });
+  const claimed = await runCliInProcess(['claim', String(item.item_id), '--json'], { cwd: seat, env: box.env });
   assert.equal(claimed.status, 0, claimed.stderr);
   const held = await runCliInProcess(['join', 'api', '--model', FIXTURE_MODEL, '--route', 'strong'], { cwd: seat, env: box.env });
   assert.notEqual(held.status, 0);
