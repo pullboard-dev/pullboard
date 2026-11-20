@@ -46,8 +46,8 @@ function submittedLanding(t, pace, options = {}, status = 'submitted') {
   const builder = cellSeat(board, { lane: 'core', path: `${repo.root}/seat` }).id;
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
   board.db.exec('INSERT INTO temp.moving VALUES (1)');
-  board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=? WHERE item_id=7`)
-    .run(status, commit, builder, JSON.stringify(pace === 'steady' ? {} : { pace }), 'd'.repeat(64), builder);
+  board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=?, item_verified_by=? WHERE item_id=7`)
+    .run(status, commit, builder, JSON.stringify(pace === 'steady' ? {} : { pace }), 'd'.repeat(64), builder, status === 'verified' ? 'coordinator' : null);
   board.db.exec('DELETE FROM temp.moving');
   const job = offerLandingJob(board.db, { items: [{ id: 7, commit, ref: 'refs/pullboard/land/7', ...(pace === 'sprint' ? { pace } : {}) }], expect: commit, config: CONFIG, ...(pace === 'sprint' ? { sprint: SPRINT } : {}) });
   const lease = claimJob(board.db, { runner: 'r-land', capabilities: [], now: 2 });
