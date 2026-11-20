@@ -3,6 +3,7 @@ import { Refused } from '../../../../kernel/light.js';
 import { missingNeeds } from '../../../../queue/light.js';
 import { defineRules } from './rules.js';
 import { CLAIM_NEXT } from './next.js';
+import { unmetWaits } from '../lifecycle/rules.js';
 export { CLAIM_NEXT } from './next.js';
 
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
@@ -102,12 +103,12 @@ function firstRefusalReason(s, m) {
 /** The first unlanded dependency, or a claim_waiting wait still open. */
 function dependencyProblem(s, m) {
   if (s.io.foreignBlocker) return `#${m.id} waits on ${s.io.foreignBlocker.label} (${s.io.foreignBlocker.status} on its own board); refresh that board before claiming`;
-  for (const id of s.item.after) {
-    const dep = s.items[id];
-    if (dep.status !== 'verified' && dep.status !== 'withdrawn') {
-      const shown = dep.status === 'claimed' && !leaseLive(s, dep) ? 'open' : dep.status;
-      return `#${m.id} waits on #${id} (${shown}, ${dep.lane} lane); claim another item, or shout ${dep.lane} if it is stuck`;
-    }
+  const waits = s.item.after.filter(id => s.items[id]?.status !== 'withdrawn');
+  const [first] = unmetWaits({ after: waits, afterGate: s.item.afterGate }, new Map(waits.map(id => [id, s.items[id]])));
+  if (first) {
+    const dep = s.items[first.id];
+    const shown = dep?.status === 'claimed' && !leaseLive(s, dep) ? 'open' : first.state;
+    return `#${m.id} waits on #${first.id} (${shown}, ${dep?.lane} lane); claim another item, or shout ${dep?.lane} if it is stuck`;
   }
   const open = s.claimWaiting.filter(id => s.items[id] && s.items[id].status !== 'withdrawn' && !s.items[id].merged);
   return open.length ? `#${m.id} is waiting on ${open.map(id => `#${id}`).join(', ')} to land; it returns to the queue when that lands` : null;

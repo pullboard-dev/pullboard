@@ -49,6 +49,30 @@ export function queuePostLandMainTest(board, { job, trunk, items, queue = null }
   }
 }
 
+/** The pull-out starter this process's board API calls for the items a red post-land receipt reopened; null until a host provides one. */
+let pullOutStarter = null;
+
+/**
+ * Provide the function that runs the pull-out of the items a red post-land receipt reopened: start({ root, items }).
+ * Why a provider: the pull-out reverts on the trunk with git and pushes through the fence from the CLI's lander, so
+ * `pullboard serve` hands it in and the board API keeps no import of the CLI [M2,R3,#12184].
+ * @param {((request: { root: string, items: number[] }) => unknown) | null} start
+ */
+export function providePostLandPullOut(start) {
+  pullOutStarter = typeof start === 'function' ? start : null;
+}
+
+/** Start the pull-out of `items` once this receipt's writes are done; a failed start is logged, and the landing wake runs it again. */
+function startPullOut(board, items) {
+  if (!pullOutStarter || !board.gitRoot || !items.length) return;
+  const start = pullOutStarter, root = board.gitRoot;
+  setImmediate(() => {
+    Promise.resolve().then(() => start({ root, items })).catch(error => {
+      process.stderr.write(`${new Date().toISOString()} pull-out of ${items.map(id => `#${id}`).join(', ')} not started after a red main-wide test: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}\n`);
+    });
+  });
+}
+
 /** Whether a job id names a post-land test job: one id per landed tip, under POST_LAND_JOB_PREFIX. */
 export function postLandJob(job) {
   return String(job ?? '').startsWith(POST_LAND_JOB_PREFIX);
@@ -94,5 +118,6 @@ export function applyPostLandReceipt(board, { job, receipt }, ports = {}) {
       process.stderr.write(`${new Date().toISOString()} #${id} not reopened after main-wide test job ${job} went red: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}\n`);
     }
   }
+  startPullOut(board, reopened);
   return { applied: reopened.length > 0, outcome: 'red', reopened };
 }

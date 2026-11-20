@@ -79,7 +79,7 @@ function marker(t) {
 
 /** The local runner's last heartbeat time; the runner process that applied the receipt writes it on a timer. */
 function heartbeatAt(box) {
-  return Number(localRunnerState(fixtureRunnerFolder(box.env))?.heartbeatAt ?? 0);
+  return Number(localRunnerState(fixtureRunnerFolder(box.env), Date.now(), box.env.PULLBOARD_HOME || null)?.heartbeatAt ?? 0);
 }
 
 test('cli.sprint.screen-on-submit: clause 1: on a fresh board with pace sprint, a claimed, built item submitted with submit --no-next gets exactly one green screen job with no accept given [V2,M1,#12175]', { timeout: CASE_MS }, async t => {

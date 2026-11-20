@@ -4,6 +4,7 @@
  * Why: a red only in files that load-flake on a busy runner went back to a builder whose seat was already gone, and the
  * next builder resubmitted the same commit; a rerun on a quieter moment settles it with no agent [C7,P7].
  */
+import * as store from '../../../../store/index.js';
 import { readPayload } from '../../../../jobs/index.js';
 import { offerJob } from '../jobs.js';
 import { offeredRequest } from '../jobs.js';
@@ -50,4 +51,9 @@ export function retryNewReds(board, { parent, combined, compared }) {
   offerJob(db, { id, kind: SHARD_JOB_KIND, priority: 'gate', needs, item: first.job_item, candidate: first.job_candidate, base: first.job_base,
     request: { ...request, input: { ...request.input, data: { ...request.input.data, shard: { ...shard, index: 1, of: 1, files, command } } } } });
   return { retried: true };
+}
+
+/** Append one note fact to the item a sharded gate was offered for, as the submitter, when the gate carries its submit. */
+export function shardNote(board, offered, text) {
+  if (offered?.submit) store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note', text });
 }

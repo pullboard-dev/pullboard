@@ -2,12 +2,14 @@
 import { mergeableData } from '../logic/manifest.js';
 import { createHash } from 'node:crypto';
 import { gitExecFileSync } from '../../../git/index.js';
-import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { resolveMechanicalIndex } from './mechanical.js';
 import { Refused } from '../../../kernel/index.js';
 import { scratchFolder } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const PREPARED = new WeakSet();
 
@@ -100,6 +102,6 @@ async function compose(root, inputHead, trunk, work) {
     }
     if (added && controllerStarted && !controllerTerminal) throw new Error(`source-advance controller custody is unknown; retain owned source ${directory}`);
     if (added) git(root, ['worktree', 'remove', directory]);
-    rmSync(outer, { recursive: true, force: true });
+    fs.rm(outer, { recursive: true, force: true });
   }
 }

@@ -14,6 +14,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
 import { loadDoctrine } from '../../../../../../packages/doctrine/index.js';
 import { STATUSES } from '../../../../../../packages/spec/index.js';
 import { frozenCriterion } from '../../../../../../packages/spec/index.js';
@@ -272,6 +273,11 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
   if (agentCount !== undefined && (!Number.isSafeInteger(agentCount) || agentCount < 12 || agentCount > 10000)) throw new RangeError('agents must be an integer from 12 through 10000');
   if (requestedShouts !== undefined && (!Number.isSafeInteger(requestedShouts) || requestedShouts < 1 || requestedShouts > 100000)) throw new RangeError('shouts must be an integer from 1 through 100000');
   const workspace = mkdtempSync(join(parent, 'pullboard-stress-'));
+  // Per-stage wall time of this build (#11716): each stage() call names the work since the previous mark.
+  const stages = [];
+  let mark = performance.now();
+  let historyMs = 0;
+  const stage = (name, ms) => { const now = performance.now(); stages.push({ name, ms: Math.round(ms ?? now - mark) }); mark = now; };
   let board = null;
   let keepWorkspace = false;
   try {
@@ -288,7 +294,9 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
       GIT_AUTHOR_EMAIL: 'stress@pullboard.invalid', GIT_COMMITTER_NAME: 'Stress fixture', GIT_COMMITTER_EMAIL: 'stress@pullboard.invalid',
       GIT_AUTHOR_DATE: FIXED_NOW.toISOString(), GIT_COMMITTER_DATE: FIXED_NOW.toISOString() };
     run('git', ['init', '-q', '-b', 'main'], root, env);
+    stage('git-init');
     run(process.execPath, [BIN, 'init', '--model', 'Stress fixture'], root, env);
+    stage('pullboard-init');
     writeConfig(root);
     const source = specText(seed, size);
     writeFileSync(join(root, 'SPEC.md'), source);
@@ -299,6 +307,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     const tree = run('git', ['write-tree'], root, env).trim();
     const head = run('git', ['commit-tree', tree, '-m', 'chore: create the stress fixture'], root, env).trim();
     run('git', ['update-ref', 'refs/heads/main', head], root, env);
+    stage('spec-and-commit');
     const repo = { root, env, head, tree };
     const spec = loadSpec(root, { spec: 'SPEC.md' });
     const doctrine = loadDoctrine(root, { practice: 'DOCTRINE.md' });
@@ -306,11 +315,13 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     const boardFile = join(root, '.git', 'pullboard', 'board.sqlite');
     board = openBoard(boardFile, { now: () => new Date(FIXED_NOW) });
     ensureCoordinator(board, canonicalRoot);
+    stage('open-board');
     const initialEvent = events(board).at(-1)?.event_id ?? 0;
     // This isolated fixture has no readers until return; retain every native move and commit
     // the generated population together, instead of paying an outer transaction per record.
     const manifest = atomic(board, () => {
       const agents = registerAgents(board, root, size, agentCount);
+      stage('agents');
       const statuses = lifecyclePlan(size);
       const firstOpenIndex = statuses.indexOf('open');
       const longestHistoryIndex = statuses.indexOf('claimed');
@@ -372,8 +383,12 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
           }
         }
         const targetHistory = id === longestHistoryItemId ? 168 : index % 100 === 0 ? 37 : index % 10 === 0 ? 18 : 8;
+        const historyStart = performance.now();
         fillHistory(board, id, seed, builder, targetHistory, usedEvents, id === longestHistoryItemId ? 8 : index % 12 === 0 ? 2 : 0);
+        historyMs += performance.now() - historyStart;
       }
+      stage('items', performance.now() - mark - historyMs);
+      stage('histories', historyMs);
       const shoutCount = requestedShouts ?? Math.round(7_289 * size / 605);
       for (let index = 0; index < shoutCount; index += 1) {
         const text = index === 0 ? textOf(seed, 'Longest generated shout', 14_000) : textOf(seed, `Generated board update ${index + 1}`, 410);
@@ -383,6 +398,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
       assert.throws(() => shout(board, { from: agents.writer, to: 'all', text: 'x'.repeat(401), lanes: LANES }),
         error => error.code === 'SHOUT_TOO_LONG', 'new writes still obey the landed 400-character cap');
       assert.equal(allShouts(board).length, historicalCount, 'the current-write refusal creates no extra fixture shout');
+      stage('shouts');
       const milestoneCount = Math.max(1, Math.round(size * 56 / 605));
       const rowCount = Math.max(milestoneCount, Math.round(size * 384 / 605));
       for (let index = 0, cursor = 0; index < milestoneCount; index += 1) {
@@ -390,6 +406,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
         const referenced = Array.from({ length: itemCount }, () => ids[cursor++ % ids.length]);
         addMilestone(board, { agentId: 'coordinator', name: `Milestone ${index + 1}`, note: textOf(seed, `Roadmap note ${index + 1}`, 120), items: referenced, reason: 'Arrange stress fixture release' });
       }
+      stage('milestones');
       const snapshot = boardSnapshot(board, seed, source, initialEvent);
       const boardDigest = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
       const itemEvents = events(board).filter((event) => event.event_id > initialEvent && event.item_id !== null).length;
@@ -401,14 +418,16 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
         throw new Error('the generated board lifecycle does not match its planned state counts');
       }
       if (JSON.stringify(actualLaneTotals) !== JSON.stringify(laneTotals)) throw new Error('the generated board lanes do not match their planned counts');
+      stage('snapshot');
       return { version: 1, seed, size, digest: boardDigest, root, home, machineHome, boardFile, parent: resolve(parent),
         smallItemId, smallItemTitle, longestHistoryItemId, longestHistoryTitle, liveWriter: agents.writer, itemEvents, shoutCount,
         milestoneCount, milestoneRows: rowCount, specRows: Math.max(5, Math.round(size * 250 / 605)), statusTotals, laneTotals: actualLaneTotals,
         specStatusTotals, agentCount: listAgents(board).length };
     });
     writeFileSync(join(workspace, 'stress-board.json'), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+    stage('write-out');
     keepWorkspace = true;
-    return { ...manifest, workspace, env };
+    return { ...manifest, workspace, env, stages };
   } finally {
     if (board) closeBoard(board);
     if (!keepWorkspace) rmSync(workspace, { recursive: true, force: true });

@@ -16,23 +16,30 @@ export const ENV_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-env.js
 const KERNEL = 'packages/kernel/';
 /** The scope installer, exempt by exact path: it replaces process.env with a per-caller scope proxy, which the adapter cannot do over a source object [C7,#11917]. */
 const SCOPE_INSTALLER = 'packages/resources/src/io/environment.js';
+/** The gate preload, exempt by exact path: its reads sit inside the template string gateRuntimeCaptureSource returns, run as a CJS preload in the test child process, which cannot import the adapter [C7,#11497]. */
+const GATE_PRELOAD = 'packages/gate/src/io/preload.js';
+/** The sandbox capture source, exempt by exact path: its reads sit mostly in the runtimeCaptureSource template, generated text run in a child process that must stay byte-identical to the gate preload and cannot import the adapter [C7,#11932]. */
+const SANDBOX_CAPTURE_SOURCE = 'packages/sandbox/src/io/environment.js';
 const SOURCE_FILE = /^(?:apps\/[^/]+\/src|packages\/[^/]+\/src|bin)\/.*\.[cm]?js$/u;
 const ENV_READ = /(?<![\w$.])process\.env\b|(?<![\w$])(['"`])(?:[^'"`\n]*\/)?(?:[\w.-]*(?:config|settings)\.json|\.env(?:\.[\w-]+)?|\.pullboardrc)\1/gu;
 
 /**
- * The three files whose environment reads sit inside generated child-script strings (BOOTSTRAP, ANALYSIS_ENTRY, GATE_JOB_ENTRY and the stringified
- * remoteCells). A child node process runs those strings and cannot import the adapter, so the lint skips these exact paths and no others.
+ * The files whose environment reads sit inside generated child-script strings (BOOTSTRAP, ANALYSIS_ENTRY, GATE_JOB_ENTRY, the stringified
+ * remoteCells and the WARM_ENTRY template). A child node process runs those strings and cannot import the adapter, so the lint skips these exact paths and no others.
  */
 export const ENV_GENERATED_SCRIPT_FILES = [
   'apps/cli/src/io/submit/gate.js',
   'apps/cli/src/io/submit/pull.js',
   'apps/cli/src/io/submit/remote.js',
+  'apps/cli/src/io/fixture-memo-warm.js',
 ];
 
 /** Whether a repo-relative path is a source file the lint covers: not the kernel, not a test, not a generated child-script file. */
 export const coveredByEnvLint = path => SOURCE_FILE.test(path) && !path.startsWith(KERNEL)
   && !ENV_GENERATED_SCRIPT_FILES.includes(path)
   && path !== SCOPE_INSTALLER
+  && path !== GATE_PRELOAD
+  && path !== SANDBOX_CAPTURE_SOURCE
   && !/(?:^|\/)tests?\//u.test(path) && !/[-_.]test\.[cm]?js$/u.test(path);
 
 /**

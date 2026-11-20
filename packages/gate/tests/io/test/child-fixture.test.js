@@ -61,7 +61,7 @@ test('gate.io-test-child-fixture.a-fixture-git-wrapper-still-runs: clause 2: a f
   const files = privateFixtureFiles('pb-git-wrapper-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   files.write('bin/git', '#!/bin/sh\necho wrapped\n');
-  chmodSync(join(files.root, 'bin', 'git'), 0o755);
+  chmodSync(join(files.root, 'bin/git'), 0o755);
   const env = { ...process.env, PATH: `${join(files.root, 'bin')}:/usr/bin:/bin` };
   assert.equal(fixtureGitCommand('git', env, '/real/bin/git'), 'git');
   const run = runFixtureChild('git', ['--version'], { env, encoding: 'utf8' });

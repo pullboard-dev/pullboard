@@ -16,7 +16,7 @@ import {
 } from "../schema/source.js";
 import { Refused } from "../../../../../kernel/light.js";
 // Engine numbers come from the state light door, which reads each named engine declaration on load [C7].
-import { ENGINE_VERSION } from "../../../../../state/light.js";
+import { ENGINE_VERSION } from "../../../../../state/browser.js";
 
 const fs = fileSystemAdapter();
 
