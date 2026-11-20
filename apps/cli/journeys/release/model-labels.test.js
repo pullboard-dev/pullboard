@@ -86,7 +86,7 @@ test('cli.journeys-release-model-labels.model-names-label-cli-actors-without: mo
     assert.ok(second.prompt.includes("Model: 'GPT 6'. This worktree joined with --model 'GPT 6'."), second.prompt);
     assert.ok(second.prompt.includes("pass --model 'GPT 6' or set PULLBOARD_MODEL='GPT 6'"), second.prompt);
 
-    const wrongLane = fixtureJoin(box.run, repo.web, 'api', '--model', CLAUDE_MODEL);
+    const wrongLane = fixtureJoin(box.run, repo.web, 'api', '--model', OTHER_MODEL);
     assert.equal(wrongLane.code, 1);
     assert.ok(wrongLane.err.includes('ALREADY_JOINED') && wrongLane.err.includes('retry with lane web and model "Claude"'), wrongLane.err);
 
