@@ -2,15 +2,7 @@ import {
   frozenCheckTiming,
 } from '../../../../../items/light.js';
 /** Finite autonomous main-merge work uses ordinary admission, native receipts and ordered writes [C7,V4,H16]. */
-import {
-  copyFileSync,
-} from 'node:fs';
-import {
-  existsSync,
-} from 'node:fs';
-import {
-  readFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import {
   createHash,
 } from 'node:crypto';
@@ -20,12 +12,6 @@ import {
 import {
   gitExecFileSync,
 } from '../../../../../git/index.js';
-import {
-  mkdirSync,
-} from 'node:fs';
-import {
-  rmSync,
-} from 'node:fs';
 import {
   join,
 } from 'node:path';
@@ -61,6 +47,8 @@ import {
   withSourceComposition,
 } from '../../../../../merge/index.js';
 import { storeName } from '../../store-names.js';
+
+const fs = fileSystemAdapter();
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -157,7 +145,7 @@ export function hasSourceAdvanceJobs(root, services, info = repoInfo(root)) {
   // Once this repository has advisory state, a foreground wake must enter the
   // serialized drain even when the current snapshot is empty. It may be the
   // next generation after an earlier real job, and only the owner can settle it.
-  return existsSync(directory);
+  return fs.exists(directory);
 }
 
 /** Signal incomplete work once through the ordinary item thread without a self-shout or fabricated authority. */
@@ -172,7 +160,7 @@ async function incomplete(write, file, job, reason, { readMainAudit, saveMainAud
 
 /** Retain the actual raw phase logs and profiles before removing their private Git directory. */
 function retainArtifacts(directory, job, gate, composition, { saveMainAudit }) {
-  const folder = join(directory, job.key); mkdirSync(folder, { recursive: true, mode: 0o700 });
+  const folder = join(directory, job.key); fs.mkdir(folder, { recursive: true, mode: 0o700 });
   const sources = new Map();
   for (const [role,source] of [['combined',gate.log],['combined-profile',gate.profilePath],['criterion',gate.check?.log],
     ['criterion-profile',gate.check?.profilePath],['affected',gate.proofLog],['affected-profile',gate.proofProfilePath]]) {
@@ -181,8 +169,8 @@ function retainArtifacts(directory, job, gate, composition, { saveMainAudit }) {
   }
   const artifacts = [...sources].map(([source,roles],index) => {
     const file = join(folder,`${index}${source.endsWith('.json')?'.json':'.log'}`);
-    copyFileSync(source,file);
-    return { roles, source, file, sha256:createHash('sha256').update(readFileSync(file)).digest('hex') };
+    fs.copyFile(source,file);
+    return { roles, source, file, sha256:createHash('sha256').update(fs.readFile(file, null)).digest('hex') };
   });
   saveMainAudit(join(folder,'manifest.json'), { version:1, head:composition.head, tree:composition.tree, trunk:job.basis.trunk, artifacts });
   return artifacts;
@@ -261,7 +249,7 @@ export async function runSourceAdvances(root, token, services) {
   // creating advisory state before discovering an empty snapshot races that cleanup.
   // The serialized snapshot below remains authoritative for every real job.
   if (!hasSourceAdvanceJobs(root, services, info)) return;
-  const directory = sourceAdvanceDirectory(info); mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const directory = sourceAdvanceDirectory(info); fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const ownerFile = join(directory,'owner.json'), wakeFile = join(directory,'wake.json'), lock = join(directory,'owner.guard.sqlite');
   const acquired = await withFileLock(lock, () => {
     const wake = readMainAudit(wakeFile);
@@ -289,13 +277,13 @@ export async function runSourceAdvances(root, token, services) {
         if (!Number.isSafeInteger(wake?.generation) || wake.generation < generation) throw new Error('invalid source-advance wake');
         if (wake.generation !== generation) return wake.generation;
         saveMainAudit(join(directory,services.settledFile), { generation, token });
-        rmSync(ownerFile); return null;
+        fs.rm(ownerFile); return null;
       });
       if (next === null) return;
       generation = next;
     }
   } finally {
     await withFileLock(lock, () => { const owner = readMainAudit(ownerFile);
-      if (owner?.pid === process.pid && owner.token === token) rmSync(ownerFile); });
+      if (owner?.pid === process.pid && owner.token === token) fs.rm(ownerFile); });
   }
 }
