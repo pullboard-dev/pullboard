@@ -1,14 +1,23 @@
-import { execFile } from 'node:child_process';
 import { addWorktree } from '../../../../git/index.js';
+import { gitSpawn } from '../../../../git/index.js';
 
 /** Distinguishes the base worktrees one process makes. */
 let counter = 0;
 
-/** Run git in the trunk without blocking the lease timer, and answer its stdout. */
+/** Run git in the trunk through the git adapter without blocking the lease timer, and answer its stdout. */
 function git(root, args) {
-  return new Promise((done, fail) => execFile('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) fail(new Error(`git ${args[0]} failed: ${String(stderr).slice(0, 300)}`)); else done(stdout);
-  }));
+  return new Promise((done, fail) => {
+    const child = gitSpawn(args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = [];
+    const err = [];
+    child.stdout.on('data', chunk => out.push(chunk));
+    child.stderr.on('data', chunk => err.push(chunk));
+    child.on('error', fail);
+    child.on('close', status => {
+      if (status === 0) done(Buffer.concat(out).toString('utf8'));
+      else fail(new Error(`git ${args[0]} failed: ${Buffer.concat(err).toString('utf8').slice(0, 300)}`));
+    });
+  });
 }
 
 /** Run git in the trunk and answer its stdout lines. */
