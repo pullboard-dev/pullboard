@@ -2,6 +2,9 @@
 /** pullboard join --role advisor is carried and refused as the bar says, and a plain join is unchanged [C7,#10993]; join --json carries level beside route, equal to it, on a new registration and on an already-joined seat [C7,#10969]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { openBoardForRead } from '../../../../../packages/store/index.js';
 import { after } from 'node:test';
 import { before } from 'node:test';
 import { test } from 'node:test';
@@ -62,4 +65,21 @@ test('cli.io-commands-join-role.clause-3-plain-join-unchanged: clause 3: a join 
   assert.equal(text.status, 0, text.stderr);
   assert.doesNotMatch(text.stdout, /advisor/u);
   assert.match(text.stdout, /in the web lane/u);
+});
+
+test('cli.join.abilities-flag: clause 1: join --abilities browser,gui names both in the join result, and --abilities gpu is refused USAGE naming browser and gui [U136,#11476]', async () => {
+  const joined = await runCliInProcess(['join', 'web', '--abilities', 'browser,gui', '--json'], { cwd: freshSeat(box, 'abilities'), env: box.env });
+  assert.equal(joined.status, 0, joined.stderr);
+  assert.deepEqual(JSON.parse(joined.stdout).abilities, ['browser', 'gui']);
+  // Real path: the join wrote the list where next reads a seat's abilities (the agent_abilities:<id> board meta, #11477).
+  const board = openBoardForRead(boardFilePath(join(box.repo, '.git')));
+  try {
+    const stored = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_abilities:${JSON.parse(joined.stdout).agent}`);
+    assert.deepEqual(JSON.parse(stored.meta_value), ['browser', 'gui']);
+  } finally { closeBoard(board); }
+  const refused = await runCliInProcess(['join', 'web', '--abilities', 'gpu'], { cwd: freshSeat(box, 'abilities-bad'), env: box.env });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /USAGE/u);
+  assert.match(refused.stderr, /browser/u);
+  assert.match(refused.stderr, /gui/u);
 });

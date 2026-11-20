@@ -99,6 +99,30 @@ export function requireRegistryRecord(tracked, named, isTest) {
   }
 }
 
+/**
+ * Refuse a bar that names a file on main which a lane other than the item's owns, LANE_FOREIGN_PATH (#11739).
+ * Why: pre-commit refuses such a change as OUTSIDE_LANE, so the claim cost a builder a full cycle; add and edit catch it first.
+ * Paths missing from main stay with BAR_PATH_MISSING, coordinator-owned paths with CROSS_OWNERSHIP, shared paths are open to
+ * every lane, and the coordinator and the person may name any path.
+ *
+ * @param {any} ctx
+ * @param {{ id: string }} me The filing seat.
+ * @param {{ lane: string, criterion?: string, check?: string, by?: string }} item
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts the bar as written.
+ */
+export function requireBarInLane(ctx, me, item, on) {
+  if (!on || me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
+  const named = barPaths({ criterion: item.criterion, check: item.check });
+  if (!named.length) return;
+  const found = onTrunk(ctx.info.root)(named);
+  const foreign = named.filter(path => found.has(path.replace(/\/$/u, '')) && !ctx.config.shared.some(prefix => path.startsWith(prefix)))
+    .map(path => ({ path, owner: laneOf(ctx.config, path) })).filter(({ owner }) => owner !== COORDINATOR && owner !== item.lane);
+  if (!foreign.length) return;
+  const owners = [...new Set(foreign.map(({ owner }) => owner))];
+  throw new Refused('LANE_FOREIGN_PATH', `the bar names ${foreign.map(({ path, owner }) => `${path} (${owner}'s)`).join(', ')}, which lane ${item.lane} does not own`,
+    `file it in the owning lane (${owners.join(', ')}), or split it into the ${item.lane} piece and the ${owners.join('/')} piece filed with --after the first`);
+}
+
 /** A pass-with-no-tests flag of a test runner: the check goes green when the named test file does not exist. */
 const PASS_EMPTY_FLAG = /--(?:passWithNoTests|pass-with-no-tests)\b/u;
 
