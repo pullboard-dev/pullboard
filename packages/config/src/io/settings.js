@@ -493,6 +493,11 @@ export function claimKeepWhileRunning() {
   return loadMachineSettings().claim?.keepWhileRunning === true;
 }
 
+/** Whether claim.checkCeiling is on: off by default; only an exact `true` makes claim refuse a check whose measured time is over its ceiling [C7,#1273]. */
+export function claimCheckCeilingEnabled() {
+  return loadMachineSettings().claim?.checkCeiling === true;
+}
+
 /** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
 export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
