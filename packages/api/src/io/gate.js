@@ -89,7 +89,7 @@ const MAX_SHARDS = 32;
  * runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the job rows are read from the runs file; null reads the board's [B2,P7,#9149].
  */
 export function latestGateJob(db, item, { runs = null } = {}) {
-  return (runs ? runs.db : db).prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
+  return prepared(runs ? runs.db : db, "SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
 }
 
 /**
@@ -300,9 +300,10 @@ function shellWord(value) {
 
 /** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. Why SHARD_JOBS_SQL reads a key range on job_id (the primary key) from the prefix to the prefix plus U+FFFF (job ids are plain text, so none holds it): substr() scanned every gate-shard row on each pull claim, and +job_kind keeps the planner off job_kind_created, which it picks for a plain key range [C7]. */
 export function shardJobs(db, job, { runs = null } = {}) {
-  return (runs ? runs.db : db).prepare(SHARD_JOBS_SQL).all(SHARD_JOB_KIND, `${job}:shard:`, `${job}:shard:\uFFFF`);
+  return prepared(runs ? runs.db : db, SHARD_JOBS_SQL).all(SHARD_JOB_KIND, `${job}:shard:`, `${job}:shard:\uFFFF`);
 }
 export const SHARD_JOBS_SQL = 'SELECT job_id, job_step FROM job WHERE +job_kind = ? AND job_id >= ? AND job_id < ? ORDER BY job_created, job_id';
+const STATEMENTS = new WeakMap(), prepared = (db, sql, byText = STATEMENTS.get(db) ?? STATEMENTS.set(db, new Map()).get(db)) => byText.get(sql) ?? byText.set(sql, db.prepare(sql)).get(sql); // One prepared statement per connection and SQL text: a settle pass looks up two per done gate on every pull claim, and preparing them each time cost more than running them [C7,#12095].
 
 /** The note's words for the shards that hold a runner alone; none when no file is timing. */
 const timed = buckets => {
@@ -506,11 +507,10 @@ const SETTLE_LOOKBACK_MS = 24 * 60 * 60_000;
  */
 export function settleDoneShardGates(board, ports = {}, { now = Date.now() } = {}) {
   if (queueFor(board, 'coordinator')) return [];
-  const { db } = board;
-  const rows = db.prepare(`SELECT job.job_id AS job, job.job_item AS item FROM item JOIN job ON job.job_item = item.item_id
+  const { db } = board, settled = [];
+  const rows = prepared(db, `SELECT job.job_id AS job, job.job_item AS item FROM item JOIN job ON job.job_item = item.item_id
     WHERE item.item_status = 'claimed' AND job.job_kind = 'gate' AND job.job_step = 'done' AND job.job_created >= ?
       AND NOT EXISTS (SELECT 1 FROM job_step WHERE job_step_job = job.job_id AND job_step_name = ?)`).all(now - SETTLE_LOOKBACK_MS, `note:${SHARDS_SETTLED}`);
-  const settled = [];
   for (const { job, item } of rows) {
     if (latestGateJob(db, item) !== job) continue;
     const shards = shardJobs(db, job);
