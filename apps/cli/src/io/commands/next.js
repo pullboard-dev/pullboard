@@ -74,6 +74,7 @@ import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
 import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
@@ -117,7 +118,8 @@ export async function nextHere(io, values) {
   io.nextPhase = progress.enter;
   try {
     delete io.lagSilent;
-    const code = await nextWithProgress(io, values, progress);
+    // One item list serves every phase of this next between its own writes, instead of a full read per phase and per other seat's commit [C7,N2,#12010].
+    const code = await store.withItemSnapshot(() => nextWithProgress(io, values, progress));
     // An item folder is cut from current main, so the seat checkout's lag says nothing about that build [U159].
     progress.enter('lag');
     if (!io.lagSilent) sayLag(io, context(io));
@@ -132,7 +134,7 @@ export async function nextHere(io, values) {
   }
   finally {
     progress.stop(); await monitor?.close();
-    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
+    if (environmentAdapter().get('PULLBOARD_NEXT_PROFILE')) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
     delete io.lagSilent;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
@@ -235,6 +237,8 @@ async function nextWithProgress(io, values, progress) {
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
   try { for (;;) {
+    // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
+    store.refreshItemSnapshot();
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {

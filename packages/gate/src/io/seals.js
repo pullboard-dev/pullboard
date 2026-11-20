@@ -87,7 +87,7 @@ export function packageHashesAt(root, revs) {
   return trees.map(tree => {
     let imports = {};
     try { imports = JSON.parse(texts.get(tree.get('package.json')) ?? '{}').imports ?? {}; } catch { /* no import map */ }
-    // Cells are read from this revision's committed plan, so a declared cell owns its legacy paths here.
+    // A file under a package or app folder is owned by that folder root; no plan is read.
     const declared = cellOwners({ get: path => (tree.has(path) ? Buffer.from(texts.get(tree.get(path)) ?? '') : undefined) });
     const owners = new Map(), owner = file => {
       if (!owners.has(file)) owners.set(file, ownerOf(file, tree, declared));
