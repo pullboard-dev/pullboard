@@ -83,7 +83,13 @@ test('cli.sprint.main-break-pulls-out: clause 1: a sprint item whose landing bre
   const id = entry.item;
   const landed = await helpers.waitFor(() => itemRow(box, id)?.item_merged_commit ?? null, 'the sprint item landed', WAIT_MS); // budget: declared WAIT_MS
   mark(`#${id} landed at ${landed.slice(0, 12)}`);
-  await helpers.waitFor(() => /^Revert /u.test(trunkSubject(box)), 'main takes the revert of the landing', WAIT_MS); // budget: declared WAIT_MS
+  try { await helpers.waitFor(() => /^Revert /u.test(trunkSubject(box)), 'main takes the revert of the landing', WAIT_MS); } // budget: declared WAIT_MS
+  finally {
+    // The jobs and the item's events at the end of the wait, so a missing revert names the step the chain stopped at.
+    const jobs = boardRead(box, 'SELECT job_kind, job_step, job_id FROM job ORDER BY job_created');
+    const events = boardRead(box, 'SELECT event_kind FROM event WHERE item_id = ? ORDER BY event_id', id).map(row => row.event_kind);
+    mark(`jobs: ${JSON.stringify(jobs).slice(0, 700)}; events: ${events.join(',')}; main: ${trunkSubject(box)}`);
+  }
   mark(`main reverted: ${trunkSubject(box)}`);
   assert.equal(postLandJobs(box), 1, 'one main-wide test job ran on the landed tip');
   assert.equal(pullOutJobs(box, id), 1, 'the board holds one pull-out job');
