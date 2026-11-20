@@ -1,0 +1,16 @@
+{
+  "store.io-write-queue-file.drain-reads-each-pending-record-once": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with 300 writes pending in one queue directory, a drain applies them in publish order, parses each pending record once rather than once per pass, still drops a pending record whose owner process is gone or whose result is stored, and the case prints the drain total in milliseconds."
+    },
+    "why": "Without it a drain that went back to re-reading and re-parsing every pending record after each pass would cost about 45,000 parses for 300 writes, and nothing would show it.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/write-queue-file.test.js",
+      "packages/store/src/io/write-queue-file.js"
+    ]
+  }
+}

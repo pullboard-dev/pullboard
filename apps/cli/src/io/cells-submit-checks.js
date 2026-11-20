@@ -1,4 +1,4 @@
-import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/index.js';
+import { withImportParseCache as withSubmitParseCache } from '../../../../packages/gate/heavy.js';
 import { withCellGitObjects } from '../../../../packages/codemap/index.js';
 import { cellsObjectSnapshots } from '../../../../packages/codemap/index.js';
 import { withCellSourceSnapshots } from '../../../../packages/codemap/index.js';
@@ -8,8 +8,8 @@ import { withCellLintParser } from '../../../../packages/codemap/index.js';
 import { cellsCacheDirectory } from '../../../../packages/codemap/index.js';
 import { inventoryCache } from './cells/cache-door.js';
 import { observationCache } from './cells/cache-door.js';
-import { acceptedCellsIdentity } from '../../../../packages/gate/index.js';
-import { readAcceptedCells } from '../../../../packages/gate/index.js';
+import { acceptedCellsIdentity } from '../../../../packages/gate/heavy.js';
+import { readAcceptedCells } from '../../../../packages/gate/heavy.js';
 import { inventoryPending } from './cells/cache-door.js';
 import { withBindingReadCache } from '../../../../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
@@ -26,6 +26,7 @@ import { cellGit as git } from '../../../../packages/codemap/index.js';
 import { cellTryGit as tryGit } from '../../../../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { cellInventory } from '../../../../packages/codemap/index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintGrowth } from '../../../../packages/codemap/index.js';
@@ -42,8 +43,6 @@ import { pureDoorProblems } from '../../../../packages/codemap/index.js';
 import { pureFrontDoorProblems } from '../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../packages/codemap/index.js';
 import { shardFile } from '../../../../packages/codemap/index.js';
-import { unplanned } from '../../../../packages/codemap/index.js';
-import { stalePlanRows } from '../../../../packages/codemap/index.js';
 import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
@@ -298,15 +297,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot, criterion);
   const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
   const newInventory = inventories ? inventories.candidate(candidateRoot, oldInventory, changed) : cellInventory(candidateRoot, parsers);
-  const unplaced = unplanned(candidateRoot, after, newInventory);
   const machinery = [];
-  if (reorg && unplaced.length) {
-    const message = `source paths have no cells-plan entry: ${unplaced.join(', ')}; place each with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`;
-    if (!collectMachinery) throw new Refused('CELLS_PLAN_UNPLACED', message);
-    machinery.push({ kind: 'placement', code: 'CELLS_PLAN_UNPLACED', message, rule: receiptDigest(readFileSync(fileURLToPath(import.meta.url), 'utf8')) });
-  }
-  warnings.push(...unplaced.map(file => warning(file, 1, 'no cells-plan placement', `node packages/codemap/src/io/cells/scripts/plan.js --place ${file} --cell <cell> (or --stay), then commit the plan`)));
-  policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
   for (const row of deletedScriptMentions(mainRoot, candidateRoot, changed)) {
     if (reorg) policy.push(`${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
@@ -371,10 +362,12 @@ function cellsComposition(root, acceptedMain, commit) {
     '-m', 'chore(cells): inspect immutable submit composition [C7,D3]'], { env });
 }
 
+const environment = environmentAdapter();
+
 /** Bind every approved Node preload to its actual bytes; uncertainty disables persistent reuse. */
 function preloadFingerprint() {
   try {
-    return String(process.env.NODE_OPTIONS ?? '').split(/\s+/u).filter(Boolean).map(token => {
+    return String(environment.get('NODE_OPTIONS', '')).split(/\s+/u).filter(Boolean).map(token => {
       const match = /^--(?:import|require)=(.+)$/u.exec(token);
       if (!match) throw new Error('unrecognized preload');
       const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];

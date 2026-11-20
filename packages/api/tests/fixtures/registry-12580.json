@@ -1,0 +1,31 @@
+{
+  "api.gate.receipt-file-red-key.whole-file-red-compares-with-main": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "mainRedFileExcuse treats a proof phase red only through failedFiles (a file that failed as a whole, no case named) as a file to compare with main, and excuses it when a main-test receipt is red at the input key the phase's ledger gives it."
+    },
+    "why": "Without it a file-level red (import error, crash) was refused as a red naming no case, so items sat on an unknown gate behind a main-red file.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/gate/receipt-file-red-key.test.js",
+      "packages/api/src/io/gate/main-red-files.js",
+      "packages/api/src/io/gate/files.js"
+    ]
+  },
+  "api.gate.receipt-file-red-key.whole-file-red-otherwise-unexcused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A whole-file red is not excused when main measured only another input key, when its ledger has no keyed row for the file, or when the phase names neither a case nor a file."
+    },
+    "why": "Without the guard a file-level red could be excused on a guess, hiding the item's own failure.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/tests/io/gate/receipt-file-red-key.test.js",
+      "packages/api/src/io/gate/main-red-files.js"
+    ]
+  }
+}

@@ -53,7 +53,7 @@
   "test/board-capture.test.js": "packages/store/tests/io/board/capture.test.js",
   "test/claim-reopen-clock.test.js": "packages/store/tests/claim-reopen-clock.test.js",
   "test/commit-metadata.test.js": "apps/cli/journeys/release/metadata.test.js",
-  "test/item-notes.test.js": "apps/cli/journeys/fact/item/notes.test.js",
+  "test/item-notes.test.js": "apps/cli/tests/io/commands/fact/item-notes.test.js",
   "test/landing-noop.test.js": "apps/cli/journeys/land/landing/noop.test.js",
   "test/shout-item.test.js": "packages/store/tests/logic/board/item/baseline/shout.test.js",
   "test/shout-readable.test.js": "apps/cli/journeys/shout/readable.test.js",

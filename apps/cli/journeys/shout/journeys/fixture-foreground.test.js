@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** The cockpit helper starts its view in the foreground [C7,N26]. */
@@ -22,7 +23,7 @@ import {
   startView,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('the cockpit helper starts its view in the foreground [C7,N26]', async t => {
+test('cli.journeys-shout-journeys-fixture-foreground.the-cockpit-helper-starts-its-view: the cockpit helper starts its view in the foreground [C7,N26]', async t => {
   const box = machine();
   project(box, 'foreground-view');
   delete box.env.PULLBOARD_VIEW_FOREGROUND;

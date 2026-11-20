@@ -28,6 +28,7 @@ import {
 } from '../../../kernel/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { pendingFromJobRow } from '../../../config/index.js';
+import { routeReservations } from '../../../config/index.js';
 import { laneNames } from '../../../seats/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
@@ -38,8 +39,20 @@ function selected(ctx, board, values, services) {
   /** Builds never wait on review cover; the backlog is shouted to the coordinator when the build is claimed [#3792]. */
   const withCover = found => found;
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
-  const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id
+  const omittedIds = values.omitIds ?? [];
+  const nowIso = ctx.clock.now().toISOString();
+  const ownClaim = store.listItems(board).find(item => item.item_status === 'claimed' && item.item_owner === me.id
+    && item.item_lease_until > nowIso && !omittedIds.includes(item.item_id)
     && !store.pendingSubmitHandoff(board, item, { fromJobRow: pendingFromJobRow() }));
+  const holding = Boolean(ownClaim);
+  // One claim per call: a seat holding an unsubmitted claim with a live lease gets that claim back and selects nothing else (#12122).
+  if (ownClaim) {
+    // A clean claim waiting on an unmet prerequisite still yields to an urgent repair: ask the routing before keeping it (#12465).
+    const preempt = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omittedIds.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
+      workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
+    if (preempt?.releaseRequest?.seat === me.id) return { ...preempt, review: false, held: false };
+    return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null, review: false };
+  }
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
@@ -58,6 +71,7 @@ function selected(ctx, board, values, services) {
     assignedIds: omitted, workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
     reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },
+    ...(routeReservations() ? { reservations: true } : {}),
     ...(ctx.config.laneMode === 'off' && !ctx.info.isMain ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}),
   }));
 }
@@ -94,7 +108,7 @@ export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard
 export const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
 
 /**
- * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
+ * Tell the coordinator once that next passed over an item no builder can satisfy, and hold it for a re-bar [B7,B25,C7].
  *
  * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
  * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
@@ -104,6 +118,11 @@ export async function reportUnbuildableOnce(ctx, board, item, holder, refusal, o
   if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
   try {
     await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
+    // Hold the item for a re-bar so no seat is offered it again; a hold already on it is left as it is [B7,C7].
+    if (!store.itemHold(board, item.item_id)) {
+      await ordered(ctx, board, 'holdItem', [item.item_id, { agentId: COORDINATOR,
+        reason: `re-bar: ${refusal.code}: ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}` }]);
+    }
     await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
       // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
       text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);

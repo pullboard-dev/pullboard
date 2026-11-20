@@ -1,5 +1,6 @@
 /** A test run whose owner is gone, or that outlives its file time budget, is stopped and recorded once [C7]. */
 import { execFile } from 'node:child_process';
+import { environmentAdapter } from '../../../env/index.js';
 
 /** A test file's default time budget (packages/gate test-file-budget.js, 600 s) plus a margin before a run counts as stale. */
 export const STALE_TEST_AFTER_MS = 600_000 + 300_000;
@@ -87,7 +88,7 @@ export function sweepStaleTests({ processes, stop = pid => process.kill(pid, 'SI
  * @param {NodeJS.ProcessEnv} [env] - The environment to read.
  * @returns {boolean} True outside every test run.
  */
-export function sweepAllowed(env = process.env) {
+export function sweepAllowed(env = environmentAdapter().all()) {
   return !(env.PULLBOARD_TEST_RUNNER_PID || env.PULLBOARD_TEST_SANDBOX || env.NODE_TEST_CONTEXT);
 }
 

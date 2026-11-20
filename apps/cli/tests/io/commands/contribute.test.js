@@ -1,9 +1,13 @@
 /** pullboard contribute check --issue N reads the record body through the injected GitHub client and prints what the file form prints [C7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { GOOD } from '../../fixtures/contribute-record.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { run } from '../../../src/io/commands/contribute.js';
 
@@ -60,4 +64,22 @@ test('cli.io-commands-contribute.issue-read-fails: clause 2: a readIssue error i
       return true;
     },
   );
+});
+
+test('cli.io-commands-contribute.accept-saves-record: clause 1: contribute accept saves a record the parser accepts under its hash and prints the hash, and for a refused record prints the check failures, saves nothing and returns 1 [C7]', () => {
+  const dir = e2e.project().repo;
+  writeFileSync(join(dir, 'good.yml'), GOOD);
+  writeFileSync(join(dir, 'bad.yml'), BAD);
+  const store = join(dir, '.git', 'pullboard', 'accepted-records');
+  const accepted = recorder(dir);
+  assert.equal(run(accepted, { first: 'accept', second: 'good.yml', rest: ['Bug'], values: {} }), 0);
+  const hash = createHash('sha256').update(GOOD, 'utf8').digest('hex');
+  assert.equal(accepted.said.at(-1), `saved ${hash}`);
+  assert.equal(readFileSync(join(store, hash), 'utf8'), GOOD);
+  const refused = recorder(dir);
+  const checked = recorder(dir);
+  assert.equal(run(refused, { first: 'accept', second: 'bad.yml', rest: ['Bug'], values: {} }), 1);
+  assert.equal(run(checked, { first: 'check', second: 'bad.yml', rest: ['Bug'], values: {} }), 1);
+  assert.deepEqual(refused.said, checked.said);
+  assert.deepEqual(readdirSync(store), [hash]);
 });

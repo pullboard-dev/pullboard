@@ -1,0 +1,30 @@
+{
+  "cli.io-next-trunk-claims.red-held-seat-gets-no-top-up": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A seat holding one claimed item whose gate went red gets no new claim from next, and the same seat with a gate-pending item still gets one."
+    },
+    "why": "Without it, a seat whose own gate went red is handed a second build while other seats get an empty next.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/next/trunk-claims.test.js",
+      "apps/cli/src/io/next.js"
+    ]
+  },
+  "cli.io-next-trunk-claims.red-hold-ends-on-resubmit": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Once the seat resubmits and the red item awaits its gate again, next gives a claim again."
+    },
+    "why": "Without it, a seat whose own gate went red is handed a second build while other seats get an empty next.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/next/trunk-claims.test.js",
+      "apps/cli/src/io/next.js"
+    ]
+  }
+}

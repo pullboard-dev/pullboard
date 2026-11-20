@@ -1,0 +1,5 @@
+{
+  "cli.io-commands-new.writes-anatomy-files": {"proves":{"specs":["C7"],"claim":"clause 1: new package <name> --purpose writes exactly the files newPackageFiles returns under packages/<name> and prints each path."},"why":"Without it, the command could write a different anatomy than the one the pure function declares.","kind":"journey","inputs":["apps/cli/src/io/commands/new.js","apps/cli/src/logic/new-package.js"]},
+  "cli.io-commands-new.refuses-existing-package": {"proves":{"specs":["C7"],"claim":"clause 2: new package refuses NEW_PACKAGE_EXISTS and writes nothing when packages/<name> already exists."},"why":"Without it, a second run could overwrite a cell someone has already built.","kind":"journey","inputs":["apps/cli/src/io/commands/new.js"]},
+  "cli.io-commands-new.refuses-bad-usage": {"proves":{"specs":["C7"],"claim":"clause 3: new refuses USAGE for a first word other than package, or with no name."},"why":"Without it, a typo could create a folder under a wrong name or none.","kind":"journey","inputs":["apps/cli/src/io/commands/new.js"]}
+}

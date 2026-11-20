@@ -1,5 +1,5 @@
 /** Item status and verdict totals for board summaries. */
-import { NEXT_IDLE_ENGINE } from "../../../../state/light.js";
+import { NEXT_IDLE_ENGINE } from "../../../../state/browser.js";
 import { Refused } from "../../../../kernel/light.js";
 import { stageCounts } from "../item/stage.js";
 
@@ -22,9 +22,12 @@ export function stats(board) {
 }
 
 /** Record the authenticated seat's actual empty-next observation, never eligibility or claim authority [R2,N2]. */
-export function recordNextIdle(board, { agentId, reason, skips = [] }, { atomic, logEvent, agentById, shoutStuck, stuckDue }) {
+export function recordNextIdle(board, { agentId, reason, skips = [], timeout, finished }, { atomic, logEvent, agentById, shoutStuck, stuckDue }) {
   return atomic(board, () => {
-    if (!agentById(board, agentId)) throw new Refused('NOT_JOINED', 'join a lane before recording next idle');
+    const agent = agentById(board, agentId);
+    if (!agent) throw new Refused('NOT_JOINED', 'join a lane before recording next idle');
+    if (timeout !== undefined) return recordNextTimeout(board, agent, timeout, logEvent);
+    if (finished === true) return recordNextFinished(board, agent, logEvent);
     if (!['nothing-eligible', 'held', 'review-family', 'main-red', 'focus', 'unknown'].includes(reason)) {
       throw new Refused('BAD_IDLE_REASON', 'record the structured reason returned by next, not guessed historical eligibility');
     }
@@ -36,6 +39,24 @@ export function recordNextIdle(board, { agentId, reason, skips = [] }, { atomic,
     shoutStuck?.(board, agentId);
     return { recorded: true };
   });
+}
+
+/** Record that a next call gave up waiting: minutes waited and what it awaited, never eligibility or claim authority [N2]. */
+function recordNextTimeout(board, agent, timeout, logEvent) {
+  const { minutes, awaited } = timeout ?? {};
+  if (!Number.isSafeInteger(minutes) || minutes < 0 || typeof awaited !== 'string' || !awaited || awaited.length > 200) {
+    throw new Refused('BAD_IDLE_TIMEOUT', 'record the whole minutes waited and the non-empty thing awaited, at most 200 characters');
+  }
+  logEvent(board, agent.agent_id, 'next-idle-timeout', null, { version: 1, engine: NEXT_IDLE_ENGINE, lane: agent.agent_lane, minutes, awaited });
+  return { recorded: true };
+}
+
+/** Record that a seat finished its loop, once per seat however many times next reports it [N2]. */
+function recordNextFinished(board, agent, logEvent) {
+  const earlier = board.db.prepare("SELECT 1 FROM event WHERE event_by=? AND event_kind='next-finished' LIMIT 1").get(agent.agent_id);
+  if (earlier) return { recorded: true, unchanged: true };
+  logEvent(board, agent.agent_id, 'next-finished', null, { version: 1, engine: NEXT_IDLE_ENGINE, lane: agent.agent_lane });
+  return { recorded: true };
 }
 
 /** Read whether the persisted idle interval already describes this seat, without taking a writer. */

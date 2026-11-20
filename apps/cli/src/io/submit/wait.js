@@ -1,10 +1,12 @@
 /** Follow only the exact queued gate, never an unrelated later review verdict [V4,H16,E18]. */
 import { setTimeout as pause } from 'node:timers/promises';
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { submitHandoffRoot } from '../../../../../packages/sandbox/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Read one exact native job without retaining a board lock across a sleep or process observation. */
 function observeJob(ctx, id, acknowledgment, jobId, ports) {
@@ -22,7 +24,7 @@ function observeJob(ctx, id, acknowledgment, jobId, ports) {
 /** Return the actual saved canonical output only after native completion binds it to this source and sender. */
 function completedResult(directory, job, item, id) {
   let submission;
-  try { submission = JSON.parse(readFileSync(join(directory, 'submission.json'), 'utf8')); }
+  try { submission = JSON.parse(fs.readFile(join(directory, 'submission.json'), 'utf8')); }
   catch { throw new Refused('SUBMIT_HANDOFF_RESULT', `the final queued gate output is unavailable; run pullboard show ${id} to read its native receipt`); }
   if (item.item_built_by !== job.agentId || item.item_commit !== job.submitted
     || submission.id !== id || submission.commit !== job.submitted || !submission.gate) {
