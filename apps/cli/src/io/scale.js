@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { currentProofCounters } from '../../../../packages/verify/index.js';
 import { proofCounter } from '../../../../packages/verify/index.js';
 import { exitedSession } from '../../../../packages/store/index.js';
@@ -289,7 +290,7 @@ export async function scaleWorkers(io, values, deps) {
   if (!lane || !command) {
     throw new Refused('USAGE', 'pullboard run --scale --lane <lane> --agent "<command>": the command starts one agent session in the worker worktree ($PULLBOARD_PROMPT) that takes work with pullboard next --take');
   }
-  const model = String(process.env.PULLBOARD_MODEL ?? '').trim();
+  const model = String(environmentAdapter().get('PULLBOARD_MODEL') ?? '').trim();
   if (!model || /[\u0000-\u001f\u007f-\u009f]/u.test(model)) {
     throw new Refused('MODEL_REQUIRED', 'this session has not declared its model; set PULLBOARD_MODEL in this shell, then rerun pullboard run --scale');
   }
@@ -342,7 +343,7 @@ export async function scaleWorkers(io, values, deps) {
       owned.set(seat.id, seat);
       const entry = { child: null, seat };
       running.set(seat.id, entry);
-      const env = { ...process.env, PULLBOARD_SEAT: seat.id, PULLBOARD_ROUTE: seatRoute, PULLBOARD_MODEL: model,
+      const env = { ...environmentAdapter().all(), PULLBOARD_SEAT: seat.id, PULLBOARD_ROUTE: seatRoute, PULLBOARD_MODEL: model,
         PULLBOARD_PROMPT: `${seat.prompt}\nThis seat is already joined on --route ${seatRoute}; keep that route on any join. Take work with pullboard next --take until it has nothing for you, then stop.` };
       /** Reap exactly this launch once; an old child can never remove a newer incarnation of its seat. */
       const finished = error => {

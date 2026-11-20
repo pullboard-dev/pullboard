@@ -2,6 +2,7 @@
  * Board calls over HTTP for a seat whose board lives on another host: with board.url set, join, show and whoami ask
  * the board host's pullboard serve and open no board.sqlite [P7]. Writes reuse its transport from moves.js.
  */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -80,7 +81,7 @@ export async function boardPath(remote) {
 
 /** This seat's agent name: PULLBOARD_AGENT, or the worktree's git config pullboard.agent that a remote join records. */
 export function seatAgent(cwd) {
-  if (process.env.PULLBOARD_AGENT) return process.env.PULLBOARD_AGENT;
+  if (environmentAdapter().get('PULLBOARD_AGENT')) return environmentAdapter().get('PULLBOARD_AGENT');
   try { return gitExecFileSync(['config', '--get', 'pullboard.agent'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; }
   catch { return null; }
 }
