@@ -21,6 +21,7 @@ import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
+import { environmentAdapter } from '../../../env/index.js';
 const fileSystem = fileSystemAdapter();
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
@@ -84,7 +85,8 @@ export function defaults() {
     // Off by default: slices.composeLanding composes an item's slices into one parent review and one atomic landing [C7].
     slices: { enforcePaths: false, composeLanding: false },
     // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
-    next: { wholeItemsFirst: false },
+    // next.idleMinutes bounds how long a seat's next waits with nothing for it; the person sets it, no agent flag [C7,#12041].
+    next: { wholeItemsFirst: false, idleMinutes: 10 },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
@@ -173,6 +175,7 @@ function merge(base, raw) {
       ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
     pushGate: section(raw.pushGate, base.pushGate),
     inbox: section(raw.inbox, base.inbox),
+    next: section(raw.next, base.next),
     agents: section(raw.agents, base.agents),
     claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
       ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
@@ -509,6 +512,9 @@ export function configProblems(config, root) {
   if (config.next?.wholeItemsFirst !== undefined && typeof config.next.wholeItemsFirst !== 'boolean') {
     problems.push('"next.wholeItemsFirst" is true or false');
   }
+  if (config.next?.idleMinutes !== undefined && (!Number.isSafeInteger(config.next.idleMinutes) || config.next.idleMinutes < 1)) {
+    problems.push('"next.idleMinutes" is a positive whole number of minutes, such as 10 (how long a seat\'s next waits when nothing is offered)');
+  }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
   }
@@ -612,6 +618,10 @@ export function provenBreakRequired(config, pace) {
 }
 
 /** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
+/** The minutes a seat's next waits with nothing offered: next.idleMinutes, 10 when unset [C7,#12041]. */
+export function nextIdleMinutes(config) { return config?.next?.idleMinutes ?? 10; }
+
+/** The ceiling for a frozen check: a configured landing.timeout when set, else check.timeout (#1760). */
 export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
@@ -667,8 +677,8 @@ function cadenceProblem(value) {
 export const DEFAULT_VIEW_PORT = 4890;
 
 /** Resolve an omitted --port; explicit command-line ports take precedence over this setting. */
-export function defaultViewPort(env = process.env) {
-  const value = env.PULLBOARD_VIEW_PORT;
+export function defaultViewPort(env) {
+  const value = environmentAdapter(env).get('PULLBOARD_VIEW_PORT');
   if (value === undefined) return DEFAULT_VIEW_PORT;
   if (!/^\d+$/u.test(value) || Number(value) > 65535) {
     throw new Refused('USAGE', 'PULLBOARD_VIEW_PORT is a number from 0 to 65535; unset it to use the default port');

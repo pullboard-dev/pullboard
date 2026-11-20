@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { recordSubmitHandoff } from '../../../../../packages/jobs/index.js';
 import { cli } from '../../fixtures/next/take.js';
 import { fixture } from '../../fixtures/next/take.js';
 
@@ -82,4 +83,58 @@ test('cli.io-next-trunk-claims.next-never-stacks-child-slices: clause 3: at clai
   }
   const owned = children.filter(id => store.getItem(box.board, id).item_owner === seat.id && store.getItem(box.board, id).item_status === 'claimed');
   assert.equal(owned.length, 2, 'the gated slice and one new slice; the other two stay open');
+});
+
+/** A board at claims.perSeat 2 with three disjoint items, the actor seat holding the first. */
+async function holdingOne(t) {
+  const box = await fixture(t, { perSeat: 2 });
+  box.board.gitRoot = box.root;
+  const ids = ['a', 'b', 'c'].map(name => box.add(`Red hold work ${name}`, { brief: `Files: web/red-${name}.js\nTest: the real board selects the item.` }));
+  const claimed = await cli(box, box.seats.actor.path, ['claim', String(ids[0])]);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  return { box, ids };
+}
+
+/** Leave the held item's gate hand-off red, as a gate that settled red leaves it. */
+function goRed(box, id) {
+  const seat = box.seats.actor;
+  const item = store.getItem(box.board, id);
+  recordSubmitHandoff(box.board.db, id, { version: 1, id: randomUUID(), agentId: seat.id, commit: 'c'.repeat(40), digest: item.item_frozen_digest,
+    state: 'red', error: { code: 'TEST_FAILURE', message: 'a test failed', next: 'fix it, commit, then pullboard submit' } });
+}
+
+/** Queue the held item's gate hand-off, as pullboard submit leaves it while its gate runs. */
+function awaitGate(box, id) {
+  const seat = box.seats.actor;
+  const head = box.git(seat.path, 'rev-parse', 'HEAD');
+  const tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
+  const job = store.writeBoardCommand(box.board, 'queueSubmitHandoff', [id, { agentId: seat.id, job: randomUUID(), main: head, commit: head, tree,
+    executionCommit: head, executionTree: tree, digest: store.getItem(box.board, id).item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], seat.id).job;
+  store.startSubmitHandoff(box.board, id, { agentId: seat.id, job: job.id });
+}
+
+test('cli.io-next-trunk-claims.red-held-seat-gets-no-top-up: clause 1: a seat holding one claimed item whose gate went red gets no new claim from the real next command, and the same seat with a gate-pending item still gets one [C7,#11750]', async t => {
+  const red = await holdingOne(t);
+  goRed(red.box, red.ids[0]);
+  assert.equal(store.queuedReds(red.box.board, red.box.seats.actor.id).length, 1, 'the fixture item is red');
+  const none = await cli(red.box, red.box.seats.actor.path, ['next']);
+  assert.equal(none.code, 0, none.out + none.err);
+  assert.deepEqual(held(red.box, red.ids), [red.ids[0]], 'a red-held seat takes no second build');
+  const green = await holdingOne(t);
+  awaitGate(green.box, green.ids[0]);
+  const more = await cli(green.box, green.box.seats.actor.path, ['next']);
+  assert.equal(more.code, 0, more.out + more.err);
+  assert.ok(held(green.box, green.ids).length > 1, 'a seat whose item awaits its gate still gets a claim');
+});
+
+test('cli.io-next-trunk-claims.red-hold-ends-on-resubmit: clause 2: once the seat resubmits and the red item awaits its gate again, next gives a claim again [C7,#11750]', async t => {
+  const { box, ids } = await holdingOne(t);
+  goRed(box, ids[0]);
+  await cli(box, box.seats.actor.path, ['next']);
+  assert.deepEqual(held(box, ids), [ids[0]]);
+  awaitGate(box, ids[0]);
+  assert.equal(store.queuedReds(box.board, box.seats.actor.id).length, 0, 'the resubmitted item is no longer red');
+  const again = await cli(box, box.seats.actor.path, ['next']);
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.ok(held(box, ids).length > 1, 'the seat is topped up once its item awaits the gate again');
 });

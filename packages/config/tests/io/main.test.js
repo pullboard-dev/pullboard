@@ -6,6 +6,7 @@ import { configProblems } from '../../src/io/main.js';
 import { defaults } from '../../src/io/main.js';
 import { loadConfig } from '../../src/io/main.js';
 import { provenBreakRequired } from '../../src/io/main.js';
+import { nextIdleMinutes } from '../../src/io/main.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -81,4 +82,15 @@ test('config.io-main.proven-break-required: clause 1: provenBreakRequired(config
   const bad = { ...defaults(), review: { ...defaults().review, requireProvenBreak: 'yes' } };
   assert.throws(() => provenBreakRequired(bad, 'strict'), error => error.code === 'BAD_CONFIG' && error.message.includes('review.requireProvenBreak'));
   assert.ok(configProblems(bad, '.').some(problem => problem.includes('review.requireProvenBreak')));
+});
+
+test('config.io-main.next-idle-minutes: clause 1: next.idleMinutes accepts a positive integer, rejects 0, a negative, a fraction and a string with a BAD_CONFIG problem naming the key, and nextIdleMinutes(config) returns 10 when unset [C7,#12041]', () => {
+  const root = fixtureRepo();
+  const named = value => configProblems({ ...defaults(), next: { ...defaults().next, idleMinutes: value } }, root).filter(problem => problem.includes('next.idleMinutes'));
+  for (const value of [1, 3, 10, 45]) assert.deepEqual(named(value), [], `${value} is a valid wait`);
+  for (const value of [0, -2, 1.5, '10']) assert.equal(named(value).length, 1, `${JSON.stringify(value)} is one problem naming the key`);
+  assert.equal(nextIdleMinutes(configFromSource('{}', root)), 10);
+  assert.equal(nextIdleMinutes(configFromSource(JSON.stringify({ next: { idleMinutes: 3 } }), root)), 3);
+  assert.equal(nextIdleMinutes(configFromSource(JSON.stringify({ next: { wholeItemsFirst: true } }), root)), 10);
+  assert.throws(() => configFromSource(JSON.stringify({ next: { idleMinutes: 0 } }), root), error => error.code === 'BAD_CONFIG' && error.message.includes('next.idleMinutes'));
 });

@@ -6,6 +6,7 @@
  */
 
 /**
+ * Build the read-route handlers the pool worker serves from the main module's own route functions.
  * @param {{ findBoard: Function, afterEvents: Function, createRequest: Function, executeMove: Function, itemDetail: Function }} functions The main module's own route functions.
  * @param {{ isMain?: boolean, boardOpeners: any, runCommand?: Function, refusalDocument?: Function }} ports
  * runCommand and refusalDocument are the CLI's, given by the worker's ports module; without them a move is refused by name.

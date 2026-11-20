@@ -1,0 +1,86 @@
+{
+  "drive.io-serve-refusal.job-receipt": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a JOB_RECEIPT refusal on one job's receipt releases that job and the serve keeps its other slot running and claims again."
+    },
+    "why": "Without this test one refused job ended the whole runner serve, which restarted and drained about 55 s (19 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  },
+  "drive.io-serve-refusal.job-write-timeout": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a JOB_WRITE_TIMEOUT refusal on one job's receipt releases that job and the serve keeps its other slot running and claims again."
+    },
+    "why": "Without this test one refused job ended the whole runner serve, which restarted and drained about 55 s (19 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  },
+  "drive.io-serve-refusal.hop-fenced": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a HOP_FENCED refusal on one job's receipt releases that job and the serve keeps its other slot running and claims again."
+    },
+    "why": "Without this test one refused job ended the whole runner serve, which restarted and drained about 55 s (19 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  },
+  "drive.io-serve-refusal.board-busy": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a BOARD_BUSY refusal on one job's receipt releases that job and the serve keeps its other slot running and claims again."
+    },
+    "why": "Without this test one refused job ended the whole runner serve, which restarted and drained about 55 s (19 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  },
+  "drive.io-serve-refusal.hop-held": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a HOP_HELD refusal on one job's receipt releases that job and the serve keeps its other slot running and claims again."
+    },
+    "why": "Without this test one refused job ended the whole runner serve, which restarted and drained about 55 s (19 Nov).",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  },
+  "drive.io-serve-refusal.succeeding-job-calls": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a succeeding job makes one claim and one receipt call, as before the refusal handling."
+    },
+    "why": "Without this test the refusal handling could add board calls to every job.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  }
+}

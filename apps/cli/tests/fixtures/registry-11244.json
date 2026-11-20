@@ -1,0 +1,4 @@
+{
+  "cli.doctrine-decisions.approve-standard-default": {"proves":{"specs":["C7"],"claim":"spec approve doctrine:<standard id> then spec apply appends the approved row to DOCTRINE.md and the inherited defaults to review fall by one."},"why":"Without it a person could not decide a standard doctrine default through the real spec command.","kind":"journey","inputs":["apps/cli/journeys/doctrine/decisions.test.js","apps/cli/src/io/commands/spec.js"]},
+  "cli.doctrine-decisions.decline-standard-default": {"proves":{"specs":["C7"],"claim":"spec decline doctrine:<standard id> with a reason then spec apply writes its wont line into DOCTRINE.md."},"why":"Without it a declined standard default would leave no repo line and keep asking for review.","kind":"journey","inputs":["apps/cli/journeys/doctrine/decisions.test.js","apps/cli/src/io/commands/spec.js"]}
+}
