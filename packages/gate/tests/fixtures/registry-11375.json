@@ -1,0 +1,4 @@
+{
+  "gate.conformance-setups.results-rows": {"proves":{"specs":["C7"],"claim":"conformanceResults gives one row per setup and stage with the outcome and run id of the latest run that reached that stage."},"why":"The compatibility page reads one cell per language and stage from this answer.","kind":"cell unit","inputs":["packages/gate/src/logic/conformance-setups.js","packages/gate/tests/logic/conformance-setups.test.js"]},
+  "gate.conformance-setups.results-unavailable-unknown": {"proves":{"specs":["C7"],"claim":"a setup with a missing toolchain is unavailable at every stage and never red, and a setup with no recorded run is unknown."},"why":"A runner without a toolchain must not show red, and an unrun setup must not show a verdict.","kind":"cell unit","inputs":["packages/gate/src/logic/conformance-setups.js","packages/gate/tests/logic/conformance-setups.test.js"]}
+}

@@ -1,10 +1,9 @@
 /** The machine's hand-off ticket queue: places in submit order, read by withdraw, gate and the submit wait [C7]. */
-import {
-  readdirSync,
-  rmSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { machineHome } from '../../home.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The machine-wide directory of launches waiting for a worker slot. */
 export function handoffQueueDirectory() { return join(machineHome(), 'handoff-queue'); }
@@ -18,7 +17,7 @@ const URGENT_MARK = '.urgent';
  */
 function waitingTickets() {
   const urgent = name => name.replace(/\.(json|reserved)$/u, '').endsWith(URGENT_MARK);
-  try { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort().sort((a, b) => Number(urgent(b)) - Number(urgent(a))); }
+  try { return fs.list(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort().sort((a, b) => Number(urgent(b)) - Number(urgent(a))); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
@@ -46,7 +45,7 @@ export function dropHandoffTicket(job) {
   let removed = 0;
   for (const name of waitingTickets()) {
     if (ticketJob(name) !== job) continue;
-    rmSync(join(handoffQueueDirectory(), name), { force: true });
+    fs.rm(join(handoffQueueDirectory(), name), { force: true });
     removed += 1;
   }
   return removed;

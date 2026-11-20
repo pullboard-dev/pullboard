@@ -9,6 +9,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
 import { appendGateSpan } from '../../../../jobs/light.js';
 import { gateSpanFolder } from '../../../../jobs/light.js';
 import { readGateSpans } from '../../../../jobs/light.js';
@@ -16,6 +17,8 @@ import { readGateSpans } from '../../../../jobs/light.js';
 /** The environment keys naming this process's open landing span sink: its folder and its run id. */
 const FOLDER_KEY = 'PULLBOARD_LANDING_SPAN_FOLDER';
 const RUN_KEY = 'PULLBOARD_LANDING_SPAN_RUN';
+/** The process environment, reached only through the adapter. */
+const environment = environmentAdapter();
 
 /**
  * The folder holding the machine's daily landing span files: a sibling of the gate span folder.
@@ -34,15 +37,15 @@ export function landingSpanFolder(commonDir) {
  * @returns {string} The run id every later span names.
  */
 export function openLandingSpans({ commonDir, run = randomUUID() }) {
-  process.env[FOLDER_KEY] = landingSpanFolder(commonDir);
-  process.env[RUN_KEY] = run;
+  environment.set(FOLDER_KEY, landingSpanFolder(commonDir));
+  environment.set(RUN_KEY, run);
   return run;
 }
 
 /** Close this process's landing span sink; later spans record nothing. */
 export function closeLandingSpans() {
-  delete process.env[FOLDER_KEY];
-  delete process.env[RUN_KEY];
+  environment.delete(FOLDER_KEY);
+  environment.delete(RUN_KEY);
 }
 
 /**
@@ -54,7 +57,7 @@ export function closeLandingSpans() {
  * @returns {object|null} The recorded line, or null when no sink is open or the write failed.
  */
 export function recordLandingSpan({ phase, start, end = Date.now(), items = [], outcome = 'ok', code = null, host = null, cause = null, runKind = null }) {
-  const folder = process.env[FOLDER_KEY], run = process.env[RUN_KEY];
+  const folder = environment.get(FOLDER_KEY), run = environment.get(RUN_KEY);
   if (!folder || !run || !Number.isFinite(start) || !Number.isFinite(end)) return null;
   const line = { v: 1, job: run, kind: 'landing', phase, start: new Date(start).toISOString(), end: new Date(end).toISOString(),
     ms: Math.max(0, Math.round(end - start)), items: items.filter(Number.isSafeInteger), outcome, ...(code ? { code: String(code).slice(0, 80) } : {}),

@@ -147,8 +147,6 @@
     "apps/cli/src/io/worktree/maintenance/diagnostics.js",
     "apps/cli/src/io/worktree/maintenance/observation.js",
     "apps/view/src/io/session.js",
-    "packages/activity/src/io/inbox.js",
-    "packages/activity/src/io/observations.js",
     "packages/blueprints/src/io/fit.js",
     "packages/codemap/src/io/accepted.js",
     "packages/codemap/src/io/cell/lint/store.js",
