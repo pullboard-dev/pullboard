@@ -3,16 +3,20 @@ import { createHash } from 'node:crypto';
 import {
   cellExistsSync,
   cellReadFileSync,
+  cellSourceSnapshot,
 } from '../snapshot.js';
 import { join } from 'node:path';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { cellLintCells } from './shards.js';
+import { translatedBase } from './shards.js';
 import { readCellLintCellBaseline } from './shards.js';
 import { writeCellLintCellBaseline } from './shards.js';
 import { CELL_METRICS } from '../lints.js';
 import { validateCellLintBaseline } from './ratchet.js';
 import { Refused } from '../../../../../kernel/index.js';
 
+import { readPathMap } from '../../../logic/path/map.js';
+import { pathMapFromFiles } from '../../../logic/path/map.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../logic/path/map.js';
 import { CELL_BASELINE_DIRECTORY } from '../../../logic/path/map.js';
 import { storeName } from '../../store-names.js';
@@ -75,9 +79,14 @@ function readLegacyCellLintBaseline(root) {
   }
 }
 
-/** Combine the immutable accepted generation with the complete per-cell falling deltas. */
+/** Combine the immutable accepted generation with the complete per-cell falling deltas, keyed by cell path once a path-map cell exists. */
 export function readCellLintBaseline(root) {
-  try { return readCellLintCellBaseline(root, readLegacyCellLintBaseline(root)); }
+  try {
+    const baseline = readCellLintCellBaseline(root, readLegacyCellLintBaseline(root));
+    if (!cellLintCells(root).length) return baseline;
+    const snapshot = cellSourceSnapshot(root);
+    return translatedBase(baseline, snapshot ? pathMapFromFiles(snapshot.files, snapshot.entries) : readPathMap(root));
+  }
   catch (error) { throw new Refused('CELL_BASELINE', `restore the complete per-cell cell lint baseline: ${error.message}`); }
 }
 
