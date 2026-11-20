@@ -9,6 +9,8 @@ import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { compareClaimsWithMain } from '../../src/io/claim-replay.js';
 import { replayClaims } from '../../src/io/claim-replay.js';
 import { replayLine } from '../../src/io/claim-replay.js';
+import { trialClaims } from '../../src/io/claim-replay.js';
+import { trialLine } from '../../src/io/claim-replay.js';
 
 test('api.io-claim-replay.replay-p95: replayClaims runs 50 claims on a copy of the board database and returns p50, p95 and max with the source bytes unchanged [C7,#12097]', t => {
   const repo = cellRepo(t, { real: true });
@@ -66,4 +68,22 @@ test('api.io-claim-replay.compare-real-path: compareClaimsWithMain over a scratc
   console.log(`claim compare: main p95 ${result.main.p95.toFixed(2)} ms, candidate p95 ${result.candidate.p95.toFixed(2)} ms, verdict ${result.verdict}`);
   assert.ok(result.main.p95 >= 0 && result.candidate.p95 >= 0);
   assert.equal(result.verdict, 'same');
+});
+
+test('api.io-claim-replay.trial-claims: trialClaims runs 20 rolled-back claims and returns p95 and CPU time with the board rows unchanged [C7,#12096]', t => {
+  const repo = cellRepo(t, { real: true });
+  cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  const before = readFileSync(repo.boardFile);
+  const { p95, cpuMs } = trialClaims({ db: repo.boardFile, root: repo.root, count: 20 });
+  assert.ok(Number.isFinite(p95) && p95 >= 0, `a p95 in milliseconds: ${p95}`);
+  assert.ok(Number.isFinite(cpuMs) && cpuMs >= 0, `a CPU figure in milliseconds: ${cpuMs}`);
+  assert.ok(readFileSync(repo.boardFile).equals(before), 'the board rows are identical before and after');
+});
+
+test('api.io-claim-replay.trial-claims-line: trialLine over a scratch board trial returns one line with p95 and cpuMs for 20 claims [C7,#12096]', t => {
+  const repo = cellRepo(t, { real: true });
+  cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  const line = trialLine(trialClaims({ db: repo.boardFile, root: repo.root, count: 20 }), 20);
+  console.log(line);
+  assert.match(line, /^claim trial: 20 claims p95 [\d.]+ ms, cpu [\d.]+ ms$/);
 });

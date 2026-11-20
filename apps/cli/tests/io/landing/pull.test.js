@@ -211,3 +211,17 @@ test('cli.landing-pull.items-carry-pace: clause 1: a landing offered for one ite
   assert.equal(paceOf(1), 'sprint');
   assert.equal(paceOf(2), 'steady');
 });
+
+test('cli.landing-pull.payload-sprint-plan: clause 1: a landing offered for a sprint item carries payload.sprint { static, testCommand, testFiles } built from the configured static check and affected-tests command, and a landing of steady items only carries no sprint key [V2,M1,#12229]', async t => {
+  const config = { staticChecks: 'npm run static', affectedTests: 'node --test' };
+  const sprint = (await offerWithLog(t, { paces: { 1: 'sprint', 2: 'steady' }, config })).jobs.map(job => job.sprint).find(Boolean);
+  assert.deepEqual(sprint.static, ['sh', '-c', 'npm run static']);
+  assert.equal(sprint.testCommand.slice(0, 2).join(' '), 'sh -c');
+  assert.match(sprint.testCommand[2], /node --test "\$@"$/u);
+  assert.match('packages/demo/tests/ok.test.js', new RegExp(sprint.testFiles, 'u'));
+  const bare = (await offerWithLog(t, { paces: { 1: 'sprint' } })).jobs.map(job => job.sprint).find(Boolean);
+  assert.equal(bare.static, null);
+  assert.deepEqual(bare.testCommand, ['false']);
+  const steady = await offerWithLog(t, { paces: { 1: 'steady', 2: 'steady' }, config });
+  assert.equal(steady.jobs.some(job => 'sprint' in job), false);
+});
