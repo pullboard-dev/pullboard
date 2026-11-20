@@ -25,7 +25,7 @@ import { temporaryDirectory } from '../board.js';
  * A real repository with trunk and two accepted items (#1 adds a.js and tests/a.test.js, #2 adds b.js and tests/b.test.js, so they are disjoint),
  * a git adapter wrapper that logs each git start, and the offer's logged lock seam. Returns what the offer did.
  */
-export async function offerWithLog(t, { concurrentOffer = false } = {}) {
+export async function offerWithLog(t, { concurrentOffer = false, paces = {} } = {}) {
   const directory = temporaryDirectory('pullboard-offer-outside-');
   const home = temporaryDirectory('pullboard-offer-outside-home-');
   const savedHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -39,7 +39,8 @@ export async function offerWithLog(t, { concurrentOffer = false } = {}) {
   const main = git('rev-parse', 'HEAD');
   const board = openBoard(boardFile);
   t.after(() => closeBoard(board));
-  const FREEZE = item => ({ text: item.item_title, digest: `digest:${item.item_title}` });
+  // A frozen bar is JSON and the pace is read from it, as itemPace reads it; a title alone stays the plain text it was.
+  const FREEZE = item => ({ text: paces[item.item_id] ? JSON.stringify({ criterion: item.item_title, pace: paces[item.item_id] }) : item.item_title, digest: `digest:${item.item_title}` });
   const commits = {};
   for (const [number, name] of [[1, 'a'], [2, 'b']]) {
     git('checkout', '-q', '-b', `item-${number}`, main);

@@ -2,10 +2,12 @@
  * Event sources a runner controller waits on instead of a once-a-second timer, so a controller holding a long
  * remote job sleeps until something it watches actually changes (#2519) [C7].
  */
-import { watch } from 'node:fs';
 import { Socket } from 'node:net';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The extra pipe a dispatching process hands its controller; its end of the pipe closes when that process dies. */
 export const PARENT_PIPE_FD = 3;
@@ -59,7 +61,7 @@ export function watchPaths(paths, onChange, { settleMs = 1_000 } = {}) {
   const watchers = [];
   try {
     for (const [folder, names] of byFolder) {
-      const watcher = watch(folder, { persistent: false }, (event, name) => {
+      const watcher = fs.watch(folder, { persistent: false }, (event, name) => {
         // A platform that cannot name the entry still reports a change to the folder. A write reaches the database,
         // its -wal or its -journal; -shm is left out because a reader's own open touches it, which would wake us again.
         if (!name || [...names].some(base => [base, `${base}-wal`, `${base}-journal`].includes(String(name)))) changed();

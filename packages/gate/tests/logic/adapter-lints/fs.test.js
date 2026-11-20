@@ -2,9 +2,12 @@
 /** The file-system lint names a direct node:fs import outside the kernel and holds today's offenders at a ceiling [C7,#9449]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import {
+  coveredByFsLint,
   FS_CEILING_FILE,
+  fsFindings,
   fsLintRows,
 } from '../../../src/io/adapter-lints/fs.js';
 
@@ -51,4 +54,28 @@ test('gate.logic-adapter-lints-fs.with-the-setting-off-which-is: clause 2: with 
   assert.deepEqual(fsLintRows(root), []);
   assert.deepEqual(fsLintRows(root, { enabled: false }), []);
   assert.deepEqual(fsLintRows(root, { enabled: 'yes' }), []);
+});
+
+test('gate.logic-adapter-lints-fs.watchdog-source-is-exempt: clause 1: the watchdog worker program text is not covered, a sibling file is, and its require reports nothing with no ceiling entry [C7,#11600]', () => {
+  const path = 'packages/gate/src/io/run-tests-watchdog-source.js';
+  const text = "const { writeSync } = require('node:fs');\n";
+  assert.equal(coveredByFsLint(path), false);
+  assert.equal(coveredByFsLint('packages/gate/src/io/run-tests-other.js'), true);
+  assert.deepEqual(fsFindings({ [path]: text }), []);
+  assert.equal(fsFindings({ 'packages/gate/src/io/run-tests-other.js': text }).length, 1);
+});
+
+test('gate.logic-adapter-lints-fs.generated-child-scripts-are-exempt: clause 1: the two submit files holding generated child scripts are exempt by exact path and a sibling is not [C7,#11931]', () => {
+  assert.equal(coveredByFsLint('apps/cli/src/io/submit/pull.js'), false);
+  assert.equal(coveredByFsLint('apps/cli/src/io/submit/remote.js'), false);
+  assert.equal(coveredByFsLint('apps/cli/src/io/submit/gate.js'), true);
+  const text = Array.from({ length: 7 }, (_, i) => `import { f${i} } from 'node:fs';`).join('\n');
+  assert.deepEqual(fsFindings({ 'apps/cli/src/io/submit/pull.js': text }, {}), []);
+  assert.equal(fsFindings({ 'apps/cli/src/io/submit/gate.js': text }, {}).length, 7);
+});
+
+test('gate.logic-adapter-lints-fs.real-tree-generated-child-scripts: clause 3: the real-path lint over this checkout names neither exempt file [C7,#11931]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const rows = fsLintRows(root, { enabled: true });
+  assert.equal(rows.some(row => row.startsWith('apps/cli/src/io/submit/pull.js:') || row.startsWith('apps/cli/src/io/submit/remote.js:')), false);
 });

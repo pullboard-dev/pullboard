@@ -1,14 +1,11 @@
 /** The coordinator's durable record of one pulled runner job: what `finish` needs, without re-scanning source [C7,#5465]. */
 import { machineHome } from '../../../../resources/index.js';
 import { Refused } from '../../../../kernel/index.js';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { storeName } from '../store-names.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** A job id is a UUID; anything else never becomes a path. */
 const JOB_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
@@ -25,16 +22,16 @@ export function jobFile(id) {
 /** Write the record whole or not at all, so a reader never sees half of it. */
 export function writeJob(job) {
   const file = jobFile(job.id);
-  mkdirSync(jobsDirectory(), { recursive: true, mode: 0o700 });
+  fs.mkdir(jobsDirectory(), { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(job), { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(job), { mode: 0o600 });
+  fs.rename(temporary, file);
 }
 
 /** Read one record; a missing or damaged one is a typed refusal naming the next step. */
 export function readJob(id) {
   try {
-    const job = JSON.parse(readFileSync(jobFile(id), 'utf8'));
+    const job = JSON.parse(fs.readFile(jobFile(id), 'utf8'));
     if (job?.version !== 1 || job.id !== id) throw new Error('foreign record');
     return job;
   } catch (error) {
@@ -50,10 +47,10 @@ export function updateJob(id, change) {
 }
 
 /** Remove a finished job's record; a record already gone is fine. */
-export function removeJob(id) { rmSync(jobFile(id), { force: true }); }
+export function removeJob(id) { fs.rm(jobFile(id), { force: true }); }
 
 /** A private scratch folder for one pack build, kept beside the records so no temporary-folder path is named here. */
 export function packDirectory() {
-  mkdirSync(jobsDirectory(), { recursive: true, mode: 0o700 });
-  return mkdtempSync(join(jobsDirectory(), 'pack-'));
+  fs.mkdir(jobsDirectory(), { recursive: true, mode: 0o700 });
+  return fs.mkdtemp(join(jobsDirectory(), 'pack-'));
 }

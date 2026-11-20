@@ -2,16 +2,14 @@
 import { execFile } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The file-system adapter every file call here goes through. */
+const fs = fileSystemAdapter();
+import { environmentAdapter } from '../../../env/index.js';
 
 /** The launchd label prefix of every process started here; the next launch boots out jobs whose process ended. */
 export const LAUNCH_LABEL_PREFIX = 'dev.pullboard.daemon.';
@@ -54,13 +52,13 @@ async function jobPid(domain, label, run = launchctl) {
 /** Boot out jobs whose process has ended and remove their files; a running job is left alone. */
 async function sweep(folder, domain, run = launchctl) {
   let names = [];
-  try { names = readdirSync(folder).filter(name => name.startsWith(LAUNCH_LABEL_PREFIX) && name.endsWith('.plist')); } catch { return; }
+  try { names = fs.list(folder).filter(name => name.startsWith(LAUNCH_LABEL_PREFIX) && name.endsWith('.plist')); } catch { return; }
   for (const name of names) {
     const label = name.slice(0, -'.plist'.length);
     const shown = await run(['print', `${domain}/${label}`]);
     if (shown.status === 0 && /^\s*pid = \d+$/mu.test(shown.stdout)) continue;
     if (shown.status === 0) await run(['bootout', `${domain}/${label}`]);
-    try { unlinkSync(join(folder, name)); } catch { /* Another sweep removed it. */ }
+    try { fs.unlink(join(folder, name)); } catch { /* Another sweep removed it. */ }
   }
 }
 
@@ -77,8 +75,8 @@ async function sweep(folder, domain, run = launchctl) {
  * @param {{ cwd?: string, env?: NodeJS.ProcessEnv, log?: string, home?: string, launchd?: boolean, launcher?: (args: string[]) => Promise<{ status: number, stdout: string }> }} [options] - log is a file path for both output streams; launchd false forces the plain spawn, and left out it is false on a fixture board (env PULLBOARD_FIXTURE_BOARD=1) so a test run registers no launchd job, while launchd true still uses launchd; launcher stands in for launchctl, so a test can make the gui bootstrap fail.
  * @returns {Promise<{ pid: number | null, launchd: boolean, label?: string }>}
  */
-export async function spawnReachable(command, args, { cwd = process.cwd(), env = process.env, log, home = process.env.PULLBOARD_MACHINE_HOME ?? join(homedir(), '.pullboard'), launchd, launcher = launchctl } = {}) {
-  launchd ??= existsSync(LAUNCHCTL) && env.PULLBOARD_FIXTURE_BOARD !== '1';
+export async function spawnReachable(command, args, { cwd = process.cwd(), env = environmentAdapter().all(), log, home = environmentAdapter().get('PULLBOARD_MACHINE_HOME') ?? join(homedir(), '.pullboard'), launchd, launcher = launchctl } = {}) {
+  launchd ??= fs.exists(LAUNCHCTL) && env.PULLBOARD_FIXTURE_BOARD !== '1';
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
   const started = launchd && uid !== null ? await launched(command, args, { cwd, env, log, home, uid, run: launcher }) : null;
   return started ?? detached(command, args, { cwd, env, log });
@@ -89,10 +87,10 @@ async function launched(command, args, { cwd, env, log, home, uid, run }) {
   const domain = `gui/${uid}`, folder = join(home, 'launchd'), label = LAUNCH_LABEL_PREFIX + randomUUID();
   const file = join(folder, `${label}.plist`);
   try {
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
     await sweep(folder, domain, run);
-    writeFileSync(file, launchJobPlist(label, [command, ...args], { cwd, env, log }), { mode: 0o600 });
-    if ((await run(['bootstrap', domain, file])).status !== 0) { unlinkSync(file); return null; }
+    fs.writeFile(file, launchJobPlist(label, [command, ...args], { cwd, env, log }), { mode: 0o600 });
+    if ((await run(['bootstrap', domain, file])).status !== 0) { fs.unlink(file); return null; }
   } catch { return null; }
   const until = Date.now() + START_WAIT_MS;
   let pid = await jobPid(domain, label, run);
@@ -104,13 +102,13 @@ async function launched(command, args, { cwd, env, log, home, uid, run }) {
 function detached(command, args, { cwd, env, log }) {
   let out = 'ignore';
   try {
-    if (log) out = openSync(log, 'a', 0o600);
+    if (log) out = fs.open(log, 'a', 0o600);
     const child = spawn(command, args, { cwd, env, detached: true, stdio: ['ignore', out, out] });
     child.once('error', () => {});
     child.unref();
     return { pid: child.pid ?? null, launchd: false };
   } catch { return { pid: null, launchd: false }; }
-  finally { if (typeof out === 'number') closeSync(out); }
+  finally { if (typeof out === 'number') fs.close(out); }
 }
 
 /**

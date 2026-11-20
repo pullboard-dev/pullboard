@@ -7,12 +7,6 @@
  */
 import { spawnSync } from 'node:child_process';
 import {
-  copyFileSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -20,6 +14,9 @@ import { scratchFolder } from '../../../../../packages/config/index.js';
 import { TEST_FILE } from '../../../../../packages/codemap/light.js';
 import { gitSpawnSync } from '../../../../../packages/git/light.js';
 import { appendTrace } from '../trace.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const HOOKS = ['pre-commit', 'pre-merge-commit'];
 
@@ -34,7 +31,7 @@ function git(cwd, args, env, input) {
 
 /** Resolve a path through symlinks, or null when it is gone. */
 function real(path) {
-  try { return realpathSync(path); } catch { return null; }
+  try { return fs.realpath(path); } catch { return null; }
 }
 
 /**
@@ -55,7 +52,7 @@ export async function hookCompanionPatches(root, env) {
   } catch { return []; }
   try {
     let id = null;
-    try { id = JSON.parse(readFileSync(markerPath, 'utf8')).item ?? null; } catch { id = null; }
+    try { id = JSON.parse(fs.readFile(markerPath, 'utf8')).item ?? null; } catch { id = null; }
     if (!Number.isSafeInteger(id)) {
       const claims = board.prepare(`SELECT i.item_id FROM item i JOIN agent a ON a.agent_id = i.item_owner
         WHERE a.agent_path = ? AND i.item_status = 'claimed' AND i.item_parent_id IS NULL`).all(root);
@@ -76,7 +73,7 @@ export async function hookCompanionPatches(root, env) {
  */
 export function composeHookTree(root, { indexFile, patches, env, directory }) {
   const index = join(directory, 'index'), tree = join(directory, 'tree') + '/';
-  copyFileSync(indexFile, index);
+  fs.copyFile(indexFile, index);
   const composed = { ...env, GIT_INDEX_FILE: index };
   const staged = git(root, ['diff', '--cached', '--name-only', '-z'], { ...env, GIT_INDEX_FILE: indexFile });
   for (const { key, patch } of patches) {
@@ -159,7 +156,7 @@ export async function runComposedHook(entry, args, { cwd, env }) {
     const run = spawnSync(process.execPath, [join(composed.tree, 'apps/cli/pullboard.js'), ...args], { cwd, stdio: 'inherit',
       env: { ...env, GIT_INDEX_FILE: composed.index, PULLBOARD_HOOK_COMPOSED: '1', PULLBOARD_HOOK_COMPANION_PATHS: JSON.stringify(composed.companionPaths) } });
     return run.status ?? 1;
-  } finally { for (const directory of directories) rmSync(directory, { recursive: true, force: true }); }
+  } finally { for (const directory of directories) fs.rm(directory, { recursive: true, force: true }); }
 }
 
 /** Whether the staged pullboard.json declares fixers; none means the fixer pass is skipped. */
