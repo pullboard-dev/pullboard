@@ -820,6 +820,28 @@ const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 
 /**
+ * Split a proof plan's files into shard buckets: the files it names under `timing` (test files that declare
+ * @pullboard-test-timing) each get a bucket of their own, marked timing, after the rest split round-robin into one bucket
+ * per `cores` files. Why its own: a timing file judges wall time, so its shard job carries data.checkTiming and its runner
+ * runs it alone; any other file sharing that runner is load that turns it red [C7].
+ *
+ * @param {string[]} files - The plan's files.
+ * @param {number} cores - One runner's cores: how many files one ordinary bucket holds.
+ * @param {unknown} timing - The plan's timing list; only names that are among `files` count.
+ * @param {number} max - At most this many buckets in all.
+ * @returns {{ files: string[], timing: boolean }[]} Empty when the plan is not one to split: its files fit the cores and none is timing.
+ */
+export function proofBuckets(files, cores, timing, max) {
+  const timed = Array.isArray(timing) ? [...new Set(timing.filter(file => files.includes(file)))].slice(0, max - 1) : [];
+  if (!cores || (files.length <= cores && !timed.length)) return [];
+  const ordinary = files.filter(file => !timed.includes(file));
+  const count = ordinary.length ? Math.min(max - timed.length, Math.ceil(ordinary.length / cores)) : 0;
+  const buckets = Array.from({ length: count }, () => ({ files: [], timing: false }));
+  ordinary.forEach((file, at) => buckets[at % count].files.push(file));
+  return [...buckets, ...timed.map(file => ({ files: [file], timing: true }))];
+}
+
+/**
  * Offer a land job's proof as shard jobs on its runner's call: the plan's files split round-robin into one shard per
  * runner's worth of cores, each a gate-shard job `land:<job>:shard:N` any runner pulls. The runner holds the plan (the
  * proof's files and command, its cores) and the gate bootstrap to run it, and the board holds the queue and the ledger,
@@ -829,7 +851,9 @@ const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
  * shard id an earlier merged commit used is not reused: a retried land job never reads the old tree's receipts as its own [C7,#7818].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
+ * A plan's timing files each run as a shard of their own whose data carries checkTiming, so its runner holds it alone (proofBuckets) [C7].
+ *
+ * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number, timing?: string[] }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
 export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, reuseCommits = null, queue = null, now = Date.now() }) {
@@ -843,21 +867,20 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
   if (ref !== null && ref !== undefined && (typeof ref !== 'string' || !LAND_REF.test(ref))) throw new Refused('LAND_SHARDS', 'a land job\'s shards name their landing ref as refs/pullboard/landing/<name>', 'send ref as the landing ref the merged commit was pushed to');
   if (typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || files.some(file => typeof file !== 'string' || !PROOF_FILE.test(file))
     || !Array.isArray(gate?.run) || !gate.run.length || typeof gate.entry !== 'string') throw new Refused('LAND_SHARDS', 'a land job\'s shard plan is { runner, files, cores } and its gate is { run, entry }', 'send both as the proof names them');
-  if (!cores || files.length <= cores) return { sharded: false, shards: [] };
-  const count = Math.min(MAX_LAND_SHARDS, Math.ceil(files.length / cores));
-  const buckets = Array.from({ length: count }, () => []);
-  files.forEach((file, at) => buckets[at % count].push(file));
+  const buckets = proofBuckets(files, cores, plan.timing, MAX_LAND_SHARDS);
+  if (!buckets.length) return { sharded: false, shards: [] };
+  const count = buckets.length;
   const prefix = `${job}:shard:`;
   // queueRun makes its own board transaction, so with runs_store on the offers do not sit inside a runs transaction.
   const ids = (queue ? work => work() : work => atomically(db, work))(() => {
     const prior = jobs.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ?').all(SHARD_JOB_KIND, prefix.length, prefix);
     endJobs(jobs, prior.filter(row => row.job_candidate !== merged && row.job_step !== 'done').map(row => row.job_id), { reason: 'the land job proved another merged commit', now });
-    return buckets.map((part, index) => {
+    return buckets.map(({ files: part, timing }, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
       const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
       const ledger = ledgerHits(db, part, { budget: 16_000, ...(Array.isArray(reuseCommits) ? { commits: reuseCommits.slice(0, 64) } : {}) });
       return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
-        request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
+        request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged, ...(timing ? { checkTiming: true } : {}),
           shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }, queue).id;
     });
   });

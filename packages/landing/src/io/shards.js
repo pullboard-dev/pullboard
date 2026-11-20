@@ -3,16 +3,16 @@ import { environmentAdapter } from '../../../env/index.js';
 import { runnerExecutionServices } from '../../../runners/index.js';
 import { constrainedLandingHost } from './host.js';
 import { captureReleaseQueue } from './queue.js';
-import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
-import { fileTimesPath } from '../../../gate/index.js';
-import { readFileTimes } from '../../../gate/index.js';
-import { planReleaseShards } from '../../../gate/index.js';
-import { fileKey } from '../../../gate/index.js';
-import { landingBalance } from '../../../gate/index.js';
-import { landingFloor } from '../../../gate/index.js';
-import { planFreeSlotShards } from '../../../gate/index.js';
-import { planLandingShards } from '../../../gate/index.js';
+import { RELEASE_EXECUTORS_ENV } from '../../../gate/heavy.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/heavy.js';
+import { fileTimesPath } from '../../../gate/heavy.js';
+import { readFileTimes } from '../../../gate/heavy.js';
+import { planReleaseShards } from '../../../gate/heavy.js';
+import { fileKey } from '../../../gate/heavy.js';
+import { landingBalance } from '../../../gate/heavy.js';
+import { landingFloor } from '../../../gate/heavy.js';
+import { planFreeSlotShards } from '../../../gate/heavy.js';
+import { planLandingShards } from '../../../gate/heavy.js';
 
 export { fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards };
 
@@ -49,14 +49,14 @@ import {
   gitChildEnv,
   repoInfo,
 } from '../../../git/index.js';
-import { testsNeedGui } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/heavy.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { localRunnerDescriptor } from '../../../runners/index.js';
-import { guiSession } from '../../../gate/index.js';
+import { guiSession } from '../../../gate/heavy.js';
 import { headTree } from '../../../git/index.js';
-import { cpuRunnerRequired } from '../../../gate/index.js';
-import { shardSelectionMatched } from '../../../gate/index.js';
+import { cpuRunnerRequired } from '../../../gate/heavy.js';
+import { shardSelectionMatched } from '../../../gate/heavy.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -71,7 +71,7 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from '../../../gate/index.js';
+} from '../../../gate/heavy.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
@@ -359,7 +359,7 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
   }
   const releaseStartedAt = new Date().toISOString();
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
-  const { withLandingGateSlot } = await import('../../../gate/index.js');
+  const { withLandingGateSlot } = await import('../../../gate/heavy.js');
   const runners = await import('../../../runners/index.js');
   const { RunnerDropped } = runners;
   // A test may stand in for the SSH round trip to make a runner answer with a given refusal.
