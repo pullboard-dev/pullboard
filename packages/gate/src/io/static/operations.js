@@ -1,6 +1,5 @@
 /** The operation registry (doctrine CD2, single path): one entry point per machine operation, and a lint that refuses a second one [C7]. */
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { gitSpawnSync } from '../../../../git/index.js';
@@ -9,6 +8,9 @@ import { lineAt } from '../scan.js';
 import { readText } from '../scan.js';
 import { report } from '../scan.js';
 import { walk } from '../scan.js';
+
+/** Every file read and write goes through the file-system adapter [C7]. */
+const fs = fileSystemAdapter();
 
 export const OPERATION_ENTRIES_BASELINE = 'packages/gate/data/baselines/operation-entries.json';
 const BASELINE_URL = new URL('../../../data/baselines/operation-entries.json', import.meta.url);
@@ -161,7 +163,7 @@ function mainBaseline(root) {
  */
 export function operationEntryProblems(root) {
   let baseline;
-  try { baseline = JSON.parse(readFileSync(resolve(root, OPERATION_ENTRIES_BASELINE), 'utf8')); } catch { return []; } // a project without the baseline has nothing to judge
+  try { baseline = JSON.parse(fs.readFile(resolve(root, OPERATION_ENTRIES_BASELINE), 'utf8')); } catch { return []; } // a project without the baseline has nothing to judge
   return [...operationEntryGrowth(operationReport(root), baseline), ...operationRatchetGrowth(baseline, mainBaseline(root))]
     .map(row => `${row.path}:${row.line}: ${row.text}`);
 }
@@ -170,10 +172,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const root = resolve(process.argv.slice(2).find(value => !value.startsWith('--')) ?? process.cwd());
   const sites = operationReport(root);
   if (process.argv.includes('--report')) console.log(JSON.stringify(operationEntryFiles(sites), null, 2));
-  else if (process.argv.includes('--write')) writeFileSync(BASELINE_URL, JSON.stringify(operationEntryFiles(sites), null, 2) + '\n'); // first record only
+  else if (process.argv.includes('--write')) fs.writeFile(BASELINE_URL, JSON.stringify(operationEntryFiles(sites), null, 2) + '\n'); // first record only
   else {
-    const baseline = JSON.parse(readFileSync(BASELINE_URL, 'utf8'));
-    if (process.argv.includes('--ratchet')) writeFileSync(BASELINE_URL, JSON.stringify(tightenOperationBaseline(sites, baseline), null, 2) + '\n');
+    const baseline = JSON.parse(fs.readFile(BASELINE_URL, 'utf8'));
+    if (process.argv.includes('--ratchet')) fs.writeFile(BASELINE_URL, JSON.stringify(tightenOperationBaseline(sites, baseline), null, 2) + '\n');
     else report(operationEntryGrowth(sites, baseline));
   }
 }

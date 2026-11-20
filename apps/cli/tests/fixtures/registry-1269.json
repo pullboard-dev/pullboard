@@ -1,0 +1,4 @@
+{
+  "cli.test-main-reds.notifies-failed-items": {"proves":{"specs":["C7"],"claim":"updateMainReds, closing a fixed Main red, appends one note on each open item whose red gate failed on its file and case."},"why":"Without it, a fixed Main red would leave the items it blocked red with no word that it is fixed, or tell items it never blocked.","kind":"cell unit","inputs":["apps/cli/tests/io/test/main-reds.test.js"]},
+  "cli.test-main-reds.skips-other-items-and-repeats": {"proves":{"specs":["C7"],"claim":"an item whose red failures name another file or case gets no note, and a second run that closes nothing writes no duplicate note."},"why":"Without it, a fixed Main red would leave the items it blocked red with no word that it is fixed, or tell items it never blocked.","kind":"cell unit","inputs":["apps/cli/tests/io/test/main-reds.test.js"]}
+}

@@ -1,0 +1,3 @@
+{
+  "runners.worktree.ssh-adapter-fake-answer": {"proves":{"specs":["C7"],"claim":"runOnRunnerShell runs its script through the ssh adapter and returns the fake adapter's answer without spawning ssh."},"why":"Without it the hosted-folder ssh path could bypass the adapter with no test naming what it proved.","kind":"journey","inputs":["packages/runners/index.js","packages/runners/src/io/worktree.js","packages/runners/src/io/adapter/ssh.js"]}
+}

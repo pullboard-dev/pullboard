@@ -1,17 +1,12 @@
 /** The machine's hand-off ticket queue: places in submit order, read by withdraw, gate and the submit wait [C7]. */
-import {
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { takeResource } from '../../main.js';
 import { machineHome } from '../../home.js';
 import { Refused } from '../../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
 export async function withHandoffQueueOrder(work) {
@@ -35,16 +30,16 @@ export function handoffQueueDirectory() { return join(machineHome(), 'handoff-qu
  */
 export async function reserveHandoffTicket(job, { startOf = () => '', urgent = false } = {}) {
   const queue = handoffQueueDirectory();
-  mkdirSync(queue, { recursive: true, mode: 0o700 });
+  fs.mkdir(queue, { recursive: true, mode: 0o700 });
   const lock = await takeResource({ name: 'submit-handoff-ticket', capacity: 1, scope: 'machine', agent: 'handoff-ticket' });
   try {
     const counter = join(queue, 'next-ticket');
     let next = 1;
-    try { next = Number(readFileSync(counter, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    try { next = Number(fs.readFile(counter, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (!Number.isSafeInteger(next) || next < 1 || next === Number.MAX_SAFE_INTEGER) throw new Refused('HANDOFF_TICKET_SOURCE', 'restore the durable next-ticket counter before queueing another worker');
-    writeFileSync(counter, String(next + 1), { mode: 0o600 });
+    fs.writeFile(counter, String(next + 1), { mode: 0o600 });
     const name = `${String(next).padStart(12, '0')}-${job}${urgent ? URGENT_MARK : ''}.reserved`;
-    writeFileSync(join(queue, name), JSON.stringify({ pid: process.pid, started: startOf(process.pid) }) + '\n', { mode: 0o600 });
+    fs.writeFile(join(queue, name), JSON.stringify({ pid: process.pid, started: startOf(process.pid) }) + '\n', { mode: 0o600 });
     return name;
   } finally { lock.release(); }
 }
@@ -61,9 +56,9 @@ export function queueHandoffLaunch(launch, reservation) {
   rememberQueuedRepository(launch.commonDir);
   const name = reservation.replace(/\.reserved$/u, '.json');
   const draft = join(queue, `.${name}.tmp`);
-  writeFileSync(draft, JSON.stringify(launch) + '\n', { mode: 0o600 });
-  renameSync(draft, join(queue, name));
-  rmSync(join(queue, reservation), { force: true });
+  fs.writeFile(draft, JSON.stringify(launch) + '\n', { mode: 0o600 });
+  fs.rename(draft, join(queue, name));
+  fs.rm(join(queue, reservation), { force: true });
   return name;
 }
 
@@ -81,8 +76,8 @@ function queuedRepositoriesDirectory() { return join(handoffQueueDirectory(), 'r
 function rememberQueuedRepository(commonDir) {
   if (typeof commonDir !== 'string' || !commonDir) return;
   const directory = queuedRepositoriesDirectory();
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  writeFileSync(join(directory, createHash('sha256').update(commonDir).digest('hex').slice(0, 32)), commonDir + '\n', { mode: 0o600 });
+  fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  fs.writeFile(join(directory, createHash('sha256').update(commonDir).digest('hex').slice(0, 32)), commonDir + '\n', { mode: 0o600 });
 }
 
 /** The name mark of a ticket whose item is urgent. */
@@ -94,7 +89,7 @@ const URGENT_MARK = '.urgent';
  */
 function waitingTickets() {
   const urgent = name => name.replace(/\.(json|reserved)$/u, '').endsWith(URGENT_MARK);
-  try { return readdirSync(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort().sort((a, b) => Number(urgent(b)) - Number(urgent(a))); }
+  try { return fs.list(handoffQueueDirectory()).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort().sort((a, b) => Number(urgent(b)) - Number(urgent(a))); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
@@ -122,7 +117,7 @@ export function dropHandoffTicket(job) {
   let removed = 0;
   for (const name of waitingTickets()) {
     if (ticketJob(name) !== job) continue;
-    rmSync(join(handoffQueueDirectory(), name), { force: true });
+    fs.rm(join(handoffQueueDirectory(), name), { force: true });
     removed += 1;
   }
   return removed;
