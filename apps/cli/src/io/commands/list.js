@@ -32,7 +32,9 @@ export async function run(io, { first, values }) {
   const thin = listThinRead() && values.field === undefined ? thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock }) : null;
   const { items, agents, merging, foreign = new Map(), needsRescope = [], fieldIndex } = thin ?? await withBoardRead(ctx, async (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
-    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project);
+    // An accept whose only conflict with main is mechanical stays fresh, as it does at landing; the merge index loads only when a row is accepted [C7,#11417].
+    const residualConflicts = rows.some(row => row.item_status === 'verified') ? (await import('../../../../../packages/merge/index.js')).mechanicalConflictFiles : null;
+    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts }).project);
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
     const fieldIndex = values.field === undefined ? undefined : (await import('../../../../../packages/store/index.js')).fieldIndex(board, { enabled: true });
     if (values.json) return { items, fieldIndex, needsRescope: store.allItemsNeedingRescope(board) };
@@ -43,7 +45,7 @@ export async function run(io, { first, values }) {
   const filtered = fieldIndex ? (await import('../../../../../packages/items/light.js')).filterByField(routed, values.field, fieldIndex) : routed;
   if (values.json) io.result({ items: filtered, needsRescope });
   else if (!filtered.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
-  else filtered.forEach((item) => io.say(itemLine(item, (id) => agentDisplayName(agents, ctx.config, id), merging.has(item.item_id), foreign.get(item.item_id))));
+  else filtered.forEach((item) => io.say(itemLine(item, (id) => agentDisplayName(agents, ctx.config, id), merging.has(item.item_id), foreign.get(item.item_id), ctx.clock.now())));
   // Items next is holding back from a lane and route after a release, each with its reason and age (#3742).
   if (!values.json) for (const entry of needsRescope) io.say(`needs re-scope: #${entry.id} is not offered to ${entry.lane} at the ${entry.route} route; ${entry.reasons.join('; ')}`);
   return 0;
