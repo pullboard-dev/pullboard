@@ -205,7 +205,7 @@ export const MACHINE_DEFAULTS = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.composeAsObject': false,
-  'submit.composeOnRunner': false,
+  'submit.composeOnRunner': true,
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
