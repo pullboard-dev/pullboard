@@ -15,7 +15,7 @@ import {
   test,
 } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { testClosures } from '../../../../../packages/gate/index.js';
+import { testClosures } from '../../../../../packages/gate/heavy.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
