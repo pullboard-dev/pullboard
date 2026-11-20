@@ -1,6 +1,7 @@
 /**
- * Fix the mechanical header rules in place: a capitalised subject, a trailing period, a header over the length limit.
+ * Fix the mechanical header rules in place: a capitalised subject and a trailing period.
  * Why: each of these cost a full hook run per retry, and the fix is never a judgement call [C7].
+ * A header over the length limit is never cut here: dropping words changes what the person wrote, so the commit rules refuse it with its length and the limit [C7,#12030].
  */
 
 const EXEMPT = /^(Merge |Revert "|fixup! |squash! |amend! )/u;
@@ -9,14 +10,6 @@ const EXEMPT = /^(Merge |Revert "|fixup! |squash! |amend! )/u;
 function lowercased(subject) {
   const word = /^[A-Z][A-Z0-9]+\b/u.exec(subject);
   return word ? word[0].toLowerCase() + subject.slice(word[0].length) : subject[0].toLowerCase() + subject.slice(1);
-}
-
-/** Drop whole trailing words until the subject fits `room` characters; cut mid-word only when one word is too long. */
-function shortened(subject, room) {
-  if (subject.length <= room) return subject;
-  const words = subject.split(' ');
-  while (words.length > 1 && words.join(' ').length > room) words.pop();
-  return words.join(' ').slice(0, room).replace(/[\s,;:.-]+$/u, '');
 }
 
 /**
@@ -44,13 +37,6 @@ export function fixCommitHeader(raw, rules) {
   if (/\.$/u.test(subject)) {
     subject = subject.replace(/\.+$/u, '');
     notes.push('removed the period at the end of the subject');
-  }
-  const room = rules.maxHeader - prefix.length - ids.length;
-  if (prefix.length + subject.length + ids.length > rules.maxHeader && room >= 10) {
-    const before = prefix.length + subject.length + ids.length;
-    const kept = shortened(subject, room);
-    notes.push(`shortened the header from ${before} to ${prefix.length + kept.length + ids.length} characters by dropping "${subject.slice(kept.length).trim()}"; to reword it, git commit --amend`);
-    subject = kept;
   }
   if (!notes.length) return { message: raw, notes };
   const fixed = `${prefix}${subject}${ids}`;
