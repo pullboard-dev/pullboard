@@ -284,9 +284,6 @@
   "apps/cli/journeys/export/team/board.test.js": {
     "launch": 3
   },
-  "packages/gate/tests/io/main/resource.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/mcp/main.test.js": {
     "launch": 1
   },

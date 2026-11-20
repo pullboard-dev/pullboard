@@ -15,7 +15,7 @@ import {
 } from 'node:path';
 import {
   selectAffectedTests,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 import {
   coordinatorLocal,
   runLocal,

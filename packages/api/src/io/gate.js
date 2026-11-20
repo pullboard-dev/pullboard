@@ -4,8 +4,7 @@
  */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
@@ -35,6 +34,7 @@ import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { startReceiptScreen } from './gate/screen-start.js';
+import { queuePostLandMainTest } from './gate/post-land-main-test.js';
 import { sprintLandable } from './gate/sprint-land.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
@@ -65,6 +65,7 @@ import { companionInherits } from './gate/companion.js';
 import { retryNewReds } from './gate/retry.js';
 import { retryShardId } from './gate/retry.js';
 
+const fs = fileSystemAdapter();
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
 
@@ -201,8 +202,8 @@ export function recordPhaseReceipts(board, { job, receipt, id, candidate, main, 
     if (!body && testOutcomes) { delete run.testOutcomes; body = receiptBody(run); }
     if (!body && testRuntimes) { delete run.proof.testRuntimes; body = receiptBody(run); }
     if (!body) continue;
-    mkdirSync(folder, { recursive: true, mode: 0o700 });
-    writeFileSync(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
+    fs.mkdir(folder, { recursive: true, mode: 0o700 });
+    fs.writeFile(join(folder, run.id + RECEIPT_EXT), body, { mode: 0o600, flag: 'wx' });
     store.recordProofRun(board, { agentId: submit.agentId, itemId: id, receiptId: run.id });
     ids.push({ id: run.id, role: submitPhase, command: run.command });
   }
@@ -636,8 +637,7 @@ function keyedMainFailing(db, id) {
  * against main's receipts the way the controller gate's main-owned verdict does, linking repairs and asking for the rest [V4,B3,C7].
  */
 function mainOwnership(board, id, compared, main) {
-  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure, and the main
-  // receipt that recorded it failing, so review cites it; a board on an older engine records no receipt id (#7495).
+  // Each case keeps the diagnostic signature it matched main by, so the repair link names the exact failure, and the main receipt that recorded it failing, so review cites it; a board on an older engine records no receipt id (#7495).
   const cites = (board.executionEngineVersion ?? store.ENGINE_VERSION) >= store.KNOWN_MAIN_RECEIPT_ENGINE;
   const failures = [...new Map(compared.cases.map(({ file, name, signature, receipt }) => [`${file}\0${name}`,
     { file, name, signature, ...(cites && typeof receipt === 'string' && receipt ? { receipt } : {}) }])).values()];
@@ -1364,8 +1364,7 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null, se
     if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.unavailable || byFile.files.some(row => row.result === null)) continue;
     const settledKey = `gate_settled_red:${job}`, comparison = createHash('sha256').update(JSON.stringify(compared ? compared.cases.map(row => [row.phase, row.file, row.name, row.onMain, row.differs === true]) : byFile.files.map(row => [row.file, row.result]))).digest('hex');
     if (store.readBoardMeta(db, settledKey) === comparison && !(compared && compared.cases.every(row => row.onMain === true))) continue; // same red already settled: no second facts or shout; a wholly main red stays for the claim base [C7,#12190]
-    // The main-test receipt is already recorded, so a throw here would strand the item claimed with no word on its thread:
-    // an uncoded error is recorded as this re-apply's refusal instead, and the next waiting gate still settles (#7495).
+    // The main-test receipt is already recorded, so a throw here would strand the item claimed with no word on its thread: an uncoded error is recorded as this re-apply's refusal instead, and the next waiting gate still settles (#7495).
     try {
       const applied = applyGateReceipt(board, { job, receipt }, { compareWithMain });
       if (applied.applied) settled.push(job);
@@ -1444,8 +1443,7 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
  */
 export function applyLandingReceipt(board, posted, ports = {}) {
   const answer = applyLandingOutcome(board, posted, ports);
-  // With landing batches on, the settled job starts the lander once more, after main-moved, so the items accepted while
-  // it ran go out together as the next job; with the line defaults nothing more runs [C7,#12185].
+  // With landing batches on, the settled job starts the lander once more, after main-moved, so the items accepted while it ran go out together as the next job; with the line defaults nothing more runs [C7,#12185].
   if (landingStarter && board.gitRoot && batchesLandings(board)) startReceiptLanding(board, null, `land offer after land job ${posted.job} settled not started`);
   return answer;
 }
@@ -1470,7 +1468,7 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   });
   // The receipt's timed phases (merge, static checks, cli smoke, the gate's runner wait and tests, push), kept on each landed item for show --json [C7,#8960].
   const phases = (Array.isArray(receipt.phases) ? receipt.phases : []).filter(row => typeof row?.phase === 'string' && Number.isSafeInteger(row.ms)).map(({ phase, ms }) => ({ phase, ms }));
-  const merged = [];
+  const merged = [], rows = new Map();
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
     const item = store.getItem(board, id);
@@ -1479,7 +1477,7 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
     // Each item lands at its own first-containing merge when the receipt names one; trunk already held the rest [B3,R3,#7506].
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
     store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
-    merged.push(id);
+    merged.push(id); rows.set(id, item);
     if (phases.length) store.writeBoardMeta(board.db, `landing_phases:${id}`, JSON.stringify(phases));
     // With gate.endStaleJobs on, the landed item's open gate jobs end, so no runner spends time on them [C7,#8816].
     endStaleGateJobs(board.db, { item: id, enabled: ports.endStale === true });
@@ -1489,5 +1487,7 @@ function applyLandingOutcome(board, { job, receipt }, ports) {
   // A landing that moved trunk writes one main-moved receipt, so seats get the main-moved notice [B3,R3,#7506].
   const moved = merged.filter(id => (receipt.landed ?? []).includes(id));
   if (moved.length) store.logEvent(board, 'coordinator', 'main-moved', null, { sha: receipt.trunk, job, items: moved });
+  // A landing of sprint items queues one main-wide test job on the landed tip, from the rows loaded above [V2,M1,#12182].
+  if (moved.length) queuePostLandMainTest(board, { job, trunk: receipt.trunk, items: moved.map(id => rows.get(id)), queue: ports.queue ?? null });
   return { applied: merged.length > 0 || returned.length > 0, outcome: 'landed', merged, returned };
 }

@@ -6,9 +6,12 @@
  * Why: scattered node:fs imports tie every module to the real disk, so the lint stops the count from growing while the
  * adapter replaces them. Behind gate.adapterLintFs, off by default: with it off the lint reports nothing.
  */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { walk } from '../scan.js';
+
+/** The file system this file reads through, so a test can hand a fake one [C7]. */
+const disk = fileSystemAdapter();
 
 /** The ceilings file: per-file counts of today's direct node:fs imports, repo-relative. */
 export const FS_CEILING_FILE = 'packages/gate/data/ceilings/adapter-lint-fs.json';
@@ -76,8 +79,8 @@ export function fsCounts(files) {
 export function fsLintRows(root, { enabled = false } = {}) {
   if (enabled !== true) return [];
   let ceilings = {};
-  try { ceilings = JSON.parse(readFileSync(join(root, FS_CEILING_FILE), 'utf8')).files ?? {}; } catch { ceilings = {}; }
+  try { ceilings = JSON.parse(disk.readFile(join(root, FS_CEILING_FILE), 'utf8')).files ?? {}; } catch { ceilings = {}; }
   const files = {};
-  for (const path of walk(root, SOURCE_FILE)) if (coveredByFsLint(path)) files[path] = readFileSync(join(root, path), 'utf8');
+  for (const path of walk(root, SOURCE_FILE)) if (coveredByFsLint(path)) files[path] = disk.readFile(join(root, path), 'utf8');
   return fsFindings(files, ceilings);
 }
