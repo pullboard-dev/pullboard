@@ -4,6 +4,7 @@ import { pendingText } from '../item/withdraw-review.js';
 import { pendingWithdrawal } from '../item/withdraw-review.js';
 import { rejectedText } from '../item/withdraw-review.js';
 import { refuseLandedWithdraw } from '../item/withdraw-landed.js';
+import { withdrawCancelsJob } from '../../../../../packages/config/index.js';
 /** The pullboard withdraw command, in its own module so an item adding another command never edits these lines. */
 import * as roadmapView from '../../../../../packages/roadmap/index.js';
 import { listApiProjects } from '../../../../../packages/seats/index.js';
@@ -43,7 +44,7 @@ export function run(io, { first, second, rest, values = {} }) {
     }
     // The shared NOTE_REQUIRED hint names --note; withdraw's own form is positional, so say that here (#3267).
     if (!reason) throw new Refused('NOTE_REQUIRED', `withdraw needs a reason: pullboard withdraw ${item} "<reason>" (--note "<reason>" works too)`);
-    const result = await roadmapView.withdrawWithMilestones(ctx, board, me, item, reason, ordered, { ...store, listApiProjects });
+    const result = await roadmapView.withdrawWithMilestones(ctx, board, me, item, reason, ordered, { ...store, listApiProjects }, { endGateJobs: withdrawCancelsJob() });
     if (owner && ctx.config.worktreeMaintenance?.enabled === true) {
       const { cleanupMaintenanceLifecycle } = await import('../worktree/maintenance/command.js');
       await cleanupMaintenanceLifecycle(ctx, me.id, { path: owner.agent_path, item, agent: owner.agent_id, withdrawn: true, completedWithdrawal: true });

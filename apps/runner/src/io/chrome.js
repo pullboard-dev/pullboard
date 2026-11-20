@@ -1,14 +1,10 @@
 /** Conservative current-account Chrome clone cleanup; uncertain or live browser custody always wins [C7]. */
 import { execFile } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { rmdirSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
-import { statfsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
 import { chromeCloneDirectories } from '../../../../packages/gate/light.js';
+
+const disk = fileSystemAdapter();
 
 const HOUR = 60 * 60 * 1000;
 const NAME = /^code_sign_clone\.[A-Za-z0-9._-]{6}$/u;
@@ -55,7 +51,7 @@ async function chromeCloneCustody(directory, { deadline }) {
 /** Compare directory identity immediately before removal; symlinks and account mismatches grant no authority. */
 function sameDirectory(path, expected) {
   try {
-    const stat = lstatSync(path);
+    const stat = disk.lstat(path);
     return stat.isDirectory() && !stat.isSymbolicLink() && stat.dev === expected.dev && stat.ino === expected.ino
       && stat.uid === process.getuid() && stat.mtimeMs === expected.mtimeMs && stat.birthtimeMs === expected.birthtimeMs;
   } catch { return false; }
@@ -63,7 +59,7 @@ function sameDirectory(path, expected) {
 
 /** Observe available filesystem bytes; COW and concurrent activity prevent attributing a net delta to one deletion. */
 function available(path) {
-  try { const stat = statfsSync(path); return stat.bavail * stat.bsize; } catch { return null; }
+  try { const stat = disk.statfs(path); return stat.bavail * stat.bsize; } catch { return null; }
 }
 
 /** Remove only old unheld native clones; injected private roots and census ports exist solely for isolated fixtures. */
@@ -75,10 +71,10 @@ export async function sweepChromeClones({ directories = chromeCloneDirectories()
     let canonical;
     let names;
     try {
-      const stat = lstatSync(directory);
+      const stat = disk.lstat(directory);
       if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid()) { summary.unknown = true; continue; }
-      canonical = realpathSync(directory);
-      names = readdirSync(directory).filter(name => NAME.test(name));
+      canonical = disk.realpath(directory);
+      names = disk.list(directory).filter(name => NAME.test(name));
     } catch (error) { if (error.code !== 'ENOENT') summary.unknown = true; continue; }
     const before = available(canonical);
     // Initial custody skips known-held entries; fresh per-removal probes remain bounded by the original deadline.
@@ -88,7 +84,7 @@ export async function sweepChromeClones({ directories = chromeCloneDirectories()
       if (Date.now() >= deadline || summary.removed >= 16) { summary.deferred += names.length - index; break; }
       const path = join(canonical, name);
       let stat;
-      try { stat = lstatSync(path); } catch { summary.unknown = true; continue; }
+      try { stat = disk.lstat(path); } catch { summary.unknown = true; continue; }
       if (!sameDirectory(path, stat) || now - Math.max(stat.birthtimeMs, stat.mtimeMs) < HOUR) { summary.kept++; continue; }
       if (observed.paths.some(open => open === path || open.startsWith(`${path}/`))) { summary.kept++; continue; }
       const fresh = await custody(canonical, { deadline });
@@ -96,7 +92,7 @@ export async function sweepChromeClones({ directories = chromeCloneDirectories()
         || Date.now() >= deadline || !sameDirectory(path, stat)) {
         summary.kept++; summary.unknown ||= !fresh; continue;
       }
-      try { await rm(path, { recursive: true }); summary.removed++; }
+      try { await disk.promises.rm(path, { recursive: true }); summary.removed++; }
       catch { summary.unknown = true; summary.kept++; }
     }
     const after = available(canonical);
@@ -111,14 +107,14 @@ export async function sweepChromeClones({ directories = chromeCloneDirectories()
 export async function scheduledChromeCloneSweep(runnerRoot, { now = Date.now(), deadline = Infinity } = {}) {
   if (process.platform !== 'darwin') return null;
   const state = join(runnerRoot, 'chrome-clone-sweeps');
-  mkdirSync(state, { recursive: true, mode: 0o700 });
+  disk.mkdir(state, { recursive: true, mode: 0o700 });
   const claim = join(state, String(Math.floor(now / HOUR)));
-  try { mkdirSync(claim, { mode: 0o700 }); }
+  try { disk.mkdir(claim, { mode: 0o700 }); }
   catch (error) { if (error.code === 'EEXIST') return null; throw error; }
   // These empty directories record attempted hours, not leases or process custody.
-  for (const name of readdirSync(state)) {
+  for (const name of disk.list(state)) {
     if (/^\d+$/u.test(name) && Number(name) < Math.floor(now / HOUR) - 1) {
-      try { rmdirSync(join(state, name)); } catch { /* Preserve nonempty or substituted evidence. */ }
+      try { disk.rmdir(join(state, name)); } catch { /* Preserve nonempty or substituted evidence. */ }
     }
   }
   // A failed or interrupted sweep remains an honest attempted hour; no same-hour retry loop.

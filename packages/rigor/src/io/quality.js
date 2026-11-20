@@ -9,13 +9,8 @@
  * Nothing here drafts or approves a row; rigor-quality-draft.js drafts them for the person.
  */
 import { spawnSync } from 'node:child_process';
-import {
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { loadMachineSettings } from '../../../config/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { scratchRoot } from '../../../config/index.js';
 import {
   dirname,
@@ -36,6 +31,8 @@ export const LINE_CAP = 1500;
 
 /** How many lines of non-test code one change may add, net, before Rigor names it. */
 export const GROWTH_BUDGET = 400;
+
+const fs = fileSystemAdapter();
 
 /** How long one test run inside a mutation or control may take. */
 const TEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -347,7 +344,7 @@ export function nodeTests(cwd, files) {
 
 /** A private shared clone, checked out at `commit` with hooks off; `move` checks out another. */
 function scratchClone(root, commit) {
-  const directory = mkdtempSync(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-quality-'));
+  const directory = fs.mkdtemp(join(scratchRoot(loadMachineSettings()), 'pullboard-rigor-quality-'));
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
   /** Check out a commit exactly, dropping anything a run wrote. */
@@ -358,11 +355,11 @@ function scratchClone(root, commit) {
   };
   const cloned = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { env, stdio: 'ignore' });
   if (cloned.status !== 0) {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
     throw new Refused('RIGOR_RANGE', 'could not clone this repository to run its tests; check that git can read it, then run pullboard rigor quality again');
   }
   move(commit);
-  return { checkout, move, remove: () => rmSync(directory, { recursive: true, force: true }) };
+  return { checkout, move, remove: () => fs.rm(directory, { recursive: true, force: true }) };
 }
 
 /**
@@ -389,9 +386,9 @@ function guardBreaches(root, range, diff, runTests) {
   try {
     if (!runTests(clone.checkout, tests)) return guards.map((guard) => breach(guard, `adds a guard whose tests fail at ${range.head.slice(0, 12)} even with it, so its loss proves nothing`));
     return guards.filter((guard) => {
-      writeFileSync(join(clone.checkout, guard.path), `${guard.source.slice(0, guard.at)}void ${guard.source.slice(guard.at + 'throw'.length)}`);
+      fs.writeFile(join(clone.checkout, guard.path), `${guard.source.slice(0, guard.at)}void ${guard.source.slice(guard.at + 'throw'.length)}`);
       const survived = runTests(clone.checkout, tests);
-      writeFileSync(join(clone.checkout, guard.path), guard.source);
+      fs.writeFile(join(clone.checkout, guard.path), guard.source);
       return survived;
     }).map((guard) => breach(guard, `adds a guard the change's tests still pass without: ${tests.join(', ')}`));
   } finally { clone.remove(); }
@@ -410,8 +407,8 @@ function controlBreaches(root, fix, runTests) {
   const clone = scratchClone(root, fix.parent);
   try {
     for (const path of tests) {
-      mkdirSync(dirname(join(clone.checkout, path)), { recursive: true });
-      writeFileSync(join(clone.checkout, path), textAt(root, fix.commit, path) ?? '');
+      fs.mkdir(dirname(join(clone.checkout, path)), { recursive: true });
+      fs.writeFile(join(clone.checkout, path), textAt(root, fix.commit, path) ?? '');
     }
     const before = runTests(clone.checkout, tests);
     clone.move(fix.commit);

@@ -18,9 +18,9 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import { SPEC } from '../../../../tests/fixtures/submit/gate.js';
-import { coordinatorLocal } from '../local.js';
-import { runLocal } from '../local.js';
-import { submitWithEnv } from '../local.js';
+import { coordinatorLocal } from '../../../../tests/fixtures/submit/local.js';
+import { runLocal } from '../../../../tests/fixtures/submit/local.js';
+import { submitWithEnv } from '../../../../tests/fixtures/submit/local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';

@@ -15,7 +15,7 @@ import { requireLandingPlanCheck } from '../../../index.js';
 import { scanLanding } from '../../../src/io/scan.js';
 
 /** Names a landing source must not carry; plan.js is matched only as a whole file name, so parallel-plan.js is not a cells plan module. */
-const PLAN_NAMES = /cells-plan|cells\.json|(?:^|[/'"])plan\.js|placeLanding|landingPlacementProblems|addedPlacementProblems/u;
+const PLAN_NAMES = /cells-plan|cells\.json|(?:^|[/'"])plan\.js|placeLanding|landingPlacementProblems|addedPlacement\w*/u;
 
 const IO = fileURLToPath(new URL('../../../src/io', import.meta.url));
 
@@ -40,7 +40,7 @@ function candidate(t) {
 test('landing.no-plan.with-no-cells-plan-in-the: clause 1: with no cells plan in the tree, a new file lands through derive, the recorded check and the scan with no plan refusal [C7]', async t => {
   const { root, base, tip } = candidate(t);
   assert.equal(existsSync(join(root, 'packages/codemap/data/plan/cells.json')), false);
-  assert.deepEqual(amendLandingEngines(root).assigned, []);
+  assert.deepEqual((await amendLandingEngines(root)).assigned, []);
   assert.equal(git(root, 'rev-parse', 'HEAD'), tip, 'a new source file needs no amend');
   assert.doesNotThrow(() => requireLandingPlanCheck(root, tip));
   assert.deepEqual(await scanLanding(root, base, tip), []);

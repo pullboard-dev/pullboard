@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { startFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
-import { withNestedGroup } from '../../../../../gate/index.js';
+import { withNestedGroup } from '../../../../../gate/heavy.js';
 import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { focusedPoolSnapshot } from '../../../fixtures/pool.js';
 
