@@ -8,16 +8,15 @@
  */
 import { execFile } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { runsFilePath } from '../../../store/index.js';
 import { elapsedMs } from '../logic/budgets.js';
 import { storeName } from './store-names.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The one file-system adapter this file reads through [C7]. */
+const fs = fileSystemAdapter();
 
 // Budget: the job lease a runner's renewal extends (the jobs cell's LEASE_MS, two minutes), so a lease's last renewal is its end minus this.
 const LEASE_RENEW_WINDOW_MS = 120_000;
@@ -59,7 +58,7 @@ function doing(census, pid) {
 
 /** Open a SQLite file read-only, or null when it does not exist or cannot be opened. */
 function readOnly(file) {
-  if (!existsSync(file)) return null;
+  if (!fs.exists(file)) return null;
   try {
     const db = new DatabaseSync(file, { readOnly: true });
     db.exec('PRAGMA busy_timeout = 200');
@@ -69,7 +68,7 @@ function readOnly(file) {
 
 /** The age of a file from its modification time; null when it is gone. */
 function fileAge(file, now) {
-  try { return Math.max(0, now - statSync(file).mtimeMs); } catch { return null; }
+  try { return Math.max(0, now - fs.stat(file).mtimeMs); } catch { return null; }
 }
 
 /**
@@ -121,7 +120,7 @@ export function readPools(file, scope, now, census) {
 /** Every Git directory of this repository: the main one and each linked worktree's. */
 function gitDirectories(commonDir) {
   const dirs = [commonDir];
-  try { for (const name of readdirSync(join(commonDir, 'worktrees'))) dirs.push(join(commonDir, 'worktrees', name)); } catch { /* No linked worktrees. */ }
+  try { for (const name of fs.list(join(commonDir, 'worktrees'))) dirs.push(join(commonDir, 'worktrees', name)); } catch { /* No linked worktrees. */ }
   return dirs;
 }
 
@@ -131,13 +130,13 @@ export function readCheckoutWriters(commonDir, now, census) {
   for (const gitDir of gitDirectories(commonDir)) {
     const directory = join(gitDir, 'pullboard-checkout-writers');
     let names;
-    try { names = readdirSync(directory).filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)); } catch { continue; }
+    try { names = fs.list(directory).filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)); } catch { continue; }
     const intent = join(gitDir, 'pullboard-checkout-takeover');
     const intentAge = fileAge(intent, now);
     for (const name of names) {
       const file = join(directory, name);
       let record;
-      try { record = JSON.parse(readFileSync(file, 'utf8')); } catch { continue; }
+      try { record = JSON.parse(fs.readFile(file)); } catch { continue; }
       if (!Number.isSafeInteger(record?.pid) || !Number.isFinite(record?.at)) continue;
       const alive = pidAlive(record.pid);
       const command = doing(census, record.pid);
@@ -156,14 +155,14 @@ export function readCheckoutWriters(commonDir, now, census) {
  */
 export function readBoardWriters(boardFile, now, census) {
   let directory;
-  try { directory = realpathSync(boardFile) + '.write-holders'; } catch { return []; }
+  try { directory = fs.realpath(boardFile) + '.write-holders'; } catch { return []; }
   let names;
-  try { names = readdirSync(directory).filter(name => /^\d+-[a-f0-9-]+\.json$/u.test(name)); } catch { return []; }
+  try { names = fs.list(directory).filter(name => /^\d+-[a-f0-9-]+\.json$/u.test(name)); } catch { return []; }
   const live = [], dead = [];
   for (const name of names) {
     const file = join(directory, name);
     let marker;
-    try { marker = JSON.parse(readFileSync(file, 'utf8')); } catch { continue; }
+    try { marker = JSON.parse(fs.readFile(file)); } catch { continue; }
     if (!Number.isSafeInteger(marker?.pid) || !Number.isFinite(marker?.acquiredAt)) continue;
     const observed = census.get(marker.pid);
     // A reused pid whose start differs is not this writer: its marker is as dead as a gone pid's.
@@ -188,11 +187,11 @@ export function readBoardWriters(boardFile, now, census) {
 export function readResourceWriteQueue(databaseFile, now, census) {
   const directory = `${databaseFile}.writes`;
   let names;
-  try { names = readdirSync(directory); } catch { return []; }
+  try { names = fs.list(directory); } catch { return []; }
   const lock = join(directory, 'writer.lock');
   let writer = null;
   try {
-    const text = readFileSync(lock, 'utf8');
+    const text = fs.readFile(lock);
     const [pid, at] = text.split(' ').map(Number);
     if (Number.isSafeInteger(pid)) writer = { pid, ageMs: Number.isFinite(at) ? Math.max(0, now - at) : (fileAge(lock, now) ?? 0), text };
   } catch { /* No writer holds the queue. */ }
@@ -212,13 +211,13 @@ export function readResourceWriteQueue(databaseFile, now, census) {
 /** The submit hand-off line: each place waits for a worker; a reserved place whose submitter died is dead. */
 export function readHandoffQueue(queueDirectory, now, census) {
   let names;
-  try { names = readdirSync(queueDirectory).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort(); } catch { return []; }
+  try { names = fs.list(queueDirectory).filter(name => /^\d+-.+\.(json|reserved)$/u.test(name)).sort(); } catch { return []; }
   if (!names.length) return [];
   const waiters = [], dead = [];
   for (const name of names) {
     const file = join(queueDirectory, name);
     let owner = null;
-    try { owner = JSON.parse(readFileSync(file, 'utf8')); } catch { /* A filled place may hold a request, not an owner. */ }
+    try { owner = JSON.parse(fs.readFile(file)); } catch { /* A filled place may hold a request, not an owner. */ }
     const pid = Number.isSafeInteger(owner?.pid) ? owner.pid : null;
     if (name.endsWith('.reserved') && pid && !pidAlive(pid)) { dead.push(file); continue; }
     waiters.push({ label: name.replace(/\.(json|reserved)$/u, ''), pid, ageMs: fileAge(file, now) ?? 0, context: pid ? doing(census, pid) : null });
@@ -233,7 +232,7 @@ function lastSpanEnds(spanFolder, now) {
   const ends = new Map();
   for (const day of [now - 86_400_000, now]) {
     let text;
-    try { text = readFileSync(join(spanFolder, `${storeName(new Date(day).toISOString().slice(0, 10), '.jsonl')}`), 'utf8'); } catch { continue; }
+    try { text = fs.readFile(join(spanFolder, `${storeName(new Date(day).toISOString().slice(0, 10), '.jsonl')}`)); } catch { continue; }
     for (const line of text.split('\n')) {
       if (!line) continue;
       try {
@@ -302,7 +301,7 @@ export function readOrphans(census, accounted) {
     const script = /\s(\/\S+\.m?js)(?:\s|$)/u.exec(row.command)?.[1] ?? null;
     rows.push({ surface: 'orphan', key: `orphan:${script ? script.split('/').slice(-2).join('/') : row.command.split(' ')[0]}`,
       holder: `pid ${row.pid} ${script ? script.split('/').slice(-1)[0] : 'process'}`, pid: row.pid, ageMs: row.ageMs,
-      context: doing(census, row.pid), detail: script && !existsSync(script) ? `its script ${script} is deleted` : 'parent gone (ppid 1)',
+      context: doing(census, row.pid), detail: script && !fs.exists(script) ? `its script ${script} is deleted` : 'parent gone (ppid 1)',
       waiters: [], evidence: `ps pid ${row.pid} started ${row.started}`, orphan: { pid: row.pid, started: row.started } });
   }
   return rows;
@@ -377,7 +376,7 @@ function heartbeatLoops(census) {
 
 /** Resolve a path to its real form for comparison; an unresolvable path compares as written. */
 function real(path) {
-  try { return realpathSync(path); } catch { return path; }
+  try { return fs.realpath(path); } catch { return path; }
 }
 
 /** The newest commit time in a worktree, in epoch ms, or 0 when Git cannot say. */
