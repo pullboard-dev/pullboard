@@ -1,13 +1,20 @@
-/** @pullboard-test-input apps/cli/src/io/commands/new.js apps/cli/src/logic/new-package.js apps/cli/tests/fixtures/e2e.js */
+/** @pullboard-test-input apps/cli/src/io/commands/new.js apps/cli/src/logic/new-package.js apps/cli/src/logic/new-package.json apps/cli/tests/fixtures/e2e.js */
 /** pullboard new package writes the files newPackageFiles returns under packages/<name>, and refuses an existing folder or a bad first word [C7,#11426]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { newPackageFiles } from '../../../src/logic/new-package.js';
+import { cellLintParsers } from '../../../../../packages/codemap/index.js';
+import { cellLintReport } from '../../../../../packages/codemap/index.js';
+import { withCellLintParser } from '../../../../../packages/codemap/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -42,4 +49,43 @@ test('cli.io-commands-new.refuses-bad-usage: clause 3: new refuses USAGE for a f
     assert.match(refused.err + refused.out, /USAGE/u);
   }
   assert.equal(existsSync(join(box.repo, 'packages', 'tidy-cell')), false);
+});
+
+const PLAN = 'packages/codemap/data/plan';
+
+/** A fixture project holding one cell made by `new package`, with the plan row the lint needs, committed so the cell inventory sees it. */
+function projectWithNewCell(name) {
+  const box = e2e.project();
+  const index = { version: 1, names: {}, cells: [{ order: 1, name, file: `${PLAN}/01-${name}.json` }], stays: [], retired: [], entries: [], engineStays: [], allowedEdges: [], upwardEdgesGrandfathered: [] };
+  const shard = { order: 1, name, kind: 'package', root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, paths: [], reexports: [], imports: [], cuts: [] };
+  return { box, index, shard };
+}
+
+test('cli.io-commands-new.lints-cell-lint-report-clean: clause 1: a cell written by new package into a fixture project root has no finding for packages/<name> in cellLintReport [C7,#11430]', async () => {
+  const { box, index, shard } = projectWithNewCell('tidy-cell');
+  const made = await box.runLocal(box.repo, 'new', 'package', 'tidy-cell', '--purpose', 'keeps the shelves tidy');
+  assert.equal(made.code, 0, made.err || made.out);
+  for (const [path, body] of [[`${PLAN}/cells.json`, index], [`${PLAN}/01-tidy-cell.json`, shard]]) {
+    mkdirSync(dirname(join(box.repo, path)), { recursive: true });
+    writeFileSync(join(box.repo, path), JSON.stringify(body, null, 2) + '\n');
+  }
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: add the new cell and its plan row');
+  const report = withCellLintParser(compile => cellLintReport(box.repo, cellLintParsers(compile)));
+  const mine = [];
+  for (const [metric, row] of Object.entries(report.metrics ?? {})) {
+    for (const finding of row.findings) if (JSON.stringify(finding).includes('packages/tidy-cell')) mine.push(`${metric}: ${JSON.stringify(finding)}`);
+  }
+  for (const row of report.unknown ?? []) if (JSON.stringify(row).includes('packages/tidy-cell')) mine.push(`unknown: ${JSON.stringify(row)}`);
+  assert.deepEqual(mine, []);
+});
+
+test('cli.io-commands-new.lints-generated-tests-pass: clause 2: the registry and inputs tests the generated cell carries pass when run with node --test on that fixture root [C7,#11430]', async () => {
+  const box = e2e.project();
+  const made = await box.runLocal(box.repo, 'new', 'package', 'tidy-cell', '--purpose', 'keeps the shelves tidy');
+  assert.equal(made.code, 0, made.err || made.out);
+  const tests = Object.keys(newPackageFiles('tidy-cell', 'x')).filter(path => /\/tests\/[^/]+\.test\.js$/u.test(path));
+  assert.ok(tests.some(path => path.endsWith('inputs.test.js')) && tests.some(path => path.endsWith('registry.test.js')), tests.join());
+  const run = spawnSync(process.execPath, ['--test', ...tests], { cwd: box.repo, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
