@@ -41,6 +41,8 @@ export function docsRepository(t) {
   git('config', 'user.name', 'Generated documentation fixture');
   git('config', 'user.email', 'docs@example.invalid');
   git('config', 'core.hooksPath', '/dev/null');
+  // The source commit holds thousands of loose objects, past gc.auto: a detached auto gc then writes .git while the case's teardown removes it (ENOTEMPTY).
+  git('config', 'gc.auto', '0');
   git('add', '.'); git('commit', '-qm', 'source fixture');
   // The committed state is the template, taken before the case changes anything.
   const copy = `${root}-template`;
