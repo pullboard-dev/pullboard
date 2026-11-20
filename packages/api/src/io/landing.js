@@ -65,6 +65,8 @@ function landingHops(hops, landed) {
   return hops.map(({ item, epoch }) => ({ item, epoch }));
 }
 
+const PACES = ['sprint', 'steady', 'strict'];
+
 /** Refuse an accepted-items list a runner could not land as written; return it in landing order. */
 function landingItems(items) {
   if (!Array.isArray(items) || items.length === 0) throw new Refused('LANDING_ITEMS', 'a landing job names at least one accepted item as { id, commit, ref? }');
@@ -75,7 +77,8 @@ function landingItems(items) {
     if (entry.header !== undefined && (typeof entry.header !== 'string' || !MESSAGE_HEADER.test(entry.header) || typeof entry.trailers !== 'string' || !MESSAGE_TRAILERS.test(entry.trailers))) {
       throw new Refused('LANDING_ITEMS', 'a landed item\'s message is { header, trailers }: one header line and its Pullboard- trailer lines, as the landing message builder writes them');
     }
-    return { id: entry.id, commit: entry.commit, ...(entry.ref ? { ref: entry.ref } : {}), ...(entry.header !== undefined ? { header: entry.header, trailers: entry.trailers } : {}) };
+    if (entry.pace !== undefined && !PACES.includes(entry.pace)) throw new Refused('LANDING_ITEMS', 'a landed item\'s pace is sprint, steady or strict, and steady when it names none');
+    return { id: entry.id, commit: entry.commit, pace: entry.pace ?? 'steady', ...(entry.ref ? { ref: entry.ref } : {}), ...(entry.header !== undefined ? { header: entry.header, trailers: entry.trailers } : {}) };
   });
 }
 
