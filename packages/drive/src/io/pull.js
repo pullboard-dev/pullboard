@@ -469,7 +469,7 @@ export function jobEnvironment(cache, name, job, host = environmentAdapter().all
   const machine = join(home, '.pullboard');
   // A job's HOME is empty, so Playwright would look for browsers in an empty cache; with no host PLAYWRIGHT_BROWSERS_PATH, point it at the host's default browser cache folder when that exists.
   const hostHome = typeof host.HOME === 'string' && host.HOME !== '' ? host.HOME : homedir();
-  const browsers = ['Library/Caches/ms-playwright', '.cache/ms-playwright'].map(path => join(hostHome, path)).find(path => existsSync(path) && statSync(path).isDirectory());
+  const browsers = ['Library/Caches/ms-playwright', '.cache/ms-playwright'].map(path => join(hostHome, path)).find(path => disk.exists(path) && disk.stat(path).isDirectory());
   if (passed.PLAYWRIGHT_BROWSERS_PATH === undefined && browsers) passed.PLAYWRIGHT_BROWSERS_PATH = browsers;
   return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder, temporary };
 }
