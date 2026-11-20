@@ -28,7 +28,7 @@ test('store.io-board-edit-specs.replaces-rows-and-refreezes: clause 1: editItem 
   assert.equal(row.item_frozen_digest, createHash('sha256').update(row.item_frozen).digest('hex'));
   const written = events(board).slice(before);
   assert.equal(written.length, 1, 'one edit move');
-  assert.deepEqual(JSON.parse(written[0].event_detail), { reason: 'the first row was the wrong one', specIds: ['G2', 'G3'], previousSpecIds: ['G1'] });
+  assert.deepEqual(JSON.parse(written[0].event_detail), { reason: 'the first row was the wrong one', specIds: ['G2', 'G3'], previousSpecIds: ['G1'], correctedFrozen: row.item_frozen_digest });
   editItem(board, id, { agentId: 'coordinator', brief: 'Files: src/b.js\nTest: proves it' });
   assert.equal(board.db.prepare('SELECT item_spec_ids FROM item WHERE item_id = ?').get(id).item_spec_ids, 'G2,G3', 'an edit without specs keeps the cited rows');
   assert.equal('specIds' in JSON.parse(events(board).at(-1).event_detail), false, 'and records no spec change');
