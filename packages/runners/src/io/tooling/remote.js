@@ -222,6 +222,9 @@ export function readCapsuleFromStdin() {
   return bytes.toString('ascii');
 }
 
+/** claimRunnerLaunch reads through the fs adapter, which the generated installer cannot import; it gets the same synchronous calls under that name [C7]. */
+const RECOVERY_FS_SHIM = 'const fs = { mkdir: mkdirSync, writeFile: writeFileSync };\n';
+
 /**
  * Install pinned bytes first, then replace the SSH shell with the file-based worker.
  * The command stays small and fixed; the capsule goes first on stdin, ahead of anything the worker reads.
@@ -255,7 +258,7 @@ import { homedir } from 'node:os';
 ${installRunnerPackage.toString()}
 ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
-${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(homedir(), '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
+${recovery ? RECOVERY_FS_SHIM + recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(homedir(), '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
   const suffix = `/runtime/${tooling.sha256}/${tooling.entry ?? 'apps/runner/src/io/scripts/worker.js'}`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;

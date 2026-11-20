@@ -2,12 +2,6 @@
   "version": 1,
   "files": {
     "apps/cli/src/io/submit/gate.js": 10,
-    "apps/runner/src/io/chrome.js": 7,
-    "apps/runner/src/io/controller.js": 1,
-    "apps/runner/src/io/custody.js": 1,
-    "apps/runner/src/io/handoff.js": 4,
-    "apps/runner/src/io/orphans.js": 1,
-    "apps/runner/src/io/private/check/worker.js": 1,
     "apps/view/src/io/background.js": 1,
     "apps/view/src/io/badge.js": 4,
     "apps/view/src/io/live/read.js": 6,
