@@ -9,15 +9,7 @@
  * only its owner reads; it runs them with its registered Node.
  */
 import { execFile } from 'node:child_process';
-import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { homedir } from 'node:os';
 import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
@@ -34,6 +26,10 @@ import { pullWord } from './pull/scripts.js';
 import { localNetworkHost } from '../logic/service.js';
 import { serviceForm } from '../logic/service.js';
 import { machineHome } from '../../../resources/index.js';
+
+const fs = fileSystemAdapter();
+// The installer below is sent to a runner as source text, where its bare calls resolve to node:fs imports; here they run over the adapter.
+const { chmod: chmodSync, exists: existsSync, mkdir: mkdirSync, rename: renameSync, rm: rmSync, writeFile: writeFileSync } = fs;
 
 const REPO = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The runner-side program: runner serve on its own, without the CLI. */
@@ -69,10 +65,10 @@ export function trustedEntries(root = REPO) {
   const entries = [];
   for (const source of ENTRY_SOURCES) {
     let text;
-    try { text = readFileSync(posix.join(root, source), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
+    try { text = fs.readFile(posix.join(root, source), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
     for (const [, name, template] of text.matchAll(ENTRY_TEMPLATE)) {
       const imports = [...new Set([...template.matchAll(ENTRY_IMPORT)].map(match => match[1].slice(2)))]
-        .filter(path => statSync(posix.join(root, path), { throwIfNoEntry: false })?.isFile());
+        .filter(path => fs.stat(posix.join(root, path), { throwIfNoEntry: false })?.isFile());
       entries.push({ name, text: template, imports });
     }
   }
@@ -97,11 +93,11 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
     const path = pending.pop();
     if (files[path] !== undefined) continue;
     // A directory has no text to copy: a folder a module lists was expanded where it was named, and an ancestor is only a base.
-    if (statSync(posix.join(root, path), { throwIfNoEntry: false })?.isDirectory()) continue;
+    if (fs.stat(posix.join(root, path), { throwIfNoEntry: false })?.isDirectory()) continue;
     // A dot-file at the repo root is generated on the machine that runs it (the runner source manifest) and is read as optional.
-    if (generated.has(path) && !statSync(posix.join(root, path), { throwIfNoEntry: false })) continue;
+    if (generated.has(path) && !fs.stat(posix.join(root, path), { throwIfNoEntry: false })) continue;
     let text;
-    try { text = readFileSync(posix.join(root, path), 'utf8'); } catch (error) {
+    try { text = fs.readFile(posix.join(root, path), 'utf8'); } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
       throw new Refused('RUNNER_SERVICE_DATA', `the runner service needs ${path}, which is not in the repo; restore ${path} or stop importing it`, 'restore the file, then run the command again');
     }
@@ -112,16 +108,16 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
     const { code, strings } = lex(text);
     for (const string of strings) {
       // A repo directory named by a path string (`join(root, 'apps/cli/src/io/command-docs')`) brings its .json files: modules list them at run time.
-      if (/^[\w-][\w.-]*(?:\/[\w-][\w.-]*)+$/u.test(string.text) && statSync(posix.join(root, string.text), { throwIfNoEntry: false })?.isDirectory()) {
-        const names = readdirSync(posix.join(root, string.text), { recursive: true }).filter(name => name.endsWith('.json'));
+      if (/^[\w-][\w.-]*(?:\/[\w-][\w.-]*)+$/u.test(string.text) && fs.stat(posix.join(root, string.text), { throwIfNoEntry: false })?.isDirectory()) {
+        const names = fs.list(posix.join(root, string.text), { recursive: true }).filter(name => name.endsWith('.json'));
         // Budget: a declaration folder is small data; a folder of megabytes (engine history) is read on demand, never at load.
-        const size = names.reduce((sum, name) => sum + statSync(posix.join(root, string.text, name)).size, 0);
+        const size = names.reduce((sum, name) => sum + fs.stat(posix.join(root, string.text, name)).size, 0);
         if (size <= DATA_DIRECTORY_BYTES) for (const name of names) {
           pending.push(posix.join(string.text, name));
           // A command declaration is checked at load against its implementation file's existence, which is copied as text and never run.
-          const command = (() => { try { return JSON.parse(readFileSync(posix.join(root, string.text, name), 'utf8')).name; } catch { return null; } })();
+          const command = (() => { try { return JSON.parse(fs.readFile(posix.join(root, string.text, name), 'utf8')).name; } catch { return null; } })();
           const implementation = typeof command === 'string' ? `apps/cli/src/io/commands/${command.split(' ')[0]}.js` : null;
-          if (implementation && statSync(posix.join(root, implementation), { throwIfNoEntry: false })?.isFile()) present.add(implementation);
+          if (implementation && fs.stat(posix.join(root, implementation), { throwIfNoEntry: false })?.isFile()) present.add(implementation);
         }
         continue;
       }
@@ -143,7 +139,7 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
       pending.push(...(isData ? listedFolder(root, path, target) ?? [target] : [target]));
     }
   }
-  for (const path of present) files[path] ??= readFileSync(posix.join(root, path), 'utf8');
+  for (const path of present) files[path] ??= fs.readFile(posix.join(root, path), 'utf8');
   return files;
 }
 
@@ -161,23 +157,23 @@ const REFRESH_MS = 60_000;
  *   app: the installed app folder; store: the runner's trunk git directory; git: runs git against it (default: the git on PATH).
  * @returns {{ changed: (commit: string) => Promise<boolean>, refresh: (commit: string) => Promise<boolean> }}
  */
-export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entry = SERVICE_ENTRY, git = defaultGit(store), write = writeFileSync }) {
+export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entry = SERVICE_ENTRY, git = defaultGit(store), write = fs.writeFile }) {
   const closure = async commit => {
-    rmSync(scratch, { recursive: true, force: true });
-    mkdirSync(scratch, { recursive: true });
+    fs.rm(scratch, { recursive: true, force: true });
+    fs.mkdir(scratch, { recursive: true });
     try {
       const tar = `${scratch}.tar`;
       await git(['archive', '--format=tar', `--output=${tar}`, commit]);
       await new Promise((done, fail) => execFile('tar', ['-xf', tar, '-C', scratch], { timeout: REFRESH_MS }, error => error ? fail(error) : done()));
-      rmSync(tar, { force: true });
+      fs.rm(tar, { force: true });
       return { ...serviceFiles(scratch, entry), 'package.json': '{ "type": "module" }\n' };
-    } finally { rmSync(scratch, { recursive: true, force: true }); }
+    } finally { fs.rm(scratch, { recursive: true, force: true }); }
   };
   const installed = () => {
     const files = {};
-    if (!existsSync(app)) return files;
-    for (const name of readdirSync(app, { recursive: true })) {
-      if (statSync(join(app, name)).isFile()) files[name.split(sep).join('/')] = readFileSync(join(app, name), 'utf8');
+    if (!fs.exists(app)) return files;
+    for (const name of fs.list(app, { recursive: true })) {
+      if (fs.stat(join(app, name)).isFile()) files[name.split(sep).join('/')] = fs.readFile(join(app, name), 'utf8');
     }
     return files;
   };
@@ -193,19 +189,19 @@ export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entr
       const next = `${app}.next`;
       const previous = `${app}.prev`;
       try {
-        rmSync(next, { recursive: true, force: true });
+        fs.rm(next, { recursive: true, force: true });
         for (const [path, text] of Object.entries(files)) {
-          mkdirSync(dirname(join(next, path)), { recursive: true });
+          fs.mkdir(dirname(join(next, path)), { recursive: true });
           write(join(next, path), text);
         }
-        rmSync(previous, { recursive: true, force: true });
-        renameSync(app, previous);
-        try { renameSync(next, app); } catch (error) { renameSync(previous, app); throw error; }
+        fs.rm(previous, { recursive: true, force: true });
+        fs.rename(app, previous);
+        try { fs.rename(next, app); } catch (error) { fs.rename(previous, app); throw error; }
       } catch (error) {
-        rmSync(next, { recursive: true, force: true });
+        fs.rm(next, { recursive: true, force: true });
         throw error;
       }
-      rmSync(previous, { recursive: true, force: true });
+      fs.rm(previous, { recursive: true, force: true });
       return true;
     },
   };
@@ -229,10 +225,10 @@ function defaultGit(store) {
  */
 function listedFolder(root, path, target) {
   const folder = target.replace(/\/+$/u, '');
-  if (!statSync(posix.join(root, folder), { throwIfNoEntry: false })?.isDirectory()) return null;
+  if (!fs.stat(posix.join(root, folder), { throwIfNoEntry: false })?.isDirectory()) return null;
   if (folder === '.' || path.startsWith(`${folder}/`)) return [];
-  return readdirSync(posix.join(root, folder), { recursive: true }).map(name => posix.join(folder, name))
-    .filter(name => statSync(posix.join(root, name)).isFile());
+  return fs.list(posix.join(root, folder), { recursive: true }).map(name => posix.join(folder, name))
+    .filter(name => fs.stat(posix.join(root, name)).isFile());
 }
 
 /**
@@ -379,7 +375,7 @@ function serviceRecordFile() { return join(machineHome(), 'runner-services.json'
 
 /** Each runner's last install-serve result by host, or an empty record. */
 export function runnerServiceRecords(file = serviceRecordFile()) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return {}; }
+  try { return JSON.parse(fs.readFile(file, 'utf8')); } catch { return {}; }
 }
 
 /**
@@ -409,7 +405,7 @@ export function runnerServiceProblems(records = runnerServiceRecords()) {
 function recordService(host, service, file = serviceRecordFile()) {
   const records = runnerServiceRecords(file);
   if (service) records[host] = service; else delete records[host];
-  try { mkdirSync(dirname(file), { recursive: true, mode: 0o700 }); writeFileSync(file, `${JSON.stringify(records, null, 2)}\n`); } catch { /* doctor's hint only */ }
+  try { fs.mkdir(dirname(file), { recursive: true, mode: 0o700 }); fs.writeFile(file, `${JSON.stringify(records, null, 2)}\n`); } catch { /* doctor's hint only */ }
 }
 
 /**

@@ -131,6 +131,7 @@ export {
   boardOpensCheckOn,
   serveListen,
   servePullRoute,
+  serveRestartTrial,
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,

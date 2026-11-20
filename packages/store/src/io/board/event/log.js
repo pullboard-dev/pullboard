@@ -3,6 +3,7 @@ import { now } from "../query.js";
 import { liftInfraHold } from "../../../logic/board/release.js";
 import { liftTwiceHold } from "../../../logic/board/release.js";
 import { liftSettledHolds } from "../../../logic/board/holds.js";
+import { flagWithdrawnDependents } from "../../../logic/board/holds.js";
 import { liftConditionalHold } from "../../../logic/board/holds.js";
 import { requireHandoffActive } from "../../../../../state/light.js";
 import { eventKindRefusal } from "../../../../../state/light.js";
@@ -225,6 +226,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     liftInfraHold(board, event, logEvent, setItem);
     liftTwiceHold(board, event, logEvent, setItem);
     liftSettledHolds(board, event, logEvent, setItem);
+    flagWithdrawnDependents(board, event, logEvent);
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
       notifyUnblocked(board, event, logEvent);
     }

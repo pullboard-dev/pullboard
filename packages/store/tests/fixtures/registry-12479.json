@@ -1,0 +1,3 @@
+{
+  "store.io-board-review-family-relax-required.family-allows-stands-with-witness": {"proves":{"specs":["C7"],"claim":"with review.relaxRequiredFamily on and a relaxation witness for the seat, the familyAllows guard of reviewerChecks returns no refusal for a seat of another family on a --review-family item, and still returns O2_FAMILY_MATCH with the setting off."},"why":"Without this case reviewerChecks could keep withholding the witness from the family check, so next --verify would still refuse a witnessed seat that the required-family guard passed.","kind":"cell unit","inputs":["packages/store/tests/io/board/review/family/relax-required.test.js","packages/store/src/io/board.js"]}
+}

@@ -1,6 +1,6 @@
-import { rmSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
 import { readCellLintBaseline } from '../cell/lint/store.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../cell/lint/store.js';
 import { cellLintReport } from '../cell/lints.js';
@@ -11,7 +11,6 @@ import { strayNextStep } from '../../logic/allowlist.js';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
-import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../../kernel/light.js';
 import { environmentAdapter } from '../../../../env/index.js';
 
@@ -39,7 +38,7 @@ export function mainCommit(root) {
  */
 export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
   if (!commit) return null;
-  const directory = mkdtempSync(join(scratchBase(), 'pullboard-main-lints-'));
+  const directory = disk.mkdtemp(join(scratchBase(), 'pullboard-main-lints-'));
   try {
     const checkout = join(directory, 'main');
     const cloned = gitRun(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout]);
@@ -47,10 +46,10 @@ export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
     if (selected.status !== 0) throw new Refused('CELL_BASELINE', `main ${commit.slice(0, 12)} could not be checked out to count its cell debt; run git fetch, then the check again`);
     const report = cellLintReport(checkout, parsers);
     // The committed snapshot is the authority when main has one; main's counted debt only stands in when it has none [C7,CD23].
-    const committed = existsSync(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(checkout) : null;
+    const committed = disk.exists(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(checkout) : null;
     return { commit, report, baseline: committed ?? cellLintBaseline(report), committed: Boolean(committed) };
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    disk.rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -62,7 +61,7 @@ export function checkCellLints(root, parsers, emit, { code = [], build = () => c
   const main = mainCommit(root);
   return cachedCellsRun(root, ['cell-lints', '--check', main ?? 'no-main'], () => {
     // A committed baseline must stay hash-bound to its shards: an edit without a rebind refuses here, not only in --report [C7].
-    if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) { try { readCellLintBaseline(root); } catch (error) { emit(error.message); return 1; } }
+    if (disk.exists(join(root, CELL_BASELINE_DESCRIPTOR))) { try { readCellLintBaseline(root); } catch (error) { emit(error.message); return 1; } }
     const current = build(), base = mainCellLintReport(root, parsers, main);
     if (!base) { emit('no main branch to compare with; nothing can rise'); return 0; }
     // Advisory transition authority comes only from main, as in the submit check.
