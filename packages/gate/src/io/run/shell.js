@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { spawnCaptured } from '../../../../sandbox/light.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { environmentAdapter } from '../../../../env/index.js';
@@ -11,10 +12,6 @@ import {
   executionEnvironment,
 } from '../../../../sandbox/light.js';
 import { randomUUID } from 'node:crypto';
-import {
-  readFileSync,
-  rmSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import {
   gitChildEnv,
@@ -33,6 +30,8 @@ import {
   watchRun,
 } from './stall.js';
 import { sandboxBlockedOperation } from '../../../../sandbox/light.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Run a shell command in a checkout for a digest: both streams in one pipe, in order, read whole
@@ -79,12 +78,12 @@ function* shellExecution(root, command, { environment = environmentAdapter(), pi
     if (timed && (timed.status !== 0 || timed.error)) throw new Refused('LAND_TIMEOUT_CUSTODY', 'the timed gate worker did not prove cleanup; inspect its owned processes before landing again');
     const result = timed ? { ...JSON.parse(timed.stdout || '{}'), stdout: '', stderr: timed.stderr } : yield { command: script, args: [], options };
     if (timed && result.error) throw new Refused('LAND_GATE_OUTPUT', `the timed gate stopped and drained after its output failed (${result.error}); inspect free disk space and ${timedDirectory} before landing again`);
-    if (timed) result.stdout = readFileSync(outputFile, 'utf8') + (result.timedOut ? `\n[LAND_GATE_TIMEOUT] landing gate exceeded ${timeoutMs}ms; its owned processes are stopped\n` : '');
-    if (timedDirectory) rmSync(timedDirectory, { recursive: true, force: true });
+    if (timed) result.stdout = fs.readFile(outputFile, 'utf8') + (result.timedOut ? `\n[LAND_GATE_TIMEOUT] landing gate exceeded ${timeoutMs}ms; its owned processes are stopped\n` : '');
+    if (timedDirectory) fs.rm(timedDirectory, { recursive: true, force: true });
     if (result.timedOut || result.overflow || result.error) result.status = 1;
     invalidateGitFacts();
     const pipeStatuses = pipes ? readPipes(split, pipes) : null;
-    if (pipes) rmSync(pipes, { recursive: true, force: true });
+    if (pipes) fs.rm(pipes, { recursive: true, force: true });
     const testRuntimes = runtimes?.finish() ?? null;
     const environment = executionEnvironment();
     const raw = `${diagnostics.join('')}${result.stdout ?? ''}${result.stderr ?? ''}`;

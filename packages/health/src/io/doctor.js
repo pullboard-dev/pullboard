@@ -1,5 +1,5 @@
 /** Read-only integrity checks for a pullboard board file (A6). */
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { join } from 'node:path';
 import {
   DOCTRINE_FILE,
@@ -38,11 +38,13 @@ import {
   staleHookProblems,
   unwiredHookProblems,
 } from '../../../commits/index.js';
+
+const fs = fileSystemAdapter();
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
 
 /** Offer a working tracked or untracked rename without rewriting the repo's doctrine [D1,D2]. */
 export function doctrineProblems(root, config) {
-  if (config.practice !== LEGACY_DOCTRINE_FILE || !existsSync(join(root, LEGACY_DOCTRINE_FILE))) return [];
+  if (config.practice !== LEGACY_DOCTRINE_FILE || !fs.exists(join(root, LEGACY_DOCTRINE_FILE))) return [];
   const tracked = tryGit(root, ['ls-files', '--error-unmatch', '--', LEGACY_DOCTRINE_FILE]).status === 0;
   const command = tracked ? 'git mv' : 'mv';
   return [finding('DOCTRINE_LEGACY', `${LEGACY_DOCTRINE_FILE} is the legacy name for the repo doctrine`, `${command} -- ${LEGACY_DOCTRINE_FILE} ${DOCTRINE_FILE}`)];
@@ -60,7 +62,7 @@ export function doctrineProblems(root, config) {
  * @returns {{ code: string, message: string, next: string }[]}
  */
 export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit, release } = {}) {
-  if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
+  if (!fs.exists(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
   const startedAt = Date.now();
   let db;
   try {

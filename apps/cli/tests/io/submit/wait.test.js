@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { waitForSubmitGate } from '../../../src/io/submit/wait.js';
 import { submitHandoffRoot } from '../../../../../packages/sandbox/index.js';
 import { cliContext$context as context } from '../../../index.js';
-import { gateWaitReporter } from '../../../../../packages/gate/index.js';
+import { gateWaitReporter } from '../../../../../packages/gate/heavy.js';
 import { takeResource } from '../../../../../packages/resources/index.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';

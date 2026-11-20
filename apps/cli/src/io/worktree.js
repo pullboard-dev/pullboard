@@ -1,6 +1,4 @@
 /** Helpers for `pullboard worktree`: locations, committed setup and the primary checkout. Split from src/cli.js, which re-exports it [C7]. */
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -20,6 +18,9 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { registeredProjectRootsSnapshot } from '../../../../packages/seats/index.js';
 import { withProjectGitTimeout } from '../../../../packages/git/index.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Describe the active configured location for new agent worktrees. */
 export function worktreeLocation(mainRoot, config) {
@@ -79,7 +80,7 @@ export function refuseUncommittedSetup(mainRoot, config) {
 export function primaryCheckoutRoot(info) {
   if (info.isMain) return info.root;
   let commonDir;
-  try { commonDir = realpathSync.native(info.commonDir); }
+  try { commonDir = fs.realpath(info.commonDir); }
   catch { return null; }
   /** Return unique validated primary checkouts among candidate repository paths.
    *
@@ -95,10 +96,10 @@ export function primaryCheckoutRoot(info) {
         const fields = result.stdout.split('\n');
         if (result.status !== 0 || fields.length !== 3 || fields.some((field) => !field)) continue;
         const [root, gitDir, candidateCommonDir] = fields;
-        if (!existsSync(join(root, '.git'))
-          || realpathSync.native(candidateCommonDir) !== commonDir
-          || realpathSync.native(gitDir) !== realpathSync.native(candidateCommonDir)) continue;
-        roots.set(realpathSync.native(root), root);
+        if (!fs.exists(join(root, '.git'))
+          || fs.realpath(candidateCommonDir) !== commonDir
+          || fs.realpath(gitDir) !== fs.realpath(candidateCommonDir)) continue;
+        roots.set(fs.realpath(root), root);
       } catch { /* A stale registry entry or Git metadata directory is not a usable checkout. */ }
     }
     return [...roots.values()];
