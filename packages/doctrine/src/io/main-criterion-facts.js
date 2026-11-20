@@ -1,10 +1,9 @@
 /** Committed criterion inputs are shared; person decisions and checkout edits are never cached. */
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { statSync } from 'node:fs';
 import { gitSpawnSync } from '../../../git/light.js';
-import { readFileSync } from 'node:fs';
 import { Refused } from '../../../kernel/index.js';
 import { DOCTRINE_FILE } from '../../../config/index.js';
 import { LEGACY_DOCTRINE_FILE } from '../../../config/index.js';
@@ -19,6 +18,8 @@ import { mainFactToolIdentity } from '../../../codemap/light.js';
 import { parseSpec } from '../../../spec/index.js';
 import { policyAt } from '../../../sandbox/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Validate the portable parsed row collections before taking a local cache hit. */
 function validFacts(value) {
@@ -142,7 +143,7 @@ export function appliedMainSpec(facts, decisions, currentSource) {
 export function primaryCheckoutPath(root) {
   const common = checkoutCommonDir(root);
   if (common && basename(common) === '.git') {
-    try { if (statSync(common).isDirectory()) return dirname(common); } catch { /* Files cannot answer; Git does. */ }
+    try { if (fs.stat(common).isDirectory()) return dirname(common); } catch { /* Files cannot answer; Git does. */ }
   }
   const listed = tryGit(root, ['worktree', 'list', '--porcelain', '-z'], { env: cleanGitEnvironment() });
   const first = listed.status === 0 ? listed.stdout.split('\0')[0] : '';
@@ -153,11 +154,11 @@ export function primaryCheckoutPath(root) {
 export function liveCriterionSpec(root, facts, item, decisions) {
   const primary = primaryCheckoutPath(root);
   let source = null;
-  try { if (primary) source = readFileSync(join(primary, facts.specName), 'utf8'); }
+  try { if (primary) source = fs.readFile(join(primary, facts.specName)); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const spec = appliedMainSpec(facts, decisions, source);
   let working;
-  try { working = readFileSync(join(root, facts.specName), 'utf8'); }
+  try { working = fs.readFile(join(root, facts.specName)); }
   catch (error) { if (error.code !== 'ENOENT') throw error; return spec; }
   if (working === facts.spec.source) return spec;
   const headSource = sourceAt(root, 'HEAD', facts.specName);

@@ -1,19 +1,12 @@
 /** Project-local agent nudges never grant trust or replace another tool's hooks [I6]. */
 import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   dirname,
   isAbsolute,
   join,
   relative,
 } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 export const AGENT_HOOK_EVENTS = ['SessionStart', 'Stop'];
 const CLAUDE_HOOK_EVENTS = [...AGENT_HOOK_EVENTS, 'SessionEnd'];
@@ -40,18 +33,18 @@ function regularProjectPath(root, name) {
   const file = join(root, name), parent = dirname(file);
   for (const path of [parent, file]) {
     let stat;
-    try { stat = lstatSync(path); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    try { stat = fileSystem.lstat(path); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     if (stat.isSymbolicLink()) return false;
-    const inside = relative(realpathSync(root), realpathSync(path));
+    const inside = relative(fileSystem.realpath(root), fileSystem.realpath(path));
     if (inside === '..' || inside.startsWith('../') || isAbsolute(inside)) return false;
   }
-  return !existsSync(file) || lstatSync(file).isFile();
+  return !fileSystem.exists(file) || fileSystem.lstat(file).isFile();
 }
 
 /** Read an existing object without replacing malformed settings or hook arrays. */
 function settingsAt(root, name, events) {
   if (!regularProjectPath(root, name)) throw new Error('configuration is not a regular project file');
-  const value = existsSync(join(root, name)) ? JSON.parse(readFileSync(join(root, name), 'utf8')) : {};
+  const value = fileSystem.exists(join(root, name)) ? JSON.parse(fileSystem.readFile(join(root, name), 'utf8')) : {};
   if (!value || typeof value !== 'object' || Array.isArray(value)
       || value.hooks !== undefined && (!value.hooks || typeof value.hooks !== 'object' || Array.isArray(value.hooks))) throw new Error('configuration is not an object');
   for (const event of events) if (value.hooks?.[event] !== undefined
@@ -63,7 +56,7 @@ function settingsAt(root, name, events) {
 export function configureAgentHooks(root, { remove = false, legacyResume = LEGACY_RESUME_HOOK, onWrite = () => {} } = {}) {
   return SOURCES.map(([vendor, name, events]) => {
     try {
-      if (remove && !existsSync(join(root, name))) return `${vendor} agent hooks are not installed`;
+      if (remove && !fileSystem.exists(join(root, name))) return `${vendor} agent hooks are not installed`;
       const value = settingsAt(root, name, events), before = JSON.stringify(value);
       value.hooks ??= {};
       for (const event of events) {
@@ -85,10 +78,10 @@ export function configureAgentHooks(root, { remove = false, legacyResume = LEGAC
       if (!Object.keys(value.hooks).length) delete value.hooks;
       const changed = JSON.stringify(value) !== before;
       if (changed) {
-        mkdirSync(dirname(join(root, name)), { recursive: true });
+        fileSystem.mkdir(dirname(join(root, name)), { recursive: true });
         const temporary = join(root, name) + `.${process.pid}.tmp`;
-        writeFileSync(temporary, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
-        renameSync(temporary, join(root, name));
+        fileSystem.writeFile(temporary, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
+        fileSystem.rename(temporary, join(root, name));
         onWrite(name);
       }
       if (remove) return `removed Pullboard's ${vendor} agent nudges from ${name}`;
@@ -110,6 +103,6 @@ export function agentHookStatus(root) {
       events = supportedEvents.filter(event => value.hooks?.[event]?.some(group => group.hooks.some(handler => owned(handler)
         && [agentHookCommand(event), `pullboard hook ${event}`].includes(handler.command))));
     } catch { /* Invalid configuration remains visibly inactive. */ }
-    return { vendor, configured: existsSync(join(root, name)), events, trust: vendor === 'Codex' ? 'unverified' : null };
+    return { vendor, configured: fileSystem.exists(join(root, name)), events, trust: vendor === 'Codex' ? 'unverified' : null };
   });
 }
