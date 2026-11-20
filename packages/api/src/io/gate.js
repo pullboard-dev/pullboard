@@ -22,6 +22,7 @@ import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
 import { applyRunReceipt } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
+import { proofBuckets } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
@@ -31,6 +32,7 @@ import { queueFor } from './queue.js';
 import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
+import { startReceiptScreen } from './gate/screen-start.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
 import { CHECK_BASELINE_KIND } from './baseline.js';
@@ -292,10 +294,17 @@ export function shardJobs(db, job, { runs = null } = {}) {
   return (runs ? runs.db : db).prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
 }
 
+/** The note's words for the shards that hold a runner alone; none when no file is timing. */
+const timed = buckets => {
+  const alone = buckets.filter(bucket => bucket.timing).length;
+  return alone ? ` (${alone} of them a timing file holding its runner alone)` : '';
+};
+
 /**
  * Offer a gate's proof as shard jobs: its plan's files split round-robin into one shard per runner's worth of cores,
  * each a job any runner pulls and runs through the gate's own bootstrap and entry. Null when the plan is not one the
  * board can split. Why the board offers them: it already holds the queue, so runners never need offer credentials [P7].
+ * Each file the plan names under timing runs as a shard of its own whose data carries checkTiming, so its runner holds it alone (proofBuckets) [C7].
  *
  * @returns {{ applied: true, outcome: 'sharded', shards: string[] } | null}
  */
@@ -305,29 +314,29 @@ export function offerProofShards(board, { job, receipt, offered }) {
   const files = Array.isArray(plan?.files) ? plan.files : [];
   const cores = Number.isSafeInteger(plan?.cores) && plan.cores > 0 ? plan.cores : 0;
   if (receipt?.status === undefined || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || (gate.phases ?? []).some(phase => phase.status !== 0)
-    || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores || files.length <= cores
+    || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores
     || files.some(file => typeof file !== 'string' || !PROJECT_FILE.test(file))) return null;
+  const buckets = proofBuckets(files, cores, plan.timing, MAX_SHARDS);
+  if (!buckets.length) return null;
   // With runs_store on the gate job and its shards live in the runs file; the ledger stays on the board [B2,P7].
   const queue = queueFor(board, 'coordinator');
   const request = offeredStep(queue ? queue.runs.db : board.db, job);
   const gateRequest = request?.request;
   if (!Array.isArray(gateRequest?.run) || typeof gateRequest.input?.entry !== 'string') return null;
-  const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
-  const buckets = Array.from({ length: count }, () => []);
-  files.forEach((file, at) => buckets[at % count].push(file));
+  const count = buckets.length;
   // A plan that names the files needing a browser or a GUI lets each shard carry its own need, so the board hands the runner what it must hold [C7].
   const needs = plan.needs && typeof plan.needs === 'object' ? plan.needs : null;
   const needing = (list, part) => Array.isArray(list) && part.some(file => list.includes(file));
-  const ids = buckets.map((part, index) => {
+  const ids = buckets.map(({ files: part, timing }, index) => {
     const command = `${plan.runner.trim()} ${part.map(file => shellWord('./' + file)).join(' ')}`;
     // Each shard carries the ledger's proven rows for its own files; its runner runs only the misses [P7,CD2].
     const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, ...(timing ? { checkTiming: true } : {}), shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}), ...(needs ? { plan: { browser: needing(needs.browser, part), gui: needing(needs.gui, part) } } : {}) } } } } }, queue).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
-    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });
+    text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls${timed(buckets)}, and the gate result applies when the last one posts.` });
   return { applied: true, outcome: 'sharded', shards: ids };
 }
 
@@ -355,18 +364,18 @@ function redShard(part) {
  */
 export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}) {
   const gate = gateReceipt.gate ?? {};
-  const parts = shards.map(({ job, posted }) => {
+  const parts = shards.map(({ job, posted, ended = null }) => {
     const shardGate = posted?.receipt?.gate ?? {};
     const phase = (shardGate.phases ?? []).find(row => row.role === 'proof') ?? null;
     const green = posted?.receipt?.status === 0 && shardGate.green === true && phase?.status === 0;
     return { job, runner: posted?.runner ?? null, green, phase, error: shardGate.error ?? null, files: shardGate.shard?.files?.length ?? null, ms: shardGate.steps?.proof ?? 0,
-      output: posted?.receipt?.output ?? null };
+      output: posted?.receipt?.output ?? null, ended: typeof ended === 'string' && ended ? ended : null };
   });
   const reds = parts.filter(part => !part.green);
   const counts = parts.map(part => tailCounts(part.phase?.tail));
   const sum = key => counts.every(row => row[key] !== null) ? counts.reduce((total, row) => total + row[key], 0) : null;
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
-  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
+  const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? (part.ended ? `ended: ${part.ended}` : 'no proof phase')).slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
   const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
@@ -400,7 +409,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
   if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const signatures = { signatures: ports.settleOnMainReceipt === true };
-  const parts = shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) }));
+  const parts = shards.map(row => { const posted = postedReceipt(board.db, row.job_id); return { job: row.job_id, posted, ended: posted ? null : endedDetail(board.db, row.job_id) }; });
   let combined = combinedReceipt(gateReceipt, parts, signatures);
   let retried = null;
   try {
@@ -441,6 +450,16 @@ export function applyShardReceipt(board, { job }, ports = {}) {
       text: `Gate job ${parent}: a red only in new cases was rerun once by the board for ${retried.join(', ') || 'its failing files'}, and the rerun passed.` });
   }
   return applied;
+}
+
+/**
+ * The detail of a shard job's withdrawn step, or null when it was never withdrawn. Why: a shard ended unrun (endStaleShardOffers)
+ * posts no receipt, and its gate's red should say why it ended and what to do, not only that no proof phase ran (#12166).
+ */
+function endedDetail(db, job) {
+  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'withdrawn' ORDER BY job_step_id DESC LIMIT 1").get(job);
+  if (!row) return null;
+  try { const detail = readPayload(db, row.job_step_payload)?.detail; return typeof detail === 'string' && detail ? detail : null; } catch { return null; }
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
@@ -941,7 +960,9 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
       // A carried merge-only accept leaves the item verified with no verify command to offer its land job (#7948).
-      if (store.getItem(board, id)?.item_status === 'verified') startReceiptLanding(board, id);
+      // A submitted sprint item lands before its verdict, so its screen starts here, from the row already loaded [V2,M1].
+      const held = store.getItem(board, id);
+      if (held?.item_status === 'verified') startReceiptLanding(board, id); else startReceiptScreen(board, held, main);
       return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.failures, knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -1008,10 +1029,11 @@ function startPulledComparison(board, id, agentId) {
 let landingStarter = null;
 
 /**
- * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }).
+ * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }); item is
+ * null when a settled land job starts the lander for every waiting item (#12185).
  * Why a provider: offering a land job publishes the item's ref and reads the trunk with git from the CLI's lander, so
  * `pullboard serve` hands it in and the board API keeps no import of the CLI [C7,#7948].
- * @param {((request: { root: string, item: number }) => unknown) | null} start
+ * @param {((request: { root: string, item: number | null }) => unknown) | null} start
  */
 export function provideLandingStart(start) {
   landingStarter = typeof start === 'function' ? start : null;
@@ -1023,14 +1045,26 @@ export function provideLandingStart(start) {
  * so nothing offered its land job and it waited accepted for good (#7948). A failed start is logged with its next
  * step; the coordinator's `pullboard land` then offers the job.
  */
-function startReceiptLanding(board, id) {
+function startReceiptLanding(board, id, what = `land job for #${id} not offered after its gate receipt`) {
   if (!landingStarter || !board.gitRoot) return;
   const start = landingStarter, root = board.gitRoot;
   setImmediate(() => {
     Promise.resolve().then(() => start({ root, item: id })).catch(error => {
-      process.stderr.write(`${new Date().toISOString()} land job for #${id} not offered after its gate receipt: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
+      process.stderr.write(`${new Date().toISOString()} ${what}: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
     });
   });
+}
+
+/**
+ * Whether the board's line settings batch landings: line.landingBatchSize above 1 or line.collisionFreeBatch on. Why:
+ * with batching on the lander waits while a land job is open, so the job's settle must start it again for the items
+ * accepted meanwhile [C7,#12185]. A line setting that cannot be read leaves batching off, as the defaults do.
+ */
+function batchesLandings(board) {
+  let line;
+  try { line = store.lineSettings(board); }
+  catch { return false; }
+  return (Number.isSafeInteger(line.landingBatchSize) && line.landingBatchSize > 1) || line.collisionFreeBatch === true;
 }
 
 /** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */
@@ -1409,7 +1443,16 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
  * @param {{ job: string, receipt: Record<string, any> }} posted
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
-export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
+export function applyLandingReceipt(board, posted, ports = {}) {
+  const answer = applyLandingOutcome(board, posted, ports);
+  // With landing batches on, the settled job starts the lander once more, after main-moved, so the items accepted while
+  // it ran go out together as the next job; with the line defaults nothing more runs [C7,#12185].
+  if (landingStarter && board.gitRoot && batchesLandings(board)) startReceiptLanding(board, null, `land offer after land job ${posted.job} settled not started`);
+  return answer;
+}
+
+/** Apply one land job's receipt to its items: returned reds, retries, merged items and the main-moved receipt. */
+function applyLandingOutcome(board, { job, receipt }, ports) {
   // With runs_store on the job's offered row is in the runs file, which the queue holds [B2,P7,#9114].
   const offered = JSON.parse((ports.queue ? ports.queue.runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));

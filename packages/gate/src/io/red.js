@@ -1,7 +1,9 @@
 /** A red gate names only what failed: each failing case with its first error line, plus any runner error [C7]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { renderTestSummary } from './test/summary.js';
 import { testTierReport } from './test/tier/selection.js';
+
+const fs = fileSystemAdapter();
 
 const RUNNER_ERROR_LIMIT = 3;
 const TEXT_LIMIT = 240;
@@ -41,7 +43,7 @@ export function redGateScope(gate, summary) {
  */
 export function runnerErrors(logPath) {
   let output = '';
-  try { output = logPath ? readFileSync(logPath, 'utf8') : ''; } catch { return []; }
+  try { output = logPath ? fs.readFile(logPath, 'utf8') : ''; } catch { return []; }
   const lines = output.split('\n')
     .map(line => line.replace(/\x1b\[[0-9;]*m/gu, '').trim())
     .filter(line => /^#?\s*run-tests:/u.test(line))
