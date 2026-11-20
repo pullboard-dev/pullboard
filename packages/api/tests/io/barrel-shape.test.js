@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as api from '../../index.js';
+import { Refused } from '../../../kernel/index.js';
 
 const FILE = new URL('../../index.js', import.meta.url);
 
@@ -122,4 +123,10 @@ test('api.barrel-shape.barrel-exports-exactly-names-did: clause 2: the barrel ex
 
 test('api.io-barrel-shape.exports-duplicate-runner-places: clause 1: the api front door exports duplicateRunnerPlaces as a function [P7]', () => {
   assert.equal(typeof api.duplicateRunnerPlaces, 'function');
+});
+
+test('api.io-barrel-shape.github-refusals-answer-503-and-429: clause 1: apiStatus answers GITHUB_UNAVAILABLE with 503 and GITHUB_RATE_LIMITED with 429, not 400 [C7]', () => {
+  assert.equal(api.apiStatus(new Refused('GITHUB_UNAVAILABLE', 'GitHub is unavailable')), 503);
+  assert.equal(api.apiStatus(new Refused('GITHUB_RATE_LIMITED', 'GitHub rate limit reached')), 429);
+  assert.equal(api.apiStatus(new Refused('GITHUB_CONFIG', 'bad endpoint')), 400);
 });
