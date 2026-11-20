@@ -11,8 +11,6 @@ import {
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
  * imports only this pays for nothing it does not run [C7].
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import {
   isAbsolute,
   join,
@@ -52,6 +50,9 @@ import { mainMergeFor } from '../../../../packages/merge/light.js';
 /** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
 export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A comma list of spec ids from a flag.
@@ -154,7 +155,7 @@ function configHere(info) {
       throw new Refused('NO_CONFIG', `${CONFIG_FILE} is deleted here, though this checkout's last commit has it: restore it: ${cdTo(info.root)} git checkout HEAD -- ${CONFIG_FILE}`);
     }
     const mainRoot = resolve(info.commonDir, '..');
-    if (info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
+    if (info.isMain || !fs.exists(join(mainRoot, CONFIG_FILE))) throw error;
     let setup;
     try {
       setup = uncommittedSetup(mainRoot, loadConfig(mainRoot));
@@ -318,7 +319,7 @@ function declaredFamilies(root) {
 
 /** Read the exact ref bytes as well as the canonical filesystem signature; missing refs remain observable. */
 function policyRefBytes(file) {
-  try { return readFileSync(file, 'utf8'); }
+  try { return fs.readFile(file, 'utf8'); }
   catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null; throw error; }
 }
 
@@ -544,6 +545,6 @@ export function textArg(io, values, name) {
   }
   if (path === undefined) return values[name];
   const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
+  if (!fs.exists(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return fs.readFile(file, 'utf8');
 }
