@@ -1,0 +1,3 @@
+{
+  "gate.registry.derived-counts": {"proves":{"specs":["C7"],"claim":"the registered-count cases read the expected test count from the checked files own test lines, so one more declared test raises it with no typed number to update."},"why":"Typed counts made main red whenever an item added a case to a checked file; a derived count cannot go stale.","kind":"cell unit","inputs":["packages/gate/tests/registry.test.js","packages/gate/tests/io/stores.test.js"]}
+}

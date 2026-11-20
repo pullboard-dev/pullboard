@@ -47,16 +47,20 @@ test('cli.journeys-fact-e2e-tour.the-tour-finishes-when-an-agent: clause 1: the 
     // The Claude Code caller has runners.localWake on and the Codex caller leaves it off, so one tour per switch state proves the demo carries it only when on [C7,#10418].
     const wake = name === 'CLAUDE_CODE_SESSION_ID';
     if (wake) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { 'runners.localWake': true });
-    const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value };
+    // One of the two runs keeps git's own hook scripts as processes, the real-process path a person's commit takes [N10,#10408].
+    const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value, ...(name === 'CODEX_THREAD_ID' ? { PULLBOARD_TOUR_REAL_HOOKS: '1' } : {}) };
     delete callerEnv.PULLBOARD_MODEL;
     delete callerEnv.NO_COLOR;
     delete callerEnv.FORCE_COLOR;
     return { name, value, wake, shown: runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv }) };
   });
   for (const { name, value, wake, shown } of await Promise.all(runs.map(async run => ({ ...run, shown: await run.shown })))) {
+    t.diagnostic(`${name}: ${/^scripted commits: .*$/mu.exec(shown.stderr)?.[0]}`);
     assert.equal(shown.status, 0, `${name}: ${shown.stdout}${shown.stderr}`);
     assert.match(shown.stdout, /^Nothing shipped until a second agent verified it\.$/mu);
     assert.match(shown.stdout, /verified #1: CRITERION_MET/);
+    assert.match(shown.stdout, /\$ git commit -q -m "feat\(app\): greet by name \[G1\]"/u, `${name}: the first scripted commit is shown`);
+    assert.match(shown.stdout, /\$ git commit -q -am "fix\(app\): a blank name greets the world \[G1\]"/u, `${name}: the fix commit is shown`);
     assert.doesNotMatch(shown.stdout, /SELF_SESSION_VERIFY/);
 
     const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];

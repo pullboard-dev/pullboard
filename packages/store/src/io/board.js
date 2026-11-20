@@ -16,9 +16,8 @@ export { recordExitProgress, requireExitActive } from "../logic/exit/rules/claim
 import { committedItemAuthors } from "../../../verify/index.js";
 import { strictReviewProblem } from "../../../verify/index.js";
 import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../verify/index.js";
-import { seatFamily } from "../../../verify/index.js";
 import { routingStrictReviewProblem } from "../../../verify/index.js";
-import { reviewFamilyProblem } from "../../../verify/index.js";
+import { reviewFamilyEligibility } from "../../../verify/index.js";
 import { declaredLimitProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
@@ -36,6 +35,7 @@ import { reviewHolder } from "./board/query.js";
 import { events } from "./board/query.js";
 import { proofReceipts } from "./receipts.js";
 import { prepareMergeOnlySubmit } from "../../../merge/index.js";
+import { mechanicalConflictFiles } from "../../../merge/index.js";
 import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
@@ -46,6 +46,7 @@ import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
 import { companionWindowProblem } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
+export { relaxRequiredFamilyEnabled } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { GUARDS } from "../../../state/index.js";
 import { IN_STATE } from "../../../state/index.js";
@@ -113,6 +114,10 @@ import { gateAtHead } from "./board/next.js";
 import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
+import { reserveItem } from "./board/hold/item.js";
+import { clearReservation } from "./board/hold/item.js";
+import { addBlock } from "./board/blocks.js";
+import { listBlocks } from "./board/blocks.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -153,6 +158,9 @@ export {
   unverifiedSubmissions,
 } from "./board/read/shouts.js";
 export { lineSettings } from "../../../state/light.js";
+/** The engine numbers blocks.js reads through this file, so the new module adds no cross-cell import of state [C7,#11280]. */
+export { BLOCK_ENGINE } from "../../../state/light.js";
+export { ENGINE_VERSION };
 export { setLineSetting } from "./board/settings.js";
 
 export {
@@ -309,7 +317,7 @@ export function moveItem(board, id, verb, { checks, set = () => ({}), before = (
  */
 export const onlyCoordinator = (agentId, what) => (agentId === COORDINATOR ? null : new Refused('COORDINATOR_ONLY', `only the coordinator ${what}`));
 
-export { prepareMergeOnlySubmit };
+export { prepareMergeOnlySubmit, mechanicalConflictFiles };
 
 export { reviewHolder } from "./board/query.js";
 
@@ -357,7 +365,6 @@ export function gateReceiptProblem(board, item) {
  * @returns {Record<string, (found: any) => Refused | null>}
  */
 export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor, reviewHeartbeats = null }) {
-  const family = seatFamily(board, agentId);
   return {
     companionWindow: found => companionWindowProblem(board, found),
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -368,9 +375,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
-      ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
-      : null),
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? reviewFamilyEligibility(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy),
     reviewFree: (found) => {
       const holder = reviewHolder(board, found, reviewHeartbeats);
       return holder && holder !== agentId
@@ -506,6 +511,10 @@ export {
   holdLane,
   releaseLane,
   holdItem,
+  reserveItem,
+  clearReservation,
+  addBlock,
+  listBlocks,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,

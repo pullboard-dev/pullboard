@@ -1,5 +1,6 @@
 /** The runner job runs the real hand-off stages from its ticket, with every stage line in the runner's own log [C7]. */
 import { appendFileSync } from 'node:fs';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { readFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -7,7 +8,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { spawnSync } from 'node:child_process';
+import { runnerGit } from './private/privacy.js';
 import { performance } from 'node:perf_hooks';
 
 /** The hand-off stages in the order the local worker runs them: its refusals come in this order. */
@@ -17,7 +18,7 @@ export const HANDOFF_STAGES = Object.freeze(['authorization', 'doctrine', 'cells
 function refusal(code, message, extra = {}) { return Object.assign(new Error(message), { code, ...extra }); }
 
 /** Read Git's trimmed stdout in the runner checkout; empty when the command fails, so a caller compares rather than parses an error. */
-function gitOut(root, args) { return spawnSync('git', args, { cwd: root, encoding: 'utf8' }).stdout?.trim() ?? ''; }
+function gitOut(root, args) { return runnerGit(args, { cwd: root, encoding: 'utf8' }).stdout?.trim() ?? ''; }
 
 /**
  * Authorization and source: the runner checkout is exactly the ticket's commit and tree, and the pinned main is
@@ -32,7 +33,7 @@ async function authorize(root, input) {
   const read = args => gitOut(root, args);
   if (read(['rev-parse', 'HEAD']) !== input.commit) throw refusal('RUNNER_SOURCE', 'the runner checkout is not the ticket commit; resubmit the captured source');
   if (input.tree && read(['rev-parse', 'HEAD^{tree}']) !== input.tree) throw refusal('RUNNER_SOURCE', 'the runner checkout tree is not the ticket tree; resubmit the captured source');
-  if (input.main && spawnSync('git', ['cat-file', '-e', `${input.main}^{commit}`], { cwd: root }).status !== 0) {
+  if (input.main && runnerGit(['cat-file', '-e', `${input.main}^{commit}`], { cwd: root }).status !== 0) {
     throw refusal('RUNNER_SOURCE', `the runner checkout lacks the ticket's main ${input.main.slice(0, 12)}; resubmit so it ships main`);
   }
 }
@@ -59,7 +60,7 @@ async function cells(root, input, log, services) {
   const result = await requireSubmitCells(root, input.main, input.commit,
     { item_frozen: JSON.stringify({ criterion: input.criterion ?? '' }), item_title: input.title ?? '' }, {
       withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
-      withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
+      withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(environmentAdapter().get('NODE_OPTIONS')),
       collectMachinery: true, readCutItems: () => input.cutRows ?? [],
       onInventory: (mode, cause) => log(`  submit cells inventory: ${mode}${cause ? `: ${cause}` : ''}`),
       onAllCells: file => log(`  submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) });
@@ -74,18 +75,77 @@ async function cells(root, input, log, services) {
  *
  * @param {string} root - The runner's checkout.
  * @param {{ main: string, head: string, tree: string }} triple - The submit's main, builder head and composed tree.
+ * @returns {string} The composed tree id.
  * @throws {Error} COMPOSITION_MISMATCH, naming both tree ids.
  */
 export function requireComposedTree(root, { main, head, tree }) {
   const id = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
-  const run = id.test(main) && id.test(head) ? spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', main, head], { cwd: root, encoding: 'utf8' }) : null;
+  const run = id.test(main) && id.test(head) ? runnerGit(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', main, head], { cwd: root, encoding: 'utf8' }) : null;
   // A conflicted merge-tree still prints a tree id but exits non-zero: only a clean exit is a composition.
   const composed = run?.status === 0 ? (run.stdout ?? '').split('\n')[0].trim() : '';
   // A triple with no tree is a submit that left composing to the runner (submit.composeOnRunner): any clean composition is the tree to prove.
-  if (composed && (!tree || composed === tree)) return;
+  if (composed && (!tree || composed === tree)) return composed;
   throw refusal('COMPOSITION_MISMATCH', tree
     ? `the submit composed main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} as tree ${tree}, but the runner composes tree ${composed || 'none (Git could not compose them here)'}; run pullboard submit again, and if it repeats report both tree ids to the coordinator (a merge driver or Git version difference)`
     : `the runner could not compose main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} (they conflict); merge main into the item branch, fix the conflict, and submit again`);
+}
+
+/**
+ * Regenerate the declared generated files the composed tree makes stale, then leave the regenerated tree checked out so every later stage proves it
+ * (submit.composeOnRunner with submit.regenerateDeclared). Why here: the command no longer regenerates when the runner composes, so this is the one place a stale generated file is caught.
+ * A failed generator is a GENERATED_STALE red with its message, never a silent pass.
+ *
+ * @param {string} root - The runner's checkout.
+ * @param {{ main: string, compositionTriple: { main: string, head: string }, generated?: object[], item?: number }} input - The ticket.
+ * @param {string} composed - The composed tree id requireComposedTree accepted.
+ * @param {{ regenerate: { regenerateDeclaredFiles: Function } }} services
+ * @param {(line: string) => void} log
+ */
+function regenerateComposed(root, input, composed, services, log) {
+  const { main, head } = input.compositionTriple;
+  // The runner has no author of its own, so the two commits made here (the composition and the regeneration) carry a fixed one when the machine sets none.
+  const identity = { GIT_AUTHOR_NAME: 'Pullboard runner', GIT_AUTHOR_EMAIL: 'runner@pullboard.invalid', GIT_COMMITTER_NAME: 'Pullboard runner', GIT_COMMITTER_EMAIL: 'runner@pullboard.invalid' };
+  const environment = environmentAdapter();
+  const saved = Object.fromEntries(Object.keys(identity).map(key => [key, environment.get(key)]));
+  for (const [key, value] of Object.entries(identity)) if (environment.get(key) === undefined) environment.set(key, value);
+  try {
+    const made = runnerGit(['commit-tree', composed, '-p', main, '-p', head, '-m', 'composition'], { cwd: root, encoding: 'utf8' });
+    const commit = made.status === 0 ? made.stdout.trim() : '';
+    if (!commit || runnerGit(['checkout', '-q', '--detach', commit], { cwd: root }).status !== 0) {
+      throw refusal('GENERATED_STALE', `the runner could not check out the composed tree to regenerate its declared generated files: ${String(made.stderr).trim() || 'checkout failed'}; submit again`);
+    }
+    try {
+      services.regenerate.regenerateDeclaredFiles(root, { submit: { regenerateDeclared: true }, generated: input.generated ?? [] }, { base: main, item: input.item ?? null });
+    } catch (error) {
+      throw refusal('GENERATED_STALE', String(error.message));
+    }
+  } finally {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) environment.delete(key); else environment.set(key, value); }
+  }
+  input.regeneratedTree = gitOut(root, ['rev-parse', 'HEAD^{tree}']);
+  log(`  composed tree ${composed} regenerated as ${input.regeneratedTree}`);
+}
+
+/**
+ * Replay recorded board-tool output on main when a submit that left composing to the runner conflicts only there (submit.composeOnRunner).
+ * Why here: with the setting on the command skips its own trunk merge, so the replay its MERGE_CONFLICT path makes never runs; the runner is the only composer.
+ * The replayed head descends from main, so it is the composition: it is left checked out and its tree is the one every later stage proves.
+ *
+ * @param {string} root - The runner's checkout, at the submit's head.
+ * @param {{ compositionTriple: { main: string, head: string, tree?: string }, item?: number, regeneratedTree?: string }} input - The ticket.
+ * @param {Error} refused - The COMPOSITION_MISMATCH the plain composition raised.
+ * @param {{ toolRegeneration?: { regenerateToolChange: Function } }} services
+ * @param {(line: string) => void} log
+ * @returns {boolean} True when the replay composed the tree; false when the conflict is not in recorded tool output (the caller refuses as before).
+ */
+function replayRecordedTool(root, input, refused, services, log) {
+  const { main, head, tree } = input.compositionTriple;
+  if (refused.code !== 'COMPOSITION_MISMATCH' || tree || !services.toolRegeneration) return false;
+  const replayed = services.toolRegeneration.regenerateToolChange(root, head, main, { item: input.item ?? null });
+  if (!replayed) return false;
+  input.regeneratedTree = gitOut(root, ['rev-parse', 'HEAD^{tree}']);
+  log(`  replayed recorded board tools on main ${String(main).slice(0, 12)}; proving tree ${input.regeneratedTree}`);
+  return true;
 }
 
 /**
@@ -94,7 +154,17 @@ export function requireComposedTree(root, { main, head, tree }) {
  */
 async function composition(root, input, log, services) {
   // A submit that composed main as an object (submit.composeAsObject) sends {main, head, tree}: the runner recomputes the tree itself [U159].
-  if (input.compositionTriple) { requireComposedTree(root, input.compositionTriple); return; }
+  if (input.compositionTriple) {
+    let composed;
+    try { composed = requireComposedTree(root, input.compositionTriple); }
+    catch (error) {
+      // Main and head that conflict only in recorded board-tool output compose by replaying the tool on main, as the local submit does when it merges itself [C7,V4,V6].
+      if (!replayRecordedTool(root, input, error, services, log)) throw error;
+      return;
+    }
+    if (input.regenerateDeclared === true && services.regenerate) regenerateComposed(root, input, composed, services, log);
+    return;
+  }
   if (!input.composition) return;
   services.composition.requireSubmitComposition(root, input.composition, { commit: input.trunk ?? input.main }, input.main, input.base ?? null);
 }
@@ -213,5 +283,5 @@ export async function runHandoffStages(root, input, { logFile, services, stages 
     log(`stage ${name} ok ${ms}ms`);
     done.push({ name, ms, state: 'ok' });
   }
-  return { job: input.job, commit: input.commit, green: true, stages: done };
+  return { job: input.job, commit: input.commit, green: true, stages: done, ...(input.regeneratedTree ? { tree: input.regeneratedTree } : {}) };
 }

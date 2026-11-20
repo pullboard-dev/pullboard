@@ -64,6 +64,7 @@ export {
 export { applyInbox } from "./src/io/inbox.js";
 export { withLandingPermit } from "./src/io/permit.js";
 export { endStaleGateJobs } from "./src/io/stale.js";
+export { endStaleShardOffers } from "./src/io/stale.js";
 export {
   endGateHop,
   gateClaimHop,
@@ -97,6 +98,8 @@ export {
   shardedResult,
 } from "./src/io/gate.js";
 export { provideMainRedNotes } from "./src/io/gate/files.js";
+export { provideScreenStart } from "./src/io/gate/screen-start.js";
+export { sprintLandable } from "./src/io/gate/sprint-land.js";
 export {
   CHECK_BASELINE_KIND,
   offerCheckBaseline,

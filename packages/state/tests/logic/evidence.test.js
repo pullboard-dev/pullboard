@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { checkRunTickNotes } from '../../index.js';
 import { checklistEvidenceProblem } from '../../index.js';
 import { clauseInspectionProblem } from '../../index.js';
+import { guardBar } from '../../index.js';
 import { testRunTickNotes } from '../../index.js';
 
 const FILE = 'test/example.test.js';
@@ -122,4 +123,24 @@ test('state.logic-evidence.run-cases-tick-a-checkless-bar: clause 2: a green run
   assert.equal(clauseInspectionProblem(checkless, thread(all), { head: HEAD }), null, 'submit reads them as ticks');
   assert.deepEqual(testRunTickNotes(checkless, [own], HEAD), [], 'a run with no outcome rows ticks nothing');
   assert.equal(testRunTickNotes(PAIR, ['test/a.test.js', 'test/b.test.js'], HEAD, { outcomes: rows, run }).length, 2, 'a bar with check files keeps its check-file ticks');
+});
+
+test('state.logic-evidence.refuse-empty-bar-on: clause 1: guardBar with refuseEmpty refuses a missing, blank or unnumbered bar BAR_EMPTY with the edit --criterion step [C7]', () => {
+  for (const bar of [undefined, '', '   \n', 'make it faster']) {
+    assert.throws(() => guardBar(bar, { refuseEmpty: true }), error => error.code === 'BAR_EMPTY' && /edit <id> --criterion/u.test(error.next ?? error.message), `refused: ${JSON.stringify(bar)}`);
+  }
+  assert.deepEqual(guardBar('1. It prints the heading [test]', { refuseEmpty: true }), [], 'a numbered bar passes');
+});
+
+test('state.logic-evidence.refuse-empty-bar-off: clause 2: guardBar without refuseEmpty returns no warnings for an undefined bar, as before [C7]', () => {
+  assert.deepEqual(guardBar(undefined), []);
+  assert.deepEqual(guardBar(undefined, {}), []);
+  assert.deepEqual(guardBar(undefined, { refuseEmpty: false }), []);
+});
+
+test('state.logic-evidence.cold-import-refused: clause 1: guardBar refuses a bar adding a cold-path import with no closure row, naming the row to add, and accepts a bar naming it [C7]', () => {
+  const bare = '1. packages/board/light.js adds an import of packages/roadmap/index.js and prints the roadmap [test]';
+  assert.throws(() => guardBar(bare), error => error.code === 'BAR_COLD_IMPORT' && /closure-budget row/u.test(error.next ?? error.message));
+  assert.doesNotThrow(() => guardBar('1. packages/board/light.js adds an import of packages/roadmap/index.js, measured by closure row show 1 [test]'));
+  assert.doesNotThrow(() => guardBar('1. packages/board/index.js adds an import of packages/roadmap/index.js [test]'), 'a warm path needs no row');
 });

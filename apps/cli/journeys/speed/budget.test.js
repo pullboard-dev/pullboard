@@ -30,7 +30,7 @@ async function countGitLaunches(box, work) {
     files.write('launches', '');
     // The shim notes the launch, restores the original PATH and runs the real git.
     files.write('bin/git', `#!/bin/sh\necho x >> '${join(files.root, 'launches')}'\nPATH='${before}'\nexec git "$@"\n`);
-    chmodSync(join(files.root, 'bin', 'git'), 0o755);
+    chmodSync(join(files.root, 'bin/git'), 0o755);
     process.env.PATH = `${join(files.root, 'bin')}${delimiter}${before}`;
     box.env.PATH = process.env.PATH;
     // Real Git, so the shim sees the processes a seat's next starts, whatever adapter the fixture chose.

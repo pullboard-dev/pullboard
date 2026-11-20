@@ -1,10 +1,11 @@
 /** The screen job: merge a sprint item's commit onto its base without a checkout, run the static checks and the trusted re-check, and record one receipt [V16,M1]. */
 import { spawn } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
-import { rm } from 'node:fs/promises';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { scratchBase } from '../../../kernel/light.js';
+import { environmentAdapter } from '../../../env/index.js';
 import { keyedResult } from './keyed.js';
 import { SCREEN_KIND } from '../logic/screen.js';
 import { screenKey } from '../logic/screen.js';
@@ -22,7 +23,7 @@ const HOOK_GIT_ENV = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_
  * @param {{ cwd: string, env?: NodeJS.ProcessEnv, shell?: boolean }} options
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-function runChild(command, args, { cwd, env = process.env, shell = false }) {
+function runChild(command, args, { cwd, env = environmentAdapter().all(), shell = false }) {
   return new Promise(resolve => {
     const child = spawn(command, args, { cwd, env, shell, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
@@ -37,7 +38,7 @@ function runChild(command, args, { cwd, env = process.env, shell = false }) {
 
 /** Run git in `cwd` without the caller's hook environment. */
 function runGit(cwd, args) {
-  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  const env = { ...environmentAdapter().all(), GIT_TERMINAL_PROMPT: '0' };
   for (const name of HOOK_GIT_ENV) delete env[name];
   return runChild('git', args, { cwd, env });
 }
@@ -61,19 +62,19 @@ async function changedFiles(repo, base, commit) {
  */
 async function runStatic(repo, tree, command, files) {
   if (!command?.trim()) return { status: 'skipped' };
-  const scratch = await mkdtemp(join(scratchBase(), 'pullboard-screen-'));
+  const scratch = await disk.promises.mkdtemp(join(scratchBase(), 'pullboard-screen-'));
   try {
-    const env = { ...process.env, GIT_INDEX_FILE: join(scratch, 'index') };
+    const env = { ...environmentAdapter().all(), GIT_INDEX_FILE: join(scratch, 'index') };
     for (const name of HOOK_GIT_ENV.filter(name => name !== 'GIT_INDEX_FILE')) delete env[name];
     const read = await runChild('git', ['read-tree', tree], { cwd: repo, env });
     const out = read.status === 0 ? await runChild('git', ['checkout-index', '--all', `--prefix=${join(scratch, 'tree')}/`], { cwd: repo, env }) : read;
     if (out.status !== 0) return { status: 'red', problem: `the merged tree could not be written out: ${out.stderr.split('\n')[0]}` };
-    const ran = await runChild(command, [], { cwd: join(scratch, 'tree'), shell: true, env: { ...process.env, PULLBOARD_CHANGED_FILES: files.join('\n') } });
+    const ran = await runChild(command, [], { cwd: join(scratch, 'tree'), shell: true, env: { ...environmentAdapter().all(), PULLBOARD_CHANGED_FILES: files.join('\n') } });
     if (ran.status === 0) return { status: 'green' };
     const last = `${ran.stdout}\n${ran.stderr}`.trim().split('\n').filter(Boolean).at(-1) ?? `exit ${ran.status}`;
     return { status: 'red', problem: last.slice(0, 300) };
   } finally {
-    await rm(scratch, { recursive: true, force: true });
+    await disk.promises.rm(scratch, { recursive: true, force: true });
   }
 }
 

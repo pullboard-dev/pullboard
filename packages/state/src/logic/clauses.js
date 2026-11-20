@@ -175,12 +175,12 @@ function folderFiles(text, gateFiles) {
  *
  * @param {object[]} thread - The item's thread, oldest first.
  * @param {string} owner - The current holder.
- * @param {{ criterion?: string, head?: string | null }} [current] - The bar text and head now in force.
+ * @param {{ criterion?: string, head?: string | null, sameWorkHeads?: string[] }} [current] - The bar text and head now in force, and the commit shas the caller has proved carry the same work as `head`: a tick citing one counts as if it cited `head`.
  * @returns {Map<number, { kind: string, evidence: string }>}
  */
-export function clauseTicks(thread, owner, { criterion, head = null } = {}) {
+export function clauseTicks(thread, owner, { criterion, head = null, sameWorkHeads = [] } = {}) {
   const ticks = new Map();
-  const heads = submittedHeads(thread, head);
+  const heads = [...submittedHeads(thread, head), ...sameWorkShas(sameWorkHeads)];
   const edited = thread.some(entry => entry.type === 'move' && typeof entry.detail?.criterion === 'string');
   let bar = edited ? undefined : criterion;
   for (const entry of thread) {
@@ -222,6 +222,11 @@ function submittedHeads(thread, head) {
     return merge && (full.startsWith(merge[2]) || merge[2].startsWith(full)) ? [merge[1]] : [];
   });
   return [full, ...sources];
+}
+
+/** The usable shas of a caller-proved same-work list: hex of 7 to 64 characters, lowercased; anything else is ignored. */
+function sameWorkShas(shas) {
+  return Array.isArray(shas) ? shas.map(sha => String(sha).toLowerCase()).filter(sha => /^[0-9a-f]{7,64}$/u.test(sha)) : [];
 }
 
 /** Whether evidence names one of `heads` by a hex prefix of at least 7 characters. */
@@ -413,6 +418,8 @@ export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), h
   return `inspection, clause by clause: ${clauses.map(clause => {
     const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item, { folderTicks, titleTicks, cases });
     const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
+    // An unticked clause the gate did not cover reads as such; reading its kind threw and aborted the pulled settle (#11966).
+    if (!tick) return `${clause.number}. ${clause.text.slice(0, 80)} -> no evidence`;
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
 }
@@ -444,13 +451,14 @@ export function namesEvidence(evidence) {
  *
  * @param {object} item - The item row.
  * @param {object[]} thread - The item's thread.
+ * @param {{ head?: string | null, sameWorkHeads?: string[] }} [heads] - The submitted head and the shas proved to carry its work, so ticks at those count.
  * @returns {{ number: number, text: string, kind: string|null, tick: { kind: string, evidence: string }|null }[]}
  */
-export function reviewChecklist(item, thread) {
+export function reviewChecklist(item, thread, { head = null, sameWorkHeads = [] } = {}) {
   if (String(item.item_check ?? '').trim()) return [];
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return [];
-  const ticks = clauseTicks(thread, item.item_built_by ?? item.item_owner);
+  const ticks = clauseTicks(thread, item.item_built_by ?? item.item_owner, { criterion: item.item_criterion, head, sameWorkHeads });
   return clauses.map(clause => ({ ...clause, tick: ticks.get(clause.number) ?? null }));
 }
 
@@ -459,22 +467,22 @@ export function reviewChecklist(item, thread) {
  * or when the item has a test check or no checklist. Why: without a check nothing ran, so an accept resting on a line
  * with no evidence would be a bare say-so [C7].
  */
-export function checklistEvidenceProblem(item, thread) {
-  const problems = checklistGaps(item, thread);
+export function checklistEvidenceProblem(item, thread, heads) {
+  const problems = checklistGaps(item, thread, heads);
   if (!problems.length) return null;
   return new Refused('CLAUSE_UNTICKED', `#${item.item_id} has no test check, so its review checklist is its only proof, and ${problems.join('; ')}`,
     `reject it for the missing evidence: pullboard verify ${item.item_id} reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<the line that names no file, link or quoted passage>"`);
 }
 
 /** One sentence per checklist line that has no tick or whose tick names no file, link or quoted passage. */
-export function checklistGaps(item, thread) {
-  return reviewChecklist(item, thread).filter(line => !line.tick || !namesEvidence(line.tick.evidence))
+export function checklistGaps(item, thread, heads) {
+  return reviewChecklist(item, thread, heads).filter(line => !line.tick || !namesEvidence(line.tick.evidence))
     .map(line => `clause ${line.number} (${line.text.slice(0, 80)}) ${line.tick ? `names no file, link or quoted passage: ${line.tick.evidence.slice(0, 80)}` : 'has no evidence'}`);
 }
 
 /** The receipt line of an accept that checklist evidence proved, or null when no checklist applied. */
-export function checklistReceipt(item, thread) {
-  const lines = reviewChecklist(item, thread);
-  if (!lines.length || checklistEvidenceProblem(item, thread)) return null;
+export function checklistReceipt(item, thread, heads) {
+  const lines = reviewChecklist(item, thread, heads);
+  if (!lines.length || checklistEvidenceProblem(item, thread, heads)) return null;
   return `review evidence proved it: ${lines.map(line => `${line.number}. ${line.text.slice(0, 60)} -> ${line.tick.kind}: ${line.tick.evidence}`).join(' | ')}`;
 }

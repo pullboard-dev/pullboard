@@ -1,5 +1,6 @@
 /** The claim and renew move as one pure table: every rule the board and CLI enforce when a seat claims or renews an item, ported from the pure-core pilot [C7,#8241]. */
 import { Refused } from '../../../../kernel/light.js';
+import { missingNeeds } from '../../../../queue/light.js';
 import { defineRules } from './rules.js';
 import { CLAIM_NEXT } from './next.js';
 export { CLAIM_NEXT } from './next.js';
@@ -27,6 +28,7 @@ export const CLAIM_IO = Object.freeze({
   laneSeat: "git + filesystem: a free seat of this session in the item's lane (WRONG_LANE guidance)",
   primaryRoot: 'git: the primary checkout, named when no lane seat is free',
   foreignBlocker: 'another board: the first unlanded cross-repo dependency (BLOCKED)',
+  takeoverReady: 'board: the line takeover wait (line.takeoverMinutes) has passed for this returned item, which ends its first-refusal window',
   builderGone: "heartbeats: the first-refusal builder's seat is gone, which ends its window early",
   buildBudgetMinutes: 'git: accepted itemBuildBudgetMinutes (default 30)',
   seatCap: 'runners + settings: { n, how }, the N top-level item-folder claims a seat may hold, sealed into the claim',
@@ -85,7 +87,7 @@ export function firstRefusalWindow(s) {
   return null;
 }
 
-/** Why the first-refusal window keeps this seat off, or null; the board never set takeover minutes, so takeover is off. */
+/** Why the first-refusal window keeps this seat off, or null; an elapsed line takeover wait ends the window as it does for the writer. */
 function firstRefusalReason(s, m) {
   const window = firstRefusalWindow(s);
   if (!window) return null;
@@ -93,7 +95,7 @@ function firstRefusalReason(s, m) {
     const reviewed = s.history.some(e => e.by === m.actor && ['accept', 'reject', 'reserve'].includes(e.kind));
     return reviewed ? `item #${m.id} returned for lack of progress; a reviewer of it cannot take the first refusal; take another item` : null;
   }
-  return window.builder !== m.actor && !s.io.builderGone
+  return window.builder !== m.actor && !s.io.builderGone && !s.io.takeoverReady
     ? `item #${m.id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it` : null;
 }
 
@@ -184,6 +186,7 @@ const CLAIM_RULES = defineRules({
   insideSource: { says: 'an outside PR item stays with its author', holds: (s) => s.item.outside !== 'pull-request' },
   inLane: { says: 'an item is built from its own lane; the refusal names where to build it', holds: (s) => s.item.lane === s.actor.lane },
   lightDiagnosed: { says: 'light work by a light seat needs a current diagnosis', holds: (s, m) => !(seatRoute(s, m) === 'light' && s.item.route === 'light' && !s.item.diagnosed) },
+  abilitiesCoverNeeds: { says: 'an item is claimed only by a seat whose abilities cover its needs; an absent needs list or abilities list reads as empty', holds: (s) => missingNeeds(s.item.needs, s.actor.abilities).length === 0 },
   routeAllows: { says: 'a seat takes work at or below its route', holds: (s, m) => routeIndex(seatRoute(s, m)) >= routeIndex(s.item.route) || m.shapedStrong === true && seatRoute(s, m) === 'light' && s.item.route === 'strong' },
   budgetValid: { says: 'the board build budget is positive minutes',
     holds: (s, m) => isRenewal(s, m) || (typeof s.io.buildBudgetMinutes === 'number' && Number.isFinite(s.io.buildBudgetMinutes) && s.io.buildBudgetMinutes > 0) },
@@ -258,6 +261,7 @@ function claimTable(grantEngine) {
       guard('outside-source', 'insideSource', 'OUTSIDE_NATIVE_BUILD', (s, m) => `outside item #${m.id} stays with its PR author; ask the coordinator to return it, then intake the author's new exact head`),
       guard('in-lane', 'inLane', 'WRONG_LANE', (s, m) => wrongLane(s, m).message, (s, m) => wrongLane(s, m).next),
       guard('light-diagnosed', 'lightDiagnosed', 'DIAGNOSIS_REQUIRED', (s, m) => `#${m.id} has no current diagnosis; keep it mid or strong, then have a capable seat record Files, Change and Test case with pullboard fact <id> diagnosis`),
+      guard('abilities-cover-needs', 'abilitiesCoverNeeds', 'NEEDS_ABILITY', (s, m) => `item #${m.id} needs ${missingNeeds(s.item.needs, s.actor.abilities).join(' and ')}, which this seat's abilities lack`),
       guard('route-allows', 'routeAllows', 'ROUTE', (s, m) => `item #${m.id} needs a ${s.item.route} model; ${seatRoute(s, m) === (s.actor.route ?? 'strong') ? 'you joined on' : 'the model this session declared serves'} the ${seatRoute(s, m)} route. Take your next item: pullboard next`),
       guard('budget-valid', 'budgetValid', 'BAD_BUILD_BUDGET', 'restore a positive itemBuildBudgetMinutes setting, then retry'),
       guard('build-scope', 'buildScope', 'ITEM_BUILD_BUDGET', (s, m) => `item #${m.id} expects ${s.item.expectedMinutes} build minutes, above the ${s.io.buildBudgetMinutes}-minute board budget`,

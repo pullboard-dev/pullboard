@@ -16,12 +16,12 @@ const SAMPLES = [
   ] },
 ];
 
-test('clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity.sample-converted-journey-gives-same: clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 1: the parity comparison fails on any difference in exit code, JSON result or board state [C7]', () => {
+test('gate.journey-parity.parity-comparison-fails-any-difference: clause 1: the parity comparison fails on any difference in exit code, JSON result or board state [C7]', () => {
   const row = { args: ['claim', '1', '--json'], code: 1, json: { error: { code: 'A5_GRAMMAR_VERSION' } }, out: null, err: '', board: { items: [{ item_id: 1, item_status: 'open', item_lane: 'web' }], events: [] } };
   assert.deepEqual(parityDifferences([row], [structuredClone(row)]), [], 'equal records agree');
   assert.match(parityDifferences([row], [{ ...row, code: 0 }]).join('\n'), /code differs/u);

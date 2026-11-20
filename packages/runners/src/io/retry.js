@@ -5,13 +5,14 @@ import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { environmentAdapter } from '../../../env/index.js';
 
 const RETRIED = 'PULLBOARD_SUBMIT_TOOLING_RETRY';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** Read source identity without inheriting the submitting project's Git selectors. */
 function sourceGit(root, args) {
-  const env = { ...process.env };
+  const env = environmentAdapter().all();
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
   const run = gitSpawnSync(args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   return run.status === 0 ? run.stdout.trim() : null;
@@ -25,7 +26,7 @@ export function captureSubmitTooling(root = ROOT) {
 }
 
 /** A fresh process may use only a newer clean committed generation, once per original command. */
-export function prepareSubmitToolingRetry(snapshot, { env = process.env, cwd = process.cwd(), argv = process.argv.slice(2) } = {}) {
+export function prepareSubmitToolingRetry(snapshot, { env = environmentAdapter().all(), cwd = process.cwd(), argv = process.argv.slice(2) } = {}) {
   if (!snapshot || env[RETRIED] === JSON.stringify([resolve(cwd), argv])) return null;
   const current = captureSubmitTooling(snapshot.root);
   if (!current || current.commit === snapshot.commit || sourceGit(snapshot.root, ['ls-files', '--error-unmatch', 'apps/cli/pullboard.js']) === null || sourceGit(snapshot.root, ['status', '--porcelain', '--untracked-files=all']) !== '') return null;
@@ -33,7 +34,7 @@ export function prepareSubmitToolingRetry(snapshot, { env = process.env, cwd = p
 }
 
 /** Run the fresh CLI after its predecessor has released its checkout lease; preserve arguments and final output. */
-export async function retrySubmitTooling(selection, argv, streams, { env = process.env, spawnProcess = spawn } = {}) {
+export async function retrySubmitTooling(selection, argv, streams, { env = environmentAdapter().all(), spawnProcess = spawn } = {}) {
   streams.stderr.write(`runner tooling changed; retrying submit once from committed CLI ${selection.commit.slice(0, 12)}\n`);
   const child = spawnProcess(process.execPath, [selection.entry, ...argv], {
     cwd: streams.cwd, env: { ...env, [RETRIED]: JSON.stringify([resolve(streams.cwd ?? process.cwd()), argv]) }, stdio: ['inherit', 'pipe', 'pipe'],

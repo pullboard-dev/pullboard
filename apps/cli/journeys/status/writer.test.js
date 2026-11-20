@@ -175,6 +175,20 @@ test('cli.journeys-status-writer.the-write-guard-follows-named-aliased: the writ
   assert.deepEqual(boardWriteIoProblems(guardSources(pure), { pending: {} }), []);
 });
 
+test('cli.journeys-status-writer.the-runs-store-opener-is-refused-inside: clause 1: the runs store opener is refused inside an atomic board write, with its chain, and allowed outside one [C7,CD39,#7430]', () => {
+  const atomic = "import {atomic} from '../packages/store/src/io/board/event/log.js';";
+  const extra = [{ file: 'packages/store/index.js', source: "export { openRunsStore } from './src/io/board/sqlite.js';" },
+    { file: 'packages/store/src/io/board/sqlite.js', source: 'export function openRunsStore(file, options) { return { file, options }; }' },
+    { file: 'src/opener.js', source: "import {openRunsStore} from '../packages/store/index.js'; export function openRuns() { return openRunsStore('runs.sqlite', {}); }" }];
+  const direct = boardWriteIoProblems(guardSources(`${atomic} import {openRunsStore} from '../packages/store/index.js'; atomic(board, () => openRunsStore('runs.sqlite', {}));`, extra), { pending: {} });
+  assert.deepEqual(direct.map(row => row.call), ['openRunsStore']);
+  const chained = boardWriteIoProblems(guardSources(`${atomic} import {openRuns} from './opener.js'; atomic(board, () => openRuns());`, extra), { pending: {} });
+  assert.deepEqual(chained.map(row => row.call), ['openRunsStore']);
+  assert.deepEqual(chained[0].chain.slice(-1), ['src/opener.js#openRuns'], 'the chain names the caller that opens the runs store');
+  const outside = boardWriteIoProblems(guardSources(`${atomic} import {openRunsStore} from '../packages/store/index.js'; export function open() { return openRunsStore('runs.sqlite', {}); } atomic(board, () => 1);`, extra), { pending: {} });
+  assert.deepEqual(outside, [], 'the same call made outside any write is not a problem');
+});
+
 test('cli.journeys-status-writer.network-imports-and-global-requests-cannot: network imports and global requests cannot run inside a board writer [B2,C7,CD39]', () => {
   const cases = [
     "import {atomic} from '../packages/store/src/io/board/event/log.js'; import {request as send} from 'node:https'; atomic(board, () => send('https://invalid.test'));",

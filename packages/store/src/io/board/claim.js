@@ -56,6 +56,7 @@ import { Refused } from "../../../../kernel/index.js";
 import { routeOf } from "../../../../seats/index.js";
 import { canTake } from "../../../../seats/index.js";
 import { cappedRoute } from "../../../../seats/index.js";
+import { takeoverReady } from "../../../../seats/index.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { firstRefusalProblem } from "../../../../items/index.js";
 import { seatGone } from "../presence.js";
@@ -317,7 +318,7 @@ const CLAIM_PREPARE_ATTEMPTS = 5;
 const ITEM_META_FAMILIES = [
   'bar_grandfather:', 'bar_revision:', 'bar_sign:', 'blocked_release_waiting:', 'claim_stalled:', 'claim_waiting:',
   'exit-handoff:', 'hold_owner:', 'item_check_baseline_', 'item_check_timing:', 'item_decision:', 'item_diagnosis:',
-  'item_expected_build_minutes:', 'item_lineage:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
+  'item_expected_build_minutes:', 'item_lineage:', 'item_needs:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
   'item_review_family:', 'item_source_advance:', 'item_urgent:', 'landing_phases:', 'main_red_failure_lines:',
   'rehome_import:', 'review_independence:', 'shared-item:', 'stale_hold_until:', 'stale_hold_warning:', 'strict_rename:',
 ];
@@ -402,7 +403,8 @@ export function prepareClaim(board, id, options, ports) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} options
+ * @param {object} [ports] the clock and storage ports the claim reads
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
 export function claim(board, id, options, ports) {
@@ -447,7 +449,7 @@ function commitClaim(board, id, prepared, binding, ports) {
   // refuses before any write opens, and the events it names are the ones written. Boards below the grant engine keep the writer's rules [C7,#8383].
   const live = (board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE && (board.movesLive?.claim ?? movesLiveEnabled('claim')) === true;
   const hook = live ? null : shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
-  const decided = live ? claimDecision(board, id, { options, plan }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
+  const decided = live ? claimDecision(board, id, { options, plan, takeoverReady }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan, takeoverReady })) : null;
   if (live && decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
   return atomic(board, () => {
     const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;

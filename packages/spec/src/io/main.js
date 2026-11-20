@@ -154,7 +154,7 @@ function rowFindings(row, maxWords, requireFactQuote = false) {
   // are not counted: the limit keeps the requirement itself short (blueprint rows carry both).
   const words = row.text.split(/ (?:Why|Choices): /u)[0].split(/\s+/).filter(Boolean).length;
   if (words > maxWords) add('warning', `${words} words; rows stay under ${maxWords}, the why goes elsewhere`);
-  for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate, serves, signers, count, runs, mode, files, source, quote and verify`);
+  for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate, serves, signers, count, runs, mode, files, source, quote, verify and stakes`);
   if (row.source !== undefined && !row.source.trim()) add('error', 'source names where the row came from; leave it out when the row has none');
   if (row.quote !== undefined && !row.quote.trim()) add('error', 'quote holds the words the fact rests on; leave it out when there is none');
   if (requireFactQuote) for (const message of factQuoteProblems(row)) add('error', message);
@@ -426,7 +426,8 @@ export function frozenCriterion(spec, item, doctrine = null) {
     const row = namespace === 'doctrine'
       ? doctrine.rows.find((entry) => entry.id === rawId)
       : spec.rows.find((entry) => entry.id === rawId);
-    return { id, text: row.text, gate: row.gate };
+    // Stakes ride in the freeze only when they are not team, so a team row (written or by default) freezes to the bytes it always did [C7,#11412].
+    return { id, text: row.text, gate: row.gate, ...(row.stakes && row.stakes !== 'team' ? { stakes: row.stakes } : {}) };
   });
   const check = item.item_check ? { check: item.item_check } : {};
   const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, ...check, ...(item.item_check_timing === true ? { checkTiming: true } : {}), rows });

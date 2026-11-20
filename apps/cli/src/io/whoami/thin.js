@@ -29,7 +29,7 @@ export function thinWhoami(ctx) {
     ctx.io.caller?.('seat', ctx.info.root);
     return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers),
       family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names),
-      address: seatAddress(store.boardId(board), agent.agent_id) };
+      ...(agent.agent_role ? { role: agent.agent_role } : {}), address: seatAddress(store.boardId(board), agent.agent_id) };
   } catch (error) {
     if (error instanceof store.ReadNeedsWrite || store.writeRefused(error) || store.schemaMissing(error)) return null;
     throw error;

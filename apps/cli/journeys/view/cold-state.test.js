@@ -31,3 +31,12 @@ test('cli.journeys-view-cold-state.the-same-build-reads-reopen-rows: clause 2: t
   const { statements } = coldStateReads(apiHttpFixture(t), 70);
   assert.equal(reopenReads(statements).length, 1, reopenReads(statements).join('\n'));
 });
+
+test('cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under: clause 1: a cold state build over 300 items takes under 10 s, built through the same view ports the API serves [C7,#8480]', t => {
+  const started = performance.now();
+  const { ids, built } = coldStateReads(apiHttpFixture(t), 300);
+  const seconds = (performance.now() - started) / 1000;
+  assert.ok(ids.length >= 300);
+  assert.deepEqual(ids.filter(id => !built.includes(id)), [], 'the build projected every item');
+  assert.ok(seconds < 10, `the cold build of ${ids.length} items took ${seconds.toFixed(2)} s`);
+});

@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../env/index.js';
 import { operationIntent } from '../../../state/index.js';
 /**
  * The ordered outbox (#922): board moves made on an accepted relay link while the relay is unavailable, sealed on
@@ -82,6 +83,9 @@ import {
   entryCreatedItems,
   rememberCreatedItems,
 } from '../../../link/index.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /** How many replay refusals the link keeps for pullboard status; older ones stay in the relay's own receipts. */
 const KEPT_REFUSALS = 20;
@@ -209,7 +213,7 @@ export function refusalLine(kept) {
 
 /** The ordered operations whose first argument is an item number; a decision's answer names a shout instead. */
 const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBaseline', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify',
-  'merged', 'withdraw', 'refreeze', 'reopen', 'holdItem', 'releaseItemHold', 'appendFact', 'acceptCheck'];
+  'merged', 'withdraw', 'refreeze', 'reopen', 'holdItem', 'releaseItemHold', 'reserveItem', 'clearReservation', 'appendFact', 'acceptCheck'];
 
 /**
  * Where each ordered operation names an item, as paths into its arguments: `*` is every element of a list. Every
@@ -397,7 +401,7 @@ function queueableKeyFailure(error, io) {
  */
 export function outboxQueueable(state, error, operation, io, args = []) {
   return state.mode === 'ordered' && state.baselineAccepted === true && !state.baselineConflict && !state.environment
-    && process.env.PULLBOARD_RELAY_TOKEN === undefined && !io?.relayCanary && !io?.personRequest && !io?.personRequestMoveId
+    && environment.get('PULLBOARD_RELAY_TOKEN') === undefined && !io?.relayCanary && !io?.personRequest && !io?.personRequestMoveId
     && !ACKNOWLEDGED_OPERATIONS.includes(operation)
     && !args.some(arg => arg?.landingFence !== undefined) && (transientRelayFailure(error) && outboxEnabled(io) || queueableKeyFailure(error, io));
 }
@@ -943,7 +947,7 @@ async function park(link, key, entry, error) {
 async function recoverParked(link) {
   const { root, file, state, io } = link;
   const where = outboxFile(file);
-  if (!state.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) {
+  if (!state.token?.startsWith('pm_') || environment.get('PULLBOARD_RELAY_TOKEN')) {
     throw new Refused('RELAY_RECOVER_CREDENTIAL', 'run pullboard relay recover on the computer you signed in on; only its machine credential publishes a board checkpoint');
   }
   const key = readBoardKey(state.board);

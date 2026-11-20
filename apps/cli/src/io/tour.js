@@ -18,6 +18,7 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { commitWithHooks } from './tour-commit.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { startLocalRunner } from './runner/local.js';
 import { slowestSteps } from '../logic/tour-steps.js';
@@ -30,6 +31,7 @@ import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { setLocalWake } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import {
   forgetProject,
   listProjects,
@@ -74,9 +76,12 @@ const EDGE_TEST = `${TEST}test('a blank name greets the world [G1]', () => asser
 const TRY_EDGE = ['--input-type=module', '-e', "const { greet } = await import('./src/greet.mjs'); console.log(greet(''))"];
 const PROMPT_COLOR = { coordinator: 36, 'app-1': 33, 'review-1': 35 };
 
+/** The process environment, read and swapped only through the adapter. */
+const processEnvironment = environmentAdapter();
+
 /** Whether this person asked for terminal colors, unless NO_COLOR explicitly disables them. */
 function colorEnabled(io) {
-  return process.env.NO_COLOR === undefined && (Boolean(io.stdout.isTTY) || Boolean(process.env.FORCE_COLOR));
+  return processEnvironment.get('NO_COLOR') === undefined && (Boolean(io.stdout.isTTY) || Boolean(processEnvironment.get('FORCE_COLOR')));
 }
 
 /** Wrap text in one plain ANSI style only when terminal styling is enabled. */
@@ -108,10 +113,10 @@ function pause(ms) {
  */
 function carryLocalWake(demoHome) {
   if (loadMachineSettings()['runners.localWake'] !== true) return;
-  const caller = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = demoHome;
+  const caller = processEnvironment.get('PULLBOARD_MACHINE_HOME');
+  processEnvironment.set('PULLBOARD_MACHINE_HOME', demoHome);
   try { setLocalWake(true); } finally {
-    if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
+    if (caller === undefined) processEnvironment.delete('PULLBOARD_MACHINE_HOME'); else processEnvironment.set('PULLBOARD_MACHINE_HOME', caller);
   }
 }
 
@@ -126,10 +131,10 @@ function carryLocalWake(demoHome) {
  */
 async function warmLocalRunner(repo, env) {
   if (loadMachineSettings()['runners.localWake'] !== true) return;
-  const caller = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
+  const caller = processEnvironment.get('PULLBOARD_MACHINE_HOME');
+  processEnvironment.set('PULLBOARD_MACHINE_HOME', env.PULLBOARD_MACHINE_HOME);
   try { await ensureLocalRunner(repo, { start: (root) => startLocalRunner(root, { env }) }); } finally {
-    if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
+    if (caller === undefined) processEnvironment.delete('PULLBOARD_MACHINE_HOME'); else processEnvironment.set('PULLBOARD_MACHINE_HOME', caller);
   }
 }
 
@@ -150,8 +155,8 @@ export async function tour(io) {
   // Nothing of the person's git setup reaches the tour: no config files, and no GIT_ variable, such
   // as GIT_DIR from a hook or GIT_CONFIG_COUNT pairs, which git reads as config too. The caller's agent session
   // stays out as well, so each seat is judged as its own session below (#952).
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT' && !CALLER_SESSION_NAMES.has(name)));
-  Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(dir, '.pullboard'), PULLBOARD_MACHINE_HOME: join(dir, '.pullboard-machine') });
+  const env = Object.fromEntries(Object.entries(processEnvironment.all()).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT' && !CALLER_SESSION_NAMES.has(name)));
+  Object.assign(env, { PATH: `${shims}:${processEnvironment.get('PATH')}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(dir, '.pullboard'), PULLBOARD_MACHINE_HOME: join(dir, '.pullboard-machine') });
   carryLocalWake(env.PULLBOARD_MACHINE_HOME);
   const repo = join(dir, 'greeter');
   const app = `${repo}-app-1`;
@@ -166,6 +171,10 @@ export async function tour(io) {
    */
   const seatSession = (who) => ({ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: `${basename(dir)}-${who}` });
   const timings = [];
+  // PULLBOARD_TOUR_REAL_HOOKS=1: the scripted commits run git's own hook scripts as processes, as a person's commit does [N10,#10408].
+  // How long each scripted commit took, hooks included, said at the end so a slow commit is seen [N10,#10408].
+  const commitMs = [];
+  const realHooks = processEnvironment.get('PULLBOARD_TOUR_REAL_HOOKS') === '1';
 
   /** The environment one scripted seat runs with. */
   const seatEnv = (who, nested) => ({ ...env, ...seatSession(who), ...(nested ? { PULLBOARD_TEXT_NEXT: '0' } : {}), GIT_AUTHOR_NAME: who, GIT_AUTHOR_EMAIL: `${who}@tour.invalid`, GIT_COMMITTER_NAME: who, GIT_COMMITTER_EMAIL: `${who}@tour.invalid` });
@@ -206,10 +215,10 @@ export async function tour(io) {
     pause(400 * pace);
     if (label) io.say(`   ${paint(displayAgentName({ agent_id: who, agent_model: who === 'coordinator' ? null : 'Scripted' }), PROMPT_COLOR[who], color)} $ ${label}`);
     const started = performance.now();
-    const saved = { ...process.env };
+    const saved = processEnvironment.all();
     const exitCode = process.exitCode;
-    for (const name of Object.keys(process.env)) delete process.env[name];
-    Object.assign(process.env, seatEnv(who, true));
+    for (const name of Object.keys(processEnvironment.all())) processEnvironment.delete(name);
+    for (const [name, value] of Object.entries(seatEnv(who, true))) processEnvironment.set(name, value);
     let stdout = '';
     let stderr = '';
     let status;
@@ -221,8 +230,8 @@ export async function tour(io) {
         stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
       });
     } finally {
-      for (const name of Object.keys(process.env)) delete process.env[name];
-      Object.assign(process.env, saved);
+      for (const name of Object.keys(processEnvironment.all())) processEnvironment.delete(name);
+      for (const [name, value] of Object.entries(saved)) processEnvironment.set(name, value);
       process.exitCode = exitCode;
     }
     return report(label, process.execPath, [BIN, ...args], { status, stdout, stderr }, started, { show, fails, tone });
@@ -252,6 +261,15 @@ export async function tour(io) {
       if (/^progress: landed/mu.test(shown)) { io.say(`       #${id} landed on main by the land job`); return; }
     }
     throw new TourStopped(`the land job for #${id} did not land it in two minutes; pullboard runner local shows this machine's runner`);
+  };
+  /** One scripted commit: its hooks run in this process, unless the real ones were asked for. */
+  const commit = async (who, message, { all = false } = {}) => {
+    const started = performance.now();
+    try {
+      return await commitWithHooks({ message, all, real: realHooks, messageFile: join(dir, `commit-message-${who}`),
+        label: `git ${typed(['commit', '-q', all ? '-am' : '-m', message])}`,
+        run: (file, args, options) => run(who, file, args, options), pb: (args, options) => pb(who, args, options) });
+    } finally { commitMs.push(performance.now() - started); }
   };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
@@ -288,7 +306,7 @@ export async function tour(io) {
     step(3, 'It writes greet(), tests the happy path and submits. Its own gate is green.');
     write('app-1', { 'src/greet.mjs': FIRST, 'src/greet.test.mjs': TEST });
     run('app-1', 'git', ['add', '-A'], { label: '' });
-    run('app-1', 'git', ['commit', '-q', '-m', 'feat(app): greet by name [G1]']);
+    await commit('app-1', 'feat(app): greet by name [G1]');
     const first = await gated('app-1', ['submit', '1']);
 
     step(4, 'A second agent checks out exactly that commit and tries the edge the builder skipped.');
@@ -304,7 +322,7 @@ export async function tour(io) {
     step(6, 'It fixes the edge, adds a test that pins it, and submits a new commit.');
     await pb('app-1', ['claim', '1'], { show: /^claimed/ });
     write('app-1', { 'src/greet.mjs': FIXED, 'src/greet.test.mjs': EDGE_TEST });
-    run('app-1', 'git', ['commit', '-q', '-am', 'fix(app): a blank name greets the world [G1]']);
+    await commit('app-1', 'fix(app): a blank name greets the world [G1]', { all: true });
     // The fix edits a test that existed at the claim, so the submit says why (#814).
     const second = await gated('app-1', ['submit', '1', '--infra', 'pins the blank-name edge the verifier found']);
 
@@ -338,5 +356,6 @@ export async function tour(io) {
   io.say(`Look around: cd ${repo} && pullboard log`);
   io.say('see it: pullboard view');
   io.err(slowestSteps(timings));
+  io.err(`scripted commits: ${commitMs.map((ms) => `${Math.round(ms)} ms`).join(', ')}`);
   return 0;
 }
