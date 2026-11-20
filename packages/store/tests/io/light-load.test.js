@@ -1,4 +1,5 @@
 /** The store light door loads cold inside its 100 ms light-door budget [C7]. */
+/** @pullboard-test-timing */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
