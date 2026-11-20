@@ -54,5 +54,5 @@ test('cli.journeys-next-wave.overlap-waits-naming-the-file: clause 2: no two ite
   const claimedFiles = handed.flatMap(filesOf);
   assert.equal(new Set(claimedFiles).size, claimedFiles.length, `two handed items share a file: ${claimedFiles.join(' ')}`);
   const reasons = answers.flatMap(answer => answer?.reasons ?? []);
-  assert.ok(reasons.some(line => line.startsWith(`#${ids.b} waits on web/`) && /web\/[xy]\.js/u.test(line)), `no reason names the file #${ids.b} waits on:\n${reasons.join('\n')}`);
+  assert.ok(reasons.some(line => line.startsWith(`#${ids.b} waits for `) && /on web\/[xy]\.js$/u.test(line)), `no reason names the file #${ids.b} waits on:\n${reasons.join('\n')}`);
 });
