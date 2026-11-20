@@ -90,7 +90,7 @@ const OPTIONS = {
   role: { type: 'string' },
   route: { type: 'string' }, level: { type: 'string' },
   field: { type: 'string' },
-  family: { type: 'string' }, 'review-family': { type: 'string' },
+  family: { type: 'string' }, 'review-family': { type: 'string' }, abilities: { type: 'string' },
   model: { type: 'string' },
   issue: { type: 'string' },
   as: { type: 'string' },
