@@ -8,18 +8,12 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { pullboardHome } from '../../../../store/index.js';
 import { ENGINE_VERSION } from '../../../../state/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Set to 0 to send inside each command instead, as before #1013; the test runner sets it, like the view. */
 export const SENDER_BACKGROUND_ENV = 'PULLBOARD_RELAY_SENDER_BACKGROUND';
@@ -65,8 +59,8 @@ export function alive(pid) {
 export function senderHolding() {
   const { pid } = senderFiles();
   try {
-    if (Date.now() - statSync(pid).mtimeMs > SENDER_CLAIM_STALE_MS) return 0;
-    const holder = Number(readFileSync(pid, 'utf8'));
+    if (Date.now() - fs.stat(pid).mtimeMs > SENDER_CLAIM_STALE_MS) return 0;
+    const holder = Number(fs.readFile(pid, 'utf8'));
     return alive(holder) ? holder : 0;
   } catch { return 0; }
 }
@@ -79,7 +73,7 @@ export function senderHolding() {
  * @param {number} pid - The claiming sender's process.
  */
 export function recordSenderEngine(pid) {
-  writeFileSync(senderFiles().engine, `${pid} ${ENGINE_VERSION}\n`, { mode: 0o600 });
+  fs.writeFile(senderFiles().engine, `${pid} ${ENGINE_VERSION}\n`, { mode: 0o600 });
 }
 
 /**
@@ -93,7 +87,7 @@ export function outdatedSender() {
   if (!pid) return null;
   let engine = null;
   try {
-    const [owner, version] = readFileSync(senderFiles().engine, 'utf8').trim().split(' ').map(Number);
+    const [owner, version] = fs.readFile(senderFiles().engine, 'utf8').trim().split(' ').map(Number);
     if (owner === pid && Number.isSafeInteger(version)) engine = version;
   } catch { /* No record: a sender from before records were kept. */ }
   return engine !== null && engine >= ENGINE_VERSION ? null : { pid, engine, current: ENGINE_VERSION };
@@ -113,8 +107,8 @@ export function stopOutdatedSender() {
   if (!outdated) return null;
   try { process.kill(outdated.pid, 'SIGTERM'); } catch { /* Already gone. */ }
   // The claim is freed now, not when the old process gets round to exiting; it never removes a successor's claim.
-  try { if (Number(readFileSync(senderFiles().pid, 'utf8')) === outdated.pid) rmSync(senderFiles().pid, { force: true }); } catch { /* Gone. */ }
-  rmSync(senderFiles().starting, { force: true });
+  try { if (Number(fs.readFile(senderFiles().pid, 'utf8')) === outdated.pid) fs.rm(senderFiles().pid, { force: true }); } catch { /* Gone. */ }
+  fs.rm(senderFiles().starting, { force: true });
   return outdated;
 }
 
@@ -144,12 +138,12 @@ const STARTING_STALE_MS = 10_000;
  */
 function startingSender() {
   const marker = senderFiles().starting;
-  mkdirSync(senderFiles().directory, { recursive: true, mode: 0o700 });
-  try { writeFileSync(marker, `${process.pid}\n`, { flag: 'wx', mode: 0o600 }); return true; }
+  fs.mkdir(senderFiles().directory, { recursive: true, mode: 0o700 });
+  try { fs.writeFile(marker, `${process.pid}\n`, { flag: 'wx', mode: 0o600 }); return true; }
   catch (error) { if (error.code !== 'EEXIST') throw error; }
-  try { if (Date.now() - statSync(marker).mtimeMs < STARTING_STALE_MS) return false; } catch { /* Gone: start one. */ }
-  rmSync(marker, { force: true });
-  try { writeFileSync(marker, `${process.pid}\n`, { flag: 'wx', mode: 0o600 }); return true; } catch { return false; }
+  try { if (Date.now() - fs.stat(marker).mtimeMs < STARTING_STALE_MS) return false; } catch { /* Gone: start one. */ }
+  fs.rm(marker, { force: true });
+  try { fs.writeFile(marker, `${process.pid}\n`, { flag: 'wx', mode: 0o600 }); return true; } catch { return false; }
 }
 
 /** The note a board keeps in the sender's folder, named by its link file. */
@@ -168,12 +162,12 @@ export function nudgeRelaySender(root, file, launchSender) {
   if (!senderInBackground()) return;
   try {
     const note = boardNote(file);
-    mkdirSync(senderFiles().boards, { recursive: true, mode: 0o700 });
+    fs.mkdir(senderFiles().boards, { recursive: true, mode: 0o700 });
     const temporary = `${note}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify({ root, file, due: Date.now() }) + '\n', { flag: 'wx', mode: 0o600 });
-      renameSync(temporary, note);
-    } finally { rmSync(temporary, { force: true }); }
+      fs.writeFile(temporary, JSON.stringify({ root, file, due: Date.now() }) + '\n', { flag: 'wx', mode: 0o600 });
+      fs.rename(temporary, note);
+    } finally { fs.rm(temporary, { force: true }); }
     stopOutdatedSender(); // A sender from before an upgrade refuses every new move; this version's takes over.
     if (senderHolding() || !startingSender()) return;
     const env = environmentAdapter().all();
@@ -191,9 +185,9 @@ export function nudgeRelaySender(root, file, launchSender) {
  * @returns {boolean}
  */
 export function localFirstBoard(file, outboxSetting) {
-  if (environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || !existsSync(file)) return false;
+  if (environmentAdapter().has('PULLBOARD_RELAY_TOKEN') || !fs.exists(file)) return false;
   let state;
-  try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { return false; }
+  try { state = JSON.parse(fs.readFile(file, 'utf8')); } catch { return false; }
   if (!state || state.unlinking || state.recovery || state.mode !== 'ordered' || state.baselineAccepted !== true
     || state.baselineConflict || state.environment) return false;
   try { return outboxSetting() === true; } catch { return false; }

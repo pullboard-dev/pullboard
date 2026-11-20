@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from '../../../../items/index.js';
@@ -11,7 +12,6 @@ import { landingBatchSize } from '../../logic/batch/size.js';
 import { roundFailures } from '../../logic/batch/size.js';
 import { LANDING_RED_LIMIT } from '../../../../store/index.js';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
 import { tryGit } from '../../../../git/index.js';
@@ -25,11 +25,13 @@ import { compareMainFailures } from '../main/red.js';
 import { cachedFailureSignatures } from '../main/matches.js';
 import { landingEntry } from '../../logic/land/entry.js';
 import { testDefectHoldMessage } from '../../logic/land/entry.js';
+
+const fs = fileSystemAdapter();
 export { landingEntry, testDefectHoldMessage };
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
-  try { return createHash('sha256').update(readFileSync(join(root, file))).digest('hex'); }
+  try { return createHash('sha256').update(fs.readFile(join(root, file), null)).digest('hex'); }
   catch { return null; }
 }
 

@@ -18,6 +18,9 @@ export const BOARD_SHAPE_REFUSALS = [PATCH_METADATA_REFUSAL, SOURCE_STATE_REFUSA
 export const VERDICT_PATCH_REFUSALS = [{ code: 'ITEM_PATCH', rule: 'native companion input composes safely against its source', next: 'replace the unsafe or conflicting patch with a source-bound correction' },
   { code: 'ITEM_PATCH_AUTHOR', rule: 'every patch has its registered source author', next: 'restore the native author before reviewing the patch' }];
 
+/** A refusal a move reaches through shared code, declared with the rule and next step every such code carries [M1,C7]. */
+const reached = (code) => ({ code, rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' });
+
 /** Refusals the submit path reaches through landing, relay, device, seal and fact code; each is raised there and names its own cause [M1,C7]. */
 export const SUBMIT_REACHED_REFUSALS = [
   { code: 'RUNNER_TEST_LEAK', rule: 'tests stop the child processes, servers and handles they start', next: 'make the named tests stop every child process, server and handle they start, commit, and submit again' },
@@ -148,7 +151,9 @@ export const SUBMIT_REACHED_REFUSALS = [
   { code: 'FILE_LEASED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'TABLE_REPLAY', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'HOP_ITEM', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
-  { code: 'HOP_FENCED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'HOP_FENCED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },  // Identifying the caller registers its seat, and register refuses a lane move for a seat that holds work [C7,M1].
+  { code: 'LANE_HELD', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  reached('CHECK_RED'),
 ];
 
 /** Refusals the verdict moves reach through the timing reservation and main-red classification [M1,C7]. */
@@ -166,4 +171,13 @@ export const VERDICT_REACHED_REFUSALS = [
   { code: 'JOB_MISSING', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'JOB_STEP_NAME', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'RUNNER_BRIDGE_DEADLINE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  // A parent's review composes its submitted slices, and a slice that conflicts refuses [C7,M1].
+  { code: 'SLICE_COMPOSE', rule: 'each submitted slice composes onto its parent review and the slices before it', next: 'merge main into the named slice and resubmit it' },
+  // Identifying the caller registers its seat, and register refuses a lane move for a seat that holds work [C7,M1].
+  { code: 'LANE_HELD', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  // The strict accept path reaches the fact writer and the relay key code, so these fact and key refusals are raised there [M1,C7].
+  ...['EMPTY_FACT', 'FACT_JUDGEMENT', 'BAD_FACT_ID', 'NO_FACT', 'FACT_INDEX_NOT_READY', 'BAD_FACT_KIND', 'BAR_SELF_SIGN', 'BAD_FACT_REF', 'RIGOR_PERSON_ONLY', 'PROVEN_BREAK_REQUIRED', 'BOARD_REFERENCE', 'RELAY_KEY_STORAGE', 'RELAY_KEY_MISSING', 'RELAY_KEY_FILE_ENV_MISMATCH', 'BAD_BOARD', 'SEAL_KEY', 'RELAY_KEYCHAIN'].map(reached),
 ];
+
+/** Refusals the claim move reaches when a gate-green after-gate claim records its parent note through the fact writer [M1,C7]. */
+export const CLAIM_REACHED_REFUSALS = ['EMPTY_FACT', 'FACT_JUDGEMENT', 'BAD_FACT_ID', 'NO_FACT', 'FACT_INDEX_NOT_READY', 'BAD_FACT_KIND', 'NOT_YOURS', 'BAR_SELF_SIGN', 'BAD_FACT_REF', 'RIGOR_PERSON_ONLY', 'BAD_CAUSE'].map(reached);

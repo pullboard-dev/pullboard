@@ -31,6 +31,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { clauseTicks } from '../../../../../packages/state/index.js';
 import { regenerateDeclaredFiles } from '../../../../../packages/gate/heavy.js';
 import {
   pendingSubmitHandoff,
@@ -43,9 +44,6 @@ import {
   requireSubmitHandoffExecution,
 } from '../../../../../packages/sandbox/index.js';
 import { machineVerificationEligible } from '../../../../../packages/verify/index.js';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { join } from 'node:path';
 export { doctrineExecutionPhases } from '../submit/gate.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
@@ -187,6 +185,26 @@ function authorizationStep(step, work) {
 }
 
 /**
+ * Submit's own step for a frozen check: when a [test] clause waits unticked on the item's check, run that check once at the head,
+ * which ticks the clauses as pullboard check does, so the builder never calls pullboard check. A red check refuses; a check with no recorded author is not run.
+ * Why: the check is frozen at claim and only the coordinator or the person sets it, so a builder's confirmation adds nothing the claim did not accept; builders ran pullboard check 9 to 12 times each [#11844].
+ *
+ * @param {{ item: any, thread: any[], author: string|null, head: string, options?: object, runCheck: (check: string) => Promise<{ green: boolean, report: string }>, say?: (line: string) => void }} step The item, its thread, who set the check, the head, the inspection options and the check runner.
+ * @returns {Promise<boolean>} Whether the check ran green.
+ */
+export async function frozenCheckAtSubmit({ item, thread, author, head, options = {}, runCheck, say = () => {} }) {
+  const check = frozenCheck(item);
+  if (!check || !author) return false;
+  if (!clauseInspectionProblem(item, thread, { ...options, head })) return false;
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
+  if (!criterionClauses(item.item_criterion).some(clause => (clause.kind === null || clause.kind === 'test') && !ticks.has(clause.number))) return false;
+  say(`submit runs the frozen check of #${item.item_id}: ${check}`);
+  const result = await runCheck(check);
+  if (!result.green) throw new Refused('CHECK_RED', `the frozen check of #${item.item_id} is red: ${check}\n${result.report}`, `fix what it names, then submit again; pullboard check ${item.item_id} runs it alone`);
+  return true;
+}
+
+/**
  * Submit: a clean tree, nothing untracked, the gate green at HEAD, then the board (V4).
  *
  * The cheap checks run before the gate, so a submit that cannot succeed fails fast.
@@ -221,6 +239,15 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
 /** The tree of a commit, which for a composed submit is not the checkout's tree. */
 function commitTree(root, commit) { return git(root, ['rev-parse', `${commit}^{tree}`]).trim(); }
 
+/**
+ * Submit the item from the checkout it is built in, running the submit checks and recording the move.
+ *
+ * @param {object} ctx
+ * @param {number} id
+ * @param {object} infra
+ * @param {object|null} [companionInput]
+ * @returns {Promise<*>}
+ */
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
@@ -265,6 +292,22 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightStart = performance.now();
   // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
   if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles: (_root, item) => gateFilesOf(item), recordMainComparison }));
+  // A [test] clause waiting on the item's frozen check: submit runs that check itself before inspecting clauses [#11844].
+  if (inspectClauses) await authorizationStep('frozen-check', async () => {
+    const seen = withBoard(ctx, (board) => {
+      const me = whoAmI(ctx, board), item = store.getItem(board, id);
+      return item.item_status === 'claimed' && item.item_owner === me.id ? { item, me, thread: store.itemThread(board, id), author: store.itemCheckAuthor(board, id) } : null;
+    });
+    if (!seen) return;
+    const { executeCheck } = await import('./check.js');
+    await frozenCheckAtSubmit({ item: seen.item, thread: seen.thread, author: seen.author, head: headCommit(root),
+      options: { gateFiles: gateFilesOf(seen.item), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(seen.item)) : [] },
+      say: line => ctx.io.say(line),
+      runCheck: async (check) => {
+        const run = await executeCheck(ctx.io, ctx, seen.item, { check, by: seen.author, caller: seen.me.id, values: {}, quiet: true });
+        return { green: run.isGreen, report: run.isGreen ? '' : (await import('../../../../../packages/gate/index.js')).digestOf(run.output) };
+      } });
+  });
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -315,7 +358,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const dirty = authorizationStep('tree-state', () => !treeUntouched(root) && !isClean(root));
   if (dirty) {
     // Preserve the typed grammar refusal without starting gates for a dirty candidate.
-    try { parseSpec(readFileSync(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
+    try { parseSpec(fs.readFile(join(root, ctx.config.spec || 'SPEC.md'), 'utf8')); }
     catch (error) { if (error?.code === 'A5_GRAMMAR_VERSION') throw error; }
     throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
   }
@@ -447,8 +490,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
+  // The item's changed files are read from Git before the dry-run opens its write transaction: a Git subprocess inside it held the board's write lock 4-6 s under load (#11710).
+  const preflightFiles = authorizationStep('preflight-files', () => filesSince(root, id, claimHead, commit));
   authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: commitTree(root, commit), submissionSize: preflightSize, inspectClauses,
-    ...(inspectClauses ? { gateFiles: gateFilesOf(store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
+    ...(inspectClauses ? { gateFiles: gateFilesOf(store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, preflightFiles) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
@@ -461,9 +506,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const companion = await authorizationStep('item-patches', () => withBoard(ctx, async board => {
     if (companionInput) {
       let patchStat;
-      try { patchStat = statSync(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
+      try { patchStat = fs.stat(companionInput.file); } catch { throw new Refused('ITEM_PATCH_FORMAT', `cannot read companion patch file "${companionInput.file}"`); }
       if (!patchStat.isFile() || patchStat.size > 8 * 1024 * 1024) throw new Refused('ITEM_PATCH_FORMAT', 'supply a regular companion patch of at most eight MiB');
-      const patchBytes = readFileSync(companionInput.file);
+      const patchBytes = fs.readFile(companionInput.file, null);
       const patchText = patchBytes.toString('utf8');
       if (!Buffer.from(patchText, 'utf8').equals(patchBytes)) throw new Refused('ITEM_PATCH_FORMAT', 'companion patch must contain valid UTF8');
       const patch = normalizeItemPatch(patchText);
@@ -605,7 +650,7 @@ async function handOffHostedSubmit(ctx, id, runner) {
     if (item?.item_status !== 'claimed' || item.item_owner !== who.id) throw new Refused('NOT_YOURS', `item #${id} is not claimed by you; claim it first`);
     return { me: who, local: itemFolderPath(seatRoot(ctx, board, who), id) };
   });
-  const branch = `${me.lane}/item-${id}`, root = ctx.info.root, existed = existsSync(local);
+  const branch = `${me.lane}/item-${id}`, root = ctx.info.root, existed = fs.exists(local);
   if (existed) {
     const current = checkoutBranch(local);
     if (current !== null && current !== branch) throw new Refused('HOSTED_BRANCH_MISMATCH', `item folder ${local} is on ${current}, not the claimed branch ${branch}; switch it back and submit again`);
@@ -624,6 +669,13 @@ async function handOffHostedSubmit(ctx, id, runner) {
   return local;
 }
 
+/**
+ * The submit command: parse its arguments and flags, hand off to a hosted runner when one is set, and submit the item.
+ *
+ * @param {object} io
+ * @param {object} args the first word and the parsed flags
+ * @returns {Promise<number>}
+ */
 export async function run(io, { first, values }) {
   const submissionResult = {};
   let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, dryRunReview: values['dry-run-review'] === true, json: values.json === true };
@@ -682,3 +734,5 @@ export async function run(io, { first, values }) {
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/light.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();

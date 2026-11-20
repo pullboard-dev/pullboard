@@ -12,16 +12,6 @@ import {
   spawnSync,
 } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import {
-  closeSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  statSync,
-  unlinkSync,
-} from 'node:fs';
 import { connect } from 'node:net';
 import {
   dirname,
@@ -30,6 +20,9 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** The CLI entry this client serves; the resident process runs its code. */
 export const PULLBOARD_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
@@ -82,7 +75,7 @@ export function residentBusyFile(pidFile) {
  */
 export function residentBusy(pidFile, now = Date.now(), env = environmentAdapter().all()) {
   try {
-    const [pid, at] = readFileSync(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
+    const [pid, at] = fs.readFile(residentBusyFile(pidFile), 'utf8').trim().split(' ').map(Number);
     if (!Number.isSafeInteger(pid) || !Number.isFinite(at) || now - at <= RESIDENT_BUSY_DIRECT_MS) return false;
     process.kill(pid, 0);
     // A command past its ceiling and grace is wedged (its own timer never fired, so its event loop is blocked or the
@@ -98,9 +91,9 @@ export function residentBusy(pidFile, now = Date.now(), env = environmentAdapter
  */
 function reapWedged(pidFile, pid) {
   try {
-    if (Number(readFileSync(pidFile, 'utf8').trim()) !== pid) return false;
+    if (Number(fs.readFile(pidFile, 'utf8').trim()) !== pid) return false;
     process.kill(pid, 'SIGKILL');
-    for (const file of [residentBusyFile(pidFile), pidFile]) try { unlinkSync(file); } catch { /* Already gone. */ }
+    for (const file of [residentBusyFile(pidFile), pidFile]) try { fs.unlink(file); } catch { /* Already gone. */ }
     return true;
   } catch { return false; }
 }
@@ -108,32 +101,32 @@ function reapWedged(pidFile, pid) {
 /** Find the Git metadata above a directory without starting Git: the checkout root, its Git dir and the shared one. */
 export function gitLocation(start, { walk = true } = {}) {
   let root = resolve(start);
-  while (!existsSync(join(root, '.git'))) {
+  while (!fs.exists(join(root, '.git'))) {
     const parent = dirname(root);
     if (!walk || parent === root) return null;
     root = parent;
   }
   const marker = join(root, '.git');
   let gitDir = marker;
-  if (!statSync(marker).isDirectory()) {
-    const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(marker, 'utf8').trim());
+  if (!fs.stat(marker).isDirectory()) {
+    const match = /^gitdir:\s*(.+)$/u.exec(fs.readFile(marker, 'utf8').trim());
     if (!match) return null;
     gitDir = resolve(root, match[1].trim());
   }
   const commonFile = join(gitDir, 'commondir');
-  const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+  const commonDir = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile, 'utf8').trim()) : gitDir;
   return { root, gitDir, commonDir, linked: gitDir !== commonDir };
 }
 
 /** Resolve a checkout's HEAD commit from its files: a detached hash, a loose ref, or a packed ref. */
 export function headCommit({ gitDir, commonDir }) {
-  const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim();
+  const head = fs.readFile(join(gitDir, 'HEAD'), 'utf8').trim();
   if (!head.startsWith('ref:')) return head;
   const ref = head.slice('ref:'.length).trim();
   for (const dir of [gitDir, commonDir]) {
-    try { return readFileSync(join(dir, ref), 'utf8').trim(); } catch { /* Try the next place a ref can live. */ }
+    try { return fs.readFile(join(dir, ref), 'utf8').trim(); } catch { /* Try the next place a ref can live. */ }
   }
-  const packed = readFileSync(join(commonDir, 'packed-refs'), 'utf8').split('\n').find(line => line.endsWith(` ${ref}`));
+  const packed = fs.readFile(join(commonDir, 'packed-refs'), 'utf8').split('\n').find(line => line.endsWith(` ${ref}`));
   return packed ? packed.split(' ')[0] : null;
 }
 
@@ -143,7 +136,7 @@ const CODE_PATHS = ['apps', 'bin', 'package.json', 'packages', 'src'];
 /** One loose Git object's type and body, or null when it is packed or absent so Git itself must answer. */
 function looseObject(commonDir, oid) {
   try {
-    const raw = inflateSync(readFileSync(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2))));
+    const raw = inflateSync(fs.readFile(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2)), null));
     return { type: raw.subarray(0, raw.indexOf(32)).toString(), body: raw.subarray(raw.indexOf(0) + 1) };
   } catch { return null; }
 }
@@ -197,7 +190,7 @@ export function codeVersion(entry) {
     const tree = codeTreeName(location, commit);
     return { version: tree ? `code:${tree}` : `commit:${commit}`, linked: location.linked };
   }
-  const stamp = file => { const stat = statSync(file); return `${stat.size}.${stat.mtimeMs}`; };
+  const stamp = file => { const stat = fs.stat(file); return `${stat.size}.${stat.mtimeMs}`; };
   return { version: `files:${stamp(join(codeRoot, 'package.json'))}:${stamp(entry)}`, linked: false };
 }
 
@@ -239,8 +232,8 @@ export function residentStarts(argv) {
  */
 function shortSocketFolder() {
   const folder = join('/tmp', `pullboard-${process.getuid()}`);
-  try { mkdirSync(folder, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') return null; }
-  const stat = lstatSync(folder);
+  try { fs.mkdir(folder, { mode: 0o700 }); } catch (error) { if (error.code !== 'EEXIST') return null; }
+  const stat = fs.lstat(folder);
   return stat.isDirectory() && stat.uid === process.getuid() && (stat.mode & 0o077) === 0 ? folder : null;
 }
 
@@ -253,7 +246,7 @@ export function residentSocket(cwd, entry, slot = 0) {
   const location = gitLocation(cwd);
   if (!location) return null;
   const folder = join(location.commonDir, 'pullboard');
-  if (!existsSync(join(folder, 'board.sqlite'))) return null;
+  if (!fs.exists(join(folder, 'board.sqlite'))) return null;
   const name = createHash('sha256').update(resolve(entry)).digest('hex').slice(0, 12) + (slot ? `-${slot}` : '');
   const home = dirname(location.commonDir);
   const pid = join(folder, `resident-${name}.pid`);
@@ -315,14 +308,14 @@ export function claimResidentStart(pidFile, now = Date.now()) {
   const file = residentStartFile(pidFile);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      closeSync(openSync(file, 'wx'));
+      fs.close(fs.open(file, 'wx'));
       return true;
     } catch (error) {
       if (error?.code !== 'EEXIST') return false;
     }
     try {
-      if (now - statSync(file).mtimeMs <= RESIDENT_START_STALE_MS) return false;
-      unlinkSync(file);
+      if (now - fs.stat(file).mtimeMs <= RESIDENT_START_STALE_MS) return false;
+      fs.unlink(file);
     } catch (error) { if (error?.code !== 'ENOENT') return false; }
   }
   return false;
@@ -340,7 +333,7 @@ export function claimResidentStart(pidFile, now = Date.now()) {
  */
 export function startResident({ socket, pid, home }, entry, version, env, launch = launchReachable) {
   try {
-    const args = [RESIDENT_ENTRY, socket, entry, version, pid], options = { cwd: existsSync(home) ? home : process.cwd(), env };
+    const args = [RESIDENT_ENTRY, socket, entry, version, pid], options = { cwd: fs.exists(home) ? home : process.cwd(), env };
     return Promise.resolve(launch(process.execPath, args, options)).catch(() => detach(args, options));
   } catch { return Promise.resolve(); /* The command runs in-process either way. */ }
 }

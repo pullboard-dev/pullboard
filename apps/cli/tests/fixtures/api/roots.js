@@ -41,6 +41,14 @@ export async function exerciseAdditiveRoots({ project, uncataloguedRootJSON, wit
   // A wait key nothing is over budget on answers within budget, with no breach to exit non-zero on.
   const waits = await uncataloguedRootJSON(box, box.repo, 'waits', ['check', 'fixture-wait-key']);
   assert.deepEqual(waits, { version: 1, key: 'fixture-wait-key', over: [] });
+  // block, expedite and rulings are additive roots read through real CLI JSON on a board holding two items.
+  const ids = [];
+  for (const title of ['Block fixture alpha: tighten the parser', 'Block fixture beta: rotate the cache keys']) ids.push((await uncataloguedRootJSON(box, box.repo, 'add', ['coordinator', title, '--specs', 'G1', '--criterion', `${title} is verified`, '--check', 'true'])).item.item_id);
+  await uncataloguedRootJSON(box, box.repo, 'block', ['add', 'catalog-block', ...ids.map(String), '--tier', 'mid']);
+  assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'block', ['list'])).blocks.map(block => block.name), ['catalog-block']);
+  const expedited = await uncataloguedRootJSON(box, box.repo, 'expedite', [String(ids[0]), '--reason', 'catalog fixture expedite']);
+  assert.deepEqual({ id: expedited.id, expedited: expedited.expedited }, { id: ids[0], expedited: true });
+  assert.deepEqual((await uncataloguedRootJSON(box, box.repo, 'rulings', ['design-choice'])).rulings, [], 'a board with no answers holds no rulings');
   // shadow-batch composes only accepted items, so a name no item answers to is refused by name and changes nothing.
   const shadow = await withCatalogChild(() => runFixtureChildAsync(process.execPath,
     [fileURLToPath(new URL('../../../pullboard.js', import.meta.url)), 'shadow-batch', '99999', '--json'],

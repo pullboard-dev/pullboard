@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { temporaryRepository } from '../../../../store/tests/fixtures/submit.js';
-import { commonJsIn } from '../../../index.js';
-import { selectAffectedTests } from '../../../index.js';
+import { commonJsIn } from '../../../heavy.js';
+import { selectAffectedTests } from '../../../heavy.js';
 
 /** A real repository with a Go layout (two packages) and a Rust crate beside it, a base commit, and a candidate branch. */
 function repository(t) {

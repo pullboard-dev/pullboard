@@ -16,7 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
 import { HOST } from '../runner/ssh.js';
 import { installSshStandIn } from '../runner/ssh.js';
-import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/heavy.js';
 import { runFixtureChild } from '../child.js';
 import { runFixtureChildAsync } from '../child.js';
 import { runCliInProcess } from '../process.js';
@@ -148,7 +148,7 @@ async function submittedProof(box) {
 function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
-    const timingModule = new URL('../../../../../packages/gate/index.js', import.meta.url).href;
+    const timingModule = new URL('../../../../../packages/gate/heavy.js', import.meta.url).href;
     const beginTiming = timing ? 'beginSuiteTiming(process.cwd(), process.argv.slice(2));' : '';
     if (duplicate) put(box.root, 'test/second.test.js', source());
     if (phases) {

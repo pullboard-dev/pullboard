@@ -26,6 +26,7 @@ import { cellGit as git } from '../../../../packages/codemap/index.js';
 import { cellTryGit as tryGit } from '../../../../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { environmentAdapter } from '../../../../packages/env/index.js';
 import { cellInventory } from '../../../../packages/codemap/index.js';
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintGrowth } from '../../../../packages/codemap/index.js';
@@ -361,10 +362,12 @@ function cellsComposition(root, acceptedMain, commit) {
     '-m', 'chore(cells): inspect immutable submit composition [C7,D3]'], { env });
 }
 
+const environment = environmentAdapter();
+
 /** Bind every approved Node preload to its actual bytes; uncertainty disables persistent reuse. */
 function preloadFingerprint() {
   try {
-    return String(process.env.NODE_OPTIONS ?? '').split(/\s+/u).filter(Boolean).map(token => {
+    return String(environment.get('NODE_OPTIONS', '')).split(/\s+/u).filter(Boolean).map(token => {
       const match = /^--(?:import|require)=(.+)$/u.exec(token);
       if (!match) throw new Error('unrecognized preload');
       const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];

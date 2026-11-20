@@ -11,8 +11,6 @@ import {
  * argument parsing and the one-line item format. It loads no gate, relay or landing module, so a read command that
  * imports only this pays for nothing it does not run [C7].
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import {
   isAbsolute,
   join,
@@ -52,6 +50,9 @@ import { mainMergeFor } from '../../../../packages/merge/light.js';
 /** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
 export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A comma list of spec ids from a flag.
@@ -66,7 +67,7 @@ export const idList = (text) => (Array.isArray(text) ? text : [text ?? '']).flat
  * The start of a command an agent can paste anywhere: agent shells often start each command in the
  * main checkout, so every command pullboard suggests names its folder (I5).
  *
- * @param {string} root
+ * @param {string} text
  * @returns {string}
  */
 export const shellWord = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
@@ -113,6 +114,8 @@ const requireModule = createRequire(import.meta.url);
 const doctrineLoader = () => requireModule('../../../../packages/doctrine/light.js').loadDoctrine;
 /** The item-folder identity reader, loaded only when no seat is registered at this checkout [C7,#7081]. */
 const folderIdentity = () => requireModule('./item/folder/identity.js').itemFolderIdentity;
+/** The seat an item folder's marker names, read only on the refusal path [C7,#11780]. */
+const folderSeatHint = () => requireModule('./item/folder/identity.js').itemFolderSeatHint;
 
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
@@ -154,7 +157,7 @@ function configHere(info) {
       throw new Refused('NO_CONFIG', `${CONFIG_FILE} is deleted here, though this checkout's last commit has it: restore it: ${cdTo(info.root)} git checkout HEAD -- ${CONFIG_FILE}`);
     }
     const mainRoot = resolve(info.commonDir, '..');
-    if (info.isMain || !existsSync(join(mainRoot, CONFIG_FILE))) throw error;
+    if (info.isMain || !fs.exists(join(mainRoot, CONFIG_FILE))) throw error;
     let setup;
     try {
       setup = uncommittedSetup(mainRoot, loadConfig(mainRoot));
@@ -318,7 +321,7 @@ function declaredFamilies(root) {
 
 /** Read the exact ref bytes as well as the canonical filesystem signature; missing refs remain observable. */
 function policyRefBytes(file) {
-  try { return readFileSync(file, 'utf8'); }
+  try { return fs.readFile(file, 'utf8'); }
   catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null; throw error; }
 }
 
@@ -509,6 +512,8 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
   }
   const agent = readers.agentAt(board, ctx.info.root) ?? folderIdentity()(board, ctx.info.root)?.agent;
   if (!agent) {
+    const hint = folderSeatHint()(board, ctx.info.root);
+    if (hint) throw new Refused('NOT_JOINED', `this is item #${hint.item}'s folder and its seat no longer holds it: run next, status and shout from the seat folder, cd ${hint.seat}`);
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);
@@ -544,6 +549,6 @@ export function textArg(io, values, name) {
   }
   if (path === undefined) return values[name];
   const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
+  if (!fs.exists(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return fs.readFile(file, 'utf8');
 }

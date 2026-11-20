@@ -1,0 +1,14 @@
+/** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js src/exchange.js src/person-signing.js apps/relay/src/io/passkeys.js */
+/** Scenario partition: original case bytes and deadlines remain unchanged. */
+import {
+  rejectConsumedOffReplay,
+  rejectFabricatedPasskeyMetadata,
+  rejectSyntheticPasskeyEvent,
+  test,
+} from '../../../fixtures/scenarios/team.js';
+
+test('cli.journeys-fact-team-replay.person-only-moves-are-signed-against: person-only moves are signed against fabricated receipt metadata [E22,H16]', rejectFabricatedPasskeyMetadata);
+
+test('cli.journeys-fact-team-replay.person-only-moves-are-signed-against-2: person-only moves are signed against synthetic execution events [E22,H16]', rejectSyntheticPasskeyEvent);
+
+test('cli.journeys-fact-team-replay.person-only-moves-are-signed-against-3: person-only moves are signed against consumed OFF replay [E22,H16]', rejectConsumedOffReplay);

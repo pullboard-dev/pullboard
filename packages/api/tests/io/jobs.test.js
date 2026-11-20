@@ -1,17 +1,25 @@
+/** @pullboard-test-input source-cell packages/api */
 /** The board API serves its runner job queue on loopback, only under gate.runnerDispatch pull [P7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import { test } from 'node:test';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { closeCellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
+import { gateAgedMs } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
 import { settledGate } from '../../../jobs/index.js';
@@ -24,6 +32,7 @@ import { renewJob } from '../../index.js';
 import { postReceipt } from '../../index.js';
 import { gateClaimHop } from '../../index.js';
 import { provideGateHopTable } from '../../index.js';
+import { prepareBoardWriteIdentity } from '../../../store/index.js';
 import { readGateHop } from '../../../store/index.js';
 import { runnerCommitPort } from '../../index.js';
 import { MACHINE_DEFAULTS } from '../../../config/index.js';
@@ -135,6 +144,49 @@ test('api.jobs.claim-except-skips-kinds: #10794: a claim naming except skips ope
   assert.equal(claim({ runner: 'local-a', except: ['check-baseline'] }), null, 'only the excepted kind is left, so nothing is claimed');
   assert.equal(claim({ runner: 'local-b' })?.job, 'baseline:1:a', 'a claim without except takes it');
   assert.throws(() => claim({ runner: 'local-c', except: 'check-baseline' }), { code: 'JOB_CAPABILITY' }, 'except is a list of names');
+});
+
+/** A file-backed board under a temp machine home, so job writes leave their write records where the test can read them. */
+function holdBoard(t) {
+  const { root } = privateFixtureFiles('pullboard-jobs-hold-');
+  const home = join(root, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const file = join(root, 'board.sqlite');
+  const board = openCellBoard(file);
+  t.after(() => closeCellBoard(board));
+  return { db: board.db, file, home };
+}
+
+test('api.jobs.job-write-records-board-hold: an offerJob write through the board API job queue appends one row to the machine board-writes.jsonl naming its command, pid and outcome, as store.atomic does [C7]', (t) => {
+  const { db, home } = holdBoard(t);
+  const log = join(home, 'board-writes.jsonl');
+  const rows = () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : []).filter(row => row.command === 'api-job');
+  const before = rows().length;
+  offerJob(db, { id: 'gate:hold-record', kind: 'gate', needs: [] });
+  const added = rows().slice(before);
+  assert.equal(added.length, 1, 'one job write appends one row');
+  assert.equal(added[0].pid, process.pid);
+  assert.equal(added[0].outcome, 'released');
+});
+
+test('api.jobs.job-write-marks-holder: while an offerJob write holds the lock, the board write-holders folder holds its marker, and it is gone after commit or rollback [C7]', (t) => {
+  const { db, file } = holdBoard(t);
+  prepareBoardWriteIdentity();
+  const folder = realpathSync(file) + '.write-holders';
+  const markers = () => (existsSync(folder) ? readdirSync(folder) : []);
+  const seen = [];
+  db.function('hold_probe', () => { seen.push(markers().length); return 1; });
+  db.exec('CREATE TEMP TRIGGER hold_probe_insert AFTER INSERT ON job BEGIN SELECT hold_probe(); END');
+  offerJob(db, { id: 'gate:hold-marker', kind: 'gate', needs: [] });
+  assert.ok(seen.length > 0 && seen.every(count => count >= 1), 'the marker is in the folder while the write holds the lock');
+  assert.equal(markers().length, 0, 'the marker is gone after commit');
+  db.exec('DROP TRIGGER hold_probe_insert');
+  db.exec("CREATE TEMP TRIGGER hold_probe_refuse AFTER INSERT ON job BEGIN SELECT RAISE(ABORT, 'refused for the test'); END");
+  assert.throws(() => offerJob(db, { id: 'gate:hold-rollback', kind: 'gate', needs: [] }));
+  assert.equal(markers().length, 0, 'the marker is gone after rollback');
 });
 
 /** A held claim of one offered gate job, and a call that posts as its runner. */
@@ -351,6 +403,36 @@ test('api.jobs.claims-aged-gate-job-over-claim-action: clause 3: over the claim 
   assert.equal(claim(302_001), 'gate:9:shard:1');
 });
 
+/** A board where a runner holds a test job, then claims over the claim action with gateAgedMs read from the machine settings the case wrote, as packages/api/src/io/main.js passes it. */
+function agedSettingBoard(t, settings) {
+  const { root } = privateFixtureFiles('pullboard-jobs-gate-aged-setting-');
+  const home = join(root, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, settings);
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 150_000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 1001 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now, gateAgedMs }).claim?.job;
+  assert.equal(claim(160_000), 'test:one', 'a runner holding no test job takes the test job');
+  offerJob(db, { id: 'gate:9', kind: 'gate', now: 10_000 });
+  return claim;
+}
+
+test('api.jobs.claims-gate-aged-minutes-setting: clause 1: with gate.gateAgedMinutes 2 set in machine settings, over the claim action a gate job offered 3 minutes before the claim is handed to a runner holding a test job ahead of fresh shards [C7,#11875]', (t) => {
+  const claim = agedSettingBoard(t, { gate: { gateAgedMinutes: 2 } });
+  assert.equal(claim(190_000), 'gate:9', 'the 3-minute-old gate job passes the 2-minute setting and goes before the shard');
+  assert.equal(claim(190_001), 'gate:9:shard:1');
+});
+
+test('api.jobs.claims-gate-aged-minutes-unset: clause 2: with gate.gateAgedMinutes unset the same 3-minute-old gate job stays behind the shards over the claim action [C7,#11875]', (t) => {
+  const claim = agedSettingBoard(t, {});
+  assert.equal(claim(190_000), 'gate:9:shard:1', 'the default is 5 minutes, so the shard goes first');
+  assert.equal(claim(190_001), 'gate:9');
+});
+
 /** A board with a runner already holding `shards` gate shards and `tests` test jobs, plus the further jobs the case offers; claims go through claimJob with the cores it names. */
 function budgetBoard(t, { cores, shards, tests, offered }) {
   const { root } = privateFixtureFiles('pullboard-jobs-cores-budget-');
@@ -483,18 +565,19 @@ test('api.io-refusal.hop-held-leaves-lease: clause 1: a claim reaching a gate jo
   assert.equal(claim('r2', 5002), null, 'with nothing else open, the claim answers no job rather than a refusal');
 });
 
-test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job claim with the hop on makes the same 33 board statements as before the hop check moved [C7]', (t) => {
+test('api.io-refusal.success-path-same-reads: clause 3: a succeeding gate job claim with the hop on makes the 33 board statements it made before the hop check moved, plus the one expedite read [C7]', (t) => {
   const db = hopBoard(t, 'pullboard-jobs-hop-reads-');
   let statements = 0;
   const counted = new Proxy(db, { get(target, key) {
     const value = Reflect.get(target, key, target);
-    if (key === 'prepare') return (...args) => { statements += 1; return value.apply(target, args); };
+    // PRAGMA database_list lookups name the board file (the blob store and the write hold each make one); they read no board rows, so they are not counted.
+    if (key === 'prepare') return (...args) => { if (!String(args[0]).startsWith('PRAGMA database_list')) statements += 1; return value.apply(target, args); };
     if (key === 'exec') return (...args) => { statements += 1; return value.apply(target, args); };
     return typeof value === 'function' ? value.bind(target) : value;
   } });
   const taken = claimJob(counted, { runner: 'r1', now: 5000, hop: gateClaimHop(true) });
   assert.equal(taken.job, 'gate:7:a');
-  assert.equal(statements, 33, 'the success path prepares and runs the same statements as on main');
+  assert.equal(statements, 33, 'the success path prepares and runs the 33 statements of before the hop check moved, plus the one expedited-set read a gate claim makes, less the file-name lookup counted before (#12295)');
 });
 
 test('api.io-renew-batch.one-call-extends-all-held: clause 1: one renew call over the job route extends every job the runner holds and answers each job\'s new lease; a job it no longer holds is named refused without failing the rest [C7]', async (t) => {

@@ -71,24 +71,38 @@ test('config.settings-inventory.sprint-bar-tests-declared: clause 1: landing.spr
   assert.ok(bad.error, 'a non-boolean value is reported as an error on the row, never read as on');
 });
 
-test('config.settings-inventory.review-folder-declared: clause 1: verify.reviewFolder is a repo setting with default false and a plain label and a one-line description [C7]', t => {
+test('config.settings-inventory.review-folder-declared: clause 1: verify.reviewFolder is a repo setting with default true and a plain label and a one-line description [C7]', t => {
   const [unset] = repoRows(t, null, 'verify.reviewFolder');
   assert.equal(unset.scope, 'repo');
-  assert.equal(unset.default, false);
-  assert.equal(unset.value, false);
+  assert.equal(unset.default, true);
+  assert.equal(unset.value, true);
   assert.equal(unset.origin, 'default');
   assert.ok(unset.label && unset.description && !unset.description.includes('\n'), 'a plain label and a one-line description');
 });
 
-test('config.settings-inventory.review-folder-listed-off: clause 2: pullboard settings lists verify.reviewFolder off on a repo that does not set it, on only when the repo sets true, and an error row for a non-boolean [C7]', t => {
+test('config.settings-inventory.review-folder-listed-off: clause 2: pullboard settings lists verify.reviewFolder on for a repo that does not set it, off only when the repo sets false, and an error row for a non-boolean [C7]', t => {
   const [unset] = repoRows(t, null, 'verify.reviewFolder');
-  assert.equal(unset.value, false);
+  assert.equal(unset.value, true);
   assert.equal(unset.origin, 'default');
-  const [on] = repoRows(t, { verify: { reviewFolder: true } }, 'verify.reviewFolder');
-  assert.equal(on.value, true);
-  assert.equal(on.origin, 'configured');
+  const [off] = repoRows(t, { verify: { reviewFolder: false } }, 'verify.reviewFolder');
+  assert.equal(off.value, false);
+  assert.equal(off.origin, 'configured');
   const [bad] = repoRows(t, { verify: { reviewFolder: 'yes' } }, 'verify.reviewFolder');
   assert.ok(bad.error, 'a non-boolean value is reported as an error on the row, never read as on');
+});
+
+test('config.settings-inventory.review-folder-default-on: clause 1: verify.reviewFolder defaults to true on a repo with no verify setting [C7,#11458]', t => {
+  const [unset] = repoRows(t, null, 'verify.reviewFolder');
+  assert.equal(unset.default, true);
+  assert.equal(unset.value, true);
+  assert.equal(unset.origin, 'default');
+});
+
+test('config.settings-inventory.review-folder-config-false-off: clause 2: a project config with verify.reviewFolder false still turns it off, and the description says on by default [C7,#11458]', t => {
+  const [off] = repoRows(t, { verify: { reviewFolder: false } }, 'verify.reviewFolder');
+  assert.equal(off.value, false);
+  assert.equal(off.origin, 'configured');
+  assert.match(off.description, /on by default/i);
 });
 
 test('config.settings-inventory.unrelated-trunk-moves-off-by-default: clause 3: verify.unrelatedTrunkMoves is a described setting with default false, off on a repo that does not set it, and on only when the repo sets true [C7,#2981]', t => {

@@ -1,0 +1,36 @@
+{
+  "store.io-board-sprint-pull-out.landed-sprint-reject-pulls-out": {
+    "proves": {
+      "specs": [
+        "M2",
+        "R3"
+      ],
+      "claim": "A reject of a submitted sprint item the lander merged writes one pull_out naming its commits and builder, and its landing reads pulling."
+    },
+    "why": "Without this test a reject of landed sprint work can write no pull_out, and nothing reverts the work on main.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/sprint-pull-out.test.js",
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/sprint-pull-out.js",
+      "packages/store/src/io/board/pulled.js"
+    ]
+  },
+  "store.io-board-sprint-pull-out.unlanded-and-steady-write-none": {
+    "proves": {
+      "specs": [
+        "M2",
+        "R3"
+      ],
+      "claim": "A sprint reject before landing and a steady reject write no pull_out and leave no landing pulling."
+    },
+    "why": "Sprint wiring must change nothing for steady items or for work that has not landed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/sprint-pull-out.test.js",
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/sprint-pull-out.js",
+      "packages/store/src/io/board/pulled.js"
+    ]
+  }
+}

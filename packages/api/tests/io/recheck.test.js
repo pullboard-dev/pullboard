@@ -1,5 +1,7 @@
 /** A main-test job names the cases a red file fails on main, and a red it cannot read keys no receipt [C7,P7]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
@@ -7,7 +9,10 @@ import { classifyGateRed } from '../../../drive/index.js';
 import { mainRedLookup } from '../../../drive/index.js';
 import { MAIN_TEST_JOB } from '../../../drive/index.js';
 import * as jobs from '../../../jobs/index.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { applyMainTestReceipt } from '../../src/io/recheck.js';
+import { seedWideMainTests } from '../../src/io/recheck.js';
+import { boardJobQueueCall } from '../../src/io/gate.js';
 import { MAIN_TEST_ENTRY } from '../../src/io/recheck.js';
 
 const root = fileURLToPath(new URL('../../../..', import.meta.url));
@@ -121,4 +126,67 @@ test('api.recheck.red-whose-cases-truly-cannot: clause 3: a red whose cases trul
   const { board, job } = queued(t, 'f'.repeat(40));
   assert.equal(applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 }).applied, false);
   assert.deepEqual(returnedMainReceipts(board.db), []);
+});
+
+/** One finished gate shard of `item` whose receipt names `files` as failed, as a pulled gate records it. */
+function redShard(db, item, files, now) {
+  const job = `gate:${item}:fixture:shard:${files[0]}`;
+  jobs.createJob(db, { id: job, kind: 'gate-shard', item, now });
+  jobs.writeStep(db, job, 'receipt', { runner: 'r', attempt: 1, receipt: { status: 1, gate: { phases: [{ role: 'proof', status: 1, failures: files.map(name => ({ file: name, name: 'case' })) }] } } }, { seq: 1, now });
+}
+
+/** A board whose queue holds red shards of `wide` and `narrow` files, and the repository's accepted main and tree. */
+function wideBoard(t) {
+  const project = cellProject(t, { real: true, config: { affectedTests: 'node --test' } });
+  const { db } = fixtureBoard(t);
+  const now = 10 * 3_600_000;
+  for (let item = 1; item <= 12; item++) redShard(db, item, ['tests/wide.test.js', 'tests/answered.test.js'], now - 1000);
+  for (let item = 1; item <= 9; item++) redShard(db, 100 + item, ['tests/narrow.test.js'], now - 1000);
+  for (let item = 1; item <= 12; item++) redShard(db, 200 + item, ['tests/old.test.js'], now - 25 * 3_600_000);
+  return { project, db, now, main: project.git(project.repo, 'rev-parse', 'HEAD'), tree: project.git(project.repo, 'rev-parse', 'HEAD^{tree}') };
+}
+
+/** Another open of the same board root: its own db handle, the same repository. */
+function reopened(t, project) {
+  return { db: fixtureBoard(t).db, gitRoot: project.repo };
+}
+
+test('api.io-recheck.seed-once-per-main: clause 1: with gate.seedWideMainTests on, seedWideMainTests queues one main-test row per file red in the gates of 10 or more distinct items in the last 24 h, queues nothing more across separate opens of one board root at the same main sha and runs no job_step query, and seeds again for a new main sha [C7,P7]', (t) => {
+  const { project, db, now, main, tree } = wideBoard(t);
+  const answered = `main-test:${tree}:tests/answered.test.js:node --test`;
+  jobs.createJob(db, { id: answered, kind: MAIN_TEST_JOB, base: tree, now });
+  jobs.writeStep(db, answered, 'receipt', { id: answered, tree, file: 'tests/answered.test.js', command: 'node --test', verdict: 'red', failing: ['case'], signatures: [null], main, at: now }, { seq: 0, now });
+  const queuedNow = seedWideMainTests({ db, gitRoot: project.repo }, { main, now });
+  assert.deepEqual(queuedNow, [`main-test:${tree}:tests/wide.test.js:node --test`], 'only the file red for 12 items in the window and with no receipt is queued');
+  const at = jobs.jobView(db, queuedNow[0]).steps.find(step => step.name === 'queued').payload;
+  assert.deepEqual(at, { tree, file: 'tests/wide.test.js', command: 'node --test' }, 'the row keys the tree, file and command a gate looks up');
+  // A later open of the same board root has a new db handle; it must read nothing and queue nothing at the same main.
+  const second = reopened(t, project);
+  const queries = [];
+  const prepare = second.db.prepare.bind(second.db);
+  second.db.prepare = (sql) => { queries.push(sql); return prepare(sql); };
+  assert.deepEqual(seedWideMainTests(second, { main, now }), [], 'main has not moved, so nothing is queued again');
+  assert.equal(queries.some(sql => /job_step/u.test(sql)), false, 'the repeat reads no job_step row');
+  // A new main sha seeds again.
+  writeFileSync(join(project.repo, 'next.txt'), 'next');
+  project.git(project.repo, 'add', '-A');
+  project.git(project.repo, 'commit', '-qm', 'chore: move main');
+  const moved = project.git(project.repo, 'rev-parse', 'HEAD');
+  const movedTree = project.git(project.repo, 'rev-parse', 'HEAD^{tree}');
+  const again = seedWideMainTests({ db, gitRoot: project.repo }, { main: moved, now });
+  assert.ok(again.includes(`main-test:${movedTree}:tests/wide.test.js:node --test`), 'a new main sha seeds the wide files again');
+});
+
+test('api.io-recheck.claim-path-seeds-once: clause 1: with the setting off a pull claim through boardJobQueueCall runs no seeding, and with it on the seeding runs once per board root and main sha [C7,P7]', (t) => {
+  const { project, db, now, main, tree } = wideBoard(t);
+  const board = { db, gitRoot: project.repo };
+  const claim = options => boardJobQueueCall(board, { action: 'claim', runner: 'r-seed', capabilities: [] }, { mode: 'pull', now, ...options });
+  const seeded = () => jobs.jobsOf(db, { kind: MAIN_TEST_JOB }).length;
+  claim({});
+  assert.equal(seeded(), 0, 'with the setting off the claim seeds nothing');
+  claim({ seedWideMainTests: true });
+  const once = seeded();
+  assert.ok(once >= 1, 'with the setting on the claim seeds the wide files');
+  claim({ seedWideMainTests: true });
+  assert.equal(seeded(), once, 'a second claim at the same main seeds nothing more');
 });

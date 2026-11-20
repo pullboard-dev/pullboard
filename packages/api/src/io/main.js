@@ -98,10 +98,13 @@ import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
+import { gateAgedMs } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
 import { codeStampCacheEnabled } from '../../../config/index.js';
 import { milestoneDeltaEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
+import { failFastShardsEnabled } from '../../../config/index.js';
+import { seedWideMainTestsEnabled } from '../../../config/index.js';
 import { retryNewRedsOnceEnabled } from '../../../config/index.js';
 import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
@@ -1198,11 +1201,17 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
   return handler;
 }
 
+/** Whether the repo's landing.exactTreeCheck is on; a config that cannot be read leaves it off, as the default does [#12179]. */
+function exactTreeCheckOn(root) {
+  try { return loadConfig(root)?.landing?.exactTreeCheck === true; }
+  catch { return false; }
+}
+
 /** One runner job queue call on a board, as POST /api/v1/boards/:id/jobs answers it, in a pool worker or in-thread [P7]. */
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, gateAgedMs, recordLapse: recordLapseEnabled(), coresPerShard: runnersCoresPerShard(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), failFastShards: failFastShardsEnabled(), seedWideMainTests: seedWideMainTestsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), retryNewRedsOnce: retryNewRedsOnceEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), exactTreeCheck: body?.action === 'receipt' && exactTreeCheckOn(board.root), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
