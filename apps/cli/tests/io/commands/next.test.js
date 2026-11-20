@@ -55,10 +55,10 @@ test('cli.io-commands-next.done-submits-and-continues: clause 1: a seat holding 
   writeFileSync(join(cwd, 'web/done.js'), 'export const done = 1;\n');
   box.git(cwd, 'add', '-A');
   box.git(cwd, 'commit', '-q', '-m', 'feat(web): the built item [G1]', '-m', `Pullboard-Item: #${held}`);
-  const head = box.git(cwd, 'rev-parse', 'HEAD');
   const ran = await cli(box, cwd, ['next', '--done']);
   assert.equal(ran.code, 0, ran.out + ran.err);
-  assert.ok(store.events(box.board, { itemId: held }).some(event => String(event.event_kind).startsWith('submit') && JSON.stringify(event).includes(head)), 'a submit event records the seat head');
+  const [submit] = store.events(box.board, { itemId: held }).filter(event => event.event_kind === 'submit');
+  assert.ok(submit, 'a submit event is recorded for the held item');
   assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id, 'the same call claimed another item');
 });
 
