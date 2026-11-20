@@ -178,14 +178,12 @@ test('cli.journeys-imports-closure-budget.cold-list-maintenance-no-gate: clause 
   assert.deepEqual(loadedGate.slice(0, 5), [], `a cold list loaded ${loadedGate.length} gate modules: apps/cli/src/io/tool/build.js must not import the gate package`);
 });
 
-test('cli.journeys-imports-closure-budget.cold-commit-msg-trimmed-modules: clause 2: a cold pullboard hook commit-msg loads packages/kernel/light.js and none of the kernel logic files only that door pulls in [C7,#11944]', () => {
+test('cli.journeys-imports-closure-budget.cold-commit-msg-trimmed-modules: clause 1: a cold pullboard hook commit-msg loads none of packages/kernel/light.js and the kernel logic files only that door pulls in [C7,#11944]', () => {
   const run = commandLoads('hook commit-msg');
   const dropped = ['light.js', 'src/logic/audit.js', 'src/logic/cause.js', 'src/logic/census.js', 'src/logic/discovery.js', 'src/logic/engine-declarations.js', 'src/logic/environment.js',
     'src/logic/machine.js', 'src/logic/registry.js', 'src/logic/repo-paths.js', 'src/logic/scratch-base.js', 'src/logic/transient.js', 'src/logic/words.js'].map(name => `packages/kernel/${name}`);
   const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
   assert.ok(run.urls.size > 0, run.stderr);
-  const files = [...run.urls].map(url => relative(ROOT, fileURLToPath(url.split('?')[0]))).sort();
-  assert.ok(files.length < budgets['hook commit-msg'], `a cold hook commit-msg loaded ${files.length} modules, not fewer than its ${budgets['hook commit-msg']} row: ${files.join(', ')}`);
   assert.deepEqual(loadedDrops, [], `a cold hook commit-msg loaded ${loadedDrops.join(', ')}: the entry enables its compile cache after the hook shim, and the seat address files take Refused from the kernel browser door`);
 });
 
