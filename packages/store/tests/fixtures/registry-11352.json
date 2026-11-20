@@ -1,0 +1,34 @@
+{
+  "store.io-board-verify.solo-accept-event": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A builder's own accept with soloLowStakes, low-stakes person-approved rows and machine-run red-then-green checks verifies the item and leaves one solo-low-stakes-accept event naming the verdict, commit, tree, digest and by."
+    },
+    "why": "Without this test the store never hands the verify table the item tree and solo facts, so the table's solo accept is dead code and the verified proof trigger never passes a builder.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/verify-table.js",
+      "packages/store/src/io/board.js",
+      "packages/items/src/io/authors.js"
+    ]
+  },
+  "store.io-board-verify.solo-accept-narrow": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A builder accept with soloLowStakes false or absent, a non-low row or an unproved check is refused SELF_VERIFY with no event, and a builder reject is refused."
+    },
+    "why": "Without this test the self-accept could widen past the one case the rule allows.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/verify.js",
+      "packages/store/src/io/board/verify-table.js",
+      "packages/store/src/io/board.js",
+      "packages/items/src/io/authors.js"
+    ]
+  }
+}

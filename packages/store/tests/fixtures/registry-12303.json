@@ -1,0 +1,3 @@
+{
+  "store.io-board-submit.base-rows-read-once": {"proves":{"specs":["C7"],"claim":"recordedBaseRows reads each gate receipt file once per process: a second call reads no file again and a receipt written later is read once."},"why":"Every green pulled gate receipt called recordedBaseRows, which read and parsed the whole receipt store each time.","kind":"cell unit","inputs":["packages/store/src/io/board/submit.js","packages/store/tests/io/board/submit.test.js"]}
+}

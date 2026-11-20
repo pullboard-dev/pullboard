@@ -14,3 +14,8 @@ export { readText } from './src/io/check-walk.js';
 export { TEST_FILE } from './src/io/check-walk.js';
 export { walk } from './src/io/check-walk.js';
 export { CELL_BASELINE_DESCRIPTOR } from './src/logic/path/map.js';
+
+/** Read the declared cell rule (allowed edges, grandfathered upward edges, cell order); the reader loads at the call, so this door's closure stays small [C7,#2467]. */
+export async function readCellRule(...call) {
+  return (await import('./src/io/cell/rule.js')).readCellRule(...call);
+}

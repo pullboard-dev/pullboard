@@ -76,6 +76,22 @@ export function settledHoldReason(reason, statusOf) {
   return ids.length > 0 && ids.every(id => DONE.has(statusOf(id.slice(1))));
 }
 
+const REBAR = 're-bar:';
+
+/**
+ * The re-bar text for a hold whose reason names at least one withdrawn item and only landed or withdrawn items, keeping the original text; null otherwise.
+ * Why: a withdrawn dependency did not deliver its work, so the held item needs a fresh bar rather than a silent lift [C7].
+ * @param {string|null} reason the hold reason
+ * @param {(id: string) => string|undefined} statusOf the settled status of an item id
+ * @returns {string|null}
+ */
+export function rebarHoldReason(reason, statusOf) {
+  const text = String(reason ?? '');
+  const statuses = [...new Set(text.match(/#\d+/g) ?? [])].map(id => statusOf(id.slice(1)));
+  if (statuses.length === 0 || !statuses.every(status => DONE.has(status)) || !statuses.includes('withdrawn')) return null;
+  return text.startsWith(REBAR) ? text : `${REBAR} ${text}`;
+}
+
 /** True when a parent has at least one child and every child has landed or been withdrawn [C7]. */
 export function parentHoldSettled(childStatuses) {
   return childStatuses.length > 0 && childStatuses.every(status => DONE.has(status));
@@ -88,7 +104,7 @@ function settledStatus(row) {
 
 /**
  * With holds.liftSettled on, lift a hold whose reason names only landed or withdrawn items, or a parent hold whose children
- * are all done, on the board write that records main moving, an item landing or an item withdrawn. An automatic released-twice hold is left to its own lift.
+ * are all done, on the board write that records main moving, an item landing or an item withdrawn. A hold naming a withdrawn item is rewritten to re-bar text on a withdraw event instead. An automatic released-twice hold is left to its own lift.
  * Why: a hold waits for work that may already be done, and nobody was told to look again (#2962).
  *
  * @param {object} board the open board; `board.liftSettledHolds` is the setting, off unless true
@@ -100,14 +116,52 @@ export function liftSettledHolds(board, event, logEvent, setItem) {
   if (board.liftSettledHolds !== true || !['main-moved', 'merged', 'withdraw'].includes(event.event_kind)) return;
   const find = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?');
   const kids = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_parent_id=?');
-  const held = board.db.prepare(`SELECT item_id,item_hold_reason FROM item WHERE item_hold_reason IS NOT NULL AND item_hold_reason NOT LIKE 'Released twice%'`).all();
+  const held = board.db.prepare(`SELECT item_id,item_hold_reason FROM item WHERE item_hold_reason IS NOT NULL AND item_hold_reason NOT LIKE 'Released twice%' AND item_hold_reason NOT LIKE 're-bar:%'`).all();
   for (const item of held) {
     if (item.item_id === event.item_id) continue;
+    const rebar = event.event_kind === 'withdraw' ? rebarHoldReason(item.item_hold_reason, id => settledStatus(find.get(Number(id)))) : null;
+    if (rebar !== null) {
+      setItem(board, item.item_id, { item_hold_reason: rebar }, event.event_at);
+      logEvent(board, 'coordinator', 'hold_item', item.item_id, { reason: rebar, cause: 'withdrawn-dependency', triggerEventId: event.event_id });
+      continue;
+    }
     const settled = settledHoldReason(item.item_hold_reason, id => settledStatus(find.get(Number(id))))
       || parentHoldSettled(kids.all(item.item_id).map(settledStatus));
     if (!settled) continue;
     forgetHoldMaintenance(board, item.item_id);
     setItem(board, item.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null }, event.event_at);
     logEvent(board, 'coordinator', 'unhold_item', item.item_id, { reason: item.item_hold_reason, cause: 'settled', triggerEventId: event.event_id });
+  }
+}
+
+/**
+ * The ids of open items whose after list names `id`, in id order; landed and withdrawn items are never dependents.
+ * Why: an item that waits on a withdrawn item is never told it waits on nothing.
+ *
+ * @param {{ item_id: number, item_status: string, item_after?: string | null, item_merged_commit?: string | null }[]} rows item rows
+ * @param {number} id the item others may wait on
+ * @returns {number[]}
+ */
+export function dependentsOf(rows, id) {
+  return rows
+    .filter(row => !row.item_merged_commit && ['open', 'claimed'].includes(row.item_status)
+      && String(row.item_after ?? '').split(',').map(Number).includes(Number(id)))
+    .map(row => Number(row.item_id))
+    .sort((a, b) => a - b);
+}
+
+/**
+ * On a withdraw event, log one dependency_withdrawn event per open item that waits on the withdrawn item. Only logs: it never
+ * changes an item's holds or status, and it runs whatever holds.liftSettled says.
+ *
+ * @param {object} board the open board
+ * @param {object} event the event just written
+ * @param {Function} logEvent writes an event
+ */
+export function flagWithdrawnDependents(board, event, logEvent) {
+  if (event.event_kind !== 'withdraw') return;
+  const rows = board.db.prepare("SELECT item_id,item_status,item_after,item_merged_commit FROM item WHERE item_after<>''").all();
+  for (const dependent of dependentsOf(rows, event.item_id)) {
+    logEvent(board, 'coordinator', 'dependency_withdrawn', dependent, { withdrawn: Number(event.item_id), triggerEventId: event.event_id });
   }
 }

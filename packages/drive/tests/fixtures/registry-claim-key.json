@@ -1,0 +1,16 @@
+{
+  "drive.io-claim-key.one-key-per-claim-reused-on-retry": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "queueCall sends one claim key per claim and the same key on each retry of that claim, and a new claim gets a new key."
+    },
+    "why": "Without this test a runner whose claim timed out would retry without its key and take a second job while the first lease is still held.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/src/io/pull.js",
+      "packages/drive/tests/io/pull.test.js"
+    ]
+  }
+}

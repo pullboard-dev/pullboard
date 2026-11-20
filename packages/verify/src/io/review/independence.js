@@ -19,6 +19,7 @@ import { familyAliasesOf } from '../../logic/review/policy.js';
 import { familiesDiffer } from '../../logic/review/policy.js';
 import { itemReviewPolicy } from '../../logic/review/policy.js';
 import { lineSettings } from '../../../../state/light.js';
+import { relaxRequiredFamilyEnabled } from '../../../../config/index.js';
 export { itemReviewPolicy } from '../../logic/review/policy.js';
 
 /** Old sealed moves keep their recorded authorship and family semantics. */
@@ -87,9 +88,13 @@ export function strictReviewProblem(board, item, reviewer) {
   return touched ? new Refused('STRICT_REVIEW_TOUCHED', `Strict review refuses this session: it wrote ${touched.event_kind} event ${touched.event_id} on #${item.item_id}; ask a session that has not written to this item`) : null;
 }
 
-/** Preserve existing known-vendor policy; only the explicit board input adds unknown-family refusal. */
-export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off') {
+/**
+ * Preserve existing known-vendor policy; only the explicit board input adds unknown-family refusal. With review.relaxRequiredFamily on and
+ * `relaxationFor(item)` returning a witness, no family refusal stands, the same witness that lets reviewerChecks pass the required-family guard [C7].
+ */
+export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off', { relaxationFor = null } = {}) {
   if (!twoTierReviews(board)) return null;
+  if (relaxRequiredFamilyEnabled() && relaxationFor?.(item)) return null;
   const policy = itemReviewPolicy(board, item.item_id);
   const declared = seatFamily(board, reviewer);
   const family = familyName(declared, familyAliasesOf(board));
@@ -118,8 +123,8 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
  * current engines, and below the independence engine the original require rule, compared through familiesDiffer so an alias
  * of the builder's family is refused the same way everywhere (#3781).
  */
-export function reviewFamilyEligibility(board, item, reviewer, familyPolicy = 'off') {
-  if (twoTierReviews(board)) return reviewFamilyProblem(board, item, reviewer, familyPolicy);
+export function reviewFamilyEligibility(board, item, reviewer, familyPolicy = 'off', { relaxationFor = null } = {}) {
+  if (twoTierReviews(board)) return reviewFamilyProblem(board, item, reviewer, familyPolicy, { relaxationFor });
   return familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, reviewer), builderFamilyOf(board, item))
     ? new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`) : null;
 }
