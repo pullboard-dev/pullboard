@@ -148,3 +148,33 @@ test('cli.io-commands-add.files-absent-from-main-refused: clause 1: with items.b
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /BRIEF_FILE_MISSING/u);
 });
+
+/** Files a prerequisite item and returns its id, so the tests below wait on a real one. */
+async function filePrerequisite(box) {
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Prerequisite', '--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  return JSON.parse(added.out).item.item_id;
+}
+
+test('cli.commands-add.after-gate: clause 1: add --after-gate files an item whose after list and after-gate list both hold the id, and edit --after-gate none clears only the gate list [C7,#11802]', async () => {
+  const box = helpers.project();
+  const first = await filePrerequisite(box);
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Waits on the gate', '--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js', '--after-gate', String(first), '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const filed = await onBoard(box, board => ({ after: store.getItem(board, id).item_after, gate: store.afterGateIds(board, id) }));
+  assert.deepEqual(filed, { after: String(first), gate: [first] });
+  const cleared = await box.inProcess(box.repo, 'edit', String(id), '--after-gate', 'none', '--reason', 'the gate wait is no longer needed', '--json');
+  assert.equal(cleared.code, 0, cleared.err + cleared.out);
+  assert.deepEqual(await onBoard(box, board => ({ after: store.getItem(board, id).item_after, gate: store.afterGateIds(board, id) })), { after: '', gate: [] });
+});
+
+test('cli.commands-add.after-plain: clause 1: a plain add --after leaves the after-gate list empty [C7,#11802]', async () => {
+  const box = helpers.project();
+  const first = await filePrerequisite(box);
+  const added = await box.inProcess(box.repo, 'add', 'web', 'Waits plainly', '--criterion', '1. the page renders [test]', '--check', 'node --test web/page.test.js', '--after', String(first), '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const filed = await onBoard(box, board => ({ after: store.getItem(board, id).item_after, gate: store.afterGateIds(board, id) }));
+  assert.deepEqual(filed, { after: String(first), gate: [] });
+});
