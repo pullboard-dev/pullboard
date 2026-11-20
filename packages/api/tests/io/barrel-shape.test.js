@@ -39,6 +39,7 @@ const BEFORE = [
   'endGateHop',
   'endJobs',
   'endStaleGateJobs',
+  'endStaleShardOffers',
   'executeMove',
   'failingParts',
   'gateClaimHop',

@@ -1,8 +1,9 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
-import { requireBarInLane } from '../item/bar.js';
+import { requireAfterNeeded } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
+import { requireBarInLane } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { requireNoCoordinatorPath } from '../item/bar.js';
 import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
@@ -124,6 +125,8 @@ export async function run(io, args) {
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
+    requireAfterNeeded(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check },
+      { on: itemsBarRulesAtAdd(), after: change.after ?? before.item_after, self: id, items: () => store.listItems(board, { all: true }) });
     requireBarInLane(ctx, me, { lane: before.item_lane, criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsBarRulesAtAdd());
     requireNonEmptyCheck(ctx, { check: change.check ?? before.item_check }, itemsBarRulesAtAdd(), values['accept-green']);
     await requireCellTestFixture(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check, brief: before.item_brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || Boolean(asPerson));
