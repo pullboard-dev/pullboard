@@ -7,6 +7,8 @@ import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { reservationLine } from '../../logic/show/core.js';
+import { frozenLines } from '../../logic/show/frozen.js';
 import { threadLines } from '../../logic/show/thread.js';
 import { tailLines } from '../../logic/show/tail.js';
 import { fieldLines } from '../../logic/show/fields.js';
@@ -21,6 +23,7 @@ import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { routeReservations } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { derivedStateEnabled } from '../../../../../packages/config/index.js';
@@ -65,6 +68,7 @@ import {
   itemLine,
   sayBrief,
 } from '../read.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import { relayStateExists } from '../../../../../packages/store/light.js';
 import { readableRigorText } from '../../../../../packages/store/browser.js';
 import { itemCost } from '../../../../../packages/stats/light.js';
@@ -155,6 +159,9 @@ export async function run(io, { first, values }) {
     const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts, ...(table ? { derived: table.derived } : {}) }).project(stored);
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
+    // The coordinator-set timing flag lives in board_meta, not on the item row, so read it for the exclusive-slot line [C7,#11108].
+    const timing = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key=?").get(`item_check_timing:${id}`);
+    if (timing?.meta_value === 'true') item.item_check_timing = true;
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
     const landingPhases = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`landing_phases:${id}`);
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
@@ -220,8 +227,10 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText, checkTiming: item.item_check_timing === true || frozenCheckTiming(item) });
   io.say(core.item);
+  const reserved = reservationLine(item, routeReservations());
+  if (reserved) io.say(reserved);
   if (afterGate.length) io.say(`after-gate ${afterGate.map(waitId => `#${waitId}`).join(',')}`);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
@@ -292,22 +301,12 @@ export async function run(io, { first, values }) {
     const detail = JSON.parse(event.event_detail);
     io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${firstLineOf(detail.note)}`);
   }
-  if (frozen) {
-    io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
-    const rulings = testHashRulings(thread, store.PERSON);
-    for (const [path, hash] of Object.entries(frozen.testHashes ?? {})) {
-      const ruled = rulings.filter(ruling => ruling.path === path);
-      io.say(`  test ${path}: sha256 ${hash}${ruled.length ? `; person ruling ${ruled.map(ruling => `${ruling.factId} accepts ${ruling.hash.slice(0, 12)}`).join(', ')}` : ''}`);
-    }
-  }
+  const bar = frozenLines(item, frozen, { rulings: frozen ? testHashRulings(thread, store.PERSON) : [], authors: testAuthors(thread),
+    reviewerFamilies: [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))],
+    testFiles: barTestFiles(item).criterion.sort(), agentName, readable: readableRigorText });
+  for (const line of bar.frozen) io.say(line);
   for (const line of mutationScoreLines(thread)) io.say(line);
-  const authors = testAuthors(thread);
-  const reviewerFamilies = [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))];
-  for (const path of barTestFiles(item).criterion.sort()) {
-    const author = authors[path];
-    io.say(`  test ${path}: author ${author ? `${agentName(author.seat)} [family ${author.family}]` : 'not recorded'}; reviewer family ${reviewerFamilies.join(', ') || 'none yet'}`);
-  }
+  for (const line of bar.authors) io.say(line);
   const tail = tailLines(item, { builderName: agentName(item.item_built_by), reviewerName: reviewer ? agentName(reviewer) : null, infra });
   for (const line of tail.before) io.say(line);
   // Earlier verdicts as one line each, so an item sent back several times stays short to read

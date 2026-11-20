@@ -24,5 +24,7 @@ export function firstDifference(...args) { return loaded().firstDifference(...ar
 export function ensureGateHopTable(...args) { return loaded().ensureGateHopTable(...args); }
 /** One item's gate hop row. */
 export function readGateHop(...args) { return loaded().readGateHop(...args); }
+/** The items still expedited: an expedite event and no gate verdict after it. */
+export function expeditedItems(...args) { return loaded().expeditedItems(...args); }
 /** Move one item's gate hop. */
 export function gateHopMove(...args) { return loaded().gateHopMove(...args); }
