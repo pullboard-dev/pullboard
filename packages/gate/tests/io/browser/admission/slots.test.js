@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { redGateReleaseSource } from '../../../fixtures/execution.js';
 import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';
-import { startFixtureChild as spawn } from '../../../fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../../fixtures/child.js';
-import { runFixtureChildAsync } from '../../../fixtures/child.js';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -14,6 +12,8 @@ import { join } from 'node:path';
 import { TEST_RUNNER } from '../../../fixtures/admission/pool.js';
 import { fixture } from '../../../fixtures/admission/pool.js';
 import { waitForMarker } from '../../../fixtures/admission/pool.js';
+import { startNodeChild } from '../../../fixtures/admission/pool.js';
+import { runNodeChildAsync } from '../../../fixtures/admission/pool.js';
 
 test('gate.io-browser-admission-resources.q4-a-red-gate-releases-its: [Q4] a red gate releases its lease before the same process starts another gate', async () => {
   const box = fixture();
@@ -30,7 +30,7 @@ test('gate.io-browser-admission-resources.q4-a-red-gate-releases-its: [Q4] a red
   ].join('\n'));
   const gateCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(command)} ${JSON.stringify(counter)} ${JSON.stringify(eventsFile)}`;
   const worker = redGateReleaseSource();
-  const child = spawn(process.execPath, ['--input-type=module', '-e', worker, gateCommand], {
+  const child = startNodeChild(['--input-type=module', '-e', worker, gateCommand], {
     cwd: box.first, env: box.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';
@@ -71,7 +71,7 @@ test('gate.io-browser-admission-resources.a-gate-slot-waiter-retries-a: a gate-s
   /** Hold a write lock on the machine slot database from another process for `ms`; wrapped so awaiting it waits only for the lock. */
   const holdLock = async (ms) => {
     const marker = join(box.dir, `locked-${ms}`);
-    const locker = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
+    const locker = runNodeChildAsync(['--input-type=module', '-e', `
       import { DatabaseSync } from 'node:sqlite';
       import { writeFileSync } from 'node:fs';
       const [file, marker, ms, released] = process.argv.slice(1);
@@ -86,7 +86,7 @@ test('gate.io-browser-admission-resources.a-gate-slot-waiter-retries-a: a gate-s
     return { done: locker, pid: locker.child.pid, stop: () => locker.child.kill('SIGKILL') };
   };
   /** Run one named test file through the real runner, which waits for a machine gate slot. */
-  const runWaiter = () => awaitNestedRun(runFixtureChildAsync(process.execPath, [TEST_RUNNER, 'ran.test.js'], { cwd: box.first, env }));
+  const runWaiter = () => awaitNestedRun(runNodeChildAsync([TEST_RUNNER, 'ran.test.js'], { cwd: box.first, env }));
 
   const shortLock = await holdLock(3_000);
   const kept = await runWaiter();
