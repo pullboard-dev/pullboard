@@ -51,6 +51,7 @@ test("store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a
 const COMMIT = "a".repeat(40);
 const TRUNK = "b".repeat(40);
 const CLAUSE = "the fixture keeps its behavior";
+const POLICY = { version: 1, commit: COMMIT, verify: { policy: "any", family: "off" } };
 const PROOF = { version: 1, files: [], full: false, deferred: true, reason: "synthetic board-state fixture; no gate execution" };
 
 /** A real board file on a controllable clock, with a builder, two dependent builders and a reviewer. */
@@ -63,7 +64,7 @@ function timed(t) {
   const seat = (name, lane, route) => cellSeat(board, { lane, path: `/${name}`, family: `${name} Vendor`, route });
   const seats = { builder: seat("builder", "core", "mid"), first: seat("first", "core", "mid"), second: seat("second", "core", "mid"), third: seat("third", "core", "mid"), reviewer: seat("reviewer", "review", "strong") };
   const item = title => cellItem(board, { lane: "core", title, criterion: `1. ${CLAUSE} [test]`, route: "mid", check: "true", brief: "Files: src/a.js\nTest: proves it" }).item_id;
-  const claim = (id, seat) => store.claim(board, id, { agentId: seat.id, lane: "core", leaseMs: 7_200_000, freeze: row => ({ text: JSON.stringify({ criterion: row.item_criterion }), digest: `digest:${id}` }) });
+  const claim = (id, seat) => store.claim(board, id, { agentId: seat.id, lane: "core", leaseMs: 7_200_000, freeze: row => ({ text: JSON.stringify({ criterion: row.item_criterion, policy: POLICY }), digest: `digest:${id}` }) });
   const submitted = title => {
     const id = item(title);
     claim(id, seats.builder);
