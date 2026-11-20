@@ -108,7 +108,7 @@ export function parseJsdoc(text) {
   const first = (desc.match(/^.*?[.!?](?=\s|$)/) || [desc])[0].slice(0, 200);
   const params = []; let returns = null; const throws = [];
   // a type may hold nested braces: {{ a: number }}; take a balanced {...}
-  const tagRe = /@(param|arg|argument|returns?|throws)\b\s*/g; let m;
+  const tagRe = /^[ \t]*@(param|arg|argument|returns?|throws)\b\s*/gm; let m;
   while ((m = tagRe.exec(body))) {
     let k = m.index + m[0].length; let type = null;
     if (body[k] === '{') { let d = 0; let e = k; for (; e < body.length; e++) { if (body[e] === '{') d++; else if (body[e] === '}') { d--; if (d === 0) break; } } type = body.slice(k + 1, e).replace(/\s+/g, ' ').trim(); k = e + 1; }
