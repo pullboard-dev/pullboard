@@ -18,6 +18,7 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireNonEmptyCheck } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
 import { requireSpecRow } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
@@ -190,6 +191,7 @@ export async function run(io, args) {
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
+  requireNonEmptyCheck(ctx, { check: item.check }, itemsBarRulesAtAdd(), values['accept-green']);
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
