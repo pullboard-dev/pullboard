@@ -39,7 +39,7 @@ export function eligibilityProblem(board, item, agent, { policy = 'any', familyP
   if (stands) return stands;
   const strict = strictReviewProblem(board, item, agent.agent_id);
   if (strict) return strict;
-  const family = reviewFamilyEligibility(board, item, agent.agent_id, familyPolicy);
+  const family = reviewFamilyEligibility(board, item, agent.agent_id, familyPolicy, { relaxationFor: requiredFamilyWitness ? stood => requiredFamilyWitness(board, stood, agent.agent_id) : null });
   if (family) return family;
   if (item.item_review_by && item.item_review_by !== agent.agent_id && item.item_review_until > board.clock.now().toISOString()) return new Refused('REVIEW_HELD', `${item.item_review_by} currently holds the review`);
   return null;
