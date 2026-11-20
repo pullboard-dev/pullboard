@@ -1,0 +1,47 @@
+name: Contribution post
+
+# Posts the contribution gate result on the pull request. It runs from the default branch after the gate finishes, so it
+# never checks out or runs pull request code, and its one write permission is the pull request comment.
+on:
+  workflow_run:
+    workflows: ["Contribution gate"]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  post-result:
+    name: Post the gate result
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post the sanitized result as data
+        uses: actions/github-script@v7
+        env:
+          GATE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          GATE_RUN_ID: ${{ github.event.workflow_run.id }}
+          GATE_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+        with:
+          script: |
+            // Every value arrives through env, never spliced into this script, and is escaped and truncated
+            // with mentions, links and URLs neutralized before it is quoted (RFC 0009).
+            const sanitize = (value, limit) => String(value ?? '')
+              .replace(/[\u0000-\u001f\u007f]/g, ' ')
+              .replace(/https?:\/\/\S+/gi, '[link removed]')
+              .replace(/@/g, '@​')
+              .replace(/[`<>\[\]()|\\]/g, (char) => `\\${char}`)
+              .slice(0, limit);
+            const number = Number.parseInt(process.env.GATE_PR_NUMBER, 10);
+            if (!Number.isInteger(number) || number < 1) {
+              core.info('The gate run names no pull request; nothing to post.');
+              return;
+            }
+            const conclusion = sanitize(process.env.GATE_CONCLUSION, 20);
+            const runId = sanitize(process.env.GATE_RUN_ID, 20);
+            const body = [
+              '**Lands through Pullboard**',
+              '',
+              `> result: ${conclusion}`,
+              `> run: ${runId}`,
+            ].join('\n');
+            await github.rest.issues.createComment({ ...context.repo, issue_number: number, body });
