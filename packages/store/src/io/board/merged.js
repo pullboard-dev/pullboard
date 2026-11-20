@@ -25,11 +25,12 @@ import { strictFacts } from "./merged-table.js";
  * A forced merge also names its proof: the passing receipt ids covering the item's tip, which the event carries with the tip. A tip with
  * no covering receipt is refused unless `waiveProof` gives a reason [#4742].
  *
- * endGateJobs (gate.withdrawCancelsJob, passed in by the command) ends the item's open gate and gate-shard jobs with the landing record [#11819].
+ * With `composeLanding`, the parent's landed commit already holds its composed slices, so each submitted slice child of the parent is
+ * withdrawn in the same atomic write as the merged record, with the reason "landed with parent #<parent> at <sha12>" [C7,#2397].
  *
- * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string, endGateJobs?: boolean }} merge
+ * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string, composeLanding?: boolean, endGateJobs?: boolean }} merge
  */
-export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof, endGateJobs = false }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof, composeLanding, endGateJobs = false }) {
   coordinatorOnly(agentId, 'records merges');
   const reason = typeof forced === 'string' ? forced.trim() : '';
   if (forced !== undefined && !reason) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
@@ -71,6 +72,10 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
     // A strict item with a counting full-suite receipt lands and publishes in the one transaction: the table's published event follows the merged one [M2,#9327].
     for (const event of decided?.events?.filter(each => each.kind === 'published') ?? []) logEvent(board, agentId, 'published', id, event.detail);
     closeItemAsks(board, id, { agentId, reason: 'landed' });
+    if (composeLanding === true) {
+      const slices = board.db.prepare("SELECT item_id FROM item WHERE item_parent_id = ? AND item_status = 'submitted' AND EXISTS (SELECT 1 FROM board_meta WHERE meta_key = 'item-slice:' || item_id) ORDER BY item_id").all(id);
+      for (const slice of slices) withdraw(board, slice.item_id, { agentId, reason: `landed with parent #${id} at ${commit.slice(0, 12)}` });
+    }
     if (endGateJobs === true) endItemGateJobs(board.db, { item: id, reason: 'the item landed' });
   });
 }

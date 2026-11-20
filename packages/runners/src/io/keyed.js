@@ -4,6 +4,7 @@
  * the runner controller keeps its tooling exports and scan verdicts without reaching another cell. Every path is the
  * caller's; this module names no state root.
  */
+import { environmentAdapter } from '../../../env/index.js';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -100,7 +101,7 @@ const bounded = new Set();
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {string|null}
  */
-export function sharedCacheFolder(name, env = process.env) {
+export function sharedCacheFolder(name, env = environmentAdapter().all()) {
   const root = env[SHARED_CACHE_ENV];
   if (!root || !isAbsolute(root)) return null;
   const folder = join(root, name);
