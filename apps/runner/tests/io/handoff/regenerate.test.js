@@ -82,3 +82,65 @@ test('runner.handoff-regenerate.no-regenerate-service-unchanged: clause 2: with 
   assert.deepEqual(calls, []);
   assert.equal(proved.out, 'one\n');
 });
+
+/** A real repository where the item head and main both rewrite one file, so their composition conflicts. */
+function conflictRepo(t) {
+  const root = temporaryRepository(t, 'pb-handoff-tool-replay-');
+  const git = (...args) => runFixtureGit(['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: root });
+  const commit = (text, message) => {
+    writeFileSync(join(root, 'moved.txt'), text);
+    git('add', 'moved.txt');
+    git('commit', '-q', '-m', message);
+    return git('rev-parse', 'HEAD');
+  };
+  commit('zero\n', 'base');
+  git('checkout', '-q', '-b', 'item');
+  const head = commit('item\n', 'item rewrites the file with a recorded tool');
+  git('checkout', '-q', 'main');
+  const main = commit('main\n', 'main rewrites it too');
+  git('checkout', '-q', '--detach', head);
+  return { root, head, main, git };
+}
+
+/** Run the hand-off over a conflicting triple with `toolRegeneration` standing in for the sandbox replay; the proof stage records the tree it runs on. */
+async function conflictHandoff(t, toolRegeneration) {
+  const { root, head, main, git } = conflictRepo(t);
+  writeFileSync(join(root, '.pullboard-handoff.log'), '');
+  const proved = {};
+  const proof = async () => { proved.tree = git('rev-parse', 'HEAD^{tree}'); proved.text = readFileSync(join(root, 'moved.txt'), 'utf8'); };
+  const stages = { authorization: quiet, doctrine: quiet, cells: quiet, criterion: quiet, proof };
+  const input = { job: 'j2', commit: head, main, trunk: main, item: 7, compositionTriple: { main, head } };
+  const services = { composition: { requireSubmitComposition() {} }, toolRegeneration: toolRegeneration?.({ root, head, main, git }) };
+  const result = await runHandoffStages(root, input, { logFile: join(root, '.pullboard-handoff.log'), services, stages });
+  return { result, proved };
+}
+
+test('runner.handoff-regenerate.recorded-tool-conflict-replayed: clause 1: a composition that conflicts only in recorded tool output is replayed on main and the regenerated tree is proved [C7,#11420]', async t => {
+  const calls = [];
+  const { result, proved } = await conflictHandoff(t, ({ root, head, main, git }) => ({
+    regenerateToolChange(at, source, onto, options) {
+      calls.push({ at, source, onto, options });
+      git('checkout', '-q', '--detach', main);
+      writeFileSync(join(root, 'moved.txt'), 'replayed\n');
+      git('commit', '-q', '-a', '-m', 'replayed tool');
+      return { commit: git('rev-parse', 'HEAD') };
+    },
+  }));
+  assert.equal(result.green, true);
+  assert.deepEqual(calls.map(call => [call.at, call.source, call.options]), [[calls[0].at, calls[0].source, { item: 7 }]]);
+  assert.equal(proved.text, 'replayed\n', 'the proof stage sees the replayed tool output');
+  assert.equal(result.tree, proved.tree, 'the gate result names the regenerated tree');
+});
+
+test('runner.handoff-regenerate.other-conflict-refused: clause 2: a conflict outside recorded tool output is still refused COMPOSITION_MISMATCH [C7,#11420]', async t => {
+  const { result, proved } = await conflictHandoff(t, () => ({ regenerateToolChange: () => null }));
+  assert.equal(result.green, false);
+  assert.equal(result.failed.stage, 'composition');
+  assert.equal(result.failed.code, 'COMPOSITION_MISMATCH');
+  assert.deepEqual(proved, {}, 'no proof stage ran');
+});
+
+test('runner.handoff-regenerate.no-tool-service-refused: clause 2: with no replay service a conflicting composition is refused COMPOSITION_MISMATCH as before [C7,#11420]', async t => {
+  const { result } = await conflictHandoff(t, undefined);
+  assert.equal(result.failed.code, 'COMPOSITION_MISMATCH');
+});

@@ -115,6 +115,9 @@ import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
+import { clearReservation } from "./board/hold/item.js";
+import { addBlock } from "./board/blocks.js";
+import { listBlocks } from "./board/blocks.js";
 import { releaseItemHold } from "./board/release/hold.js";
 import { maintainStaleState } from "./board/stale.js";
 import { recordRowDecisions } from "./board/record/decisions.js";
@@ -155,6 +158,9 @@ export {
   unverifiedSubmissions,
 } from "./board/read/shouts.js";
 export { lineSettings } from "../../../state/light.js";
+/** The engine numbers blocks.js reads through this file, so the new module adds no cross-cell import of state [C7,#11280]. */
+export { BLOCK_ENGINE } from "../../../state/light.js";
+export { ENGINE_VERSION };
 export { setLineSetting } from "./board/settings.js";
 
 export {
@@ -506,6 +512,9 @@ export {
   releaseLane,
   holdItem,
   reserveItem,
+  clearReservation,
+  addBlock,
+  listBlocks,
   releaseItemHold,
   maintainStaleState,
   recordRowDecisions,
