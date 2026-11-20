@@ -9,6 +9,7 @@ import {
 } from "../../logic/exit/rules/continuation.js";
 import { pendingSubmitHandoff } from "../submit/handoff/records.js";
 import { submitHandoff } from "../submit/handoff/records.js";
+import { GATE_SETTLE_HOLD_MS } from "../submit/handoff/records.js";
 import { afterGateIds } from './item/after-gate.js';
 import { gateGreenParent } from './item/after-gate.js';
 import { firstRefusal } from "../../logic/board/item/lookup.js";
@@ -536,12 +537,14 @@ function jobAtHead(entry, job) {
  * Name the item's newest gate job when it finished with its proof deferred and nothing settled it: its receipt says
  * gate.deferred, not green, and the job has no note:shards.settled step. It carries no hand-off record, so the checks
  * below never see it. Why: such an item showed GATE_WAITING to each new holder, a release reopened it, and next handed
- * it out again; six items were each claimed 4-5 times in two hours (19 Nov) [C7]. A reopen or reject after the job
- * ends the hold. A board with no job tables holds nothing.
+ * it out again; six items were each claimed 4-5 times in two hours (19 Nov) [C7]. A reopen, reject, edit or refreeze
+ * after the job ends the hold. A board with no job tables holds nothing.
+ * The hold also ends GATE_SETTLE_HOLD_MS after the job's last update when no gate-shard job of it is still offered or
+ * claimed: with no live shard nothing will settle it, and #10700 sat 16 h unoffered, rooting 15 waiting items [C7,B8].
  *
  * @param {any} board
  * @param {any} entry
- * @param {string | undefined} returned - the newest reopen or reject event time
+ * @param {string | undefined} returned - the newest reopen, reject, edit or refreeze event time
  * @returns {string | null}
  */
 function deferredGateUnsettled(board, entry, returned) {
@@ -555,7 +558,15 @@ function deferredGateUnsettled(board, entry, returned) {
   } catch { return null; }
   if (!row || row.step !== 'done' || row.deferred !== 1 || row.green === 1 || row.settled) return null;
   if (returned && returned > new Date(row.at).toISOString()) return null;
+  if (!(board.clock.now().getTime() - row.at < GATE_SETTLE_HOLD_MS) && !liveShard(board, entry.item_id, row.id)) return null;
   return `gate deferred at ${String(row.candidate ?? row.id).slice(0, 12)}, its proof unsettled`;
+}
+
+/** Whether a gate-shard job of the gate job is still offered or claimed; a board that cannot say counts as live, so the hold stays. */
+function liveShard(board, item, job) {
+  try {
+    return Boolean(board.db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%' AND job_step IN ('offered', 'claimed') LIMIT 1").get(item, job));
+  } catch { return true; }
 }
 
 /**
@@ -572,8 +583,11 @@ function deferredGateUnsettled(board, entry, returned) {
  */
 export function gateAtHead(board, entry) {
   // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
-  const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
-  const deferred = deferredGateUnsettled(board, entry, returned);
+  // An edit or refreeze after a deferred gate also asks for a new build, so it ends that hold too [C7].
+  const marks = board.db.prepare(`SELECT MAX(CASE WHEN event_kind IN ('reopen', 'reject') THEN event_at END) AS returned, MAX(event_at) AS changed
+    FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject', 'edit', 'refreeze')`).get(entry.item_id);
+  const returned = marks?.returned ?? undefined;
+  const deferred = deferredGateUnsettled(board, entry, marks?.changed ?? undefined);
   if (deferred) return deferred;
   const job = submitHandoff(board, entry.item_id);
   if (!job || !jobAtHead(entry, job)) return null;
