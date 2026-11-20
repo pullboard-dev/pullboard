@@ -30,7 +30,7 @@ function fixture(t, mapped, map = { 'src/alpha.js': 'packages/alpha/src/core/alp
   return root;
 }
 
-test('codemap.io-cell-lint-store.baseline-keys-are-cell-paths: every allowance key reads back as its cell path with unchanged counts, and unchanged without a path-map cell [C7]', t => {
+test('codemap.io-cell-lint-store.baseline-keys-are-cell-paths: clause 1: every allowance key reads back as its cell path with unchanged counts, and unchanged without a path-map cell [C7]', t => {
   const plain = readCellKeyedLintBaseline(fixture(t, false));
   assert.deepEqual(Object.keys(plain.metrics.legacySource.allowances), ['src/alpha.js'], 'no path-map cell leaves the baseline as it is');
   const mapped = fixture(t, true), baseline = readCellKeyedLintBaseline(mapped);
