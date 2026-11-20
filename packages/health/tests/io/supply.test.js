@@ -1,9 +1,9 @@
 /** An expired review reservation is never read as held, so NO_REVIEWER_SUPPLY sees the lapsed item [C7,O2]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { openKitBoard } from '../../../board/tests/fixtures/board.js';
 import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
+import { repositoryBoardFile } from '../../../store/tests/fixtures/submit.js';
 import { seedLimitedReviewQueue } from '../../../board/tests/fixtures/cell-board.js';
 import { healthReport } from '../../index.js';
 import { noReviewerSupplyFindings } from '../../src/io/supply.js';
@@ -13,7 +13,7 @@ const finding = (cause, item, fields) => ({ cause, item, ...fields });
 
 /** A limited review queue whose one submitted item is reserved until the given offset from now; the NO_REVIEWER_SUPPLY findings healthReport reads. */
 function reservedFindings(t, untilOffsetMs) {
-  const file = join(temporaryDirectory('health-supply-'), 'board.sqlite');
+  const file = repositoryBoardFile(temporaryDirectory('health-supply-'));
   const id = seedLimitedReviewQueue(file, { lane: 'core', family: 'Fixture-Builder', reviewers: 2 });
   const board = openKitBoard(file);
   t.after(() => board.db.close());
