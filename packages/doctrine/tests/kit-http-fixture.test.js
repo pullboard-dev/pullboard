@@ -1,24 +1,26 @@
-/** @pullboard-world-pin: scans the tracked sync package test files for the CLI app's http fixture path, to prove the fixture's home is packages/sync [C7]. */
+/** @pullboard-world-pin: scans every tracked file under packages/ for import lines naming the CLI app's http fixture, to prove no package test imports it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-/** This file names the app path in its own source, so the scan skips it. */
-const SELF = 'packages/doctrine/tests/kit-http-fixture.test.js';
+/** The two doctrine scans name the app paths in their own source, so the scan skips them. */
+const SKIPPED = ['packages/doctrine/tests/kit-http-fixture.test.js', 'packages/doctrine/tests/kit-chrome-fixture.test.js'];
+/** An import or export line, or an import written inside a template string, naming the http fixture or its helpers. */
+const IMPORT_LINE = '(import\\b|export\\b|\\} from).*apps/cli/tests/fixtures/http(/|\\.js)';
 
-/** Tracked sync test files that name the CLI app's http fixture (a package test importing the app kit). */
-function syncImportersOfAppHttpFixture() {
+/** Tracked package files with an import line that names the CLI app's http fixture (a package test importing the app kit). */
+function packageImportersOfAppHttpFixture() {
   try {
-    return execFileSync('git', ['grep', '-lE', 'apps/cli/tests/fixtures/http\\.js', '--', 'packages/sync/tests'],
-      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(file => file && file !== SELF);
+    return execFileSync('git', ['grep', '-lE', IMPORT_LINE, '--', 'packages/*.js'],
+      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(file => file && !SKIPPED.includes(file));
   } catch (error) {
     if (error.status === 1) return [];
     throw error;
   }
 }
 
-test('doctrine.kit-http-fixture.clause-1-sync-tests-use-their-own-http-fixture: #11116 clause 1: no tracked test file of the sync package names the CLI http fixture path [C7]', () => {
-  assert.deepEqual(syncImportersOfAppHttpFixture(), []);
+test('doctrine.kit-http-fixture.no-package-test-imports-the-cli-http-fixture: #11414 clause 2: no tracked package file imports the CLI http fixture [C7]', () => {
+  assert.deepEqual(packageImportersOfAppHttpFixture(), []);
 });
