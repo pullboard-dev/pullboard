@@ -7,6 +7,8 @@ import { agentAt } from '../../../index.js';
 import { closeBoard } from '../../../index.js';
 import { register } from '../../../index.js';
 import { ADVISOR_ROLE_ENGINE } from '../../../../state/light.js';
+import { NEEDS_ENGINE } from '../../../../state/light.js';
+import { agentAbilities } from '../../../src/io/needs.js';
 import { openKitBoard } from '../../fixtures/cell.js';
 
 const MAIN = '/fixture/project';
@@ -89,4 +91,24 @@ test('store.io-board-register.move-refused-while-held: clause 2: the same call f
   }
   const { board, item } = seatHolding(t, { item_status: 'submitted', item_built_by: 'someone-else', item_commit: 'a'.repeat(40), item_frozen_digest: 'd'.repeat(64), item_review_by: '$seat', item_review_until: '2999-01-01T00:00:00.000Z' });
   assert.throws(() => register(board, { lane: 'core', path: '/fixture/mover', moveLane: true }), error => error.code === 'LANE_HELD' && error.message.includes(`#${item}`), 'a review reservation blocks the move');
+});
+
+test('store.io-board-register.abilities-real-path: register stores who.abilities for a fresh join and for a rejoin of the same seat, leaves them when none are given, and refuses ENGINE_VERSION below NEEDS_ENGINE [C7,U136]', t => {
+  const board = openKitBoard(':memory:');
+  t.after(() => closeBoard(board));
+  const id = register(board, { lane: 'core', path: '/fixture/abilities', abilities: ['browser'] });
+  assert.deepEqual(agentAbilities(board, id), ['browser'], 'a fresh join stores the declaration');
+  assert.equal(register(board, { lane: 'core', path: '/fixture/abilities' }), id);
+  assert.deepEqual(agentAbilities(board, id), ['browser'], 'a rejoin that names none leaves it');
+  assert.equal(register(board, { lane: 'core', path: '/fixture/abilities', abilities: ['browser', 'gui'] }), id);
+  assert.deepEqual(agentAbilities(board, id), ['browser', 'gui'], 'a rejoin of the same seat stores the new declaration');
+  const plain = register(board, { lane: 'core', path: '/fixture/plain' });
+  assert.deepEqual(agentAbilities(board, plain), [], 'a seat that declared none reads []');
+  assert.throws(() => register(board, { lane: 'core', path: '/fixture/bad', abilities: ['gpu'] }), { code: 'USAGE' });
+  assert.equal(agentAt(board, '/fixture/bad'), undefined, 'a refused declaration registers no seat');
+  const current = board.executionEngineVersion;
+  try {
+    board.executionEngineVersion = NEEDS_ENGINE - 1;
+    assert.throws(() => register(board, { lane: 'core', path: '/fixture/old', abilities: ['browser'] }), { code: 'ENGINE_VERSION' });
+  } finally { board.executionEngineVersion = current; }
 });

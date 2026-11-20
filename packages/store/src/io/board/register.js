@@ -19,6 +19,9 @@ import { agentModel } from "./query.js";
 import { newSeatId } from "../../../../seats/index.js";
 import { saveAgentModel } from "../../../../seats/index.js";
 import { seatLineage } from "../../../../seats/index.js";
+import { saveAgentAbilities } from "../needs.js";
+import { validateAgentAbilities } from "../needs.js";
+import { NEEDS_ENGINE } from "../../../../state/light.js";
 
 /** The agent_path prefix of a seat joined over the API from another machine: it has no path on the board host [P7]. */
 export const REMOTE_AGENT_PATH = 'remote:';
@@ -44,7 +47,7 @@ export function isRemoteAgentPath(path) {
  * `coordinator-<n>`, so paths no lane owns have a seat beside the main checkout; the main checkout stays `coordinator`.
  *
  * @param {any} board
- * @param {{ lane: string, path: string, route?: string, family?: string | null, model?: string | null, parent?: string | null, session?: string | null, createdBy?: string, id?: string, coordinatorSeat?: boolean }} who
+ * @param {{ lane: string, path: string, route?: string, abilities?: string[], family?: string | null, model?: string | null, parent?: string | null, session?: string | null, createdBy?: string, id?: string, coordinatorSeat?: boolean }} who
  * @returns {string} The agent's id.
  */
 export function register(board, who) {
@@ -55,6 +58,8 @@ export function register(board, who) {
   if (role !== undefined && engine < ADVISOR_ROLE_ENGINE) throw new Refused('ENGINE_VERSION', `a seat role requires engine ${ADVISOR_ROLE_ENGINE}; upgrade Pullboard before using --role`);
   if (engine < 8) model = undefined;
   if (engine < VERIFIER_STANDING_ENGINE) { createdBy = undefined; named = undefined; }
+  validateAgentAbilities(who.abilities);
+  if (who.abilities !== undefined && engine < NEEDS_ENGINE) throw new Refused('ENGINE_VERSION', `seat abilities require engine ${NEEDS_ENGINE}; upgrade Pullboard before declaring abilities at join`);
   checkRoute(route);
   if (lane === COORDINATOR && route !== 'strong') {
     throw new Refused('BAD_ROUTE', 'the coordinator plans, merges and verifies; it is always strong');
@@ -102,6 +107,7 @@ export function register(board, who) {
         saveAgentModel(board, existing.agent_id, model);
         logEvent(board, existing.agent_id, 'model', null, { model: model ?? 'unknown' });
       }
+      saveAgentAbilities(board, existing.agent_id, who.abilities);
       return existing.agent_id;
     }
     const { total } = board.db
@@ -128,6 +134,7 @@ export function register(board, who) {
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= 8) saveAgentModel(board, id, model);
     if (createdBy !== undefined) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_creator:${id}`, createdBy);
     if (role !== undefined) writeBoardMeta(board.db, `agent_role:${id}`, role);
+    saveAgentAbilities(board, id, who.abilities);
     // Only a relay replica replaying a receipt-bound registration marks the seat enrolled.
     if (board.relayEnrollment === id && createdBy !== undefined && createdBy !== 'machine') {
       board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`agent_enrolled:${id}`, createdBy);
