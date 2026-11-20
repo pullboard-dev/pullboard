@@ -31,7 +31,7 @@ export function hasPendingDispatchNotices(board) {
 }
 
 /** Validate and retain only the fields needed to identify and explain a health finding. */
-export function normalizedHealthFindings(findings) {
+export function normalizedHealthFindings(findings, { ownerRole = false } = {}) {
   if (!Array.isArray(findings) || findings.length > 10_000) {
     throw new Refused('HEALTH_FINDINGS', 'a sentinel scan needs at most 10000 health findings; run pullboard health and retry the scan');
   }
@@ -49,7 +49,8 @@ export function normalizedHealthFindings(findings) {
       throw new Refused('HEALTH_FINDINGS', 'a sentinel finding needs its owner address; run pullboard health again');
     }
     seen.add(finding.key);
-    return Object.fromEntries(['key', 'cause', 'item', 'subject', 'title', 'since', 'why', 'next'].map(key => [key, finding[key]]).concat([['owner', who]]));
+    const role = ownerRole && typeof finding.owner?.role === 'string' ? [['ownerRole', finding.owner.role]] : [];
+    return Object.fromEntries(['key', 'cause', 'item', 'subject', 'title', 'since', 'why', 'next'].map(key => [key, finding[key]]).concat([['owner', who]], role));
   });
 }
 
@@ -93,11 +94,12 @@ export function healthTargets(finding, { engine, coordinator, person, lanes, age
  * resolved finding is logged and shouted to no one; an earlier engine's run replays with its original shouts.
  * From HEALTH_EPISODE_ENGINE an added finding whose key resolved less than FLAP_WINDOW_MS before `now` is logged and shouted to no one;
  * `recentlyResolved` maps finding key to its resolved instant.
+ * With `adviceThroughNext` true a finding whose owner role is builder is logged and shouted to no one: next carries that advice to the builder (#2330).
  *
  * @param {{ resolved: any[], added: any[], recentlyResolved?: Map<string, string>, now?: string | Date | null, engine: number, coordinator: string, targets: (finding: any) => string[],
  *   shout: (to: string, text: string) => void, log: (finding: any, cleared: boolean) => void }} run
  */
-export function deliverHealthNotices({ resolved, added, pending = [], recentlyResolved = new Map(), now = null, engine, coordinator, targets, shout, log }) {
+export function deliverHealthNotices({ resolved, added, pending = [], recentlyResolved = new Map(), now = null, engine, coordinator, targets, shout, log, adviceThroughNext = false }) {
   const capped = engine >= HEALTH_CAP_ENGINE;
   const durableCpu = engine >= CPU_SENTINEL_ENGINE;
   const deferred = [];
@@ -108,7 +110,8 @@ export function deliverHealthNotices({ resolved, added, pending = [], recentlyRe
     let coordinatorSent = false;
     const flap = !cleared && !retry && engine >= HEALTH_EPISODE_ENGINE && now !== null && recentlyResolved.has(finding.key)
       && Date.parse(String(now instanceof Date ? now.toISOString() : now)) - Date.parse(recentlyResolved.get(finding.key)) < FLAP_WINDOW_MS;
-    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE || flap ? [] : targets(finding)) {
+    const advice = adviceThroughNext === true && finding.ownerRole === 'builder';
+    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE || flap || advice ? [] : targets(finding)) {
       if (capped && sent >= HEALTH_SHOUT_CAP) { held += 1; continue; }
       shout(to, healthFindingNotice(finding, cleared));
       sent += 1;

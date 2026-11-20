@@ -10,7 +10,7 @@ import {
   runFixtureGit,
   privateFixtureFiles,
 } from '../../../gate/tests/fixtures/child.js';
-import { warmAcceptedCells } from '../../../gate/index.js';
+import { warmAcceptedCells } from '../../../gate/heavy.js';
 import { withMainCheckout } from '../../index.js';
 import { withFileLock } from '../../../outbox/index.js';
 import assert from 'node:assert/strict';
