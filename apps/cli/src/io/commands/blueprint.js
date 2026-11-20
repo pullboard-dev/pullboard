@@ -22,9 +22,8 @@ import {
   loadSpec,
 } from '../../../../../packages/spec/index.js';
 import {
-  existsSync,
-  writeFileSync,
-} from 'node:fs';
+  fileSystemAdapter,
+} from '../../../../../packages/fs/index.js';
 import {
   basename,
   dirname,
@@ -40,6 +39,8 @@ import {
   withBoard,
 } from '../entry.js';
 
+const fs = fileSystemAdapter();
+
 /** Run `pullboard blueprint` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   const act = (work) => actOn(io, work);
@@ -49,11 +50,13 @@ export async function run(io, { first, second, rest, values }) {
     const { root, commonDir } = ctx.info;
     const project = ctx.config.project || ctx.config.name || basename(dirname(resolve(root, commonDir)));
     const file = resolve(io.cwd ?? process.cwd(), second ?? `${project}.blueprint.json`);
-    if (existsSync(file)) throw new Refused('BLUEPRINT_EXISTS', `${file} already exists; name another file: pullboard blueprint save <file>`);
+    if (fs.exists(file)) throw new Refused('BLUEPRINT_EXISTS', `${file} already exists; name another file: pullboard blueprint save <file>`);
     const spec = loadSpec(root, ctx.config);
     const { names, parts } = withBoard(ctx, (board) => privateNames(root, board, spec));
     const { blueprint, left } = saveBlueprint(spec, { name: values.name, title: values.title, gate: ctx.config.gate, names, parts });
-    writeFileSync(file, `${JSON.stringify(blueprint, null, 2)}\n`, { flag: 'wx' });
+    // The exclusive open refuses a file that appeared since the check above.
+    const descriptor = fs.open(file, 'wx');
+    try { fs.write(descriptor, `${JSON.stringify(blueprint, null, 2)}\n`); } finally { fs.close(descriptor); }
     io.result?.({ file, name: blueprint.name, rules: blueprint.rules?.length ?? 0, questions: blueprint.questions?.length ?? 0, left });
     io.say(`saved ${blueprint.rules?.length ?? 0} rules and ${blueprint.questions?.length ?? 0} answered questions to ${file}`);
     for (const entry of left) io.say(`  left out ${entry.id}: ${entry.reason}`);

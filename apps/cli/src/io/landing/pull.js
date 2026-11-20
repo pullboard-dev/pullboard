@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { queueFor } from '../../../../../packages/api/index.js';
+import { sprintLandable } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
@@ -20,10 +21,14 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
+import { stepAsideCount } from '../../../../../packages/store/index.js';
 import { recordedWriteLock } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { lineSettings } from '../../../../../packages/store/index.js';
+import { itemPace } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/heavy.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { mechanicalConflictFiles } from '../../../../../packages/landing/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
 import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
@@ -141,6 +146,30 @@ export function hostUpstream(root, config) {
 }
 
 /**
+ * Whether the line settings batch landings: line.landingBatchSize above 1 or line.collisionFreeBatch on. Why: only then
+ * does an automatic offer wait for the open land job and gather the waiting items into one batch; unset, each accept
+ * offers its own job as before [C7,S8].
+ */
+function batchesLandings(board) {
+  const line = lineSettings(board);
+  return (Number.isSafeInteger(line.landingBatchSize) && line.landingBatchSize > 1) || line.collisionFreeBatch === true;
+}
+
+/**
+ * The entries that share no changed file with an entry kept before them, in order, as the landing table's noOverlap rule
+ * reads its picked-touched map. Why: items changing the same file wait for the next batch rather than conflict in this one [C7,S8].
+ */
+function withoutOverlap(root, trunkTip, entries) {
+  const touched = new Set();
+  return entries.filter(entry => {
+    const changed = landingChangedFiles(root, trunkTip, entry.commit);
+    if (changed.some(file => touched.has(file))) return false;
+    for (const file of changed) touched.add(file);
+    return true;
+  });
+}
+
+/**
  * The item ids an open land job already names. Why: a second accept offers its own items as their own job and never
  * names one twice, so no two jobs push the same land ref or merge the same item [C7,#7728].
  */
@@ -185,7 +214,9 @@ function deferredFilesOf(db, items) {
     let proof = null;
     try { proof = JSON.parse(row?.event_detail ?? 'null')?.submissionProof; } catch { /* an unreadable detail defers nothing */ }
     // The files the submit ran (its invariants) run again beside the deferred ones, on the merged tree.
-    if (Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...proof.deferredFiles, ...(Array.isArray(proof.files) ? proof.files : [])])];
+    const owed = Array.isArray(proof?.owedFiles) ? proof.owedFiles : [];
+    // Cell tests a narrowed gate dropped (confinedImportSelection) run on the merged tree: a narrowed receipt is never the landing proof [C7].
+    if (owed.length || Array.isArray(proof?.deferredFiles) && proof.deferredFiles.length) found[String(entry.id)] = [...new Set([...owed, ...(proof.deferredFiles ?? []), ...(Array.isArray(proof.files) ? proof.files : [])])];
   }
   return Object.keys(found).length ? found : null;
 }
@@ -204,6 +235,26 @@ function landingFlakes(root, policy, item, head, pairPrefix) {
 
 /** A changed file that is a test, for telling which accepted items share an affected test [C7,#9836]. */
 const TEST_PATH = /(?:^|\/)(?:tests|journeys)\//u;
+
+/**
+ * The commands a land job carries for the runner's Sprint proof, read from the config at the landing base [C7,#12229].
+ * Why: the runner has no host config, so the static check and the affected-tests command ride on the payload as argv. A project with no static check gets
+ * static null; one with no affected-tests command gets a test command that fails, so a test file it cannot run is red and says so rather than green unproven.
+ *
+ * @param {{ staticChecks?: string, affectedTests?: string }} config
+ * @returns {{ static: string[]|null, testCommand: string[], testFiles: string }}
+ */
+export function sprintPlan(config) {
+  const staticChecks = config.staticChecks?.trim();
+  const affected = config.affectedTests?.trim();
+  // Each file reaches the command as a `./` path, as the host's affected-tests command builder quotes it.
+  const dotted = 'for file in "$@"; do shift; set -- "$@" "./$file"; done; ';
+  return {
+    static: staticChecks ? ['sh', '-c', staticChecks] : null,
+    testCommand: affected ? ['sh', '-c', `${dotted}${affected} "$@"`, 'sh'] : ['false'],
+    testFiles: TEST_PATH.source,
+  };
+}
 
 /**
  * The batches one offer cuts `free` into, in offer order: with `parallel` off, `free` sliced into batches of `size` as the offer always cut it;
@@ -247,6 +298,9 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   const result = await (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
     const taken = ids ? new Set() : openLandingItems(board.db);
+    // With batching on, an open land job holds the next offer: its receipt settles the items, then the waiting ones go out together [C7,S8].
+    const batching = !ids && batchesLandings(board);
+    if (batching && openLandingJob(board.db)) return { offered: openLandingJob(board.db), items: [], waiting: true };
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
     const trunkTip = await landingTrunk(root, remote, policy.commit);
     // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
@@ -254,20 +308,24 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // With health.derivedState on and the table swept at this trunk commit, each item's freshness is its table row, not a git read [C7,#3010].
     const derived = await derivedVerdicts(board, trunkTip);
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
-      write: (operation, args) => write ? write(operation, args) : ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject(), derived });
+      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject(), residualConflicts: mechanicalConflictFiles, derived });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
-    const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at && !taken.has(item.item_id));
+    // A submitted sprint item with a green screen on this trunk tip lands as a verified one does; the pace is read from the listed row [V2,M1,#12177].
+    const landable = item => item.item_status === 'verified' || sprintLandable(board, item, trunkTip);
+    const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || landable(item)) : landable(item) && !item.item_hold_at && !taken.has(item.item_id));
+    // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
+    const candidates = all.filter(wanted);
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
     const accepted = await acceptOrderOf(root, board, all.filter(wanted).map(item => item.item_id));
     // landing.first in accepted trunk policy goes ahead of the accept order, in the order listed; named ids keep the order named [C7,#7387].
     const pinned = new Map((Array.isArray(policy.config?.landing?.first) ? policy.config.landing.first : []).map((id, index) => [id, index]));
+    // An item that met 2 or more infrastructure failures (lapsed leases, lost CAS) goes behind every other accepted item, as candidates() does; named ids keep the order named [C7,#3118].
+    const aside = new Set(ids ? [] : candidates.filter(item => stepAsideCount(board, item.item_id) >= 2).map(item => item.item_id));
     const rank = item => ids ? ids.indexOf(item.item_id) : accepted.get(item.item_id) ?? Number.MAX_SAFE_INTEGER;
     const pin = item => !ids && pinned.has(item.item_id) ? pinned.get(item.item_id) : Number.MAX_SAFE_INTEGER;
     // landing.priorityOrder: the order next uses (urgent or pinned, milestone position) goes before accept order; named ids keep their order [C7,#3157].
     const byPriority = !ids && policy.config?.landing?.priorityOrder === true ? landingPriorityCompare(board) : () => 0;
     const commitOf = item => item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit;
-    // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
-    const candidates = all.filter(wanted);
     const unverified = forced || !candidates.length ? [] : unverifiedSubmissions(board);
     // landing.pauseOnRed: a red publish holds the items touching its files, and every item when it names none or no item is left [C7,V4].
     const publishHold = forced ? null : requirePublishGreen(root, board, policy.config, { gateRuns }, { perItem: true });
@@ -277,13 +335,15 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
       if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
       return !stacked;
-    }).sort((left, right) => pin(left) - pin(right) || byPriority(left, right) || rank(left) - rank(right) || left.item_id - right.item_id);
+    }).sort((left, right) => Number(aside.has(left.item_id)) - Number(aside.has(right.item_id)) || pin(left) - pin(right) || byPriority(left, right) || rank(left) - rank(right) || left.item_id - right.item_id);
+    // A head stepped aside is named with its failure count, so the reorder is never silent [C7,#3118].
+    for (const item of chosen) if (aside.has(item.item_id)) ctx.io.say?.(`#${item.item_id} steps aside: ${stepAsideCount(board, item.item_id)} infrastructure failures, offered behind the next accepted item`);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
     if (publishHold && !chosen.length) throw publishHold.refusal;
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
     const items = chosen.map(item => {
       const message = messages.get(item.item_id);
-      return { id: item.item_id, commit: commitOf(item), ref: landingItemRef(item.item_id), header: message.header, trailers: message.trailers };
+      return { id: item.item_id, commit: commitOf(item), ref: landingItemRef(item.item_id), header: message.header, trailers: message.trailers, pace: itemPace(item) };
     });
     if (ids && items.length !== ids.length) throw new Refused('LAND_NOT_ACCEPTED', `${ids.filter(id => !items.some(entry => entry.id === id)).map(id => `#${id}`).join(' ')} is not accepted`, 'land it after its verify, or go around the gate with --forced "<why>"');
     if (!items.length) return { offered: ids ? null : openLandingJob(board.db), items: [], waiting: false };
@@ -294,6 +354,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const queue = queueFor(board, 'coordinator', { file: ctx.file });
     // Every git read and machine-settings read the offer needs happens here, before the lock: they depend only on root, trunkTip, policy and the chosen items, and under the lock they held every other board write for 30 s+ [C7,#11105].
     const trunk = trunkRef(root);
+    // line.collisionFreeBatch: items changing the same file wait for the next batch; the files are read here, before the lock [C7,S8,#11105].
+    const disjoint = !ids && lineSettings(board).collisionFreeBatch === true ? withoutOverlap(root, trunkTip, items) : items;
     const settings = loadMachineSettings();
     const parallel = parallelGatesEnabled();
     const files = new Map(parallel ? items.map(entry => [entry.id, landingChangedFiles(root, trunkTip, entry.commit)]) : []);
@@ -304,7 +366,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     return (queue ? work => work() : work => lock(board, work))(() => {
       // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
       const fresh = ids ? new Set() : openLandingItems(board.db);
-      const free = items.filter(entry => !fresh.has(entry.id));
+      if (batching && openLandingJob(board.db)) return { offered: openLandingJob(board.db), items: [], waiting: true };
+      const free = disjoint.filter(entry => !fresh.has(entry.id));
       if (!free.length) return { offered: openLandingJob(board.db), items: [], waiting: false };
       // A set line.landingBatchSize splits an automatic offer into jobs of at most that many, as it capped the engine's
       // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
@@ -325,7 +388,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const flakes = flakesOf.get(batch[0].id) ?? null;
         // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
         const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk, forced, deferred, flakes, hops, mainReds, reofferTrunkBusy: settings.landing?.reofferTrunkBusy === true, squash: settings.landing?.squash === true, reuseGateReceipts: settings.landing?.reuseGateReceipts === true, reuseContractResults: settings.landing?.reuseContractResults === true, stallStop: settings.landing?.stallStop === true, staticAffectedOnly: settings.landing?.staticAffectedOnly === true, ...(shardGate ? { shardGate } : {}), badges, ...(queue ? { queue } : {}),
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk, forced, deferred, flakes, hops, mainReds, sprint: batch.some(entry => entry.pace === 'sprint') ? sprintPlan(policy.config) : null, reofferTrunkBusy: settings.landing?.reofferTrunkBusy === true, squash: settings.landing?.squash === true, reuseGateReceipts: settings.landing?.reuseGateReceipts === true, reuseContractResults: settings.landing?.reuseContractResults === true, stallStop: settings.landing?.stallStop === true, staticAffectedOnly: settings.landing?.staticAffectedOnly === true, ...(shardGate ? { shardGate } : {}), badges, ...(queue ? { queue } : {}),
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);

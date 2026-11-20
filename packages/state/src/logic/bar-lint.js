@@ -34,11 +34,12 @@ function words(text) {
  * so bars written before this rule keep working until someone edits them.
  *
  * @param {string} criterion
- * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string }} [options] - allowLong: the author already gave a reason for a longer bar;
+ * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string, check?: string }} [options] - check: the item's check command; a [test] clause whose check names no .test.js file gets BAR_CHECK_NO_TEST, so the short gate can select tests;
+ *   allowLong: the author already gave a reason for a longer bar;
  *   warnUnnamedTest (add.warnUnnamedTest, default off): a [test] clause naming no test file, with no `Test:` line in the brief, gets BAR_TEST_UNNAMED
  * @returns {{ problems: string[], fix: string[], warnings: { code: string, clause: number, message: string }[] }}
  */
-export function lintBar(criterion, { allowLong = false, warnUnnamedTest = false, brief = '' } = {}) {
+export function lintBar(criterion, { allowLong = false, warnUnnamedTest = false, brief = '', check = undefined } = {}) {
   const text = String(criterion ?? '').trim();
   const problems = [];
   const fix = [];
@@ -64,6 +65,10 @@ export function lintBar(criterion, { allowLong = false, warnUnnamedTest = false,
     // A gate run ticks a [test] clause only through a test file it names or the brief's Test: line [C7].
     if (warnUnnamedTest && clause.kind === 'test' && !briefNamesTest && !TEST_FILE.test(clause.text)) {
       warnings.push({ code: 'BAR_TEST_UNNAMED', clause: clause.number, message: `${label} is a [test] that names no test file and the brief has no Test: line, so no gate run can tick it; next: name the test file in ${label} or end the brief with "Test: <path>"` });
+    }
+    // A [test] clause whose check names no test file leaves the short gate nothing to select [C7]. Warning only.
+    if (typeof check === 'string' && check.trim() && clause.kind === 'test' && !TEST_FILE.test(check)) {
+      warnings.push({ code: 'BAR_CHECK_NO_TEST', clause: clause.number, message: `${label} is a [test] but the check names no test file, so the short gate cannot select tests for it; next: make the check run the test file with node packages/gate/src/io/run/tests.js <test file>` });
     }
     if (joinsTwoFacts(body)) warnings.push({ code: 'BAR_TWO_FACTS', clause: clause.number, message: `${label} joins two facts with "and"; give each fact its own clause so each can pass or fail alone` });
     for (const [word, pattern] of VAGUE) {

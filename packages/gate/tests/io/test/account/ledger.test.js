@@ -1,7 +1,7 @@
 /** Every receipt and landing line reports reuse hits, misses and keyless files with the top keyless reason (#5839) [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ledgerFromOutput } from '../../../../index.js';
+import { ledgerFromOutput } from '../../../../heavy.js';
 import { formatCacheRows } from '../../../../src/io/test/account.js';
 import { cacheProfile } from '../../../../src/io/test/account.js';
 import { ledgerLine } from '../../../../src/io/test/account.js';

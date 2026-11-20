@@ -3,13 +3,6 @@ import { withRecordedConflictContext } from "../../../state/index.js";
 /** Account-free ordered moves on the repository's own Git remote [H11,H10]. */
 import { spawn } from 'node:child_process';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {
-  existsSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import * as store from "../../../store/index.js";
@@ -40,6 +33,9 @@ import {
   GIT_BOARD_REF,
   validateGitBoardCommit,
 } from "../../../commits/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const PREFIX = 'local:git-sync:';
 const CACHE = 'refs/pullboard/cache';
@@ -102,8 +98,8 @@ async function required(root, args, input) {
 function save(file, value) {
   assertWriter();
   const temporary = file + '.' + randomUUID() + '.tmp';
-  writeFileSync(temporary, JSON.stringify(value) + '\n', { mode: 0o600 });
-  renameSync(temporary, file);
+  fs.writeFile(temporary, JSON.stringify(value) + '\n', { mode: 0o600 });
+  fs.rename(temporary, file);
 }
 
 /** Read transport metadata committed in the same SQLite transaction as its replayed move. */
@@ -116,7 +112,7 @@ export function gitSyncCompatibility(root, board) {
   const tip = meta(board, 'tip');
   const event = meta(board, 'event');
   const latest = String(board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id);
-  const linked = existsSync(join(gitSyncFiles(root).folder, 'relay.json'));
+  const linked = fs.exists(join(gitSyncFiles(root).folder, 'relay.json'));
   const prefix = tip !== null;
   const validPrefix = prefix && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(tip) && event === latest;
   return { prefix, validPrefix, relayHistory: linked || !prefix && appliedSequence(board) !== 0,
@@ -243,7 +239,7 @@ async function settle(root, board, pending) {
     const previous = engineReceipt(board, pending.move.id);
     if (previous) {
       assertWriter();
-      rmSync(paths(root).pending, { force: true });
+      fs.rm(paths(root).pending, { force: true });
       return previous.outcome;
     }
     if (pending.move.operation === 'reopen' && pending.move.args[1]?.computedConflict !== undefined) {
@@ -256,7 +252,7 @@ async function settle(root, board, pending) {
       const receipt = engineReceipt(board, pending.move.id);
       if (!receipt) throw new Refused('GIT_SYNC_LOG', 'the acknowledged Git move has no replay receipt; the pending move was preserved', 'restore the complete shared Git log before retrying');
       assertWriter();
-      rmSync(paths(root).pending, { force: true });
+      fs.rm(paths(root).pending, { force: true });
       return receipt.outcome;
     }
   }
@@ -284,12 +280,12 @@ export async function syncGitBoard(root, board, io, { settlePending = false } = 
     // The opt-in marker is written only after origin acknowledged the first board; a refusal leaves none.
     try { await establish(root, board); }
     catch (error) {
-      if (explicit && meta(board, 'tip') === null) rmSync(file.marker, { force: true });
+      if (explicit && meta(board, 'tip') === null) fs.rm(file.marker, { force: true });
       throw error;
     }
     if (explicit) save(file.marker, { version: 1, remote: 'origin', ref: GIT_BOARD_REF,
       writer: { command: 'sync', pid: process.pid, at: new Date().toISOString() } });
-    const pending = existsSync(file.pending) ? JSON.parse(readFileSync(file.pending, 'utf8')) : null;
+    const pending = fs.exists(file.pending) ? JSON.parse(fs.readFile(file.pending, 'utf8')) : null;
     const outcome = settlePending && pending ? await settle(root, board, pending) : null;
     if (outcome?.error) throw new Refused(outcome.error.code, outcome.error.message, outcome.error.next);
     return { version: 1, ref: GIT_BOARD_REF, sequence: appliedSequence(board), pending: pending && !settlePending ? pending.move.id : null };
@@ -305,7 +301,7 @@ export async function gitBoardOperation(root, board, operation, args, io = {}) {
     // An enabled replica seals its intent before its first network attempt, including an outage.
     if (!meta(board, 'tip')) await establish(root, board);
     const command = JSON.stringify(io.relayCommand ?? { operation, args });
-    let pending = existsSync(file.pending) ? JSON.parse(readFileSync(file.pending, 'utf8')) : null;
+    let pending = fs.exists(file.pending) ? JSON.parse(fs.readFile(file.pending, 'utf8')) : null;
     let outcome;
     if (pending) {
       outcome = await settle(root, board, pending);

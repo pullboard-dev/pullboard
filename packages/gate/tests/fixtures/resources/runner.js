@@ -26,8 +26,8 @@ import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../child.js';
 import { fixtureAdd } from '../testkit.js';
 import { fixturePolicy } from '../testkit.js';
-import { refusalTrialFile } from '../../../index.js';
-import { trialLedgerKey } from '../../../index.js';
+import { refusalTrialFile } from '../../../heavy.js';
+import { trialLedgerKey } from '../../../heavy.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../resources/index.js')).href;
 const DOCTRINE = pathToFileURL(resolve(import.meta.dirname, '../../../../doctrine/index.js')).href;

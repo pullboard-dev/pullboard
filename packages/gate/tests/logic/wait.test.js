@@ -17,7 +17,7 @@ import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { selectAffectedTests } from '../../index.js';
+import { selectAffectedTests } from '../../heavy.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 /** Test files whose subject is the raw Chrome client itself, each with the written reason its raw calls are allowed [C7]. */

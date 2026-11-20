@@ -1,0 +1,3 @@
+{
+  "config.io-settings-compose-on-runner.default-on-from-11423": {"proves":{"specs":["C7"],"claim":"the machine defaults list submit.composeOnRunner as true and submitComposeOnRunner() reads true with no setting and false for an exact false."},"why":"Keeps composition on the runner the default for every submit.","kind":"contract","inputs":["packages/config/index.js"]}
+}

@@ -1,10 +1,10 @@
 /** A change inside sealed cells shrinks the gate: apps cells confine, and so do the listing rows that ride with them (#4633) [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requireSealedSkips } from '../index.js';
-import { selectTestTiers } from '../index.js';
-import { submitGatePlan } from '../index.js';
-import { writeTestTiers } from '../index.js';
+import { requireSealedSkips } from '../heavy.js';
+import { selectTestTiers } from '../heavy.js';
+import { submitGatePlan } from '../heavy.js';
+import { writeTestTiers } from '../heavy.js';
 import { fixture as repository } from '../../landing/tests/fixtures/plan.js';
 import { git } from '../../landing/tests/fixtures/plan.js';
 
@@ -53,7 +53,7 @@ function fixture(t, sealed = ['alpha', 'apps/gamma']) {
     [GAMMA_TEST]: 'import { g } from "../index.js";\nvoid g;\n',
     'lib/shared.js': 'export const shared = 1;\n',
     'test/journey.test.js': 'import "../packages/alpha/index.js";\nimport "../packages/beta/index.js";\nimport { spawnSync } from "node:child_process";\nspawnSync("git");\n',
-    [LINTS_TEST]: '// Reads the cells plan shards: packages/codemap/data/plan/01-alpha.json\nimport "../packages/alpha/index.js";\nimport "../packages/beta/index.js";\nimport { readFileSync } from "node:fs";\nreadFileSync("packages/codemap/data/plan/01-alpha.json");\n',
+    [LINTS_TEST]: '// Reads the test-cell listing: packages/gate/data/tests/test-cells.json\nimport "../packages/alpha/index.js";\nimport "../packages/beta/index.js";\nimport { readFileSync } from "node:fs";\nreadFileSync("packages/gate/data/tests/test-cells.json");\n',
     'packages/gate/data/tests/test-cells.json': listing(sealed),
     'packages/gate/data/ceilings/cells-edges.json': edges({ 'packages/alpha/src/core/a.js': { cells: 0, deep: 0 }, 'packages/beta/src/core/b.js': { cells: 0, deep: 0 } }, { alpha: { imports: [], deepImporters: 0 }, beta: { imports: [], deepImporters: 0 } }),
     'packages/gate/data/tests/test-fixtures.json': { [ALPHA_TEST]: { tempdir: 1 }, 'packages/beta/tests/b.test.js': { tempdir: 1 } },
@@ -65,7 +65,10 @@ function fixture(t, sealed = ['alpha', 'apps/gamma']) {
   return { root, base: commit(root, {}) };
 }
 
-/** What a builder's item adds to a cell's tests, with the rows every cell item writes into the listings beside it. */
+/**
+ * What a builder's item adds to a cell's tests, with the rows every cell item writes into the listings beside it. A plan
+ * shard is plain data to selection since #11761, so it is not one of those listings and the change leaves it out.
+ */
 function alphaChange(root, extra = {}) {
   const newTest = 'packages/alpha/tests/a2.test.js';
   put(root, 'packages/alpha/src/core/a.js', 'export const a = 2;\n');
@@ -74,7 +77,6 @@ function alphaChange(root, extra = {}) {
   return commit(root, {
     'packages/gate/data/tests/test-cells.json': listing(['alpha', 'apps/gamma'], { findings: { [newTest]: [] } }),
     'packages/gate/data/ceilings/cells-edges.json': edges({ 'packages/alpha/src/core/a.js': { cells: 0, deep: 1 }, 'packages/beta/src/core/b.js': { cells: 0, deep: 0 } }, { alpha: { imports: [], deepImporters: 0 }, beta: { imports: [], deepImporters: 0 } }),
-    'packages/codemap/data/plan/01-alpha.json': shard(1, 'alpha', 'packages/alpha', [['src/a.js', 'packages/alpha/src/core/a.js', 'seed'], ['src/a2.js', 'packages/alpha/src/core/a2.js', 'rule']]),
     ...extra,
   });
 }
@@ -100,7 +102,7 @@ test('gate.confinement.sealed-cell-change-only-own: #4633 clause 2: a sealed-cel
   const head = alphaChange(root);
   const plan = selectTestTiers(root, { base, commit: head });
   assert.deepEqual(plan.changed.filter(file => /^(?:bin|packages\/(?:gate|codemap))\//u.test(file)).sort(),
-    ['packages/codemap/data/plan/01-alpha.json', 'packages/gate/data/ceilings/cells-edges.json', 'packages/gate/data/tests/test-cells.json', TIERS], 'every listing file rides with the change');
+    ['packages/gate/data/ceilings/cells-edges.json', 'packages/gate/data/tests/test-cells.json', TIERS], 'every listing file rides with the change');
   assert.deepEqual(plan.units, [ALPHA_TEST, 'packages/alpha/tests/a2.test.js'], 'the cell\'s tests, new one included');
   assert.ok(!plan.journeys.includes('test/journey.test.js'), 'no unrelated root journey');
   assert.doesNotThrow(() => requireSealedSkips(root, plan), 'the plan passes the completeness guard');

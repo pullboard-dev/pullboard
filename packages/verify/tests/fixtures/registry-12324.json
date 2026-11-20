@@ -1,0 +1,3 @@
+{
+  "verify.review-queue.light-door-exports-line": {"proves":{"specs":["C7"],"claim":"packages/verify/light.js exports the same reviewQueueLine as packages/verify/index.js."},"why":"Status line 7 reached the review queue through the index door only to read the queue line.","kind":"cell unit","inputs":["packages/verify/tests/logic/review/queue.test.js","packages/verify/light.js"]}
+}
