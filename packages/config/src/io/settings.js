@@ -873,6 +873,11 @@ export function servePullRoute() {
   return loadMachineSettings().serve?.pullRoute === true;
 }
 
+/** Whether `pullboard serve` runs the serve-restart trial: off by default; only an exact `true` of serve.restartTrial turns it on [C7]. */
+export function serveRestartTrial() {
+  return loadMachineSettings().serve?.restartTrial === true;
+}
+
 /**
  * Where `pullboard serve` listens, from the machine's `serve` setting: loopback and a free port unless set; a flag
  * given for either overrides the setting and is checked by the same rule [P7,O5,O6].

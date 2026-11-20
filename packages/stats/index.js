@@ -28,6 +28,7 @@ export {
 } from './src/logic/flow/replay/history.js';
 export {
   replayFlow,
+  replayTuned,
 } from './src/logic/flow/replay.js';
 export {
   emptyReportCounter,

@@ -12,7 +12,9 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { provenBreakStatement } from '../../../src/io/commands/verify.js';
+import { soloLowStakesFacts } from '../../../src/io/commands/verify.js';
 import { refuseLinkedDependencies } from '../../../src/io/commands/verify.js';
+import { verdictIsolation } from '../../../src/io/commands/verify.js';
 import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -70,4 +72,60 @@ test('cli.io-commands-verify.deps-outside-tree-refused: refuseLinkedDependencies
   refuseLinkedDependencies(folder);
   symlinkSync(outside, join(folder, 'node_modules', 'left-pad'));
   assert.throws(() => refuseLinkedDependencies(folder), (error) => error.code === 'DEPS_OUTSIDE_TREE' && error.message.includes('left-pad') && !error.message.includes('kept-pkg'));
+});
+
+test('cli.io-commands-verify.isolated-flag: verdictIsolation is true for a check run in the board-made review folder or one proven by a runner receipt at the submitted commit, and false otherwise [C7,#1112]', () => {
+  const commit = 'a'.repeat(40);
+  assert.equal(verdictIsolation({ folder: '/review/one', reviewFolder: '/review/one', commit, receipt: null }), true);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: { commit } }), true);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: null, commit, receipt: null }), false);
+  assert.equal(verdictIsolation({ folder: '/seat', reviewFolder: '/review/one', commit, receipt: { commit: 'b'.repeat(40) } }), false);
+});
+
+const FROZEN = JSON.stringify({ rows: [{ id: 'C7' }, { id: 'U148', stakes: 'low' }] });
+
+test('cli.io-commands-verify.solo-facts-off-by-default: soloLowStakesFacts returns nothing unless enabled is exactly true [C7,#966]', () => {
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, undefined), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, false), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, 'true'), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, 1), {});
+});
+
+test('cli.io-commands-verify.solo-facts-from-frozen-rows: when enabled it returns one row per frozen row, a row without stakes read as team [C7,#966]', () => {
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: FROZEN }, true), { soloLowStakes: true, rows: [{ id: 'C7', stakes: 'team' }, { id: 'U148', stakes: 'low' }] });
+});
+
+test('cli.io-commands-verify.solo-facts-never-invent-a-row: an empty, unparseable or row-less frozen record returns nothing even when enabled [C7,#966]', () => {
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '' }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: null }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '{not json' }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '{"rows":[]}' }, true), {});
+  assert.deepEqual(soloLowStakesFacts({ item_frozen: '{"check":"x"}' }, true), {});
+});
+
+const GREEN_RUN = { checked: true, state: 'green' };
+const RED_BASELINE = { result: 'red', command: 'node --test x' };
+const FROZEN_LOW = { item_frozen: JSON.stringify({ rows: [{ id: 'U148', stakes: 'low' }, { id: 'C7', stakes: 'low' }] }), item_check: 'node --test x' };
+const SOUND = { baselinePending: false, baselineInvalid: false, rows: [] };
+
+test('cli.io-commands-verify.solo-person-approval: soloLowStakesFacts marks a row personApproved only when the spec approval state does not list it as agent-approved, so a row an agent changed reads as not approved [C7,#966]', () => {
+  const facts = soloLowStakesFacts(FROZEN_LOW, true, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN });
+  assert.deepEqual(facts.rows, [{ id: 'U148', stakes: 'low', personApproved: true }, { id: 'C7', stakes: 'low', personApproved: true }]);
+  const lowered = soloLowStakesFacts(FROZEN_LOW, true, { approval: { ...SOUND, rows: [{ id: 'C7' }] }, baseline: RED_BASELINE, check: GREEN_RUN });
+  assert.deepEqual(lowered.rows.map((row) => row.personApproved), [true, false]);
+  for (const approval of [undefined, { ...SOUND, baselinePending: true }, { ...SOUND, baselineInvalid: true }, { rows: undefined }]) {
+    const unread = soloLowStakesFacts(FROZEN_LOW, true, { approval, baseline: RED_BASELINE, check: GREEN_RUN });
+    assert.deepEqual(unread.rows.map((row) => row.personApproved), [false, false]);
+  }
+});
+
+test('cli.io-commands-verify.solo-check-facts: soloLowStakesFacts takes redBefore from the board baseline and greenAfter and machineRun from the check verify ran [C7,#966]', () => {
+  const checksOf = (evidence) => soloLowStakesFacts(FROZEN_LOW, true, { approval: SOUND, ...evidence }).checks;
+  assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: GREEN_RUN }), [{ machineRun: true, redBefore: true, greenAfter: true }]);
+  assert.deepEqual(checksOf({ baseline: null, check: GREEN_RUN }), [{ machineRun: true, redBefore: false, greenAfter: true }]);
+  assert.deepEqual(checksOf({ baseline: { result: 'green' }, check: GREEN_RUN }), [{ machineRun: true, redBefore: false, greenAfter: true }]);
+  assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: { checked: false, state: 'green' } }), [{ machineRun: false, redBefore: false, greenAfter: false }]);
+  assert.deepEqual(checksOf({ baseline: RED_BASELINE, check: { checked: true, state: 'red' } }), [{ machineRun: true, redBefore: true, greenAfter: false }]);
+  assert.deepEqual(soloLowStakesFacts({ ...FROZEN_LOW, item_check: '' }, true, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN }).checks, []);
+  assert.deepEqual(soloLowStakesFacts(FROZEN_LOW, false, { approval: SOUND, baseline: RED_BASELINE, check: GREEN_RUN }), {});
 });

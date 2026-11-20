@@ -8,6 +8,7 @@ import { testTierProofFiles } from './test/tier/selection.js';
 import { testTierReport } from './test/tier/selection.js';
 import { requireSealedSkips } from './test/tier/selection.js';
 import { canaryTests } from './test/tier/selection.js';
+import { testSourceAt } from './test/tier/selection.js';
 import { narrowConfinedTiers } from './test/tier/narrow.js';
 import { startReceipt } from './receipt.js';
 import { dirname } from 'node:path';
@@ -123,7 +124,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const wholeTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly, componentTier: gateComponentTier() });
   // confinedImportSelection comes from accepted main (submitGateConfig), so a branch cannot narrow its own gate; the cell tests it drops ride in owedFiles for landing [C7].
   const testTiers = wholeTiers && narrowConfinedTiers(wholeTiers, { mode: config.confinedImportSelection, canary: canaryTests(root, commit),
-    select: () => selectAffectedTests(root, { base, trunk, commit, changed }) }) || wholeTiers;
+    read: file => testSourceAt(root, commit, file), select: files => selectAffectedTests(root, { base, trunk, commit, changed: files ?? changed }) }) || wholeTiers;
   const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
