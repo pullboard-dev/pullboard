@@ -1,0 +1,6 @@
+{
+  "stats.timeline.item-rows": {"proves":{"specs":["C7"],"claim":"timelineOf turns events, a gate job and its steps into time-ordered stage rows with deltas, and reports event kinds no stage names."},"why":"Nobody could say where an item's wall-clock time went.","kind":"cell unit","inputs":["packages/stats/src/logic/timeline.js"]},
+  "stats.timeline.buckets": {"proves":{"specs":["C7"],"claim":"The bucket totals plus UNACCOUNTED equal the last row minus filed, and the summary names the longest gap and its reason."},"why":"Time per bucket had to add up to the item's wall time or it hid a gap.","kind":"cell unit","inputs":["packages/stats/src/logic/timeline.js"]},
+  "stats.timeline.unaccounted": {"proves":{"specs":["C7"],"claim":"A stretch over 60 s with no stage or reason is UNACCOUNTED, a 60 s one is not, and a hold is named HELD."},"why":"Unexplained time is the number the pipeline work aims to shrink.","kind":"cell unit","inputs":["packages/stats/src/logic/timeline.js"]},
+  "stats.io-timeline.real-board": {"proves":{"specs":["C7"],"claim":"readItemTimeline reads a real board's events, jobs and job steps and returns the stages of an add, claim and submit in order."},"why":"A pure fold proves nothing about the queries that feed it.","kind":"cell unit","inputs":["packages/stats/src/io/timeline.js","packages/stats/src/logic/timeline.js"]}
+}
