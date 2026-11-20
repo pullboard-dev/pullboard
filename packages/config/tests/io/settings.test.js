@@ -8,6 +8,7 @@ import { failFastShardsEnabled } from '../../index.js';
 import { joinCoordinatorSeat } from '../../index.js';
 import { jsdocCheckEnabled } from '../../index.js';
 import { relaxRequiredFamilyEnabled } from '../../index.js';
+import { claimCheckCeilingEnabled } from '../../index.js';
 import { adapterLintGithubEnabled } from '../../index.js';
 import { adapterLintSigningEnabled } from '../../index.js';
 import { loadMachineSettings } from '../../index.js';
@@ -45,6 +46,13 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
   assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
   assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
+});
+
+test('config.io-settings.claim-check-ceiling-reads-false-unset: clause 1: claim.checkCeiling reads false when unset and true only when set true, a non-boolean is refused BAD_MACHINE_SETTINGS, and claimCheckCeilingEnabled() follows it [C7,#1273]', () => {
+  assert.equal(withSettings({}, claimCheckCeilingEnabled), false);
+  assert.equal(withSettings({ claim: { checkCeiling: false } }, claimCheckCeilingEnabled), false);
+  assert.equal(withSettings({ claim: { checkCeiling: true } }, claimCheckCeilingEnabled), true);
+  assert.throws(() => withSettings({ claim: { checkCeiling: 'yes' } }, claimCheckCeilingEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /claim\.checkCeiling/u.test(error.message));
 });
 
 test('config.io-settings.adapter-lint-github-enabled: clause 1: adapterLintGithubEnabled() reads false when unset and true only when gate.adapterLintGithub is set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#1429]', () => {
