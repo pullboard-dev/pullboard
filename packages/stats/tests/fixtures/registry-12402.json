@@ -1,0 +1,30 @@
+{
+  "stats.logic-flow-window.replay-window": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "replayWindow counts replayFlow items landed after the window start and up to its end, gives each stage its target and minutes over target, and names the stage with the most minutes over target as the constraint."
+    },
+    "why": "Without it the tuning controller has no per-cycle window to read when it replays a flow.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/flow/window.js",
+      "packages/stats/tests/logic/flow/window.test.js"
+    ]
+  },
+  "stats.logic-flow-window.replay-window-empty": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A replay window with no landed item has zero landed items and the null constraint, in the shape the tuning controller reads."
+    },
+    "why": "Without it an empty cycle would look like a stage held the line.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/flow/window.js",
+      "packages/stats/tests/logic/flow/window.test.js"
+    ]
+  }
+}
