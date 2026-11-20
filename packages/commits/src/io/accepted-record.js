@@ -7,6 +7,16 @@ import { join } from 'node:path';
 import { Refused } from "../../../kernel/light.js";
 import { parseContributionRecord } from "../logic/contribution.js";
 
+/**
+ * The accepted-records directory inside a repository's Pullboard state folder.
+ *
+ * @param {string} stateDir the repository's Pullboard state folder
+ * @returns {string} the snapshot directory
+ */
+export function acceptedRecordsDir(stateDir) {
+  return join(stateDir, 'accepted-records');
+}
+
 const HASH = /^[0-9a-f]{64}$/u;
 
 /**

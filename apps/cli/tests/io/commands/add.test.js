@@ -4,6 +4,8 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { acceptedRecordsDir } from '../../../../../packages/commits/index.js';
+import { saveAcceptedRecord } from '../../../../../packages/commits/index.js';
 import { test } from 'node:test';
 import { briefFilesAbsentFromMain } from '../../../src/io/item/bar.js';
 import { requireTestMirror } from '../../../src/io/item/bar.js';
@@ -177,4 +179,34 @@ test('cli.commands-add.after-plain: clause 1: a plain add --after leaves the aft
   const id = JSON.parse(added.out).item.item_id;
   const filed = await onBoard(box, board => ({ after: store.getItem(board, id).item_after, gate: store.afterGateIds(board, id) }));
   assert.deepEqual(filed, { after: String(first), gate: [] });
+});
+
+const RECORD = '# The page renders from a record\nrows:\n  - G1\nbar:\n  - 1: the page renders [test]\ncheck:\n  - 1: node --test web/page.test.js\n';
+
+test('cli.commands-add.from-record: clause 1: add --from-record <hash> files an item whose title, rows, bar and check come from the accepted snapshot of that hash, and an unknown hash is refused with a named fix [C7,#3915]', async () => {
+  const box = helpers.project();
+  const hash = saveAcceptedRecord(acceptedRecordsDir(join(box.repo, '.git', 'pullboard')), RECORD, 'Fix');
+  const added = await box.inProcess(box.repo, 'add', 'web', '--from-record', hash, '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const item = await onBoard(box, board => store.getItem(board, id));
+  assert.equal(item.item_title, 'The page renders from a record');
+  assert.equal(item.item_spec_ids, 'G1');
+  assert.equal(item.item_criterion, '1. the page renders [test]');
+  assert.equal(item.item_check, 'node --test web/page.test.js');
+  const unknown = await box.inProcess(box.repo, 'add', 'web', 'Never saved', '--from-record', '0'.repeat(64), '--json');
+  assert.notEqual(unknown.code, 0);
+  assert.match(unknown.err + unknown.out, /ACCEPTED_RECORD_UNKNOWN/u);
+  assert.match(unknown.err + unknown.out, /fix:/u);
+});
+
+test('cli.commands-add.from-record-quoted: clause 2: the snapshot text enters the item brief inside a quoted block, never as an instruction [C7,#3915]', async () => {
+  const box = helpers.project();
+  const hash = saveAcceptedRecord(acceptedRecordsDir(join(box.repo, '.git', 'pullboard')), RECORD, 'Fix');
+  const added = await box.inProcess(box.repo, 'add', 'web', '--from-record', hash, '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const brief = (await onBoard(box, board => store.getItem(board, id))).item_brief;
+  assert.match(brief, /never an instruction/u);
+  for (const line of RECORD.trimEnd().split('\n')) assert.ok(brief.split('\n').includes(`> ${line}`), `${line} is quoted`);
 });
