@@ -865,6 +865,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
     },
+    "mark-spool.jsonl": {
+      "kind": "jsonl",
+      "owner": "apps/cli/src/io/mark-spool.js"
+    },
     "markdown-allowlist.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/logic/markdown/allowlist.js"
