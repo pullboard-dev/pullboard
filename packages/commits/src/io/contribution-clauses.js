@@ -9,15 +9,6 @@
  */
 import { execFile } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { cpSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -38,6 +29,8 @@ import { noneReason } from '../logic/contribution-clauses.js';
 import { pairClauses } from '../logic/contribution-clauses.js';
 import { parseTestCheck } from '../logic/contribution-clauses.js';
 import { testOutcome } from '../logic/contribution-clauses.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** How long one test or command may run before it counts as timed out. */
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -89,7 +82,7 @@ async function git(repo, args, { binary = false } = {}) {
 
 /** Write one commit's tree into a fresh folder with git archive, so the repository's own checkout is never touched. */
 async function extract(repo, commit, into) {
-  mkdirSync(into, { recursive: true });
+  fs.mkdir(into, { recursive: true });
   const archive = await git(repo, ['archive', '--format=tar', commit], { binary: true });
   const result = await launch('tar', ['-x', '-f', '-', '-C', into], { input: archive });
   if (result.status !== 0) throw new Error(`tar could not unpack ${commit}: ${result.stderr.trim().slice(0, 200)}`);
@@ -103,13 +96,13 @@ async function extract(repo, commit, into) {
  * @param {string} where - What named the path.
  */
 function assertInside(root, path, where) {
-  const realRoot = realpathSync(root);
+  const realRoot = fs.realpath(root);
   const full = join(root, path);
   let real;
-  try { real = realpathSync(full); } catch { real = null; } // A missing path is checked below as a possible dangling link.
+  try { real = fs.realpath(full); } catch { real = null; } // A missing path is checked below as a possible dangling link.
   if (real === null) {
     let link = false;
-    try { link = lstatSync(full).isSymbolicLink(); } catch { link = false; } // Nothing there at all: it cannot escape.
+    try { link = fs.lstat(full).isSymbolicLink(); } catch { link = false; } // Nothing there at all: it cannot escape.
     if (!link) return;
     throw new Refused('CLAUSE_PATH', `${where}: "${path}" is a symlink that does not resolve inside the repository`, 'replace the symlink with the file itself');
   }
@@ -123,12 +116,12 @@ function assertInside(root, path, where) {
 function overlay(from, to, paths) {
   for (const path of paths) {
     const target = join(to, path);
-    rmSync(target, { force: true, recursive: true });
+    fs.rm(target, { force: true, recursive: true });
     let present = false;
-    try { lstatSync(join(from, path)); present = true; } catch { present = false; } // Absent in the source: stays removed.
+    try { fs.lstat(join(from, path)); present = true; } catch { present = false; } // Absent in the source: stays removed.
     if (!present) continue;
-    mkdirSync(dirname(target), { recursive: true });
-    cpSync(join(from, path), target, { verbatimSymlinks: true });
+    fs.mkdir(dirname(target), { recursive: true });
+    fs.cp(join(from, path), target, { verbatimSymlinks: true });
     assertInside(to, path, 'test-directory change');
   }
 }
@@ -152,9 +145,9 @@ export async function pinnedNode(pin = {}) {
 /** Refuse a scratch folder the runner may not fill: it must exist, be empty, and sit outside the repository. */
 function checkScratch(scratch, repo) {
   const next = 'pass an empty folder outside the repository, such as a fresh sandbox folder';
-  if (typeof scratch !== 'string' || !isAbsolute(scratch) || !existsSync(scratch)) throw new Refused('CLAUSE_SCRATCH', 'the scratch folder must be an existing absolute path', next);
-  if (readdirSync(scratch).length) throw new Refused('CLAUSE_SCRATCH', `the scratch folder ${scratch} is not empty`, next);
-  const real = realpathSync(scratch), realRepo = realpathSync(repo);
+  if (typeof scratch !== 'string' || !isAbsolute(scratch) || !fs.exists(scratch)) throw new Refused('CLAUSE_SCRATCH', 'the scratch folder must be an existing absolute path', next);
+  if (fs.list(scratch).length) throw new Refused('CLAUSE_SCRATCH', `the scratch folder ${scratch} is not empty`, next);
+  const real = fs.realpath(scratch), realRepo = fs.realpath(repo);
   if (real === realRepo || real.startsWith(realRepo + sep)) throw new Refused('CLAUSE_SCRATCH', `the scratch folder ${scratch} is inside the repository`, next);
   return real;
 }
@@ -164,7 +157,7 @@ async function runNamedTest(root, file, name, ctx) {
   assertInside(root, file, 'test file');
   const out = join(ctx.scratch, `report-${ctx.runs++}.jsonl`);
   const exit = await launch(ctx.node.path, [`--test-reporter=${ctx.reporter}`, `--test-reporter-destination=${out}`, `--test-name-pattern=${exactNamePattern(name)}`, file], { cwd: root, env: ctx.env, timeoutMs: ctx.timeoutMs });
-  const events = existsSync(out) ? readFileSync(out, 'utf8').split('\n').filter(Boolean).flatMap(line => {
+  const events = fs.exists(out) ? fs.readFile(out, 'utf8').split('\n').filter(Boolean).flatMap(line => {
     try { return [JSON.parse(line)]; } catch { return []; } // A torn last line from a killed run says nothing.
   }) : [];
   return testOutcome(events, name, exit);
@@ -190,13 +183,13 @@ function copies(ctx) {
     head: async () => { const dir = join(ctx.scratch, 'head'); await extract(ctx.repo, ctx.head, dir); return dir; },
     baseWithTests: async () => {
       const dir = join(ctx.scratch, 'base-with-tests');
-      cpSync(await get('base'), dir, { recursive: true, verbatimSymlinks: true });
+      fs.cp(await get('base'), dir, { recursive: true, verbatimSymlinks: true });
       overlay(await get('head'), dir, testPaths());
       return dir;
     },
     headWithBaseTests: async () => {
       const dir = join(ctx.scratch, 'head-with-base-tests');
-      cpSync(await get('head'), dir, { recursive: true, verbatimSymlinks: true });
+      fs.cp(await get('head'), dir, { recursive: true, verbatimSymlinks: true });
       overlay(await get('base'), dir, testPaths());
       return dir;
     },
@@ -275,10 +268,10 @@ export async function runContributionClauses({ repo, base, head, bar, check, scr
   const headSha = String(await git(repo, ['rev-parse', '--verify', `${head}^{commit}`])).trim();
   const changed = String(await git(repo, ['diff', '--name-only', '--no-renames', '-z', baseSha, headSha])).split('\0').filter(Boolean);
   const pairs = pairClauses(bar, check);
-  mkdirSync(join(folder, 'home'));
-  mkdirSync(join(folder, 'tmp'));
+  fs.mkdir(join(folder, 'home'));
+  fs.mkdir(join(folder, 'tmp'));
   const reporter = join(folder, 'clause-reporter.mjs');
-  writeFileSync(reporter, REPORTER_SOURCE);
+  fs.writeFile(reporter, REPORTER_SOURCE);
   const env = { PATH: [dirname(pinned.path), '/usr/bin', '/bin'].join(delimiter), HOME: join(folder, 'home'), TMPDIR: join(folder, 'tmp'), LANG: 'C', NO_COLOR: '1' };
   const ctx = { repo, base: baseSha, head: headSha, allowlist, node: pinned, testDirs, timeoutMs, scratch: folder, reporter, runs: 0, env, changed };
   const copy = copies(ctx);

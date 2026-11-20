@@ -4,9 +4,9 @@ import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
 import { adviceThroughNextEnabled } from '../../../../../packages/config/index.js';
+import { reviewBuilderOffers } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { nextRouteByTier } from '../../../../../packages/config/index.js';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
 import { fileChangeWaiter } from '../../../../../packages/activity/index.js';
@@ -78,6 +78,9 @@ import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
 import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
@@ -86,6 +89,12 @@ function reviewFolderAt(ctx, commit) {
   try { return requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(ctx.info.root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')); } catch (error) { return { failed: String(error.message ?? error).split('\n')[0] }; }
 }
 const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
+/** Whether this seat builds (neither a review nor the coordinator seat) while another seat in lane review has live presence [C7,#11946]. */
+function builderWithLiveReviewSeat(board, me) {
+  if (me.lane === 'review' || me.lane === 'coordinator') return false;
+  return store.withSeatPresence(board, store.listAgents(board)).some(seat => seat.agent_lane === 'review' && seat.agent_id !== me.id && seat.presence === 'live');
+}
+
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
 const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/health/index.js').shoutStarvedReviews(...args);
@@ -94,7 +103,7 @@ const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/
 function nextChangeInputs(ctx) {
   const heads = [...new Set([join(ctx.info.gitDir, 'HEAD'), join(ctx.info.commonDir, 'HEAD')])];
   const refs = heads.flatMap(path => {
-    try { const ref = /^ref: (.+)$/mu.exec(readFileSync(path, 'utf8')); return ref ? [join(ctx.info.commonDir, ref[1])] : []; }
+    try { const ref = /^ref: (.+)$/mu.exec(fs.readFile(path, 'utf8')); return ref ? [join(ctx.info.commonDir, ref[1])] : []; }
     catch (error) { if (error.code === 'ENOENT') return []; throw error; }
   });
   return [ctx.file, ctx.file + '-wal', ...heads, ...refs, join(ctx.info.commonDir, 'packed-refs'),
@@ -111,6 +120,11 @@ function nextChangeInputs(ctx) {
  */
 export async function nextHere(io, values) {
   if (values.stuck !== undefined) values = await releaseStuck(io, values);
+  if (values.done === true) {
+    const submitted = await submitDone(io);
+    if (submitted !== 0) return submitted;
+    values = { ...values, done: undefined };
+  }
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
   const monitor = startNextProgressMonitor(io);
@@ -163,6 +177,22 @@ async function releaseStuck(io, values) {
   await release(quiet, { first: String(held[0]), values: { reason: 'BLOCKED', note: why } });
   const { stuck, ...rest } = values;
   return rest;
+}
+
+/**
+ * next --done: submit the one build claim this seat holds through the submit command's own run, as the done alias does, then answer as next does [C7,#11701].
+ * Why: a builder whose item is committed needs one command to hand it to the gate and hear the next instruction, not a submit and a second call.
+ *
+ * @param {any} io
+ * @returns {Promise<number>} Zero after the submit queued; submit's own nonzero code, so no new item is handed out after a refusal.
+ */
+async function submitDone(io) {
+  const held = seatClaims(context(io));
+  if (held.length !== 1) {
+    throw new Refused('USAGE', `pullboard next --done submits the one build claim this seat holds; this seat holds ${held.length}`, 'hold one claim, then run pullboard next --done; to continue without submitting run pullboard next');
+  }
+  const { run: submit } = await import('./submit.js');
+  return submit(io, { first: String(held[0]), values: {} });
 }
 
 /** The line after a claim's check: the criterion and check above are the bar, so a builder skips show [#10557]. */
@@ -240,14 +270,17 @@ async function nextWithProgress(io, values, progress) {
   const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered: leasedOrdered(ordered, c => c.file),
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, passingMainRedItems, computedReturnArgs, agentSessionDigest, claimWorktrees, shoutReviewCoverStuck };
-  if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
-    throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
+  // --take --build is one step that claims the next build item and never offers or reserves a review: it selects and claims through the build path, not the review-offering take path [C7,#11942].
+  if (values.take && (values.verify || values.verifyId !== undefined || values.as !== undefined)) {
+    throw new Refused('USAGE', 'run pullboard next --take without an item id, --verify or --as; --build is allowed');
   }
   if (values.build && values.verify) throw new Refused('USAGE', 'choose a build or a review: pullboard next --build or pullboard next --verify');
   if (values.verifyId !== undefined && !values.verify) {
     throw new Refused('USAGE', 'give an item id only with --verify: pullboard next --verify <id>');
   }
   if (values.verifyId !== undefined) idArg(values.verifyId, 'an item id after --verify');
+  // review.builderOffers (off by default): while a seat in lane review is alive, a builder's next takes the build path and never offers or reserves a review [C7,#11946].
+  if (!values.verify && !values.build && reviewBuilderOffers() && withBoardRead(ctx, board => builderWithLiveReviewSeat(board, whoAmI(ctx, board)))) values = { ...values, build: true };
   const minutes = values.wait === undefined ? 0 : Number(values.wait);
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
@@ -260,9 +293,12 @@ async function nextWithProgress(io, values, progress) {
   const origin = ctx.info.root;
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
+  // What this seat's last selection could see, read before that selection; a wake that leaves it equal waits again without selecting [C7,#11798].
+  let passSignature = null, quiet = null, quietAt = 0;
   try { for (;;) {
     // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
     store.refreshItemSnapshot();
+    if (minutes > 0) passSignature = seatSignature(ctx);
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
@@ -297,7 +333,7 @@ async function nextWithProgress(io, values, progress) {
     // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
     await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
-    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? (selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? ((selectionValues.take && !selectionValues.build) || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
     if (found.ownershipWaiting?.length) {
       io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
       for (const waiting of found.ownershipWaiting) {
@@ -515,8 +551,36 @@ async function nextWithProgress(io, values, progress) {
       });
       await progress.idle(found.reasons, () => wake.wait({ after: wakeVersion, deadline: until }));
       wakeVersion = wake.version();
+      quiet = passSignature; quietAt = Date.now();
+      // Another seat's write that changes nothing this seat can take, hear or hold is not a reason to select again; a read path this signature misses is caught by the recheck [C7,#11798].
+      while (quiet !== null && !testRuns.pending.length && Date.now() < until && Date.now() - quietAt < QUIET_RECHECK_MS && seatSignature(ctx) === quiet) {
+        await wake.wait({ after: wakeVersion, deadline: Math.min(until, quietAt + QUIET_RECHECK_MS) });
+        wakeVersion = wake.version();
+      }
     }
   } } finally { wake?.close(); }
+}
+
+/** The longest a waiting next trusts an unchanged signature before it selects again, so a read path the signature misses cannot hold a seat for long [C7,#11798]. */
+const QUIET_RECHECK_MS = 30_000;
+
+/**
+ * What a waiting seat's selection reads that other seats' writes can change: items, shouts, verdicts, holds, agents, this seat's queued reds and the non-board inputs.
+ * Why: next --wait woke on every write to the board file and re-ran the whole selection, burning CPU on a busy board [C7,#11798].
+ */
+function seatSignature(ctx) {
+  const rows = withBoardRead(ctx, board => {
+    const me = whoAmI(ctx, board), all = sql => board.db.prepare(sql).all();
+    return [me.id,
+      all('SELECT item_id, item_status, item_owner, item_lease_until, item_commit, item_tree, item_verdict, item_merged_commit, item_hold_reason, item_after FROM item'),
+      all('SELECT MAX(shout_id) AS last FROM shout'), all('SELECT MAX(verdict_id) AS last, COUNT(*) AS n FROM verdict'),
+      all('SELECT hold_lane, hold_reason FROM hold'), all('SELECT agent_id, agent_lane, agent_route FROM agent'),
+      store.queuedReds(board, me.id).map(red => red.id)];
+  });
+  const inputs = nextChangeInputs(ctx).slice(2).map(path => {
+    try { const stat = fs.stat(path); return `${stat.ino}:${stat.size}:${stat.mtimeMs}`; } catch { return 'none'; }
+  });
+  return JSON.stringify([rows, inputs]);
 }
 
 /**

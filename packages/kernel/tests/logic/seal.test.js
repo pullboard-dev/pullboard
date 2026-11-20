@@ -4,7 +4,7 @@
 /** @pullboard-test-loads packages/kernel/src/logic/seal.js */
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../../gate/tests/fixtures/child.js';
 import {
   mkdtempSync,
   readFileSync,
@@ -29,9 +29,8 @@ import {
 } from '../../src/logic/seal.js';
 import {
   findChromeExecutable,
-  stableChrome,
   startChrome,
-} from '../../../../apps/cli/tests/fixtures/chrome.js';
+} from '../../../gate/tests/fixtures/chrome.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';
 const TEXT = new TextEncoder().encode('A private board payload: \u03bb \ud83d\udd12');
@@ -238,7 +237,7 @@ test('kernel.seal.headless-chrome-loads-the-unchanged-module: headless Chrome lo
   try {
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
-      chrome = await stableChrome(await startChrome({ executable, profileDirectory: profile, url: 'http://127.0.0.1:' + server.address().port + '/' }));
+      chrome = await startChrome({ executable, profileDirectory: profile, url: 'http://127.0.0.1:' + server.address().port + '/' });
       await chrome.waitFor("document.body.dataset.sealResult === 'pass'", 30_000); // budget: hang ceiling for the private browser interoperability result handshake; no throughput claim.
     } catch (error) {
       assert.fail(`Chrome interoperability failed; requested fixture routes: ${[...requests].sort().join(', ')}; ${error.message}`);

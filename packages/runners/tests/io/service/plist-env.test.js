@@ -58,3 +58,12 @@ test('runners.io-service-plist-env.install-sends-slots-and-default-ceiling: clau
   assert.equal(plan.jobs, 7);
   assert.equal(plan.ceilingMs, 2_400_000);
 });
+
+test('runners.io-service-plist-env.session-env: clause 1: the plist written for form agent carries PULLBOARD_RUNNER_SESSION=gui in its EnvironmentVariables and the plist for form daemon carries PULLBOARD_RUNNER_SESSION=daemon, beside PULLBOARD_RUNNER_JOBS [C7,P7]', async t => {
+  const agent = await installedPlist(fixture(t), { form: 'agent', jobs: 4 });
+  assert.match(agent, /<key>EnvironmentVariables<\/key>\s*<dict>[^]*<key>PULLBOARD_RUNNER_SESSION<\/key><string>gui<\/string>[^]*<\/dict>/u);
+  assert.match(agent, /<key>PULLBOARD_RUNNER_JOBS<\/key><string>4<\/string>/u);
+  const daemon = await installedPlist(fixture(t), { form: 'daemon', jobs: 4 });
+  assert.match(daemon, /<key>EnvironmentVariables<\/key>\s*<dict>[^]*<key>PULLBOARD_RUNNER_SESSION<\/key><string>daemon<\/string>[^]*<\/dict>/u);
+  assert.match(daemon, /<key>PULLBOARD_RUNNER_JOBS<\/key><string>4<\/string>/u);
+});

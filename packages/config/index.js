@@ -18,6 +18,7 @@ export {
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
+  provenBreakRequired,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
@@ -76,6 +77,7 @@ export {
   judgeByReleaseEnabled,
   endStaleJobsEnabled,
   failFastShardsEnabled,
+  seedWideMainTestsEnabled,
   retryNewRedsOnceEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
@@ -134,6 +136,7 @@ export {
   refuseMissingCheckFile,
   addWarnUnnamedTest,
   itemsBarRulesAtAdd,
+  routeReservations,
   itemsTestMirrorAtAdd,
   docsRegenerateOnCommit,
   holdsLiftSettled,
@@ -148,6 +151,7 @@ export {
   joinCoordinatorSeat,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
+  reviewBuilderOffers,
   nextLabelBounds,
   nextCapBuilders,
   nextLightShapedStrong,

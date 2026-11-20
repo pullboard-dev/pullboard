@@ -58,3 +58,4 @@ export { checkMoved, stalePlanRows, unplanned } from './src/io/cells/scripts/pla
 export { addedPlacementProblems, checkCuts, entryPlacementProblems, frontDoorBypasses, onlyForwards, withDeclaredLoads } from './src/io/cells/plan/cuts.js';
 export { lightFrontDoorProblems, pureDoorProblems, pureFrontDoorProblems } from './src/io/cells/door.js';
 export { scriptMentions } from './src/io/cells/shims.js';
+export { CELL_RULE_FILE, readCellRule } from './src/io/cell/rule.js';

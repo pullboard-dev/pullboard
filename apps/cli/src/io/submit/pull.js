@@ -40,6 +40,7 @@ import { namedProofTests } from '../entry.js';
 import { ordered } from '../entry.js';
 import { noteSubmitSession } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { recordSubmitOffered } from './offered.js';
 import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
@@ -247,7 +248,7 @@ const deferralOf = (plan, config, mechanical = []) => {
   const said = edits ? report + '; ' + edits : report;
   return { full: plan.selection?.full === true, deferred: plan.deferred === true, ...(files ? { deferredFiles: files, deferAbove: config?.submitDeferAbove ?? null } : {}),
     ...(plan.deferred ? { deferNote: (note || 'full suite deferred to the landing gate') + (edits ? '; ' + edits : '') } : {}),
-    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), report: said };
+    ...(plan.deferFullFallback ? { deferFullFallback: true } : {}), ...(Array.isArray(plan.owedFiles) && plan.owedFiles.length ? { owedFiles: plan.owedFiles } : {}), report: said };
 };
 /** The checkout-relative script a proof command runs first (\`node <script>.js …\`), or null when it names none. */
 const proofScript = command => { const found = /^\\s*\\S+\\s+([\\w./-]+\\.[cm]?js)(?=\\s|$)/u.exec(command); return found && !isAbsolute(found[1]) ? normalize(found[1]) : null; };
@@ -319,7 +320,10 @@ const runPhase = async (role, command, PATH, selected = null) => {
   const run = { id: randomUUID(), source: accounting ? gate.timingSource(root) : null };
   const started = performance.now();
   // Each test child reports its runtime into a private capture folder, as under the controller gate; the proof phase alone is admitted proof [C7].
-  const phaseEnv = { ...process.env, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}), ...sharedResultStore(role, selected, root, process.env) };
+  // A shard with no plan must not inherit one from the runner's own environment, so the plan variable is dropped before it is set [C7].
+  const inheritedEnv = { ...process.env };
+  delete inheritedEnv.PULLBOARD_SHARD_PLAN;
+  const phaseEnv = { ...inheritedEnv, PATH, [gate?.TIMING_RUN_ID_ENV ?? 'PULLBOARD_TIMING_RUN_ID']: run.id, ${JSON.stringify(PULLED_JOB_ENV)}: '1', ...(role === 'proof' && shard?.plan ? { PULLBOARD_SHARD_PLAN: JSON.stringify(shard.plan) } : {}), ...(role === 'proof' && hitsFile ? { ${LEDGER_HITS_ENV}: hitsFile } : {}), ...sharedResultStore(role, selected, root, process.env) };
   const capture = role === 'proof' && typeof sandbox?.captureTestRuntimes === 'function' ? sandbox.captureTestRuntimes(phaseEnv) : null;
   const ran = await new Promise(resolve => {
     const child = spawn('(' + (role === 'proof' && pipefailShell ? 'set -o pipefail\\n' : '') + command + '\\n) 2>&1', { shell: role === 'proof' && pipefailShell ? pipefailShell : true, cwd: root, env: capture?.env ?? phaseEnv, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -364,6 +368,15 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
   return { role, command: String(command).slice(0, 500), status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
     ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+};
+// The proof files that need a browser or a GUI, read once here so each shard run takes its answer from the plan and skips the selection scan [C7].
+const proofNeeds = async files => {
+  const needs = { browser: [], gui: [] };
+  for (const file of Array.isArray(files) ? files : []) {
+    try { if (typeof gate?.testsNeedBrowser === 'function' && await gate.testsNeedBrowser(root, [file])) needs.browser.push(file); } catch { /* an unreadable file declares no need */ }
+    try { if (typeof gate?.testsNeedGui === 'function' && gate.testsNeedGui(root, [file])) needs.gui.push(file); } catch { /* an unreadable file declares no need */ }
+  }
+  return needs;
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
@@ -424,7 +437,7 @@ else {
     // A shardable proof waits for the check, since the board takes it as shard jobs only when the check passed.
     if (shardable) {
       if (input.check) receipt.phases.push(await runPhase('check', input.check, PATH));
-      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) receipt.proofPlan = shardPlan;
+      if (plan.proofCommand && receipt.phases.every(phase => phase.status === 0)) { receipt.proofPlan = shardPlan; receipt.proofPlan.needs = await proofNeeds(plan.proofFiles); }
       else if (plan.proofCommand) receipt.phases.push(await runPhase('proof', plan.proofCommand, PATH, selected));
     } else receipt.phases.push(...await Promise.all([['check', input.check], ['proof', plan.proofCommand]].filter(([, command]) => command).map(([role, command]) => runPhase(role, command, PATH, role === 'proof' ? selected : null))));
     // A green proof that left a selected file unreported is red, as the controller gate refuses it [C7].
@@ -663,7 +676,13 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) }));
+  const job = withBoard(ctx, board => {
+    const reopened = openJob(board.db, { kind: 'gate', item: id, candidate: source });
+    const offered = offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) });
+    // The submit's own instant is recorded only for a job this call offered; a retried submit that gets the open job writes nothing [C7].
+    if (!reopened) recordSubmitOffered(board, { item: id, by: me.id, commit, job: offered.id, main: main.commit });
+    return offered;
+  });
   mark('pins-and-offer');
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].

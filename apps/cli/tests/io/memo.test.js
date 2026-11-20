@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/env/index.js packages/env/src/io/env.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
+/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/env/index.js packages/env/src/io/env.js packages/fs/index.js packages/fs/src/io/fs.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
 /** Runners share one cells fixture-analysis memo through the controller; a bad memo never replaces good entries [C7]. */
 /** @pullboard-world-pin: the runner fixture carries the shipped memo-share module, the code a pinned main's archive holds. */
 import { test } from 'node:test';
@@ -103,6 +103,8 @@ function fixture(t) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('apps/cli/src/io/memo.js', readFileSync(fileURLToPath(new URL('../../src/io/memo.js', import.meta.url)), 'utf8'));
+  // The memo module reads node:fs through the file-system adapter, so the runner clone carries the real adapter cell.
+  for (const path of ['packages/fs/index.js', 'packages/fs/src/io/fs.js']) put(path, readFileSync(fileURLToPath(new URL(`../../../../${path}`, import.meta.url)), 'utf8'));
   for (const path of ['packages/env/index.js', 'packages/env/src/io/env.js']) put(path, readFileSync(fileURLToPath(new URL('../../../../' + path, import.meta.url)), 'utf8'));
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
@@ -110,6 +112,8 @@ export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { return { proofFiles: ['test/a.test.js'], check: options.check }; }
 export async function submitGateAdmission() { return { browser: false, gui: false }; }
 `);
+  // The runner entries import the gate heavy door (684e8be2d7); the stand-in door re-exports the index stand-in.
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
   put('apps/cli/src/io/cells/cache.js', `import { join } from 'node:path';

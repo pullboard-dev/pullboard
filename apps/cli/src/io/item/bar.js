@@ -92,11 +92,55 @@ export function requireRegistryRecord(tracked, named, isTest) {
     if (at < 0 || !isTest(path) || path.slice(at).startsWith('/tests/registry')) continue;
     const cell = path.slice(0, at);
     if (!tracked.some(file => file.startsWith(`${cell}/tests/registry`) && isTest(file))) continue;
-    if (named.some(other => other.startsWith(`${cell}/tests/fixtures/registry`) && other.endsWith('.json'))) continue;
+    if (named.some(other => (other.startsWith(`${cell}/tests/fixtures/registry`) || other === `${cell}/tests/registry.json`) && other.endsWith('.json'))) continue;
     const record = `${cell}/tests/fixtures/registry.json`;
     throw new Refused('REGISTRY_TEST_ID', `the bar names ${path}, a test in a strict-registry cell, but not its registry record ${record}`,
       `name ${record} in the bar and title each test <cell id>.<area>.<name>: clause N: ..., not a bare clause N title`);
   }
+}
+
+/** The item branch names (`<lane>/item-<id>`) present in the repository, as a set. */
+function itemBranches(root) {
+  const listed = tryGit(root, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']);
+  return new Set(listed.status === 0 ? listed.stdout.split('\n').filter(Boolean) : []);
+}
+
+/**
+ * Refuse a bar that names a path missing from main which the unmerged branch of another open, accepted or verified item adds,
+ * unless --after already names that item; the refusal names each such item and the rerun (#11741).
+ * Why: 5+ builders were released BLOCKED on a file an accepted item had not yet landed; add and edit catch it before a claim cycle.
+ * Only paths are read, from one branch listing and one added-files diff per candidate item with a branch.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, check?: string }} bar
+ * @param {{ on: boolean, after?: Array<string|number>, self?: number|null, items: () => any[] }} options
+ *   on is the items.barRulesAtAdd machine setting (off accepts any bar); after is the item's own --after list; self is the edited item;
+ *   items reads the board's items, called only once a missing path needs a waiting item.
+ */
+export function requireAfterNeeded(ctx, bar, { on, after = [], self = null, items }) {
+  if (!on) return;
+  const named = barPaths({ criterion: bar.criterion, check: bar.check }).filter(path => !path.endsWith('/'));
+  if (!named.length) return;
+  const found = onTrunk(ctx.info.root)(named);
+  const missing = named.filter(path => !found.has(path));
+  if (!missing.length) return;
+  const root = ctx.info.root, trunk = trunkBranch(root), branches = itemBranches(root);
+  const already = new Set((Array.isArray(after) ? after : String(after ?? '').split(',')).filter(Boolean).map(id => String(id).trim().replace(/^.*#/u, '')));
+  const waits = [];
+  for (const item of items()) {
+    const open = item.item_status === 'open' || item.item_status === 'submitted' || (item.item_status === 'verified' && !item.item_merged_commit);
+    const branch = `${item.item_lane}/item-${item.item_id}`;
+    if (!open || item.item_id === self || already.has(String(item.item_id)) || !branches.has(branch)) continue;
+    const added = tryGit(root, ['diff', '--name-only', '--diff-filter=A', `${trunk}...${branch}`]);
+    if (added.status !== 0) continue;
+    const adds = new Set(added.stdout.split('\n').filter(Boolean));
+    const paths = missing.filter(path => adds.has(path));
+    if (paths.length) waits.push({ id: item.item_id, paths });
+  }
+  if (!waits.length) return;
+  const ids = waits.map(wait => wait.id).sort((a, b) => a - b);
+  throw new Refused('AFTER_NEEDED', `the bar names ${waits.map(wait => `${wait.paths.join(', ')} (added by the unmerged branch of #${wait.id})`).join('; ')}, missing from main`,
+    `rerun with --after ${ids.join(',')}`);
 }
 
 /**
@@ -214,6 +258,27 @@ export async function requireCellTestFixture(ctx, bar, on, exempt = false) {
 export async function requireBarPathsOnMain(ctx, bar) {
   const refusal = await missingPathRefusal(ctx, bar);
   if (refusal) throw refusal;
+}
+
+/**
+ * Refuse a brief Files entry absent from main unless a criterion clause names it, so a builder is never told to edit a file that
+ * is not there and no clause says to create it [C7,#12124].
+ * Why: a brief Files line is the builder's map; an entry missing from main with no clause creating it is a typo or a move.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, brief?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any brief as written.
+ */
+export function briefFilesAbsentFromMain(ctx, bar, on) {
+  if (!on) return;
+  const files = [...new Set(briefFiles(bar.brief ?? '').filter(file => !file.endsWith('/')))];
+  if (!files.length) return;
+  const found = onTrunk(ctx.info.root)(files);
+  const created = String(bar.criterion ?? '');
+  const absent = files.filter(file => !found.has(file) && !created.includes(file));
+  if (!absent.length) return;
+  throw new Refused('BRIEF_FILE_MISSING', `the brief Files list names ${absent.join(', ')}, absent from main, and no clause creates it`,
+    'add a clause that creates the file, or remove the entry from the brief Files list (pullboard edit <id> --criterion/--brief)');
 }
 
 /**

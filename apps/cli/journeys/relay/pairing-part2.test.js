@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createPairingCode } from '../../../../packages/person/index.js';
@@ -69,7 +70,7 @@ test('cli.journeys-relay-pairing-part2.pairing-http-authenticates-repository-acc
   });
   const issued = createPairingCode(BOARD);
   const larger = bundle({ snapshot: { version: 1, tables: {
-    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: 'x'.repeat(20_000_000) }],
+    board_meta: [{ meta_key: 'board_id', meta_value: BOARD }], event: [{ event_id: 14 }], marker: [{ value: randomBytes(20_000_000).toString('base64') }],
   } } });
   const sealed = await sealPairingBundle(issued.code, larger);
   assert.ok(Buffer.byteLength(JSON.stringify({ sealed })) > 20_000_000, 'the encrypted package exceeds the former HTTP body bound');

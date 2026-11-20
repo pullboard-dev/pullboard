@@ -1,0 +1,4 @@
+{
+  "store.io-board-claim.after-gate-green-parent-claims": {"proves":{"specs":["C7"],"claim":"A claim of a dependent whose after-gate parent is submitted with a green gate at its submitted head is accepted and records the parent id and head under board_meta after_gate_base."},"why":"A dependent can start on a gate-green parent instead of waiting for it to land, building on the parent's submitted head.","kind":"cell unit","inputs":["packages/store/tests/io/board/claim.test.js"]},
+  "store.io-board-claim.not-green-or-plain-after-refuses": {"proves":{"specs":["C7"],"claim":"A claim whose after-gate parent has a red, running or stale-head gate, and a claim whose plain --after parent is only submitted, are each refused BLOCKED."},"why":"Only a parent proven green at its submitted head may be built on early; every other wait still blocks.","kind":"cell unit","inputs":["packages/store/tests/io/board/claim.test.js"]}
+}
