@@ -149,3 +149,4 @@ export { recordPulled, pullingLanding } from './src/io/board/pulled.js';
 export { readShadows } from './src/io/board/shadow-record.js';
 export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction, dueEscalations, escalateEntries } from './src/logic/board/entries.js';
 export { spoolFile, spoolInboxMarks, drainInboxMarks } from './src/io/inbox-marks.js';
+export { commitMove, connectBoardWriter, createBoardWriter, serveBoardWriter } from './src/io/board/writer.js';
