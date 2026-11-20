@@ -1,0 +1,17 @@
+{
+  "cli.journeys-verify-sealed-no-check.reuses-after-main-moves": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an item with no frozen check, submitted on a green gate, still has its sealed receipts reused by verify --accept after main moves by a file neither it nor its proof reached, with no tier tests run."
+    },
+    "why": "Without it verify re-ran the supplement tiers for every no-check item once main moved.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/verify/sealed-no-check.test.js",
+      "apps/cli/src/io/commands/verify.js",
+      "packages/verify/src/io/reuse.js"
+    ]
+  }
+}

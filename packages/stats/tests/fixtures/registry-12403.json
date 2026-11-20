@@ -1,0 +1,30 @@
+{
+  "stats.logic-flow-replay.tuned-applies-cycles": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "replayTuned replays with replayFlow and, at each landing time the cycle clock says is due, builds the last two four-hour windows, applies the one chooseTuning change to the policy from then on, and reverts it at the next due cycle when revertTuning says revert."
+    },
+    "why": "Without it the replay cannot show what the line tuner would have done to a recorded history.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/flow/replay.js",
+      "packages/stats/tests/logic/flow/replay.test.js"
+    ]
+  },
+  "stats.logic-flow-replay.tuned-side-by-side": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "replayTuned returns tuned, untuned and changes; untuned equals replayFlow for the same events and policy, both carry each stage median, and the same input gives the same result twice."
+    },
+    "why": "Without it a tuned replay could not be compared with the untuned one, or checked to be repeatable.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/stats/src/logic/flow/replay.js",
+      "packages/stats/tests/logic/flow/replay.test.js"
+    ]
+  }
+}

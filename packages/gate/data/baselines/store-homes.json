@@ -445,11 +445,6 @@
     "request.json": 1,
     "board.sqlite": 1
   },
-  "packages/resources/src/io/handoff/worker/cap.js": {
-    "request.json": 1,
-    "submission.json": 1,
-    "refusal.json": 1
-  },
   "packages/resources/src/io/heartbeat/blocked.js": {
     "table:holder": 1
   },

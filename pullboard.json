@@ -8,6 +8,7 @@
   "affectedTests": "node packages/gate/src/io/run/tests.js",
   "submitGate": "landing",
   "submitDeferAbove": 20,
+  "confinedImportSelection": "tests",
   "landingShards": 6,
   "pushGate": { "shardMinutes": 40 },
   "landing": {
@@ -59,7 +60,7 @@
     ],
     "auditOnly": [
       "apps/cli/journeys/verify/machine.test.js",
-      "apps/cli/journeys/submit/steps.test.js",
+      "apps/cli/tests/io/submit/steps.test.js",
       "apps/cli/journeys/merged/e2e.test.js",
       "docs/formats.test.js",
       "apps/cli/journeys/verify/check.test.js"
@@ -74,7 +75,7 @@
     "returnToBoard": true
   },
   "submitInvariants": [
-    "apps/cli/journeys/submit/steps.test.js",
+    "apps/cli/tests/io/submit/steps.test.js",
     "apps/cli/journeys/verify/machine.test.js"
   ],
   "registryGuards": [
@@ -421,7 +422,8 @@
     "outbox": true
   },
   "cells": {
-    "cache": true
+    "cache": true,
+    "plan": "packages/codemap/data/plan/cells.json"
   },
   "worktreeMaintenance": {
     "enabled": true,

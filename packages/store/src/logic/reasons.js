@@ -15,7 +15,7 @@ export const REVIEW_RELEASE_REASONS = Object.freeze(['BAR', 'FAMILY', 'INFRA', '
 /** Codes only a review release may carry; a build release names one of the older reasons. */
 export const REVIEW_ONLY_REASONS = Object.freeze(['BAR', 'FAMILY', 'TOO_LARGE']);
 
-/** A release carries a code from the fixed list; OTHER also needs its text in the note. */
+/** A release carries a code from the fixed list; OTHER and INELIGIBLE also need their text in the note. */
 export function releaseReasonProblem(code, note, engine = ENGINE_VERSION) {
   if (!RELEASE_REASONS.includes(code)) return new Refused('RELEASE_REASON', `a release names why: --reason ${RELEASE_REASONS.join('|')} (OTHER also needs --note "what happened")`);
   if (code === 'DIAGNOSIS_WRONG' && engine < TWO_TIER_DIAGNOSIS_ENGINE) return new Refused('ENGINE_VERSION', 'wrong-diagnosis releases need the current engine; upgrade Pullboard');
@@ -23,6 +23,7 @@ export function releaseReasonProblem(code, note, engine = ENGINE_VERSION) {
   if (code === 'TAKEN_OVER' && engine < TAKEN_OVER_RELEASE_ENGINE) return new Refused('ENGINE_VERSION', 'taken-over releases require the current engine; upgrade Pullboard on every linked device');
   if (code === 'INFRA' && engine < INFRA_RELEASE_ENGINE) return new Refused('ENGINE_VERSION', 'infrastructure releases require the current engine; upgrade Pullboard on every linked device');
   if (REVIEW_ONLY_REASONS.includes(code) && engine < REVIEW_RELEASE_REASON_ENGINE) return new Refused('ENGINE_VERSION', 'review release reasons require the current engine; upgrade Pullboard on every linked device');
+  if (code === 'INELIGIBLE' && !(typeof note === 'string' && note.trim())) return new Refused('RELEASE_REASON', 'INELIGIBLE needs the reason in --note "why it cannot be built as written" so the re-bar has something to act on');
   if (code === 'OTHER' && !(typeof note === 'string' && note.trim())) return new Refused('RELEASE_REASON', 'OTHER needs the reason in --note "what happened"');
   return null;
 }

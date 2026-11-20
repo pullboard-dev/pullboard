@@ -1,6 +1,7 @@
 /** Tests generated from the reclaim table: every guard and outcome row over thousands of seeded maintenance observations, checked against the rules restated here, and metamorphic breaks that must refuse or must not matter [C7,#8560]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { RECLAIM_LIMITS } from '../../../index.js';
 import { RECLAIM_RULES } from '../../../index.js';
 import { RECLAIM_TABLE } from '../../../index.js';
 import { runTable } from '../../../index.js';
@@ -18,8 +19,8 @@ const run = (snapshot, move) => runTable(RECLAIM_TABLE, RECLAIM_RULES, structure
 const LIMITS = { claim: 30 * MIN, review: 30 * MIN, dependency: 60 * MIN };
 const HANDOFF = { pin: `refs/pullboard/handoffs/${ID}/a`, head: 'ab'.repeat(20), changedFiles: ['a.js'], changedCount: 1 };
 
-/** The quiet an idle claim must reach, in words restated here: a stall 20 minutes, a release 40 (30 when its work is pinned), a dependency its own limit. */
-const QUIET = { stall: 20 * MIN, release: 40 * MIN, dependency: LIMITS.dependency };
+/** The quiet an idle claim must reach, in words restated here: a stall 20 minutes, a release 30, a dependency its own limit. */
+const QUIET = { stall: 20 * MIN, release: 30 * MIN, dependency: LIMITS.dependency };
 
 /** A held item, the seat's last claim, and the move to reclaim it as `idle`; `extra` completes the kind's own captured facts. */
 function idle(kind, g) {
@@ -28,7 +29,7 @@ function idle(kind, g) {
   const m = { kind: 'idle', maintainer: 'm1', observedAt: NOW, limits: LIMITS, row };
   if (['stall', 'release', 'dependency'].includes(kind)) {
     if (kind === 'release') s.pinned = g.pick([true, false]);
-    const quiet = (kind === 'release' && s.pinned ? 30 * MIN : QUIET[kind]) + g.int(4) * MIN;
+    const quiet = QUIET[kind] + g.int(4) * MIN;
     Object.assign(row, { idleMs: quiet, workActivity: ago(quiet) });
     if (kind === 'dependency') Object.assign(s, { waiters: [{ id: 50 }], lastWork: row.workActivity }), Object.assign(row, { dependents: [{ id: 50 }], resourceQuiet: true });
   }
@@ -274,4 +275,39 @@ test('moves.reclaim.gate-settled-decides: clause 2: the same observations with g
     assert.equal(today.refused, undefined, `${c.label} is accepted`);
     assert.deepEqual(run({ ...structuredClone(c.base.s), gateInFlight: false }, c.base.m), today, `${c.label}: false decides as absent`);
   }
+});
+
+/** The release each accepted observation records, run again with the move marked as written at the board-codes engine or not. */
+const released = (c, boardCodes) => run(c.s, boardCodes ? { ...c.m, boardCodes: true } : c.m).events.at(-1).detail;
+const CODES = { 'seat-gone': 'SEAT_GONE', waiting: 'BLOCKED', progress: 'NO_PROGRESS', release: 'BUILDER_SILENT', dependency: 'BUILDER_SILENT', lapsed: 'LEASE_LAPSED', review: 'REVIEW_IDLE', 'review-lapse': 'REVIEW_LEASE_LAPSED' };
+
+test('moves.table.release-board-codes: clause 1: a move carrying boardCodes releases with BUILDER_SILENT, SEAT_GONE, BLOCKED when waiting, NO_PROGRESS on progress, LEASE_LAPSED, REVIEW_IDLE and REVIEW_LEASE_LAPSED, each with its prose reason unchanged [C7]', () => {
+  const seen = new Set();
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    const on = released(c, true), off = released(c, false);
+    assert.equal(on.reasonCode, CODES[c.label], `seed ${c.seed}: ${c.label}`);
+    assert.equal(on.reason, off.reason, `seed ${c.seed}: the prose reason stays beside the code`);
+    seen.add(c.label);
+  }
+  for (const kind of ['seat-gone', 'waiting', 'progress', 'release', 'lapsed', 'review', 'review-lapse']) assert.ok(seen.has(kind), `no accepted ${kind} case`);
+});
+
+test('moves.table.release-board-codes-off: clause 2: with no boardCodes in the move every one of those releases still carries OTHER, or BLOCKED for a waiting claim, exactly as before [C7]', () => {
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    assert.equal(released(c, false).reasonCode, c.label === 'waiting' ? 'BLOCKED' : 'OTHER', `seed ${c.seed}: ${c.label}`);
+  }
+});
+
+test('moves.logic-table-reclaim-generated.idle-release-30: clause 1: RECLAIM_LIMITS.idleReleaseMs is 30 minutes, and an idle release row quiet for 30 minutes is accepted while one quiet for 29 is refused BAD_STALE_STATE; clause 2: the limit comes from RECLAIM_LIMITS through the front door [C7]', () => {
+  assert.equal(RECLAIM_LIMITS.idleReleaseMs, 30 * 60_000);
+  const g = { pick: list => list[list.length - 1], int: () => 0 };
+  const at = quietMs => {
+    const c = idle('release', g);
+    c.s.pinned = false;
+    Object.assign(c.m.row, { idleMs: quietMs, workActivity: ago(quietMs) });
+    return run(c.s, c.m);
+  };
+  assert.equal(at(30 * MIN).refused, undefined, 'a release quiet for 30 minutes is accepted');
+  const short = at(29 * MIN);
+  assert.deepEqual([short.refused?.row, short.refused?.code], ['idle-proven', 'BAD_STALE_STATE']);
 });

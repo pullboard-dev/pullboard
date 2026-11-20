@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 
 const REPO = resolve(import.meta.dirname, '../../../../../..');
-const HELPERS = ['apps/cli/src/io/alive.js', 'apps/cli/src/io/reclaim.js', 'apps/cli/src/io/disk/use.js'];
+const HELPERS = ['apps/cli/src/io/reclaim.js', 'apps/cli/src/io/disk/use.js'];
 /** Modules a status helper must never load: everything startup-heavy.json audits for a read, bar the state machine the store light door reaches. */
 const HEAVY = ['packages/commits/src/io/hooks.js', 'packages/gate/src/io/check/baseline.js', 'packages/gate/src/io/run/shell.js', 'packages/resources/index.js',
   'packages/sandbox/src/io/trusted/policy.js', 'packages/sentinels/src/io/main.js', 'packages/store/index.js', 'packages/store/src/io/board.js',

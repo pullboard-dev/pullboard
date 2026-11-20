@@ -6,11 +6,13 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
 import { join } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 // Budget: a pair reruns at most 8 files of 20 cases each, so a red with hundreds of cases stays one bounded diagnostic.
 const MOST_FILES = 8;
@@ -108,7 +110,7 @@ export async function pairReds({ root, phases, flakes, mainRoot, env, readOutcom
   for (const target of targets) {
     const argv = [...target.prefix.split(/\s+/u), '--test-name-pattern', namePattern(target.names), target.file];
     const paired = await probe(argv, root, env, { readOutcomes, timingEnv }, target.file, target.names);
-    const atMain = trunk && existsSync(join(trunk, target.file)) ? await probe(argv, trunk, env, { readOutcomes, timingEnv }, target.file, target.names) : null;
+    const atMain = trunk && fs.exists(join(trunk, target.file)) ? await probe(argv, trunk, env, { readOutcomes, timingEnv }, target.file, target.names) : null;
     pairs.push({ phase: target.phase, file: target.file, names: target.names, commandSha256: createHash('sha256').update(argv.join(' ')).digest('hex'),
       load, paired, main: atMain });
   }

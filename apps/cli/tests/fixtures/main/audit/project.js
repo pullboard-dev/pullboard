@@ -1,6 +1,6 @@
 /** @pullboard-module-loads apps/lib/index.js packages/gate/src/io/main/audit/state.js packages/gate/src/io/run/receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/landing/audit.js apps/lib/index.js packages/gate/index.js packages/gate/src/io/browser/guard.js packages/gate/tests/fixtures/budgets.js */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/landing/audit.js apps/lib/index.js packages/gate/heavy.js packages/gate/index.js packages/gate/src/io/browser/guard.js packages/gate/tests/fixtures/budgets.js */
 import { executionServicesSource } from '../../gate/execution.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -35,7 +35,7 @@ import { repoPath } from '../../../../../../packages/kernel/light.js';
 import {
   mainAuditKey,
   readMainAudit,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 /** Read only the exact native audit identity; malformed or mismatched journals fail the owning fixture. */
 export function readAuditJob(directory, key) {
   assert.match(key, /^[a-f0-9]{64}$/u, 'audit journal identity is the exact native digest');

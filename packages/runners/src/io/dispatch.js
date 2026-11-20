@@ -11,17 +11,13 @@ import { requestFor } from './request.js';
 import { forgetRuntimeHeld } from './runtime.js';
 import { recordRuntimeHeld } from './runtime.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { writeScreenshots } from '../../../transport/index.js';
 import { resultFrom } from './result.js';
 import { runnerFailure } from './result.js';
 import { readCleanupTimeoutDetails } from '../logic/diagnostics.js';
 import { cleanupProcessText } from '../logic/diagnostics.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { closeSync } from 'node:fs';
-import { createReadStream } from 'node:fs';
-import { openSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { MAX_OUTPUT_BYTES } from './bridge.js';
@@ -41,6 +37,9 @@ export { startupDeadline } from './bridge.js';
 export { ownedTransportCompletion } from '../../../transport/index.js';
 import { controllerWake } from './controller/watch.js';
 import { PARENT_PIPE_FD } from './controller/watch.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 
 // Budget: after the receipt, wait this long for the last output bytes before ending the transport; the worker finishes cleanup on its own.
@@ -76,7 +75,7 @@ export async function serveRunnerController(ports) {
   process.stdout.on('error', abort);
   const roots = [...new Set([request.root, fileURLToPath(new URL('../../../../', import.meta.url))])];
   const identities = roots.map(root => {
-    try { const state = statSync(root); return { root, dev: state.dev, ino: state.ino }; }
+    try { const state = fs.stat(root); return { root, dev: state.dev, ino: state.ino }; }
     catch (error) { return { root, error: error.code }; }
   });
   let item;
@@ -99,7 +98,7 @@ export async function serveRunnerController(ports) {
     for (const expected of identities) {
       let reason;
       try {
-        const state = statSync(expected.root);
+        const state = fs.stat(expected.root);
         if (expected.error || !state.isDirectory() || state.dev !== expected.dev || state.ino !== expected.ino) reason = 'source identity changed';
       } catch (error) { reason = `source observation failed: ${error.code}`; }
       if (reason) {
@@ -166,7 +165,7 @@ async function runInController(root, command, options, ports) {
   const jobCancellation = new AbortController();
   let rawFd = null;
   try {
-    if (request.rawOutputPath) rawFd = openSync(request.rawOutputPath, 'wx', 0o600);
+    if (request.rawOutputPath) rawFd = fs.open(request.rawOutputPath, 'wx', 0o600);
     /** Record when each dispatch phase began, so a slow shard names its slow step [C7]. */
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
@@ -230,7 +229,7 @@ async function runInController(root, command, options, ports) {
         if (error) return;
         try {
           for (let offset = 0; offset < chunk.length;) {
-            const written = writeSync(rawFd, chunk, offset, chunk.length - offset);
+            const written = fs.write(rawFd, chunk, offset, chunk.length - offset);
             if (written <= 0) throw new Error('private-check output made no capture progress');
             offset += written;
           }
@@ -300,7 +299,7 @@ async function runInController(root, command, options, ports) {
           }
           mark('pack');
           const pack = historyPack(root, request.source, inventory.tips, request.directory, request.spec.tags, inventory.tagObjects);
-          await pipeline(createReadStream(pack), child.stdin);
+          await pipeline(fs.createReadStream(pack), child.stdin);
           if (request.phase !== 'ready') mark('source-sent');
         })().catch(failure => { error ??= failure; transport.stop(); });
       }
@@ -319,12 +318,15 @@ async function runInController(root, command, options, ports) {
     jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch);
     if (transfer) await transfer;
     if (error instanceof Refused) throw error;
-    if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
+    if (rawFd !== null) { fs.close(rawFd); rawFd = null; }
     const bounded = request.rawOutputPath ? Buffer.concat([head, ...(rawBytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]) : Buffer.concat(output);
-    return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
+    const verified = resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
+    if (!verified.screenshots) return verified;
+    const { screenshots, ...rest } = verified;
+    return { ...rest, screenshotsPath: await writeScreenshots(root, request.spec.id, screenshots) };
   } finally {
-    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); clearTimeout(runCeilingTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
+    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); clearTimeout(runCeilingTimer); if (rawFd !== null) fs.close(rawFd); removeAbort();
     request.cleanup();
   }
 }

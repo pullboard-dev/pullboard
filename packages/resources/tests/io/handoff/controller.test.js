@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/resources/index.js packages/resources/src/io/handoff/worker/cap.js */
+/** @pullboard-test-input packages/resources/index.js */
 /** The machine dispatcher, gate drive, handoff worker, its cap and lifeline are deleted; nothing starts them [C7,#6579,#6580]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -29,9 +29,8 @@ test('resources.controller.resources-exports-no-dispatch-entry-and: clause 2: re
     assert.equal(name in resources, false, `resources still exports ${name}`);
   }
   for (const file of ['packages/resources/src/io/handoff/recovery.js']) assert.equal(existsSync(join(REPO, file)), false, `${file} still exists`);
-  const launchers = /gate\/drive\.js|handoff\/dispatcher\.js|worker\/detach\.js/u;
+  const launchers = /gate\/drive\.js|handoff\/dispatcher\.js/u;
   const offenders = resourceSources()
-    .filter(file => !file.endsWith('worker/detach.js'))
     .filter(file => launchers.test(readFileSync(join(REPO, file), 'utf8')));
   assert.deepEqual(offenders, []);
 });

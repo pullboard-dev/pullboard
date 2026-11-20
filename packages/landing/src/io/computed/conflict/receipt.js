@@ -1,8 +1,7 @@
-import { effectiveItemHead } from '../../../../../verify/index.js';
+import { effectiveItemHead } from '../../../../../verify/read.js';
 import { isRecordedConflictContext } from '../../../../../state/index.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { repoInfo } from '../../../../../git/index.js';
 import { recordedTrunkMerge } from '../../../../../merge/index.js';
 import { trunkMerge } from '../../../../../merge/index.js';
@@ -10,6 +9,8 @@ import { refuseRecordedHistoryOverrides } from '../../../../../merge/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../../../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const ID = /^[a-f0-9-]{36}$/u;
@@ -37,7 +38,7 @@ const PREPARED_FOR_WRITER = new WeakSet();
 function objectStore(board) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   const common = file ? dirname(dirname(file)) : null;
-  if (common && existsSync(join(common, 'objects'))) return common;
+  if (common && fs.exists(join(common, 'objects'))) return common;
   const root = board.db.prepare("SELECT agent_path FROM agent WHERE agent_id='coordinator'").get()?.agent_path;
   try { if (root) return repoInfo(root).commonDir; } catch { /* Missing local objects are a recoverable replay refusal. */ }
   throw new Refused('MERGE_CHECK_FAILED', 'fetch the recorded submitted and trunk commits into this replica repository before resuming the move');

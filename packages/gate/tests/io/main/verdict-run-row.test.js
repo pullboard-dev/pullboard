@@ -5,9 +5,9 @@ import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 import * as jobs from '../../../../jobs/index.js';
 import { awaitingVerdictRuns } from '../../../../store/index.js';
 import { writeVerdictRun } from '../../../../store/index.js';
-import { finishAwaitingVerdicts } from '../../../index.js';
-import { recordGateVerdict } from '../../../index.js';
-import { returnMainTest } from '../../../index.js';
+import { finishAwaitingVerdicts } from '../../../heavy.js';
+import { recordGateVerdict } from '../../../heavy.js';
+import { returnMainTest } from '../../../heavy.js';
 
 const base = { commit: 'c'.repeat(40), tree: 't'.repeat(40), at: 10_000 };
 const command = 'npm test --';

@@ -1,0 +1,4 @@
+{
+  "cli.logic-status-render.ready-buffer-line": {"proves":{"specs":["C7"],"claim":"statusLines prints one ready buffer line per route from readyByRoute and buildersByRoute, with the ratio to one decimal and no builders for a route with none."},"why":"Without it, the coordinator could not see ready items against builders per route in status.","kind":"cell unit","inputs":["apps/cli/tests/logic/status/render.test.js","apps/cli/src/logic/status/render.js"]},
+  "cli.io-commands-status.ready-buffer": {"proves":{"specs":["C7"],"claim":"The real status command carries buildersByRoute beside readyByRoute in its summary and prints a ready buffer line for each route."},"why":"Without it, the render could pass while status never computes builders per route.","kind":"journey","inputs":["apps/cli/tests/io/commands/status.test.js","apps/cli/src/io/commands/status.js","apps/cli/src/logic/status/render.js"]}
+}

@@ -1,0 +1,16 @@
+{
+  "cli.io-commands-add.accepts-a-registry-json-kept-in-the-cell-tests-folder": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A bar naming a registry.json directly under a strict-registry cell's tests folder is accepted as the registry record."
+    },
+    "why": "Without it, items whose cell keeps its records in tests/registry.json could not be re-barred.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/add.test.js",
+      "apps/cli/src/io/item/bar.js"
+    ]
+  }
+}

@@ -6,6 +6,8 @@ import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { wallLoadFactor } from '../../../../drive/light.js';
 import { readyItems } from '../../../../queue/index.js';
+import { reviewQueueLine as indexReviewQueueLine } from '../../../index.js';
+import { reviewQueueLine as lightReviewQueueLine } from '../../../light.js';
 
 /** The pre-index reference: every candidate against every item. */
 function naive(item, items) {
@@ -43,4 +45,10 @@ test('verify.queue.speed: clause 2: queue on a 3,000-item fixture runs in under 
   assert.ok(ready.length >= 2000);
   const budgetMs = 200 * wallLoadFactor(loadavg()[0], availableParallelism());
   assert.ok(ms < budgetMs, `took ${ms.toFixed(0)} ms of ${budgetMs.toFixed(0)}`);
+});
+
+/** The light door answers as the index door does, so a status caller no longer needs the heavy front door [C7]. */
+test('verify.review-queue.light-door-exports-line: the light door exports the index door\'s reviewQueueLine [C7]', () => {
+  assert.equal(typeof lightReviewQueueLine, 'function');
+  assert.equal(lightReviewQueueLine, indexReviewQueueLine, 'one function behind both doors');
 });
