@@ -14,7 +14,10 @@ export function seedRealSize(box) {
     VALUES (?, ?, ?, ?, ?, ?)`);
   const item = db.prepare(`INSERT INTO item (item_lane, item_title, item_criterion, item_route, item_created_by, item_created_at, item_updated_at)
     VALUES (?, ?, 'The real fixture succeeds.', ?, 'coordinator', ?, ?)`);
-  const event = db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
+  // One set-based insert: a recursive CTE numbers the rows, so the 230,000 events cost one statement, not 230,000 calls.
+  const events = db.prepare(`INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail)
+    WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM seq WHERE n + 1 < CAST(? AS INTEGER))
+    SELECT ?, 'real-' || (n % CAST(? AS INTEGER)), 'edit', CAST(? AS INTEGER) + (n % CAST(? AS INTEGER)), '{}' FROM seq`);
   const lanes = ['web', 'core', 'docs', 'review'];
   const routes = ['light', 'mid', 'strong'];
   const families = ['Family Alpha', 'Family Beta', 'Family Gamma'];
@@ -31,9 +34,10 @@ export function seedRealSize(box) {
       // The board files an item open and only moveItem changes its status, so review work is open items in the review lane.
       ids.push(Number(item.run('review', `Real review ${n}`, routes[n % routes.length], at, at).lastInsertRowid));
     }
-    for (let n = 0; n < REAL_SIZE.events; n++) {
-      event.run(at, `real-${n % REAL_SIZE.agents}`, 'edit', ids[n % ids.length], '{}');
-    }
+    // The fixture's own setup left a few events and the event table is append-only, so the seed adds only the rest: the board holds exactly REAL_SIZE.events.
+    const prior = db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
+    // The items were inserted back to back, so their ids run from ids[0] without a gap.
+    events.run(REAL_SIZE.events - prior, at, REAL_SIZE.agents, ids[0], ids.length);
     // A real board's writers fold each event into its derived counters as they record it; raw inserts skip that, so the
     // seed catches them up here, as a writable open would, rather than inside the first measured next (#6357).
     box.board.runtimePorts.lifecycle.ensureProofCounters(box.board, { refresh: false });
