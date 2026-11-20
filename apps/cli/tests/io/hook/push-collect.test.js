@@ -7,7 +7,7 @@ import { combinedReceipt } from '../../../../../packages/api/index.js';
 import { failingParts } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { postReceipt } from '../../../../../packages/api/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitPushShards } from '../../../src/io/hook/push.js';
 import { shardProblem } from '../../../src/io/hook/push.js';
 
@@ -17,7 +17,7 @@ const plan = { shards: [{ files: ['a.test.js', 'ok.test.js'] }, { files: ['b.tes
 /** A red shard receipt whose proof phase names the one file that failed. */
 const red = file => ({ status: 1, gate: { green: false, phases: [{ role: 'proof', status: 1, failedFiles: [file] }] } });
 
-test('clause 1: a shard that posts red does not stop the gate, which waits for the other shard [C7,#8034]', async t => {
+test('cli.io-hook-push-collect.a-shard-that-posts-red-does-not: clause 1: a shard that posts red does not stop the gate, which waits for the other shard [C7,#8034]', async t => {
   const { db } = cellBoard(t, ':memory:');
   const clock = { at: 1_000_000 };
   for (const id of JOBS) offerJob(db, { id, kind: SHARD_JOB_KIND, priority: 'gate', now: clock.at });
@@ -39,7 +39,7 @@ test('clause 1: a shard that posts red does not stop the gate, which waits for t
   assert.deepEqual(settled.map(row => row.posted.receipt.status), [1, 1]);
 });
 
-test('clause 2: the result of a run with two red shards names every failing file and no passing one [C7,#8034]', () => {
+test('cli.io-hook-push-collect.the-result-of-a-run-with-two: clause 2: the result of a run with two red shards names every failing file and no passing one [C7,#8034]', () => {
   const settled = [{ job: JOBS[0], posted: { receipt: red('a.test.js') } }, { job: JOBS[1], posted: { receipt: red('b.test.js') } }];
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
   const problem = shardProblem(combined, settled, plan, JOBS, failingParts);

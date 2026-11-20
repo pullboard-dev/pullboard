@@ -1,9 +1,9 @@
 /** GitHub App user authorization and read-only repository checks for the relay (H8, H1). */
-import {
-  createPrivateKey,
-  sign,
-} from 'node:crypto';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { loadSigningAdapter } from '../../../../packages/keys/index.js';
+
+/** The App JWT is signed through the keys cell's signing adapter, never node:crypto directly [C7,#1428]. */
+const signing = (await loadSigningAdapter()).createSigningAdapter();
 
 export const GITHUB_API_VERSION = '2026-03-10';
 
@@ -86,20 +86,18 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
   const callback = endpoint(callbackURL);
 
   const installationTokens = new Map();
-  let key;
   if (privateKey) {
-    try { key = createPrivateKey(privateKey); } catch { throw new Refused('GITHUB_CONFIG', 'configure a valid GitHub App RSA private key'); }
-    if (key.asymmetricKeyType !== 'rsa') throw new Refused('GITHUB_CONFIG', 'configure a GitHub App RSA private key');
+    try { signing.signWith({ algorithm: 'RS256', privateKey }, 'probe'); } catch { throw new Refused('GITHUB_CONFIG', 'configure a valid GitHub App RSA private key'); }
   }
 
   /** Sign a short-lived App JWT; the deployment key never enters persistent auth state. */
   function appJWT() {
-    if (!key) throw new Refused('GITHUB_CONFIG', 'configure the GitHub App private key to check repository access');
+    if (!privateKey) throw new Refused('GITHUB_CONFIG', 'configure the GitHub App private key to check repository access');
     const issued = Math.floor(now() / 1000);
     const head = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
     const claims = Buffer.from(JSON.stringify({ iat: issued - 60, exp: issued + 540, iss: clientId })).toString('base64url');
     const unsigned = head + '.' + claims;
-    return unsigned + '.' + sign('RSA-SHA256', Buffer.from(unsigned), key).toString('base64url');
+    return unsigned + '.' + signing.signWith({ algorithm: 'RS256', privateKey }, unsigned);
   }
 
   /**
@@ -133,10 +131,13 @@ export function createGitHubClient({ clientId, clientSecret, callbackURL, oauthB
         const rate = ['x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-ratelimit-resource'].map(name => name + '=' + (response.headers.get(name) ?? '-'));
         log(`github refused ${url.pathname} status=${response.status} ${rate.join(' ')}`);
       }
-      if ([403, 429].includes(response.status) && response.headers.get('x-ratelimit-remaining') === '0') {
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const retryAfterSeconds = response.headers.get('retry-after') !== null && Number.isSafeInteger(retryAfter) && retryAfter >= 0 ? retryAfter : null;
+      if ([403, 429].includes(response.status) && (response.headers.get('x-ratelimit-remaining') === '0' || retryAfterSeconds !== null)) {
         await response.body?.cancel();
         const reset = Number(response.headers.get('x-ratelimit-reset'));
-        const when = Number.isSafeInteger(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : 'the rate limit resets';
+        const resetMs = Number.isSafeInteger(reset) && reset > 0 ? reset * 1000 : retryAfterSeconds !== null ? Date.now() + retryAfterSeconds * 1000 : 0;
+        const when = resetMs > 0 ? new Date(resetMs).toISOString() : 'the rate limit resets';
         throw new Refused('GITHUB_RATE_LIMITED', `GitHub rate limited the relay; wait until ${when}, then retry`);
       }
       if ([401, 403, 404].includes(response.status)) {

@@ -22,7 +22,7 @@ function run(cwd, command, args) {
   return execFileSync(command, args, { cwd, encoding: 'utf8' }).trim();
 }
 
-test('clause 1: selectedToolEntry reads the toolBuild policy with one git show per command [C7]', async () => {
+test('cli.io-pinned-tool-build.selectedtoolentry-reads-the-toolbuild-policy-with-one: clause 1: selectedToolEntry reads the toolBuild policy with one git show per command [C7]', async () => {
   const box = realpathSync(mkdtempSync(join(tmpdir(), 'policy-once-')));
   try {
     const repo = join(box, 'repo');
@@ -47,7 +47,7 @@ test('clause 1: selectedToolEntry reads the toolBuild policy with one git show p
   } finally { rmSync(box, { recursive: true, force: true }); }
 });
 
-test('tool discovery keeps symlinked and explicitly selected worktrees [C7]', () => {
+test('cli.io-pinned-tool-build.tool-discovery-keeps-symlinked-and-explicitly-selected: tool discovery keeps symlinked and explicitly selected worktrees [C7]', () => {
   const box = privateFixtureFiles('tool-discovery-').root;
   const oldDir = process.env.GIT_DIR, oldWorkTree = process.env.GIT_WORK_TREE;
   try {

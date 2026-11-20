@@ -7,7 +7,7 @@ import {
 } from 'node:crypto';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
-import { receiptBody } from '../../../../packages/gate/index.js';
+import { receiptBody } from '../../../../packages/gate/heavy.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,
@@ -55,7 +55,7 @@ function readFactScenario(box, root, body) {
   return JSON.parse(result.stdout.trim());
 }
 
-test('help starts no Git and linked-worktree status spawns at most four Git processes [C7]', async (t) => {
+test('cli.journeys-init-calls.help-starts-no-git-and-linked: help starts no Git and linked-worktree status spawns at most four Git processes [C7]', async (t) => {
   const box = await fixture(t);
   const version = resetAndCount(box, box.dir, '--version');
   assert.equal(version.count, 0, '--version has no repository work to do');
@@ -68,7 +68,7 @@ test('help starts no Git and linked-worktree status spawns at most four Git proc
 });
 
 /** Keep the ordinary work card on indexed reads and four fresh Git children, with diagnostics explicit. */
-test('ordinary resume reads its indexed work card with at most four Git processes [N19,N26,C7]', async (t) => {
+test('cli.journeys-init-calls.ordinary-resume-reads-its-indexed-work: ordinary resume reads its indexed work card with at most four Git processes [N19,N26,C7]', async (t) => {
   const box = await fixture(t);
   const resumed = resetAndCount(box, box.worker, 'resume', '--json');
   assert.ok(resumed.count <= 4, `linked-worktree resume started ${resumed.count} Git processes: ${box.readCalls()}`);
@@ -106,7 +106,7 @@ test('ordinary resume reads its indexed work card with at most four Git processe
 });
 
 /** Unrelated reads retain the original one-process repository miss and never request resume-only blobs. */
-test('ordinary Git scopes skip resume blobs and empty repository failures do not retry [C7,N19]', async (t) => {
+test('cli.journeys-init-calls.ordinary-git-scopes-skip-resume-blobs: ordinary Git scopes skip resume blobs and empty repository failures do not retry [C7,N19]', async (t) => {
   const box = await fixture(t);
   const standard = readFactScenario(box, box.worker, `const { repoInfo, mainSourceBlobs } = await import(${JSON.stringify(GIT_MODULE)});
     console.log(JSON.stringify(await withGitFacts(() => { const info = repoInfo(process.argv[1]);
@@ -123,7 +123,7 @@ test('ordinary Git scopes skip resume blobs and empty repository failures do not
 });
 
 /** Optional committed-source facts never replace Git's repository or detached-HEAD semantics. */
-test('combined Git source facts retain repository identity when optional doctrine is missing [C7,N19]', async (t) => {
+test('cli.journeys-init-calls.combined-git-source-facts-retain-repository: combined Git source facts retain repository identity when optional doctrine is missing [C7,N19]', async (t) => {
   const box = await fixture(t);
   const script = `const { repoInfo, mainSourceBlobs, mainCheckout } = await import(${JSON.stringify(GIT_MODULE)});
     console.log(JSON.stringify(await withGitFacts(() => { const info = repoInfo(process.argv[1]);
@@ -173,7 +173,7 @@ function seedRuleBudgetRun(box, { green = true, days = 0, tree, command, failure
   finally { store.closeBoard(board); }
 }
 
-test('populated rule receipt history preserves the linked status Git budget and current proof [C7,S1,A1]', async (t) => {
+test('cli.journeys-init-calls.populated-rule-receipt-history-preserves-the: populated rule receipt history preserves the linked status Git budget and current proof [C7,S1,A1]', async (t) => {
   const box = await fixture(t, { ruleProof: true });
   seedRuleBudgetRun(box, { green: false, days: 8, failures: [{ file: 'test/proven.test.js', name: 'expired red' }] });
   seedRuleBudgetRun(box, { green: false, days: 2, failures: [{ file: 'test/red.test.js', name: 'recent red' }] });
@@ -198,7 +198,7 @@ test('populated rule receipt history preserves the linked status Git budget and 
     'old green, wrong tree and wrong command prove nothing on the new tip; recent red is independent');
 });
 
-test('API read facts persist across request scopes and refresh after ref changes [A2,N26,C7]', async (t) => {
+test('cli.journeys-init-calls.api-read-facts-persist-across-request: API read facts persist across request scopes and refresh after ref changes [A2,N26,C7]', async (t) => {
   const box = await fixture(t);
   const result = readFactScenario(box, box.repo, `
 import { execFileSync } from 'node:child_process';
@@ -233,7 +233,7 @@ console.log(JSON.stringify({ initial, repeated, repeatedCalls, mutation }));
   assert.equal(result.mutation.after, result.mutation.next, 'the next API read sees and refreshes the changed ref');
 });
 
-test('an installed-source provenance miss is reused outside Git [A2,N26,C7]', async (t) => {
+test('cli.journeys-init-calls.an-installed-source-provenance-miss-is: an installed-source provenance miss is reused outside Git [A2,N26,C7]', async (t) => {
   const box = await fixture(t);
   const result = readFactScenario(box, box.dir, `
 import { readFileSync } from 'node:fs';
@@ -251,7 +251,7 @@ console.log(JSON.stringify({ first, repeated, repeatedCalls }));
   assert.equal(result.repeatedCalls, 0, 'a repeated installed-source read does not retry Git discovery');
 });
 
-test('API HEAD facts remain null outside Git [A2,N26,C7]', async (t) => {
+test('cli.journeys-init-calls.api-head-facts-remain-null-outside: API HEAD facts remain null outside Git [A2,N26,C7]', async (t) => {
   const box = await fixture(t);
   const result = readFactScenario(box, box.dir, `
 import { headTree } from ${JSON.stringify(GIT_MODULE)};
@@ -271,7 +271,7 @@ console.log(JSON.stringify(facts));
 });
 
 /** Exercise real Git batch framing, pinned bytes and refusal cleanup rather than mocking the stream. */
-test('committed resume files use one framed Git child and retain pinned Unicode bytes [N19,D1,C7]', async (t) => {
+test('cli.journeys-init-calls.committed-resume-files-use-one-framed: committed resume files use one framed Git child and retain pinned Unicode bytes [N19,D1,C7]', async (t) => {
   const box = await fixture(t);
   const file = 'rules with spaces.md';
   const source = '# Rules\n\nλ 🙂 café\n';

@@ -41,7 +41,7 @@ function fixture(t) {
 /** Drain promise continuations after advancing only this test's heartbeat intervals. */
 async function settle() { for (let turn = 0; turn < 12; turn += 1) await Promise.resolve(); }
 
-test('a relay stalled for 120 seconds cannot block the holder local landing heartbeat [Q1,Q3,H16]', async t => {
+test('lib.landing-lease.a-relay-stalled-for-120-seconds: a relay stalled for 120 seconds cannot block the holder local landing heartbeat [Q1,Q3,H16]', async t => {
   const box = fixture(t); const [board, replica] = box.boards;
   t.mock.timers.enable({ apis: ['setInterval', 'Date'], now: Date.parse('2026-01-01T00:00:00Z') });
   const actions = [];
@@ -73,7 +73,7 @@ test('a relay stalled for 120 seconds cannot block the holder local landing hear
   } finally { await lease.release(); }
 });
 
-test('coordinator takeover fences an unreleased foreign landing without inventing a new expiry [Q1,Q3,E19]', t => {
+test('lib.landing-lease.coordinator-takeover-fences-an-unreleased-foreign: coordinator takeover fences an unreleased foreign landing without inventing a new expiry [Q1,Q3,E19]', t => {
   const box = fixture(t); const [board, replica] = box.boards;
   const first = { agentId: 'coordinator', action: 'request', token: randomUUID(), branch: 'refs/heads/main', pid: process.pid };
   const grant = box.move(board, 'landingLeaseMove', [first]);
@@ -89,7 +89,7 @@ test('coordinator takeover fences an unreleased foreign landing without inventin
 });
 
 
-test('physical heartbeat identity cannot attach to another board or arrive in an import [Q1,Q3,H16]', async t => {
+test('lib.landing-lease.physical-heartbeat-identity-cannot-attach-to: physical heartbeat identity cannot attach to another board or arrive in an import [Q1,Q3,H16]', async t => {
   const box = fixture(t); const [board, replica] = box.boards;
   const lease = await takeLandingResource({ board, branch: 'refs/heads/main', write: async (operation, args) => box.move(board, operation, args) });
   try {
@@ -107,7 +107,7 @@ test('physical heartbeat identity cannot attach to another board or arrive in an
 });
 
 
-test('historical landing lease receipts retain their original renewal events [Q1,H16]', t => {
+test('lib.landing-lease.historical-landing-lease-receipts-retain-their: historical landing lease receipts retain their original renewal events [Q1,H16]', t => {
   const box = fixture(t); const [board] = box.boards;
   const request = { agentId: 'coordinator', action: 'request', token: randomUUID(), branch: 'refs/heads/main', pid: process.pid };
   let sequence = 0;

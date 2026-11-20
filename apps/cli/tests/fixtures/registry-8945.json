@@ -1,0 +1,4 @@
+{
+  "cli.journeys-next-derived-state.a-current-table-answers-the-gate": {"proves":{"specs":["C7"],"claim":"With health.derivedState on and the table current for main, next answers the same item as with it off, and an item the table names gate-at-head is not offered."},"why":"Without it, a regression where next ignores the derived-state table, or offers an item the table says is gated, would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/next/derived-state.test.js"]},
+  "cli.journeys-next-derived-state.an-older-table-or-the-setting-off-computes": {"proves":{"specs":["C7"],"claim":"With the table swept at an older main, or with the setting off, next computes gate-at-head itself and answers the same item."},"why":"Without it, a regression where next reads a table that is not current for main would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/next/derived-state.test.js"]}
+}

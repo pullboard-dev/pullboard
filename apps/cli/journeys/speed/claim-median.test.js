@@ -31,7 +31,7 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test(`clause 1: the claim median on the 2,500-item board is ${MEASURED_MS} ms, under ${BAR_MS} ms [C7,#5331]`, { timeout: 150_000 }, async (t) => {
+test('cli.journeys-speed-claim-median.the-claim-median-on-the-2: clause 1: [C7,#5331] the claim median on the 2,500-item board is ' + MEASURED_MS + ' ms, under ' + BAR_MS + ' ms', { timeout: 150_000 }, async (t) => {
   const box = largeBoard(t);
   const ids = [];
   // Undiagnosed items keep their strong route, so the seat may claim them.

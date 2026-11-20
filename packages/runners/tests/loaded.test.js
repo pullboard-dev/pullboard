@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { takeResource } from '../../resources/index.js';
 import { recordRunnerMeasurement } from '../../config/index.js';
 import { loadMachineSettings } from '../../config/index.js';
-import { gateRunnerLoadPolicy } from '../../gate/index.js';
+import { gateRunnerLoadPolicy } from '../../gate/heavy.js';
 import { refreshRunnerMeasurements } from '../index.js';
 import { cellProject } from '../../store/tests/fixtures/cell.js';
 

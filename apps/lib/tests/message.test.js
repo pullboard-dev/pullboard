@@ -50,12 +50,12 @@ function roundTrip(input) {
   return { built, parsed };
 }
 
-test('one row: the header shows it and the trailers name the item then the row [C7,B3,R3]', () => {
+test('lib.message.one-row-the-header-shows-it-and: one row: the header shows it and the trailers name the item then the row [C7,B3,R3]', () => {
   const { built } = roundTrip({ type: 'feat', scope: 'merge', title: 'Person-only moves are signed', item: 408, rows: ['E22'] });
   assert.equal(built.message, 'feat(merge): person-only moves are signed [E22]\n\nPullboard-Item: #408\nPullboard-Rows: E22');
 });
 
-test('many consecutive rows fill the header, then +N stands for the rest [C7,B3,R3]', () => {
+test('lib.message.many-consecutive-rows-fill-the-header-then: many consecutive rows fill the header, then +N stands for the rest [C7,B3,R3]', () => {
   const twelve = roundTrip({ type: 'chore', scope: 'merge', title: 'Land the batch', item: 7, rows: rowsUpTo(12) });
   assert.equal(twelve.built.header, 'chore(merge): land the batch [A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12]', 'every row shows when they all fit');
   const twenty = roundTrip({ type: 'chore', scope: 'merge', title: 'Land the batch', item: 7, rows: rowsUpTo(20) });
@@ -67,7 +67,7 @@ test('many consecutive rows fill the header, then +N stands for the rest [C7,B3,
   assert.ok(longer.length > HEADER_LIMIT, longer);
 });
 
-test('scattered ids land in spec order, doctrine rows after the spec rows [C7,B3,R3]', () => {
+test('lib.message.scattered-ids-land-in-spec-order-doctrine: scattered ids land in spec order, doctrine rows after the spec rows [C7,B3,R3]', () => {
   const spec = parseSpec('# Spec\n\n## A\n- A2 [approved, must] Two.\n## C\n- C7 [approved, must] Seven.\n## M\n- M3 [approved, must] Three.\n## Z\n- Z9 [approved, must] Nine.\n');
   const rows = specOrder(['Z9', 'doctrine:PB1', 'A2', 'M3', 'C7', 'A2'], spec);
   assert.deepEqual(rows, ['A2', 'C7', 'M3', 'Z9', 'doctrine:PB1'], 'spec order, duplicates once, doctrine last');
@@ -75,7 +75,7 @@ test('scattered ids land in spec order, doctrine rows after the spec rows [C7,B3
   assert.equal(built.message, 'chore(merge): scattered rows land [A2,C7,M3,Z9,doctrine:PB1]\n\nPullboard-Item: #9\nPullboard-Rows: A2,C7,M3,Z9,doctrine:PB1');
 });
 
-test('36 rows never refuse: the header keeps the title and the trailer keeps all 36 [C7,B3,R3]', () => {
+test('lib.message.rows-never-refuse-the-header-keeps: 36 rows never refuse: the header keeps the title and the trailer keeps all 36 [C7,B3,R3]', () => {
   const rows = rowsUpTo(36);
   const { built, parsed } = roundTrip({ type: 'docs', scope: 'merge', title: 'Update the handbook', item: 1326, rows });
   assert.equal(built.header, 'docs(merge): update the handbook [A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,+26]');
@@ -86,14 +86,14 @@ test('36 rows never refuse: the header keeps the title and the trailer keeps all
   assert.equal(long.built.header, 'chore(merge): a very long title a very long title a very long [A1,+35]');
 });
 
-test('no rows: no brackets and no Pullboard-Rows trailer [C7,B3,R3]', () => {
+test('lib.message.no-rows-no-brackets-and-no-pullboard: no rows: no brackets and no Pullboard-Rows trailer [C7,B3,R3]', () => {
   const { built, parsed } = roundTrip({ type: 'test', scope: 'merge', title: 'Every test run an agent starts goes through the runner pool', item: 1219, rows: [] });
   assert.equal(built.message, 'test(merge): every test run an agent starts goes through the runner pool\n\nPullboard-Item: #1219');
   assert.equal(parsed.rows, null);
   assert.deepEqual(parsed.shown, []);
 });
 
-test('the parser reads trailers only as the last paragraph and +N is never an id [C7,B3,R3]', () => {
+test('lib.message.the-parser-reads-trailers-only-as-the: the parser reads trailers only as the last paragraph and +N is never an id [C7,B3,R3]', () => {
   const parsed = parseCommitMessage('fix(core): read the rows [A1,A2,+3]\n\nWhy it matters.\n\nPullboard-Item: #12\nPullboard-Rows: A1,A2,A3,A4,A5\n');
   assert.deepEqual({ type: parsed.type, scope: parsed.scope, title: parsed.title, shown: parsed.shown, more: parsed.more, body: parsed.body, item: parsed.item, rows: parsed.rows },
     { type: 'fix', scope: 'core', title: 'read the rows', shown: ['A1', 'A2'], more: 3, body: 'Why it matters.', item: 12, rows: ['A1', 'A2', 'A3', 'A4', 'A5'] });
@@ -107,7 +107,7 @@ test('the parser reads trailers only as the last paragraph and +N is never an id
     ['its header ids are not the first rows followed by +N for the rest']);
 });
 
-test('a landing names the refrozen rows in spec order, and a batch checks every message before merging [C7,B3,R3]', () => {
+test('lib.message.a-landing-names-the-refrozen-rows-in: a landing names the refrozen rows in spec order, and a batch checks every message before merging [C7,B3,R3]', () => {
   const spec = parseSpec('# Spec\n\n## A\n- A1 [approved, must] One.\n- A2 [approved, must] Two.\n- A3 [approved, must] Three.\n');
   const claimed = { item_id: 5, item_lane: 'core', item_title: 'Refrozen rows', item_spec_ids: 'A3,A1',
     item_frozen: JSON.stringify({ title: 'Refrozen rows', criterion: 'c', rows: [{ id: 'A3' }, { id: 'A1' }] }) };
@@ -131,7 +131,7 @@ test('a landing names the refrozen rows in spec order, and a batch checks every 
   });
 });
 
-test('one header per item type: the type is the item\'s commits\' first of feat, fix, perf, refactor, revert, docs, test, build, ci, style, chore, with or without rows, else the lane rule [C7,B3,R3]', () => {
+test('lib.message.one-header-per-item-type-the-type: one header per item type: the type is the item\'s commits\' first of feat, fix, perf, refactor, revert, docs, test, build, ci, style, chore, with or without rows, else the lane rule [C7,B3,R3]', () => {
   const box = cellSandbox(owner);
   const repo = join(box.dir, 'types');
   box.git(box.dir, 'init', '-q', '-b', 'main', repo);
@@ -181,7 +181,7 @@ test('one header per item type: the type is the item\'s commits\' first of feat,
 });
 
 
-test('a hundred-character landing title shortens before dropping five header ids [B3,R3,C7]', () => {
+test('lib.message.a-hundred-character-landing-title-shortens-before: a hundred-character landing title shortens before dropping five header ids [B3,R3,C7]', () => {
   const rows = ['A1', 'B2', 'C7', 'R3', 'V4'];
   for (const title of ['x'.repeat(100), 'a long landing title '.repeat(5)]) {
     const built = landingMessage({ item_id: 2292, item_lane: 'core', item_title: title, item_spec_ids: rows.join(',') }, { type: 'fix' });

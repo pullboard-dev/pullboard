@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readBoardMeta } from '../../../../../packages/store/index.js';
 import { listBoardMetaWithPrefix } from '../../../../../packages/store/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { PUSH_TIMING_KEPT } from '../../../src/io/hook/push.js';
 import { pushTimingRow } from '../../../src/io/hook/push.js';
 import { recordPushTiming } from '../../../src/io/hook/push.js';
@@ -19,7 +19,7 @@ function board(t) {
   return { db, write: work => work({ db }) };
 }
 
-test('clause 1: with push.recordTiming on, a finished gate writes one push.timing.<source> row with shards, files, runners, wallMs and each shard\'s time and runner [C7,U151,#9371]', t => {
+test('cli.io-hook-push-timing.with-push-recordtiming-on-a-finished-gate: clause 1: with push.recordTiming on, a finished gate writes one push.timing.<source> row with shards, files, runners, wallMs and each shard\'s time and runner [C7,U151,#9371]', t => {
   const { db, write } = board(t);
   assert.equal(recordPushTiming({}, rowAt('abc123def456'), { enabled: true, write }), true);
   const row = JSON.parse(readBoardMeta(db, 'push.timing.abc123def456'));
@@ -31,13 +31,13 @@ test('clause 1: with push.recordTiming on, a finished gate writes one push.timin
   assert.equal(listBoardMetaWithPrefix(db, 'push.timing.').length, 1, 'one row');
 });
 
-test('clause 1: with push.recordTiming off nothing is written [C7,U151,#9371]', t => {
+test('cli.io-hook-push-timing.with-push-recordtiming-off-nothing-is-written: clause 1: with push.recordTiming off nothing is written [C7,U151,#9371]', t => {
   const { db, write } = board(t);
   assert.equal(recordPushTiming({}, rowAt('abc123def456'), { enabled: false, write }), false);
   assert.equal(listBoardMetaWithPrefix(db, 'push.timing.').length, 0);
 });
 
-test('clause 1: only the newest 20 rows are kept [C7,U151,#9371]', t => {
+test('cli.io-hook-push-timing.only-the-newest-20-rows-are-kept: clause 1: only the newest 20 rows are kept [C7,U151,#9371]', t => {
   const { db, write } = board(t);
   for (let at = 0; at < PUSH_TIMING_KEPT + 3; at += 1) {
     recordPushTiming({}, rowAt(`src${String(at).padStart(9, '0')}`, new Date(Date.UTC(2026, 10, 16, 10, at)).toISOString()), { enabled: true, write });
@@ -48,7 +48,7 @@ test('clause 1: only the newest 20 rows are kept [C7,U151,#9371]', t => {
   assert.ok(keys.includes(`push.timing.src${String(PUSH_TIMING_KEPT + 2).padStart(9, '0')}`), 'the newest stays');
 });
 
-test('clause 2: a red or unknown finish records a row too, with no time for a shard that posted nothing [C7,U151,#9371]', t => {
+test('cli.io-hook-push-timing.a-red-or-unknown-finish-records-a: clause 2: a red or unknown finish records a row too, with no time for a shard that posted nothing [C7,U151,#9371]', t => {
   const { db, write } = board(t);
   const unknown = rowAt('deadbeef0000', undefined, new Map([[0, { runner: 'r1', wallMs: 90_000 }]]));
   assert.equal(recordPushTiming({}, unknown, { enabled: true, write }), true);
@@ -57,7 +57,7 @@ test('clause 2: a red or unknown finish records a row too, with no time for a sh
   assert.equal(row.runners, 1);
 });
 
-test('clause 2: a write fault never changes the gate\'s answer, it only records nothing [C7,U151,#9371]', () => {
+test('cli.io-hook-push-timing.a-write-fault-never-changes-the-gate: clause 2: a write fault never changes the gate\'s answer, it only records nothing [C7,U151,#9371]', () => {
   const write = () => { throw new Error('database is locked'); };
   assert.equal(recordPushTiming({}, rowAt('abc123def456'), { enabled: true, write }), false);
 });

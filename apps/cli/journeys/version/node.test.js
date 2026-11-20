@@ -42,7 +42,7 @@ function spoof(version) {
 const refusal = (version) =>
   `pullboard: [NODE_TOO_OLD] this is Node ${version}, and pullboard needs Node 22.13 or newer: install it (for example nvm install 22), then run the command again\n`;
 
-test('an older Node is told what to install, never a stack trace; 22.13 and newer run as before [P3, P4]', () => {
+test('cli.journeys-version-node.an-older-node-is-told-what: an older Node is told what to install, never a stack trace; 22.13 and newer run as before [P3, P4]', () => {
   for (const version of ['18.19.0', '20.11.1', '22.12.0']) {
     const result = spawnSync(process.execPath, ['--import', spoof(version), BIN, '--help'], { encoding: 'utf8' });
     assert.equal(result.status, 1, `${version} exits 1`);
@@ -56,7 +56,7 @@ test('an older Node is told what to install, never a stack trace; 22.13 and newe
   }
 });
 
-test('the git hooks run the same command, so an older Node refuses a commit the same way [P3, P4]', () => {
+test('cli.journeys-version-node.the-git-hooks-run-the-same: the git hooks run the same command, so an older Node refuses a commit the same way [P3, P4]', () => {
   const shims = join(dir, 'bin');
   mkdirSync(shims, { recursive: true });
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
@@ -85,7 +85,7 @@ test('the git hooks run the same command, so an older Node refuses a commit the 
 });
 
 
-test('the real entrypoint versions old-Node refusals and honors JSON flag positioning [A1, P3, P4]', () => {
+test('cli.journeys-version-node.the-real-entrypoint-versions-old-node: the real entrypoint versions old-Node refusals and honors JSON flag positioning [A1, P3, P4]', () => {
   for (const version of ['18.19.0', '20.11.1', '22.12.0']) {
     for (const args of [['--help', '--json'], ['--json', '--help'], ['help', '--json']]) {
       const result = spawnSync(process.execPath, ['--import', spoof(version), BIN, ...args], { encoding: 'utf8' });
@@ -117,7 +117,7 @@ test('the real entrypoint versions old-Node refusals and honors JSON flag positi
   }
 });
 
-test('old-Node JSON guidance works when SQLite cannot be imported [A1,P3,P4]', () => {
+test('cli.journeys-version-node.old-node-json-guidance-works-when: old-Node JSON guidance works when SQLite cannot be imported [A1,P3,P4]', () => {
   const loader = join(dir, 'unavailable-sqlite.mjs');
   writeFileSync(loader, `/** Model the unavailable builtin of an unsupported runtime, without changing the entrypoint. */
 export async function resolve(specifier, context, nextResolve) {

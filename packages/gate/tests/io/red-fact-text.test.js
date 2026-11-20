@@ -5,7 +5,7 @@ import { failingParts } from '../../../api/index.js';
 
 const FILES = Array.from({ length: 200 }, (_, index) => `packages/gate/tests/generated-${index}.test.js`);
 
-test('clause 1: a long red receipt records the part name and first failing case, and drops the tail of the file list [C7]', () => {
+test('gate.red-fact-text.long-receipt-names-part: clause 1: a long red receipt records the part name and first failing case, and drops the tail of the file list [C7]', () => {
   const error = `exit 1: not ok first-case-name (packages/gate/tests/s.test.js) files: ${JSON.stringify(FILES)}`;
   const [part, ...rest] = failingParts({ status: 1, gate: { green: false, error } });
   assert.equal(rest.length, 0);
@@ -14,6 +14,6 @@ test('clause 1: a long red receipt records the part name and first failing case,
   assert.ok(!part.includes('generated-199'));
 });
 
-test('clause 2: a short red receipt is recorded unchanged [C7]', () => {
+test('gate.red-fact-text.short-receipt-unchanged: clause 2: a short red receipt is recorded unchanged [C7]', () => {
   assert.deepEqual(failingParts({ status: 1, gate: { green: false, error: 'exit 1: not ok one case' } }), ['gate: exit 1: not ok one case']);
 });

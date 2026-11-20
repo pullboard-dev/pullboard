@@ -123,7 +123,7 @@ describe('code references in shouts and facts [B23,N26]', { concurrency: true },
       // A reference is a whole word, never the tail of one: what is no path in the repo says so, and so
       // does one the text before it may make part of a longer path, however long, rather than open
       // another file.
-      page.run("view.shoutThread = 'none'; render();");
+      page.run("view.shoutThread = 'from:web-1'; render();");
       const b4 = prior(odd, spaced);
       const b5 = 'web/one two three four five ';
       feed = page.show('feed');

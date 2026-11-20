@@ -14,7 +14,7 @@ beforeEach(() => {
   registerPreGrant(board, [['coordinator', '/repo', { family: 'Fixture Coordinator' }], ['web', '/repo-web-1', { family: 'Fixture Builder One' }], ['web', '/repo-web-2', { family: 'Fixture Builder Two' }], ['api', '/repo-api-1', { family: 'Fixture Reviewer' }]]);
 });
 
-test('modern multi-claim retains legacy guards and lane holds [B5, B12]', () => {
+test('lib.logic-native-claims.modern-multi-claim-retains-legacy-guards: modern multi-claim retains legacy guards and lane holds [B5, B12]', () => {
   const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'One' });
   const second = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Two' });
   const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'One, part', parentId: first });
@@ -37,7 +37,7 @@ test('modern multi-claim retains legacy guards and lane holds [B5, B12]', () => 
   );
 });
 
-test('modern claims enforce the approved ten-item cap without blocking renewal [B5,H16]', () => {
+test('lib.logic-native-claims.modern-claims-enforce-the-approved-ten: modern claims enforce the approved ten-item cap without blocking renewal [B5,H16]', () => {
   const ids = Array.from({ length: 11 }, (_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Item ${index}` }));
   const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Child', parentId: ids[0] });
   const options = { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze, itemFolder: true, perSeat: 10 };

@@ -1,0 +1,3 @@
+{
+  "cli.journeys-resume-e2e-digest.the-gate-reaches-the-agent-as": {"proves":{"specs":["V10"],"claim":"The gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir."},"why":"Without it, a regression where the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/resume/e2e-digest.test.js"]}
+}

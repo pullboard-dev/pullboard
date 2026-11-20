@@ -7,7 +7,7 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 const REMOTE_MODEL = 'Remote Coordinator';
 const CLONE_MODEL = 'Clone Coordinator';
 
-test("clause 1: a paired device cannot redeclare the remote coordinator's model [O8,O3]", async (t) => {
+test('cli.journeys-release-model-linked.a-paired-device-cannot-redeclare-the: clause 1: a paired device cannot redeclare the remote coordinator\'s model [O8,O3]', async (t) => {
   const relay = await relayClientFixture(t);
   const remoteDeclaration = await relay.cli('join', 'coordinator', '--model', REMOTE_MODEL);
   assert.equal(remoteDeclaration.code, 0, remoteDeclaration.failure);

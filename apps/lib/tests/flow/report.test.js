@@ -76,7 +76,7 @@ function firstTry(accepted, decided, unknown = 0) {
   return { accepted, decided, rate: decided ? accepted / decided : null, unknown };
 }
 
-test('the flow report splits time into waiting for an agent, building, review, landing and rework [R1,R2]', t => {
+test('lib.flow-report.the-flow-report-splits-time-into: the flow report splits time into waiting for an agent, building, review, landing and rework [R1,R2]', t => {
   const first = submission(101, 99), second = submission(102, 900);
   const board = fixture(t, [
     [0, 'coordinator', 'add', 1, { lane: 'core', after: [2] }],

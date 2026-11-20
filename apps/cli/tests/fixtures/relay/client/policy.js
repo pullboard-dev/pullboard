@@ -6,11 +6,13 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { ROLES } from '../../../../index.js';
+import { CODEX_AUTOMATION_FILE } from '../../../../../../packages/config/index.js';
 
 const INITIALIZED_REPO_FILES = [
   ...Object.values(ROLES).map(name => `.agents/skills/${name}/SKILL.md`),
   '.claude/settings.json',
   ...Object.values(ROLES).map(name => `.claude/skills/${name}/SKILL.md`),
+  CODEX_AUTOMATION_FILE,
   '.codex/config.toml',
   '.codex/hooks.json',
   '.codex/rules/pullboard.rules',

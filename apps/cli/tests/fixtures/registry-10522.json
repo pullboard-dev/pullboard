@@ -1,0 +1,3 @@
+{
+  "cli.io-test-census-row-times.every-row-carries-the-enqueuedat-of-its-pulled": {"proves":{"specs":["C7"],"claim":"Every census row carries the enqueuedAt of the pulled job it ran in."},"why":"Without it, queue-to-claim latency cannot be read from a census record and a slow pickup would go unmeasured.","kind":"cell unit","inputs":["apps/cli/tests/io/test/census-row-times.test.js"]}
+}

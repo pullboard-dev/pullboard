@@ -16,7 +16,7 @@ import { counterProofStats } from '../../../../packages/verify/index.js';
 import { TAKEN_OVER_RELEASE_ENGINE } from '../../../../packages/state/light.js';
 import { release as releaseMove } from '../../../../packages/moves/index.js';
 
-test('each release reason is recorded and health and stats count work-free claims per day and seat [C7]', t => {
+test('lib.claim-reason.each-release-reason-is-recorded-and-health: each release reason is recorded and health and stats count work-free claims per day and seat [C7]', t => {
   const now = new Date('2026-11-02T12:00:00.000Z');
   const board = openBoard(':memory:', { now: () => now });
   t.after(() => closeBoard(board));
@@ -29,7 +29,7 @@ test('each release reason is recorded and health and stats count work-free claim
   for (const reason of reasons) {
     const id = addItem(board, { by: 'coordinator', lane: 'web', title: `Release ${reason}`, criterion: 'A recorded reason' });
     claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3600000, freeze: () => ({ text: 'A recorded reason', digest: 'digest' }) });
-    release(board, id, 'web-1', reason === 'OTHER' ? 'A specific explanation' : '', reason);
+    release(board, id, 'web-1', reason === 'OTHER' || reason === 'INELIGIBLE' ? 'A specific explanation' : '', reason);
   }
   const history = events(board);
   assert.deepEqual(history.filter(event => event.event_kind === 'release').map(event => JSON.parse(event.event_detail).reasonCode), reasons);
@@ -41,7 +41,7 @@ test('each release reason is recorded and health and stats count work-free claim
   assert.deepEqual(events(board), history, 'both reports leave the board unchanged');
 });
 
-test('renewals retain a claim, while work and review releases never count as work-free [C7]', () => {
+test('lib.claim-reason.renewals-retain-a-claim-while-work-and: renewals retain a claim, while work and review releases never count as work-free [C7]', () => {
   const at = '2026-11-02T12:00:00.000Z';
   const event = (item_id, event_kind, event_by, detail = {}) => ({ item_id, event_kind, event_by, event_at: at, event_detail: JSON.stringify(detail) });
   const history = [event(1, 'claim', 'web-1'), event(1, 'claim', 'web-1'), event(1, 'submit', 'web-1'), event(1, 'release', 'web-1', { reasonCode: 'OTHER' }),

@@ -13,20 +13,20 @@ const OUTPUT = [
   '# landing-file-exit 0 a/one.test.js', '# landing-file-exit 1 a/two.test.js',
 ].join('\n');
 
-test('clause 1: a red shard\'s file with no failing case and no pass record gets a green row when its exit line reads 0 [C7]', () => {
+test('cli.logic-census-exits.a-red-shard-s-file-with-no: clause 1: a red shard\'s file with no failing case and no pass record gets a green row when its exit line reads 0 [C7]', () => {
   const row = rows(OUTPUT)['a/one.test.js'];
   assert.equal(row.status, 'green');
   assert.deepEqual(row.cases, []);
   assert.equal(row.secs, null, 'times come from the caller, as before');
 });
 
-test('clause 2: a red shard\'s file with no named failing case gets a red row when its exit line reads non-zero [C7]', () => {
+test('cli.logic-census-exits.a-red-shard-s-file-with-no-2: clause 2: a red shard\'s file with no named failing case gets a red row when its exit line reads non-zero [C7]', () => {
   const row = rows(OUTPUT)['a/two.test.js'];
   assert.equal(row.status, 'red');
   assert.deepEqual(row.cases, ['its test process exited 1 with no failing case named']);
 });
 
-test('clause 3: a red shard\'s file with no exit line and no pass record still gets a no-result row [C7]', () => {
+test('cli.logic-census-exits.a-red-shard-s-file-with-no-3: clause 3: a red shard\'s file with no exit line and no pass record still gets a no-result row [C7]', () => {
   assert.equal(rows(OUTPUT)['a/three.test.js'].status, 'no-result');
   assert.equal(rows('# tests 3\n# fail 1')['a/one.test.js'].status, 'no-result', 'a shard that printed no exit lines vouches for no file');
 });

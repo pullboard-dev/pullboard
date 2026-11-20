@@ -8,7 +8,7 @@ import { claimJob } from '../../../../../packages/api/index.js';
 import { jobViews } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { liveSince } from '../../../../../packages/jobs/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitAndWithdraw } from '../../../src/io/hook/push.js';
 
 const NAMES = [1, 2, 3].map(at => `push:abc:tag:shard:${at}`);
@@ -22,7 +22,7 @@ function gateOn(t, clock) {
 }
 const steps = db => jobViews(db, NAMES).map(view => view.step);
 
-test('clause 1: a gate that blocks at its ceiling withdraws every unfinished shard, so no runner claims one again [C7,#7805]', async t => {
+test('cli.io-hook-push-withdraw.a-gate-that-blocks-at-its-ceiling: clause 1: a gate that blocks at its ceiling withdraws every unfinished shard, so no runner claims one again [C7,#7805]', async t => {
   const clock = { at: 1_000_000 };
   const { db, seams } = gateOn(t, clock);
   claimJob(db, { runner: 'r1', now: clock.at });
@@ -33,7 +33,7 @@ test('clause 1: a gate that blocks at its ceiling withdraws every unfinished sha
   assert.equal(claimJob(db, { runner: 'r2', now: clock.at }), null);
 });
 
-test('clause 1: a gate that throws or is interrupted by SIGINT or SIGTERM withdraws its shards and exits 130 or 143 [C7,#7805]', async t => {
+test('cli.io-hook-push-withdraw.a-gate-that-throws-or-is-interrupted: clause 1: a gate that throws or is interrupted by SIGINT or SIGTERM withdraws its shards and exits 130 or 143 [C7,#7805]', async t => {
   for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
     const clock = { at: 1_000_000 }, signals = new EventEmitter(), exits = [];
     const { db, seams } = gateOn(t, clock);
@@ -52,7 +52,7 @@ test('clause 1: a gate that throws or is interrupted by SIGINT or SIGTERM withdr
   assert.deepEqual(steps(db), ['done', 'done', 'done'], 'a throw withdraws too');
 });
 
-test('clause 2: a waiting gate renews its shards every 30 seconds, so none ends as abandoned while it waits [C7,#7805]', async t => {
+test('cli.io-hook-push-withdraw.a-waiting-gate-renews-its-shards-every: clause 2: a waiting gate renews its shards every 30 seconds, so none ends as abandoned while it waits [C7,#7805]', async t => {
   const clock = { at: 1_000_000 };
   const { db, seams } = gateOn(t, clock);
   // A runner holds every shard, so the wait runs on to the ceiling and only the renewals keep the claim scan from ending them.

@@ -13,12 +13,12 @@ async function handBack(box, seat, id) {
   const taken = await cli(box, seat.path, ['next', '--take']);
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(taken.document.item.item_id, id, 'the seat was handed the item straight from next');
-  const released = await cli(box, seat.path, ['release', String(id), '--reason', 'INELIGIBLE']);
+  const released = await cli(box, seat.path, ['release', String(id), '--reason', 'INELIGIBLE', '--note', 'cannot be built as written']);
   assert.equal(released.code, 0, released.out + released.err);
   box.advance(31 * 60_000);
 }
 
-test('clause 1: with release.rerouteUntouched on, two untouched INELIGIBLE releases reroute the item one route up with no coordinator edit [C7,#2970]', async t => {
+test('cli.journeys-release-reroute.with-release-rerouteuntouched-on-two-untouched: clause 1: with release.rerouteUntouched on, two untouched INELIGIBLE releases reroute the item one route up with no coordinator edit [C7,#2970]', async t => {
   const box = await fixture(t, { route: 'mid' });
   const settings = machineSettingsFile();
   writeFileSync(settings, JSON.stringify({ ...JSON.parse(readFileSync(settings, 'utf8')), release: { rerouteUntouched: true } }));
@@ -32,7 +32,7 @@ test('clause 1: with release.rerouteUntouched on, two untouched INELIGIBLE relea
   assert.equal(store.events(box.board, { itemId: id }).some(event => event.event_kind === 'edit'), false, 'no coordinator edit moved it');
 });
 
-test('clause 2: the reroute is an escalate event naming both releases [C7,#2970]', async t => {
+test('cli.journeys-release-reroute.the-reroute-is-an-escalate-event: clause 2: the reroute is an escalate event naming both releases [C7,#2970]', async t => {
   const box = await fixture(t, { route: 'mid' });
   const settings = machineSettingsFile();
   writeFileSync(settings, JSON.stringify({ ...JSON.parse(readFileSync(settings, 'utf8')), release: { rerouteUntouched: true } }));

@@ -46,7 +46,7 @@ function pastCommit(box, header) {
   return sha;
 }
 
-test('a commit cites another board qualified and spec check resolves it there; a bare foreign id is refused [C2,S8]', async (t) => {
+test('cli.io-spec-boards.a-commit-cites-another-board-qualified-and: a commit cites another board qualified and spec check resolves it there; a bare foreign id is refused [C2,S8]', async (t) => {
   const box = boardsBox(t);
   const spec = loadSpec(box.root, box.config);
   assert.deepEqual(citedIds('feat(web): carry upgrades [upgrades:U94]'), ['upgrades:U94']);
@@ -68,7 +68,7 @@ test('a commit cites another board qualified and spec check resolves it there; a
   assert.match(missing.stdout, /upgrades:U99 error: commit [0-9a-f]+ cites it: upgrades:U99 is not in the upgrades board's spec/u);
 });
 
-test('commits that cite a foreign id bare carry a recorded correction that spec check reads [S8]', async (t) => {
+test('cli.io-spec-boards.commits-that-cite-a-foreign-id-bare: commits that cite a foreign id bare carry a recorded correction that spec check reads [S8]', async (t) => {
   const box = boardsBox(t);
   const bare = pastCommit(box, 'feat(web): carry upgrades [U94]');
   const before = await box.spec('check');
@@ -88,7 +88,7 @@ test('commits that cite a foreign id bare carry a recorded correction that spec 
   assert.match(alias.stdout, /citations\.jsonl:1 needs/u);
 });
 
-test('a named board whose spec is not on this machine warns and leaves its citations unresolved [S8]', async (t) => {
+test('cli.io-spec-boards.a-named-board-whose-spec-is-not: a named board whose spec is not on this machine warns and leaves its citations unresolved [S8]', async (t) => {
   const box = boardsBox(t, { reachable: false });
   pastCommit(box, 'feat(web): carry upgrades [upgrades:U94]');
   const result = await box.spec('check');

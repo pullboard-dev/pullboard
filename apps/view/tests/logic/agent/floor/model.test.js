@@ -31,7 +31,7 @@ function age(ms) {
   return minutes < 60 ? `${minutes}m` : `${(minutes / 60).toFixed(1)}h`;
 }
 
-test('Agent Floor labels use explicit locale and timezone with stable pure-render defaults [N26,C7]', () => {
+test('view.agent-floor-model.agent-floor-labels-use-explicit-locale-and: Agent Floor labels use explicit locale and timezone with stable pure-render defaults [N26,C7]', () => {
   const { floor } = floorAt(seeded.now);
   floor.now = Date.parse('2026-10-28T12:00:00Z');
   floor.numbers.allTime = 1234;
@@ -47,7 +47,7 @@ test('Agent Floor labels use explicit locale and timezone with stable pure-rende
   assert.equal(JSON.stringify(floor), before);
 });
 
-test('the floor\'s headline counts live agents, builders, reviewers and 24-hour landings from the board [N26]', () => {
+test('view.agent-floor-model.the-floor-s-headline-counts-live-agents: the floor\'s headline counts live agents, builders, reviewers and 24-hour landings from the board [N26]', () => {
   const { model, floor, html } = floorAt(seeded.now);
   const headline = section(html, 'Headline');
   assert.match(headline, /<h1><em>2 landed in 24 hours\.<\/em> 2 peak agents\.<\/h1>/u);
@@ -56,7 +56,7 @@ test('the floor\'s headline counts live agents, builders, reviewers and 24-hour 
   assert.equal(floor.numbers.building, model.claims.length, 'the floor and the Dashboard count the same builders');
 });
 
-test('the floor\'s full row of numbers names every count the person asked for [N26]', () => {
+test('view.agent-floor-model.the-floor-s-full-row-of-numbers: the floor\'s full row of numbers names every count the person asked for [N26]', () => {
   const { floor, html } = floorAt(seeded.now);
   const band = section(html, 'Board numbers');
   const expected = { live: 3, building: 1, reviewing: 1, between: 1, landed: 2, accepted: 3, 'sent-back': 1, shouts: 1, 'in-review': 2, waiting: 1, ready: 3 };
@@ -70,7 +70,7 @@ test('the floor\'s full row of numbers names every count the person asked for [N
   assert.equal(floor.numbers.unreviewed, 1);
 });
 
-test('landed per hour draws 24 hourly bars with the day\'s total, peak and average [N26]', () => {
+test('view.agent-floor-model.landed-per-hour-draws-24-hourly-bars: landed per hour draws 24 hourly bars with the day\'s total, peak and average [N26]', () => {
   const { model, html } = floorAt(seeded.now);
   const chart = section(html, 'Landed per hour');
   assert.equal([...chart.matchAll(/<rect\b/gu)].length, 24, 'one bar per hour');
@@ -79,7 +79,7 @@ test('landed per hour draws 24 hourly bars with the day\'s total, peak and avera
   assert.equal([...chart.matchAll(/<title>(\d+) landed,/gu)].reduce((sum, match) => sum + Number(match[1]), 0), 2, 'the bars hold both landings');
 });
 
-test('agent time splits the window into building, reviewing and holding nothing [N26]', () => {
+test('view.agent-floor-model.agent-time-splits-the-window-into-building: agent time splits the window into building, reviewing and holding nothing [N26]', () => {
   const { floor, html } = floorAt(seeded.now);
   const time = section(html, 'Agent time');
   for (const label of ['Building', 'Reviewing', 'Holding nothing']) assert.match(time, new RegExp(`${label} <b>\\d+%</b>`, 'u'));
@@ -90,7 +90,7 @@ test('agent time splits the window into building, reviewing and holding nothing 
   assert.ok(floor.time.build > 0 && floor.time.review > 0 && total > floor.time.build + floor.time.review, 'all three kinds of time are present');
 });
 
-test('every agent has a four-hour line with what it holds, its times and shouts, quiet agents unfolded [N26]', () => {
+test('view.agent-floor-model.every-agent-has-a-four-hour-line: every agent has a four-hour line with what it holds, its times and shouts, quiet agents unfolded [N26]', () => {
   const { floor, html } = floorAt(seeded.now);
   const agents = section(html, 'Agents');
   assert.doesNotMatch(agents, /<details/u, 'no agent is folded away');
@@ -122,7 +122,7 @@ test('every agent has a four-hour line with what it holds, its times and shouts,
   assert.match(agents, /<span>Agent<\/span><span>[^<]+ → now<\/span><span>Now<\/span><span>Build<\/span><span>Review<\/span><span>Idle<\/span><span>Shouts<\/span>/u);
 });
 
-test('the four queues list every item in full, each with its age [N26]', () => {
+test('view.agent-floor-model.the-four-queues-list-every-item-in: the four queues list every item in full, each with its age [N26]', () => {
   const { html } = floorAt(seeded.now);
   const events = seeded.input.events;
   /** When the latest event of a kind happened to an item. */
@@ -155,7 +155,7 @@ function floorFor(items, moves, now = Date.parse('2026-10-28T12:00:00Z')) {
   return { floor, html: agentFloorHtml(floor), at: ago => new Date(now - ago * MINUTE).toISOString() };
 }
 
-test('every hold age counts from that hold\'s own claim or reservation, even when the seat holds two at once [N26]', () => {
+test('view.agent-floor-model.every-hold-age-counts-from-that-hold: every hold age counts from that hold\'s own claim or reservation, even when the seat holds two at once [N26]', () => {
   const lease = ago => ({ leaseUntil: new Date(Date.parse('2026-10-28T12:00:00Z') - ago * MINUTE).toISOString() });
   const until = ago => ({ until: lease(ago).leaseUntil });
   const both = floorFor([[1, 'submitted', 'web-1', -120], [2, 'claimed', 'web-1', -120]], [
@@ -175,7 +175,7 @@ test('every hold age counts from that hold\'s own claim or reservation, even whe
   assert.match(renewed.html, /#1 building 5\.0h<\/span>/u, 'a renewed hold that began before the window reads its whole age');
 });
 
-test('a ready item\'s age counts from the moment it came free, lapsed leases included [N26]', () => {
+test('view.agent-floor-model.a-ready-item-s-age-counts-from: a ready item\'s age counts from the moment it came free, lapsed leases included [N26]', () => {
   const now = Date.parse('2026-10-28T12:00:00Z'), lease = ago => ({ leaseUntil: new Date(now - ago * MINUTE).toISOString() });
   const { floor } = floorFor([[1, 'open', null, 0], [2, 'open', null, 0], [3, 'open', null, 0]], [
     ['add', 'person', 1, 300], ['add', 'person', 2, 300], ['add', 'person', 3, 300],
@@ -187,7 +187,7 @@ test('a ready item\'s age counts from the moment it came free, lapsed leases inc
   assert.deepEqual(ready, [[1, 60], [2, 30], [3, 45]], 'free since the lease ran out, the renewed lease ran out, or the release');
 });
 
-test('the floor keeps its own address and its way back to the Dashboard [N26,N38]', () => {
+test('view.agent-floor-model.the-floor-keeps-its-own-address-and: the floor keeps its own address and its way back to the Dashboard [N26,N38]', () => {
   // The /live-style Dashboard (#6847) draws its own Agents table, which the Agents notch opens; the floor stays at /dashboard/floor.
   assert.match(agentFloorHtml(floorAt(seeded.now).floor, { back: '/dashboard' }), /<a class="link" href="\/dashboard" data-tab="dashboard">← Dashboard<\/a>/u);
   // The page embeds these two functions' text; neither can reach a board by itself, so the floor reads what the Dashboard read.
@@ -196,7 +196,7 @@ test('the floor keeps its own address and its way back to the Dashboard [N26,N38
   }
 });
 
-test('the floor\'s idle count leaves out a gone seat and an advisor and still counts a live idle builder [C7]', () => {
+test('view.agent-floor-model.the-floor-s-idle-count-leaves-out: the floor\'s idle count leaves out a gone seat and an advisor and still counts a live idle builder [C7]', () => {
   const project = structuredClone(seeded.input.project), events = structuredClone(seeded.input.events);
   const at = minutes => new Date(seeded.clockBase + minutes * MINUTE).toISOString();
   for (const [id, lane, presence] of [['gone-1', 'web', 'gone'], ['advisor-1', 'advisor', 'live']]) {

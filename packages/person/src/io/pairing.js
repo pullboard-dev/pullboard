@@ -3,11 +3,15 @@ import {
   randomBytes,
   webcrypto,
 } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 import { PAIR_PACKAGE_BYTES } from "./pairing/limit.js";
 
+/** What a gzip package may inflate to: far over the sealed limit, so a small bomb cannot exhaust memory. */
+const PAIR_INFLATED_BYTES = 400_000_000;
 const LOCATOR = /^[A-Za-z0-9_-]{22}$/;
 const SECRET = /^[A-Za-z0-9_-]{43}$/;
 const KEY = /^[A-Za-z0-9_-]{43}$/;
@@ -87,7 +91,8 @@ export async function sealPairingBundle(code, bundle) {
   const iv = randomBytes(12);
   const key = await webcrypto.subtle.importKey('raw', secret, 'AES-GCM', false, ['encrypt']);
   const aad = new TextEncoder().encode(JSON.stringify(['pullboard-pairing', 1, locator]));
-  const plaintext = new TextEncoder().encode(JSON.stringify(value));
+  // The JSON is gzipped before sealing: a large export is mostly repeated keys and compresses far under the limit.
+  const plaintext = gzipSync(new TextEncoder().encode(JSON.stringify(value)));
   if (plaintext.length > PAIR_PACKAGE_BYTES) throw new Refused('PAIR_PACKAGE_SIZE', 'this board export is too large for one-time pairing; use a smaller local board export before trying again');
   const ciphertext = new Uint8Array(await webcrypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, key, plaintext));
   return Buffer.concat([iv, ciphertext]).toString('base64url');
@@ -105,7 +110,16 @@ export async function openPairingBundle(code, sealed) {
   catch { throw new Refused('PAIR_CODE_INVALID', 'the one-time code is invalid or already used; ask the linked device for a new code'); }
   let value;
   if (plaintext.byteLength > PAIR_PACKAGE_BYTES) throw new Refused('PAIR_PACKAGE_SIZE', 'the encrypted board export exceeds the pairing limit; ask the linked device for a smaller package');
-  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)); }
+  let json = new Uint8Array(plaintext);
+  // A package sealed before gzip is plain JSON; gzip starts with its two magic bytes, which JSON text never does.
+  if (json[0] === 0x1f && json[1] === 0x8b) {
+    try { json = gunzipSync(json, { maxOutputLength: PAIR_INFLATED_BYTES }); }
+    catch (error) {
+      if (error.code === 'ERR_BUFFER_TOO_LARGE') throw new Refused('PAIR_PACKAGE_SIZE', 'the encrypted board export inflates past the pairing limit; ask the linked device for a smaller package');
+      throw new Refused('PAIR_PACKAGE', 'the encrypted pairing package is invalid; ask the linked device for a new code');
+    }
+  }
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(json)); }
   catch { throw new Refused('PAIR_PACKAGE', 'the encrypted pairing package is invalid; ask the linked device for a new code'); }
   const bundle = validateBundle(value);
   if (bundle.board !== board) throw new Refused('PAIR_PACKAGE', 'the encrypted package is for another board; ask for a fresh one-time code');

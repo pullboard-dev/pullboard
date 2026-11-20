@@ -2,7 +2,7 @@
 /** @pullboard-test-input packages/outbox/src/io/relay/shadow.js packages/store/src/io/board/shadow-record.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { readShadow } from '../../../../store/index.js';
 import { provideOutboxTable } from '../../../index.js';
 import { shadowOutbox } from '../../../index.js';

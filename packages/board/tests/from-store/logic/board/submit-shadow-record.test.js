@@ -17,6 +17,8 @@ const [queueRecord] = queues;
 function boardFor(t, snapshot, shadow) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(snapshot.now) });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.submit on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { submit: false };
   board.executionEngineVersion = board.enginePorts.submitHandoffEngines().current;
   const sql = board.db;
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'machine_item%'").all()) sql.exec(`DROP TRIGGER ${name}`);

@@ -15,7 +15,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { privateCheckSubmission } = e2e;
 
-test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output-digest.accept-reports-failed-install-as-check: accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', async () => {
   const box = privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
   assert.equal(refused.code, 1);
@@ -27,7 +27,7 @@ test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V
   assert.match(error.next, /^restore the install or check environment, then retry verification/);
 });
 
-test('private check digest keeps install and noisy check output in separate sections [V18,V2]', () => {
+test('cli.journeys-verify-checks-output-digest.private-check-digest-keeps-install-and: private check digest keeps install and noisy check output in separate sections [V18,V2]', () => {
   const box = privateCheckSubmission({
     install: 'echo install-marker',
     check: 'i=0; while [ "$i" -lt 200 ]; do echo noisy-check-output-$i; i=$((i + 1)); done; echo check-failed; exit 1',

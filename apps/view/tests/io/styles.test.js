@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/** */
 /** One composer fills every @pullboard-*-styles marker of the view's stylesheet [C7,#3020]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ const STYLESHEETS = { activity: 'activity', dashboard: 'dashboard', 'items-row':
 /** The notch's and Shouts' stylesheets join the map here, so the line above stays one edit for everyone [#6651]. */
 Object.assign(STYLESHEETS, { notch: 'notch', shouts: 'shouts' });
 
-test('clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns view.css with every @pullboard-*-styles marker replaced by its stylesheet [C7,#3020]', () => {
+test('view.x-io-styles.clause-1-composeviewstyles-re-exported-by-apps: clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns view.css with every @pullboard-*-styles marker replaced by its stylesheet [C7,#3020]', () => {
   assert.equal(composeViewStyles, composerModule, 'apps/view/index.js re-exports the composer from src/io/styles.js');
   const source = readFileSync(new URL('main.css', SHELL), 'utf8');
   const markers = [...source.matchAll(MARKER)].map(match => match[1]);
@@ -23,7 +23,7 @@ test('clause 1: composeViewStyles(), re-exported by apps/view/index.js, returns 
   assert.equal(composeViewStyles(), expected, 'each marker is replaced in place by its stylesheet, nothing else changes');
 });
 
-test('clause 2: serve.js builds SHARED_VIEW_CSS only through composeViewStyles(), whose output has no marker and has the item-row, stage and roadmap rules [C7,#3020]', () => {
+test('view.x-io-styles.clause-2-serve-js-builds-shared-view: clause 2: serve.js builds SHARED_VIEW_CSS only through composeViewStyles(), whose output has no marker and has the item-row, stage and roadmap rules [C7,#3020]', () => {
   const serve = readFileSync(new URL('serve.js', SHELL), 'utf8');
   assert.match(serve, /^const SHARED_VIEW_CSS = composeViewStyles\(\);$/mu, 'SHARED_VIEW_CSS is the composer output');
   assert.doesNotMatch(serve, /@pullboard-[\w-]+-styles/u, 'serve.js fills no marker of its own');
@@ -33,7 +33,7 @@ test('clause 2: serve.js builds SHARED_VIEW_CSS only through composeViewStyles()
   for (const selector of ['.row.item-row', '.stage-word', '.roadmap-status']) assert.ok(css.includes(selector), `${selector} reaches the shared stylesheet`);
 });
 
-test('clause 1: row titles never wrap, end in an ellipsis, and show inline code as plain monospace with no box [test,N26,#6840]', () => {
+test('view.x-io-styles.clause-1-row-titles-never-wrap-end: clause 1: row titles never wrap, end in an ellipsis, and show inline code as plain monospace with no box [test,N26,#6840]', () => {
   const css = composeViewStyles();
   const rule = selector => [...css.matchAll(/([^{}]+)\{([^}]*)\}/gu)].filter(match => match[1].split(',').some(part => part.trim() === selector)).map(match => match[2]).join(' ');
   for (const selector of ['.row .t', '.milestone-item .t']) assert.match(rule(selector), /overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, `${selector} is one line that ends in an ellipsis`);
@@ -44,7 +44,7 @@ test('clause 1: row titles never wrap, end in an ellipsis, and show inline code 
   assert.match(code, /white-space: nowrap;/u);
 });
 
-test('clause 2: state chips in rows are compact text chips with 4px corners, not tall pills [test,N26,#6840]', () => {
+test('view.x-io-styles.clause-2-state-chips-in-rows-are: clause 2: state chips in rows are compact text chips with 4px corners, not tall pills [test,N26,#6840]', () => {
   const css = composeViewStyles();
   const chips = ['.row.item-row .row-side .chip', '.milestone-item .stage-word', '.milestone-item .stage-mark', '.item-stage[data-stage] > .stage-line > .stage-word, .item-stage[data-stage] .chip.item-status .stage-word'];
   for (const selector of chips) {
@@ -57,13 +57,13 @@ test('clause 2: state chips in rows are compact text chips with 4px corners, not
   }
 });
 
-test('Items never cuts a question id off: the folded group shows each id whole [N26]', () => {
+test('view.x-io-styles.items-never-cuts-a-question-id-off: Items never cuts a question id off: the folded group shows each id whole [N26]', () => {
   const css = composeViewStyles();
   assert.match(css, /\.needs-fold \.needs-id \{ max-width: none; overflow: visible; \}/u, 'Items shows doctrine:RG4901 whole');
   assert.match(css, /\.needs-fold-questions \.needs-group-head \{ display: none; \}/u, 'the folded group names itself once');
 });
 
-test('clause 1: the Dashboard Rulings show each reference whole and cut a title only at the row\'s width [N26]', () => {
+test('view.x-io-styles.clause-1-the-dashboard-rulings-show-each: clause 1: the Dashboard Rulings show each reference whole and cut a title only at the row\'s width [N26]', () => {
   const css = composeViewStyles();
   const card = [...css.matchAll(/\.needs-card \.needs-id \{([^}]*)\}/gu)].map(match => match[1]);
   assert.ok(card.some(rule => /max-width: none; overflow: visible;/u.test(rule)), 'no fixed width or clip on the reference in the Dashboard card');
@@ -73,7 +73,7 @@ test('clause 1: the Dashboard Rulings show each reference whole and cut a title 
   assert.doesNotMatch(title + ([...css.matchAll(/\.needs-copy b \{([^}]*)\}/gu)].map(match => match[1]).join(' ')), /(?:^|[ {;])(?:max-)?width:/u, 'no fixed width on the title');
 });
 
-test('clause 1: the tokens set cards to 6px, controls and chips to 4px, dots stay round, and cards carry a thin border and no shadow [test,N26,#6836]', () => {
+test('view.x-io-styles.clause-1-the-tokens-set-cards-to: clause 1: the tokens set cards to 6px, controls and chips to 4px, dots stay round, and cards carry a thin border and no shadow [test,N26,#6836]', () => {
   const css = composeViewStyles() + ['cost', 'no-link'].map(file => readFileSync(new URL(`${file}.css`, SHELL), 'utf8')).join('\n');
   const token = name => new RegExp(`${name}: ([^;]+);`, 'u').exec(css)?.[1];
   assert.equal(token('--round'), '1');
@@ -93,7 +93,7 @@ test('clause 1: the tokens set cards to 6px, controls and chips to 4px, dots sta
   for (const selector of ['.pal-box', '.projpop', '.find-results']) assert.match(css, new RegExp(`${selector.replace('.', '\\.')} \\{[^}]*border-radius: var\\(--radius-float\\)[^}]*box-shadow: var\\(--shadow-float\\)`, 'u'), `${selector} floats on the shadow token with 8px corners`);
 });
 
-test('clause 2: no stylesheet sets its own pixel corner radius or a card shadow outside the tokens [test,N26,#6836]', () => {
+test('view.x-io-styles.clause-2-no-stylesheet-sets-its-own: clause 2: no stylesheet sets its own pixel corner radius or a card shadow outside the tokens [test,N26,#6836]', () => {
   const sheets = readdirSync(SHELL, { recursive: true }).filter(file => String(file).endsWith('.css'));
   assert.ok(sheets.length >= 12, 'every stylesheet under src/io is read');
   for (const file of sheets) {

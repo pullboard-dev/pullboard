@@ -22,14 +22,14 @@ function filed(t) {
   return box;
 }
 
-test('clause 1: coordinate on a fixture board prints the resume state [C7,#8515]', async t => {
+test('cli.io-commands-coordinate.coordinate-on-a-fixture-board-prints-the: clause 1: coordinate on a fixture board prints the resume state [C7,#8515]', async t => {
   const box = filed(t);
   const ran = await runCliInProcess(['coordinate'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   assert.match(ran.stdout, /^resume: coordinator/mu);
 });
 
-test('clause 2: coordinate prints how the person adds more agents, one worktree line per lane with open work [C7,#8515]', async t => {
+test('cli.io-commands-coordinate.coordinate-prints-how-the-person-adds-more: clause 2: coordinate prints how the person adds more agents, one worktree line per lane with open work [C7,#8515]', async t => {
   const box = filed(t);
   const ran = await runCliInProcess(['coordinate'], { cwd: box.root, env: box.env });
   assert.match(ran.stdout, /To add agents:/u);
@@ -38,7 +38,7 @@ test('clause 2: coordinate prints how the person adds more agents, one worktree 
   assert.match(ran.stdout, /each agent runs pullboard next/u);
 });
 
-test('clause 3: running coordinate twice is safe: the same card and no new board event [C7,#8515]', async t => {
+test('cli.io-commands-coordinate.running-coordinate-twice-is-safe-the-same: clause 3: running coordinate twice is safe: the same card and no new board event [C7,#8515]', async t => {
   const box = filed(t);
   const first = await runCliInProcess(['coordinate'], { cwd: box.root, env: box.env });
   const count = () => withFixtureBoard(boardFile(box), board => events(board, {}).length);

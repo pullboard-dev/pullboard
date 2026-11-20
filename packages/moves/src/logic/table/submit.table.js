@@ -95,12 +95,12 @@ export function pipelineCause({ code, note = '' }) {
 
 
 /**
- * Build the submit rules and the five tables (SUBMIT, COMMIT, OUTCOME, START, COMPLETE) over the board's own retry limit and infrastructure codes.
+ * Build the submit rules and the six tables (SUBMIT, COMMIT, OUTCOME, START, COMPLETE, RECAPTURE) over the board's own retry limit and infrastructure codes.
  * Why: moves may not reach into the store, and these two must stay one source; the caller passes the store's `INFRASTRUCTURE_RETRY_LIMIT` and
  * `INFRASTRUCTURE_CODES` (as release.table.js takes the release reasons), so there is no second copy to drift.
  *
  * @param {{ retryLimit: number, infrastructureCodes: ReadonlySet<string> | readonly string[] }} board
- * @returns {{ rules: Readonly<Record<string, object>>, tables: Readonly<Record<'SUBMIT' | 'COMMIT' | 'OUTCOME' | 'START' | 'COMPLETE', object>> }}
+ * @returns {{ rules: Readonly<Record<string, object>>, tables: Readonly<Record<'SUBMIT' | 'COMMIT' | 'OUTCOME' | 'START' | 'COMPLETE' | 'RECAPTURE', object>> }}
  */
 export function submitEngine(board) {
   if (!Number.isSafeInteger(board?.retryLimit) || board.retryLimit < 1 || !board?.infrastructureCodes || typeof board.infrastructureCodes[Symbol.iterator] !== 'function') {
@@ -341,6 +341,24 @@ const START = ({
   followups: [],
 });
 
+/** A queued gate takes the newest main: the move recaptureSubmitHandoff makes, shaped like START and restating the refusals of retry.js [C7,#9548]. */
+const RECAPTURE = ({
+  move: 'recapture-submit-handoff',
+  guards: [
+    guard('recapture-main', 'BAD_SUBMIT_HANDOFF', 'a recapture names the newest main as a full commit sha', (s, m) => !SHA.test(m.main ?? ''),
+      'a recapture needs the newest main as a 40-character commit sha'),
+    guard('recapture-matching', 'SUBMIT_HANDOFF_CHANGED', 'a recapture acts only for its exact current job and sender', (s, m) => !matches(s, m),
+      'read the current queued submission; an old or foreign worker cannot complete it'),
+    guard('recapture-queued-serves', 'SUBMIT_HANDOFF_CHANGED', 'only the queued gate of the live claim at its frozen bar can recapture main',
+      (s) => s.handoff.state !== 'queued' || !serving(s, s.handoff),
+      'only the queued gate of the live claim at its frozen bar can recapture main; read the current queued submission'),
+  ],
+  outcomes: [
+    { id: 'recapture', when: () => true, patch: () => ({}), events: s => [handoffEvent(s.handoff)], record: (s, m) => ({ ...s.handoff, main: m.main }) },
+  ],
+  followups: [],
+});
+
 /** A requeued successor: same captured source, fresh id, one more retry (retryStoppedHandoff). */
 function retried(s, m) {
   const next = { ...s.handoff, id: m.retryJob, state: 'queued', at: s.now, infrastructureRetries: (s.handoff.infrastructureRetries ?? 0) + 1, retryOf: s.handoff.id,
@@ -390,10 +408,10 @@ const COMPLETE = ({
       record: (s, m) => { const exhausted = m.windowSpent === true || (s.handoff.infrastructureRetries ?? 0) >= INFRASTRUCTURE_RETRY_LIMIT;
         return { ...s.handoff, ...lockWaits(m), state: 'infrastructure', error: { ...m.result.error }, completedAt: s.now, ...(m.windowSpent === true ? { infrastructureRetries: INFRASTRUCTURE_RETRY_LIMIT } : {}),
           ...(exhausted || !RECOVERED_STOPS.has(m.result.error.code) ? { infrastructureNotified: true } : {}) }; } },
-    // returnToBoard runs only for a driver failure with claim.returnToBoard on (failureCompletion's keepSeat).
+    // returnToBoard runs only for a driver failure with claim.returnToBoard on (failureCompletion's keepSeat); boardCodes (set by the retry writer at boards at or above BOARD_RELEASE_CODES_ENGINE) names the release GATE_REFUSED [C7,#12222].
     { id: 'red-to-board', when: (s, m) => redReturns(s, m) && m.returnToBoard === true, patch: () => ({ status: 'open', owner: null, leaseUntil: null }),
       events: (s, m) => [
-        { kind: 'release', by: s.handoff.agentId, detail: { reasonCode: 'OTHER', reason: `the queued gate was refused (${m.result.error.code}); returned to the board for any free seat` } },
+        { kind: 'release', by: s.handoff.agentId, detail: { reasonCode: m.boardCodes === true ? 'GATE_REFUSED' : 'OTHER', reason: `the queued gate was refused (${m.result.error.code}); returned to the board for any free seat` } },
         { kind: 'submit_handoff_returned', by: s.handoff.agentId, detail: { commit: s.handoff.commit, returnedToBoard: true } },
         shoutEvent('coordinator', s.handoff.agentId, `Queued submit #${m.id} was refused (${m.result.error.code}); it went back to the board for any free seat. pullboard show ${m.id} prints the refusal.`),
         handoffEvent({ ...s.handoff, state: 'red' })],
@@ -438,6 +456,6 @@ function infrastructureShouts(s, m) {
 }
 
 
-  const tables = Object.freeze({ SUBMIT: bind(SUBMIT), COMMIT: bind(COMMIT), OUTCOME: bind(OUTCOME), START: bind(START), COMPLETE: bind(COMPLETE) });
+  const tables = Object.freeze({ SUBMIT: bind(SUBMIT), COMMIT: bind(COMMIT), OUTCOME: bind(OUTCOME), START: bind(START), COMPLETE: bind(COMPLETE), RECAPTURE: bind(RECAPTURE) });
   return Object.freeze({ rules: defineRules(DEFS), tables });
 }

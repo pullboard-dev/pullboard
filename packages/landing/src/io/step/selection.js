@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from '../../../../items/index.js';
@@ -11,7 +12,6 @@ import { landingBatchSize } from '../../logic/batch/size.js';
 import { roundFailures } from '../../logic/batch/size.js';
 import { LANDING_RED_LIMIT } from '../../../../store/index.js';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
 import { tryGit } from '../../../../git/index.js';
@@ -25,11 +25,13 @@ import { compareMainFailures } from '../main/red.js';
 import { cachedFailureSignatures } from '../main/matches.js';
 import { landingEntry } from '../../logic/land/entry.js';
 import { testDefectHoldMessage } from '../../logic/land/entry.js';
+
+const fs = fileSystemAdapter();
 export { landingEntry, testDefectHoldMessage };
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
-  try { return createHash('sha256').update(readFileSync(join(root, file))).digest('hex'); }
+  try { return createHash('sha256').update(fs.readFile(join(root, file), null)).digest('hex'); }
   catch { return null; }
 }
 
@@ -294,7 +296,14 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
     const dependencies = localDependencyIds(item);
     const waitsOn = dependencies.filter((id) => !dependencySatisfied(all.find((other) => other.item_id === id))); // only merged or withdrawn count as met, even a verified dependency already in this batch [C7]
     // Named, never silent: #3175 waited on a hand-landed, held #3154 for hours with no record of why [C7].
-    if (waitsOn.length) { blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) #${waitsOn.join(', #')}`, items: waitsOn }); continue; }
+    // A foreign wait is met only when its own board announced the item landed; a version 1 announcement cannot say landed, so verified is the best it can give [XB1,E32].
+    const foreignWaits = store.foreignDependencyStates(board, item)
+      .filter((ref) => !(ref.status === 'landed' || (ref.status === 'verified' && ref.announced === 1))).map((ref) => `${ref.repo}#${ref.id}`);
+    if (waitsOn.length || foreignWaits.length) {
+      const names = [...waitsOn.map((id) => `#${id}`), ...foreignWaits];
+      blocked.push({ id: item.item_id, code: 'WAITS_ON_ITEM', message: `waits on unmerged item(s) ${names.join(', ')}`, items: waitsOn, ...(foreignWaits.length ? { foreign: foreignWaits } : {}) });
+      continue;
+    }
     const own = unverified.length ? new Set(tryGit(root, ['rev-list', item.item_landing_commit, `^${base}`]).stdout.split('\n')) : new Set();
     const stacked = unverified.find((other) => other.item_id !== item.item_id && own.has(other.item_commit));
     if (stacked) {

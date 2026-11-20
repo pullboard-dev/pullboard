@@ -51,7 +51,7 @@ async function itemsTitled(box, title) {
   return (await box.cliLocal('export')).document.tables.item.filter(row => row.item_title === title).length;
 }
 
-test('clause 1: with relay.queueOnFailure on, an add against a down relay exits 0 and shows recorded 1, queued 1 [C7,#10102,#9410]', async (t) => {
+test('cli.journeys-relay-queue-on-failure.with-relay-queueonfailure-on-an-add: clause 1: with relay.queueOnFailure on, an add against a down relay exits 0 and shows recorded 1, queued 1 [C7,#10102,#9410]', async (t) => {
   const box = await linked(t, true);
   await box.stopRelay();
   const added = await box.cliLocal('add', box.lane, 'Added while the relay is down');
@@ -60,7 +60,7 @@ test('clause 1: with relay.queueOnFailure on, an add against a down relay exits 
   assert.deepEqual(queuedOperations(box), ['addItem'], 'queued 1');
 });
 
-test('clause 1: with relay.queueOnFailure on, an add against a relay answering 503 exits 0 and shows recorded 1, queued 1 [C7,#10102,#9410]', async (t) => {
+test('cli.journeys-relay-queue-on-failure.with-relay-queueonfailure-on-an-add-2: clause 1: with relay.queueOnFailure on, an add against a relay answering 503 exits 0 and shows recorded 1, queued 1 [C7,#10102,#9410]', async (t) => {
   const box = await linked(t, true);
   box.refuseMoves(true);
   const added = await box.cliLocal('add', box.lane, 'Added while the relay answers 503');
@@ -69,7 +69,7 @@ test('clause 1: with relay.queueOnFailure on, an add against a relay answering 5
   assert.deepEqual(queuedOperations(box), ['addItem'], 'queued 1');
 });
 
-test('clause 2: with the setting off, the same add against a down relay refuses RELAY_UNAVAILABLE and queues nothing [C7,#10102,#9410]', async (t) => {
+test('cli.journeys-relay-queue-on-failure.with-the-setting-off-the-same: clause 2: with the setting off, the same add against a down relay refuses RELAY_UNAVAILABLE and queues nothing [C7,#10102,#9410]', async (t) => {
   const box = await linked(t, false);
   await box.stopRelay();
   const added = await box.cliLocal('add', box.lane, 'Refused while the relay is down');

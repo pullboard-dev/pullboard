@@ -72,7 +72,7 @@ async function replay(on, values) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: replay demo --against v1 with the setting on prints one line per class count, then one line per differing event, exit 0 [C7,R4,U150]', async () => {
+test('cli.io-commands-replay-against.replay-demo-against-v1-with-the-setting: clause 1: replay demo --against v1 with the setting on prints one line per class count, then one line per differing event, exit 0 [C7,R4,U150]', async () => {
   const { code, said } = await replay(true, { against: 'v1' });
   assert.equal(code, 0);
   const at = said.findIndex(line => line === 'judge against v1:');
@@ -82,12 +82,12 @@ test('clause 1: replay demo --against v1 with the setting on prints one line per
   assert.match(said[at + 5], /^ {2}event 3: current-drifted \(board accepted claim, release accepted claim, table accepted claim\)$/u);
 });
 
-test('clause 2: the same command with --json holds judge.counts and judge.rows [C7,R4,U150]', async () => {
+test('cli.io-commands-replay-against.the-same-command-with-json-holds-judge: clause 2: the same command with --json holds judge.counts and judge.rows [C7,R4,U150]', async () => {
   const { result } = await replay(true, { against: 'v1', json: true });
   assert.deepEqual(result.judge.counts, { same: 3, currentDrifted: 1, releasedWrong: 0, bothDiffer: 0 });
   assert.deepEqual(result.judge.rows.map(row => [row.event, row.class]), [[3, 'current-drifted']]);
 });
 
-test('clause 3: with the setting off the same command is refused JUDGE_OFF and its next step names the setting [C7,U150]', async () => {
+test('cli.io-commands-replay-against.with-the-setting-off-the-same-command: clause 3: with the setting off the same command is refused JUDGE_OFF and its next step names the setting [C7,U150]', async () => {
   await assert.rejects(replay(false, { against: 'v1' }), error => error.code === 'JUDGE_OFF' && String(error.next ?? error.message).includes('moves.judgeByRelease'));
 });

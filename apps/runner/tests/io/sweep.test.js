@@ -39,8 +39,11 @@ function fixture() {
   mkdirSync(join(jobs, 'dead-BBBBBB'), { recursive: true });
   writeFileSync(join(jobs, 'dead-BBBBBB', 'worker-owner.json'), JSON.stringify({ pid: 2 ** 22 - 3, started: 'Mon Jan 1 00:00:00 2001' }));
   fill(join(jobs, 'dead-BBBBBB', 'checkout', 'big.bin'), 4);
-  fill(join(jobs, 'ownerless-CCCCCC', 'big.bin'), 4);
-  utimesSync(join(jobs, 'ownerless-CCCCCC'), OLD / 1000, OLD / 1000);
+  writeFileSync(join(jobs, 'dead-BBBBBB', 'job-terminal.json'), '{}\n');
+  // No owner record and no result: removed only once abandoned, after 24 quiet hours [#3734].
+  const ABANDONED = Date.now() - 25 * 60 * 60 * 1000;
+  fill(join(jobs, 'ownerless-CCCCCC', 'big.bin'), 4, ABANDONED);
+  utimesSync(join(jobs, 'ownerless-CCCCCC'), ABANDONED / 1000, ABANDONED / 1000);
   fill(join(jobs, 'young-DDDDDD', 'big.bin'), 4, Date.now());
   writeFileSync(join(jobs, 'young-DDDDDD', 'extra'), '');
   fill(join(root, 'repos', 'a'.repeat(64) + '.git', 'pack'), 4);

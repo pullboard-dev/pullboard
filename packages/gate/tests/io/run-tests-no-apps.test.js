@@ -7,11 +7,11 @@ import { test } from 'node:test';
 
 const FILE = 'packages/gate/src/io/run-tests.js';
 
-test('clause 1: run-tests.js names no apps/ path [C7]', () => {
+test('gate.run-tests-no-apps.names-no-apps-path: clause 1: run-tests.js names no apps/ path [C7]', () => {
   assert.doesNotMatch(readFileSync(new URL(`../../../../${FILE}`, import.meta.url), 'utf8'), /apps\//u);
 });
 
-test('clause 2: the ceiling holds no packageApps row for run-tests.js [C7]', () => {
+test('gate.run-tests-no-apps.no-package-apps-row: clause 2: the ceiling holds no packageApps row for run-tests.js [C7]', () => {
   const ceilings = JSON.parse(readFileSync(new URL('../../data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   assert.equal(ceilings.packageApps[FILE], undefined);
 });

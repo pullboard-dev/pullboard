@@ -70,7 +70,8 @@ export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = 
     if (/^TAP version \d+\s*$/u.test(line)) version = true;
     const failed = /^\s*not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
     if (failed) {
-      active = { name: failed[1].replace(/\s+#.*$/u, ''), file: null };
+      // Strip the TAP directive on the raw line, then undo Node's TAP escapes (\# and \\) so the name matches its outcome.
+      active = { name: failed[1].replace(/\s+#.*$/u, '').replace(/\\([\\#])/gu, '$1'), file: null };
       if (/^(?:\.\/)?(?:test|tests)\/[^\r\n]+\.(?:[cm]?js|ts|py)$/u.test(active.name)) active.file = active.name.replace(/^\.\//u, '');
       failures.push(active);
       continue;
@@ -162,8 +163,7 @@ export { runnerSource } from './src/logic/runner-source.js';
 export { readStages } from './src/io/stages.js';
 export { retainTestResultCompletion } from './src/io/test/store.js';
 export { runnerPhaseFields } from './src/io/timing.js';
-export { junitAttributes, junitCases } from './src/logic/junit.js';
-export { junitClauseTicks } from './src/logic/junit-ticks.js';
-export { cargoTestCases } from './src/logic/cargo-cases.js';
+export { junitAttributes, junitCases, junitClauseTicks, junitCommand, JUNIT_LANGUAGES, cargoTestCases, affectedRow } from './src/logic/junit.js';
+export { LANGUAGES } from './src/logic/language-rows.js';
 export { evaluate as evaluateCla, appendSignatures as appendClaSignatures, readSignatures as readClaSignatures } from './src/io/check/cla.js';
 export { allTestOutcomes } from './src/io/test/outcomes.js';

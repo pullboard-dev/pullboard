@@ -8,7 +8,7 @@ import { fixtureBoard } from '../../../fixtures/board.js';
 
 const HEAD = 'a'.repeat(40);
 
-test('clause 2: next does not hand out an item whose last gate was red only on main reds, and still offers one red on its own cases [test] [C7]', t => {
+test('cli.logic-help-gate-seat.next-does-not-hand-out-an-item: clause 2: next does not hand out an item whose last gate was red only on main reds, and still offers one red on its own cases [test] [C7]', t => {
   const board = fixtureBoard(t);
   const make = title => addItem(board, { by: 'coordinator', lane: 'web', title });
   const observe = (id, job) => {

@@ -13,10 +13,11 @@ import { withGitFacts } from '../../../../../packages/git/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { agentSessionDigest } from '../../../../../packages/stats/light.js';
 import { sessionBound } from '../../../../../packages/seats/light.js';
-import { COORDINATOR } from '../../../../../packages/config/index.js';
+import { COORDINATOR } from '../../../../../packages/config/light.js';
 import { hookClock } from '../commands/hook.js';
 import { hookCommand } from '../commands/hook.js';
 import { hookSeatId } from '../commands/hook.js';
+import { appendTrace } from '../trace.js';
 
 /** The light context a commit hook reads: checkout facts, config, board file and doctrine, with no board writes. */
 function lightContext(io) {
@@ -60,20 +61,46 @@ async function bindHookSession(ctx, hook, env) {
  */
 export function runThinHook(args, streams) {
   // One facts scope per hook run: checkout, config and trunk reads ask Git once, however many checks repeat them [C7].
-  return withGitFacts(() => runThinHookOnce(args, streams));
+  const startedAt = Date.now();
+  const seen = { stderr: '', refusal: null, seat: null };
+  return withGitFacts(() => runThinHookOnce(args, streams, seen)).then(status => {
+    if (status) traceBlock(args, streams, seen, status, startedAt);
+    return status;
+  });
+}
+
+/**
+ * The refusal a blocked hook reports: a Refused it threw, else the first problem it printed, with the code that problem
+ * names or the hook's own stable code, such as HOOK_PRE_COMMIT_BLOCKED.
+ * Why: a blocked commit left a trace line with exit 1 and no code, so no count could tell one kind of block from another [C7].
+ */
+function hookRefusal(hook, seen) {
+  if (seen.refusal) return { code: seen.refusal.code, message: seen.refusal.message };
+  const problem = /^pullboard [a-z-]+: blocked\n {2}- (.+)$/mu.exec(seen.stderr)?.[1] ?? seen.stderr.split('\n').find(line => line.trim()) ?? 'blocked';
+  const named = /^([A-Z][A-Z0-9_]{3,}):\s/u.exec(problem)?.[1];
+  return { code: named ?? `HOOK_${hook.toUpperCase().replaceAll('-', '_')}_BLOCKED`, message: problem };
+}
+
+/** Append the trace line of a blocked hook: the hook name as the command, the seat, and the refusal code. Never throws. */
+function traceBlock(args, streams, seen, status, startedAt) {
+  appendTrace({ argv: [args[1]], cwd: streams.cwd, startedAt, status, refusal: hookRefusal(args[1], seen), seat: seen.seat, env: streams.env ?? process.env });
 }
 
 /** The body of runThinHook, run inside its Git facts scope. */
-async function runThinHookOnce(args, streams) {
+async function runThinHookOnce(args, streams, seen) {
   const io = commandOutput(args, streams, { nextActions: false,
     loadRefusal: async () => (await import('../../logic/step/words.js')).refusalDocument });
   io.hookContext = lightContext;
   io.gateWaitReporter = () => () => {};
+  // Everything the hook prints to stderr is remembered, unchanged, so a block can name its first problem in the trace.
+  const printErr = io.err;
+  io.err = (text, ...rest) => { seen.stderr += String(text); return printErr.call(io, text, ...rest); };
   let session;
   try {
     let ctx = null;
     try { ctx = lightContext(io); } catch (error) { if (!(error instanceof Refused && error.code === 'NO_CONFIG')) throw error; }
     // A repo without pullboard.json binds nothing: hookCommand passes it.
+    if (ctx) seen.seat = hookSeatId(ctx, ctx.info.root);
     session = ctx ? await bindHookSession(ctx, args[1], streams.env ?? process.env) : { release() {} };
     if (!session) return null;
     const code = await withGitCommandMemo(() => hookCommand(io, { first: args[1], second: args[2] }));
@@ -81,6 +108,7 @@ async function runThinHookOnce(args, streams) {
     return io.exitCode(code);
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
+    seen.refusal = error;
     io.refusal?.(error);
     await io.prepareRefusal();
     io.err(`pullboard: ${io.guidance(error.message.replace(/\r?\nnext:[ \t]*[^\r\n]*\S[ \t]*(?:\r?\n)*$/u, ''))}\nnext: ${io.refusalDocument(error).error.next}`);

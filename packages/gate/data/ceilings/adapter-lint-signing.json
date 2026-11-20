@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "total": 14,
+  "files": {
+    "apps/relay/src/io/passkeys.js": 1,
+    "packages/doctrine/src/io/bundle/verify.js": 2,
+    "packages/doctrine/src/io/bundle/waiver.js": 2,
+    "packages/person/src/io/presence.js": 1,
+    "packages/receipt/src/logic/signed.js": 1,
+    "packages/runners/src/logic/signature.js": 3,
+    "packages/transport/src/io/pull.js": 1,
+    "packages/transport/src/io/pull/http.js": 2,
+    "packages/transport/src/io/pull/keys.js": 1
+  }
+}

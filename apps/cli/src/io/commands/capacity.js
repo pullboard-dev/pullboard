@@ -17,11 +17,11 @@ import { context } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { testCapacityReport } from '../../../../../packages/gate/index.js';
-import { readFileTimes } from '../../../../../packages/gate/index.js';
-import { fileTimesCoverage } from '../../../../../packages/gate/index.js';
-import { fileTimesCoverageNote } from '../../../../../packages/gate/index.js';
-import { trackedDefaultTestFiles } from '../../../../../packages/gate/index.js';
+import { testCapacityReport } from '../../../../../packages/gate/heavy.js';
+import { readFileTimes } from '../../../../../packages/gate/heavy.js';
+import { fileTimesCoverage } from '../../../../../packages/gate/heavy.js';
+import { fileTimesCoverageNote } from '../../../../../packages/gate/heavy.js';
+import { trackedDefaultTestFiles } from '../../../../../packages/gate/heavy.js';
 import { pushGateReport } from '../hook/push.js';
 import { liveRunnerCount } from './runner.js';
 
@@ -38,9 +38,10 @@ function minutes(value) { return value === null ? 'unknown' : `${value.toFixed(3
 
 /** Print measurements and conversion proposals; removal always needs the person's approval. */
 export async function run(io, { first, second, rest, values }) {
-  if (first || second || rest.length || Object.keys(values).some(key => !['json', 'window', 'detail'].includes(key))) {
-    throw new Refused('USAGE', 'use pullboard capacity [--window 14d] [--json] to read carrying capacity and test execution work');
+  if (first || second || rest.length || Object.keys(values).some(key => !['json', 'window', 'detail', 'audit'].includes(key))) {
+    throw new Refused('USAGE', 'use pullboard capacity [--window 14d] [--json] [--detail|--audit] to read carrying capacity and test execution work');
   }
+  if (values.audit) return (await import('../capacity-audit.js')).runAudit(io, values, gateRuns);
   const ctx = context(io);
   const to = ctx.clock.now().toISOString();
   const from = new Date(Date.parse(to) - flowWindowMinutes(values.window ?? '14d') * 60_000).toISOString();

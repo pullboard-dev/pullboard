@@ -12,7 +12,7 @@ import { succeeds } from '../../tests/fixtures/verdict-check.js';
 import { submitted } from '../../tests/fixtures/verdict-check.js';
 import { clean } from '../../tests/fixtures/verdict-check.js';
 
-test('accept records green in its event and JSON after a real frozen check [V19,V8]', async () => {
+test('cli.journeys-verify-check-checked.accept-records-green-in-its-event: accept records green in its event and JSON after a real frozen check [V19,V8]', async () => {
   const started = Date.now();
   /** Print the elapsed seconds at each step, so a slow run on a loaded runner names the step it stalled in [C7]. */
   const step = (name) => process.stderr.write(`check-checked step ${name}: ${((Date.now() - started) / 1000).toFixed(1)} s\n`);

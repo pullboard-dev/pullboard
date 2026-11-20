@@ -11,12 +11,12 @@ const XML = `<?xml version="1.0"?>
 <testcase name="later" classname="a"><skipped/></testcase>
 </testsuite></testsuites>`;
 
-test('clause 1: gate.junitReport is a described setting, unset by default [C7]', () => {
+test('gate.logic-junit.gate-junitreport-is-a-described: clause 1: gate.junitReport is a described setting, unset by default [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['gate.junitReport'], null);
   assert.ok(describeSetting('gate.junitReport'));
 });
 
-test('clause 2: junitCases returns each case name with pass, fail or skip [C7]', () => {
+test('gate.logic-junit.junitcases-returns-each-case-name: clause 2: junitCases returns each case name with pass, fail or skip [C7]', () => {
   const { cases, reason } = junitCases(XML);
   assert.equal(reason, null);
   assert.deepEqual(cases, [
@@ -26,7 +26,7 @@ test('clause 2: junitCases returns each case name with pass, fail or skip [C7]',
   ]);
 });
 
-test('clause 3: damaged XML returns no cases and a coded reason, never a throw [C7]', () => {
+test('gate.logic-junit.damaged-xml-returns-no-cases: clause 3: damaged XML returns no cases and a coded reason, never a throw [C7]', () => {
   for (const bad of ['', 'not xml', '<testsuite><testcase name="a">', null, undefined, '<testsuites><testsuite><testcase></testcase></testsuite></testsuites>']) {
     const result = junitCases(bad);
     assert.deepEqual(result.cases, []);

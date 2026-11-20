@@ -16,14 +16,14 @@ import {
   planReleaseShards,
   releasePlacement,
 } from '../../../../packages/landing/index.js';
-import { releaseParticipation } from '../../../../packages/gate/index.js';
-import { releaseReceiptFields } from '../../../../packages/gate/index.js';
-import { releaseReceiptProblem } from '../../../../packages/gate/index.js';
-import { releaseParticipationDigest } from '../../../../packages/gate/index.js';
-import { releaseTiming } from '../../../../packages/gate/index.js';
-import { RELEASE_BUDGET_SECONDS } from '../../../../packages/gate/index.js';
+import { releaseParticipation } from '../../../../packages/gate/heavy.js';
+import { releaseReceiptFields } from '../../../../packages/gate/heavy.js';
+import { releaseReceiptProblem } from '../../../../packages/gate/heavy.js';
+import { releaseParticipationDigest } from '../../../../packages/gate/heavy.js';
+import { releaseTiming } from '../../../../packages/gate/heavy.js';
+import { RELEASE_BUDGET_SECONDS } from '../../../../packages/gate/heavy.js';
 import { releaseReceiptFixture } from '../../tests/fixtures/release/cases/receipt.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../../packages/gate/index.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../../packages/gate/heavy.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 
@@ -36,7 +36,7 @@ function targets() {
     ...Array.from({ length: 7 }, (_, i) => ({ id: `synthetic-ssh-${i}`, host: `synthetic-ssh-${i}`, kind: 'ssh', browser: true, gui: false }))];
 }
 
-test('release partitions tracked work across every required executor without moving CPU-only work onto local [C7,Q1,I15]', async () => {
+test('cli.journeys-release-speed.release-partitions-tracked-work-across-every: release partitions tracked work across every required executor without moving CPU-only work onto local [C7,Q1,I15]', async () => {
   const executors = targets();
   const files = ['test/cpu.test.js', 'test/gui.test.js', ...Array.from({ length: 10 }, (_, i) => `test/ordinary-${i}.test.js`)];
   const plan = await planReleaseShards(files, executors, { 'test/cpu.test.js': 999999 }, async () => true,
@@ -51,7 +51,7 @@ test('release partitions tracked work across every required executor without mov
     'every registered executor is required, not a hardcoded eight-shard count');
 });
 
-test('release placement refuses missing changed or incompatible executors and ambiguous observations [C7,Q1,I15]', async () => {
+test('cli.journeys-release-speed.release-placement-refuses-missing-changed-or: release placement refuses missing changed or incompatible executors and ambiguous observations [C7,Q1,I15]', async () => {
   const executors = targets();
   const files = Array.from({ length: 8 }, (_, i) => `test/ordinary-${i}.test.js`);
   await assert.rejects(planReleaseShards(files, []), /nonempty/);
@@ -66,12 +66,12 @@ test('release placement refuses missing changed or incompatible executors and am
   assert.equal(releaseParticipation(RELEASE_PARTICIPATION_PREFIX + 'broken\n', value.id), null);
 });
 
-test('a release request with no executors refuses before running or leaving a green stamp [C7,I15]', async t => {
+test('cli.journeys-release-speed.a-release-request-with-no-executors: a release request with no executors refuses before running or leaving a green stamp [C7,I15]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('node -e "process.exit(99)"', undefined, { withWorktree: false });
   const source = `import assert from 'node:assert/strict';
-import {runGate} from ${JSON.stringify(new URL('../../../../packages/gate/index.js', import.meta.url).href)};
+import {runGate} from ${JSON.stringify(new URL('../../../../packages/gate/heavy.js', import.meta.url).href)};
 ${executionServicesSource(new URL('../../../../packages/gate/index.js', import.meta.url).href)}
 await assert.rejects(runGate(process.cwd(),{gate:'node -e "process.exit(99)"'},
  { executionServices,trustStamp:false,landing:true,collectAll:true,releaseRequest:{version:1,id:'6af8c70a-65f0-4a61-8040-3f1f278d9a10',executors:[]}}),
@@ -102,7 +102,7 @@ function timedRelease(minutes) {
   return { envelope, expected };
 }
 
-test('a release under 15 minutes records its wall time [C7,I15]', () => {
+test('cli.journeys-release-speed.a-release-under-15-minutes-records: a release under 15 minutes records its wall time [C7,I15]', () => {
   assert.equal(RELEASE_BUDGET_SECONDS, 900);
   const { envelope, expected } = timedRelease(14);
   assert.equal(releaseReceiptProblem(envelope, expected), null);
@@ -118,7 +118,7 @@ test('a release under 15 minutes records its wall time [C7,I15]', () => {
   assert.notEqual(releaseReceiptProblem(lie, expected), null, 'a recorded wall time must match the observed interval');
 });
 
-test('a release over 15 minutes is marked OVER_BUDGET [C7,I15]', () => {
+test('cli.journeys-release-speed.a-release-over-15-minutes-is: a release over 15 minutes is marked OVER_BUDGET [C7,I15]', () => {
   const { envelope, expected } = timedRelease(16);
   assert.equal(releaseReceiptProblem(envelope, expected), null, 'the slow release is still a recorded, valid receipt');
   const timing = releaseReceiptFields(envelope, expected).timing;

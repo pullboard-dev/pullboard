@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sharedRowHtml } from '../../src/logic/component.js';
 
-test('shared row data is escaped in every variant and cannot add executable attributes [N26]', () => {
+test('view.x-component.shared-row-data-is-escaped-in-every: shared row data is escaped in every variant and cannot add executable attributes [N26]', () => {
   const text = '<script>unexpected()</script>"&';
   const item = sharedRowHtml({ id: '#27', title: text, meta: text, time: '9:12 PM', chip: text,
     state: 'open', chipTitle: text, attributes: { 'data-item': '27', 'aria-label': text } });
@@ -25,7 +25,7 @@ test('shared row data is escaped in every variant and cannot add executable attr
 
 
 /** Seat addresses remain data, even beside trusted state artwork [N26]. */
-test('shared Items seat chips escape identity and hover text while record rows retain their frame [N26]', () => {
+test('view.x-component.shared-items-seat-chips-escape-identity-and: shared Items seat chips escape identity and hover text while record rows retain their frame [N26]', () => {
   const item = sharedRowHtml({ state: 'building', title: 'Work', seat: '<seat>', chipTitle: 'model"&' });
   assert.match(item, /class="chip item-seat building" title="model&quot;&amp;"/u);
   assert.match(item, /<svg aria-hidden="true"[^]*<\/svg>&lt;seat&gt;<\/span>/u);

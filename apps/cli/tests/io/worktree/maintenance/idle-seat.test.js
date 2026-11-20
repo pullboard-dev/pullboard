@@ -7,7 +7,7 @@ import { registerMaintenanceIdleSeatTests } from '../../../fixtures/worktree/mai
 
 registerMaintenanceIdleSeatTests();
 
-test('clause 1 [test]: classification retires an idle joined seat only when a takeover window is known and has passed [C7,#8199]', () => {
+test('cli.io-worktree-maintenance-idle-seat.clause-1-test-classification-retires-an-idle: clause 1 [test]: classification retires an idle joined seat only when a takeover window is known and has passed [C7,#8199]', () => {
   const NOW = Date.UTC(2026, 10, 15, 12), MIN = 60_000, DAY = 24 * 60 * MIN;
   const path = '/tmp/pullboard/.claude/worktrees/w-1';
   const base = { mainRoot: '/tmp/pullboard', currentRoot: '/tmp/pullboard', items: [], now: NOW, workingDirectories: [],

@@ -4,6 +4,8 @@
  * Why: the reconciler tick landed as library code (#7416); this is the wiring its design names (runner-store-design.md
  * section 2). Both doors do nothing, and open no runs file, while the board's runs_store flag is off.
  */
+import { applyInbox } from '../../../../packages/api/index.js';
+import { queueFor } from '../../../../packages/api/index.js';
 import { startBeat } from '../../../../packages/drive/index.js';
 import { boardId } from '../../../../packages/store/index.js';
 import { boardRunsPort } from '../../../../packages/store/index.js';
@@ -31,6 +33,20 @@ export function settleOnce(board, boardFile, { by = 'coordinator' } = {}) {
   try { return reconcileTick(board, runs, port, { by }); } finally { runs.db.close(); }
 }
 
+/**
+ * Apply every receipt the runs inbox still holds, once each: the repair for a crash between a receipt's board move and its ack.
+ * A posted receipt already applies inline; this is the drain behind it. With the runs_store flag off there is no queue, so it opens no runs file.
+ *
+ * @param {any} board - The open board.
+ * @param {string} boardFile - The board's file path, which names the runs file beside it.
+ * @returns {{ job: string, attempt: number, applied: boolean, outcome?: string }[]|null} The receipts taken from the inbox, or null while the flag is off.
+ */
+export function drainInbox(board, boardFile) {
+  const queue = queueFor(board, 'coordinator', { file: boardFile });
+  if (!queue) return null;
+  try { return applyInbox(board, queue); } finally { queue.runs.db.close(); }
+}
+
 /** The line doctor prints for a tick's result, or null when the flag is off so doctor prints no reconciler line. */
 export function reconcilerLine(settled) {
   if (settled === null) return null;
@@ -40,6 +56,7 @@ export function reconcilerLine(settled) {
 
 /**
  * The serve loop's reconciler: a timer that offers a tick every second to a pace that lets one through per 5 s.
+ * Each tick applies the receipts the runs inbox still holds, then settles the runs the board and the runs file disagree on.
  * The board opens only when a tick is due.
  *
  * @param {{ withBoard: (work: (board: any) => any) => any, boardFile: string, clock?: () => number, every?: number,
@@ -47,7 +64,7 @@ export function reconcilerLine(settled) {
  * @returns {{ offer: () => void, stop: () => void }} `offer` is one timer beat, exposed so tests need no wall clock.
  */
 export function serveReconciler({ withBoard, boardFile, clock = Date.now, every = RECONCILE_EVERY_MS, onSettled, onError }) {
-  const paced = pacedReconciler(() => withBoard(board => settleOnce(board, boardFile)), { every, clock });
+  const paced = pacedReconciler(() => withBoard(board => { drainInbox(board, boardFile); return settleOnce(board, boardFile); }), { every, clock });
   const offer = () => {
     try {
       const settled = paced();

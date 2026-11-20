@@ -43,7 +43,7 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /** Setup joins run in this process through the warm worker; a real process under PULLBOARD_JOURNEY_MODE=process (U149). */
 const setupRun = (box) => (JOURNEY_MODE === 'process' ? box.run : box.runSync);
 
-test("the README's worktree command works in a fresh repo [I1,I2]", async () => {
+test('cli.journeys-worktree-start.the-readme-s-worktree-command-works: the README\'s worktree command works in a fresh repo [I1,I2]', async () => {
   const box = sandbox();
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
@@ -107,7 +107,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
     'run pullboard join api --model "<model name>"');
 });
 
-test('a new worktree is created inside the repository [I1,I2]', async () => {
+test('cli.journeys-worktree-start.a-new-worktree-is-created-inside: a new worktree is created inside the repository [I1,I2]', async () => {
   for (const mode of ['inside', 'beside', undefined]) {
     const box = sandbox();
     const { repo, web } = project('true', box);
@@ -229,7 +229,7 @@ test('a new worktree is created inside the repository [I1,I2]', async () => {
   assert.equal(box.git(repo, 'status', '--porcelain'), '');
 });
 
-test('worktree suggests no install for a zero-dependency project [I1,L3]', async () => {
+test('cli.journeys-worktree-start.worktree-suggests-no-install-for-a: worktree suggests no install for a zero-dependency project [I1,L3]', async () => {
   const box = sandbox();
   // Git selectors inherited from a hook would point the fixture's git at the outer repository.
   for (const key of Object.keys(box.env)) if (key.startsWith('GIT_') && !key.startsWith('GIT_CONFIG_') && !/^GIT_(?:AUTHOR|COMMITTER)_/u.test(key)) delete box.env[key];
@@ -284,7 +284,7 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', async
     'an npm-shrinkwrap.json in HEAD is a committed lockfile');
 });
 
-test('the worktree and branch names Pullboard makes carry no host part [I1,I2]', async () => {
+test('cli.journeys-worktree-start.the-worktree-and-branch-names-pullboard: the worktree and branch names Pullboard makes carry no host part [I1,I2]', async () => {
   const box = sandbox();
   const { web } = project('true', box);
   box.env.PULLBOARD_MODEL = 'Name Model';
@@ -298,7 +298,7 @@ test('the worktree and branch names Pullboard makes carry no host part [I1,I2]',
   }
 });
 
-test('a submit naming a stand-in host refuses at HOST_NAME, and only warns when the setting is off [C1]', () => {
+test('cli.journeys-worktree-start.a-submit-naming-a-stand-in: a submit naming a stand-in host refuses at HOST_NAME, and only warns when the setting is off [C1]', () => {
   const box = sandbox();
   const { repo } = project('true', box);
   const base = box.git(repo, 'rev-parse', 'HEAD');
@@ -320,7 +320,7 @@ test('a submit naming a stand-in host refuses at HOST_NAME, and only warns when 
     (error) => error.code === 'HOST_NAME' && /names this machine/u.test(error.message), 'a stand-in computer name is refused');
 });
 
-test('a stand-in host after a field separator in a commit body is still refused [C1]', () => {
+test('cli.journeys-worktree-start.a-stand-in-host-after-a: a stand-in host after a field separator in a commit body is still refused [C1]', () => {
   const box = sandbox();
   const { repo } = project('true', box);
   const base = box.git(repo, 'rev-parse', 'HEAD');
@@ -335,11 +335,11 @@ test('a stand-in host after a field separator in a commit body is still refused 
  * Build a claimed web item whose only commit names this machine in its message, then submit it. The
  * setting is written to the main checkout first, since submit reads the accepted main's policy [C1].
  */
-async function submitNamingThisMachine(box, noHostName) {
+async function submitNamingThisMachine(box, noHostName, { body = `built on ${hostname()}`, settings = {} } = {}) {
   const { repo, web } = project('true', box);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  config.commits = { ...(config.commits ?? {}), noHostName };
+  config.commits = { ...(config.commits ?? {}), noHostName, ...settings };
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   box.git(repo, 'add', 'pullboard.json');
   box.git(repo, 'commit', '-q', '-m', `chore: set the host-name guard to ${noHostName}`);
@@ -350,11 +350,11 @@ async function submitNamingThisMachine(box, noHostName) {
   writeFileSync(join(web, 'web', 'a.html'), '<h1>Hi</h1>\n');
   box.git(web, 'add', '-A');
   // The host name comes from the machine at run time; it is never written into a file or a shout.
-  box.git(web, 'commit', '-q', '-m', 'feat(web): page [G1]', '-m', `built on ${hostname()}`);
+  box.git(web, 'commit', '-q', '-m', 'feat(web): page [G1]', '-m', body);
   return (await box.runLocal(web, 'submit', '1'));
 }
 
-test('a submit naming this machine is refused at HOST_NAME when commits.noHostName is on, and the host name stays out of the output [C1]', async () => {
+test('cli.journeys-worktree-start.a-submit-naming-this-machine-is: a submit naming this machine is refused at HOST_NAME when commits.noHostName is on, and the host name stays out of the output [C1]', async () => {
   const box = sandbox();
   const host = hostname().toLowerCase();
   const refused = (await submitNamingThisMachine(box, true));
@@ -363,7 +363,7 @@ test('a submit naming this machine is refused at HOST_NAME when commits.noHostNa
   assert.equal(`${refused.out}\n${refused.err}`.toLowerCase().includes(host), false, 'the output does not name the host');
 });
 
-test('the same submit only warns when commits.noHostName is off, and the submit goes on [C1]', async () => {
+test('cli.journeys-worktree-start.the-same-submit-only-warns-when: the same submit only warns when commits.noHostName is off, and the submit goes on [C1]', async () => {
   const box = sandbox();
   const host = hostname().toLowerCase();
   const submitted = (await submitNamingThisMachine(box, false));
@@ -371,4 +371,16 @@ test('the same submit only warns when commits.noHostName is off, and the submit 
   assert.match(submitted.out, /warning: commit [0-9a-f]{12} names this machine in its message/u, 'the warning line is printed');
   assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}|#1 is in the gate as job gate:1:[0-9a-f]{12}:/u, 'the submit continues to its record (pull dispatch queues the gate at once)');
   assert.equal(`${submitted.out}\n${submitted.err}`.toLowerCase().includes(host), false, 'the output does not name the host');
+});
+
+test('cli.journeys-worktree-start.submit-refuses-co-author-and-home-path: clause 2: a real submit refuses a branch whose commit carries a Co-Authored-By trailer when commits.noCoAuthor is on, refuses a home-folder path always, and a clean branch passes [C1,C7]', async () => {
+  const trailer = await submitNamingThisMachine(sandbox(), false, { body: 'Co-Authored-By: Ada Example <ada@example.com>', settings: { noCoAuthor: true } });
+  assert.equal(trailer.code, 1, trailer.out + trailer.err);
+  assert.match(trailer.err, /\[CO_AUTHOR\]/u);
+  const path = await submitNamingThisMachine(sandbox(), false, { body: 'built from /Users/fixture/work/repo' });
+  assert.equal(path.code, 1, path.out + path.err);
+  assert.match(path.err, /\[HOME_PATH\]/u);
+  assert.equal(`${path.out}\n${path.err}`.includes('/Users/fixture'), false, 'the refusal never echoes the path');
+  const clean = await submitNamingThisMachine(sandbox(), false, { body: 'a plain note', settings: { noCoAuthor: true } });
+  assert.equal(clean.code, 0, clean.err);
 });

@@ -64,7 +64,7 @@ for (const [name, message, status] of MESSAGES) {
   });
 }
 
-test('clause 1: runCommitMsgInProcess returns status, stderr and the message as the hook left it, with the item trailer added [C7,#9212]', async () => {
+test('cli.io-hook-commit-msg-parity.runcommitmsginprocess-returns-status-stderr-and-the-message: clause 1: runCommitMsgInProcess returns status, stderr and the message as the hook left it, with the item trailer added [C7,#9212]', async () => {
   const box = await claimedProject();
   const answer = await runCommitMsgInProcess(box, box.web, 'feat(web): Add the page. [G1]');
   assert.deepEqual(Object.keys(answer).sort(), ['message', 'status', 'stderr']);

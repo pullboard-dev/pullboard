@@ -20,7 +20,7 @@ function fixture(t) {
   return { board, lander, move, advance(ms) { at += ms; } };
 }
 
-test('replaying real recorded landing moves (acquire, queue, release, expire-and-reclaim) agrees with the lease table on every move [C7,#8164]', t => {
+test('lib.landing-lease-replay.replaying-real-recorded-landing-moves-acquire: replaying real recorded landing moves (acquire, queue, release, expire-and-reclaim) agrees with the lease table on every move [C7,#8164]', t => {
   const box = fixture(t);
   const [a, b, c, d, e] = [1, 2, 3, 4, 5].map(box.lander);
   const first = box.move(a, 'request');
@@ -44,7 +44,7 @@ test('replaying real recorded landing moves (acquire, queue, release, expire-and
   assert.deepEqual([report.total, report.agreed, report.disagreed, report.notReplayable], [events, events, 0, 0], JSON.stringify(report.disagreements));
 });
 
-test('a lease event that contradicts the table (a second holder at the same generation) is reported with its event id [C7,#8164]', t => {
+test('lib.landing-lease-replay.a-lease-event-that-contradicts-the: a lease event that contradicts the table (a second holder at the same generation) is reported with its event id [C7,#8164]', t => {
   const box = fixture(t);
   const [a, b] = [1, 2].map(box.lander);
   box.move(a, 'request');

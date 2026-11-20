@@ -19,6 +19,7 @@ const READERS = {
   'apps/relay/tests/io/push-optin.test.js': ['apps/relay/src/io/browser/push-client.js', 'apps/relay/src/io/browser/push-sw.js'],
   'apps/relay/tests/io/deploy/dockerfile.test.js': ['apps/relay/src/io/deploy/Dockerfile', 'package.json', 'CHANGELOG.md', 'apps/relay/src/io/deploy/server.mjs', 'packages/kernel/index.js'],
   'apps/relay/tests/io/deploy/health.test.js': ['package.json'],
+  'apps/relay/tests/io/auth.test.js': ['apps/relay/tests/fixtures/v093-data/**'],
   'apps/relay/tests/v093-data-folder.test.js': ['apps/relay/tests/fixtures/v093-data/**'],
 };
 

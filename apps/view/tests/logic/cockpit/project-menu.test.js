@@ -9,19 +9,19 @@ const esc = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const listed = [
   { ok: true, root: 'a', id: 'a', name: 'pullboard', owner: 'pullboard-dev', kind: 'team', decisions: 5 },
   { ok: true, root: 'b', id: 'b', name: 'pullboard', owner: 'pullboard-dev', kind: 'private', decisions: 0 },
-  { ok: true, root: 'c', id: 'c', name: 'pullboard-next', owner: '', handle: 'coreyolson', source: 'local', decisions: 0 },
+  { ok: true, root: 'c', id: 'c', name: 'pullboard-next', owner: '', handle: 'alice', source: 'local', decisions: 0 },
   { ok: true, root: 'd', id: 'd', name: 'website', source: 'relay', owner: 'pullboard-dev', decisions: 0 },
   { ok: false, root: 'e', name: 'gone' },
 ];
 const needs = (board) => board.decisions;
 
-test('each board shows owner, name, kind and one fact, the current one marked [N26]', () => {
+test('view.cockpit-project-menu.each-board-shows-owner-name-kind-and: each board shows owner, name, kind and one fact, the current one marked [N26]', () => {
   const rows = projectMenuRows(listed, 'b', needs);
   assert.equal(rows.length, 4, 'an unreadable board is not a choice');
   assert.deepEqual(rows.map((row) => [row.owner, row.name, row.kindLabel, row.fact, row.amber, row.current]), [
     ['pullboard-dev', 'pullboard', 'Team board', '5', true, false],
     ['pullboard-dev', 'pullboard', 'Your private board', 'quiet', false, true],
-    ['coreyolson', 'pullboard-next', 'Local board', 'quiet', false, false],
+    ['alice', 'pullboard-next', 'Local board', 'quiet', false, false],
     ['pullboard-dev', 'website', 'Team board', 'quiet', false, false],
   ]);
   const html = projectMenuHtml(rows, esc);
@@ -30,7 +30,7 @@ test('each board shows owner, name, kind and one fact, the current one marked [N
   assert.match(html, /<em class="a">5<\/em><small>Team board<\/small>/, 'the count to answer is amber');
 });
 
-test('the menu ends with All projects and Add a project; a board is chosen by its root [N26]', () => {
+test('view.cockpit-project-menu.the-menu-ends-with-all-projects-and: the menu ends with All projects and Add a project; a board is chosen by its root [N26]', () => {
   const html = projectMenuHtml(projectMenuRows(listed, 'a', needs), esc);
   assert.match(html, /<div class="foot"><button[^>]*data-proj-all>All projects<\/button><button[^>]*data-proj-add>Add a project…<\/button><\/div><\/div>$/);
   for (const root of ['a', 'b', 'c', 'd']) assert.ok(html.includes('data-root="' + root + '"'), 'the page switches by data-root, which changes its address');
@@ -38,7 +38,7 @@ test('the menu ends with All projects and Add a project; a board is chosen by it
   assert.match(projectMenuHtml([], esc, true), /<code>pullboard init<\/code>/);
 });
 
-test('the page script carries the menu and the switcher hook [N26]', () => {
+test('view.cockpit-project-menu.the-page-script-carries-the-menu-and: the page script carries the menu and the switcher hook [N26]', () => {
   const script = cockpitProjectMenu();
   assert.match(script, /function projectMenuToggle\(\)/);
   assert.match(script, /const projectMenuRows = function projectMenuRows\(/);

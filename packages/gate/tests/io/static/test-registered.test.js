@@ -38,7 +38,7 @@ function change(t) {
   return tree.root;
 }
 
-test('clause 1: with tests.requireRegistered on, a new test file in a cell with no registry fails with TEST_UNREGISTERED naming the file and one next step; an edited test does not [C7,U148]', t => {
+test('gate.io-static-test-registered.with-tests-requireregistered-on-a-new: clause 1: with tests.requireRegistered on, a new test file in a cell with no registry fails with TEST_UNREGISTERED naming the file and one next step; an edited test does not [C7,U148]', t => {
   const root = change(t);
   const rows = check.run(root, [], { requireRegistered: true, report: () => {} });
   assert.equal(rows.length, 1, 'only the added file is a finding');
@@ -47,7 +47,7 @@ test('clause 1: with tests.requireRegistered on, a new test file in a cell with 
   assert.ok(!rows.some(row => row.includes('packages/spec/tests/old.test.js')), 'a modified test file never trips it');
 });
 
-test('clause 2: with tests.requireRegistered off the same change passes and the finding is only a diagnostic line [C7,U148]', t => {
+test('gate.io-static-test-registered.with-tests-requireregistered-off-the-same: clause 2: with tests.requireRegistered off the same change passes and the finding is only a diagnostic line [C7,U148]', t => {
   const root = change(t);
   const lines = [];
   assert.deepEqual(check.run(root, [], { requireRegistered: false, report: line => lines.push(line) }), []);

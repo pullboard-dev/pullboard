@@ -194,7 +194,7 @@ async function fixture(t, { signer = false, doctrine = false } = {}) {
   return { dir, root, env, git, pullboard };
 }
 
-test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTEMPTY', async (t) => {
+test('cli.journeys-spec-changes.c7-cleanup-diagnostics-capture-a-forced: [C7] cleanup diagnostics capture a forced late writer without hiding ENOTEMPTY', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-control-'));
   t.after(() => removeFixtureDirectory(directory));
   const target = join(directory, 'repo');
@@ -255,7 +255,7 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
   }
 });
 
-test('[C7] cleanup diagnostics name the owner when lsof is slow', async () => {
+test('cli.journeys-spec-changes.c7-cleanup-diagnostics-name-the-owner: [C7] cleanup diagnostics name the owner when lsof is slow', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-slow-lsof-'));
   const shimDir = join(directory, 'bin');
   const heldFile = join(directory, 'held-open');
@@ -300,7 +300,7 @@ test('[C7] cleanup diagnostics name the owner when lsof is slow', async () => {
   assert.ok(captureElapsedMs >= 4_000, `the lsof shim waited four seconds: ${captureElapsedMs}ms`); // budget: declared four-second sleep in the private lsof shim.
 });
 
-test('[C7] cleanup diagnostics report the lsof timeout budget', () => {
+test('cli.journeys-spec-changes.c7-cleanup-diagnostics-report-the-lsof: [C7] cleanup diagnostics report the lsof timeout budget', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-timeout-lsof-'));
   const shimDir = join(directory, 'bin');
   mkdirSync(shimDir);
@@ -340,7 +340,7 @@ function stage(box, ...paths) {
   box.git('add', '--', 'SPEC.md', ...paths);
 }
 
-test('[S19,V3] raw staged changes to an approved row are refused by the real commit hook', async (t) => {
+test('cli.journeys-spec-changes.s19-v3-raw-staged-changes-to: [S19,V3] raw staged changes to an approved row are refused by the real commit hook', async (t) => {
   const box = await fixture(t);
   const before = box.git('rev-parse', 'HEAD');
   setRowText(box, 'G1', 'A rewrite with no person approval.');
@@ -351,7 +351,7 @@ test('[S19,V3] raw staged changes to an approved row are refused by the real com
   assert.equal(box.git('rev-parse', 'HEAD'), before, 'the refused staged rewrite never becomes a commit');
 });
 
-test('[B26,S19,V3] exact board approval and decline apply authorize only their approved-row text changes', async (t) => {
+test('cli.journeys-spec-changes.b26-s19-v3-exact-board-approval: [B26,S19,V3] exact board approval and decline apply authorize only their approved-row text changes', async (t) => {
   const box = await fixture(t);
   setRowText(box, 'G1', 'The person approved this exact replacement.');
   const approved = await box.pullboard('spec', 'approve', 'G1', '--json');
@@ -370,7 +370,7 @@ test('[B26,S19,V3] exact board approval and decline apply authorize only their a
   assert.match(readFileSync(join(box.root, 'SPEC.md'), 'utf8'), /G1 \[wont, must\] The person approved this exact replacement\./u);
 });
 
-test('[S19] unchanged approved rows and draft-row wording remain committable', async (t) => {
+test('cli.journeys-spec-changes.s19-unchanged-approved-rows-and-draft: [S19] unchanged approved rows and draft-row wording remain committable', async (t) => {
   const box = await fixture(t);
   writeFileSync(join(box.root, 'notes.txt'), 'The approved row was not changed.\n');
   box.git('add', 'notes.txt');
@@ -383,7 +383,7 @@ test('[S19] unchanged approved rows and draft-row wording remain committable', a
   assert.equal(draft.status, 0, `${draft.stdout}${draft.stderr}`);
 });
 
-test('[S19,V3] an exact approval cannot authorize different staged bytes in a partial commit', async (t) => {
+test('cli.journeys-spec-changes.s19-v3-an-exact-approval-cannot: [S19,V3] an exact approval cannot authorize different staged bytes in a partial commit', async (t) => {
   const box = await fixture(t);
   setRowText(box, 'G1', 'The person approved these exact bytes.');
   const approved = await box.pullboard('spec', 'approve', 'G1', '--json');
@@ -399,7 +399,7 @@ test('[S19,V3] an exact approval cannot authorize different staged bytes in a pa
   assert.match(readFileSync(join(box.root, 'SPEC.md'), 'utf8'), /The person approved these exact bytes\./u, 'the different worktree text must not mask staged bytes');
 });
 
-test('[S18,S19,S20] pre-commit validates the staged SSH receipt and staged signer trust, not worktree substitutes', async (t) => {
+test('cli.journeys-spec-changes.s18-s19-s20-pre-commit-validates: [S18,S19,S20] pre-commit validates the staged SSH receipt and staged signer trust, not worktree substitutes', async (t) => {
   const box = await fixture(t, { signer: true });
   setRowText(box, 'G1', 'The signed person-approved wording.');
   const signed = await box.pullboard('spec', 'signoff', 'G1', '--by', 'CO', '--json');
@@ -426,7 +426,7 @@ test('[S18,S19,S20] pre-commit validates the staged SSH receipt and staged signe
   assert.equal(box.git('show', 'HEAD:.pullboard/signers'), box.git('show', 'HEAD^:.pullboard/signers'), 'the valid committed trust list came from the index');
 });
 
-test('[B26,S18,S19] proposed SSH-approved wording and person-declined wording commit through one decision record', async (t) => {
+test('cli.journeys-spec-changes.b26-s18-s19-proposed-ssh-approved: [B26,S18,S19] proposed SSH-approved wording and person-declined wording commit through one decision record', async (t) => {
   const box = await fixture(t, { signer: true });
   const before = readFileSync(join(box.root, 'SPEC.md'), 'utf8');
   const text = 'The exact signed replacement the person approved.';
@@ -449,7 +449,7 @@ test('[B26,S18,S19] proposed SSH-approved wording and person-declined wording co
   assert.equal(declinedCommit.status, 0, `${declinedCommit.stdout}${declinedCommit.stderr}`);
 });
 
-test('[S19] repo doctrine approved text has the same exact person-approval commit guard', async (t) => {
+test('cli.journeys-spec-changes.s19-repo-doctrine-approved-text-has: [S19] repo doctrine approved text has the same exact person-approval commit guard', async (t) => {
   const box = await fixture(t, { doctrine: true });
   const file = join(box.root, 'PRACTICE.md');
   const before = readFileSync(file, 'utf8');
@@ -468,7 +468,7 @@ test('[S19] repo doctrine approved text has the same exact person-approval commi
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
 });
 
-test('[S19] staged config and row-file renames cannot hide an approved rewrite', async (t) => {
+test('cli.journeys-spec-changes.s19-staged-config-and-row-file: [S19] staged config and row-file renames cannot hide an approved rewrite', async (t) => {
   for (const [kind, from, to, id, old, replacement] of [
     ['spec', 'SPEC.md', 'requirements.md', 'G1', 'The existing approved promise.', 'The unauthorized moved promise.'],
     ['practice', 'PRACTICE.md', 'DOCTRINE.md', 'L1', 'Keep the local rule exact.', 'The unauthorized moved local rule.'],
@@ -490,7 +490,7 @@ test('[S19] staged config and row-file renames cannot hide an approved rewrite',
   }
 });
 
-test('[S19] unstaged config cannot redirect the approval guard away from the staged SPEC', async (t) => {
+test('cli.journeys-spec-changes.s19-unstaged-config-cannot-redirect-the: [S19] unstaged config cannot redirect the approval guard away from the staged SPEC', async (t) => {
   const box = await fixture(t);
   setRowText(box, 'G1', 'An unapproved promise remains staged.');
   stage(box);

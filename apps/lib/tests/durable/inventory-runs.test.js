@@ -47,7 +47,7 @@ async function withStores(name, body) {
 
 const jobId = () => keyedJobId(CELLS_INVENTORY_KIND, treeOf(fixture.root, fixture.commit));
 
-test('clause 1: with runs_store on, the cells inventory job row is in the runs file and not on the board [P7,#9112]', async () => {
+test('lib.durable-inventory-runs.with-runs-store-on-the-cells: clause 1: with runs_store on, the cells inventory job row is in the runs file and not on the board [P7,#9112]', async () => {
   await withStores('clause-1-on', async (db, runs) => {
     const given = ports();
     const found = await acceptedCellsFromJob(db, fixture.root, fixture.commit, { owner: 'gate-on', runs, ...given });
@@ -63,7 +63,7 @@ test('clause 1: with runs_store on, the cells inventory job row is in the runs f
   });
 });
 
-test('clause 1: with runs_store off, the same call keeps the job row on the board [P7,#9112]', async () => {
+test('lib.durable-inventory-runs.with-runs-store-off-the-same: clause 1: with runs_store off, the same call keeps the job row on the board [P7,#9112]', async () => {
   await withStores('clause-1-off', async (db, runs) => {
     await acceptedCellsFromJob(db, fixture.root, fixture.commit, { owner: 'gate-off', ...ports() });
     assert.equal(jobView(db, jobId())?.steps.find(step => step.name === 'result')?.payload.owner, 'gate-off');

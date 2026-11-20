@@ -1,6 +1,6 @@
 /** The board's production pull adapter: always built over a file store in the board's own folder [C7]. */
-import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { pullAdapter } from '../pull.js';
 import { revokedRunnerNames } from './keys.js';
 import { trustedRunnerKeys } from './keys.js';
@@ -19,6 +19,6 @@ export { PULL_STORE_FILE };
  * @returns {ReturnType<typeof pullAdapter>}
  */
 export function boardPullAdapter({ folder, ...ports }) {
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  fileSystemAdapter().mkdir(folder, { recursive: true, mode: 0o700 });
   return pullAdapter({ trusted: () => trustedRunnerKeys(folder), revokedNames: () => revokedRunnerNames(folder), ...ports, store: fileStore(join(folder, PULL_STORE_FILE)) });
 }

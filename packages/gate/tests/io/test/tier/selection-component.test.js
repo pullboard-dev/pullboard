@@ -2,8 +2,8 @@
 /** With gate.componentTier a submit reruns a T2 test only when a front door it reaches changes [C7,#9788]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { selectTestTiers } from '../../../../index.js';
-import { writeTestTiers } from '../../../../index.js';
+import { selectTestTiers } from '../../../../heavy.js';
+import { writeTestTiers } from '../../../../heavy.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 

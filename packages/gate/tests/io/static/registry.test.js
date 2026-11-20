@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { runShell } from '../../../index.js';
+import { runShell } from '../../../heavy.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 import {
   privateFixtureFiles,
@@ -38,7 +38,7 @@ function git(cwd, args) {
   runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd });
 }
 
-test('clause 1: a catalog fix red at main and green at the item head passes the prose-commands check at the head [C7,#3827]', t => {
+test('gate.io-static-registry.a-catalog-fix-red-at-main: clause 1: a catalog fix red at main and green at the item head passes the prose-commands check at the head [C7,#3827]', t => {
   const tree = privateFixtureFiles('pb-prose-');
   const repo = tree.root;
   t.after(() => rmSync(repo, { recursive: true, force: true }));
@@ -55,7 +55,7 @@ test('clause 1: a catalog fix red at main and green at the item head passes the 
   assert.match(proseCheck.run(repo, [], { apps: STATIC_APPS })[0], /prose command declaration differs/u, 'main stays red');
 });
 
-test('clause 2: the prose-commands check reads HELP and PULLBOARD_COMMANDS from the tree it checks, not from its own import [C7,#3827]', t => {
+test('gate.io-static-registry.the-prose-commands-check-reads-help: clause 2: the prose-commands check reads HELP and PULLBOARD_COMMANDS from the tree it checks, not from its own import [C7,#3827]', t => {
   const brokenTree = privateFixtureFiles('pb-prose-broken-');
   const soundTree = privateFixtureFiles('pb-prose-sound-');
   const broken = brokenTree.root;
@@ -68,7 +68,7 @@ test('clause 2: the prose-commands check reads HELP and PULLBOARD_COMMANDS from 
   assert.match(proseCheck.run(broken, [], { apps: STATIC_APPS })[0], /^apps\/cli\/src\/logic\/help\.js:1: /u);
 });
 
-test('#8460 clause 1: the worker-bundle check reports the measured size and its change against the record, and never refuses a bundle over it [C7]', t => {
+test('gate.io-static-registry.case-8460-clause-1-the-worker-bundle: #8460 clause 1: the worker-bundle check reports the measured size and its change against the record, and never refuses a bundle over it [C7]', t => {
   const bundleCheck = STATIC_TREE_CHECKS.find(check => check.name === 'worker-bundle');
   assert.ok(bundleCheck, 'the worker-bundle check is registered');
   const tree = privateFixtureFiles('pb-worker-bundle-');
@@ -85,7 +85,7 @@ test('#8460 clause 1: the worker-bundle check reports the measured size and its 
   assert.match(reported.at(-1), /1000 raw bytes, unchanged from the recorded 1000/u);
 });
 
-test('5642 clause 1: a worker-bundle measurement that fails names the step it reached and its error [C7]', t => {
+test('gate.io-static-registry.case-5642-clause-1-a-worker-bundle: 5642 clause 1: a worker-bundle measurement that fails names the step it reached and its error [C7]', t => {
   const bundleCheck = STATIC_TREE_CHECKS.find(check => check.name === 'worker-bundle');
   const tree = privateFixtureFiles('pb-worker-bundle-step-');
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
@@ -95,7 +95,7 @@ test('5642 clause 1: a worker-bundle measurement that fails names the step it re
   assert.match(bundleCheck.run(tree.root)[0] ?? '', /could not be measured at the step: list the package files: Error: walk failed$/u);
 });
 
-test('#8469 clause 1: a static run whose only output is the worker size report line is green [C7]', t => {
+test('gate.io-static-registry.case-8469-clause-1-a-static-run: #8469 clause 1: a static run whose only output is the worker size report line is green [C7]', t => {
   const tree = privateFixtureFiles('pb-static-report-');
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   const run = runShell(tree.root, "echo 'runner worker bundle: 840493 raw bytes, -73 against the recorded 840566 (reported, not enforced)' >&2");

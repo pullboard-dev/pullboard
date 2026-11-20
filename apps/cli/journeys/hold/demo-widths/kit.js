@@ -197,7 +197,7 @@ export function demoWidthTest(only, phase = 'both') {
             assert.equal(fit.title, wrapTitle, `${width}: the full title stays available in the title attribute`);
           }
           if (tab === 'shouts') {
-            await click('[data-shout-thread="none"]');
+            await click('[data-shout-thread^="from:"]');
             await waitRendered(['#feed .sx-tp', '#feed .sx-msg .sx-tx', '#feed [data-reply] input']);
             const open = JSON.parse(await chrome.stable(`JSON.stringify((() => {
               const rect = e => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
@@ -240,7 +240,7 @@ export function demoWidthTest(only, phase = 'both') {
         await submit('#shout-form');
         await chrome.waitFor(`document.querySelector('#feed').innerText.includes('Phone shout ${width}')`);
 
-        await click('[data-shout-thread="none"]');
+        await click('[data-shout-thread^="from:"]');
         await chrome.waitFor("!!document.querySelector('#feed [data-go]')");
         const decision = await chrome.stable("document.querySelector('#feed [data-go]')?.getAttribute('data-go')");
         assert.ok(decision, `${width}: a decision is offered for answer`);
@@ -408,6 +408,7 @@ export function demoWidthTest(only, phase = 'both') {
             t.diagnostic(JSON.stringify({ width, answerLifecycleCapture, answerLifecycleCaptureError }));
         }
 
+        await pressTab(chrome, 'activity'); // the Lanes fold, its hold form and its Release buttons live on the Activity page, not Shouts
         await fill('#hold-lane', 'web');
         await fill('#hold-reason', `Phone hold ${width}`);
         await submit('#hold-form');

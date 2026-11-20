@@ -76,7 +76,7 @@ function summary(count, totalMinutes, averageMinutes, medianMinutes, unmeasuredC
   return { count, totalMinutes, averageMinutes, medianMinutes, unmeasuredCompleted };
 }
 
-test('a flow window reports stage quartiles and the slowest items with their cause [R1,R2]', t => {
+test('lib.stats-flow.a-flow-window-reports-stage-quartiles: a flow window reports stage quartiles and the slowest items with their cause [R1,R2]', t => {
   const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40);
   const entries = [
     ...cycle(1, [10, 20, 5, 10], 250), ...cycle(2, [20, 40, 10, 20], 250),
@@ -126,7 +126,7 @@ test('a flow window reports stage quartiles and the slowest items with their cau
   assert.deepEqual(store.events(board), history, 'statistics append no synthetic measurement moves');
 });
 
-test('flow windows retain released reviews, lease boundaries and repeated accept evidence [R1,R2]', t => {
+test('lib.stats-flow.flow-windows-retain-released-reviews-lease: flow windows retain released reviews, lease boundaries and repeated accept evidence [R1,R2]', t => {
   const commit = 'a'.repeat(40);
   const { board, stats } = fixture(t, [
     [0, 'coordinator', 'add', 1, { lane: 'core' }],
@@ -163,7 +163,7 @@ test('flow windows retain released reviews, lease boundaries and repeated accept
   assert.deepEqual(store.events(board), history);
 });
 
-test('flow windows leave missing starts and empty distributions unmeasured [R1,R2]', t => {
+test('lib.stats-flow.flow-windows-leave-missing-starts-and: flow windows leave missing starts and empty distributions unmeasured [R1,R2]', t => {
   const commit = 'a'.repeat(40);
   const { board, stats } = fixture(t, [
     [0, 'coordinator', 'add', 1, { lane: 'core' }],
@@ -190,7 +190,7 @@ test('flow windows leave missing starts and empty distributions unmeasured [R1,R
   assert.deepEqual(empty.constraint, { stage: null, overTargetMinutes: 0 });
 });
 
-test('flow windows retain recorded idle after reopen and builder release [R1,R2]', t => {
+test('lib.stats-flow.flow-windows-retain-recorded-idle-after: flow windows retain recorded idle after reopen and builder release [R1,R2]', t => {
   const a = 'a'.repeat(40), b = 'b'.repeat(40);
   const { board, stats } = fixture(t, [
     [0, 'coordinator', 'add', 1, { lane: 'core' }],
@@ -227,7 +227,7 @@ test('flow windows retain recorded idle after reopen and builder release [R1,R2]
   assert.equal(window.stages.build.totalMinutes, 50, 'released building work remains measured');
 });
 
-test('flow windows never substitute a merge receipt for an unrecorded stage end [R1,R2]', t => {
+test('lib.stats-flow.flow-windows-never-substitute-a-merge: flow windows never substitute a merge receipt for an unrecorded stage end [R1,R2]', t => {
   const commit = 'a'.repeat(40);
   const { board, stats } = fixture(t, [
     [0, 'coordinator', 'add', 1, { lane: 'core' }],
@@ -256,7 +256,7 @@ test('flow windows never substitute a merge receipt for an unrecorded stage end 
   assert.equal(window.stages.mergeWait.count, 0, 'no acceptance-to-landing interval was recorded');
 });
 
-test('flow numbers match a hand computation through rework, released reviews and every live queue [R1,R2]', t => {
+test('lib.stats-flow.flow-numbers-match-a-hand-computation: flow numbers match a hand computation through rework, released reviews and every live queue [R1,R2]', t => {
   const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40);
   const entries = [
     [0, 'coordinator', 'add', 1, { lane: 'core' }], [10, 'core-1', 'claim', 1, { leaseUntil: at(1000) }],
@@ -336,7 +336,7 @@ test('flow numbers match a hand computation through rework, released reviews and
   assert.deepEqual(stats({ since: at(170) }).flow.daily, [], 'repeated receipts cannot inflate a later day or window');
 });
 
-test('flow charges an expired reservation to waiting and counts UTC days at their exact boundary [R1,R2]', t => {
+test('lib.stats-flow.flow-charges-an-expired-reservation-to: flow charges an expired reservation to waiting and counts UTC days at their exact boundary [R1,R2]', t => {
   const commit = '1'.repeat(40);
   const entries = [
     [1430, 'coordinator', 'add', 1, { lane: 'core' }], [1431, 'core-1', 'claim', 1, { leaseUntil: at(2000) }],
@@ -359,7 +359,7 @@ test('flow charges an expired reservation to waiting and counts UTC days at thei
   assert.deepEqual(flow.daily, [{ date: '2026-10-11', added: 1, merged: 1 }]);
 });
 
-test('flow distinguishes expired and released reviews, open resets, legacy gaps and exact boundaries [R1,R2]', t => {
+test('lib.stats-flow.flow-distinguishes-expired-and-released-reviews: flow distinguishes expired and released reviews, open resets, legacy gaps and exact boundaries [R1,R2]', t => {
   const commit = '1'.repeat(40);
   const entries = [
     ...cycle(1, [10, 20, 5, 10]), ...cycle(2, [10, 90, 20, 10], 1, { legacy: true }),
@@ -392,7 +392,7 @@ test('flow distinguishes expired and released reviews, open resets, legacy gaps 
   ], 'inclusive last-hour boundary, prior role fallback, roleless unknown and stale actor exclusion');
 });
 
-test('every bottleneck recommendation follows its documented rule and ties choose the earlier stage [R1,R2]', t => {
+test('lib.stats-flow.every-bottleneck-recommendation-follows-its-documented: every bottleneck recommendation follows its documented rule and ties choose the earlier stage [R1,R2]', t => {
   for (const [durations, extras, expected] of [
     [[1, 20, 1, 1], [[190, 'core-1', 'shout', null]], 'add a verifier'],
     [[1, 20, 1, 1], [[190, 'review-1', 'shout', null]], 'review the oldest submission first (#2)'],
@@ -418,7 +418,7 @@ test('every bottleneck recommendation follows its documented rule and ties choos
   }
 });
 
-test('stats sentences read times in human units [R1,R2]', t => {
+test('lib.stats-flow.stats-sentences-read-times-in-human: stats sentences read times in human units [R1,R2]', t => {
   for (const [review, expected] of [[42, '42 min'], [213.9, '3 h 34 min'], [5707.5, '3 d 23 h']]) {
     const entries = cycle(1, [1, 1, review, 1]);
     for (const entry of entries) {
@@ -436,7 +436,7 @@ test('stats sentences read times in human units [R1,R2]', t => {
   assert.ok(flowLines(empty).includes('build: average unmeasured · median unmeasured · 0 measured; 0 of 0 completed items unmeasured'));
 });
 
-test('a recommendation names at most three items [R1,R2]', t => {
+test('lib.stats-flow.a-recommendation-names-at-most-three: a recommendation names at most three items [R1,R2]', t => {
   const accepted = Array.from({ length: 5 }, (_, index) => {
     const id = index + 1, start = index * 10, commit = String(id).repeat(40);
     return [
@@ -451,7 +451,7 @@ test('a recommendation names at most three items [R1,R2]', t => {
   assert.equal(flow.bottleneck.recommendation, 'land the accepted items: #1, #2, #3 +2 more');
 });
 
-test('a prepared flow projection matches fresh expiry and activity windows without mutation [R1,R2]', t => {
+test('lib.stats-flow.a-prepared-flow-projection-matches-fresh: a prepared flow projection matches fresh expiry and activity windows without mutation [R1,R2]', t => {
   const commit = 'a'.repeat(40);
   const entries = [
     [-30, 'activity-only', 'shout', null],
@@ -488,7 +488,7 @@ test('a prepared flow projection matches fresh expiry and activity windows witho
   assert.ok(Object.isFrozen(prepared) && Object.isFrozen(prepared.items) && Object.isFrozen(prepared.items[0]));
 });
 
-test('flow reports no evidence instead of inventing a bottleneck or missing review time [R1,R2]', t => {
+test('lib.stats-flow.flow-reports-no-evidence-instead-of: flow reports no evidence instead of inventing a bottleneck or missing review time [R1,R2]', t => {
   const empty = fixture(t, []).stats().flow;
   assert.equal(empty.bottleneck.stage, null);
   assert.equal(empty.bottleneck.recommendation, null);
@@ -504,7 +504,7 @@ test('flow reports no evidence instead of inventing a bottleneck or missing revi
   assert.equal(half.bottleneck.lowConfidence, false, 'exactly half fully measured is not below half');
 });
 
-test('open age restarts on each return and equal queue ages choose the lower id [R1,R2]', t => {
+test('lib.stats-flow.open-age-restarts-on-each-return: open age restarts on each return and equal queue ages choose the lower id [R1,R2]', t => {
   const entries = [
     [0, 'coordinator', 'add', 1, { lane: 'core' }], [10, 'core-1', 'claim', 1, { leaseUntil: at(1000) }],
     [190, 'core-1', 'release', 1],
@@ -517,7 +517,7 @@ test('open age restarts on each return and equal queue ages choose the lower id 
     { size: 2, oldest: { id: 1, since: at(190), ageMinutes: 10 } });
 });
 
-test('active lane counts preserve recorded names that also exist on Object.prototype [R1,R2]', t => {
+test('lib.stats-flow.active-lane-counts-preserve-recorded-names: active lane counts preserve recorded names that also exist on Object.prototype [R1,R2]', t => {
   const entries = [[150, 'core-1', 'join', null, { lane: 'constructor' }], [160, 'core-1', 'shout', null]];
   assert.deepEqual(fixture(t, entries).stats().flow.activeAgents, {
     total: 1, agents: [{ id: 'core-1', lane: 'constructor', role: 'unknown' }],
@@ -525,7 +525,7 @@ test('active lane counts preserve recorded names that also exist on Object.proto
   });
 });
 
-test('recommendations name an empty target queue honestly and choose the busiest open lane [R1,R2]', t => {
+test('lib.stats-flow.recommendations-name-an-empty-target-queue: recommendations name an empty target queue honestly and choose the busiest open lane [R1,R2]', t => {
   for (const [durations, action] of [
     [[20, 1, 1, 1], 'add a builder when open work is available'],
     [[1, 20, 1, 1], 'review the oldest submission first (none waiting)'],
@@ -537,7 +537,7 @@ test('recommendations name an empty target queue honestly and choose the busiest
   assert.equal(fixture(t, entries).stats().flow.bottleneck.recommendation, 'add a builder in web');
 });
 
-test('every queue age has one exact observation clock and its recorded origin [R1,R2]', t => {
+test('lib.stats-flow.every-queue-age-has-one-exact: every queue age has one exact observation clock and its recorded origin [R1,R2]', t => {
   const { stats } = fixture(t, [
     [1, 'coordinator', 'add', 1, { lane: 'core' }],
     [2, 'coordinator', 'add', 2, { lane: 'core' }],

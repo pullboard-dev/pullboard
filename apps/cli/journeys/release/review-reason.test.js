@@ -30,7 +30,7 @@ function reviewed(t) {
   return { board, id };
 }
 
-test('clause 1: releasing a review with --reason bar, family, infra or too large records that reason on the release [C7,#8920]', t => {
+test('cli.journeys-release-review-reason.releasing-a-review-with-reason-bar: clause 1: releasing a review with --reason bar, family, infra or too large records that reason on the release [C7,#8920]', t => {
   for (const code of REVIEW_RELEASE_REASONS) {
     const { board, id } = reviewed(t);
     assert.equal(store.release(board, id, 'core-2', 'Dropped the review for a stated reason.', undefined, code), true);
@@ -40,7 +40,7 @@ test('clause 1: releasing a review with --reason bar, family, infra or too large
   }
 });
 
-test('clause 1: a review-only reason on a build release is refused, and the build reasons are unchanged [C7,#8920]', t => {
+test('cli.journeys-release-review-reason.a-review-only-reason-on-a: clause 1: a review-only reason on a build release is refused, and the build reasons are unchanged [C7,#8920]', t => {
   const board = fixtureBoard(t);
   store.register(board, { id: 'coordinator', lane: 'coordinator', path: '/fixture/coordinator', family: 'human', parentDigest: 'e'.repeat(64), sessionDigest: 'e'.repeat(64), model: TESTKIT_MODEL });
   store.register(board, { id: 'core-1', lane: 'core', path: '/fixture/core-1', family: 'codex', parentDigest: 'a'.repeat(64), sessionDigest: 'a'.repeat(64), model: TESTKIT_MODEL });
@@ -50,7 +50,7 @@ test('clause 1: a review-only reason on a build release is refused, and the buil
   assert.equal(store.release(board, id, 'core-1', 'budget', undefined, 'BUDGET'), false);
 });
 
-test('clause 2: the move carries an engine marker, and a board replayed below it reads as before [C7,H16,#8920]', t => {
+test('cli.journeys-release-review-reason.the-move-carries-an-engine-marker: clause 2: the move carries an engine marker, and a board replayed below it reads as before [C7,H16,#8920]', t => {
   const { board, id } = reviewed(t);
   const minimum = code => releaseMove.minimumEngine([id, 'core-2', 'why', undefined, code], board, undefined);
   assert.equal(minimum('BAR'), REVIEW_RELEASE_REASON_ENGINE);
@@ -62,7 +62,7 @@ test('clause 2: the move carries an engine marker, and a board replayed below it
   assert.equal(releaseReasonProblem('BAR', 'why', REVIEW_RELEASE_REASON_ENGINE), null);
 });
 
-test('clause 1: review.releaseReasons is off on an empty machine home, so a review release is unchanged [C7,#8920]', () => {
+test('cli.journeys-release-review-reason.review-releasereasons-is-off-on-an: clause 1: review.releaseReasons is off on an empty machine home, so a review release is unchanged [C7,#8920]', () => {
   const home = privateFixtureFiles('pullboard-review-reasons-').root;
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;

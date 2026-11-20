@@ -41,7 +41,7 @@ async function offeredTo(cli) {
   try { return JSON.parse(result.out).item?.item_id ?? null; } catch { return null; }
 }
 
-test('clause 3: the landing stops being offered once it has a verdict [C7,#9863]', async t => {
+test('cli.journeys-verify-post-land-verdict.the-landing-stops-being-offered-once: clause 3: the landing stops being offered once it has a verdict [C7,#9863]', async t => {
   const { box, item } = await landedUnderFamilyRule(t);
   const other = await seatOf(box, OTHER);
   assert.equal(await offeredTo(other), item);

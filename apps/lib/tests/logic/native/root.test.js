@@ -52,13 +52,13 @@ import { setPersonSigning } from '../../../../../packages/person/index.js';
 import { recordGateRun } from '../../../../../packages/flakes/index.js';
 import { advanceItemSource } from '../../../../../packages/sandbox/index.js';
 
-/** The 192 store names the library's public board has always exposed; the door now exports many more [C7,B1,B2]. */
+/** The 196 store names the library's public board has always exposed; the door now exports many more [C7,B1,B2]. */
 const STORE_NAMES = [
   'ACCEPT_REASON', 'BOARD_BUSY_TIMEOUT_MS', 'EVENT_LOG_VERSION', 'EVIDENCE_KINDS', 'FACT_KINDS', 'PERSON', 'REJECT_REASONS', 'ROUTES',
-  'SCHEMA_VERSION', 'SIGNED_EVENT_LOG_VERSION', 'acceptCheck', 'acceptedVerdict', 'actOnActivity', 'activityDeliveryState', 'addItem',
+  'SCHEMA_VERSION', 'SIGNED_EVENT_LOG_VERSION', 'acceptCheck', 'acceptedVerdict', 'actOnActivity', 'activityDeliveryState', 'addBlock', 'addItem',
   'agentActivity', 'agentAt', 'agentById', 'agentCreator', 'allShouts', 'answerDecision', 'answerTypedRequests', 'appendFact', 'applyRehomeItem',
   'applyRowDecisions', 'approveOutside', 'atomic', 'attachItemPatch', 'boardBusyError', 'boardId', 'buildOrder', 'canTake', 'canonicalFamily',
-  'canonicalMilestoneTarget', 'checkedLandingCommit', 'claim', 'closeBoard', 'completeCheckBaseline', 'completeSubmitHandoff', 'coordinatorCheck',
+  'canonicalMilestoneTarget', 'checkedLandingCommit', 'claim', 'claimBlock', 'clearReservation', 'closeBoard', 'completeCheckBaseline', 'completeSubmitHandoff', 'coordinatorCheck',
   'coordinatorHolder', 'coordinatorOnly', 'createItemSlice', 'decisionAndEvidenceShouts', 'decisionAnswers', 'declareJob', 'editItem',
   'ensureCoordinator', 'escalate', 'events', 'eventsOfKinds', 'factReference', 'fileTypedRequest', 'finishLandingBatch', 'followItemPatches',
   'foreignBlockers', 'foreignDependencyStates', 'getItem', 'getShout', 'holdItem', 'holdLane', 'inbox', 'intakeOutside', 'itemById',
@@ -72,7 +72,7 @@ const STORE_NAMES = [
   'recordHealthFindings', 'recordJobRun', 'recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordLandingWaiver',
   'recordNextIdle', 'recordProofRun', 'recordRelayRefusal', 'recordRowDecisions', 'recordSharedUsage', 'recordSpecApprovalBaseline', 'recordUsage',
   'recordUsageBatch', 'refreeze', 'register', 'rehomeDestinationItemId', 'rehomeImport', 'rehomeItem', 'relatedItems', 'release', 'releaseItemHold',
-  'releaseLane', 'removeItemPatch', 'reopen', 'requestCompanion', 'requireExitActive', 'reserveNextReview', 'reserveRehomeItemId', 'reserveReview',
+  'releaseLane', 'removeItemPatch', 'reopen', 'requestCompanion', 'requireExitActive', 'reserveItem', 'reserveNextReview', 'reserveRehomeItemId', 'reserveReview',
   'reviewHolder', 'reviewOffer', 'reviewQueue', 'reviewQueueBreakdown', 'reviewReleaseCooldown', 'reviewReleaseNoteProblem', 'reviewerChecks',
   'rowDecisions', 'rowDrafts', 'rowVerifications', 'schemaMissing', 'seatEnrolled', 'seatFamily', 'seatLineage', 'setBarReady', 'setBoardMembers',
   'setItem', 'setLaneLead', 'setLineSetting', 'shout', 'shoutDetails', 'signBar', 'specApprovalBaseline', 'specApprovalBaselineExists',
@@ -85,7 +85,7 @@ const WRITE_VARIANTS = { ensureCoordinator: 'board_ensureCoordinator', recordNex
 /** The store surface the library keeps: the explicit names, read from the door. */
 const legacy = Object.fromEntries(STORE_NAMES.map(name => [name, door[WRITE_VARIANTS[name] ?? name]]));
 
-test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
+test('lib.logic-native-root.native-spec-operations-retain-their-public: native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
     assert.equal(library[name], native[name], 'the public board API names the one native operation definition');
     assert.equal(door[name], undefined, 'the store no longer re-exports the native operation');
@@ -166,7 +166,7 @@ function observedPorts(label, calls) {
   };
 }
 
-test('the single native root supplies every port before migration and keeps legacy/library/fixture entry points [C7,B1,B2]', t => {
+test('lib.logic-native-root.the-single-native-root-supplies-every: the single native root supplies every port before migration and keeps legacy/library/fixture entry points [C7,B1,B2]', t => {
   assert.equal(door.openBoard, undefined, 'the store no longer re-exports the native root');
   assert.equal(library.openBoard, native.openBoard);
   for (const [name, value] of Object.entries(legacy)) assert.equal(library[name], value, `the library surface keeps the store export ${name}`);
@@ -193,7 +193,7 @@ test('the single native root supplies every port before migration and keeps lega
   assert.equal(fixture.enginePorts.store.openBoard, native.openBoard);
 });
 
-test('two native connections retain isolated providers and clocks without registration side effects [C7,B1]', t => {
+test('lib.logic-native-root.two-native-connections-retain-isolated-providers: two native connections retain isolated providers and clocks without registration side effects [C7,B1]', t => {
   const calls = [];
   const first = native.openBoard(':memory:', { now: () => new Date('2026-01-01T00:00:00Z') }, { ports: observedPorts('a', calls) });
   const second = native.openBoard(':memory:', { now: () => new Date('2026-02-01T00:00:00Z') }, { ports: observedPorts('b', calls) });
@@ -206,7 +206,7 @@ test('two native connections retain isolated providers and clocks without regist
   assert.notEqual(first.nativePorts, second.nativePorts);
 });
 
-test('raw storage refuses absent providers before filesystem effects and closes a failed migration [C7,B1]', t => {
+test('lib.logic-native-root.raw-storage-refuses-absent-providers-before: raw storage refuses absent providers before filesystem effects and closes a failed migration [C7,B1]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-native-root-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -233,7 +233,7 @@ test('raw storage refuses absent providers before filesystem effects and closes 
 });
 
 
-test('incomplete engine capabilities refuse before storage exists [C7,B1]', t => {
+test('lib.logic-native-root.incomplete-engine-capabilities-refuse-before-storage: incomplete engine capabilities refuse before storage exists [C7,B1]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-engine-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -250,7 +250,7 @@ test('incomplete engine capabilities refuse before storage exists [C7,B1]', t =>
   }
 });
 
-test('missing native person identity refuses before storage exists [C7,B1]', t => {
+test('lib.logic-native-root.missing-native-person-identity-refuses-before: missing native person identity refuses before storage exists [C7,B1]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-person-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -265,7 +265,7 @@ test('missing native person identity refuses before storage exists [C7,B1]', t =
   assert.equal(existsSync(join(directory, 'never-created')), false);
 });
 
-test('native read wrappers carry explicit capabilities while SQLite remains read-only and schema-preserving [C7,A5,A6]', t => {
+test('lib.logic-native-root.native-read-wrappers-carry-explicit-capabilities: native read wrappers carry explicit capabilities while SQLite remains read-only and schema-preserving [C7,A5,A6]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-native-read-'));
   const file = join(directory, 'board.sqlite');
   let read;
@@ -287,7 +287,7 @@ test('native read wrappers carry explicit capabilities while SQLite remains read
 });
 
 
-test('source advance receipt capabilities are frozen and refuse missing members before storage exists [C7,B1]', t => {
+test('lib.logic-native-root.source-advance-receipt-capabilities-are-frozen: source advance receipt capabilities are frozen and refuse missing members before storage exists [C7,B1]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-source-receipts-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -306,7 +306,7 @@ test('source advance receipt capabilities are frozen and refuse missing members 
   }
 });
 
-test('every verification capability is required before storage exists [C7,B1,B2]', t => {
+test('lib.logic-native-root.every-verification-capability-is-required-before: every verification capability is required before storage exists [C7,B1,B2]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-verification-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -324,7 +324,7 @@ test('every verification capability is required before storage exists [C7,B1,B2]
 });
 
 /** Native origin and restore capabilities must exist before the first SQLite side effect. */
-test('store origin and restore capabilities refuse missing providers before storage exists [C7,H16]', t => {
+test('lib.logic-native-root.store-origin-and-restore-capabilities-refuse: store origin and restore capabilities refuse missing providers before storage exists [C7,H16]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-store-providers-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -342,7 +342,7 @@ test('store origin and restore capabilities refuse missing providers before stor
 });
 
 /** A partial provider bag must not silently bypass the submit/accept proof-ID guard. */
-test('missing quarantine proof-ID authority refuses before storage exists [C7,H16,V4]', t => {
+test('lib.logic-native-root.missing-quarantine-proof-id-authority-refuses: missing quarantine proof-ID authority refuses before storage exists [C7,H16,V4]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-quarantine-proof-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -361,7 +361,7 @@ test('missing quarantine proof-ID authority refuses before storage exists [C7,H1
 /** A deferred port is its provider's named delegate: it loads the provider's package at its first call [C7,#7033]. */
 function delegates(port, provider) { return typeof port === 'function' && port.name === provider.name; }
 
-test('the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
+test('lib.logic-native-root.the-native-operation-bag-and-counted: the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
   const board = fixtureBoard(t);
   for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
     assert.ok(delegates(board.enginePorts.store[name], operation), name);
@@ -379,7 +379,7 @@ test('the native operation bag and counted public bridge retain actual authority
   assert.deepEqual(legacy.events(board), before, 'neither operation path bypasses the actual passkey guard');
 });
 
-test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
+test('lib.logic-native-root.native-engine-composition-keeps-supplied-upper: native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
   const board = fixtureBoard(t);
   const original = native.nativeBoardPorts().enginePorts;
   for (const [name, provider] of Object.entries({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge })) assert.ok(delegates(original.sandboxPolicyReads[name], provider), name);
@@ -441,7 +441,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
 });
 
 /** All native presentation entrypoints refuse before reading any repository, option clock or board. */
-test('presentation providers retain exact identities and all missing ports refuse before effects [C7,A4]', t => {
+test('lib.logic-native-root.presentation-providers-retain-exact-identities-and: presentation providers retain exact identities and all missing ports refuse before effects [C7,A4]', t => {
   const ports = native.nativeBoardPorts().presentation;
   const expected = { verifiedPasskeyRowDecision: presentation_verifiedPasskeyRowDecision, pendingFit: presentation_pendingFit, projectFit: presentation_projectFit, projectState: presentation_projectState, personRequestStatuses: presentation_personRequestStatuses, personSigningPresentation: presentation_personSigningPresentation, activeViewAgents: presentation_activeViewAgents, viewProofSummary: presentation_viewProofSummary, fitFile: presentation_fitFile };
   for (const [name, provider] of Object.entries(expected)) {
@@ -466,7 +466,7 @@ test('presentation providers retain exact identities and all missing ports refus
 });
 
 /** Supplied custom runtime ports must not bypass the composition factory's missing-provider guard. */
-test('sandbox policy capabilities refuse before any SQLite path is created [C7,B1]', t => {
+test('lib.logic-native-root.sandbox-policy-capabilities-refuse-before-any: sandbox policy capabilities refuse before any SQLite path is created [C7,B1]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-sandbox-policy-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
@@ -485,7 +485,7 @@ test('sandbox policy capabilities refuse before any SQLite path is created [C7,B
 });
 
 /** The library's public board is the explicit store names plus the 32 native operations, so a wider store door never widens it [C7,B1,B2]. */
-test('the library public board exposes exactly its explicit name list [C7,B1,B2]', () => {
+test('lib.logic-native-root.the-library-public-board-exposes-exactly: the library public board exposes exactly its explicit name list [C7,B1,B2]', () => {
   const native = [
     'addMilestone', 'advanceItemSource', 'beginSentinelRun', 'decideSentinel', 'decideSpecRevisions', 'draftSpecRow', 'editMilestone',
     'editMilestoneItems', 'finishSentinelRun', 'flakeLedger', 'flakeQuarantines', 'gateRuns', 'landingWaiverFor', 'landingWaivers', 'moveMilestone',

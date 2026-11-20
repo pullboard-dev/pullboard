@@ -2,13 +2,13 @@
   "docs/shots/capture-browser.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/baseline/check.test.js": {
+  "apps/cli/journeys/baseline/check-part2.test.js": {
     "sleep": 1
   },
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "sleep": 3
   },
-  "apps/cli/journeys/agents/session.test.js": {
+  "apps/cli/journeys/agents/session-takeover.test.js": {
     "sleep": 1
   },
   "apps/cli/journeys/spec/changes.test.js": {
@@ -38,13 +38,13 @@
   "packages/gate/tests/fixtures/clone.js": {
     "sleep": 3
   },
-  "apps/cli/tests/fixtures/chrome.js": {
+  "packages/gate/tests/fixtures/chrome.js": {
     "sleep": 1
   },
   "packages/gate/tests/io/clone.test.js": {
     "sleep": 2
   },
-  "apps/cli/tests/fixtures/chrome/shutdown.js": {
+  "packages/gate/tests/fixtures/chrome/shutdown.js": {
     "sleep": 1,
     "poll": 1
   },
@@ -81,7 +81,7 @@
   "apps/cli/journeys/view/e2e.test.js": {
     "sleep": 1
   },
-  "apps/cli/tests/fixtures/runners.js": {
+  "packages/gate/tests/fixtures/admission/runners.js": {
     "sleep": 1,
     "poll": 1
   },
@@ -210,10 +210,10 @@
   "apps/relay/tests/fixtures/relay-server-fixture.js": {
     "sleep": 2
   },
-  "apps/cli/tests/fixtures/gate/resource.js": {
+  "packages/gate/tests/fixtures/resource.js": {
     "sleep": 3
   },
-  "apps/cli/tests/fixtures/resources/pool.js": {
+  "packages/gate/tests/fixtures/admission/pool.js": {
     "poll": 2,
     "sleep": 5
   },
@@ -223,7 +223,7 @@
   "apps/relay/tests/fixtures/relay-phone-fixture.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/relay/main-pairing.test.js": {
+  "apps/cli/journeys/relay/main-pairing-part2.test.js": {
     "sleep": 2
   },
   "apps/cli/tests/fixtures/init/shards.js": {

@@ -58,6 +58,9 @@ export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks =
   const named = gateNamedFile(clause, gateFiles, item);
   if (named) return [named];
   if (clause.kind !== 'test' || QUOTED_TEST.test(clause.text)) return [];
+  const inherited = item ? clauseTestFile(clause, criterionClauses(item.item_criterion)) : null;
+  const ranInherited = inherited ? [...gateFiles].filter(file => file && sameTestFile(file, inherited)) : [];
+  if (ranInherited.length) return ranInherited;
   const inFolder = folderTicks ? folderFiles(clause.text, gateFiles) : [];
   if (inFolder.length) return inFolder;
   const checked = checkTestFiles(item?.item_check);
@@ -74,6 +77,67 @@ export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks =
  */
 export function testCaseTitles(file, source) {
   return [...String(source ?? '').matchAll(/\b(?:test|it|describe)(?:\.\w+)?\(\s*(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/gu)].map(match => ({ file, name: match[2] }));
+}
+
+/** A case title's stable ID (U148): the dotted token before its first colon, such as `landing.junit-files.cmake-row`, or null. */
+function stableId(name) {
+  return /^([a-z0-9][\w-]*(?:\.[\w-]+)+)\s*:/iu.exec(String(name ?? '').trim())?.[1] ?? null;
+}
+
+/** Whether a run's file is the test file a clause quotes, by its whole path or its base name. */
+function sameTestFile(file, quoted) {
+  return file === quoted || file.endsWith(`/${quoted}`) || quoted.endsWith(`/${file}`);
+}
+
+/** A clause that points at an earlier clause's file instead of quoting one, such as "proved by a case in the same file". */
+const SAME_FILE = /\bsame\s+(?:test\s+)?file\b/iu;
+
+/**
+ * The test file a clause names: the path its text quotes, or, for a clause saying "the same file", the file the nearest earlier
+ * clause quotes; null when neither. Why: bars name the file once and say "in the same file" after, so clauses 2 and 3 of
+ * #10589 and #10848 were never covered and every builder hand-ticked them [C7].
+ *
+ * @param {{ number: number, text: string }} clause
+ * @param {{ number: number, text: string }[]} clauses - Every clause of the bar.
+ * @returns {string | null}
+ */
+export function clauseTestFile(clause, clauses = []) {
+  const own = QUOTED_TEST.exec(clause.text)?.[0];
+  if (own) return own;
+  if (!SAME_FILE.test(clause.text)) return null;
+  const earlier = clauses.filter(other => other.number < clause.number).sort((a, b) => b.number - a.number);
+  for (const other of earlier) { const file = QUOTED_TEST.exec(other.text)?.[0]; if (file) return file; }
+  return null;
+}
+
+/** Whether a run's case speaks for a [test] clause: by the stable ID or whole title the clause quotes, or as "clause N:" in its own file. */
+function caseSpeaksFor(clause, file, row) {
+  if (!row?.name) return false;
+  const text = clause.text.toLowerCase();
+  const id = stableId(row.name)?.toLowerCase();
+  const escaped = id?.replace(/[.*+?^$()|[\]\\{}]/gu, '\\$&');
+  if (escaped && new RegExp(`(?:^|[^\\w.-])${escaped}(?![\\w-]|\\.[\\w-])`, 'u').test(text)) return true;
+  if (String(row.name).length >= 12 && text.includes(String(row.name).toLowerCase())) return true;
+  return Boolean(file && row.file && sameTestFile(row.file, file) && titledFor(clause.number, row.name));
+}
+
+/**
+ * The passing, unskipped cases of a run that prove a [test] clause: a case whose stable ID or whole title the clause quotes,
+ * or a case titled "clause N:" (after an optional stable-ID prefix) in the test file the clause names, or for "the same file"
+ * the file an earlier clause names. A "clause N:" case in any other file never counts. Why: since U148 every case title starts
+ * with a stable ID, so builders on #10589, #10848, #9441 and #10692 found no "clause N:" case to tick from, and a "clause 1:"
+ * case in an unrelated file ticked another item's clause 1 [C7].
+ *
+ * @param {{ number: number, text: string, kind: string | null }} clause
+ * @param {{ number: number, text: string }[]} clauses - Every clause of the bar, for "the same file".
+ * @param {{ file: string, name: string, passed: boolean, skipped?: boolean }[]} cases - The run's case outcomes.
+ * @returns {{ file: string, name: string, passed: boolean, skipped?: boolean }[]}
+ */
+export function clauseCases(clause, clauses, cases) {
+  if (clause.kind !== null && clause.kind !== 'test') return [];
+  const file = clauseTestFile(clause, clauses);
+  const speaking = (Array.isArray(cases) ? cases : []).filter(row => caseSpeaksFor(clause, file, row));
+  return speaking.some(row => row.passed !== true || row.skipped === true) ? [] : speaking;
 }
 
 /** True when a test case's title cites a clause as "clause N:", the fleet's naming rule for clause cases. */
@@ -111,12 +175,12 @@ function folderFiles(text, gateFiles) {
  *
  * @param {object[]} thread - The item's thread, oldest first.
  * @param {string} owner - The current holder.
- * @param {{ criterion?: string, head?: string | null }} [current] - The bar text and head now in force.
+ * @param {{ criterion?: string, head?: string | null, sameWorkHeads?: string[] }} [current] - The bar text and head now in force, and the commit shas the caller has proved carry the same work as `head`: a tick citing one counts as if it cited `head`.
  * @returns {Map<number, { kind: string, evidence: string }>}
  */
-export function clauseTicks(thread, owner, { criterion, head = null } = {}) {
+export function clauseTicks(thread, owner, { criterion, head = null, sameWorkHeads = [] } = {}) {
   const ticks = new Map();
-  const heads = submittedHeads(thread, head);
+  const heads = [...submittedHeads(thread, head), ...sameWorkShas(sameWorkHeads)];
   const edited = thread.some(entry => entry.type === 'move' && typeof entry.detail?.criterion === 'string');
   let bar = edited ? undefined : criterion;
   for (const entry of thread) {
@@ -160,10 +224,30 @@ function submittedHeads(thread, head) {
   return [full, ...sources];
 }
 
+/** The usable shas of a caller-proved same-work list: hex of 7 to 64 characters, lowercased; anything else is ignored. */
+function sameWorkShas(shas) {
+  return Array.isArray(shas) ? shas.map(sha => String(sha).toLowerCase()).filter(sha => /^[0-9a-f]{7,64}$/u.test(sha)) : [];
+}
+
 /** Whether evidence names one of `heads` by a hex prefix of at least 7 characters. */
 function citesHead(evidence, heads) {
   const cited = String(evidence).toLowerCase().match(/\b[0-9a-f]{7,64}\b/gu) ?? [];
   return cited.some(sha => heads.some(full => full.startsWith(sha) || sha.startsWith(full)));
+}
+
+/**
+ * The test files whose every case in a run was skipped, with the runner and the skipped titles. Why: a runner without the toolchain
+ * (pytest, PHP on a bare machine) skips every case yet the run is green, so a file in greenFiles proved nothing (#10653) [C7].
+ *
+ * @param {{ file: string, name: string, skipped?: boolean, runner?: string }[]} outcomes
+ * @returns {Map<string, { runner: string, titles: string[] }>}
+ */
+function skippedOnlyFiles(outcomes) {
+  const byFile = new Map();
+  for (const row of Array.isArray(outcomes) ? outcomes : []) if (row?.file) byFile.set(row.file, [...byFile.get(row.file) ?? [], row]);
+  const only = new Map();
+  for (const [file, rows] of byFile) if (rows.every(row => row.skipped === true)) only.set(file, { runner: rows.find(row => row.runner)?.runner ?? 'unknown', titles: rows.map(row => row.name) });
+  return only;
 }
 
 /**
@@ -172,7 +256,10 @@ function citesHead(evidence, heads) {
  * exact commit ran. Why: the gate already proved that file; refusing the submit until the builder retypes the case
  * name with "clause N" cost two or three submits per item on 6 Nov (588 tick notes in a morning) [C7].
  */
-export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null, folderTicks = false, titleTicks = false, cases = [] } = {}) {
+export function clauseInspectionProblem(item, thread, { greenFiles: ranFiles = new Set(), gateFiles: gateRan = new Set(), head = null, folderTicks = false, titleTicks = false, cases = [], outcomes = [] } = {}) {
+  const skipped = skippedOnlyFiles(outcomes);
+  const greenFiles = new Set([...ranFiles].filter(file => !skipped.has(file)));
+  const gateFiles = new Set([...gateRan].filter(file => !skipped.has(file)));
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
@@ -185,11 +272,13 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item, { folderTicks, titleTicks, cases }).length) continue;
     const before = problems.length;
-    if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
+    const skipNote = () => [...skipped].filter(([file]) => (tick ? tick.evidence.includes(file) : gateCoveredFiles(clause, new Set([...gateRan, ...ranFiles]), item, { folderTicks, titleTicks, cases }).includes(file)))
+      .map(([file, row]) => ` (every case in ${file} was skipped on runner ${row.runner}: ${row.titles.join('; ')})`).join('');
+    if (!tick) { problems.push(`${label} has no evidence${skipNote()}`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
     } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence) && !proven()) {
-      problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran`);
+      problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran${skipNote()}`);
       testClauses.push(clause);
     }
     if (problems.length > before) needed.push(clause);
@@ -249,12 +338,29 @@ function testStep(item, testClauses) {
  * so the builder never retypes a case name or spends a second run after a green runner proof; a run of only some of
  * the check's files proves only some of it, so it ticks nothing [C7].
  */
-export function testRunTickNotes(item, files, head) {
+export function testRunTickNotes(item, files, head, { outcomes = [], run = null } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   const ran = new Set(files.map(file => String(file).replace(/^\.\//u, '')));
   const needed = checkTestFiles(item.item_check);
-  if (!clauses.length || !needed.length || !needed.every(file => ran.has(file))) return [];
-  return testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head);
+  if (!clauses.length) return [];
+  if (needed.length) return needed.every(file => ran.has(file)) ? testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head) : [];
+  return caseTickNotes(clauses, outcomes, { run, head });
+}
+
+/**
+ * One tick note per [test] clause a green run's cases prove by clauseCases, for an item whose check names no test file, citing
+ * the case files, the head, the run id and the case titles. Why: such an item had no tick from its own green run, so its
+ * review checklist stayed empty and accept refused CLAUSE_UNTICKED until a builder hand-typed each note (#10589, #10848) [C7].
+ */
+function caseTickNotes(clauses, outcomes, { run, head }) {
+  return clauses.flatMap(clause => {
+    const cases = clauseCases(clause, clauses, outcomes);
+    if (!cases.length) return [];
+    const files = [...new Set(cases.map(row => row.file))].sort().join(' ');
+    const names = [...new Set(cases.map(row => row.name))];
+    const listed = names.slice(0, NAMED_CASES).join('; ');
+    return [`clause ${clause.number} [test]: green pullboard test run of ${files} at ${head}${run ? `, run ${run}` : ''}: ${names.length} case${names.length === 1 ? '' : 's'} passed (${listed}${names.length > NAMED_CASES ? '; ...' : ''})`];
+  });
 }
 
 /**
@@ -263,13 +369,17 @@ export function testRunTickNotes(item, files, head) {
  */
 export function checkRunTickNotes(item, head) {
   const check = String(item.item_check ?? '').trim();
-  return check ? testClauseTickNotes(criterionClauses(item.item_criterion), `check run of ${check}`, head) : [];
+  return check ? testClauseTickNotes(criterionClauses(item.item_criterion), `check run of ${check}`, head, true) : [];
 }
 
-/** One tick note per test clause (declared [test] or undeclared) citing a green run description at a head commit. */
-function testClauseTickNotes(clauses, run, head) {
-  return clauses.filter(clause => clause.kind === null || clause.kind === 'test')
-    .map(clause => `clause ${clause.number} [test]: green pullboard ${run} at ${head}`);
+/**
+ * One tick note per test clause (declared [test] or undeclared) citing a green run description at a head commit; with
+ * `commands`, [command] clauses get a note too. Why: a green check run is the proof of a command clause as well, so the
+ * builder need not retype what the board knows; [measurement] and [reasoning] clauses always need their own evidence [C7].
+ */
+function testClauseTickNotes(clauses, run, head, commands = false) {
+  return clauses.filter(clause => clause.kind === null || clause.kind === 'test' || (commands && clause.kind === 'command'))
+    .map(clause => `clause ${clause.number} [${clause.kind ?? 'test'}]: green pullboard ${run} at ${head}`);
 }
 
 /** The most case names one gate tick note lists; the receipt keeps the rest. */
@@ -312,6 +422,8 @@ export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), h
   return `inspection, clause by clause: ${clauses.map(clause => {
     const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item, { folderTicks, titleTicks, cases });
     const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
+    // An unticked clause the gate did not cover reads as such; reading its kind threw and aborted the pulled settle (#11966).
+    if (!tick) return `${clause.number}. ${clause.text.slice(0, 80)} -> no evidence`;
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
 }
@@ -343,13 +455,14 @@ export function namesEvidence(evidence) {
  *
  * @param {object} item - The item row.
  * @param {object[]} thread - The item's thread.
+ * @param {{ head?: string | null, sameWorkHeads?: string[] }} [heads] - The submitted head and the shas proved to carry its work, so ticks at those count.
  * @returns {{ number: number, text: string, kind: string|null, tick: { kind: string, evidence: string }|null }[]}
  */
-export function reviewChecklist(item, thread) {
+export function reviewChecklist(item, thread, { head = null, sameWorkHeads = [] } = {}) {
   if (String(item.item_check ?? '').trim()) return [];
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return [];
-  const ticks = clauseTicks(thread, item.item_built_by ?? item.item_owner);
+  const ticks = clauseTicks(thread, item.item_built_by ?? item.item_owner, { criterion: item.item_criterion, head, sameWorkHeads });
   return clauses.map(clause => ({ ...clause, tick: ticks.get(clause.number) ?? null }));
 }
 
@@ -358,22 +471,22 @@ export function reviewChecklist(item, thread) {
  * or when the item has a test check or no checklist. Why: without a check nothing ran, so an accept resting on a line
  * with no evidence would be a bare say-so [C7].
  */
-export function checklistEvidenceProblem(item, thread) {
-  const problems = checklistGaps(item, thread);
+export function checklistEvidenceProblem(item, thread, heads) {
+  const problems = checklistGaps(item, thread, heads);
   if (!problems.length) return null;
   return new Refused('CLAUSE_UNTICKED', `#${item.item_id} has no test check, so its review checklist is its only proof, and ${problems.join('; ')}`,
     `reject it for the missing evidence: pullboard verify ${item.item_id} reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<the line that names no file, link or quoted passage>"`);
 }
 
 /** One sentence per checklist line that has no tick or whose tick names no file, link or quoted passage. */
-export function checklistGaps(item, thread) {
-  return reviewChecklist(item, thread).filter(line => !line.tick || !namesEvidence(line.tick.evidence))
+export function checklistGaps(item, thread, heads) {
+  return reviewChecklist(item, thread, heads).filter(line => !line.tick || !namesEvidence(line.tick.evidence))
     .map(line => `clause ${line.number} (${line.text.slice(0, 80)}) ${line.tick ? `names no file, link or quoted passage: ${line.tick.evidence.slice(0, 80)}` : 'has no evidence'}`);
 }
 
 /** The receipt line of an accept that checklist evidence proved, or null when no checklist applied. */
-export function checklistReceipt(item, thread) {
-  const lines = reviewChecklist(item, thread);
-  if (!lines.length || checklistEvidenceProblem(item, thread)) return null;
+export function checklistReceipt(item, thread, heads) {
+  const lines = reviewChecklist(item, thread, heads);
+  if (!lines.length || checklistEvidenceProblem(item, thread, heads)) return null;
   return `review evidence proved it: ${lines.map(line => `${line.number}. ${line.text.slice(0, 60)} -> ${line.tick.kind}: ${line.tick.evidence}`).join(' | ')}`;
 }

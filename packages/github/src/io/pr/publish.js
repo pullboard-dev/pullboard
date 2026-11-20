@@ -5,14 +5,7 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import * as store from '../../../../store/index.js';
@@ -23,7 +16,7 @@ import {
   cleanGitEnvironment,
   refuseGrafts,
 } from '../../../../git/index.js';
-import { runGate } from '../../../../gate/index.js';
+import { runGate } from '../../../../gate/heavy.js';
 import {
   githubPullClient,
   githubRepository,
@@ -41,7 +34,7 @@ function statePath(root) { return join(repoInfo(root).commonDir, 'pullboard', 'p
 /** Recover only bounded local state; source identity is checked again before any push. */
 function readState(root) {
   try {
-    const value = JSON.parse(readFileSync(statePath(root), 'utf8'));
+    const value = JSON.parse(fileSystemAdapter().readFile(statePath(root), 'utf8'));
     if (value.version !== 1 || !Array.isArray(value.proposals)) throw new Error('unsupported publication state');
     if (value.proposals.some(p => !p || !Number.isSafeInteger(p.number) || p.number < 1 ||
       !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(p.repository ?? '') ||
@@ -58,10 +51,10 @@ function readState(root) {
 function saveState(root, value) {
   const file = statePath(root);
   const temporary = file + '.' + randomUUID();
-  mkdirSync(join(file, '..'), { recursive: true });
-  writeFileSync(temporary, JSON.stringify(value) + '\n', { mode: 0o600 });
+  fileSystemAdapter().mkdir(join(file, '..'), { recursive: true });
+  fileSystemAdapter().writeFile(temporary, JSON.stringify(value) + '\n', { mode: 0o600 });
   // Git's private directory shares a filesystem with its temporary state file.
-  renameSync(temporary, file);
+  fileSystemAdapter().rename(temporary, file);
 }
 
 /** Read exact accepted items in first-parent merge order, never infer a verdict from a local gate. */
@@ -100,7 +93,7 @@ function receiptBody(head, entries) {
 /** Compose only an item's landed patch into an isolated index; neither the caller's index nor trunk moves. */
 function itemComposition(root, base, entries) {
   const directory = join(repoInfo(root).commonDir, 'pullboard', 'publish-index', randomUUID());
-  mkdirSync(directory, { recursive: true });
+  fileSystemAdapter().mkdir(directory, { recursive: true });
   const env = { ...cleanGitEnvironment(), GIT_INDEX_FILE: join(directory, 'index') };
   try {
     git(root, ['read-tree', base], { env });
@@ -114,7 +107,7 @@ function itemComposition(root, base, entries) {
     }
     const tree = git(root, ['write-tree'], { env });
     return git(root, ['commit-tree', tree, '-p', base, '-m', `chore(publish): compose items ${entries.map(e => e.id).join(',')}`]);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { fileSystemAdapter().rm(directory, { recursive: true, force: true }); }
 }
 
 /** Compose the release with the actual remote base without altering local trunk history. */
@@ -129,7 +122,7 @@ function releaseComposition(root, base, head) {
 /** Prove this exact immutable commit before pushing only its proposal ref. */
 async function proveProposal({ root, config, remote, candidate, branch, onWait, onFailure }) {
   const directory = join(repoInfo(root).commonDir, 'pullboard', 'publish', randomUUID());
-  mkdirSync(join(directory, '..'), { recursive: true });
+  fileSystemAdapter().mkdir(join(directory, '..'), { recursive: true });
   git(root, ['worktree', 'add', '--detach', directory, candidate]);
   try {
     const gate = await runGate(directory, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait, onFailure });
@@ -139,7 +132,7 @@ async function proveProposal({ root, config, remote, candidate, branch, onWait, 
     return gate;
   } finally {
     tryGit(root, ['worktree', 'remove', '--force', directory]);
-    if (existsSync(directory)) rmSync(directory, { recursive: true, force: true });
+    if (fileSystemAdapter().exists(directory)) fileSystemAdapter().rm(directory, { recursive: true, force: true });
   }
 }
 

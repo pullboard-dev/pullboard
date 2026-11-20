@@ -1,0 +1,4 @@
+{
+  "cli.tests-fixtures-submitted-seam.submitted-at-the-committed-head": {"proves":{"specs":["C7"],"claim":"submittedWithoutGate leaves a claimed item submitted at its committed head, readable by pullboard show."},"why":"Without it a journey about a later move must wait for a whole runner gate settle to get an item submitted.","kind":"harness","inputs":["apps/cli/tests/fixtures/submitted-seam.js","apps/cli/tests/fixtures/submitted-seam.test.js"]},
+  "cli.tests-fixtures-submitted-seam.no-runner-gate-job": {"proves":{"specs":["C7"],"claim":"The submittedWithoutGate seam creates no runner gate job for the item."},"why":"A seam that quietly offered a gate job would hide a runner wait it claims to remove.","kind":"harness","inputs":["apps/cli/tests/fixtures/submitted-seam.js","apps/cli/tests/fixtures/submitted-seam.test.js"]}
+}

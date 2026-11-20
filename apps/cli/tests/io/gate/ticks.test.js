@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { addItem } from '../../../../../packages/store/index.js';
-import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
@@ -24,7 +24,7 @@ function fixture(t, criterion, brief = 'Files: src/a.js\nTest: one named case') 
 /** The clause problem for a fixture item under the given gate selection. */
 const problem = ({ board, id }, options) => clauseInspectionProblem(store.getItem(board, id), store.itemThread(board, id), options);
 
-test('clause 1: a [test] clause naming a file the gate runs is not refused unticked, and the summary says the gate ticked it [C7]', t => {
+test('cli.io-gate-ticks.a-test-clause-naming-a-file-the: clause 1: a [test] clause naming a file the gate runs is not refused unticked, and the summary says the gate ticked it [C7]', t => {
   const f = fixture(t, '1. test/page.test.js passes [test]');
   assert.match(problem(f).message, /clause 1 .*has no evidence/u);
   assert.equal(problem(f, { gateFiles: new Set(['test/page.test.js']) }), null);
@@ -35,7 +35,7 @@ test('clause 1: a [test] clause naming a file the gate runs is not refused untic
   assert.equal(problem(briefed, { gateFiles: new Set(['test/page.test.js']) }), null, 'the brief names the test file');
 });
 
-test('clause 2: a [test] clause naming no test the gate runs is still refused CLAUSE_UNTICKED [C7]', t => {
+test('cli.io-gate-ticks.a-test-clause-naming-no-test-the: clause 2: a [test] clause naming no test the gate runs is still refused CLAUSE_UNTICKED [C7]', t => {
   const f = fixture(t, '1. test/page.test.js passes [test]');
   const refused = problem(f, { gateFiles: new Set(['test/other.test.js']) });
   assert.equal(refused.code, 'CLAUSE_UNTICKED');
@@ -44,7 +44,7 @@ test('clause 2: a [test] clause naming no test the gate runs is still refused CL
   assert.equal(problem(command, { gateFiles: new Set(['test/page.test.js']) }).code, 'CLAUSE_UNTICKED', 'only a [test] clause is ticked by the gate');
 });
 
-test('clause 2: a [test] clause naming a journey test the gate defers to landing is still refused CLAUSE_UNTICKED [C7]', t => {
+test('cli.io-gate-ticks.a-test-clause-naming-a-journey-test: clause 2: a [test] clause naming a journey test the gate defers to landing is still refused CLAUSE_UNTICKED [C7]', t => {
   const f = fixture(t, '1. test/journey.test.js passes [test]');
   const ran = selectedGateFiles(['test/page.test.js', 'test/journey.test.js', 'src/a.js'], ['test/page.test.js']);
   assert.deepEqual([...ran], ['test/page.test.js'], 'only a test file in the tier plan counts as run');

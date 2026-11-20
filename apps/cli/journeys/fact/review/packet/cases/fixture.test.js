@@ -14,7 +14,7 @@ import {
 import { createE2eHelpers } from '../../../../../tests/fixtures/e2e.js';
 import { joinFixtureSeat } from '../../../../../tests/fixtures/testkit.js';
 import { settleSubmit } from '../../../../../tests/fixtures/submit/settle.js';
-import { TIMING_RUN_ID_ENV } from '../../../../../../../packages/gate/index.js';
+import { TIMING_RUN_ID_ENV } from '../../../../../../../packages/gate/heavy.js';
 
 const helpers = createE2eHelpers();
 // A green submit starts the detached verification comparison, which can still be writing the board directory;
@@ -42,7 +42,7 @@ function commit(box, cwd, message) {
  */
 function outcomeReporter(box) {
   writeFileSync(join(box.repo, 'web/outcome-reporter.js'), `import { tap } from 'node:test/reporters';
-import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../../../../packages/gate/index.js', import.meta.url).href)};
+import { testOutcomeCollector, formatTestOutcomes } from ${JSON.stringify(new URL('../../../../../../../packages/gate/heavy.js', import.meta.url).href)};
 export default async function* report(events) {
   const collector = testOutcomeCollector(process.cwd());
   let count = null;
@@ -61,7 +61,7 @@ export default async function* report(events) {
 
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 
-test('clause 1: a clause case defined in a fixture file is mapped from a gate run [V4,C7]', { timeout: 240_000 }, async t => {
+test('cli.journeys-fact-review-packet-cases-fixture.a-clause-case-defined-in-a: clause 1: a clause case defined in a fixture file is mapped from a gate run [V4,C7]', { timeout: 240_000 }, async t => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;

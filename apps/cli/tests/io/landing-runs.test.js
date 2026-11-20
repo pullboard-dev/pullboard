@@ -1,7 +1,7 @@
 /** A landing's job and finish-step rows go only to the runs file while runs_store is on, and to the board when it is off [P7,#9012]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../../packages/store/tests/fixtures/cell.js';
 import { landBatch } from '../../../../packages/land/index.js';
 
@@ -17,7 +17,7 @@ function landedBatch(t) {
   return { repo, batch: { id: 'batch-9012', tip, base: repo.commit, state: 'landed', items: [{ id: 9012 }] } };
 }
 
-test('clause 2: with runs_store on, the landing finish steps write job step rows only to the runs file [P7,#9012]', async t => {
+test('cli.io-landing-runs.with-runs-store-on-the-landing-finish: clause 2: with runs_store on, the landing finish steps write job step rows only to the runs file [P7,#9012]', async t => {
   const { repo, batch } = landedBatch(t);
   const board = cellBoard(t, ':memory:');
   // A second database with the job tables stands in for the runs file, held the way boardRunsHolder holds it.
@@ -31,7 +31,7 @@ test('clause 2: with runs_store on, the landing finish steps write job step rows
   assert.deepEqual(rows(board.db), [], 'and no finish step row');
 });
 
-test('clause 3: with runs_store off, the landing finish steps write the same board job rows as on main [P7,#9012]', async t => {
+test('cli.io-landing-runs.with-runs-store-off-the-landing-finish: clause 3: with runs_store off, the landing finish steps write the same board job rows as on main [P7,#9012]', async t => {
   const { repo, batch } = landedBatch(t);
   const off = cellBoard(t, ':memory:');
   await landBatch(off.db, { repo: repo.root, batch, owner: 'lander' });

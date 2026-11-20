@@ -15,7 +15,7 @@ const FILE = 'apps/view/src/io/page/one.js';
 const rowsOf = source => [{ file: FILE, source }];
 const ON = { enabled: true };
 
-test('clause 1: with the setting on, a timer over 1 s whose callback sets hidden, removes a node or calls render() fails naming the file and line [C7,#9523]', () => {
+test('gate.logic-static-view-timer-layout.with-the-setting-on-a-timer: clause 1: with the setting on, a timer over 1 s whose callback sets hidden, removes a node or calls render() fails naming the file and line [C7,#9523]', () => {
   const hides = 'function a() {\n  setTimeout(() => { panel.hidden = true; }, 1500);\n}\n';
   const removes = 'setTimeout(() => { note.remove(); }, 2_000);\n';
   const renders = 'setTimeout(() => { if (open) render(); }, 3000);\n';
@@ -25,7 +25,7 @@ test('clause 1: with the setting on, a timer over 1 s whose callback sets hidden
   assert.match(viewTimerLayoutRows(rowsOf(hides), ON)[0], /^apps\/view\/src\/io\/page\/one\.js:2: timer over 1000 ms hides, removes or re-renders/u);
 });
 
-test('clause 1: a timer of 1 s or less, one that only changes a class, and a named callback are not sites; a stays line is accepted [C7,#9523]', () => {
+test('gate.logic-static-view-timer-layout.a-timer-of-1-s-or: clause 1: a timer of 1 s or less, one that only changes a class, and a named callback are not sites; a stays line is accepted [C7,#9523]', () => {
   assert.deepEqual(viewTimerLayoutRows(rowsOf('setTimeout(() => { render(); }, 1000);\n'), ON), [], 'exactly 1 s is allowed');
   assert.deepEqual(viewTimerLayoutRows(rowsOf("setTimeout(() => { el.classList.remove('on'); }, 1300);\n"), ON), [], 'a class change is not a layout shift');
   assert.deepEqual(viewTimerLayoutRows(rowsOf('setInterval(refreshAges, 60000);\n'), ON), [], 'a named callback is not read');
@@ -34,7 +34,7 @@ test('clause 1: a timer of 1 s or less, one that only changes a class, and a nam
   assert.deepEqual(viewTimerLayoutRows(rowsOf('setTimeout(() => { render(); }, 5000); // stays: the person asked for the delay\n'), ON), []);
 });
 
-test('clause 2: the one site that exists today is held at a per-file ceiling; a new site fails and a ceiling above the sites left must fall [C7,#9523]', () => {
+test('gate.logic-static-view-timer-layout.the-one-site-that-exists-today: clause 2: the one site that exists today is held at a per-file ceiling; a new site fails and a ceiling above the sites left must fall [C7,#9523]', () => {
   const ceilings = readFileSync(join(import.meta.dirname, '../../../data/ceilings/view-timer-layout.json'), 'utf8');
   assert.equal(VIEW_TIMER_CEILING_FILE, 'packages/gate/data/ceilings/view-timer-layout.json');
   assert.deepEqual(JSON.parse(ceilings).sites, { 'apps/view/src/io/page/boards.js': 1 });
@@ -50,7 +50,7 @@ test('clause 2: the one site that exists today is held at a per-file ceiling; a 
   assert.match(viewTimerLayoutRows([], { enabled: true, ceilings })[0], /for a file that is gone; delete its row/u);
 });
 
-test('clause 3: with the setting off or not exactly true, the check reports nothing [C7,#9523]', () => {
+test('gate.logic-static-view-timer-layout.with-the-setting-off-or-not: clause 3: with the setting off or not exactly true, the check reports nothing [C7,#9523]', () => {
   const source = 'setTimeout(() => { render(); }, 5000);\n';
   assert.deepEqual(viewTimerLayoutRows(rowsOf(source)), []);
   assert.deepEqual(viewTimerLayoutRows(rowsOf(source), { enabled: false }), []);

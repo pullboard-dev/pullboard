@@ -93,7 +93,9 @@ async function buildLocal(box, p, id, file, { queued = false } = {}) {
   mkdirSync(join(p.web, 'web'), { recursive: true });
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
-  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  // With test.inProcessHooks on, the commit's hooks run in this process; otherwise the real hooks run as child processes [C7,#10412].
+  const committed = await box.tryGit(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  assert.equal(committed.status, 0, committed.stderr);
   await (queued ? box.inProcessQueued : box.inProcess)(p.web, 'submit', String(id), '--no-next');
 }
 
@@ -105,6 +107,18 @@ function sendBack(box, p, id, note) {
   const item = JSON.parse(box.run(p.repo, 'show', String(id), '--json'));
   const clause = JSON.parse(item.item_frozen).criterion;
   box.run(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', clause, '--note', note, '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/**
+ * The in-process twin of sendBack: the item's show read and the reject are awaited in this process instead of launched.
+ * Why: a journey's setup sends several items back, and each launch cost a node start-up; the parity test holds the two paths equal [C7,U149].
+ */
+async function sendBackLocal(box, p, id, note) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  const item = JSON.parse(await box.inProcess(p.repo, 'show', String(id), '--json'));
+  const clause = JSON.parse(item.item_frozen).criterion;
+  await box.inProcess(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', clause, '--note', note, '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
@@ -1165,7 +1179,8 @@ function earlier(repo, at, write) {
 }
 
 /** Visit a real conversation using its native controls before checking complete messages. */
-async function openShoutConversation(chrome, key = 'none') {
+/** A shout with no item has one thread per sender (5084b13705), so the default is web-1's, the seat the fixtures shout from [N26]. */
+async function openShoutConversation(chrome, key = 'from:web-1') {
   if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) {
     await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
   }
@@ -1218,7 +1233,7 @@ async function pressedInto(chrome, expression, timeoutMs = 10_000) {
   try {
     await chrome.waitFor(expression, timeoutMs);
   } catch (error) {
-    const shows = await chrome.stable(`JSON.stringify({ panes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane), address: location.pathname + location.search + location.hash, lit: document.querySelector('.tab.on')?.dataset.tab ?? null, viewTab: typeof view === 'object' ? view.tab : null, item: typeof view === 'object' ? view.item : null, scrollY: Math.round(scrollY), pressed: window.__pressed ?? null, entries: history.length })`).catch((failure) => 'an unreadable page: ' + failure.message);
+    const shows = await chrome.stable(`JSON.stringify({ panes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane), address: location.pathname + location.search + location.hash, lit: document.querySelector('.tab.on')?.dataset.tab ?? null, viewTab: typeof view === 'object' ? view.tab : null, item: typeof view === 'object' ? view.item : null, state: typeof view === 'object' ? view.state : null, needsHidden: document.querySelector('#needs')?.hidden ?? null, scrollY: Math.round(scrollY), pressed: window.__pressed ?? null, entries: history.length })`).catch((failure) => 'an unreadable page: ' + failure.message);
     throw new Error(`${error.message}; the page shows ${shows}`, { cause: error });
   }
 }
@@ -1403,4 +1418,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, sendBackLocal, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };

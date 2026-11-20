@@ -33,6 +33,8 @@ import { loadConfig } from '../../../../packages/config/index.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** The review lease's taken mark outlives a release by five seconds on the command clock. */
+const PAST_LEASE_MS = 6_000;
 const HOUR = 3_600_000;
 /** An agent that writes a change in its lane; the runner commits it, and a submit with no change is refused (EMPTY_SUBMIT). */
 const COMMITTING_AGENT = "sh -c 'mkdir -p web && echo built > web/built.txt'";
@@ -111,7 +113,7 @@ function build(box, check = undefined) {
   return store.addItem(box.board, { by: 'coordinator', lane: 'web', title: 'Available build', specs: 'G1', criterion: 'The move keeps evidence.', check });
 }
 
-test('clause 2: [Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
+test('cli.journeys-queue-review.next-hands-out-the-mandatory-review: clause 2: [Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
@@ -129,7 +131,7 @@ test('clause 2: [Q1,V15] next hands out the mandatory review before a new claim 
   assert.match(prose.stdout, /reserved for you until/u);
 });
 
-test('[Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
+test('cli.journeys-queue-review.build-records-the-skipped-review-and: [Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
@@ -153,7 +155,7 @@ test('[Q1,V15] --build records the skipped review, and held claims renew normall
   assert.equal(invalid.data.error.code, 'USAGE');
 });
 
-test('[Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
+test('cli.journeys-queue-review.an-explicit-build-below-the-configured: [Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
   const box = await project(t, 4);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -182,7 +184,7 @@ test('[Q1,V15,A1] an explicit build below the configured ratio records the skip 
   assert.equal(store.getItem(box.board, id).item_status, 'open', 'the aged review does not claim the build');
 });
 
-test('[V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
+test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
   const box = await project(t);
   const released = submitted(box);
   const firstReview = submitted(box);
@@ -206,6 +208,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   const releaseEvent = store.events(box.board, { itemId: released }).at(-1);
   assert.equal(releaseEvent.event_kind, 'release');
   assert.deepEqual(JSON.parse(releaseEvent.event_detail), { review: true, reason: 'checked the wrong tree', reasonCode: 'BLOCKED', model: 'unknown' });
+  box.clock.advance(PAST_LEASE_MS);
   const secondReservation = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(secondReservation.code, 0, secondReservation.stderr);
   assert.equal(secondReservation.data.item.item_id, released);
@@ -228,6 +231,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   const sameReviewer = await run(box, box.reviewer, ['next', '--verify', '--json']);
   assert.equal(sameReviewer.code, 0, sameReviewer.stderr);
   assert.equal(sameReviewer.data.item.item_id, firstReview, 'the same reviewer is offered other eligible work first');
+  box.clock.advance(PAST_LEASE_MS);
   const anotherReviewer = await run(box, box.reviewer2, ['next', '--verify', '--json']);
   assert.equal(anotherReviewer.code, 0, anotherReviewer.stderr);
   assert.equal(anotherReviewer.data.item.item_id, released, 'another reviewer may take the released submission');
@@ -235,6 +239,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   const item = store.getItem(box.board, released);
   store.verify(box.board, released, { agentId: box.reviewer2Id, decision: 'REJECT', reason: 'OTHER', note: 'private fixture rework', clause: 'Every move keeps its evidence.',
     head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' });
+  box.clock.advance(PAST_LEASE_MS);
   const rejectedReserve = await run(box, box.builder, ['next', '--verify', String(released), '--json']);
   assert.equal(rejectedReserve.code, 1);
   assert.equal(rejectedReserve.data.error.code, 'NOT_SUBMITTED', 'an old cooldown must not mask the item-state refusal');
@@ -242,6 +247,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
     freeze: (current) => ({ text: current.item_frozen, digest: current.item_frozen_digest }) });
   submitFixture(box.board, released, { agentId: box.peerId, commit: createHash('sha1').update('resubmitted review item').digest('hex'),
     tree: createHash('sha1').update('resubmitted review tree').digest('hex') });
+  box.clock.advance(PAST_LEASE_MS);
   const afterResubmit = await run(box, box.reviewer, ['next', '--verify', String(released), '--json']);
   assert.equal(afterResubmit.code, 0, afterResubmit.stderr);
   assert.equal(afterResubmit.data.item.item_id, released, 'a new submission clears the previous release cooldown');
@@ -261,7 +267,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(afterHour.data.item.item_id, hourBoundary, 'the original reviewer is eligible at exactly one hour');
 });
 
-test('[Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
+test('cli.journeys-queue-review.authenticated-api-next-hands-out-the: [Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -292,7 +298,7 @@ test('[Q1,V15,A2] authenticated API next hands out the mandatory review and expl
   assert.equal(claimed.offer, undefined);
 });
 
-test('[Q1,V15,N14] the unattended runner keeps building and records its review backlog once per iteration', async (t) => {
+test('cli.journeys-queue-review.the-unattended-runner-keeps-building-and: [Q1,V15,N14] the unattended runner keeps building and records its review backlog once per iteration', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box, 'true');
@@ -314,7 +320,7 @@ test('[Q1,V15,N14] the unattended runner keeps building and records its review b
   assert.equal(store.listItems(box.board).some((item) => item.item_review_by === box.builderId), false, 'the runner reserves no review');
 });
 
-test('[N2,B13,H16] plain next follows recorded line capacity without a reviewer role flag', async t => {
+test('cli.journeys-queue-review.plain-next-follows-recorded-line-capacity: [N2,B13,H16] plain next follows recorded line capacity without a reviewer role flag', async t => {
   const box = await project(t, 99);
   const ids = Array.from({ length: 5 }, () => submitted(box));
   const id = build(box);

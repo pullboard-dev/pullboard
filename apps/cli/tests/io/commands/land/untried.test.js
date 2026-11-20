@@ -13,7 +13,7 @@ function blocked(id, items) {
   return { id, state: 'blocked', items: items.map(([item, commit]) => ({ id: item, commit })), refusal: { code: 'LAND_DIAGNOSTIC', message: 'the no-culprit gate did not identify a failing test file' } };
 }
 
-test('clause 1: an item whose latest batch ended blocked with no named test goes behind untried accepted items [C7]', () => {
+test('cli.io-commands-land-untried.an-item-whose-latest-batch-ended-blocked: clause 1: an item whose latest batch ended blocked with no named test goes behind untried accepted items [C7]', () => {
   const pending = [verified(3478), verified(3687), verified(3862)];
   const batches = [blocked('a', [[3478, 'c3478']]), blocked('b', [[3687, 'c3687']])];
   const turns = landingTurns(batches, new Map(), pending);

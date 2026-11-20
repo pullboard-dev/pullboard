@@ -19,7 +19,7 @@ const calls = [
 const project = { holds: [], items: [], spec: [{ id: 'G3', text: 'Keep three.', gate: 'test/g3.test.js' }] };
 const opened = html => (html.match(/<details[^>]* open>/gu) || []).length;
 
-test('every Rulings row is closed by default, in the full list and the Dashboard summary [N26,B26]', () => {
+test('view.needs-summary-closed.every-rulings-row-is-closed-by-default: every Rulings row is closed by default, in the full list and the Dashboard summary [N26,B26]', () => {
   for (const compact of [false, true]) {
     const model = needsPanelModel(calls, project, { person: true, compact });
     const html = needsPanelHtml(compact ? { ...model, headerSeparately: true } : model);
@@ -30,7 +30,7 @@ test('every Rulings row is closed by default, in the full list and the Dashboard
   }
 });
 
-test('only the rows the person opened render open, and closing one takes it back out [N26,B26]', () => {
+test('view.needs-summary-closed.only-the-rows-the-person-opened-render: only the rows the person opened render open, and closing one takes it back out [N26,B26]', () => {
   const batchKey = 'focus-approval-batch:focus-approval:0.9.4';
   const open = needsPanelHtml(needsPanelModel(calls, project, { person: true, expanded: [batchKey] }));
   assert.equal(opened(open), 1);
@@ -39,7 +39,7 @@ test('only the rows the person opened render open, and closing one takes it back
   assert.equal(opened(closed), 0, 'a closed batch is not reopened by its rows');
 });
 
-test('the top of Items is one quiet line when nothing needs the person, and rows otherwise [N26,B26]', () => {
+test('view.needs-summary-closed.the-top-of-items-is-one-quiet: the top of Items is one quiet line when nothing needs the person, and rows otherwise [N26,B26]', () => {
   const empty = needsPanelHtml(needsPanelModel([], { holds: [] }, { person: true, quiet: true }));
   assert.match(empty, /^<li class="needs-quiet"><span class="needs-quiet-badge" aria-hidden="true"><svg[^]*?<\/svg><\/span><p><b>Nothing to rule on\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span><\/p><\/li>$/u);
   assert.equal(needsPanelHtml(needsPanelModel([], { holds: [] }, { person: true })), '', 'callers that do not ask for the line get nothing');
@@ -48,7 +48,7 @@ test('the top of Items is one quiet line when nothing needs the person, and rows
   assert.equal(opened(busy), 0);
 });
 
-test('the Dashboard draws no Rulings card; rulings live in the notch (#6847) [N26]', () => {
+test('view.needs-summary-closed.the-dashboard-draws-no-rulings-card-rulings: the Dashboard draws no Rulings card; rulings live in the notch (#6847) [N26]', () => {
   const input = dashboardData({ populated: true });
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
   for (const html of [dashboardHtml(model), dashboardHtml(model, { needs: '<li class="needs-call">row</li>' })]) {

@@ -9,20 +9,28 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
-import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
-import { allTestOutcomes } from '../../../../../packages/gate/index.js';
+import { FILE_TIME_LINE } from '../../../../../packages/gate/heavy.js';
+import { testFileLoadScale } from '../../../../../packages/gate/heavy.js';
+import { allTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { testLoadRerunEnabled } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
+import { JOB_ENV_NAME } from '../../../../../packages/drive/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
+import { ledgerHits } from '../../../../../packages/store/index.js';
+import { recordTestResults } from '../../../../../packages/store/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { fileBudgetField } from './file-limit.js';
 import { fileLimitEnv } from './file-limit.js';
+
+// The run-tests ledger variable (packages/gate LEDGER_HITS_ENV), named here because the gate's heavy door does not export it.
+const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 
 /** The job kind of a pulled test run; the board records its receipt and applies nothing, since the caller reads it. */
 export const TEST_JOB_KIND = 'test';
@@ -41,6 +49,7 @@ const CASES = 100;
 export const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';
@@ -51,6 +60,8 @@ import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
 let light = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: a red run names no cases */ }
+let gate = null;
+try { gate = await import(pathToFileURL(join(tools, 'packages', 'gate', 'heavy.js')).href); } catch { /* an older main: the run records no ledger rows */ }
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
 // The job's own start time and the runner's 1-minute load at that moment, so a census row can place the job [C7,#9284].
@@ -63,6 +74,9 @@ delete env.NODE_TEST_CONTEXT;
 // A job that names a file budget (pullboard test --no-file-limit) runs under it; any other job's limits are the runner's own [C7].
 ${fileLimitEnv.toString()}
 Object.assign(env, fileLimitEnv(input));
+// The board's ledger hits for this run's files: a file whose own key and context match a hit is reused, so an unchanged file does not run again [P7].
+const hits = input.testResults?.ledger;
+if (hits && Array.isArray(hits.files)) { const hitsFile = join(tools, 'pullboard-ledger-hits.json'); writeFileSync(hitsFile, JSON.stringify({ ...hits, account: true }), { mode: 0o600 }); env[${JSON.stringify(LEDGER_HITS_ENV)}] = hitsFile; }
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
@@ -98,6 +112,8 @@ const receipt = { version: 1, kind: 'test', main: input.main, source: input.sour
   // The runner's own load, so the board can keep main's side of a comparison as a native receipt [V4,C7].
   load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) }, startedAt, endedAt: new Date().toISOString(), loadAtStart,
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
+// Each file that ran under a key becomes a proof-ledger row the board records from this receipt, green files of a red run included [P7].
+try { const ledger = typeof gate?.phaseLedger === 'function' ? gate.phaseLedger(text, { status: ran.status, failures, root, budget: 16000 }) : null; if (ledger) receipt.phases[0].ledger = ledger; } catch { /* no rows: the gate runs the files */ }
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
 /**
@@ -204,25 +220,67 @@ function shellWord(value) {
 }
 
 /**
+ * The test results a finish run's job carries: an origin naming the run, and the board's ledger hits for the run's files
+ * with the input keys they hold, so the runner reuses an unchanged file and the receipt's rows are posted for the ledger
+ * [P7]. Null when the board holds no hit for the files.
+ *
+ * @param {string} run - The run id, or the job's tag when it has none.
+ * @param {{ contexts: string[], files: Array<[string, string, number]> } | null} ledger
+ */
+export function finishTestResults(run, ledger) {
+  if (!ledger || !Array.isArray(ledger.files) || !ledger.files.length) return null;
+  return { origin: `finish:${run}`, inputKeys: [...new Set(ledger.files.map(row => row[1]))].sort(), ledger };
+}
+
+/**
+ * The proof-ledger rows a finish run's receipt carries: one row per file its run phase ran under a key, recorded under
+ * the gate's proof command so the gate's own offer finds them; none when the receipt holds no keyed file [P7].
+ *
+ * @param {Record<string, any>} gate - The receipt's gate section.
+ * @returns {Array<{ file: string, inputKey: string, command: string, context: string, status: string }>}
+ */
+export function finishLedgerRows(gate) {
+  const rows = [];
+  for (const phase of Array.isArray(gate?.phases) ? gate.phases : []) {
+    const { contexts, files } = phase?.ledger ?? {};
+    if (!Array.isArray(contexts) || !Array.isArray(files)) continue;
+    for (const [file, inputKey, context, status] of files.filter(Array.isArray)) rows.push({ file, inputKey, command: 'proof', context: contexts[context], status });
+  }
+  return rows;
+}
+
+/**
  * The data a test job carries into its entry. `fileBudgetMs` is the file budget the runner gives this job's files
  * (set by --no-file-limit); a job without it carries no such field and runs under the runner's own limits [C7].
  */
-export function testJobData({ main, commit, command, files, runId = null, fileBudgetMs = null }) {
-  return { main, source: commit, command, files, ...(runId ? { runId } : {}), ...(fileBudgetMs ? { fileBudgetMs } : {}) };
+export function testJobData({ main, commit, command, files, runId = null, fileBudgetMs = null, testResults = null }) {
+  return { main, source: commit, command, files, ...(runId ? { runId } : {}), ...(fileBudgetMs ? { fileBudgetMs } : {}), ...(testResults ? { testResults } : {}) };
+}
+
+/**
+ * The caller's variables a runner will accept for a job: exactly the names JOB_ENV_NAME allows, so a fixture switch set
+ * around pullboard test reaches the job and PATH, HOME or a loader option never does [C7,#10849].
+ *
+ * @param {Record<string, string | undefined>} environment
+ * @returns {Record<string, string>}
+ */
+function testJobEnv(environment = process.env) {
+  return Object.fromEntries(Object.entries(environment).filter(([name, value]) => JOB_ENV_NAME.test(name) && typeof value === 'string'));
 }
 
 /**
  * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
+export async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null, ledger = null, environment = process.env }) {
   const { root } = ctx.info;
   const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
-  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
+  const env = testJobEnv(environment);
+  const request = { run: gateJobRun(), ...(Object.keys(env).length ? { env } : {}), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs, testResults: finishTestResults(runId ?? tag, ledger) }) }, commits: [main] };
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
@@ -265,7 +323,8 @@ export function readTestRow({ board, runs = null }, job) {
 /** Offer one test job for a commit. Returns the job id and the pinned ref. */
 async function offerTestJob(ctx, fields, runs) {
   const { offerJob } = await import('../../../../../packages/api/index.js');
-  const { ref, row } = await testJobRow(ctx, fields);
+  const ledger = Array.isArray(fields.files) && fields.files.length ? withBoardRead(ctx, board => ledgerHits(board.db, fields.files)) : null;
+  const { ref, row } = await testJobRow(ctx, { ...fields, ledger });
   const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
   await startLocalRunner(ctx);
   return { job: job.id, ref };
@@ -292,7 +351,7 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
  * Wait on a job's row until a runner posts its receipt, keeping the seat alive. Refuses when no runner claims it within
  * gate.runnerWaitMs, as a runner-only test run waits today.
  *
- * @returns {Promise<{ receipt: Record<string, any>, runner: string | null }>}
+ * @returns {Promise<{ receipt: Record<string, any>, runner: string | null, enqueuedAt: string | null }>}
  */
 async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
   const deadline = Date.now() + gateRunnerWaitMs();
@@ -301,7 +360,7 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
     const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
-    if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null };
+    if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null, enqueuedAt: Number.isFinite(view.created) ? new Date(view.created).toISOString() : null };
     const holder = view.leaseOwner && view.leaseUntil > Date.now() ? view.leaseOwner : null;
     if (holder && holder !== claimed) { claimed = holder; say?.(`pullboard test: runner ${holder} took test job ${job}`); }
     if (!claimed && Date.now() > deadline) {
@@ -330,13 +389,15 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
+    const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
     const gate = receipt.gate ?? {};
+    const rows = finishLedgerRows(gate);
+    if (rows.length) withBoard(ctx, board => recordTestResults(board.db, { receipt: `${offered.job}#0`, origin: `finish:${runner ?? 'unknown'}`, commit: fields.commit, rows }));
     const phase = gate.phases?.[0] ?? null;
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    return { job: offered.job, runner, green, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, load: gate.load && typeof gate.load === 'object' ? gate.load : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
@@ -418,7 +479,7 @@ function redFilesIn(text, paths) {
  * there. Why the short wait: the board writes the receipt as it applies the post the job row already shows.
  */
 async function boundReceipt(root, job, wait = pause) {
-  const [{ mainRedReceiptId }, { readGateReceipt, receiptStore }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../../../../../packages/gate/index.js')]);
+  const [{ mainRedReceiptId }, { readGateReceipt, receiptStore }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../../../../../packages/gate/heavy.js')]);
   for (let tries = 0; ; tries += 1) {
     const receipt = readGateReceipt(receiptStore(root), mainRedReceiptId(job));
     if (receipt || tries >= 10) return receipt;
@@ -515,6 +576,60 @@ export function failingOutcomes(ran) {
   try { return allTestOutcomes(ran.output); } catch { return []; }
 }
 
+/** A failing case's own words that say it ran out of time, not that its assertion failed: a fixture that gave no answer, or node:test's timeout [C7,#10597]. */
+const TIMING_WORDS = /gave no answer in|test timed out|testTimeoutFailure/u;
+
+/** A file the runner killed: its watchdog's line names it. */
+const KILLED_FILE = /run-tests: (?:HUNG|TIMEOUT) file ("(?:[^"\\]|\\.)*")/gu;
+
+/** The block of a failing case's TAP lines: its `not ok` row and the more-indented lines under it. */
+function caseBlock(lines, name) {
+  const at = lines.findIndex(line => { const row = /^\s*not ok\s+\d+\s+-\s+(.*?)(?:\s+#.*)?$/u.exec(line); return row && name.startsWith(row[1].slice(0, 300)); });
+  if (at < 0) return null;
+  const indent = /^\s*/u.exec(lines[at])[0].length;
+  const block = [lines[at]];
+  for (let next = at + 1; next < lines.length && /^\s*/u.exec(lines[next])[0].length > indent; next += 1) block.push(lines[next]);
+  return block.join('\n');
+}
+
+/** One runner's one-minute load per core over the run, from its receipt's start sample and end average; null when it named no cores. */
+export function loadPerCore(ran) {
+  const cores = Number(ran.load?.cpus);
+  const samples = [ran.loadAtStart, ran.load?.average?.[0]].filter(Number.isFinite);
+  return cores > 0 && samples.length ? Math.max(...samples) / cores : null;
+}
+
+/**
+ * The files a red run should offer once more, or none. With test.loadRerun on, a red whose every failing case is
+ * timing-shaped (a fixture that gave no answer, a case that timed out, or a file the runner killed), on a runner whose
+ * load per core went over the file-budget load cap, is read as the load's doing. Any failing case that is not
+ * timing-shaped, a load at or under the cap, or the setting off, reruns nothing [C7,#10597].
+ *
+ * @param {{ green: boolean, output: string, failures: { file: string, name: string }[] | null, load?: object | null, loadAtStart?: number | null }} ran
+ * @param {string[]} paths - The repo paths the run named.
+ * @param {{ enabled?: boolean }} [options] - enabled: test.loadRerun.
+ * @returns {string[]} The repo paths to run again; empty when nothing reruns.
+ */
+export function loadRerunFiles(ran, paths, { enabled = testLoadRerunEnabled() } = {}) {
+  if (!enabled || ran.green) return [];
+  const perCore = loadPerCore(ran);
+  if (perCore === null || !(perCore > testFileLoadScale([Number.MAX_SAFE_INTEGER], 1))) return [];
+  const text = String(ran.output ?? '');
+  const lines = text.split('\n');
+  const pathOf = value => { const seen = String(value ?? '').replace(/^\.\//u, ''); return paths.find(path => seen === path || seen.endsWith(`/${path}`)) ?? null; };
+  const killed = [...text.matchAll(KILLED_FILE)].map(found => { try { return pathOf(JSON.parse(found[1])); } catch { return null; } });
+  if (killed.includes(null)) return [];
+  const red = new Set(killed);
+  for (const row of ran.failures ?? []) {
+    const file = pathOf(row.file);
+    const block = caseBlock(lines, String(row.name));
+    // A case the output's tail no longer shows, or whose file the run did not name, is not known to be timing-shaped.
+    if (!file || (!killed.includes(file) && !(block && TIMING_WORDS.test(block)))) return [];
+    red.add(file);
+  }
+  return [...red];
+}
+
 /**
  * Run named test files as a pulled test job and return the result in the shape runTestFiles returns, so `pullboard
  * test` prints, records and exits as it does today. A red run is compared with main as today's run is: not for one
@@ -527,7 +642,7 @@ export function failingOutcomes(ran) {
 export async function runPulledTests(ctx, { agent, item, files, values, knownRed, say }) {
   const { root } = ctx.info;
   const config = ctx.config;
-  const [{ testFiles, retainTestOutput, renderTestSummary }, { mainPolicy }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('../../../../../packages/sandbox/index.js')]);
+  const [{ testFiles }, { retainTestOutput, renderTestSummary }, { mainPolicy }] = await Promise.all([import('../../../../../packages/gate/index.js'), import('../../../../../packages/gate/heavy.js'), import('../../../../../packages/sandbox/index.js')]);
   if (typeof config.affectedTests !== 'string' || !config.affectedTests.trim()) {
     throw new Refused('NO_TEST_RUNNER', 'set "affectedTests" in pullboard.json to the command that runs named test files, like "node apps/cli/src/io/run/tests.js"');
   }
@@ -539,7 +654,17 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
-  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...(fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {}) }, { agent, say, testRun: values['test-run'] });
+  const budget = fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {};
+  let ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...budget }, { agent, say, testRun: values['test-run'] });
+  // With test.loadRerun on, a file red only on timing on an overloaded runner is offered once more and the rerun is reported [C7,#10597].
+  const again = loadRerunFiles(ran, paths);
+  let loadRerun = null;
+  if (again.length) {
+    const first = ran;
+    ran = await runJobFor(ctx, { item, commit, main, command: `${config.affectedTests.trimEnd()} ${again.map(path => shellWord('./' + path)).join(' ')}`, files: again, ...budget }, { agent, say });
+    loadRerun = { files: again, firstRunner: first.runner, firstLoadPerCore: loadPerCore(first), runner: ran.runner, loadPerCore: loadPerCore(ran), green: ran.green };
+    say?.(`pullboard test: ${again.join(', ')} red only on timing on ${first.runner ?? 'a runner'} at load ${loadPerCore(first).toFixed(1)} per core; reran once on ${ran.runner ?? 'a runner'} at load ${(loadPerCore(ran) ?? 0).toFixed(1)} per core: ${ran.green ? 'green' : 'red'}`);
+  }
   const summary = retainTestOutput(root, ran.output, { profile: { testOutcomes: failingOutcomes(ran) } });
   const shown = summary.failures.length;
   summary.failures = withOutcomeFailures(summary.failures, ran);
@@ -550,7 +675,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
     row.file = paths.find(path => seen === path || seen.endsWith(`/${path}`)) ?? row.file;
   }
   const result = { green: ran.green, output: renderTestSummary(summary), ...summary, runner: ran.runner ?? 'a pulled runner', seconds: Math.round((Date.now() - started) / 1000),
-    files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures };
+    files: paths, known: [], main: null, testJob: ran.job, pulled: true, pulledNotices: [], runFailures: ran.failures, ...(loadRerun ? { loadRerun } : {}) };
   if (ran.green) return result;
   if (paths.length === 1 && values['compare-main'] !== true) { result.mainSkipped = 'one file: add --compare-main to also run it on main'; return result; }
   const redFiles = [...new Set(ran.failures?.map(row => row.file) ?? paths)];

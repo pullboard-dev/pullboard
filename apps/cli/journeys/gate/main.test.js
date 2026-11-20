@@ -34,7 +34,7 @@ import { main as cli } from '../../tests/fixtures/native.js';
 import {
   digestOf,
   testConcurrency,
-} from '../../../../packages/gate/index.js';
+} from '../../../../packages/gate/heavy.js';
 import {
   createE2eHelpers,
 } from '../../tests/fixtures/e2e.js';
@@ -81,7 +81,7 @@ function runAsync(args, options) {
   });
 }
 
-test('the landing gate bounds its own concurrency [C7]', async () => {
+test('cli.journeys-gate-main.the-landing-gate-bounds-its-own: the landing gate bounds its own concurrency [C7]', async () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-file-caps-')));
   dirs.push(root);
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
@@ -99,7 +99,7 @@ test('the landing gate bounds its own concurrency [C7]', async () => {
     writeFileSync(file, `${browser ? '// pullboard: browser\n' : ''}import {appendFileSync} from 'node:fs';
 import {test} from 'node:test';
 /** Keep controlled work alive briefly so concurrent file bodies leave overlapping records. */
-test('record real file ${id} [C7]', async () => {
+test('cli.journeys-gate-main.record-real-file-id: record real file ${id} [C7]', async () => {
   appendFileSync(process.env.PULLBOARD_CAP_CAPTURE, JSON.stringify({start:true,id:${id},browser:${browser}})+'\\n');
   await new Promise(resolve => setTimeout(resolve, 200)); // budget: controlled fixture work, not a readiness deadline or production wait.
   appendFileSync(process.env.PULLBOARD_CAP_CAPTURE, JSON.stringify({start:false,id:${id}})+'\\n');
@@ -169,14 +169,14 @@ test('record real file ${id} [C7]', async () => {
   assert.throws(() => testConcurrency(root, 7), /browser must be 1 or 2/);
 });
 
-test('a digest keeps the failures and the end within its cap, however long one line is [V10]', async () => {
+test('cli.journeys-gate-main.a-digest-keeps-the-failures-and: a digest keeps the failures and the end within its cap, however long one line is [V10]', async () => {
   const digest = digestOf(`not ok 1 - ${'x'.repeat(3500)}\n${'ok\n'.repeat(50)}# fail 1\nsummary: 1 failed`);
   assert.ok(digest.length <= 3000, `${digest.length} characters`);
   assert.match(digest, /^not ok 1 - x+…\n/);
   assert.match(digest, /# fail 1\nsummary: 1 failed$/);
 });
 
-test('a digest of many failures stays within its cap and still ends with the summary [V10]', async () => {
+test('cli.journeys-gate-main.a-digest-of-many-failures-stays: a digest of many failures stays within its cap and still ends with the summary [V10]', async () => {
   const failures = Array.from({ length: 200 }, (_, n) => `not ok ${n} - ${'y'.repeat(250)}`).join('\n');
   const digest = digestOf(`${failures}\n# tests 200\n# fail 200`);
   assert.ok(digest.length <= 3000, `${digest.length} characters`);
@@ -184,7 +184,7 @@ test('a digest of many failures stays within its cap and still ends with the sum
   assert.match(digest, /# tests 200\n# fail 200$/);
 });
 
-test('a digest keeps the lines that say why a test failed, and skips passing tests however named [V10]', async () => {
+test('cli.journeys-gate-main.a-digest-keeps-the-lines-that: a digest keeps the lines that say why a test failed, and skips passing tests however named [V10]', async () => {
   const tap = [
     '# Subtest: a lane cannot commit outside its folders',
     'ok 1 - a lane cannot commit outside its folders',

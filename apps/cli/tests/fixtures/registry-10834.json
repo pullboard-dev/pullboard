@@ -1,0 +1,4 @@
+{
+  "cli.io-submit-proof-only.off-refusal-names-the-setting": {"proves":{"specs":["C7"],"claim":"With submit.proofOnly off, a proof-only item whose clauses are all ticked is refused EMPTY_SUBMIT with text naming submit.proofOnly."},"why":"Without it, a builder or coordinator with a proof-only item never learns that submit.proofOnly is the way to submit it.","kind":"cell unit","inputs":["apps/cli/tests/io/submit-proof-only.test.js","apps/cli/src/io/empty.js"]},
+  "cli.io-submit-proof-only.test-clause-keeps-old-text": {"proves":{"specs":["C7"],"claim":"With submit.proofOnly off, an item with a [test] clause keeps the existing EMPTY_SUBMIT text, which does not name submit.proofOnly."},"why":"Without it, a builder or coordinator with a proof-only item never learns that submit.proofOnly is the way to submit it.","kind":"cell unit","inputs":["apps/cli/tests/io/submit-proof-only.test.js","apps/cli/src/io/empty.js"]}
+}

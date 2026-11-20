@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 
 const REPO = resolve(import.meta.dirname, '../../../../../..');
-const HELPERS = ['apps/cli/src/io/alive.js', 'apps/cli/src/io/reclaim.js', 'apps/cli/src/io/disk/use.js'];
+const HELPERS = ['apps/cli/src/io/reclaim.js', 'apps/cli/src/io/disk/use.js'];
 /** Modules a status helper must never load: everything startup-heavy.json audits for a read, bar the state machine the store light door reaches. */
 const HEAVY = ['packages/commits/src/io/hooks.js', 'packages/gate/src/io/check/baseline.js', 'packages/gate/src/io/run/shell.js', 'packages/resources/index.js',
   'packages/sandbox/src/io/trusted/policy.js', 'packages/sentinels/src/io/main.js', 'packages/store/index.js', 'packages/store/src/io/board.js',
@@ -32,7 +32,7 @@ function staticClosure(entry) {
   return [...seen].map(file => file.slice(REPO.length + 1));
 }
 
-test('clause 1: alive, reclaim and disk use load no heavy module through their static imports [C7]', () => {
+test('cli.io-commands-status-doors-local-cuts.alive-reclaim-and-disk-use-load-no: clause 1: alive, reclaim and disk use load no heavy module through their static imports [C7]', () => {
   for (const helper of HELPERS) {
     const modules = staticClosure(helper);
     assert.ok(modules.length > 5, `${helper} walked ${modules.length} modules`);
@@ -40,7 +40,7 @@ test('clause 1: alive, reclaim and disk use load no heavy module through their s
   }
 });
 
-test('clause 1: the helpers import drive, gate and store only through their light doors [C7]', () => {
+test('cli.io-commands-status-doors-local-cuts.the-helpers-import-drive-gate-and-store: clause 1: the helpers import drive, gate and store only through their light doors [C7]', () => {
   for (const helper of HELPERS) {
     const source = readFileSync(resolve(REPO, helper), 'utf8');
     const barrels = [...source.matchAll(/^import\s[^;]*?from\s*'([^']*packages\/(?:drive|gate|store)\/[^']*)'/gmu)].map(match => match[1]);

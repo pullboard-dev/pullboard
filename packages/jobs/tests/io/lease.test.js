@@ -1,7 +1,7 @@
 /** A job's lease is held by one driver at a time, renewed by its holder and reclaimable once it lapses [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { LEASE_MS } from '../../index.js';
 import { backOffLease } from '../../index.js';
 import { createJob } from '../../index.js';

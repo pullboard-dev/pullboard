@@ -25,7 +25,7 @@ function bigState(count = 1600, sequence = 9000) {
 /** The bytes a summary costs on the wire. */
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value));
 
-test('a project summary carries counts, needs-you and last change in under 2 KB however big the board [N26,C7]', () => {
+test('view.x-cockpit-sidebar-summary.a-project-summary-carries-counts-needs-you: a project summary carries counts, needs-you and last change in under 2 KB however big the board [N26,C7]', () => {
   const state = bigState();
   const needs = [{ kind: 'decision' }, { kind: 'decision' }, { kind: 'pending' }, { kind: 'draft', count: 184 }, { kind: 'rigor-draft', count: 2 }, { kind: 'hold' }];
   const summary = projectSummary(state, needs);
@@ -49,7 +49,7 @@ function slice(script, from, to) {
 
 /** Run the page's boardState against explicit API replies, recording every path it asks for. */
 function sidebarReader(boards, { summaryServed = true } = {}) {
-  const script = pageScriptPart3({ applyStateDelta, expandItemSummaries });
+  const script = pageScriptPart3({ applyStateDelta, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, expandItemSummaries });
   const source = slice(script, '/**\n * An opened board', '/** Format an API-measured')
     + slice(script, '/**\n * What the page last drew', '/** Whether a board state already carries');
   const paths = [];
@@ -87,7 +87,7 @@ function listedBoards() {
 /** The state paths the reader asked for, by board root. */
 const stateReads = (paths, boards) => boards.filter((board) => paths.some((path) => path.startsWith('/api/v1/boards/' + board.id + '/state'))).map((board) => board.root);
 
-test('the sidebar reads every unopened project from its summary and only the opened one in full [N26,C7]', async () => {
+test('view.x-cockpit-sidebar-summary.the-sidebar-reads-every-unopened-project-from: the sidebar reads every unopened project from its summary and only the opened one in full [N26,C7]', async () => {
   const boards = listedBoards();
   const { paths, read } = sidebarReader(boards);
   const page = await read('/repo/notes');
@@ -118,7 +118,7 @@ test('the sidebar reads every unopened project from its summary and only the ope
   assert.deepEqual(Array.from(group.group.repos, (repo) => repo.board.items.length), [600, 400]);
 });
 
-test('a board the opened project\'s milestones name reads its state for the Roadmap; the rest stay summaries [N26,C7]', async () => {
+test('view.x-cockpit-sidebar-summary.a-board-the-opened-project-s-milestones: a board the opened project\'s milestones name reads its state for the Roadmap; the rest stay summaries [N26,C7]', async () => {
   const boards = listedBoards();
   boards[2].state.milestones = [{ name: 'Launch', items: [{ id: 7 }, { id: 'api#3' }] }];
   const { paths, read } = sidebarReader(boards);
@@ -128,7 +128,7 @@ test('a board the opened project\'s milestones name reads its state for the Road
   assert.equal(Object.hasOwn(page.projects.find((entry) => entry.name === 'web'), 'items'), false);
 });
 
-test('an API that offers no summary gives the state, reduced to the same summary, and is never asked for one [N26,C7]', async () => {
+test('view.x-cockpit-sidebar-summary.an-api-that-offers-no-summary-gives: an API that offers no summary gives the state, reduced to the same summary, and is never asked for one [N26,C7]', async () => {
   const boards = listedBoards();
   const { paths, read } = sidebarReader(boards, { summaryServed: false });
   const page = await read('/repo/notes');

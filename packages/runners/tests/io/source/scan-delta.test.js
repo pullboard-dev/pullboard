@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell packages/runners */
 /** A child commit's history scan reads only the commits after its nearest scanned ancestor, and a cold one reads all [C7,#9858]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -11,7 +12,6 @@ import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { protectHistory } from '../../../index.js';
 
 const HISTORY = 100;
-const AUTHOR = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid'];
 
 /** A repository of 100 single-file commits, with an own machine home so no other run's verdicts are reused. */
 function fixture(t) {
@@ -25,16 +25,35 @@ function fixture(t) {
     rmSync(root, { recursive: true, force: true });
     rmSync(home.root, { recursive: true, force: true });
   });
-  const git = (...args) => runFixtureGit(args, { cwd: root, encoding: 'utf8' });
-  assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root }).status, 0);
-  const addPath = (path, body) => {
-    files.write(path, body);
-    git('add', path);
-    git(...AUTHOR, 'commit', '-q', '-m', path);
-    return git('rev-parse', 'HEAD');
+  const git = (...args) => {
+    const options = typeof args.at(-1) === 'object' ? args.pop() : {};
+    return runFixtureGit(args, { cwd: root, encoding: 'utf8', ...options });
   };
+  assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: root }).status, 0);
+  let started = false;
+  let clock = 1_700_000_000;
+  /**
+   * Append single-file commits to main with one `git fast-import` child, returning their ids in order.
+   * Why: a commit through add, commit and rev-parse cost three git processes each, and the file builds 100 commits per case.
+   * The unpack limit keeps the objects loose, because poison drops one object file.
+   */
+  const importCommits = entries => {
+    const marks = join(home.root, 'marks');
+    const chunks = [];
+    entries.forEach(([path, body], index) => {
+      const message = path;
+      chunks.push(`commit refs/heads/main\nmark :${index + 1}\ncommitter Fixture <fixture@example.invalid> ${clock += 1} +0000\ndata ${Buffer.byteLength(message)}\n${message}\n`);
+      if (started || index > 0) chunks.push(index > 0 ? `from :${index}\n` : 'from refs/heads/main^0\n');
+      chunks.push(`M 100644 inline ${path}\ndata ${Buffer.byteLength(body)}\n${body}\n`);
+    });
+    git('-c', 'fastimport.unpackLimit=1000000', 'fast-import', '--quiet', `--export-marks=${marks}`, { input: chunks.join('') });
+    started = true;
+    const ids = new Map(readFileSync(marks, 'utf8').trim().split('\n').map(line => line.split(' ').slice(0, 2)));
+    return entries.map((_, index) => ids.get(`:${index + 1}`));
+  };
+  const addPath = (path, body) => importCommits([[path, body]])[0];
   const add = n => addPath(`src/file-${n}.txt`, `${n}\n`);
-  const commits = Array.from({ length: HISTORY }, (_, index) => add(index));
+  const commits = importCommits(Array.from({ length: HISTORY }, (_, index) => [`src/file-${index}.txt`, `${index}\n`]));
   /** Make any history walk that reaches this commit fail, by dropping its tree object. */
   const poison = commit => {
     const tree = git('rev-parse', `${commit}^{tree}`);

@@ -1,0 +1,24 @@
+{
+  "cli.io-test-pull.forwards-fixture-variables": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "testJobRow puts every caller variable matching the job env allowlist into the test job request env map."
+    },
+    "why": "Without it, a fixture switch set around pullboard test would never reach the runner job and hooks-on proofs would need throwaway probe commits.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/test/pull.js"
+    ]
+  },
+  "cli.io-test-pull.leaves-other-variables-out": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "testJobRow leaves PATH, HOME, NODE_OPTIONS and every other non-matching variable out of the test job request."
+    },
+    "why": "Without it, a caller shell could set PATH or a loader option for a job running on a shared runner.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/test/pull.js"
+    ]
+  }
+}

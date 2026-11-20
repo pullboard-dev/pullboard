@@ -1,0 +1,3 @@
+{
+  "cli.io-hook-commit-wiring.parity-text-drops-only-the-check-baseline": {"proves":{"specs":["C7"],"claim":"parityText drops exactly the check-baseline activity digest line, singular and plural, and keeps every other line."},"why":"Without it, a regression where parityText drops another line or keeps the check-baseline digest line would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/hook/commit-wiring.test.js"]}
+}

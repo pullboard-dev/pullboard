@@ -89,6 +89,7 @@ const BREAKS = {
     ['hand-off pins another item', c => { c.m.row.handoff = { ...HANDOFF, pin: 'refs/pullboard/handoffs/1/a' }; }, 'idle-proven', 'BAD_STALE_STATE'],
   ],
   redReturn: [['red return holds the lease', c => { c.s.redReturnLease = true; }, 'idle-current', 'STALE_STATE_CHANGED']],
+  gate: [['gate not settled', c => { c.s.gateInFlight = true; }, 'idle-current', 'STALE_STATE_CHANGED']],
   progress: [
     ['committed just now', c => { c.m.row.commitAt = ago(MIN); }, 'idle-proven', 'BAD_STALE_STATE'],
     ['progress moved on', c => { c.s.progressNow = { trigger: 'other', notes: [] }; }, 'idle-proven', 'BAD_STALE_STATE'],
@@ -119,6 +120,7 @@ const BREAKS = {
     ['observations incomplete', c => { c.m.row.evidence = { complete: false }; }, 'lapse-proven', 'BAD_STALE_STATE'],
     ['limit misstated', c => { c.m.row.limitMs = 1; }, 'lapse-proven', 'BAD_STALE_STATE'],
     ['active a moment ago', c => { c.m.row.lastActivity = ago(MIN); }, 'lapse-proven', 'BAD_STALE_STATE'],
+    ['gate not settled', c => { c.s.gateInFlight = true; }, 'lapse-current', 'STALE_STATE_CHANGED'],
   ],
   review: [
     ['commit moved', c => { c.s.item.commit = 'c9'; }, 'review-current', 'STALE_STATE_CHANGED'],
@@ -143,7 +145,7 @@ const groupsOf = (c, label) => {
   if (c.m.kind === 'review-idle') return ['review'];
   if (c.m.kind === 'review-lapse') return ['review-lapse'];
   const quiet = ['stall', 'release', 'dependency'].includes(label);
-  return ['idle', ...(quiet ? ['quiet'] : []), ...(['release', 'progress', 'dependency'].includes(label) ? ['handoff'] : []), ...(['stall', 'release', 'progress', 'dependency'].includes(label) ? ['redReturn'] : []), ...(BREAKS[label] ? [label] : [])];
+  return ['idle', 'gate', ...(quiet ? ['quiet'] : []), ...(['release', 'progress', 'dependency'].includes(label) ? ['handoff'] : []), ...(['stall', 'release', 'progress', 'dependency'].includes(label) ? ['redReturn'] : []), ...(BREAKS[label] ? [label] : [])];
 };
 
 /** One seeded observation, accepted or with one fact spoiled: a stall, idle claim of every kind, lapsed claim, idle review or lapsed review. */
@@ -252,5 +254,45 @@ test('moves.reclaim.spoiled-fact: metamorphic: spoil any one captured fact of an
       const refused = run(copy.s, copy.m).refused;
       assert.deepEqual([refused?.row, refused?.code], [row, code], `seed ${c.seed}: ${c.label}: ${name}`);
     }
+  }
+});
+
+test('moves.reclaim.gate-in-flight-keeps: clause 1: for every idle kind and a lapsed claim, an accepted observation whose snapshot says gateInFlight true is refused STALE_STATE_CHANGED at idle-current or lapse-current and decides no events [C7,#10934]', () => {
+  const held = accepted.filter(c => c.m.kind === 'idle' || c.m.kind === 'lapsed-claim').slice(0, 400);
+  assert.deepEqual([...new Set(held.map(c => c.label))].sort(), [...IDLE_KINDS, 'lapsed'].sort(), 'every idle kind and a lapsed claim are covered');
+  for (const [seed, c] of held.entries()) {
+    const decided = run({ ...structuredClone(c.base.s), gateInFlight: true }, c.base.m);
+    const row = c.m.kind === 'idle' ? 'idle-current' : 'lapse-current';
+    assert.deepEqual([decided.refused?.row, decided.refused?.code], [row, 'STALE_STATE_CHANGED'], `case ${seed} (${c.label})`);
+    assert.ok(!('events' in decided) && !('patch' in decided), `case ${seed} (${c.label}) decides no events`);
+  }
+});
+
+test('moves.reclaim.gate-settled-decides: clause 2: the same observations with gateInFlight false or absent take exactly the outcome and events they take today [C7,#10934]', () => {
+  for (const c of accepted.filter(c => c.m.kind === 'idle' || c.m.kind === 'lapsed-claim').slice(0, 400)) {
+    const today = run(c.base.s, c.base.m);
+    assert.equal(today.refused, undefined, `${c.label} is accepted`);
+    assert.deepEqual(run({ ...structuredClone(c.base.s), gateInFlight: false }, c.base.m), today, `${c.label}: false decides as absent`);
+  }
+});
+
+/** The release each accepted observation records, run again with the move marked as written at the board-codes engine or not. */
+const released = (c, boardCodes) => run(c.s, boardCodes ? { ...c.m, boardCodes: true } : c.m).events.at(-1).detail;
+const CODES = { 'seat-gone': 'SEAT_GONE', waiting: 'BLOCKED', progress: 'NO_PROGRESS', release: 'BUILDER_SILENT', dependency: 'BUILDER_SILENT', lapsed: 'LEASE_LAPSED', review: 'REVIEW_IDLE', 'review-lapse': 'REVIEW_LEASE_LAPSED' };
+
+test('moves.table.release-board-codes: clause 1: a move carrying boardCodes releases with BUILDER_SILENT, SEAT_GONE, BLOCKED when waiting, NO_PROGRESS on progress, LEASE_LAPSED, REVIEW_IDLE and REVIEW_LEASE_LAPSED, each with its prose reason unchanged [C7]', () => {
+  const seen = new Set();
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    const on = released(c, true), off = released(c, false);
+    assert.equal(on.reasonCode, CODES[c.label], `seed ${c.seed}: ${c.label}`);
+    assert.equal(on.reason, off.reason, `seed ${c.seed}: the prose reason stays beside the code`);
+    seen.add(c.label);
+  }
+  for (const kind of ['seat-gone', 'waiting', 'progress', 'release', 'lapsed', 'review', 'review-lapse']) assert.ok(seen.has(kind), `no accepted ${kind} case`);
+});
+
+test('moves.table.release-board-codes-off: clause 2: with no boardCodes in the move every one of those releases still carries OTHER, or BLOCKED for a waiting claim, exactly as before [C7]', () => {
+  for (const c of accepted.filter(each => each.label !== 'stall')) {
+    assert.equal(released(c, false).reasonCode, c.label === 'waiting' ? 'BLOCKED' : 'OTHER', `seed ${c.seed}: ${c.label}`);
   }
 });

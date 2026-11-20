@@ -17,7 +17,7 @@ import { waitKit } from '../../tests/fixtures/submit/wait.js';
 const { helpers, onBoard, waitingVerdict, waitPorts } = waitKit(store);
 after(helpers.cleanup);
 
-test('submit --wait ends at its gate, and a later unclaimed reject returns with its note [V2,V4,B5,B13,A6]', async t => {
+test('cli.journeys-submit-wait.submit-wait-ends-at-its-gate: submit --wait ends at its gate, and a later unclaimed reject returns with its note [V2,V4,B5,B13,A6]', async t => {
   await waitingVerdict(t, 'ACCEPT');
   const box = await waitingVerdict(t, 'REJECT');
   const rejected = onBoard(box, board => store.events(board).findLast(event => event.event_kind === 'reject'));

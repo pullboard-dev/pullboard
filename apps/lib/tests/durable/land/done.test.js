@@ -27,7 +27,7 @@ function landedRepo() {
   return { repo, base, commit: runFixtureGit(['-C', repo, 'rev-parse', 'HEAD']) };
 }
 
-test('clause 1: a completed finish sequence ends the job [C7]', async () => {
+test('lib.durable-land-done.a-completed-finish-sequence-ends-the: clause 1: a completed finish sequence ends the job [C7]', async () => {
   const { repo, base, commit } = landedRepo();
   const board = openBoard(':memory:');
   try {

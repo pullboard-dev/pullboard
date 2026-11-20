@@ -1,0 +1,28 @@
+{
+  "view.projects-machine-name.list-carries-machine": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The served project list carries the machine name on every board."
+    },
+    "why": "Without it the machine name could drop out of the served list with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/projects-machine-name.test.js"
+    ]
+  },
+  "view.projects-machine-name.other-machine-reports-its-name": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A view on another machine reports that machine name, defaulting to the host name without its domain."
+    },
+    "why": "Without it the machine name could drop out of the served list with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/io/projects-machine-name.test.js"
+    ]
+  }
+}

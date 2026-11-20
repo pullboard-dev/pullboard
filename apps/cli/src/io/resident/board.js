@@ -16,14 +16,6 @@
  * board directly, and a queued command not started within RESIDENT_START_CUTOFF_MS of its send is handed back [C7].
  */
 import {
-  appendFileSync,
-  chmodSync,
-  readFileSync,
-  statSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import {
   connect,
   createServer,
 } from 'node:net';
@@ -37,6 +29,9 @@ import {
   processAlive,
   releaseOwnSocket,
 } from './socket.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
@@ -49,7 +44,7 @@ const REPLACED_CHECK_MS = Number(process.env.PULLBOARD_RESIDENT_REPLACED_CHECK_M
  */
 function clock() {
   const file = process.env.PULLBOARD_RESIDENT_CLOCK;
-  if (file) try { return Number(readFileSync(file, 'utf8')); } catch { /* Fall back to wall time. */ }
+  if (file) try { return Number(fs.readFile(file, 'utf8')); } catch { /* Fall back to wall time. */ }
   return Date.now();
 }
 const bornAt = clock();
@@ -106,7 +101,7 @@ for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
 function release() {
   // Why: an orphan that unlinks the path deletes its successor's live socket, so every client starts yet another process.
   if (process.platform === 'win32') {
-    try { if (readFileSync(pidFile, 'utf8').trim() === String(process.pid)) unlinkSync(pidFile); } catch { /* Already gone. */ }
+    try { if (fs.readFile(pidFile, 'utf8').trim() === String(process.pid)) fs.unlink(pidFile); } catch { /* Already gone. */ }
     return;
   }
   releaseOwnSocket(socketPath, ownSocket, pidFile);
@@ -122,7 +117,7 @@ function replaced() {
 
 /** Whether the process named by the pid file is alive and is not this one. */
 function holderAlive() {
-  try { return processAlive(Number(readFileSync(pidFile, 'utf8').trim())); } catch { return false; }
+  try { return processAlive(Number(fs.readFile(pidFile, 'utf8').trim())); } catch { return false; }
 }
 
 
@@ -169,12 +164,12 @@ const connections = new Map();
 
 /** Append one line to the opt-in trace a test reads to see connections opened and reused. */
 function trace(event, file) {
-  if (TRACE) try { appendFileSync(TRACE, JSON.stringify({ event, file, pid: process.pid }) + '\n'); } catch { /* Tracing never changes a command. */ }
+  if (TRACE) try { fs.appendFile(TRACE, JSON.stringify({ event, file, pid: process.pid }) + '\n'); } catch { /* Tracing never changes a command. */ }
 }
 
 /** The identity of a board file now; a replaced file is a different board, whatever its path. */
 function fileIdentity(file) {
-  try { const stat = statSync(file); return `${stat.dev}:${stat.ino}`; } catch { return null; }
+  try { const stat = fs.stat(file); return `${stat.dev}:${stat.ino}`; } catch { return null; }
 }
 
 /** Really close a held connection. */
@@ -221,8 +216,19 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
-const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
+const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, residentStartFile, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
 const busyFile = residentBusyFile(pidFile);
+let startLockCleared = false;
+/**
+ * Remove the start lock the client that started this process took, once: when this process listens, when it leaves the
+ * slot to another, or when it exits before either. Never after, so a successor's starter keeps its own lock.
+ */
+function clearStartLock() {
+  if (startLockCleared) return;
+  startLockCleared = true;
+  try { fs.unlink(residentStartFile(pidFile)); } catch { /* Never taken or already gone. */ }
+}
+process.on('exit', clearStartLock);
 
 /** Whether a queued command's client has stopped waiting for it to start, and so runs it in-process itself. */
 const abandoned = request => Number.isFinite(request.sentAt) && Date.now() - request.sentAt > RESIDENT_START_CUTOFF_MS;
@@ -241,7 +247,7 @@ async function pinnedToolEntry(cwd) {
     if (location) {
       const main = headCommit({ gitDir: location.commonDir, commonDir: location.commonDir });
       let published = 'none';
-      try { published = String(statSync(`${location.commonDir}/pullboard/tool-builds/current.json`).mtimeMs); } catch { /* None published. */ }
+      try { published = String(fs.stat(`${location.commonDir}/pullboard/tool-builds/current.json`).mtimeMs); } catch { /* None published. */ }
       key = `${location.commonDir}\0${main}\0${published}`;
     }
   } catch { key = null; }
@@ -299,7 +305,7 @@ async function serve(socket, request) {
       send({ t: 'start' });
       if (request.call) return await answerClientCall(request, send);
       // Written synchronously, so it holds even while this command blocks the event loop.
-      try { writeFileSync(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
+      try { fs.writeFile(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
       const ceiling = residentCommandCeiling(baseEnv);
       let timer;
       // Why a race: a command hung on a promise that never settles would hold this process's one turn for ever.
@@ -320,7 +326,7 @@ async function serve(socket, request) {
         return 1;
       } finally { clearTimeout(timer); }
     } finally {
-      try { unlinkSync(busyFile); } catch { /* Never written or already gone. */ }
+      try { fs.unlink(busyFile); } catch { /* Never written or already gone. */ }
       running = null;
     }
   };
@@ -374,6 +380,7 @@ function listen() {
   /** Leave the path to the process that holds it, freeing the lock first. */
   const leave = (message) => {
     unlock?.();
+    clearStartLock();
     process.stderr.write(`pullboard resident: ${message}\n`);
     process.exit(0);
   };
@@ -389,20 +396,21 @@ function listen() {
       probe.on('error', () => {
         // A live resident whose backlog is full refuses a connect; taking its path would orphan it with its queue.
         if (holderAlive()) return leave(`the resident process at ${socketPath} is alive but busy`);
-        if (process.platform !== 'win32') try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+        if (process.platform !== 'win32') try { fs.unlink(socketPath); } catch { /* Already gone. */ }
         bind(false);
       });
     });
     server.listen(socketPath, () => {
-      if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
+      if (process.platform !== 'win32') try { fs.chmod(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
       ownSocket = socketIdentity();
       // The pid file names the live holder that keeps a busy resident's path from being taken over; without it a busy
       // moment would let a starter take this path, so a process that cannot name itself does not serve.
-      try { writeFileSync(pidFile, `${process.pid}\n`); } catch (error) {
-        try { unlinkSync(socketPath); } catch { /* Already gone. */ }
+      try { fs.writeFile(pidFile, `${process.pid}\n`); } catch (error) {
+        try { fs.unlink(socketPath); } catch { /* Already gone. */ }
         return leave(`cannot record the resident process in ${pidFile}: ${error.code ?? error.message}`);
       }
       unlock();
+      clearStartLock();
       // Idle time counts from when the process can serve, never from a slow start under load.
       lastActive = clock();
       watchIdle();

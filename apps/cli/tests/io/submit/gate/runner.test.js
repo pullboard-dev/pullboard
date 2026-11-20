@@ -38,6 +38,7 @@ function fixture(t, red = false) {
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
+  put('packages/gate/heavy.js', "export * from './index.js';\n");
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { return { proofFiles: ['test/a.test.js'], check: options.check }; }
@@ -98,7 +99,7 @@ async function submitStages(box, runner) {
   return { settled, leases, doctrine };
 }
 
-test('clause 1: the doctrine hold runs in the runner checkout inside the one analysis job, from main\'s tooling [C7]', async t => {
+test('cli.io-submit-gate-runner.the-doctrine-hold-runs-in-the-runner: clause 1: the doctrine hold runs in the runner checkout inside the one analysis job, from main\'s tooling [C7]', async t => {
   const box = fixture(t), runner = countingRunner(box);
   const { settled, leases, doctrine } = await submitStages(box, runner);
   assert.deepEqual(settled.map(row => row.status), PARTS.map(() => 'fulfilled'));
@@ -111,7 +112,7 @@ test('clause 1: the doctrine hold runs in the runner checkout inside the one ana
   assert.deepEqual(settled[PARTS.indexOf('doctrine')].value.doctrine, RULES, 'the rule results come back as a local hold returns them');
 });
 
-test('clause 2: a doctrine that rose refuses RATCHET_ROSE with its message and machinery identity, other parts green [C7]', async t => {
+test('cli.io-submit-gate-runner.a-doctrine-that-rose-refuses-ratchet-rose: clause 2: a doctrine that rose refuses RATCHET_ROSE with its message and machinery identity, other parts green [C7]', async t => {
   const box = fixture(t, true), runner = countingRunner(box);
   const { settled } = await submitStages(box, runner);
   assert.equal(runner.counts.controllers, 1);

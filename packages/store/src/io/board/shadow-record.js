@@ -24,7 +24,8 @@ export function firstDifference(left, right, path = '') {
 }
 
 /**
- * Add one compare to a table's counts in board_meta: `{ compared, disagreed, since, lastDisagreedAt, last }`, `last` holding the newest disagreements.
+ * Add one compare to a table's counts in board_meta: `{ compared, disagreed, since, lastDisagreedAt, last, windowCompared }`, `last` holding the newest disagreements
+ * and `windowCompared` the agreeing compares since the last one.
  * It runs inside the writer's own transaction, so a compare is recorded exactly when the move it judged commits.
  * Why it never throws: the writer stays the authority while a table is shadowed, so a recording fault must never refuse a move.
  *
@@ -41,8 +42,10 @@ export function recordShadow(board, table, id, differs, refusal = null) {
     const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(key);
     let counts = null;
     try { counts = row ? JSON.parse(row.meta_value) : null; } catch { counts = null; }
-    counts ??= { compared: 0, disagreed: 0, since: at, lastDisagreedAt: null, last: [] };
+    counts ??= { compared: 0, disagreed: 0, since: at, lastDisagreedAt: null, last: [], windowCompared: 0 };
     counts.compared += 1;
+    // The compares since the last disagreement, so a clean window shows it was exercised; an older record starts counting here [C7,#10492].
+    counts.windowCompared = differs ? 0 : (Number.isSafeInteger(counts.windowCompared) ? counts.windowCompared : 0) + 1;
     if (differs) {
       counts.disagreed += 1;
       counts.lastDisagreedAt = at;

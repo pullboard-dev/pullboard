@@ -11,7 +11,7 @@ import { ok } from '../../tests/fixtures/blueprint.js';
 import { refusal } from '../../tests/fixtures/blueprint.js';
 import { fitBoard } from '../../tests/fixtures/blueprint.js';
 
-test('a fit proposal waits for the person and keeps its reason [S1,E3]', async () => {
+test('cli.journeys-blueprint-proposal.a-fit-proposal-waits-for-the: a fit proposal waits for the person and keeps its reason [S1,E3]', async () => {
   const { box, seat, key, starter } = fitBoard();
   assert.match((await box.runLocal('help', 'blueprint')).stdout, /^Usage: pullboard blueprint add <name or file>, then a seat runs pullboard blueprint fit .+, then the person runs pullboard spec fit approve <batch>$/mu, 'help blueprint names the fit step');
   const W1 = key('W1');

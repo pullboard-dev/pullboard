@@ -32,7 +32,7 @@ function bigBoard(t) {
   return { run: (...args) => box.runIn(box.repo, ...args) };
 }
 
-test('clause 1: plain pullboard log prints the last 50 events of a board holding more, within 8192 bytes [C7]', async (t) => {
+test('cli.journeys-log-bound.plain-pullboard-log-prints-the-last: clause 1: plain pullboard log prints the last 50 events of a board holding more, within 8192 bytes [C7]', async (t) => {
   const { run } = bigBoard(t);
   const answer = await run('log');
   assert.equal(answer.status, 0, answer.stderr);
@@ -44,7 +44,7 @@ test('clause 1: plain pullboard log prints the last 50 events of a board holding
   assert.ok(lines[0].startsWith(stamp(SEEDED - PLAIN_LOG_EVENTS + 1)), 'the oldest kept event is the first line');
 });
 
-test('clause 2: pullboard log --all prints every event of that board [C7]', async (t) => {
+test('cli.journeys-log-bound.pullboard-log-all-prints-every-event: clause 2: pullboard log --all prints every event of that board [C7]', async (t) => {
   const { run } = bigBoard(t);
   const answer = await run('log', '--all');
   assert.equal(answer.status, 0, answer.stderr);
@@ -53,7 +53,7 @@ test('clause 2: pullboard log --all prints every event of that board [C7]', asyn
   assert.ok(lines.at(-1).startsWith(stamp(SEEDED)));
 });
 
-test('clause 3: pullboard log --json with --since and with --kind returns every matching event, unbounded [C7]', async (t) => {
+test('cli.journeys-log-bound.pullboard-log-json-with-since-and: clause 3: pullboard log --json with --since and with --kind returns every matching event, unbounded [C7]', async (t) => {
   const { run } = bigBoard(t);
   const since = new Date((START + 100) * 1000).toISOString();
   const bySince = await run('log', '--json', '--since', since);

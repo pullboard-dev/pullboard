@@ -4,42 +4,51 @@ import { serialize } from 'node:v8';
 import { types } from 'node:util';
 /** Compile mutations to distinguish actual identifier reads from property spelling, never executing code [CD62,C7]. */
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
 import { commonJsWithCompiler } from '../../../../kernel/index.js';
 import { currentCellLintParser } from './parser.js';
+import { storedCompilations } from '../parsed.js';
+import { foreignNodeOptions } from '../../../../kernel/index.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
-import { mkdtempSync } from 'node:fs';
-import { scratchBase } from '../../../../kernel/light.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
-const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs';
-const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
+const environment = environmentAdapter();
+
+const COMPILER = `import vm from 'node:vm'; process.stdin.setEncoding('utf8'); let text=''; for await (const chunk of process.stdin) text+=chunk;
+const sources=JSON.parse(text);
 process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextModule(source);return true;}catch{return false;}})));`;
 
-/** Ask V8 only whether each source compiles; module linking, evaluation and candidate effects are forbidden. */
+/**
+ * Ask V8 only whether each source compiles; module linking, evaluation and candidate effects are forbidden.
+ * Why the store: a whole-repository lint report compiles tens of thousands of probe variants, about 25 s of its 29 s on
+ * a workstation and 150-290 s on a loaded runner (guard.test.js, #10529); the machine-wide store keyed by source bytes,
+ * runtime and compiler program answers every unchanged file from an earlier run, and a foreign preload skips it.
+ */
 function compiles(sources) {
   const parser = currentCellLintParser();
   if (parser) return parser(sources).map(row => row.compiles);
-  const directory = mkdtempSync(join(scratchBase(), 'pullboard-cell-bindings-'));
-  try {
-    const file = join(directory, 'sources.json');
-    writeFileSync(file, JSON.stringify(sources));
-    const args = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', COMPILER, file];
-    const run = timeout => spawnSync(process.execPath, args, { encoding: 'utf8', maxBuffer: 2 ** 24, timeout, killSignal: 'SIGKILL' });
-    let result = run(10_000);
-    if (result.error?.code === 'ETIMEDOUT') {
-      const load = loadavg()[0], cores = availableParallelism();
-      const timeout = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
-      result = run(timeout);
-      if (result.error?.code === 'ETIMEDOUT') throw Object.assign(new Error(`cell binding compiler timeout after retry (${timeout} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
-    }
-    if (result.status !== 0) throw new Error('cell binding compiler setup failed: ' + (result.error?.message ?? result.stderr));
-    return JSON.parse(result.stdout);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  if (foreignNodeOptions(environment.get('NODE_OPTIONS'), environment.all())) return compileFresh(sources);
+  // Known owned preloads (a test run's per-run recorder path) never change what V8 compiles, so the key names them as one class, as the accepted inventory does.
+  const epoch = JSON.stringify(['cell-bindings', process.execPath, process.versions.node, 'pullboard-known-owned-preloads-v1', COMPILER]);
+  return storedCompilations(epoch, sources, missing => compileFresh(missing).map(valid => ({ compiles: valid, imports: [] }))).map(row => row.compiles);
+}
+
+/** Compile in a fresh child with no stored result consulted; a loaded machine gets one load-scaled retry. */
+function compileFresh(sources) {
+  const input = JSON.stringify(sources);
+  const args = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', COMPILER];
+  const run = timeout => spawnSync(process.execPath, args, { encoding: 'utf8', input, maxBuffer: 2 ** 24, timeout, killSignal: 'SIGKILL' });
+  let result = run(10_000);
+  if (result.error?.code === 'ETIMEDOUT') {
+    const load = loadavg()[0], cores = availableParallelism();
+    const timeout = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
+    result = run(timeout);
+    if (result.error?.code === 'ETIMEDOUT') throw Object.assign(new Error(`cell binding compiler timeout after retry (${timeout} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
+  }
+  if (result.status !== 0) throw new Error('cell binding compiler setup failed: ' + (result.error?.message ?? result.stderr));
+  return JSON.parse(result.stdout);
 }
 
 /** Fence every uncertain slash line; a valid regular expression cannot cross any ECMAScript LineTerminator. */
@@ -173,7 +182,7 @@ function bindingCacheKey(modules) {
   if (!cacheableModules(modules)) return null;
   try {
     const values = modules.map(row => [row.file, row.source, row.body, row.scopeBraces, row.bindings.map(binding => binding.local)]);
-    return 'binding:' + createHash('sha256').update(JSON.stringify([...(bindingReadScopes.getStore()?.runtimeIdentity ? [bindingReadScopes.getStore().runtimeIdentity] : [process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null]), COMPILER, values])).digest('hex');
+    return 'binding:' + createHash('sha256').update(JSON.stringify([...(bindingReadScopes.getStore()?.runtimeIdentity ? [bindingReadScopes.getStore().runtimeIdentity] : [process.execPath, process.versions.node, environment.get('NODE_OPTIONS') ?? null]), COMPILER, values])).digest('hex');
   } catch { return null; }
 }
 
@@ -195,7 +204,7 @@ export function cachedBindingMetadata(source, edges, work) {
         || typeof specifier.value !== 'string' || typeof target.value !== 'string') return null;
       rows.push([specifier.value, target.value]);
     }
-    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([...(scope.runtimeIdentity ? [scope.runtimeIdentity] : [process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null]), source, rows])).digest('hex'); }
+    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([...(scope.runtimeIdentity ? [scope.runtimeIdentity] : [process.execPath, process.versions.node, environment.get('NODE_OPTIONS') ?? null]), source, rows])).digest('hex'); }
     catch { return null; }
   }
   if (!reusable(scope)) return work();

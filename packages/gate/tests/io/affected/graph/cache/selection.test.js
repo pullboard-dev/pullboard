@@ -10,8 +10,8 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { codeMapGraph } from '../../../../../index.js';
-import { selectAffectedTests } from '../../../../../index.js';
+import { codeMapGraph } from '../../../../../heavy.js';
+import { selectAffectedTests } from '../../../../../heavy.js';
 import { runFixtureGit } from '../../../../fixtures/child.js';
 
 const MODULES = 300;

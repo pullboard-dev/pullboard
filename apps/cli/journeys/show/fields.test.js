@@ -66,7 +66,7 @@ async function viewOf(row) {
   return openPagedSnapshot(root, context, { maxEngine: ENGINE });
 }
 
-test('clause 1: a typed field shows in show, export and the view [C7,#9365]', async t => {
+test('cli.journeys-show-fields.a-typed-field-shows-in-show: clause 1: a typed field shows in show, export and the view [C7,#9365]', async t => {
   const { ids: [a], run, json } = await fixture(t);
   const shown = await run(['show', String(a)]);
   assert.match(shown.stdout, /^fields:\n {2}points \(number\): 5\n {2}priority \(choice\): high$/mu);
@@ -80,7 +80,7 @@ test('clause 1: a typed field shows in show, export and the view [C7,#9365]', as
   assert.deepEqual((await page.item(a)).fields, fields);
 });
 
-test('clause 2: list and roadmap filter by a field, and with items.typedFields off the same filter refuses [C7,#9365]', async t => {
+test('cli.journeys-show-fields.list-and-roadmap-filter-by-a: clause 2: list and roadmap filter by a field, and with items.typedFields off the same filter refuses [C7,#9365]', async t => {
   const { ids, json, setting } = await fixture(t);
   const listed = async (...args) => (await json(['list', ...args])).body.items.map(item => item.item_id).sort((x, y) => x - y);
   assert.deepEqual(await listed('--field', 'priority=high'), [ids[0]]);
@@ -96,7 +96,7 @@ test('clause 2: list and roadmap filter by a field, and with items.typedFields o
   }
 });
 
-test('clause 2: a free link is shown on both items [C7,#9365]', async t => {
+test('cli.journeys-show-fields.a-free-link-is-shown-on: clause 2: a free link is shown on both items [C7,#9365]', async t => {
   const { box, ids: [a, b], run, json } = await fixture(t);
   assert.doesNotMatch((await run(['show', String(a)])).stdout, /^related links/mu);
   withFixtureBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'), board => relateItems(board, { by: 'coordinator', a, b, enabled: true }));

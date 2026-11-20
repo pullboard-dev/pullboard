@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { gateJunitReport } from '../../../config/index.js';
-import { junitCounts } from '../logic/junit-counts.js';
+import { junitCounts } from '../logic/junit.js';
 
 const UNKNOWN = counts => Object.values(counts).some(value => value === null);
 

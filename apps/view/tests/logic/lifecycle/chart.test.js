@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lifecycleChart } from '../../../src/logic/lifecycle/chart.js';
 
-test('clause 2: every lifecycle route has its own count, plain meaning and rare-route disclosure [N26]', () => {
+test('view.lifecycle-chart.clause-2-every-lifecycle-route-has-its: clause 2: every lifecycle route has its own count, plain meaning and rare-route disclosure [N26]', () => {
   const moves = new Map([
     ['open>claimed:claim', 11], ['claimed>submitted:submit', 13], ['submitted>verified:accept', 17],
     ['claimed>open:release', 2], ['claimed>open:lapse', 3], ['claimed>open:escalate', 5], ['claimed>open:refreeze', 7],

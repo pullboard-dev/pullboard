@@ -14,6 +14,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import {
   dirname,
@@ -21,6 +22,7 @@ import {
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
+import { spawnOnSocket } from '../../../../packages/drive/index.js';
 import { register } from '../../../../packages/store/index.js';
 import {
   closeBoard,
@@ -33,7 +35,7 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 
-// Process-level by nature, so every box.run below stays a real process (10 launches, no in-process form exists):
+// Process-level by nature, so every box.run below stays a real process (11 launches, no in-process form exists):
 // each one starts a copied CLI entry (or its pre-commit hook launcher) to prove that entry's own start-up,
 // stale-worktree handover and PULLBOARD_OWN_CLI behaviour, which runCliInProcess and box.runLocal skip by calling main() directly.
 const SOURCE = resolve(import.meta.dirname, '../../../..');
@@ -124,10 +126,10 @@ async function project(t, { predates = false } = {}) {
   } else advance();
   /** Run an entry or launcher with cwd and env, as an agent's shell would. */
   const run = (cwd, command, args, extra = {}) => runFixtureChild(command, args, { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
-  return { root, worktree, seat, git, run, advance };
+  return { root, worktree, seat, git, run, advance, env };
 }
 
-test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
+test('cli.journeys-worktree-current.b17-b3-b34-a-worktree-behind: [B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'apps/cli/pullboard.js'), OWN_MARK);
   const entry = join(box.worktree, 'apps/cli/pullboard.js');
@@ -158,7 +160,7 @@ test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; ho
   assert.equal(current.stderr.split(MAIN_MARK).length - 1, 1, 'its entry carries main\'s marker once, from its own copy');
 });
 
-test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
+test('cli.journeys-worktree-current.clause-1-b17-3164-the-main: clause 1 [B17,#3164]: the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'apps/cli/pullboard.js'), OWN_MARK);
   const fromMain = box.run(box.root, process.execPath, [join(box.root, 'apps/cli/pullboard.js'), 'whoami']);
@@ -176,7 +178,7 @@ test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo
   assert.doesNotMatch(fromMain.stderr + sameRepo.stderr + elsewhere.stderr, /main checkout CLI not found/u, 'no case is a fallback worth a line');
 });
 
-test('[B17] a worktree whose main checkout CLI is missing runs its own code and says why in one line', async (t) => {
+test('cli.journeys-worktree-current.b17-a-worktree-whose-main-checkout: [B17] a worktree whose main checkout CLI is missing runs its own code and says why in one line', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'apps/cli/pullboard.js'), OWN_MARK);
   renameSync(join(box.root, 'apps/cli/pullboard.js'), join(box.root, 'bin/pullboard.js.gone'));
@@ -188,7 +190,7 @@ test('[B17] a worktree whose main checkout CLI is missing runs its own code and 
   assert.match(missing.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'));
 });
 
-test('[B17] a worktree made before the handover existed picks it up at its next main merge, then runs main\'s CLI', async (t) => {
+test('cli.journeys-worktree-current.b17-a-worktree-made-before-the: [B17] a worktree made before the handover existed picks it up at its next main merge, then runs main\'s CLI', async (t) => {
   const box = await project(t, { predates: true });
   const entry = join(box.worktree, 'apps/cli/pullboard.js');
   markDispatch(entry, OWN_MARK);
@@ -206,4 +208,26 @@ test('[B17] a worktree made before the handover existed picks it up at its next 
   assert.doesNotMatch(behind.stderr, new RegExp(OWN_MARK, 'u'), 'the worktree\'s stale code never ran the command');
   assert.doesNotMatch(behind.stderr, /main checkout CLI not found/u);
   assert.match(behind.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'), 'the seat is still resolved from the worktree');
+});
+
+test('cli.journeys-worktree-current.c7-serve-replacement-listens: [C7,#12301] a serve replacement handed its socket in a worktree behind main runs its own entry and listens', { timeout: 120_000 }, async (t) => {
+  const box = await project(t);
+  const entry = join(box.worktree, 'apps/cli/pullboard.js');
+  const server = createServer();
+  await new Promise((ready) => server.listen(0, '127.0.0.1', ready));
+  const port = server.address().port;
+  t.after(() => server.close());
+  const log = join(dirname(box.worktree), 'serve-replacement.log');
+  // spawnOnSocket is the restart path a serve takes when its code moves: socket on descriptor 3, an IPC channel, PULLBOARD_SERVE_FD.
+  const started = await spawnOnSocket(process.execPath, [entry, 'serve', '--address', '127.0.0.1', '--port', String(port)],
+    { fd: /** @type {any} */ (server)._handle.fd, cwd: box.worktree, env: box.env, log, wait: 60_000 });
+  t.after(() => { if (started.pid) try { process.kill(-started.pid, 'SIGKILL'); } catch { /* the group is gone */ } });
+  const output = existsSync(log) ? readFileSync(log, 'utf8') : '';
+  assert.equal(started.listening, true, `the replacement says it listens on the handed socket\n${output}`);
+  assert.doesNotMatch(output, new RegExp(MAIN_MARK, 'u'), 'the replacement never hands serve to the main checkout entry');
+  assert.doesNotMatch(output, /ENOTTY/u);
+  // The test's own copy stops accepting, as the predecessor does once the replacement listens.
+  await new Promise((closed) => server.close(closed));
+  const status = await fetch(`http://127.0.0.1:${port}/api/v1/health`, { signal: AbortSignal.timeout(10_000) }).then((response) => response.status);
+  assert.ok(status > 0, 'the replacement answers an HTTP request on the handed port');
 });

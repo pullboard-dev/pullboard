@@ -23,8 +23,8 @@ async function relay(machines) {
   return { state, close: () => new Promise(done => server.close(done)) };
 }
 
-/** A board whose only operation needs a newer engine than this one; the move table is never reached. `probe` is no registry operation, so the grant check passes it. */
-const board = { enginePorts: { store: {}, registry: {}, operations: ['probe'], minimumOperationEngine: () => NEEDED } };
+/** A board whose only operation needs a newer engine than this one; the move table is never reached. `probe` is no registry operation, so the grant check passes it; its store writer is a stub, so the writer check passes it too. */
+const board = { enginePorts: { store: { probe() {} }, registry: {}, operations: ['probe'], minimumOperationEngine: () => NEEDED } };
 
 /** The refusal prepareEngineMove raises for the roster the relay serves, built as the outbox builds it. */
 async function refusalFor(machines) {
@@ -36,7 +36,7 @@ async function refusalFor(machines) {
   } finally { await close(); }
 }
 
-test("clause 1: a move blocked by a teammate's old engine names them and the fix [H16,H17,C7,#1305]", async () => {
+test('cli.journeys-engine-floor.a-move-blocked-by-a-teammate: clause 1: a move blocked by a teammate\'s old engine names them and the fix [H16,H17,C7,#1305]', async () => {
   const error = await refusalFor([
     { machine: 'mac-studio', name: 'studio', created: 1, seen: 2, engine: 20 },
     { machine: 'mac-laptop', name: 'laptop', created: 1, seen: 2, engine: 10 },

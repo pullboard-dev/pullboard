@@ -56,7 +56,7 @@ function legacyBoard(t) {
   return file;
 }
 
-test('main refreshes a valid stamped older transition once; reads and branch opens leave it alone [M3,A5,A6,C7]', t => {
+test('cli.journeys-fact-board-schema.main-refreshes-a-valid-stamped-older: main refreshes a valid stamped older transition once; reads and branch opens leave it alone [M3,A5,A6,C7]', t => {
   const file = legacyBoard(t);
   const before = observe(file);
   assert.equal(before.standing, 'current', 'the old declaration has its own valid installed-shape stamp');
@@ -85,7 +85,7 @@ test('main refreshes a valid stamped older transition once; reads and branch ope
   assert.deepEqual(readFileSync(file), bytes, 'an already-current declaration makes no persistent write');
 });
 
-test('main leaves manually drifted triggers and their invalid stamp untouched [M3,A5,A6,C7]', t => {
+test('cli.journeys-fact-board-schema.main-leaves-manually-drifted-triggers-and: main leaves manually drifted triggers and their invalid stamp untouched [M3,A5,A6,C7]', t => {
   const file = legacyBoard(t);
   const changed = new DatabaseSync(file);
   try { changed.exec('DROP TRIGGER machine_fields_claimed'); }
@@ -99,7 +99,7 @@ test('main leaves manually drifted triggers and their invalid stamp untouched [M
   assert.match(diagnostics.join('\n'), /different shape/u);
 });
 
-test('clause 1: a private main source checkout is the candidate tree in its own repository with no commit made of it [C7]', () => {
+test('cli.journeys-fact-board-schema.a-private-main-source-checkout-is: clause 1: a private main source checkout is the candidate tree in its own repository with no commit made of it [C7]', () => {
   const box = e2e.sandbox();
   const directory = join(box.dir, 'main-source');
   mkdirSync(directory);
@@ -128,7 +128,7 @@ function guardImage(board) {
   };
 }
 
-test('an older checkpoint restore preserves newer installed guards and reports the declaration difference [M3,A5,A6,H16]', () => {
+test('cli.journeys-fact-board-schema.an-older-checkpoint-restore-preserves-newer: an older checkpoint restore preserves newer installed guards and reports the declaration difference [M3,A5,A6,H16]', () => {
   const diagnostics = [];
   const board = openBoard(':memory:', undefined, { onDiagnostic: text => diagnostics.push(text) });
   const source = openBoard(':memory:');
@@ -145,7 +145,7 @@ test('an older checkpoint restore preserves newer installed guards and reports t
   } finally { store.closeBoard(board); store.closeBoard(source); }
 });
 
-test('an older queued undo restores exact newer guards, including when its transaction rolls back [M3,A5,A6,H16]', () => {
+test('cli.journeys-fact-board-schema.an-older-queued-undo-restores-exact: an older queued undo restores exact newer guards, including when its transaction rolls back [M3,A5,A6,H16]', () => {
   const board = openBoard(':memory:');
   try {
     const session = board.db.createSession({ table: 'shout' });
@@ -167,7 +167,7 @@ test('an older queued undo restores exact newer guards, including when its trans
   } finally { store.closeBoard(board); }
 });
 
-test('main recovers a guard-only downgrade only when the unchanged stamp attests its complete target shape [M3,A5,A6,C7]', t => {
+test('cli.journeys-fact-board-schema.main-recovers-a-guard-only-downgrade: main recovers a guard-only downgrade only when the unchanged stamp attests its complete target shape [M3,A5,A6,C7]', t => {
   const file = legacyBoard(t);
   store.closeBoard(openBoard(file));
   const attested = observe(file);
@@ -192,7 +192,7 @@ test('main recovers a guard-only downgrade only when the unchanged stamp attests
   assert.deepEqual(readFileSync(file), bytes, 'recovered declaration is idempotent');
 });
 
-test('unrecognized stamps and non-guard drift cannot be approved by main recovery or restoration [M3,A5,A6,H16]', t => {
+test('cli.journeys-fact-board-schema.unrecognized-stamps-and-non-guard-drift: unrecognized stamps and non-guard drift cannot be approved by main recovery or restoration [M3,A5,A6,H16]', t => {
   const file = legacyBoard(t);
   store.closeBoard(openBoard(file));
   olderDeclaration(file, false);
@@ -220,7 +220,7 @@ test('unrecognized stamps and non-guard drift cannot be approved by main recover
 });
 
 
-test('normal authority pinning and signed-format restore keep a verified stamp without approving prior drift [M3,E22,H16]', () => {
+test('cli.journeys-fact-board-schema.normal-authority-pinning-and-signed-format: normal authority pinning and signed-format restore keep a verified stamp without approving prior drift [M3,E22,H16]', () => {
   const board = openBoard(':memory:');
   const source = openBoard(':memory:');
   try {
@@ -275,7 +275,7 @@ function legacySigningBoard(t, mode) {
   return file;
 }
 
-test('main recognizes exact legacy pin-only, signed-only and intermediate signed-format stamps [M3,E22,H16]', t => {
+test('cli.journeys-fact-board-schema.main-recognizes-exact-legacy-pin-only: main recognizes exact legacy pin-only, signed-only and intermediate signed-format stamps [M3,E22,H16]', t => {
   for (const mode of ['pin-only', 'signed-only', 'both', 'pin-then-sign', 'sign-then-pin']) {
     const file = legacySigningBoard(t, mode);
     const before = observe(file);
@@ -301,7 +301,7 @@ test('main recognizes exact legacy pin-only, signed-only and intermediate signed
   }
 });
 
-test('legacy signing recognition also recovers the exact attested machine declaration [M3,E22,H16]', t => {
+test('cli.journeys-fact-board-schema.legacy-signing-recognition-also-recovers-the: legacy signing recognition also recovers the exact attested machine declaration [M3,E22,H16]', t => {
   const file = legacySigningBoard(t, 'both');
   olderDeclaration(file, false);
   const before = observe(file);
@@ -314,7 +314,7 @@ test('legacy signing recognition also recovers the exact attested machine declar
   } finally { store.closeBoard(board); }
 });
 
-test('legacy pin or signing recovery never approves missing guards, extra schema or unknown headers [M3,E22,H16]', t => {
+test('cli.journeys-fact-board-schema.legacy-pin-or-signing-recovery-never: legacy pin or signing recovery never approves missing guards, extra schema or unknown headers [M3,E22,H16]', t => {
   const damage = [
     "DROP TRIGGER person_authority_delete",
     "DROP TRIGGER person_authority_delete; CREATE TRIGGER person_authority_delete BEFORE DELETE ON board_meta BEGIN SELECT 1; END",

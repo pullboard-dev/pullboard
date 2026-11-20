@@ -12,7 +12,7 @@ import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { cellSandbox } from '../../../../packages/store/tests/fixtures/cell.js';
 import { runFixtureChildAsync } from '../../../cli/tests/fixtures/child.js';
 
-test('a clean commit\'s source scan and tag selection are kept per tooling tree and answered again with the same result; a refused scan keeps nothing and refuses again [C7]', async t => {
+test('lib.runner-cache.a-clean-commit-s-source-scan: a clean commit\'s source scan and tag selection are kept per tooling tree and answered again with the same result; a refused scan keeps nothing and refuses again [C7]', async t => {
   const box = cellSandbox(t);
   const tooling = join(box.dir, 'tooling'), project = join(box.dir, 'project'), home = join(box.dir, 'home');
   for (const folder of [tooling, project, home]) mkdirSync(folder, { recursive: true });

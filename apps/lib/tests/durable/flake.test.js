@@ -55,7 +55,7 @@ function collectedGate(db, { id, item, commit, tree, statuses, now }) {
   writeStep(db, id, 'collected', { shards: Object.fromEntries(Object.entries(statuses).map(([shard, status]) => [shard, { status, digest: 'd'.repeat(64) }])) }, { now });
 }
 
-test('clause 1: a red gate records its verdict and frees its worker first; flake-diagnose jobs keyed by (tree, file, case) run later and attach their result to the item [C7]', async () => {
+test('lib.durable-flake.a-red-gate-records-its-verdict: clause 1: a red gate records its verdict and frees its worker first; flake-diagnose jobs keyed by (tree, file, case) run later and attach their result to the item [C7]', async () => {
   const { commit, tree } = candidateRepo();
   await withBoard(async (db) => {
     const now = 50_000;
@@ -100,7 +100,7 @@ test('clause 1: a red gate records its verdict and frees its worker first; flake
   });
 });
 
-test('clause 1: a green gate queues no flake diagnostic, and a diagnostic held by a live driver is left alone [C7]', async () => {
+test('lib.durable-flake.a-green-gate-queues-no-flake: clause 1: a green gate queues no flake diagnostic, and a diagnostic held by a live driver is left alone [C7]', async () => {
   const { commit, tree } = candidateRepo();
   await withBoard(async (db) => {
     collectedGate(db, { id: 'g3', item: 78, commit, tree, statuses: { s0: 0 }, now: 1000 });
@@ -121,7 +121,7 @@ test('clause 1: a green gate queues no flake diagnostic, and a diagnostic held b
   });
 });
 
-test('clause 1: the submit gate\'s flake observer runs as flake-diagnose jobs keyed by (tree, file, case), each case\'s observation attached to the item [C7]', async () => {
+test('lib.durable-flake.the-submit-gate-s-flake-observer: clause 1: the submit gate\'s flake observer runs as flake-diagnose jobs keyed by (tree, file, case), each case\'s observation attached to the item [C7]', async () => {
   const { repo, commit, tree } = candidateRepo();
   await withBoard(async (db) => {
     let open = false;

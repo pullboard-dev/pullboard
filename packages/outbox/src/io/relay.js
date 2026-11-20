@@ -1,17 +1,11 @@
+import { environmentAdapter } from '../../../env/index.js';
 import { operationIntent } from '../../../state/index.js';
 /**
  * The ordered outbox (#922): board moves made on an accepted relay link while the relay is unavailable, sealed on
  * this machine with the board as the relay last ordered it, until they replay in relay order.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   dirname,
   join,
@@ -82,6 +76,10 @@ import {
   entryCreatedItems,
   rememberCreatedItems,
 } from '../../../link/index.js';
+const fileSystem = fileSystemAdapter();
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /** How many replay refusals the link keeps for pullboard status; older ones stay in the relay's own receipts. */
 const KEPT_REFUSALS = 20;
@@ -99,8 +97,8 @@ export function outboxAhead(state) {
  * Why: the board image and the queued moves are as private as the relay's own sealed records, so they stay sealed at rest.
  */
 export async function readOutbox(file, key, boardId) {
-  if (!existsSync(file)) return null;
-  const plain = await unseal(key, readFileSync(file), { boardId, kind: 'outbox', sequence: 0 });
+  if (!fileSystem.exists(file)) return null;
+  const plain = await unseal(key, fileSystem.readFile(file, null), { boardId, kind: 'outbox', sequence: 0 });
   const document = JSON.parse(gunzipSync(plain).toString('utf8'));
   // Version 3 (#1013) keeps no board image: each move carries the rows it changed, to be taken back by them.
   if (![1, 2, 3].includes(document?.version) || !Array.isArray(document.moves) || !(document.base || document.version === 3) || !Number.isSafeInteger(document.baseSequence)) {
@@ -124,17 +122,17 @@ export async function writeOutbox(file, key, boardId, document) {
       || entry.created?.some(row => row.resultPath.length)
       || entry.refs?.some(ref => ref.resultPath?.length))) document.version = 2;
   const sealed = await seal(key, gzipSync(Buffer.from(JSON.stringify(document))), { boardId, kind: 'outbox', sequence: 0 });
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  fileSystem.mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const temporary = file + '.' + randomUUID() + '.tmp';
   try {
-    writeFileSync(temporary, Buffer.from(sealed), { flag: 'wx', mode: 0o600 });
-    renameSync(temporary, file);
-  } finally { rmSync(temporary, { force: true }); }
+    fileSystem.writeFile(temporary, Buffer.from(sealed), { flag: 'wx', mode: 0o600 });
+    fileSystem.rename(temporary, file);
+  } finally { fileSystem.rm(temporary, { force: true }); }
 }
 
 /** Remove the outbox once every move in it has been ordered. */
 export function removeOutbox(file) {
-  rmSync(file, { force: true });
+  fileSystem.rm(file, { force: true });
 }
 
 /** The item a move acts on, when its first argument names one. */
@@ -209,7 +207,7 @@ export function refusalLine(kept) {
 
 /** The ordered operations whose first argument is an item number; a decision's answer names a shout instead. */
 const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBaseline', 'escalate', 'recordAttempt', 'claim', 'release', 'submit', 'reserveReview', 'verify',
-  'merged', 'withdraw', 'refreeze', 'reopen', 'holdItem', 'releaseItemHold', 'appendFact', 'acceptCheck'];
+  'merged', 'withdraw', 'refreeze', 'reopen', 'holdItem', 'releaseItemHold', 'reserveItem', 'clearReservation', 'appendFact', 'acceptCheck'];
 
 /**
  * Where each ordered operation names an item, as paths into its arguments: `*` is every element of a list. Every
@@ -221,7 +219,7 @@ export const ITEM_SLOTS = Object.freeze({
   recordSelectorGap: [[0, 'itemId']], closeLandingTestDefect: [[0, 'item']],
   createItemSlice: [[0, 'parentId']],
   completeSubmitHandoff: [[0]], deferOwnership: [[0]], objectItemPatch: [[0]],
-  queueSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
+  queueSubmitHandoff: [[0]], recaptureSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
   recordExitProgress: [[0, 'item']],
   recordCoordinatorUsage: [], recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
@@ -231,6 +229,8 @@ export const ITEM_SLOTS = Object.freeze({
   // Request and acted-on event IDs are native event identities, never item references.
   answerTypedRequests: [],
   recordPublishFinding: [[0, 'item']],
+  // A block names its member items in `ids`; a block claim names the block, and its members come from the stored record.
+  addBlock: [[0, 'ids', '*']], claimBlock: [],
   register: [], ensureCoordinator: [], shout: [], passDecision: [], holdLane: [], releaseLane: [],
   moveMilestone: [], editMilestone: [], removeMilestone: [], shipMilestone: [],
   recordRowDecisions: [], decideSpecRevisions: [], applyRowDecisions: [], draftSpecRow: [], recordSpecApprovalBaseline: [],
@@ -397,7 +397,7 @@ function queueableKeyFailure(error, io) {
  */
 export function outboxQueueable(state, error, operation, io, args = []) {
   return state.mode === 'ordered' && state.baselineAccepted === true && !state.baselineConflict && !state.environment
-    && process.env.PULLBOARD_RELAY_TOKEN === undefined && !io?.relayCanary && !io?.personRequest && !io?.personRequestMoveId
+    && environment.get('PULLBOARD_RELAY_TOKEN') === undefined && !io?.relayCanary && !io?.personRequest && !io?.personRequestMoveId
     && !ACKNOWLEDGED_OPERATIONS.includes(operation)
     && !args.some(arg => arg?.landingFence !== undefined) && (transientRelayFailure(error) && outboxEnabled(io) || queueableKeyFailure(error, io));
 }
@@ -407,21 +407,21 @@ function saveOutboxSummary({ file, state }, outbox) {
   const where = outboxSummaryFile(file);
   if (outbox?.moves.length) {
     state.outbox = { restored: outbox.restored, moves: outbox.moves.map(outboxEntrySummary) };
-    mkdirSync(dirname(where), { recursive: true, mode: 0o700 });
+    fileSystem.mkdir(dirname(where), { recursive: true, mode: 0o700 });
     const temporary = where + '.' + randomUUID() + '.tmp';
     try {
-      writeFileSync(temporary, JSON.stringify(state.outbox) + '\n', { flag: 'wx', mode: 0o600 });
-      renameSync(temporary, where);
-    } finally { rmSync(temporary, { force: true }); }
+      fileSystem.writeFile(temporary, JSON.stringify(state.outbox) + '\n', { flag: 'wx', mode: 0o600 });
+      fileSystem.rename(temporary, where);
+    } finally { fileSystem.rm(temporary, { force: true }); }
   } else {
     delete state.outbox;
-    rmSync(where, { force: true });
+    fileSystem.rm(where, { force: true });
   }
 }
 
 /** Whether a move waits in the outbox now, read from disk rather than from a link loaded earlier. */
 export function outboxWaiting(linkFile) {
-  return existsSync(outboxFile(linkFile));
+  return fileSystem.exists(outboxFile(linkFile));
 }
 
 /** The file counting moves ever queued on this board, beside its link. */
@@ -435,7 +435,7 @@ function generationFile(linkFile) {
  * since a queued move shows on the board before the relay orders it (#1013).
  */
 export function outboxGeneration(linkFile) {
-  try { return Number(readFileSync(generationFile(linkFile), 'utf8')) || 0; } catch { return 0; }
+  try { return Number(fileSystem.readFile(generationFile(linkFile), 'utf8')) || 0; } catch { return 0; }
 }
 
 /**
@@ -458,7 +458,80 @@ export function liveOutbox(name, before, document) {
 
 /** Count one more queued move. */
 function bumpGeneration(linkFile) {
-  writeFileSync(generationFile(linkFile), `${outboxGeneration(linkFile) + 1}\n`, { mode: 0o600 });
+  fileSystem.writeFile(generationFile(linkFile), `${outboxGeneration(linkFile) + 1}\n`, { mode: 0o600 });
+}
+
+/**
+ * The engine move a command prepared, built from the local board the way every queued move is: seat name, holder stamp and actor.
+ * Why one place: the sealed queue and the key-free queue must prepare the same move (#9893, #9411).
+ */
+async function preparedMove({ root, state, io, senderPolicy, localRecords }, operation, args, move) {
+  if (move) return move;
+  const sent = withSeatName(root, operation, args, io), behind = await behindDeviceOptions(state);
+  const prepared = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent, behind)), state.machine, state.computerName, senderPolicy);
+  prepared.actor = senderPolicy.relayMoveActor(prepared) ?? senderPolicy.credentialActor(prepared);
+  return prepared;
+}
+
+/** The key-free outbox beside the link: one JSON array of queued entries, owner-only (#9893). */
+function unsealedOutboxFile(linkFile) {
+  return join(dirname(linkFile), 'relay-outbox.unsealed.json');
+}
+
+/** Write the key-free outbox: a new file by exclusive create, then an atomic replace; an empty list removes it. */
+function writeUnsealedOutbox(where, entries) {
+  if (!entries.length) { fileSystem.rm(where, { force: true }); return; }
+  fileSystem.mkdir(dirname(where), { recursive: true, mode: 0o700 });
+  const temporary = where + '.' + randomUUID() + '.tmp';
+  try {
+    fileSystem.writeFile(temporary, JSON.stringify(entries), { flag: 'wx', mode: 0o600 });
+    fileSystem.rename(temporary, where);
+  } finally { fileSystem.rm(temporary, { force: true }); }
+}
+
+/**
+ * Keep a move whose board key cannot be read in a key-free file and apply it locally, so the local command commits and exits 0 (#9893, #9411).
+ * It holds only what the local board already holds in the clear; nothing flushes it yet. A move this board refuses is taken back out.
+ */
+async function queueUnsealed(link, { operation, args, command, move, applyLocally }) {
+  const { root, file, state, senderPolicy, localRecords } = link;
+  move = await preparedMove(link, operation, args, move);
+  refuseRevokedSeat(state, senderPolicy.credentialActor(move));
+  localRecords(root, (board) => requireKnownCoordinatorHold(board, move));
+  const where = unsealedOutboxFile(file);
+  const before = fileSystem.exists(where) ? JSON.parse(fileSystem.readFile(where, 'utf8')) : [];
+  const entry = { move, intent: operationIntent(operation, args), queuedAt: new Date().toISOString(), after: state.sequence ?? 0,
+    ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}) };
+  writeUnsealedOutbox(where, [...before, entry]);
+  try { return await applyLocally(); } catch (refusal) {
+    writeUnsealedOutbox(where, before);
+    throw refusal;
+  }
+}
+
+/**
+ * Fold the key-free outbox into the sealed outbox once the board key reads again: every entry in file order, and the file removed only after the sealed write (#9894, #9411).
+ * Behind relay.queueOnFailure. A key that still cannot be read leaves the file untouched and the moves keep waiting; an entry already sealed is not sealed twice.
+ */
+async function foldUnsealed(link) {
+  const { root, file, state, io, localRecords } = link;
+  const where = unsealedOutboxFile(file);
+  if (!fileSystem.exists(where)) return;
+  try { if (io?.relayQueueOnFailure?.() !== true) return; } catch { return; }
+  let key;
+  try { key = readBoardKey(state.board); } catch { return; }
+  await withOutboxGuard(file, async () => {
+    const sealed = outboxFile(file);
+    const outbox = await readOutbox(sealed, key, state.board) ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
+    const known = new Set(outbox.moves.map(row => row.move.id));
+    for (const entry of JSON.parse(fileSystem.readFile(where, 'utf8'))) {
+      if (!known.has(entry.move.id)) outbox.moves.push({ ...entry, refs: bindRefs(outbox, entry.move) });
+    }
+    bumpGeneration(file);
+    await writeOutbox(sealed, key, state.board, outbox);
+    saveOutboxSummary(link, outbox);
+    fileSystem.rm(where, { force: true });
+  });
 }
 
 /**
@@ -472,16 +545,17 @@ export async function queueMove(link, { operation, args, command, move, error, a
   if (ACKNOWLEDGED_OPERATIONS.includes(operation)) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', 'this move needs the relay to acknowledge its IDs and result; retry it when the relay answers');
   }
-  const key = readBoardKey(state.board);
+  let key;
+  try { key = readBoardKey(state.board); } catch (keyError) {
+    // relay.queueOnFailure (default off): a key that cannot be read must not stop a local command; keep the move key-free and apply it (#9893, #9411).
+    if (!queueableKeyFailure(keyError, io)) throw keyError;
+    return queueUnsealed(link, { operation, args, command, move, applyLocally });
+  }
   const where = outboxFile(file);
   // A new outbox holds no board image: the moves are taken back by their own rows, so queuing costs no export.
   const outbox = await readOutbox(where, key, state.board)
     ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
-  if (!move) {
-    const sent = withSeatName(root, operation, args, io), behind = await behindDeviceOptions(state);
-    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent, behind)), state.machine, state.computerName, senderPolicy);
-    move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
-  }
+  move = await preparedMove(link, operation, args, move);
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));
   localRecords(root, (board) => requireKnownCoordinatorHold(board, move));
   const stray = strayItemRefs(outbox, move);
@@ -869,7 +943,7 @@ async function park(link, key, entry, error) {
 async function recoverParked(link) {
   const { root, file, state, io } = link;
   const where = outboxFile(file);
-  if (!state.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) {
+  if (!state.token?.startsWith('pm_') || environment.get('PULLBOARD_RELAY_TOKEN')) {
     throw new Refused('RELAY_RECOVER_CREDENTIAL', 'run pullboard relay recover on the computer you signed in on; only its machine credential publishes a board checkpoint');
   }
   const key = readBoardKey(state.board);
@@ -905,6 +979,7 @@ async function recoverParked(link) {
  * `recover`, once only parked moves remain, the board's checkpoint is published over them and they are resolved (#6693).
  */
 export async function flushOutbox(link, { recover = false } = {}) {
+  await foldUnsealed(link);
   await flushRounds(link);
   if (recover) return recoverParked(link);
 }
@@ -913,7 +988,7 @@ export async function flushOutbox(link, { recover = false } = {}) {
 async function flushRounds(link) {
   const { file, state } = link;
   const where = outboxFile(file);
-  if (!state.outbox && !existsSync(where)) return;
+  if (!state.outbox && !fileSystem.exists(where)) return;
   const key = readBoardKey(state.board);
   let fromCheckpoint = false;
   for (let round = 0; round < FLUSH_ROUNDS; round += 1) {

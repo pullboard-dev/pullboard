@@ -22,7 +22,7 @@ const {
   BIN, sandbox,
 } = e2e;
 
-test('the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', async () => {
+test('cli.journeys-resume-tour.the-tour-runs-a-reject-and: the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]', async () => {
   const box = sandbox();
   const plainEnv = { ...box.env, TMPDIR: box.dir };
   delete plainEnv.NO_COLOR;
@@ -39,7 +39,8 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.match(shown.stdout, /verified #1: CRITERION_MET/);
   assert.match(shown.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Scripted\) \| review-1 \(Scripted\) \|/);
 
-  // The four variant tours are independent of each other and of the timed plain run above, so they share one wall-clock window.
+  // The variant tours are independent of each other and of the timed plain run above, so they share one wall-clock window.
+  // The colour tour also carries the ambient git settings: one tour proves both that colour is forced and that the environment's hooks stay out.
   const hooks = join(box.dir, 'ambient-hooks');
   mkdirSync(hooks);
   writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\necho ambient hook ran >&2\nexit 1\n');
@@ -48,13 +49,12 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   const empty = join(box.dir, 'empty');
   mkdirSync(empty);
   const tour = (env) => runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env });
-  const [forced, noColor, isolated, stopped] = await Promise.all([
-    tour({ ...plainEnv, FORCE_COLOR: '1' }),
+  const [forced, noColor, stopped] = await Promise.all([
+    tour({ ...ambient, FORCE_COLOR: '1' }),
     tour({ ...plainEnv, FORCE_COLOR: '1', NO_COLOR: '1' }),
-    tour(ambient),
     tour({ ...plainEnv, PATH: empty }),
   ]);
-  assert.equal(forced.status, 0, `${forced.stdout}${forced.stderr}`);
+  assert.equal(forced.status, 0, `colour with git settings from the environment kept out: ${forced.stdout}${forced.stderr}`);
   assert.match(forced.stdout, /\u001b\[1m1  The person approved one spec row\. The coordinator files it as work\.\u001b\[0m/);
   assert.match(forced.stdout, /\u001b\[36mcoordinator \(unknown\)\u001b\[0m \$/);
   assert.match(forced.stdout, /\u001b\[33mapp-1 \(Scripted\)\u001b\[0m \$/);
@@ -77,7 +77,7 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
 
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
   assert.match(box.git(repo, 'log', '--no-merges', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
-  assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
+  assert.doesNotMatch(`${forced.stdout}${forced.stderr}`, /ambient hook ran/, 'the environment hooksPath never runs');
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);
 });

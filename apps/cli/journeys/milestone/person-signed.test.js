@@ -6,7 +6,7 @@ import { editMilestone } from '../../../../packages/store/index.js';
 import { editMilestoneItems } from '../../../../packages/store/index.js';
 import { MILESTONE_PERSON_LIMIT_ENGINE } from '../../../../packages/state/index.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
 
 const SETUP = 'fixture release setup';
@@ -22,7 +22,7 @@ function fixture(t) {
   return { board, ids, items: () => store.milestones(board)[0].items, limit: () => store.milestones(board)[0].limit };
 }
 
-test('clause 1: a signed person move raising a milestone limit is accepted while the coordinator is refused [N26,H16]', t => {
+test('cli.journeys-milestone-person-signed.a-signed-person-move-raising-a: clause 1: a signed person move raising a milestone limit is accepted while the coordinator is refused [N26,H16]', t => {
   const box = fixture(t);
   assert.throws(() => editMilestone(box.board, 'release', { agentId: 'coordinator', limit: '5' }), { code: 'MILESTONE_LIMIT_PERSON' });
   assert.equal(box.limit(), 1, 'a refused raise changes nothing');
@@ -30,7 +30,7 @@ test('clause 1: a signed person move raising a milestone limit is accepted while
   assert.equal(box.limit(), 5);
 });
 
-test('clause 2: a signed person move adding an item to a milestone at its limit is accepted while the coordinator is refused [N26,H16]', t => {
+test('cli.journeys-milestone-person-signed.a-signed-person-move-adding-an: clause 2: a signed person move adding an item to a milestone at its limit is accepted while the coordinator is refused [N26,H16]', t => {
   const box = fixture(t);
   assert.throws(() => editMilestoneItems(box.board, 'release', { agentId: 'coordinator', add: [box.ids[1]], remove: [], reason: SETUP }), { code: 'MILESTONE_LIMIT' });
   assert.deepEqual(box.items(), [box.ids[0]], 'a refused add changes nothing');
@@ -39,7 +39,7 @@ test('clause 2: a signed person move adding an item to a milestone at its limit 
   assert.equal(box.limit(), 1, 'the person add leaves the limit as it was');
 });
 
-test('clause 2: a board recorded at the previous engine keeps the old refusal even for a person add [N26,H16]', t => {
+test('cli.journeys-milestone-person-signed.a-board-recorded-at-the-previous: clause 2: a board recorded at the previous engine keeps the old refusal even for a person add [N26,H16]', t => {
   const box = fixture(t);
   const current = box.board.executionEngineVersion;
   try {

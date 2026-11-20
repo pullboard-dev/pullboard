@@ -1,18 +1,5 @@
 /** Owner-only machine metadata, authenticated device roster and one-use enrollment [H5,H15,H17]. */
 import { randomUUID } from 'node:crypto';
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { authenticateDeviceEnrollment } from '../../../../keys/index.js';
@@ -22,7 +9,11 @@ import { scrubLegacyPersonSessions } from '../../../../keys/index.js';
 import { approvalContext } from '../../logic/relay/approval.js';
 import { createPairingCode } from '../../../../person/index.js';
 import { relayMachineDirectory } from '../../../../store/index.js';
+import { relayMachineStateFile } from '../../../../store/index.js';
 import { Refused } from '../../../../kernel/light.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const DEVICE = /^device-[0-9a-f]{32}$/u;
 
@@ -33,7 +24,7 @@ function directory() {
 
 /** Refuse symlinks, non-owner files or broader permissions before reading machine secrets. */
 function privateEntry(path, folder = false) {
-  const stat = lstatSync(path);
+  const stat = fs.lstat(path);
   if (stat.isSymbolicLink() || (folder ? !stat.isDirectory() : !stat.isFile()) || (stat.mode & 0o077) ||
       (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
     throw new Refused('RELAY_MACHINE_STORAGE', 'Restore owner-only relay-machine storage: directory mode 700, files mode 600.');
@@ -83,13 +74,13 @@ function validate(state) {
 /** Read the durable machine state without creating a directory or touching the network. */
 function readState() {
   const folder = directory();
-  if (!existsSync(folder)) return emptyState();
+  if (!fs.exists(folder)) return emptyState();
   privateEntry(folder, true);
-  const file = join(folder, 'state.json');
-  if (!existsSync(file)) return emptyState();
+  const file = relayMachineStateFile();
+  if (!fs.exists(file)) return emptyState();
   privateEntry(file);
   let state;
-  try { state = JSON.parse(readFileSync(file, 'utf8')); }
+  try { state = JSON.parse(fs.readFile(file, 'utf8')); }
   catch { throw new Refused('RELAY_MACHINE_STORAGE', 'Restore valid machine relay settings before signing in or pairing again.'); }
   return validate(state);
 }
@@ -99,7 +90,7 @@ export function readRelayMachine() {
   scrubLegacyPersonSessions();
   const state = readState();
   const folder = directory();
-  const fragments = existsSync(folder) && readdirSync(folder).some(name => /^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name));
+  const fragments = fs.exists(folder) && fs.list(folder).some(name => /^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name));
   if (state.v === 1 || state.session != null || fragments) {
     updateRelayMachine(() => {});
     return readState();
@@ -132,10 +123,10 @@ export function relayPersonRoot(owner) {
 /** Serialize cross-process read-modify-write and atomically replace the private machine file. */
 export function updateRelayMachine(mutate) {
   const folder = directory();
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  fs.mkdir(folder, { recursive: true, mode: 0o700 });
   privateEntry(folder, true);
   const lock = join(folder, 'lock.sqlite');
-  try { closeSync(openSync(lock, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  try { fs.close(fs.open(lock, 'wx', 0o600)); } catch (error) { if (error.code !== 'EEXIST') throw error; }
   privateEntry(lock);
   const db = new DatabaseSync(lock);
   let temporary;
@@ -143,9 +134,9 @@ export function updateRelayMachine(mutate) {
     db.exec('PRAGMA busy_timeout = 30000');
     db.exec('CREATE TABLE IF NOT EXISTS machine_lock (id INTEGER PRIMARY KEY)');
     db.exec('BEGIN IMMEDIATE');
-    // A crashed legacy writer may have left a complete person session beside state.json.
-    for (const name of readdirSync(folder)) {
-      if (/^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name)) rmSync(join(folder, name), { force: true });
+    // A crashed legacy writer may have left a complete person session beside the machine state file.
+    for (const name of fs.list(folder)) {
+      if (/^state\.[0-9]+\.[0-9a-f-]+\.tmp$/u.test(name)) fs.rm(join(folder, name), { force: true });
     }
     const state = readState();
     state.owner ??= state.session ? { account: state.session.account, url: state.session.url } : null;
@@ -157,10 +148,10 @@ export function updateRelayMachine(mutate) {
     delete state.session;
     validate(state);
     temporary = join(folder, `state.${process.pid}.${randomUUID()}.tmp`);
-    const fd = openSync(temporary, 'wx', 0o600);
-    try { writeFileSync(fd, JSON.stringify(state) + '\n'); fsyncSync(fd); }
-    finally { closeSync(fd); }
-    renameSync(temporary, join(folder, 'state.json'));
+    const fd = fs.open(temporary, 'wx', 0o600);
+    try { fs.writeFile(fd, JSON.stringify(state) + '\n'); fs.fsync(fd); }
+    finally { fs.close(fd); }
+    fs.rename(temporary, relayMachineStateFile());
     db.exec('COMMIT');
     return result;
   } catch (error) {
@@ -168,7 +159,7 @@ export function updateRelayMachine(mutate) {
     throw error;
   } finally {
     db.close();
-    if (temporary) rmSync(temporary, { force: true });
+    if (temporary) fs.rm(temporary, { force: true });
   }
 }
 

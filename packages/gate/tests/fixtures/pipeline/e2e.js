@@ -1,6 +1,6 @@
 /**
  * End to end, one trivial item from claim to merged on a scratch project [C7]: claim, a queued submit, the real gate
- * dispatcher and driver, the receipt, review, accept and the landing batch, each hop's state change asserted on the
+ * pulled gate job, the receipt, review, accept and the landing batch, each hop's state change asserted on the
  * real board and timed. Run alone with `node packages/gate/tests/fixtures/pipeline/e2e.js`, or through `node packages/gate/src/io/matrix.js`.
  */
 import assert from 'node:assert/strict';
@@ -9,7 +9,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   from,
-  gone,
   guardProcesses,
   hopCheck,
   waitUntil,
@@ -26,11 +25,6 @@ const { gateSpanFolder, readGateSpans } = await from('packages/jobs/index.js');
 /** The widest stretch of a gate no recorded phase may leave uncovered, on the local runner stand-in [C7]. */
 const PHASE_GAP_MS = 10_000;
 
-/**
- * How long a lease may go unrenewed while its gate runs: half the 2-minute lease (DJ12-DJ14). The drive renews every
- * 5 s; a wider gap is reported, and only one that puts the lease at risk fails the hop.
- */
-const RENEW_GAP_MS = 60_000;
 /** The board command latency target, per command, from Corey's 2 Nov speed rule. */
 const COMMAND_TARGET_MS = 200;
 
@@ -82,26 +76,8 @@ test('one item goes from claim to merged through every hop, each state change on
 
   const running = await waitUntil(() => {
     const job = box.state(id).job;
-    return job?.state === 'running' && box.driver(job.id)?.pid ? job : null;
-  }, 'the gate driver starts', 60_000, 150);
-
-  await t.test('worker-lease', () => hopCheck('worker-lease', async () => {
-    const leases = [];
-    let lastAt = Date.now(), widest = 0;
-    await waitUntil(() => {
-      const record = box.driver(running.id);
-      assert.ok(!gone(record.pid), 'the gate driver process is alive while its gate runs');
-      assert.ok(record.leaseUntil > Date.now(), 'the running driver holds a live lease');
-      if (leases.at(-1) !== record.leaseUntil) {
-        if (leases.length) widest = Math.max(widest, Date.now() - lastAt);
-        leases.push(record.leaseUntil);
-        lastAt = Date.now();
-      }
-      return leases.length >= 3;
-    }, 'two lease renewals', 30_000, 200);
-    assert.ok(widest <= RENEW_GAP_MS, `the driver renewed within ${RENEW_GAP_MS} ms; widest gap ${widest} ms`);
-    return { ms: widest, measured: `${leases.length - 1} renewals seen, widest gap ${widest} ms` };
-  }));
+    return job?.state === 'running' ? job : null;
+  }, 'the gate job starts', 60_000, 150);
 
   writeFileSync(box.release, 'release\n');
   await t.test('test-receipt', () => hopCheck('test-receipt', async () => {

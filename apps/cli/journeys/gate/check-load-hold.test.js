@@ -10,7 +10,7 @@ import { seat } from '../../tests/fixtures/check-hold.js';
 
 after(e2e.cleanup);
 
-test('clause 1: with the setting on and the load over machine.loadCeiling, pullboard check waits in the local resource line before it reports [C7,#10141]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real in-process check; not a speed target.
+test('cli.journeys-gate-check-load-hold.with-the-setting-on-and-the: clause 1: with the setting on and the load over machine.loadCeiling, pullboard check waits in the local resource line before it reports [C7,#10141]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real in-process check; not a speed target.
   const box = await seat();
   holdSettings(box, { holdHeavyAboveLoad: true });
   const answer = await checkUnderLoad(t, box);

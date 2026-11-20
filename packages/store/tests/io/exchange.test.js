@@ -1,10 +1,12 @@
-/** Board exports without the additive job tables still import; every other table still matches exactly [C7]. */
+/** Board exports without the additive job tables or empty additive item columns still import; everything else still matches exactly [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import {
+  addItem,
   exportBoard,
   importBoard,
+  register,
 } from '../../index.js';
 
 /** Export a board as a fresh copy that drops the job tables and their counter, like an export made before them. */
@@ -75,4 +77,49 @@ test('store.io-exchange.an-empty-job-export-lists-no: clause 1: an empty-job exp
   const target = fixtureBoard(t);
   importBoard(target, document);
   assert.deepEqual(jobRows(target), { job: [], job_step: [] }, 'the export still imports into a board that has the job tables');
+});
+
+/** The item columns an export leaves out when none of them holds a value. */
+const RESERVATION = ['item_reservation_holder', 'item_reservation_by', 'item_reservation_at'];
+
+/** A board with two items, the second holding a reservation written straight into its columns. */
+function reservationBoard(t) {
+  const board = fixtureBoard(t);
+  register(board, { lane: 'coordinator', path: '/fixture/coordinator' });
+  const free = addItem(board, { by: 'coordinator', lane: 'web', title: 'Free item', criterion: 'the page renders' });
+  const held = addItem(board, { by: 'coordinator', lane: 'web', title: 'Reserved item', criterion: 'the form submits' });
+  board.db.prepare('UPDATE item SET item_reservation_holder = ?, item_reservation_by = ?, item_reservation_at = ? WHERE item_id = ?')
+    .run('web-1', 'coordinator', '2026-11-18T12:00:00.000Z', held);
+  return { board, free, held };
+}
+
+/** Read one item's three reservation columns straight from the board. */
+function reservationOf(board, id) {
+  return { ...board.db.prepare('SELECT item_reservation_holder, item_reservation_by, item_reservation_at FROM item WHERE item_id = ?').get(id) };
+}
+
+test('store.io-exchange.reservation-columns-additive: clause 2: empty item reservation columns leave the export, held ones round-trip, absent ones import null, and any other column gap still refuses IMPORT_SCHEMA [C7]', (t) => {
+  const { board, free, held } = reservationBoard(t);
+  const document = exportBoard(board);
+  const row = (id) => document.tables.item.find((item) => item.item_id === id);
+  assert.equal(RESERVATION.some((column) => Object.hasOwn(row(free), column)), false, 'a row with no reservation exports without the three keys');
+  assert.equal(RESERVATION.every((column) => Object.hasOwn(row(held), column)), true, 'a row holding a reservation keeps the three keys');
+
+  const copy = fixtureBoard(t);
+  importBoard(copy, document);
+  assert.deepEqual(reservationOf(copy, held), reservationOf(board, held), 'a held reservation round-trips');
+  assert.deepEqual(reservationOf(copy, free), { item_reservation_holder: null, item_reservation_by: null, item_reservation_at: null }, 'an absent reservation imports as null');
+
+  const older = structuredClone(document);
+  older.tables.item = older.tables.item.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => !RESERVATION.includes(key))));
+  const fromOlder = fixtureBoard(t);
+  importBoard(fromOlder, older);
+  assert.deepEqual(reservationOf(fromOlder, held), { item_reservation_holder: null, item_reservation_by: null, item_reservation_at: null }, 'rows from an export made before the columns import with them null');
+
+  const missing = structuredClone(document);
+  delete missing.tables.item[0].item_title;
+  assert.throws(() => importBoard(fixtureBoard(t), missing), (error) => error.code === 'IMPORT_SCHEMA', 'an item row missing any other column is refused');
+  const extra = structuredClone(document);
+  extra.tables.item[0].item_not_a_column = null;
+  assert.throws(() => importBoard(fixtureBoard(t), extra), (error) => error.code === 'IMPORT_SCHEMA', 'an item row with an extra key is refused');
 });

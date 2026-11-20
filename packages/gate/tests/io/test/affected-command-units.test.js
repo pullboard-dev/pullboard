@@ -13,7 +13,7 @@ test('gate.affected-command-units.file-unchanged: clause 1: with gate.selectionU
 });
 
 test('gate.affected-command-units.placeholder-filled: clause 2: another unit shell-quotes each unit in place of {units}, and a command without it is refused naming gate.selectionUnit [C7]', () => {
-  assert.equal(affectedCommand({ affectedTests: 'go test {units} -count=1' }, ['pkg/a', 'cmd/app'], 'package'), "go test 'cmd/app' 'pkg/a' -count=1");
+  assert.equal(affectedCommand({ affectedTests: 'go test {units} -count=1' }, ['pkg/a', 'cmd/app'], 'package'), "go test './cmd/app' './pkg/a' -count=1");
   assert.equal(affectedCommand({ affectedTests: 'cargo test -p {units}' }, ['x y'], 'crate'), "cargo test -p 'x y'");
   assert.throws(() => affectedCommand({ affectedTests: 'go test' }, ['pkg/a'], 'package'), (error) => error.code === 'SELECTION_UNIT_COMMAND' && /gate\.selectionUnit/u.test(error.message) && /\{units\}/u.test(error.message));
 });

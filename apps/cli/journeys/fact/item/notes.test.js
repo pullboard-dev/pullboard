@@ -40,7 +40,7 @@ async function note(box, cwd, item, kind, text) {
   return fact;
 }
 
-test('typed notes on an item reach its agents and stay off the board-wide feed [B29,B30,B31,B32,N14,N26]', async () => {
+test('cli.journeys-fact-item-notes.typed-notes-on-an-item-reach: typed notes on an item reach its agents and stay off the board-wide feed [B29,B30,B31,B32,N14,N26]', async () => {
   const box = helpers.project();
   const reviewer = join(box.dir, 'notes-reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');

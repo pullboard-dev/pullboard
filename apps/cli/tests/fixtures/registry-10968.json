@@ -1,0 +1,4 @@
+{
+  "cli.logic-help-work.add-and-edit-usage-show-level-not-route": {"proves":{"specs":["C7"],"claim":"The add and edit usage lines show --level light|mid|strong and no --route."},"why":"Without it, help would keep teaching the retired --route flag name.","kind":"cell unit","inputs":["apps/cli/src/logic/help/work.js","apps/cli/tests/logic/help/work.test.js"]},
+  "cli.logic-help-work.list-request-and-sweep-usage-show-level": {"proves":{"specs":["C7"],"claim":"The list, request, brief and sweep usage lines name --level."},"why":"Without it, a command could keep documenting the old flag name unnoticed.","kind":"cell unit","inputs":["apps/cli/src/logic/help/work.js","apps/cli/src/logic/help/coordinator.js","apps/cli/tests/logic/help/work.test.js"]}
+}

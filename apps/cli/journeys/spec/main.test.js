@@ -37,7 +37,7 @@ import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.j
 import { specBox } from '../../tests/fixtures/spec/box.js';
 import { cascadeBox } from '../../tests/fixtures/spec/cascade.js';
 
-test('rows parse with id, status, tier, text, gate, serves, section and line [S1]', () => {
+test('cli.journeys-spec-main.rows-parse-with-id-status-tier: rows parse with id, status, tier, text, gate, serves, section and line [S1]', () => {
   const spec = parseSpec(SPEC);
   assert.equal(spec.title, 'Demo');
   assert.deepEqual(spec.intro, ['Intro line.']);
@@ -53,7 +53,7 @@ test('rows parse with id, status, tier, text, gate, serves, section and line [S1
   assert.deepEqual(lintSpec(spec), []);
 });
 
-test('rows parse signer requirements and lint their names and duplicates [S18]', () => {
+test('cli.journeys-spec-main.rows-parse-signer-requirements-and-lint: rows parse signer requirements and lint their names and duplicates [S18]', () => {
   const spec = parseSpec('## G\n- G1 [approved, must] Two people sign. | gate: proof | signers: co@example.invalid, AB\n');
   assert.deepEqual(spec.rows[0].signers, ['co@example.invalid', 'AB']);
   assert.deepEqual(lintSpec(spec), []);
@@ -62,7 +62,7 @@ test('rows parse signer requirements and lint their names and duplicates [S18]',
   assert.ok(invalid.some((finding) => /signers are unique/u.test(finding.message)));
 });
 
-test('SPEC and PRACTICE grammar defaults to version 1 and accepts its declaration [A5]', () => {
+test('cli.journeys-spec-main.spec-and-practice-grammar-defaults-to: SPEC and PRACTICE grammar defaults to version 1 and accepts its declaration [A5]', () => {
   assert.equal(SPEC_GRAMMAR_VERSION, 1);
   const legacy = parseSpec(SPEC);
   const declared = parseSpec(`<!-- pullboard-grammar ${SPEC_GRAMMAR_VERSION} -->\n${SPEC}`);
@@ -73,7 +73,7 @@ test('SPEC and PRACTICE grammar defaults to version 1 and accepts its declaratio
   assert.deepEqual(lintSpec(declared), []);
 });
 
-test('a newer SPEC grammar is refused with its version and an upgrade step [A5]', () => {
+test('cli.journeys-spec-main.a-newer-spec-grammar-is-refused: a newer SPEC grammar is refused with its version and an upgrade step [A5]', () => {
   for (const version of ['2', '9007199254740993', '0', '2.5', '']) {
     assert.throws(() => parseSpec(`<!-- pullboard-grammar ${version} -->\n${SPEC}`), {
       code: 'A5_GRAMMAR_VERSION',
@@ -85,7 +85,7 @@ test('a newer SPEC grammar is refused with its version and an upgrade step [A5]'
   assert.throws(() => parseSpec(`<!-- pullboard-grammar 1 -->\n<!-- pullboard-grammar 2 -->\n${SPEC}`), { code: 'A5_GRAMMAR_VERSION' });
 });
 
-test('real spec check refuses future grammar in either configured file [A5]', async (t) => {
+test('cli.journeys-spec-main.real-spec-check-refuses-future-grammar: real spec check refuses future grammar in either configured file [A5]', async (t) => {
   const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const box = specBox(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
   for (const [name, source] of [[box.specName, SPEC], [box.practiceName, practice]]) {
@@ -109,7 +109,7 @@ test('real spec check refuses future grammar in either configured file [A5]', as
   assert.equal((await box.spec('check')).status, 0);
 });
 
-test('spec check names both locations when ids repeat within or across configured files [A5]', async (t) => {
+test('cli.journeys-spec-main.spec-check-names-both-locations-when: spec check names both locations when ids repeat within or across configured files [A5]', async (t) => {
   const practiceRow = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const crossFile = specBox(t, { practice: practiceRow });
   writeFileSync(join(crossFile.root, crossFile.practiceName), practiceRow.replace('P1', 'G1'));
@@ -131,7 +131,7 @@ test('spec check names both locations when ids repeat within or across configure
   assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
 });
 
-test('spec check lists primary-branch collisions as known warnings [A5]', async (t) => {
+test('cli.journeys-spec-main.spec-check-lists-primary-branch-collisions: spec check lists primary-branch collisions as known warnings [A5]', async (t) => {
   const practice = '# Practice\n\n## G\n- G1 [draft] A known local rule.\n';
   const box = specBox(t, { practice });
   const result = await box.spec('check');
@@ -140,7 +140,7 @@ test('spec check lists primary-branch collisions as known warnings [A5]', async 
   assert.match(result.stdout, /PRACTICE\.md:4 G1 warning: known duplicate id; also appears at SPEC\.md:6/u);
 });
 
-test('spec check uses the retained trunk after its coordinator checkout detaches [A5]', async (t) => {
+test('cli.journeys-spec-main.spec-check-uses-the-retained-trunk: spec check uses the retained trunk after its coordinator checkout detaches [A5]', async (t) => {
   const practice = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const box = specBox(t, { practice });
   const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
@@ -171,7 +171,7 @@ test('spec check uses the retained trunk after its coordinator checkout detaches
   gitAt(box.root, 'switch', '-q', 'trunk');
 });
 
-test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', async (t) => {
+test('cli.journeys-spec-main.a-grammar-1-repair-can-commit: a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]', async (t) => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-grammar-history-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, '.bin');
@@ -210,7 +210,7 @@ test('a grammar-1 repair can commit after grammar 2 was already recorded [A5,S8]
   assert.equal(checked.status, 0, `${checked.stdout}${checked.stderr}`);
 });
 
-test('a row-like line that does not parse is an error, never dropped [S1]', () => {
+test('cli.journeys-spec-main.a-row-like-line-that-does: a row-like line that does not parse is an error, never dropped [S1]', () => {
   const spec = parseSpec('## G\n- G1 [approved, must]\n- just a bullet note\n');
   const findings = lintSpec(spec);
   assert.equal(findings.length, 1);
@@ -218,32 +218,32 @@ test('a row-like line that does not parse is an error, never dropped [S1]', () =
   assert.equal(findings[0].line, 2);
 });
 
-test('rows inside code fences are examples, not rows [S1]', () => {
+test('cli.journeys-spec-main.rows-inside-code-fences-are-examples: rows inside code fences are examples, not rows [S1]', () => {
   const spec = parseSpec('## G\n```\n- G1 [approved, must] Example. | gate: x\n```\n');
   assert.equal(spec.rows.length, 0);
 });
 
-test('ids are unique, retired ones included [S2]', () => {
+test('cli.journeys-spec-main.ids-are-unique-retired-ones-included: ids are unique, retired ones included [S2]', () => {
   const findings = lintSpec(parseSpec('## G\n- G1 [retired] Old.\n- G1 [draft] New.\n'));
   assert.match(findings[0].message, /duplicate id; first on line 2/);
   const later = lintSpec(parseSpec('## G\n- G1 [draft] New.\n- G1 [retired] Old.\n'));
   assert.match(later[0].message, /duplicate id; first on line 2/, 'a retired row that repeats a live id is a duplicate too');
 });
 
-test('serves links must name real ids and never cycle [S3]', () => {
+test('cli.journeys-spec-main.serves-links-must-name-real-ids: serves links must name real ids and never cycle [S3]', () => {
   const unknown = lintSpec(parseSpec('## G\n- G1 [draft] One. | serves: G9\n'));
   assert.match(unknown[0].message, /serves G9, which is not in the spec/);
   const cycle = lintSpec(parseSpec('## G\n- G1 [draft] One. | serves: G2\n- G2 [draft] Two. | serves: G1\n'));
   assert.ok(cycle.some((finding) => /cycle: G1 -> G2 -> G1/.test(finding.message)));
 });
 
-test('approved must-rows name their gate [S4]', () => {
+test('cli.journeys-spec-main.approved-must-rows-name-their-gate: approved must-rows name their gate [S4]', () => {
   const findings = lintSpec(parseSpec('## G\n- G1 [approved, must] No gate here.\n'));
   assert.match(findings[0].message, /names its gate/);
   assert.deepEqual(lintSpec(parseSpec('## G\n- G1 [approved, aim] Aims need none.\n')), []);
 });
 
-test('bad status, bad tier and unknown fields are errors; long rows warn [S1]', () => {
+test('cli.journeys-spec-main.bad-status-bad-tier-and-unknown: bad status, bad tier and unknown fields are errors; long rows warn [S1]', () => {
   const findings = lintSpec(
     parseSpec(`## G\n- G1 [maybe, should] Text. | owner: me\n- G2 [draft] ${'word '.repeat(25)}\n`),
   );
@@ -254,13 +254,13 @@ test('bad status, bad tier and unknown fields are errors; long rows warn [S1]', 
   assert.ok(messages.some((message) => message.startsWith('warning: 25 words')));
 });
 
-test('cited ids must exist and must not be retired [S2]', () => {
+test('cli.journeys-spec-main.cited-ids-must-exist-and-must: cited ids must exist and must not be retired [S2]', () => {
   const spec = { ...parseSpec(SPEC), name: 'SPEC.md' };
   assert.deepEqual(idProblems(spec, ['G1', 'K1']), []);
   assert.deepEqual(idProblems(spec, ['G9', 'G2']), ['G9 is not in SPEC.md', 'G2 is retired']);
 });
 
-test('doctrine ids use their own namespace when an id also exists in SPEC.md [A5]', () => {
+test('cli.journeys-spec-main.doctrine-ids-use-their-own-namespace: doctrine ids use their own namespace when an id also exists in SPEC.md [A5]', () => {
   const spec = { ...parseSpec('## G\n- G1 [approved] Product rule.\n'), name: 'SPEC.md' };
   const doctrine = { rows: [
     { id: 'G1', status: 'approved', text: 'House rule.', gate: '' },
@@ -275,7 +275,7 @@ test('doctrine ids use their own namespace when an id also exists in SPEC.md [A5
   assert.match(frozen.text, /"id":"doctrine:G1","text":"House rule\."/u);
 });
 
-test('the frozen criterion covers title, criterion and cited row text [V2]', () => {
+test('cli.journeys-spec-main.the-frozen-criterion-covers-title-criterion: the frozen criterion covers title, criterion and cited row text [V2]', () => {
   const item = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
   const first = frozenCriterion(parseSpec(SPEC), item);
   assert.equal(first.digest.length, 64);
@@ -287,7 +287,7 @@ test('the frozen criterion covers title, criterion and cited row text [V2]', () 
   assert.throws(() => frozenCriterion(parseSpec(SPEC), { ...item, item_spec_ids: 'G9' }), /UNKNOWN_SPEC/);
 });
 
-test('a sign-off holds the text it approved; changing the row makes it stale [S5]', () => {
+test('cli.journeys-spec-main.a-sign-off-holds-the-text: a sign-off holds the text it approved; changing the row makes it stale [S5]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-signoff-'));
   try {
     const spec = parseSpec(SPEC);
@@ -305,14 +305,14 @@ test('a sign-off holds the text it approved; changing the row makes it stale [S5
   }
 });
 
-test('commit headers cite ids in a trailing bracket [C2]', () => {
+test('cli.journeys-spec-main.commit-headers-cite-ids-in-a: commit headers cite ids in a trailing bracket [C2]', () => {
   assert.deepEqual(citedIds('feat(web): add the page [G1, K1.2]'), ['G1', 'K1.2']);
   assert.deepEqual(citedIds('feat(web): add the rule [doctrine:PB1]'), ['doctrine:PB1']);
   assert.deepEqual(citedIds('feat(web): add the page'), []);
   assert.deepEqual(citedIds('fix: handle [x] in the middle of text'), []);
 });
 
-test('a row marked wont stays with its id, drops out of the counts, and cannot be cited [S9]', () => {
+test('cli.journeys-spec-main.a-row-marked-wont-stays-with: a row marked wont stays with its id, drops out of the counts, and cannot be cited [S9]', () => {
   const spec = { ...parseSpec(`# Demo\n\n## G · Goals\n- G1 [approved, must] Kept. | gate: test\n- G2 [wont, must] Cut by the client on 6 Oct.\n`), name: 'SPEC.md' };
   assert.deepEqual(lintSpec(spec), []);
   assert.deepEqual(unmetRows(spec.rows, []).map((row) => row.id), ['G1']);
@@ -321,7 +321,7 @@ test('a row marked wont stays with its id, drops out of the counts, and cannot b
   assert.throws(() => frozenCriterion(spec, item), /UNKNOWN_SPEC.*won't build.*withdraws the item/);
 });
 
-test('an id once committed or cited never leaves the spec [S8]', () => {
+test('cli.journeys-spec-main.an-id-once-committed-or-cited: an id once committed or cited never leaves the spec [S8]', () => {
   const before = '# Demo\n\n## G · Goals\n- G1 [approved, must] One. | gate: t\n- G2 [draft, must] Two.\n```\n- G9 [draft] An example in a fence.\n```\n';
   assert.deepEqual(deletedIds(before, '# Demo\n\n## G · Goals\n- G1 [approved, must] One. | gate: t\n'), ['G2']);
   assert.deepEqual(deletedIds(before, before.replace('[draft, must] Two.', '[wont, must] Two.')), []);
@@ -336,14 +336,14 @@ test('an id once committed or cited never leaves the spec [S8]', () => {
   ]);
 });
 
-test('the check command is part of the frozen bar; items without one keep their old digest [B14]', () => {
+test('cli.journeys-spec-main.the-check-command-is-part-of: the check command is part of the frozen bar; items without one keep their old digest [B14]', () => {
   const item = { item_title: 'Load twice', item_criterion: 'second load adds nothing', item_spec_ids: 'G1' };
   const before = frozenCriterion(parseSpec(SPEC), item).digest;
   assert.equal(frozenCriterion(parseSpec(SPEC), { ...item, item_check: '' }).digest, before);
   assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_check: 'npm test' }).digest, before);
 });
 
-test('clause 1: an approved revision applies while an unrelated held item cites a drifted row [S18,C7]', async (t) => {
+test('cli.journeys-spec-main.an-approved-revision-applies-while-an: clause 1: an approved revision applies while an unrelated held item cites a drifted row [S18,C7]', async (t) => {
   const box = specBox(t);
   const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
   const runAt = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
@@ -379,7 +379,7 @@ test('clause 1: an approved revision applies while an unrelated held item cites 
   stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
 });
 
-test('clause 1: rejecting a row sends every row that serves it back for review [C7,#9344]', async (t) => {
+test('cli.journeys-spec-main.rejecting-a-row-sends-every-row: clause 1: rejecting a row sends every row that serves it back for review [C7,#9344]', async (t) => {
   const { box, author, fact, first, third, verify } = await cascadeBox(t);
   const rejected = await verify(fact, 'rejected');
   assert.equal(rejected.code ?? rejected.status, 0, `${rejected.out ?? rejected.stdout}${rejected.err ?? rejected.stderr}`);
@@ -394,4 +394,53 @@ test('clause 1: rejecting a row sends every row that serves it back for review [
   const checked = await box.runLocal(box.repo, 'spec', 'check');
   const text = `${checked.out ?? checked.stdout}${checked.err ?? checked.stderr}`;
   assert.equal(text.match(new RegExp(`NEEDS_REVIEW: serves rejected ${fact}`, 'gu'))?.length, 2, `spec check names both rows: ${text}`);
+});
+
+test('cli.journeys-spec-main.verify-accept-cites-the-fact-quote: with spec.requireFactQuote on, an accept of a source-backed row must cite its quote in the reason; off, or rejected, nothing changes [C7,#11250]', async (t) => {
+  const { box, fact, verifier, verify } = await cascadeBox(t);
+  const quote = 'The programme ran for 31 years in all.';
+  // The verifier reads the row from its own seat's SPEC.md, so the source and quote are written there.
+  const file = join(verifier.root, 'SPEC.md');
+  writeFileSync(file, readFileSync(file, 'utf8').split('\n').map(line => line.startsWith(`- ${fact} `) ? `${line} | source: Report p.4 | quote: ${quote}` : line).join('\n'));
+  const text = result => `${result.out ?? result.stdout ?? ''}${result.err ?? result.stderr ?? ''}`;
+  const code = result => result.code ?? result.status;
+  const off = await verify(fact, 'accepted', 'checked it');
+  assert.equal(code(off), 0, `with the setting off nothing changes: ${text(off)}`);
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const saved = JSON.parse(readFileSync(settings, 'utf8'));
+  writeFileSync(settings, JSON.stringify({ ...saved, spec: { ...saved.spec, requireFactQuote: true } }));
+  const refused = await verify(fact, 'accepted', 'checked it');
+  assert.equal(code(refused), 1, text(refused));
+  assert.match(text(refused), /FACT_QUOTE_UNCITED/u);
+  assert.ok(text(refused).includes(quote), 'the refusal prints the quote');
+  assert.match(text(refused), /does this quote say what the row claims\?/u);
+  const rejected = await verify(fact, 'rejected', 'checked it');
+  assert.equal(code(rejected), 0, `a rejected verdict is untouched: ${text(rejected)}`);
+  const cited = await verify(fact, 'accepted', `the report says: ${quote}`);
+  assert.equal(code(cited), 0, `with the quote in the reason the verification records: ${text(cited)}`);
+});
+
+test('cli.journeys-spec-main.an-accepted-fact-must-cite-the: an accepted fact must cite the quote that supports it [B2,#9551]', async (t) => {
+  const row = quote => `# Spec
+
+## G · Goals
+
+- G1 [approved, must] It ran 31 years. | gate: review | source: Report p.4${quote}
+`;
+  const box = specBox(t, { specSource: row(' | quote: The programme ran for 31 years in all.') });
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let saved = {};
+  try { saved = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* A fixture with no settings file starts empty. */ }
+  writeFileSync(settings, JSON.stringify({ ...saved, spec: { ...saved.spec, requireFactQuote: true } }));
+  const text = result => `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  const held = await box.spec('check');
+  assert.equal(held.status, 0, text(held));
+  writeFileSync(join(box.root, box.specName), row(' | quote: The programme ran for a long time.'));
+  const lacking = await box.spec('check');
+  assert.equal(lacking.status, 1, text(lacking));
+  assert.match(text(lacking), /does not contain 31/u);
+  writeFileSync(join(box.root, box.specName), row(''));
+  const missing = await box.spec('check');
+  assert.equal(missing.status, 1, text(missing));
+  assert.match(text(missing), /needs the words it rests on/u);
 });

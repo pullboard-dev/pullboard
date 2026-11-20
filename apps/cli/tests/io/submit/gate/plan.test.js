@@ -17,7 +17,7 @@ import {
   runSubmitGate,
   submitGateAdmission,
   submitGatePlan,
-} from '../../../../../../packages/gate/index.js';
+} from '../../../../../../packages/gate/heavy.js';
 import { executionServices } from '../../../fixtures/gate/execution.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
 
@@ -49,22 +49,22 @@ const config = { gate: 'true', affectedTests: 'node --test', submitInvariants: [
 /** Planners that fail the test if the controller ever plans or admits on its own. */
 const forbidden = { plan: () => assert.fail('the Mac planned the selection'), admission: () => assert.fail('the Mac ran browser admission') };
 
-test('a runner plan bound to the pinned commits is used with its admission, so the Mac plans nothing [C7,H24]', () => {
+test('cli.io-submit-gate-plan.a-runner-plan-bound-to-the-pinned: a runner plan bound to the pinned commits is used with its admission, so the Mac plans nothing [C7,H24]', () => {
   assert.deepEqual(acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/b.test.js'] }), { plan: analysis.plan, admission: analysis.admission });
 });
 
-test('clause 1: a plan that leaves out a call-adjacent file the frozen check already runs completely is accepted [C7,H24]', () => {
+test('cli.io-submit-gate-plan.a-plan-that-leaves-out-a-call: clause 1: a plan that leaves out a call-adjacent file the frozen check already runs completely is accepted [C7,H24]', () => {
   const check = 'node apps/cli/src/io/run/tests.js test/c.test.js';
   assert.deepEqual(acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'], check }), { plan: analysis.plan, admission: analysis.admission });
 });
 
-test('clause 2: a plan that leaves out a call-adjacent file the check does not run completely is still refused [C7,H24]', () => {
+test('cli.io-submit-gate-plan.a-plan-that-leaves-out-a-call-2: clause 2: a plan that leaves out a call-adjacent file the check does not run completely is still refused [C7,H24]', () => {
   const filtered = 'node apps/cli/src/io/run/tests.js test/c.test.js --test-name-pattern x';
   assert.throws(() => acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'], check: filtered }), { code: 'RUNNER_RESULT_INVALID', message: /test\/c\.test\.js/u });
   assert.throws(() => acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'], check: 'node tests.js test/d.test.js' }), { code: 'RUNNER_RESULT_INVALID' });
 });
 
-test('clause 1: submit passes the accepted runner plan and admission to runSubmitGate without invoking local planning [C7,H24]', () => {
+test('cli.io-submit-gate-plan.submit-passes-the-accepted-runner-plan-and: clause 1: submit passes the accepted runner plan and admission to runSubmitGate without invoking local planning [C7,H24]', () => {
   let received;
   const runSubmitGate = (root, config, options) => { received = { root, config, options }; return 'gate'; };
   const runnerPlan = acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/b.test.js'] });
@@ -79,24 +79,24 @@ test('clause 1: submit passes the accepted runner plan and admission to runSubmi
   } });
 });
 
-test('clause 2: a runner plan whose main or source differs refuses RUNNER_RESULT_INVALID [C7,H24]', () => {
+test('cli.io-submit-gate-plan.a-runner-plan-whose-main-or-source: clause 2: a runner plan whose main or source differs refuses RUNNER_RESULT_INVALID [C7,H24]', () => {
   for (const other of [{ ...analysis, main: 'c'.repeat(40) }, { ...analysis, source: 'c'.repeat(40) }]) {
     assert.throws(() => acceptRunnerPlan(other, { main, source }), { code: 'RUNNER_RESULT_INVALID' });
   }
 });
 
-test('clause 3: a runner plan missing proofFiles or a call-adjacent test refuses instead of running a smaller selection [C7,H24]', () => {
+test('cli.io-submit-gate-plan.a-runner-plan-missing-prooffiles-or-a: clause 3: a runner plan missing proofFiles or a call-adjacent test refuses instead of running a smaller selection [C7,H24]', () => {
   assert.throws(() => acceptRunnerPlan({ ...analysis, plan: {} }, { main, source }), { code: 'RUNNER_RESULT_INVALID' });
   assert.throws(() => acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/c.test.js'] }), { code: 'RUNNER_RESULT_INVALID', message: /test\/c\.test\.js/u });
 });
 
-test('a runner plan with no browser and GUI admission refuses as infrastructure instead of admitting on the Mac [C7,H24]', () => {
+test('cli.io-submit-gate-plan.a-runner-plan-with-no-browser-and: a runner plan with no browser and GUI admission refuses as infrastructure instead of admitting on the Mac [C7,H24]', () => {
   for (const admission of [undefined, null, {}, { browser: false }, { browser: 'no', gui: false }]) {
     assert.throws(() => acceptRunnerPlan({ ...analysis, admission }, { main, source }), { code: 'RUNNER_RESULT_INVALID', message: /admission/u });
   }
 });
 
-test('a refused runner plan never starts the gate, so it records no proof [C7,H24]', async () => {
+test('cli.io-submit-gate-plan.a-refused-runner-plan-never-starts-the: a refused runner plan never starts the gate, so it records no proof [C7,H24]', async () => {
   let started = 0;
   const runGate = async () => { started++; return { proofReceiptIds: ['should-not-exist'] }; };
   for (const bad of [{ ...analysis, main: 'c'.repeat(40) }, { ...analysis, plan: {} }, { ...analysis, admission: undefined }]) {
@@ -107,7 +107,7 @@ test('a refused runner plan never starts the gate, so it records no proof [C7,H2
   assert.equal(started, 0);
 });
 
-test('in remote mode the runner plan and admission reach runSubmitGate, which never plans or admits on the Mac [C7,H24]', async t => {
+test('cli.io-submit-gate-plan.in-remote-mode-the-runner-plan-and: in remote mode the runner plan and admission reach runSubmitGate, which never plans or admits on the Mac [C7,H24]', async t => {
   const { root, base } = fixture(t);
   const runnerPlan = submitGatePlan(root, config, { base });
   const runnerAdmission = await submitGateAdmission(root, runnerPlan, { allowBrowserFreeChecks: true });
@@ -124,7 +124,7 @@ test('in remote mode the runner plan and admission reach runSubmitGate, which ne
   assert.ok(gate.files.includes("add.test.js"), "the runner plan selected the changed test");
 });
 
-test('clause 4: a foreground submit with no handoff still plans and admits locally with an unchanged result [C7,H24]', async t => {
+test('cli.io-submit-gate-plan.a-foreground-submit-with-no-handoff-still: clause 4: a foreground submit with no handoff still plans and admits locally with an unchanged result [C7,H24]', async t => {
   const { root, base } = fixture(t);
   const expected = submitGatePlan(root, config, { base });
   const calls = { plan: 0, admission: 0 };

@@ -29,7 +29,7 @@ const receipt = (n, green, extra = {}) => ({ id: `r${n}`, kind: 'main-red', gree
 const batch = (board, id, refusal, items = [7]) =>
   atomic(board, () => logEvent(board, 'coordinator', 'landing_batch', null, { batch: { id, state: 'blocked', items: items.map(n => ({ id: n })), refusal } }));
 
-test('clause 1: twenty red main comparisons shout the failing check and its first line once [C7]', t => {
+test('cli.journeys-land-self-check.twenty-red-main-comparisons-shout-the: clause 1: twenty red main comparisons shout the failing check and its first line once [C7]', t => {
   const board = fixtureBoard(t); register(board, { lane: 'coordinator', path: '/c' });
   const reds = Array.from({ length: 20 }, (_, n) => receipt(n, false, n === 19 ? { failureSignatures: { version: 1, failures: [{ file: 'test/a.test.js', name: 'case', signature: 'a'.repeat(64), firstError: 'refused in a detached clone' }] } } : {}));
   assert.equal(mainComparisonAlarm(board, reds.slice(0, 19), ports), false, 'fewer than 20 is not yet an alarm');
@@ -41,7 +41,7 @@ test('clause 1: twenty red main comparisons shout the failing check and its firs
   assert.equal(mainComparisonAlarm(fixtureBoard(t), [...reds.slice(1), receipt(30, true)], ports), false, 'one green means no alarm');
 });
 
-test('clause 2: a landing stop repeated across three batches is shouted once with its reason and item [C7]', t => {
+test('cli.journeys-land-self-check.a-landing-stop-repeated-across-three: clause 2: a landing stop repeated across three batches is shouted once with its reason and item [C7]', t => {
   const board = fixtureBoard(t); register(board, { lane: 'coordinator', path: '/c' });
   batch(board, 'a', { code: 'COMMIT_HEADER_LONG' }); batch(board, 'b', { code: 'COMMIT_HEADER_LONG' });
   assert.equal(repeatedStopAlarm(board, ports), false, 'two in a row is not enough');
@@ -84,7 +84,7 @@ function redCache(box, { green = false } = {}) {
 const selfShouts = board => board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator'").all();
 const sentinelRun = box => runCliInProcess(['sentinel', 'run', '--health-only', '--json'], { cwd: box.repo, env: box.env });
 
-test('clause 1: a real sentinel run with twenty red main comparisons in the cache shouts the failing check once, only behind sentinels.landingSelfCheck [C7,#10125]', async t => {
+test('cli.journeys-land-self-check.a-real-sentinel-run-with-twenty: clause 1: a real sentinel run with twenty red main comparisons in the cache shouts the failing check once, only behind sentinels.landingSelfCheck [C7,#10125]', async t => {
   const off = sentinelBox(t, { on: false });
   redCache(off.box);
   assert.equal((await sentinelRun(off.box)).status, 0);
@@ -103,7 +103,7 @@ test('clause 1: a real sentinel run with twenty red main comparisons in the cach
   assert.equal(selfShouts(board).length, 1, 'a standing fault is shouted once');
 });
 
-test('clause 2: a real sentinel run after three landing batches stopped for the same reason shouts that reason once [C7,#10125]', async t => {
+test('cli.journeys-land-self-check.a-real-sentinel-run-after-three: clause 2: a real sentinel run after three landing batches stopped for the same reason shouts that reason once [C7,#10125]', async t => {
   const { box, board } = sentinelBox(t, { on: true });
   for (const id of ['a', 'b', 'c']) atomic(board, () => logEvent(board, 'coordinator', 'landing_batch', null, { batch: { id, state: 'blocked', items: [{ id: 7 }], refusal: { code: 'COMMIT_HEADER_LONG' } } }));
   const run = await sentinelRun(box);

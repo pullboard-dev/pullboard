@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 
-test('a fresh machine sends no relay traffic, says it is local, and shares sealed after sign-in [H5,H17]', async (t) => {
+test('cli.journeys-relay-demand.a-fresh-machine-sends-no-relay: a fresh machine sends no relay traffic, says it is local, and shares sealed after sign-in [H5,H17]', async (t) => {
   const box = await relayClientFixture(t);
   const status = await box.cliLocal('status');
   assert.equal(status.code, 0);
@@ -14,7 +14,7 @@ test('a fresh machine sends no relay traffic, says it is local, and shares seale
   assert.ok(box.calls.some(call => call.method !== 'GET' && /\/boards\//u.test(call.path)), 'the board is then sent to the relay, which only ever receives sealed pages');
 });
 
-test('a board the person turned off stays excluded and sends nothing more [H5,B26]', async (t) => {
+test('cli.journeys-relay-demand.a-board-the-person-turned-off: a board the person turned off stays excluded and sends nothing more [H5,B26]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   assert.equal((await box.cliLocal('relay', 'off')).code, 0);

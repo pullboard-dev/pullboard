@@ -1,0 +1,28 @@
+{
+  "cli.io-next-lag.level-checkout-launches-no-git": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "lagLine for a checkout whose HEAD equals the trunk tip returns null and launches no git process, with the trunk ref loose and packed."
+    },
+    "why": "Without it, a regression where every next launches git rev-list to learn a level checkout is zero commits behind would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/lag.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/submit.js"
+    ]
+  },
+  "cli.io-next-lag.three-behind-same-line": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A checkout 3 commits behind main prints the lag line that git's own count and base age give, with the trunk ref loose and packed."
+    },
+    "why": "Without it, a regression where the file read of the trunk tip hides a real lag, or changes the line, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/lag.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/submit.js"
+    ]
+  }
+}

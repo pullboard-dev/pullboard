@@ -1,9 +1,12 @@
 /** @pullboard-test-input packages/store/src/io/board/next.js packages/store/src/io/eligibility.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { claim } from '../../index.js';
 import { dispatchWork } from '../../index.js';
 import { getItem } from '../../index.js';
+import { heldClaim } from '../../index.js';
 import { nextFor } from '../../index.js';
 import { queueSubmitHandoff } from '../../index.js';
 import { setItem } from '../../index.js';
@@ -62,4 +65,39 @@ test('store.io-claim.nextfor-and-dispatchwork-read-held-claims: nextFor and disp
     assert.match(source, /heldClaim\(board, agentId/u, `${file} calls heldClaim`);
     assert.doesNotMatch(source, /item_status === 'claimed' && [a-z]+\.item_owner === agentId/u, `${file} keeps no claim filter of its own`);
   }
+});
+
+/** Claim as the builder seat into an item folder at claims.perSeat 1, as next and claim do on a board whose main sets 1. */
+function claimAtOne(box, id) {
+  return claim(box.board, id, { agentId: box.seats.builder.id, lane: box.seats.builder.lane, leaseMs: 3_600_000, itemFolder: true, perSeat: 1,
+    freeze: item => {
+      const text = JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: item.item_check, rows: [] });
+      return { text, digest: createHash('sha256').update(text).digest('hex') };
+    } });
+}
+
+test('store.io-claim.child-of-unheld-parent-counts: clause 1: at claims.perSeat 1 a held child of an unheld parent fills the seat, and heldClaim hands it back [C7,#10846]', t => {
+  const box = fixture(t);
+  const seat = box.seats.builder;
+  const parent = box.add('Umbrella item nobody holds');
+  const [first, second] = ['First slice', 'Second slice'].map(title => box.add(title, { parentId: parent }));
+  const top = box.add('A top-level item');
+  claimAtOne(box, first);
+  assert.throws(() => claimAtOne(box, second), error => error.code === 'ONE_CLAIM' && /#\d+.*up to 1/u.test(error.message),
+    'a second slice of an unheld parent is refused at the cap');
+  assert.throws(() => claimAtOne(box, top), error => error.code === 'ONE_CLAIM', 'a top-level item is refused beside the held slice');
+  assert.equal(getItem(box.board, second).item_status, 'open');
+  assert.equal(heldClaim(box.board, seat.id)?.item_id, first, 'next selection reads the held slice as the seat\'s claim');
+  assert.equal(nextFor(box.board, { agentId: seat.id, lane: seat.lane }).item?.item_id, first, 'next hands the held slice back instead of another');
+});
+
+test('store.io-claim.child-of-own-parent-free: clause 2: a seat holding the parent still claims its children beside it [C7,#10846]', t => {
+  const box = fixture(t);
+  const seat = box.seats.builder;
+  const parent = box.add('Parent this seat holds');
+  const children = ['Child one', 'Child two'].map(title => box.add(title, { parentId: parent }));
+  claimAtOne(box, parent);
+  for (const child of children) claimAtOne(box, child);
+  for (const id of [parent, ...children]) assert.equal(getItem(box.board, id).item_owner, seat.id, `#${id} is held by the seat`);
+  assert.equal(heldClaim(box.board, seat.id)?.item_id, parent, 'the parent stays the seat\'s held claim');
 });

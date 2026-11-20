@@ -1,5 +1,5 @@
 /** Timing checks hold an entire physical machine, including its short slots [C7,Q1]. */
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServicesSource } from '../../fixtures/execution.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';

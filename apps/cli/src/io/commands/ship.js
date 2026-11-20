@@ -19,6 +19,7 @@ import { run as claim } from './claim.js';
 import { run as submit } from './submit.js';
 import { withBoardRead } from '../context.js';
 import { retrySync } from '../sync.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { events } from '../../../../../packages/store/index.js';
 import { verdictsFor } from '../../../../../packages/store/index.js';
 import { newestGateJob } from './show.js';
@@ -53,6 +54,13 @@ function gitStep(root, args, phase, next) {
   return result.stdout;
 }
 
+/** Merge accepted main into the branch before submit; with submit.composeAsObject on, submit composes main as an object and ship runs no git merge [C7,U159]. */
+export function shipMain(root, main, { composeAsObject = submitComposeAsObject() } = {}) {
+  if (composeAsObject) return false;
+  gitStep(root, ['merge', '--no-edit', main], 'merge', 'resolve the preserved merge conflict and commit normally, then run pullboard ship again');
+  return true;
+}
+
 /** Commit only the staged input, merge accepted main, then invoke ordinary submit exactly once. */
 export async function run(io, { first, second, rest, values }) {
   if (second || rest.length) throw new Refused('USAGE', 'pullboard ship [id] [--note text] [--infra text]');
@@ -83,7 +91,7 @@ export async function run(io, { first, second, rest, values }) {
     }
     const main = mainCheckout(root);
     if (!main?.commit) throw new Refused('USAGE', 'ship cannot find committed main', 'restore the main checkout, then run pullboard ship again');
-    gitStep(root, ['merge', '--no-edit', main.commit], 'merge', 'resolve the preserved merge conflict and commit normally, then run pullboard ship again');
+    shipMain(root, main.commit);
     const code = await submit(io, { first: String(item.item_id), values: { ...values, wait: true, 'no-next': true }, rest: [] });
     if (code !== 0) { originalResult?.(result); return code; }
     const waitContext = context(io);

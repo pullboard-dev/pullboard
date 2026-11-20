@@ -29,15 +29,19 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
-import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
 import {
   recordFixtureAcceptance,
   recordFixtureSubmission,
 } from '../../tests/fixtures/board/lifecycle.js';
+import { commitInProcess } from '../../tests/fixtures/hook/commit.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** The detached automatic main-merge worker a root `merged` starts; it writes landing events after the command returns. */
+const SOURCE_ADVANCE_WORKER = 'landing/advance.js';
+// Budget: the fixture's main-merge worker settles within seconds; past a minute the unchanged-bytes check reports whatever it still writes.
+const SOURCE_ADVANCE_SETTLE_MS = 60_000;
 const TEMP_DIRS = [];
 const OLD_SPEC = `# Stale frozen fixture
 
@@ -46,6 +50,18 @@ const OLD_SPEC = `# Stale frozen fixture
 - G3 [approved, must] An unaffected promise. | gate: true
 `;
 const NEW_TEXT = 'The person approved this exact updated promise.';
+
+/**
+ * Block until no main-merge worker this test process started still runs, or the settle budget ends.
+ * Why: a root `merged` starts it detached, and it records landing events seconds later, racing doctor's unchanged-bytes check [C7,#10624].
+ * An exited worker is a zombie until this blocked loop reaps it; pgrep -f no longer matches its command line, so the wait ends at its exit.
+ */
+function settleSourceAdvances() {
+  const deadline = Date.now() + SOURCE_ADVANCE_SETTLE_MS;
+  while (runFixtureChild('pgrep', ['-P', String(process.pid), '-f', SOURCE_ADVANCE_WORKER], { encoding: 'utf8' }).status === 0 && Date.now() < deadline) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  }
+}
 
 /** Remove each private repo, board and home created by this file. */
 function cleanup() {
@@ -63,6 +79,15 @@ after(cleanup);
 /** Quote one shell argument for the fixture's private hook executable. */
 function shellWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+/**
+ * Commit with the fixture's installed hooks, run in this process while test.inProcessHooks is on.
+ * Why: each real hook is a Node start, so the four fixture commits cost ~16 s of this file's ~30 s on a runner [C7,#10624].
+ */
+async function commitWithHooks(env, cwd, message) {
+  return (await commitInProcess({ env }, cwd, ['commit', '-q', '-m', message]))
+    ?? runFixtureChild('git', ['commit', '-q', '-m', message], { cwd, env, encoding: 'utf8' });
 }
 
 /** Build a private real-Git project with an initialized board, active hooks and a web worktree. */
@@ -87,12 +112,21 @@ async function project(t) {
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
     PULLBOARD_FIXTURE_ADD_DISTINCT: '1', // the lifecycle items repeat one title shape on purpose
+    // No detached claim beater: it outlives the cases until its next 30 s tick sees the removed worktree, and the gate's child drain waits for it [C7,#10624].
+    PULLBOARD_CLAIM_BEATER: '0',
+    // Usage checkpoints run inside each command, not in a detached worker that writes the board while doctor's bytes are compared [C7,#10624].
+    PULLBOARD_USAGE_CHECKPOINT: 'inline',
   });
   // The fixture machine settles each submit's pull gate on the loopback runner inside the command.
-  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
-  /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
+  // Commits run the installed pre-commit and commit-msg hooks in this process, not as a node start-up each [C7,#10624].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  /**
+   * Run the real Pullboard CLI in one fixture checkout, then wait out any main-merge worker it started; the test runner owns the hang bound.
+   * Why: that detached worker records its landing events seconds after `merged` returns, so it raced doctor's unchanged-bytes check [C7,#10624].
+   */
   async function pullboard(cwd, ...args) {
     const result = await runCliInProcess(args, { cwd, env });
+    settleSourceAdvances();
     return result;
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
@@ -111,7 +145,7 @@ async function project(t) {
   writeFileSync(join(root, 'SPEC.md'), OLD_SPEC);
   mkdirSync(join(root, 'web'));
   git(root, 'add', '-A');
-  const initial = runFixtureChild('git', ['commit', '-q', '-m', 'chore: initialize stale-frozen fixture'], { cwd: root, env, encoding: 'utf8' });
+  const initial = await commitWithHooks(env, root, 'chore: initialize stale-frozen fixture');
   assert.equal(initial.status, 0, `${initial.stdout}${initial.context}`);
   git(root, 'worktree', 'add', '-q', web, '-b', 'web/stale-frozen');
   const joined = await pullboard(web, 'join', 'web', '--route', 'strong');
@@ -167,7 +201,7 @@ async function submit(box, id, name) {
   mkdirSync(join(folder, 'web'), { recursive: true });
   writeFileSync(join(folder, relative), `${name}\n`);
   box.git(folder, 'add', relative);
-  const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: folder, env: box.env, encoding: 'utf8' });
+  const committed = await commitWithHooks(box.env, folder, `feat(web): build ${name} [G1]`);
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(folder, 'rev-parse', 'HEAD');
   recordFixtureSubmission(box, id, { commit: head, tree: box.git(folder, 'rev-parse', 'HEAD^{tree}') });
@@ -198,7 +232,7 @@ function boardBytes(box) {
   return readFileSync(join(common, 'pullboard', 'board.sqlite'));
 }
 
-test('[S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-doctor-frozen.s19-v3-doctor-and-resume-list: [S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, async (t) => {
   const box = await project(t);
   const ids = {};
 
@@ -301,12 +335,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.deepEqual(historical(receiptSnapshot(box)), historical(before), 'refreezing active work preserves every accepted historical receipt');
 });
 
-test('[V2,V3,S19] native row approval refreezes every unlanded citation', { timeout: 120_000 }, (t) => { // budget: hang ceiling for the real-Git citation fixture across open, claimed, submitted and verified states.
-  assertSpecCorrectionRefreezesCitations(t);
-});
 
-
-test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', async (t) => {
+test('cli.journeys-doctor-frozen.a5-s19-v3-doctor-and-resume: [A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', async (t) => {
   const box = await project(t);
   const doctrineItem = await addItem(box, 'Doctrine citation', 'doctrine:PB1');
   await claim(box, doctrineItem);
@@ -330,7 +360,7 @@ test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations fro
   assert.deepEqual(receiptSnapshot(box), baseline, 'diagnostics preserve frozen evidence and unrelated SPEC citations');
 });
 
-test('[S19] a killed fixture child names its signal and elapsed time', () => {
+test('cli.journeys-doctor-frozen.s19-a-killed-fixture-child-names: [S19] a killed fixture child names its signal and elapsed time', () => {
   const killed = runFixtureChild('sh', ['-c', 'kill -KILL $$'], { encoding: 'utf8' });
   const named = (error) => /status: null\nsignal: SIGKILL\nelapsed: \d+ms/u.test(error.message);
   assert.throws(() => requireSuccess(killed), named, 'an expected success');

@@ -27,6 +27,8 @@ function boardFor(t, snapshot, over = {}) {
 function drive(board, record, value = record.renewal) {
   const seen = [];
   board.submitOutcomeShadow = (answer) => seen.push(answer);
+  // The shadow compare runs only while the writer decides; with moves.live.outcome on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { outcome: false };
   const { id, actor } = record.move;
   let threw = null;
   let returned;

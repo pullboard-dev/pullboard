@@ -37,7 +37,7 @@ async function fixture(t, on) {
   return { ids, roadmap, run };
 }
 
-test('clause 1: roadmap --field topic=relay shows only the items whose topic field is relay, with the progress counts computed over those items [C7,#9354]', async t => {
+test('cli.journeys-roadmap-field-filter.roadmap-field-topic-relay-shows-only: clause 1: roadmap --field topic=relay shows only the items whose topic field is relay, with the progress counts computed over those items [C7,#9354]', async t => {
   const { ids, roadmap, run } = await fixture(t, true);
   const filtered = await roadmap('--field', 'topic=relay');
   assert.deepEqual(filtered.ids, [ids[0], ids[2]]);
@@ -50,7 +50,7 @@ test('clause 1: roadmap --field topic=relay shows only the items whose topic fie
   assert.doesNotMatch(text.stdout, /Beta item/u);
 });
 
-test('clause 2: without the flag the roadmap output is unchanged, and with items.typedFields off --field names the setting [C7,#9354]', async t => {
+test('cli.journeys-roadmap-field-filter.without-the-flag-the-roadmap-output: clause 2: without the flag the roadmap output is unchanged, and with items.typedFields off --field names the setting [C7,#9354]', async t => {
   const on = await fixture(t, true);
   const all = await on.roadmap();
   assert.deepEqual(all.ids, on.ids);

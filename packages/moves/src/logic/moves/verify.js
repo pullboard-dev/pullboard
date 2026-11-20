@@ -116,10 +116,10 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "SLOT_DB_LOCKED": "the run never started, so it is not a red; rerun the same command once the named process releases the slot database",
   "STACKED_ON_UNVERIFIED": "rebuild on main without the unverified earlier commits, or take other work with pullboard next",
-  "STALE_VERDICT": "merge current main into the submitted commit, commit a clean composition, then ask another agent to re-review it before landing",
+  "STALE_VERDICT": "main changed under the review: ask the builder to run pullboard submit again (submit composes current main), then ask another agent to re-review it against current main before landing",
   "TIMING_RUNNER_RESTRICTION": "adjust the runner restriction or gate.timingRunner setting named in the refusal, then retry submit",
   "TIMING_SLOT_REQUIRED": "start the timing check outside its inherited ordinary lease and acquire the machine gate with timing true",
   "UNTRACKED": "commit or ignore the untracked files, then run the command again",
-  "VERDICT_TRUNK_MOVED": "merge the latest main into the submitted commit and ask another agent to re-review the clean composition",
+  "VERDICT_TRUNK_MOVED": "main moved during the review: ask another agent to re-review against the latest main, after the builder runs pullboard submit again (submit composes current main)",
   "VERIFIER_STANDING": "ask the coordinator to make an independent verifier from the main checkout: pullboard worktree <lane> --model \"<model name>\""
 }) });

@@ -71,7 +71,7 @@ function fakeSpawn(launched) {
   };
 }
 
-test('clause 1: two comparisons at the same tooling share one tools folder and the second copies no files [C7]', async t => {
+test('cli.io-toolsnapshot-shares.two-comparisons-at-the-same-tooling-share: clause 1: two comparisons at the same tooling share one tools folder and the second copies no files [C7]', async t => {
   const { temp, repo, common } = sandbox(t);
   let copies = 0;
   const snapshot = (root, job, dir) => toolsSnapshot(root, job, dir, { copy: (from, to) => { copies += 1; copyTools(from, to); } });
@@ -91,7 +91,7 @@ test('clause 1: two comparisons at the same tooling share one tools folder and t
   assert.equal(readdirSync(join(temp, folders[0])).includes('bin'), true, 'the folder is not removed at launch');
 });
 
-test('clause 1: a cold comparison snapshot is built by the detached worker from the pinned commit, so launch copies nothing [C7]', async t => {
+test('cli.io-toolsnapshot-shares.a-cold-comparison-snapshot-is-built-by: clause 1: a cold comparison snapshot is built by the detached worker from the pinned commit, so launch copies nothing [C7]', async t => {
   const { temp, repo, common } = sandbox(t);
   let copies = 0;
   const snapshot = (root, job, dir) => toolsSnapshot(root, job, dir, { copy: (from, to) => { copies += 1; copyTools(from, to); } });

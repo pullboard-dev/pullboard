@@ -8,10 +8,10 @@ import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures
 import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runCensus } from '../../../src/io/test/census.js';
-import { readFileTimes } from '../../../../../packages/gate/index.js';
-import { writeFileTimes } from '../../../../../packages/gate/index.js';
-import { landingBalance } from '../../../../../packages/gate/index.js';
-import { planLandingShards } from '../../../../../packages/gate/index.js';
+import { readFileTimes } from '../../../../../packages/gate/heavy.js';
+import { writeFileTimes } from '../../../../../packages/gate/heavy.js';
+import { landingBalance } from '../../../../../packages/gate/heavy.js';
+import { planLandingShards } from '../../../../../packages/gate/heavy.js';
 
 const FILES = ['one.test.js', 'two.test.js', 'three.test.js'];
 
@@ -42,13 +42,13 @@ const dispatcher = () => async ({ write }) => {
 
 const quiet = { err() {}, say() {}, result() {} };
 
-test('clause 1: with census.recordFileTimes on, a census records the run\'s per-file ms for every green row that has secs [C7]', async (t) => {
+test('cli.io-test-census-record-times.with-census-recordfiletimes-on-a-census-records: clause 1: with census.recordFileTimes on, a census records the run\'s per-file ms for every green row that has secs [C7]', async (t) => {
   const repo = fixture(t, { census: { recordFileTimes: true } });
   await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher() });
   assert.deepEqual(readFileTimes(repo), { 'one.test.js': 1500, 'two.test.js': 3000, 'three.test.js': 4500 });
 });
 
-test('clause 2: a census plan made after a recorded census weighs files by those times and reports history [C7]', async (t) => {
+test('cli.io-test-census-record-times.a-census-plan-made-after-a-recorded: clause 2: a census plan made after a recorded census weighs files by those times and reports history [C7]', async (t) => {
   const repo = fixture(t, { census: { recordFileTimes: true } });
   await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher() });
   const times = readFileTimes(repo);
@@ -57,14 +57,14 @@ test('clause 2: a census plan made after a recorded census weighs files by those
   assert.deepEqual(plan.map(shard => shard.weight).sort((a, b) => a - b), [1500 + 3000, 4500]);
 });
 
-test('clause 3: with census.recordFileTimes off, the default, a census writes no file times [C7]', async (t) => {
+test('cli.io-test-census-record-times.with-census-recordfiletimes-off-the-default-a: clause 3: with census.recordFileTimes off, the default, a census writes no file times [C7]', async (t) => {
   const repo = fixture(t, null);
   await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher() });
   assert.deepEqual(readFileTimes(repo), {});
   assert.equal(landingBalance(FILES, readFileTimes(repo)), 'file count');
 });
 
-test('clause 1: with census.recordFileTimes on, a census write leaves no entry for a file no longer tracked [C7]', async (t) => {
+test('cli.io-test-census-record-times.with-census-recordfiletimes-on-a-census-write: clause 1: with census.recordFileTimes on, a census write leaves no entry for a file no longer tracked [C7]', async (t) => {
   const repo = fixture(t, { census: { recordFileTimes: true } });
   writeFileTimes(repo, { 'gone.test.js': 788_000, 'one.test.js': 99_000 });
   await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher() });

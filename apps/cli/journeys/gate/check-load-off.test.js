@@ -10,7 +10,7 @@ import { seat } from '../../tests/fixtures/check-hold.js';
 
 after(e2e.cleanup);
 
-test('clause 2: with the setting off, the same check under the same load reports green and prints no wait line [C7,#10141]', { timeout: 180_000 }, async t => {
+test('cli.journeys-gate-check-load-off.with-the-setting-off-the-same: clause 2: with the setting off, the same check under the same load reports green and prints no wait line [C7,#10141]', { timeout: 180_000 }, async t => {
   const box = await seat();
   holdSettings(box, { holdHeavyAboveLoad: false });
   const answer = await checkUnderLoad(t, box);

@@ -30,7 +30,7 @@ async function statusAfter(seed, settings = { status: { showUsefulBuilders: true
   return box.runIn(root, 'status');
 }
 
-test('clause 1: status prints the max useful builder number with its window and inputs instead of unknown [C7,#8544]', async () => {
+test('cli.journeys-status-useful.status-prints-the-max-useful-builder: clause 1: status prints the max useful builder number with its window and inputs instead of unknown [C7,#8544]', async () => {
   const base = Math.floor((Date.now() - 24 * HOUR) / HOUR) * HOUR;
   const status = await statusAfter(put => {
     put('claim', 'core-1', base + 600_000);
@@ -42,13 +42,13 @@ test('clause 1: status prints the max useful builder number with its window and 
   assert.doesNotMatch(status.out, /^Max useful builders: unknown/m);
 });
 
-test('clause 1: status says unknown, with the observed inputs, when fewer than two seat counts were seen [C7,#8544]', async () => {
+test('cli.journeys-status-useful.status-says-unknown-with-the-observed: clause 1: status says unknown, with the observed inputs, when fewer than two seat counts were seen [C7,#8544]', async () => {
   const status = await statusAfter(() => {});
   assert.equal(status.code, 0, status.err);
   assert.match(status.out, /^Max useful builders: unknown \(needs two observed seat counts; window \S+ to \S+; \d+ observed hours at seat counts [^)]*\)\.$/m);
 });
 
-test('clause 1: status.showUsefulBuilders off, the default, leaves the line out of status [C7,#8544]', async () => {
+test('cli.journeys-status-useful.status-showusefulbuilders-off-the-default-leaves: clause 1: status.showUsefulBuilders off, the default, leaves the line out of status [C7,#8544]', async () => {
   const status = await statusAfter(() => {}, {});
   assert.equal(status.code, 0, status.err);
   assert.doesNotMatch(status.out, /Max useful builders/u);

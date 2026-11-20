@@ -17,7 +17,7 @@ function promptOf(text) {
   return JSON.parse(line.slice('prompt = '.length));
 }
 
-test('clause 1: init writes a Codex automation template that matches the shared seat-loop source [C7]', () => {
+test('cli.journeys-init-codex-automation.init-writes-a-codex-automation-template: clause 1: init writes a Codex automation template that matches the shared seat-loop source [C7]', () => {
   const inputs = privateFixtureFiles('pullboard-codex-automation-');
   mkdirSync(join(inputs.root, '.codex'));
   const tools = declaredAgentTools(inputs.root);
@@ -33,7 +33,7 @@ test('clause 1: init writes a Codex automation template that matches the shared 
   assert.equal(written.length, 1, 'a second run keeps what is there');
 });
 
-test('clause 1: a Claude-only project gets no Codex automation template [C7]', () => {
+test('cli.journeys-init-codex-automation.a-claude-only-project-gets-no: clause 1: a Claude-only project gets no Codex automation template [C7]', () => {
   const inputs = privateFixtureFiles('pullboard-codex-automation-');
   mkdirSync(join(inputs.root, '.claude'));
   assert.deepEqual(installCodexAutomation(inputs.root, () => {}, declaredAgentTools(inputs.root)), []);

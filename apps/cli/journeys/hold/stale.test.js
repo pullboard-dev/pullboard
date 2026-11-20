@@ -31,7 +31,7 @@ function moveMain(box) {
 
 const reasonOf = f => store.getItem(f.box.board, f.id).item_hold_reason;
 
-test('clause 1: holds.liftSettled is a described setting that defaults off, and with it off a settled hold stays after main moves [C7,#2962]', async t => {
+test('cli.journeys-hold-stale.holds-liftsettled-is-a-described-setting: clause 1: holds.liftSettled is a described setting that defaults off, and with it off a settled hold stays after main moves [C7,#2962]', async t => {
   assert.equal(describeSetting('holds.liftSettled').unit, 'on/off');
   const f = await held(t, { lift: false });
   const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(f.blocker), '--note', 'no longer needed']);
@@ -40,7 +40,7 @@ test('clause 1: holds.liftSettled is a described setting that defaults off, and 
   assert.match(reasonOf(f), /waiting on #/u, 'the settled hold stays');
 });
 
-test('clause 2: with holds.liftSettled on, a hold whose reason names only a withdrawn item lifts on the next write after main moves [C7,#2962]', async t => {
+test('cli.journeys-hold-stale.with-holds-liftsettled-on-a-hold: clause 2: with holds.liftSettled on, a hold whose reason names only a withdrawn item lifts on the next write after main moves [C7,#2962]', async t => {
   const f = await held(t, { lift: true });
   assert.match(reasonOf(f), /waiting on #/u, 'an open blocker keeps the hold');
   moveMain(f.box);
@@ -51,7 +51,7 @@ test('clause 2: with holds.liftSettled on, a hold whose reason names only a with
   assert.ok(f.box.board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='unhold_item' AND event_detail LIKE '%settled%'").get(f.id));
 });
 
-test('clause 3: with holds.liftSettled on, a parent hold lifts when every child has landed or been withdrawn [C7,#2962]', async t => {
+test('cli.journeys-hold-stale.with-holds-liftsettled-on-a-parent: clause 3: with holds.liftSettled on, a parent hold lifts when every child has landed or been withdrawn [C7,#2962]', async t => {
   const f = await held(t, { lift: true });
   store.releaseItemHold(f.box.board, f.id, { agentId: 'coordinator', reason: 'lifted by hand' });
   const board = f.box.board;

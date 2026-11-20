@@ -23,7 +23,7 @@ function withoutAction(text, action = 'pullboard next') {
   return text.slice(0, -footer.length);
 }
 
-test('the tour registers a labelled demo that view lists and forget removes [N10, N26]', async () => {
+test('cli.journeys-resume-tour-demo.the-tour-registers-a-labelled-demo: the tour registers a labelled demo that view lists and forget removes [N10, N26]', async () => {
   const box = project();
   const tourEnv = { ...box.env, TMPDIR: box.dir, HOME: box.dir };
   delete tourEnv.PULLBOARD_MODEL;

@@ -27,7 +27,7 @@ import { privateFixtureFiles } from '../../fixtures/child.js';
 const dir = privateFixtureFiles('pb-ceiling-').root;
 after(() => rmSync(dir, { recursive: true, force: true }));
 
-test('clause 2: test --status is a resident command; a test run, --wait and --test-run are not [C7,#5470]', () => {
+test('cli.io-resident-board.test-status-is-a-resident-command-a: clause 2: test --status is a resident command; a test run, --wait and --test-run are not [C7,#5470]', () => {
   assert.equal(residentCommand(['test', '--status', 'abc']), true);
   assert.equal(residentCommand(['test', '--status=abc']), true);
   assert.equal(residentCommand(['test', 'a.test.js']), false);
@@ -37,14 +37,14 @@ test('clause 2: test --status is a resident command; a test run, --wait and --te
   assert.equal(residentCommand(['show', '1']), true);
 });
 
-test('clause 1: the ceiling defaults to 60 s and PULLBOARD_RESIDENT_COMMAND_MS overrides it [C7,#5470]', () => {
+test('cli.io-resident-board.the-ceiling-defaults-to-60-s-and: clause 1: the ceiling defaults to 60 s and PULLBOARD_RESIDENT_COMMAND_MS overrides it [C7,#5470]', () => {
   assert.equal(residentCommandCeiling({}), RESIDENT_COMMAND_CEILING_MS);
   assert.equal(RESIDENT_COMMAND_CEILING_MS, 60_000);
   assert.equal(residentCommandCeiling({ PULLBOARD_RESIDENT_COMMAND_MS: '1500' }), 1500);
   assert.equal(residentCommandCeiling({ PULLBOARD_RESIDENT_COMMAND_MS: 'x' }), RESIDENT_COMMAND_CEILING_MS);
 });
 
-test('clause 1: a slot whose command ran past the ceiling is wedged: its process is ended and the slot reads free [C7,#5470]', async () => {
+test('cli.io-resident-board.a-slot-whose-command-ran-past-the: clause 1: a slot whose command ran past the ceiling is wedged: its process is ended and the slot reads free [C7,#5470]', async () => {
   const pidFile = join(dir, 'w.pid');
   const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
   const exited = new Promise(done => holder.on('exit', done));
@@ -62,7 +62,7 @@ test('clause 1: a slot whose command ran past the ceiling is wedged: its process
   } finally { holder.kill('SIGKILL'); }
 });
 
-test('clause 1: a busy file naming a process the pid file does not name is never signalled [C7,#5470]', async () => {
+test('cli.io-resident-board.a-busy-file-naming-a-process-the: clause 1: a busy file naming a process the pid file does not name is never signalled [C7,#5470]', async () => {
   const pidFile = join(dir, 'x.pid');
   const bystander = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
   writeFileSync(pidFile, '999999\n');
