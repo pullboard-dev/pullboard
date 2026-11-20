@@ -13,12 +13,13 @@ import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../../kernel/light.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 const MAIN_REFS = ['refs/heads/main', 'refs/remotes/origin/main'];
 
 /** Run Git with inherited repository selectors cleared, so a hook's GIT_DIR never redirects the read. */
 function gitRun(cwd, args) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+  const env = Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([name]) => !name.startsWith('GIT_')));
   return gitSpawnSync(args, { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
 }
 

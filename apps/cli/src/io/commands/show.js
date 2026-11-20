@@ -1,3 +1,6 @@
+/** @pullboard-module-loads packages/jobs/index.js */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
+import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
 import { progressLine } from '../../../../../packages/roadmap/light.js';
@@ -7,6 +10,7 @@ import { coreLines } from '../../logic/show/core.js';
 import { tailLines } from '../../logic/show/tail.js';
 import { fieldLines } from '../../logic/show/fields.js';
 import { reviewLines } from '../../logic/show/review.js';
+import { usageLine } from '../../logic/show/usage.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
@@ -24,10 +28,6 @@ import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
-import { gatePanel } from '../../../../../packages/jobs/index.js';
-import { jobsOf } from '../../../../../packages/jobs/index.js';
-import { jobView } from '../../../../../packages/jobs/index.js';
-import { settledGate } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
   testRuntimeEnvironment,
@@ -60,6 +60,7 @@ import {
   firstLineOf,
   identifyCaller,
   idArg,
+  foreignStates,
   itemLine,
   sayBrief,
 } from '../read.js';
@@ -69,6 +70,10 @@ import { itemCost } from '../../../../../packages/stats/light.js';
 import { publicUsage } from '../../../../../packages/stats/light.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { itemFolderPath } from '../item/folder/identity.js';
+
+const requireModule = createRequire(import.meta.url);
+/** The jobs cell loads at the first gate job or gate panel a show renders: a show of an item with no gate job never pays its 17 modules [C7,#11912]. */
+const jobsCell = () => requireModule('../../../../../packages/jobs/index.js');
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
@@ -80,11 +85,14 @@ export const nativeBoardRequired = false;
 export function newestGateJob(db, id, receipts = [], { runs = null } = {}) {
   if (runs) return newestRunGateJob(db, id, receipts, runs);
   let job;
-  try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
+  try {
+    if (!db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item = ? LIMIT 1").get(id)) return null;
+    job = jobsCell().jobsOf(db, { kind: 'gate', item: id }).at(-1);
+  } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!job) return null;
   // The receipt's plan, counts and log read back in the inline gate's shape; a receipt without them reads as it was [P7].
   const posted = job.steps.find(step => step.name === 'receipt')?.payload ?? null;
-  return { id: job.id, step: job.step, ...settleOf(job.steps), gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+  return { id: job.id, step: job.step, ...settleOf(job.steps), gate: jobsCell().settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /** The outcome of a gate job's newest note:shards.settled step, as { settle }; none while no such step exists [C7,#11935]. */
@@ -106,13 +114,13 @@ function newestRunGateJob(db, id, receipts, runs) {
   let run;
   try { run = db.prepare("SELECT * FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_created, rowid").all(id).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!run) return null;
-  const live = runs.db ? jobView(runs.db, run.run_job) : null;
+  const live = runs.db ? jobsCell().jobView(runs.db, run.run_job) : null;
   const posted = live?.steps.find(step => step.name === 'receipt')?.payload ?? null;
   let summary = null;
   try { summary = run.run_state === 'done' ? JSON.parse(run.run_summary ?? 'null') : null; } catch { summary = null; }
   const step = run.run_state === 'done' ? 'done' : live?.step ?? run.run_state;
   return { id: run.run_job, step, ...settleOf(live?.steps ?? []), ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
-    gate: settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
+    gate: jobsCell().settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /**
@@ -137,10 +145,13 @@ export async function run(io, { first, values }) {
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
-  const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  const { fields, links, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
-    const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), ...(table ? { derived: table.derived } : {}) }).project(store.getItem(board, id));
+    // An accept whose only conflict with main is one the mechanical merge resolves stays fresh, as it does at landing; the merge index loads only for an accepted item [C7,#11417].
+    const stored = store.getItem(board, id);
+    const residualConflicts = stored?.item_status === 'verified' ? (await import('../../../../../packages/merge/index.js')).mechanicalConflictFiles : null;
+    const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts, ...(table ? { derived: table.derived } : {}) }).project(stored);
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
@@ -158,7 +169,7 @@ export async function run(io, { first, values }) {
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
     const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
-    const panel = job ? gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
+    const panel = job ? jobsCell().gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
     // The landed-from-main reader lives in the roadmap barrel, which loads only with landing.landedFromMain on, so a cold show reaches the barrel only when it calls it [C7,#11918].
     const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
@@ -171,6 +182,7 @@ export async function run(io, { first, values }) {
     const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
     const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
     if (values.json) return { ...result, gateJob, fields, links };
+    result.foreign = await foreignStates(board, item, async () => (await import('../../../../../packages/store/index.js')).foreignDependencyStates);
     const history = store.events(board, { itemId: id });
     return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
@@ -194,7 +206,7 @@ export async function run(io, { first, values }) {
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
-  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+  const environment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN')
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
     try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
@@ -205,7 +217,7 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
   io.say(core.item);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
@@ -227,7 +239,7 @@ export async function run(io, { first, values }) {
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
-    const { retainedGateAssertions } = await import('../../../../../packages/gate/index.js');
+    const { retainedGateAssertions } = await import('../../../../../packages/gate/heavy.js');
     for (const line of retainedGateAssertions(ctx.info.commonDir, queuedJobId)) io.say(`gate red: ${line}`);
   }
   if (item.item_rehome_import) {
@@ -242,8 +254,8 @@ export async function run(io, { first, values }) {
   io.say(review.tier);
   io.say(review.eligible);
   for (const line of review.parents) io.say(line);
-  if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
-  else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}${dollarText(cost)}; --detail`);
+  const usage = usageLine(cost, { detail: values.detail, dollars: dollarText(cost) });
+  if (usage) io.say(usage);
   if (core.criterion) io.say(core.criterion);
   for (const line of core.check) io.say(line);
   for (const receipt of proofReceipts) {
@@ -262,7 +274,7 @@ export async function run(io, { first, values }) {
       io.say(`  child ${child.pid}: Node ${child.environment.node} ${child.environment.platform}/${child.environment.arch}; ${child.file ?? 'test file unknown'}`);
     }
   }
-  if (item.item_check_baseline) (await import('../../../../../packages/gate/index.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
+  if (item.item_check_baseline) (await import('../../../../../packages/gate/heavy.js')).sayCheckBaseline(io, item, { runnerLive: (await import('../runner/local.js')).anyRunnerLive() });
   for (const failure of item.main_red_failure_lines ?? []) io.say(`main red: ${failure.name}: ${failure.firstError}`);
   for (const line of fieldLines(fields, links)) io.say(line);
   sayBrief(io, item.item_brief);
