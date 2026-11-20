@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import * as store from '../../../../index.js';
 import { listItems } from '../../../../src/io/board/read/light.js';
+import { listItemsSql } from '../../../../src/io/board/read/light.js';
 import { withItemSnapshot } from '../../../../src/io/board/read/light.js';
 import { openBoardForRead } from '../../../../src/io/board/read/snapshot.js';
 
@@ -129,4 +130,82 @@ test('store.io-board-read-light.snapshot-write-refreshes: clause 1: after a writ
   assert.equal(before, 'open');
   assert.equal(after, 'claimed');
   assert.equal(state.reads, 2);
+});
+
+/**
+ * Insert items straight into the item table, as a board that has finished thousands of them holds them: each starts open,
+ * then a status move under the move token sets its status, as the board's status trigger requires.
+ */
+function insertItems(board, count, status, lane, merged) {
+  const insert = board.db.prepare(`INSERT INTO item (item_lane, item_title, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, 'coordinator', '2026-11-20T00:00:00.000Z', '2026-11-20T00:00:00.000Z')`);
+  const first = board.db.prepare('SELECT COALESCE(MAX(item_id), 0) AS id FROM item').get().id + 1;
+  board.db.exec('BEGIN');
+  try { for (let at = 0; at < count; at += 1) insert.run(lane, `${status} ${at}`); board.db.exec('COMMIT'); } catch (error) { board.db.exec('ROLLBACK'); throw error; }
+  if (status === 'open') return;
+  // The board's verified rule needs an ACCEPT on the frozen criterion by a verifier other than the builder, at the item's commit.
+  if (status === 'verified') {
+    board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
+      SELECT item_id, 'core-2', 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, '2026-11-18T00:00:00Z' FROM item WHERE item_id >= ? AND item_id < ?`).run('b'.repeat(40), 'd'.repeat(64), 'b'.repeat(40), first, first + count);
+  }
+  // The fields each status requires, placed the way the stage tests place them: the fixture records where items stand, not how they got there.
+  const built = "item_built_by='core-1', item_commit=?2, item_frozen_digest=?3";
+  const fields = {
+    withdrawn: "item_withdrawn_reason='not needed'",
+    claimed: "item_owner='core-1', item_lease_until='2000-01-01T00:00:00.000Z', item_frozen_digest=?3",
+    submitted: built,
+    verified: `${built}, item_verified_by='core-2', item_merged_commit=?4`,
+  }[status];
+  asMove(board, `UPDATE item SET item_status=?1, ${fields} WHERE item_id >= ?5 AND item_id < ?6`, status, 'b'.repeat(40), 'd'.repeat(64), merged ? 'a'.repeat(40) : null, first, first + count);
+}
+
+/** The sorted medians helper: the middle of the measured times. */
+function median(values) {
+  return [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+}
+
+test('store.io-board-read-light.unfinished-lists-seek-status: clause 1: every scope listItemsSql builds reads the item table through an item_status index and never scans it [C7,#12581]', t => {
+  const board = fixtureBoard(t);
+  store.register(board, { lane: 'coordinator', path: '/fixture/coordinator' });
+  insertItems(board, 30, 'withdrawn', 'core', false);
+  insertItems(board, 5, 'open', 'core', false);
+  for (const filter of [{ all: false, hasLane: false }, { all: false, hasLane: true }, { all: false, hasLane: false, inFlight: true }, { all: false, hasLane: true, inFlight: true }]) {
+    const sql = listItemsSql(filter);
+    const plan = board.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...(filter.hasLane ? ['core'] : [])).map(row => row.detail).join('\n');
+    assert.match(plan, /SEARCH item USING (?:COVERING )?INDEX item_(?:status_id|lane_status)/u, JSON.stringify(filter));
+    assert.doesNotMatch(plan, /SCAN item(?! USING)/u, `${JSON.stringify(filter)}\n${plan}`);
+  }
+});
+
+test('store.io-board-read-light.lists-flat-with-item-history: clause 2: the median listItems call over 50 open and 12,000 finished items is under 50 ms and at most twice the median with 50 open items alone [C7,#12581]', t => {
+  const timed = (board) => median(Array.from({ length: 20 }, (_, call) => {
+    // A lane no earlier call used, so no remembered list answers and each call reads the tables.
+    const started = performance.now();
+    listItems(board, { lane: `core${call}` });
+    listItems(board);
+    return performance.now() - started;
+  }));
+  const small = fixtureBoard(t), large = fixtureBoard(t);
+  for (const board of [small, large]) { store.register(board, { lane: 'coordinator', path: '/fixture/coordinator' }); insertItems(board, 50, 'open', 'core', false); }
+  insertItems(large, 6000, 'withdrawn', 'core', false);
+  insertItems(large, 6000, 'verified', 'core', true);
+  const base = timed(small), flat = timed(large);
+  assert.ok(flat < 50, `${flat} ms with 12,000 finished items`);
+  assert.ok(flat <= Math.max(base * 2, 5), `${flat} ms against ${base} ms with open items alone`);
+});
+
+test('store.io-board-read-light.scopes-return-the-same-items: clause 3: the default, in-flight and all scopes return the same items on a mixed board, a lapsed claim reads as open and an unmerged verified item is in flight [C7,#12581]', t => {
+  const board = fixtureBoard(t);
+  store.register(board, { lane: 'coordinator', path: '/fixture/coordinator' });
+  insertItems(board, 2, 'open', 'core', false);
+  insertItems(board, 2, 'submitted', 'core', false);
+  insertItems(board, 1, 'claimed', 'web', false);
+  insertItems(board, 3, 'verified', 'core', true);
+  insertItems(board, 1, 'verified', 'core', false);
+  insertItems(board, 2, 'withdrawn', 'core', false);
+  const status = (filter) => listItems(board, filter).map(row => row.item_status).sort().join(',');
+  // The claimed item has no lease, so it reads as open, as every list reads a lapsed claim.
+  assert.equal(status({}), 'open,open,open,submitted,submitted');
+  assert.equal(status({ inFlight: true }), 'submitted,submitted,verified');
+  assert.equal(listItems(board, { all: true }).length, 11);
+  assert.equal(listItems(board, { lane: 'web' }).length, 1);
 });
