@@ -1,0 +1,4 @@
+{
+  "api.gate.screen-done.ends-in-done": {"proves":{"specs":["V16","M1"],"claim":"A screen job a sprint submission starts through runScreenJob writes its result step and then ends at done with no lease."},"why":"A screen job that stops at its result step reads as open forever, so fixtures waiting for every job to be done hang.","kind":"cell unit","inputs":["packages/api/tests/io/gate/screen-start.test.js","packages/api/src/io/gate/screen-start.js","packages/drive/src/io/screen.js"]},
+  "api.gate.screen-done.unseen-when-finished": {"proves":{"specs":["V16","M1"],"claim":"Open-job counts and lease sweeps no longer see a finished screen job, and a steady submission makes no screen job."},"why":"Without this test a finished screen job could hold a lapsed lease that sweeps and open counts read as stalled work.","kind":"cell unit","inputs":["packages/api/tests/io/gate/screen-start.test.js","packages/api/src/io/gate/screen-start.js","packages/drive/src/io/screen.js"]}
+}
