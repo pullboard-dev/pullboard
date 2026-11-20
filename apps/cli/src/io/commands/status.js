@@ -11,7 +11,8 @@ import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
 import { lineSettings } from '../../../../../packages/state/light.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
 import { foreignBlockers } from '../../../../../packages/items/light.js';
-import { existsSync } from 'node:fs';
+import { readReceivedBoardState } from '../../../../../packages/store/light.js';
+import { relayMachineDirectory } from '../../../../../packages/store/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { handoffWorkerAlive } from '../alive.js';
 import { withBoardRead } from '../board/read.js';
@@ -40,6 +41,8 @@ import {
   context,
   span,
 } from '../read.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Bind authenticated foreign state to the status reader's existing read-only board; the reader comes from the full store door the run loads lazily. */
 function statusForeignBlockers(board, item, readReceivedBoardState) {
@@ -101,7 +104,7 @@ export async function run(io, { values }) {
     return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, (blockedBoard, item) => statusForeignBlockers(blockedBoard, item, store.readReceivedBoardState), { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
-  if (!summary.relay.linked && existsSync(store.relayMachineDirectory())) {
+  if (!summary.relay.linked && fs.exists(relayMachineDirectory())) {
     const exclusion = (await import('../../../../../packages/link/index.js')).relayExclusion(ctx.info.root);
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }

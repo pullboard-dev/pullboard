@@ -108,6 +108,7 @@ import { passDecision } from "./board/decision/pass.js";
 import { answerDecision } from "./board/decision/answer.js";
 import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
+import { appendMark } from "./board/mark.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
 import { gateAtHead } from "./board/next.js";
@@ -115,6 +116,7 @@ import { holdLane } from "./board/hold/lane.js";
 import { releaseLane } from "./board/release/lane.js";
 import { holdItem } from "./board/hold/item.js";
 import { reserveItem } from "./board/hold/item.js";
+import { clearReservation } from "./board/hold/item.js";
 import { addBlock } from "./board/blocks.js";
 import { claimBlock } from "./board/blocks.js";
 import { listBlocks } from "./board/blocks.js";
@@ -505,6 +507,7 @@ export {
   answerDecision,
   closeFinishedAsks,
   appendFact,
+  appendMark,
   buildOrder,
   nextFor,
   gateAtHead,
@@ -512,6 +515,7 @@ export {
   releaseLane,
   holdItem,
   reserveItem,
+  clearReservation,
   addBlock,
   claimBlock,
   listBlocks,

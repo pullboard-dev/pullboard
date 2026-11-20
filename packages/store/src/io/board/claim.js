@@ -403,7 +403,8 @@ export function prepareClaim(board, id, options, ports) {
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} who
+ * @param {{ agentId: string, lane: string, leaseMs: number, freeze: (item: any) => { text: string, digest: string }, head?: string | null, reviewSkipped?: object | null }} options
+ * @param {object} [ports] the clock and storage ports the claim reads
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
 export function claim(board, id, options, ports) {

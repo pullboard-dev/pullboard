@@ -1,7 +1,9 @@
 /** Deterministic allowance changes, never a gate on machine load or live diagnostic counts [C7]. */
-import { readFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { join } from 'node:path';
 import { git } from '../../../../../git/index.js';
+
+const fs = fileSystemAdapter();
 
 export const BOARD_HOLD_BASELINE = 'packages/store/src/io/board/hold/baseline.json';
 /** Where the committed allowance lived before it moved into the store cell; its history still counts. */
@@ -9,7 +11,7 @@ const LEGACY_BOARD_HOLD_BASELINE = 'src/board-hold-baseline.json';
 
 /** Read the committed source allowance separately from private machine observations. */
 export function readBoardHoldBaseline(root) {
-  return JSON.parse(readFileSync(root ? join(root, BOARD_HOLD_BASELINE) : new URL('./baseline.json', import.meta.url), 'utf8'));
+  return JSON.parse(fs.readFile(root ? join(root, BOARD_HOLD_BASELINE) : new URL('./baseline.json', import.meta.url), 'utf8'));
 }
 
 /** Require an explicit first observation, then refuse any increase or return to unmeasured. */

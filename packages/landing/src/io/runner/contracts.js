@@ -1,5 +1,5 @@
 /** The land job's contracts: affected tests main gained since the items' bases that no landed item's submit proved [C7,#7821]. */
-import { selectAffectedTests } from '../../../../gate/index.js';
+import { selectAffectedTests } from '../../../../gate/heavy.js';
 import { tryGit } from '../../../../git/index.js';
 import { ledgerProofCheck } from './proof.js';
 import { admitTrunk } from './job.js';

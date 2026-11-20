@@ -1,14 +1,9 @@
 /** A runner keeps one packed tarball and one installed prefix per tree id, so the same tree is packed and installed once [C7]. */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { execFile } from 'node:child_process';
-import { copyFileSync } from 'node:fs';
-import { cpSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+
+const fs = fileSystemAdapter();
 
 const DEFAULT_MAX_BYTES = 512 * 1024 * 1024;
 
@@ -51,9 +46,9 @@ export function npmInstall(tarball, prefix) {
  * @returns {number}
  */
 function sizeOf(path) {
-  const info = lstatSync(path);
+  const info = fs.lstat(path);
   if (!info.isDirectory()) return info.size;
-  return readdirSync(path).reduce((sum, name) => sum + sizeOf(join(path, name)), 0);
+  return fs.list(path).reduce((sum, name) => sum + sizeOf(join(path, name)), 0);
 }
 
 /**
@@ -64,11 +59,11 @@ function sizeOf(path) {
  * @param {number} maxBytes
  */
 function prune(folder, maxBytes) {
-  const files = readdirSync(folder).map(name => ({ name, mtimeMs: lstatSync(join(folder, name)).mtimeMs, size: sizeOf(join(folder, name)) }));
+  const files = fs.list(folder).map(name => ({ name, mtimeMs: fs.lstat(join(folder, name)).mtimeMs, size: sizeOf(join(folder, name)) }));
   let total = files.reduce((sum, file) => sum + file.size, 0);
   for (const file of files.sort((a, b) => a.mtimeMs - b.mtimeMs)) {
     if (total <= maxBytes) break;
-    rmSync(join(folder, file.name), { recursive: true, force: true });
+    fs.rm(join(folder, file.name), { recursive: true, force: true });
     total -= file.size;
   }
 }
@@ -85,20 +80,20 @@ function prune(folder, maxBytes) {
  */
 export function createPackCache({ enabled = false, folder, maxBytes = DEFAULT_MAX_BYTES, pack = npmPack }) {
   return async (treeId, tree, destination) => {
-    mkdirSync(destination, { recursive: true });
+    fs.mkdir(destination, { recursive: true });
     if (!enabled) return await pack(tree, destination);
-    mkdirSync(folder, { recursive: true });
+    fs.mkdir(folder, { recursive: true });
     const key = `${String(treeId).replace(/[^\w.-]/gu, '_')}.tgz`, cached = join(folder, key);
-    if (!existsSync(cached)) {
+    if (!fs.exists(cached)) {
       const scratch = join(folder, `.pack-${process.pid}-${Date.now()}`);
-      mkdirSync(scratch, { recursive: true });
+      fs.mkdir(scratch, { recursive: true });
       try {
-        renameSync(await pack(tree, scratch), cached);
-      } finally { rmSync(scratch, { recursive: true, force: true }); }
+        fs.rename(await pack(tree, scratch), cached);
+      } finally { fs.rm(scratch, { recursive: true, force: true }); }
       prune(folder, maxBytes);
     }
     const out = join(destination, key);
-    copyFileSync(cached, out);
+    fs.copyFile(cached, out);
     return out;
   };
 }
@@ -117,18 +112,18 @@ export function createPackCache({ enabled = false, folder, maxBytes = DEFAULT_MA
 export function createInstallCache({ enabled = false, folder, maxBytes = DEFAULT_MAX_BYTES, install = npmInstall }) {
   return async (treeId, tarball, prefix) => {
     if (!enabled) return await install(tarball, prefix);
-    mkdirSync(folder, { recursive: true });
+    fs.mkdir(folder, { recursive: true });
     const cached = join(folder, `${String(treeId).replace(/[^\w.-]/gu, '_')}.prefix`);
-    if (!existsSync(cached)) {
+    if (!fs.exists(cached)) {
       const scratch = join(folder, `.install-${process.pid}-${Date.now()}`);
-      mkdirSync(scratch, { recursive: true });
+      fs.mkdir(scratch, { recursive: true });
       try {
         await install(tarball, join(scratch, 'prefix'));
-        renameSync(join(scratch, 'prefix'), cached);
-      } finally { rmSync(scratch, { recursive: true, force: true }); }
+        fs.rename(join(scratch, 'prefix'), cached);
+      } finally { fs.rm(scratch, { recursive: true, force: true }); }
       prune(folder, maxBytes);
     }
-    mkdirSync(prefix, { recursive: true });
-    cpSync(cached, prefix, { recursive: true, verbatimSymlinks: true });
+    fs.mkdir(prefix, { recursive: true });
+    fs.cp(cached, prefix, { recursive: true, verbatimSymlinks: true });
   };
 }

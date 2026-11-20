@@ -1,6 +1,13 @@
 /** @pullboard-module-loads packages/git/src/io/review-folder.js */
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { announcePorts } from '../link/ports.js';
+import { boardLinkPorts } from '../link/ports.js';
+import { listProjects } from '../../../../../packages/seats/index.js';
+import { announceVerdict } from '../../../../../packages/store/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { closeBoard } from '../../../../../packages/store/index.js';
+import { readBoardKey } from '../../../../../packages/keys/index.js';
 import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/heavy.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
@@ -13,7 +20,7 @@ import { queuesAccept } from '../test/accept.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/heavy.js';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 import { committedTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { submitGateConfig } from '../../../../../packages/gate/heavy.js';
 import { submitGatePlan } from '../../../../../packages/gate/heavy.js';
@@ -173,7 +180,6 @@ import {
 } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { retryReviewCommit } from '../../../../../packages/verify/index.js';
-import { readFileSync } from 'node:fs';
 import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
@@ -184,6 +190,7 @@ import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
+const fs = fileSystemAdapter();
 /** Loads the review folder module at the call, so cold paths through this command never pay for it. */
 const requireModule = createRequire(import.meta.url);
 
@@ -214,7 +221,7 @@ export async function knownMainCheck(root, check, { main, item, items, mainRedIt
   };
   let failures = null;
   try {
-    const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : check.output;
+    const output = check.outputPath ? fs.readFile(check.outputPath, 'utf8') : check.output;
     const run = { ...check, isGreen: false, output,
       stages: [{ status: check.exitCode, output }] };
     failures = failureSignatures(run, root);
@@ -283,6 +290,15 @@ function sameVerdictNote(recorded, given) {
   return typeof recorded === 'string' && (recorded === given || recorded.startsWith(given + '\n'));
 }
 
+/** Tell each linked parent board that waits on this item its new state; a failed delivery stays queued and never undoes the verdict [E32,B24,#11039]. */
+async function announceVerdictState(ctx, board, id) {
+  const open = (root) => ctx.nativeBoard.openBoard(boardFilePath(join(root, '.git')), ctx.clock, { isMain: false, gitRoot: root });
+  const ports = announcePorts({ board, root: ctx.info.root }, { projects: listProjects(), openBoard: open, closeBoard, portsFor: boardLinkPorts,
+    readKey: (boardId) => readBoardKey(boardId, { legacyKeychain: false }) });
+  try { await announceVerdict(board, id, ports); }
+  finally { ports.close(); }
+}
+
 /**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
@@ -305,6 +321,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let accepted = null;
   let acceptedLandingCommit = null;
   let landedVerdict = false;
+  let reviewedPace = null;
   let approvalRows = [];
   /** Record one verdict on the open board. */
   const decide = async (board) => {
@@ -326,6 +343,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
+    reviewedPace = store.itemPace(item);
     const earlier = earlierHolderProblem(board, item, me.id);
     if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
@@ -597,6 +615,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
+    if (verdict.decision === 'ACCEPT' || verdict.decision === 'REJECT') await announceVerdictState(ctx, board, id);
     if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
       acceptedLandingCommit = store.checkedLandingCommit(board, accepted);
@@ -620,6 +639,8 @@ export async function verifyHere(ctx, id, { second, values }) {
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${result.decision === 'ACCEPT' && checklistNote ? '; review evidence proved it' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
+  // A reject of landed sprint work leaves it pulling: its pull-out reverts the landing now; a steady or strict reject reads nothing more [M2,R3,#12181].
+  if (result.decision === 'REJECT' && reviewedPace === 'sprint') await (await import('../landing/pull-out.js')).pullOutPulling(ctx, [id]);
   if (accepted) {
     let automatic = true;
     try { automatic = await landAfterAcceptance(ctx); }
@@ -704,7 +725,8 @@ export async function run(io, args) {
           // Outcomes count only for regular test files at the run's own commit; anything else leaves the side unaccounted.
           const testOutcomes = committedTestOutcomes(root, source.head, ran.outcomes, tryGit);
           const profile = { id: runId, job: ran.job, runner: ran.runner, green: ran.green, ...(testOutcomes ? { testOutcomes } : {}) };
-          writeFileSync(profileFile, JSON.stringify(profile) + '\n', { mode: 0o600 });
+          const profileFd = fs.open(profileFile, 'w', 0o600);
+          try { fs.write(profileFd, JSON.stringify(profile) + '\n'); } finally { fs.close(profileFd); }
           return { id: runId, isGreen: ran.green, executionRunner: ran.runner, profile, ...(testOutcomes ? { testOutcomes } : {}) };
         },
       });
