@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CELL_CONFIG } from '../../../../packages/store/tests/fixtures/cell.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../packages/store/tests/fixtures/cell.js';

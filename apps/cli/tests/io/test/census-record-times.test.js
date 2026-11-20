@@ -8,10 +8,10 @@ import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures
 import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runCensus } from '../../../src/io/test/census.js';
-import { readFileTimes } from '../../../../../packages/gate/index.js';
-import { writeFileTimes } from '../../../../../packages/gate/index.js';
-import { landingBalance } from '../../../../../packages/gate/index.js';
-import { planLandingShards } from '../../../../../packages/gate/index.js';
+import { readFileTimes } from '../../../../../packages/gate/heavy.js';
+import { writeFileTimes } from '../../../../../packages/gate/heavy.js';
+import { landingBalance } from '../../../../../packages/gate/heavy.js';
+import { planLandingShards } from '../../../../../packages/gate/heavy.js';
 
 const FILES = ['one.test.js', 'two.test.js', 'three.test.js'];
 

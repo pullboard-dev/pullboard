@@ -2,6 +2,8 @@
 import { CELLS_EDGES_CEILINGS } from '../edges.js';
 import { CLOCK_CEILING_FILE } from '../adapter-lints/clock.js';
 import { FS_CEILING_FILE } from '../adapter-lints/fs.js';
+import { SSH_CEILING_FILE } from '../adapter-lints/ssh.js';
+import { GITHUB_CEILING_FILE } from '../adapter-lints/github.js';
 import { LOAD_BEARING_CEILINGS } from '../../logic/load/bearing.js';
 import { STORE_BASELINE } from '../stores.js';
 
@@ -16,6 +18,8 @@ export const CEILING_ROW_TABLES = Object.freeze({
   [STORE_BASELINE]: Object.freeze({}),
   [CLOCK_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
   [FS_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
+  [SSH_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
+  [GITHUB_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
   [CELLS_EDGES_CEILINGS]: Object.freeze({ files: true }),
 });
 

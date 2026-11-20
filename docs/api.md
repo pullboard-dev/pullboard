@@ -255,6 +255,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `stats review` | `version:number`, `review:object` |
 | `stats runners` | `version:number`, `runners:object` |
 | `stats time` | `version:number`, `time:object`, `checkpoint:string\|null` |
+| `timeline` | `version:number`, `summary:object` |
 | `trace` | `version:number`, `subject:string`, `since:string\|null`, `entries:array` |
 | `update` | `version:number`, `current:boolean`, `from:string`, `to:string` |
 <!-- api-command-shapes:end -->
@@ -494,6 +495,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/cost-analytics?window=today&#124;7d&#124;30d` | Private local Cost analytics for the selected window; unavailable to hosted and relay clients |
 | `GET /api/v1/boards/:board/proofs/:id` | One item’s full flow proof record, authenticated like board state |
 | `GET /api/v1/boards/:board/items/:id` | One item's full detail: the fields its summary leaves out |
+| `GET /api/v1/boards/:board/agents/:id` | One seat read from the agent and item rows, no state build: `agent_id`, `agent_lane`, `agent_route` and `claimed`, the ids it holds with a live lease; `NO_AGENT` when the seat is not registered |
 | `GET /api/v1/boards/:board/items?q=text` | The ids of the items whose id, title, lane, spec ids or criterion contain the text, ignoring case |
 | `GET /api/v1/boards/:board/shouts/:id` | One shout from any point in the board's history, including its decision and answer fields |
 | `GET /api/v1/boards/:board/tokens` | This linked board's agent-token metadata |

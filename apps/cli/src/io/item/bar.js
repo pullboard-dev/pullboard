@@ -5,6 +5,7 @@ import { trunkBranch } from './folder.js';
 import { laneOf } from '../../../../../packages/seats/index.js';
 import { isConfigFile } from '../../../../../packages/config/browser.js';
 import { briefFiles } from '../../../../../packages/items/index.js';
+import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 
 /** The coordinator's lane and seat id: laneOf names it for every path no lane owns. */
 export const COORDINATOR = 'coordinator';
@@ -98,6 +99,47 @@ export function requireRegistryRecord(tracked, named, isTest) {
   }
 }
 
+/** A pass-with-no-tests flag of a test runner: the check goes green when the named test file does not exist. */
+const PASS_EMPTY_FLAG = /--(?:passWithNoTests|pass-with-no-tests)\b/u;
+
+/** A path shaped like a test file: under a tests folder, or named test or spec. */
+const TEST_SHAPED = /(?:^|\/)(?:tests?|__tests__)\/|[._-](?:test|spec)\./u;
+
+/**
+ * Refuse a check that passes with no tests while its test file is absent from main, behind items.barRulesAtAdd (#11779).
+ * Why: a check green on no tests proved nothing before any work existed, and the baseline guard only runs after add returns.
+ * A check already guarded by `test -f <file> &&`, one without the flag, a test file on main and --accept-green all stay accepted.
+ *
+ * @param {any} ctx
+ * @param {{ check?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any check.
+ * @param {string} [acceptGreen] The --accept-green reason, when given.
+ */
+export function requireNonEmptyCheck(ctx, bar, on, acceptGreen) {
+  const check = bar.check ?? '';
+  if (!on || acceptGreen || !PASS_EMPTY_FLAG.test(check) || /^\s*test -f /u.test(check)) return;
+  const named = barPaths({ check }, { prose: false }).filter(path => TEST_SHAPED.test(path) && !path.endsWith('/'));
+  const found = named.length ? onTrunk(ctx.info.root)(named) : new Set();
+  const [absent] = named.filter(path => !found.has(path));
+  if (!absent) return;
+  throw new Refused('CHECK_PASSES_EMPTY', `the check passes with no tests, and ${absent} is absent from main, so it is green before any work exists`,
+    `name the fixed check: test -f ${absent} && ${check.trim()}, or file it with --accept-green "<why>"`);
+}
+
+/**
+ * Refuse a lane item filed with no spec row, so the filer supplies the row and a builder never drafts one (#11778).
+ * Why: trial boards had builders run pullboard spec draft themselves, writing rows nobody approved; a draft written by add
+ * would still be unapproved and fail UNKNOWN_SPEC until applied, so add refuses and names the two commands that fix it.
+ *
+ * @param {{ lane: string, title: string, specIds: string[] }} item The item as it is about to be filed.
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off files the item as written.
+ */
+export function requireSpecRow(item, on) {
+  if (!on || item.lane === COORDINATOR || item.specIds?.length) return;
+  throw new Refused('SPEC_ROW_NEEDED', `a ${item.lane} item needs a spec row, and this add names none`,
+    `pullboard spec draft "${item.title}", then the same add with --specs <id>`);
+}
+
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
 export async function requireBarPathsOnMain(ctx, bar) {
   const refusal = await missingPathRefusal(ctx, bar);
@@ -157,11 +199,11 @@ export function coordinatorPaths(config, item, options) {
  * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
  *
  * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
+ * @param {{ prose?: boolean, check?: boolean }} [options] - `check: false` leaves the check's paths out but keeps its lane-folder scope.
  * @returns {string[]}
  */
-export function barPaths(item, { prose = true } = {}) {
-  const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
+export function barPaths(item, { prose = true, check = true } = {}) {
+  const named = [...(prose ? pathTokens(item.criterion) : []), ...(check ? pathTokens(item.check) : []), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
   // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
   const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
   const scoped = scope ? named.map(path => (isConfigFile(path) || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
@@ -174,11 +216,46 @@ export function splitAdvice(lane, title, paths) {
     + `(pullboard add coordinator "${title}: coordinator piece" --after <lane item id>) naming ${paths.join(', ')}`;
 }
 
-/** Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path. */
+/**
+ * The options that make add and edit judge ownership the way claim does, or undefined with items.barRulesAtAdd off [C7,#11777].
+ * Why: with the setting on, the Files list alone says what an item changes, so a bar that cites a file the builder only reads is
+ * filed, and the coordinator filing a lane item meets the same rule as a lane seat.
+ *
+ * @param {any} ctx
+ * @param {boolean} on The items.barRulesAtAdd machine setting.
+ */
+export function barOwnerOptions(ctx, on) {
+  return on ? { filesOnly: true, prose: false, check: false, present: onTrunk(ctx.info.root) } : undefined;
+}
+
+/**
+ * Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path.
+ * With filesOnly set (items.barRulesAtAdd) the coordinator exemption covers only coordinator-lane items and person filings.
+ */
 export function requireNoCoordinatorPath(config, me, item, options) {
-  if (me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
+  if ((me.id === COORDINATOR && !options?.filesOnly) || item.lane === COORDINATOR || item.by === 'person') return;
   const paths = coordinatorPaths(config, item, options);
   if (!paths.length) return;
   throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,
     splitAdvice(item.lane, item.title, paths));
+}
+
+/**
+ * Refuse a claim of a lane item whose brief Files list names a path no lane owns, on every claim route (claim, next, run),
+ * judged by the lanes in main's committed config [C7,#11857].
+ * Why: the check read the criterion and check too, so a bar naming a file the builder only reads (a vendored cell, a contract)
+ * refused every claim; and explicit claim read the seat folder's own config while next skipped the check, so seats disagreed.
+ * The Files list is what the item changes; a cited spec row's text in the criterion never adds a path.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {number} id
+ * @param {string} agentId The claiming seat.
+ * @param {object} accepted Main's committed config, as mainPolicy reads it.
+ */
+export function refuseClaimCrossOwnership(ctx, board, id, agentId, accepted) {
+  const item = board.nativePorts.getItem(board, id);
+  if (!item || outsideBuildProblem(board, item)) return;
+  requireNoCoordinatorPath(accepted, { id: agentId }, { lane: item.item_lane, title: item.item_title, check: item.item_check, brief: item.item_brief },
+    { prose: false, check: false, present: onTrunk(ctx.info.root) });
 }

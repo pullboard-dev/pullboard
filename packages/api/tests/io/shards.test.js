@@ -1,7 +1,7 @@
 /** A runner holds no more gate-shard jobs than its cores allow, so a gate's shards spread over every runner that polls [C7,#7765]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { SHARD_JOB_KIND } from '../../index.js';
 import { claimJob } from '../../index.js';
 import { offerJob } from '../../index.js';
@@ -67,4 +67,18 @@ test('api.shards.push-shard-first-under-priority: clause 2: a push shard is firs
   const reserve = { interactive: 0.25 };
   assert.equal(claimJob(db, { runner: 'r-a', jobs: 4, reserve, now: 10 }).job, 'push:abc:tag:shard:1', 'a reserve does not push a shard behind a test');
   assert.equal(claimJob(db, { runner: 'r-b', jobs: 4, now: 11 }).job, 'test:run-1', 'a gate-shard job outside a push gate keeps its place after a test');
+});
+
+test('api.shards.cores-per-shard-sets-cap: clause 1: shardClaimCap(10, 2) is 5 while claimJob given cores 10 and coresPerShard 2 hands one runner five gate shards, and with no coresPerShard it hands three [C7,#11867]', t => {
+  assert.equal(shardClaimCap(10, 2), 5);
+  assert.equal(shardClaimCap(10), 3);
+  const held = (coresPerShard) => {
+    const db = boardWith(t);
+    offerShards(db, 8);
+    let taken = 0;
+    for (let tries = 0; tries < 8; tries += 1) if (claimJob(db, { runner: 'r-ten', cores: 10, jobs: 10, now: 1_000, ...(coresPerShard ? { coresPerShard } : {}) })) taken += 1;
+    return taken;
+  };
+  assert.equal(held(2), 5);
+  assert.equal(held(null), 3);
 });

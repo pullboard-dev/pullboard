@@ -1,9 +1,9 @@
 /** The pullboard gate --static mode, in its own module so the gate command stays small [C7,#8318]. */
-import { runShell } from '../../../../../packages/gate/index.js';
-import { analysisChange } from '../../../../../packages/gate/index.js';
-import { analysisKey } from '../../../../../packages/gate/index.js';
-import { readAnalysisMemo } from '../../../../../packages/gate/index.js';
-import { writeAnalysisMemo } from '../../../../../packages/gate/index.js';
+import { runShell } from '../../../../../packages/gate/heavy.js';
+import { analysisChange } from '../../../../../packages/gate/heavy.js';
+import { analysisKey } from '../../../../../packages/gate/heavy.js';
+import { readAnalysisMemo } from '../../../../../packages/gate/heavy.js';
+import { writeAnalysisMemo } from '../../../../../packages/gate/heavy.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';

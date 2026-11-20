@@ -22,10 +22,11 @@ import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
 import { ruleLine } from '../../../../../packages/doctrine/index.js';
 import { LEDGER_HITS_ENV } from '../../../../../packages/gate/index.js';
-import { PULLED_JOB_ENV } from '../../../../../packages/gate/index.js';
-import { submitGateConfig } from '../../../../../packages/gate/index.js';
-import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
-import { missingGate } from '../../../../../packages/gate/index.js';
+import { PULLED_JOB_ENV } from '../../../../../packages/gate/heavy.js';
+import { submitGateConfig } from '../../../../../packages/gate/heavy.js';
+import { namedFileRunner } from '../../../../../packages/gate/heavy.js';
+import { BROWSER_MARKER } from '../../../../../packages/gate/heavy.js';
+import { missingGate } from '../../../../../packages/gate/heavy.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 // A URL-joined seat's submit bundles its clone's commits; moves.js loads it from here only when board.commits is on [P7,C7].
@@ -342,7 +343,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   // A red with no named case keeps its first diagnostic and an omission count, which the tail and exit lines alone drop [C7,V10].
   let digest = null;
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
-  return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
+  return { role, command: String(command).slice(0, 500), status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
     ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
@@ -475,7 +476,8 @@ export function gateJobRun() {
  *
  * @param {{ main: string, source: string, trunk: string, base: string | null, check: string, criterion: string, title: string,
  *   composition: string | null, config: object, crossRunTests: string[], cutRows: object[], produceInventory: string[],
- *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean }} pinned. checkTiming: the
+ *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean, needs?: string[] }} pinned. needs: the item's
+ *   needs list, carried only when it has one so the gate admission asks for the slots it names [U136,#11479]. checkTiming: the
  *   bar was frozen with exclusive check timing; the job carries it on its data so a runner can admit the check alone [C7,#7942].
  * @returns {{ run: string[], input: { main: string, entry: string, data: object }, commits: string[] }} commits: what a
  *   runner fetches beside the candidate, since the bootstrap archives main and the analysis reads trunk from the checkout's objects.
@@ -557,6 +559,24 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
 }
 
 /**
+ * The line submit prints naming the runner its proof will use and where that choice came from. Why: a proof once ran under
+ * node --test after main moved to Jest, and nothing said whether main or the item's own pinned policy chose it [C7].
+ *
+ * @param {{ affectedTests?: string }} config - The config the gate job carries.
+ * @param {{ commit: string, config: { affectedTests?: string } }} main - The accepted main the gate pins.
+ * @param {string} source - The commit the gate judges.
+ * @returns {string}
+ */
+export function proofRunnerNote(config, main, source) {
+  const runner = typeof config.affectedTests === 'string' ? config.affectedTests.trim() : '';
+  const mains = typeof main.config?.affectedTests === 'string' ? main.config.affectedTests.trim() : '';
+  if (!runner && !mains) return `test runner: none set (named .js files run under ${namedFileRunner('', ['named.js'])})`;
+  if (!runner) return `test runner: none set (affectedTests from this item's policy ${source.slice(0, 12)}; main sets ${mains})`;
+  if (runner === mains) return `test runner: ${runner} (affectedTests from main ${main.commit.slice(0, 12)})`;
+  return `test runner: ${runner} (affectedTests from this item's policy ${source.slice(0, 12)}; main sets ${mains || 'none'})`;
+}
+
+/**
  * Write the submit's gate job row and return at once. The candidate is pinned under refs/pullboard/gate so a runner can
  * fetch it from the trunk remote; everything else this does is reads and one board write. A companion submit's gate
  * judges its composed source, and its submit record carries the composition, so the board binds the receipts to it [P7].
@@ -601,7 +621,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const frozen = frozenCheck(held);
   const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
-    criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
+    criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', ...(held.item_needs?.length ? { needs: held.item_needs } : {}), composition: requireComposition ? commit : null,
     ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
@@ -640,6 +660,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   if (ctx.json) ctx.io.result(acknowledgment);
   if (!ctx.json) ctx.io.say(`#${id} is in the gate as job ${job.id}: a runner pulls the whole gate and posts one receipt; nothing runs here.`
     + (local.started ? ` Started this machine's local runner (pid ${local.pid}) to pull it.` : ''));
+  if (!ctx.json) ctx.io.say(proofRunnerNote(config, main, source));
   // A large submit still goes through; the note only suggests a chain of smaller items, as the inline path says (#1162).
   const sizeNote = oversizeNote(changedLines(root, main.commit, commit), main.config.itemSizeBudget);
   if (sizeNote && !ctx.json) ctx.io.say(`note: ${sizeNote}`);

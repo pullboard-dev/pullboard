@@ -5,6 +5,8 @@ import { seal } from '../../../packages/kernel/index.js';
 import { syncRelay } from '../../../packages/link/index.js';
 import { ENGINE_VERSION } from '../../../packages/state/index.js';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
+import { closeCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
+import { openCellBoard } from '../../../packages/board/tests/fixtures/cell-board.js';
 
 /** Read the relay's whole ordered journal as the client would, as one comparable string. */
 async function journal(box, link) {
@@ -17,7 +19,7 @@ async function journal(box, link) {
 
 /** Link a board, append one move sealed one engine ahead of this reader, and sync it as the reader would. */
 async function meetNewerMove(t) {
-  const box = await relayDirectFixture(t);
+  const box = await relayDirectFixture(t, { openCellBoard, closeCellBoard });
   await box.link();
   const link = box.readLink();
   const future = { version: 1, engine: ENGINE_VERSION + 1, id: 'future-engine-record', operation: 'futureOperation', args: [] };

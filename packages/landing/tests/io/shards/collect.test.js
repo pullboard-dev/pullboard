@@ -6,9 +6,9 @@ import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { runLandingShards } from '../../../index.js';
 import { LANDING_COLLECT_ALL_ENV } from '../../../index.js';
-import { formatCollectionReport } from '../../../../gate/index.js';
-import { parseCollectionReports } from '../../../../gate/index.js';
-import { COLLECTION_ID_ENV } from '../../../../gate/index.js';
+import { formatCollectionReport } from '../../../../gate/heavy.js';
+import { parseCollectionReports } from '../../../../gate/heavy.js';
+import { COLLECTION_ID_ENV } from '../../../../gate/heavy.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 

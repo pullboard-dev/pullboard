@@ -16,7 +16,7 @@ import { getItem } from '../../store/index.js';
 import { board_ensureCoordinator } from '../../store/index.js';
 import { shipMilestone } from '../../store/index.js';
 import { coordinatorMilestoneRelease } from '../../stats/light.js';
-import { cellBoard } from '../../store/tests/fixtures/cell.js';
+import { cellBoard } from './fixtures/cell-board.js';
 import { cellProject } from '../../store/tests/fixtures/cell.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -103,4 +103,17 @@ test('board.index.board-root-exports-reserveitem-records-reservation: clause 1: 
   assert.equal(reserved.item_reservation_holder, 'web-1');
   assert.equal(reserved.item_reservation_by, 'coordinator');
   assert.ok(reserved.item_reservation_at);
+});
+
+test('board.index.add-block-operation: clause 1: the board root exports addBlock, and an ordered addBlock move records a block of two items on a real board [C7]', t => {
+  assert.equal(typeof library.addBlock, 'function');
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
+  board_ensureCoordinator(board, project.repo);
+  const ids = ['First', 'Second'].map(title => addItem(board, { by: 'coordinator', lane: 'web', title, route: 'mid',
+    criterion: 'The private fixture proves the block.', brief: 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n', check: 'true' }));
+  const block = library.addBlock(board, { agentId: 'coordinator', name: 'pair', ids, tier: 'mid' });
+  assert.deepEqual(block.members, ids);
+  assert.equal(block.tier, 'mid');
+  assert.equal(block.by, 'coordinator');
 });

@@ -1,0 +1,17 @@
+{
+  "cli.journeys-join-lanes-off-cells.cross-lane-claim-commits": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With laneMode off, a seat registered in web claims an api item, commits only that item's cells through the installed hook, and a commit outside them is refused naming the path."
+    },
+    "why": "Without it, a seat claiming another lane's item could be refused its own cells at commit, or allowed foreign ones.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/join/lanes-off-cells.test.js",
+      "packages/commits/src/io/hooks.js",
+      "packages/store/src/io/eligibility.js"
+    ]
+  }
+}

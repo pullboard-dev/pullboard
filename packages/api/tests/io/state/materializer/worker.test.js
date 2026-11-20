@@ -14,6 +14,8 @@ import { Worker } from 'node:worker_threads';
 import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 
 const WORKER = fileURLToPath(new URL('../../../../src/io/state/materializer/worker.js', import.meta.url));
+const ENV_FRONT_DOOR = fileURLToPath(new URL('../../../../../env/index.js', import.meta.url));
+const ENV_ADAPTER = fileURLToPath(new URL('../../../../../env/src/io/env.js', import.meta.url));
 const BOARD = { id: 'b', root: 'r' };
 
 /** A copy of the real worker in a small code tree whose snapshots answer each build with the next given build, and no snapshot store. */
@@ -22,6 +24,8 @@ function codeTree(t, builds) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const write = (file, content) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), content); };
   write('packages/api/src/io/state/materializer/worker.js', readFileSync(WORKER));
+  write('packages/env/index.js', readFileSync(ENV_FRONT_DOOR));
+  write('packages/env/src/io/env.js', readFileSync(ENV_ADAPTER));
   write('packages/api/src/io/main.js', `const builds = ${JSON.stringify(builds)};
 export function createStateSnapshots() {
   return { formats: 'f', snapshotPlace: () => ({ cacheId: 'c', folder: 'f' }), carry: () => null, restore() {}, materialize: () => builds.shift() };
