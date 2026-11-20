@@ -19,7 +19,9 @@ function refusalCutoff(board) {
  * @returns {boolean}
  */
 export function refusesFamilyRelaxation(board, agentId) {
-  const releases = board.db.prepare(`SELECT event_id, item_id FROM event WHERE event_kind='release' AND event_by=? AND event_at>=?
+  // The unary + keeps the time bound off the index choice, so the read seeks the seat's releases by (event_by, event_kind)
+  // rather than walking every event the seat made inside the window (#12579).
+  const releases = board.db.prepare(`SELECT event_id, item_id FROM event WHERE event_kind='release' AND event_by=? AND +event_at>=?
     AND json_valid(event_detail) AND json_extract(event_detail, '$.review')=1
     AND json_extract(event_detail, '$.reasonCode') IS NOT NULL`).all(agentId, refusalCutoff(board));
   const reserve = board.db.prepare(`SELECT event_detail FROM event WHERE item_id=? AND event_kind='reserve' AND event_by=? AND event_id<?
