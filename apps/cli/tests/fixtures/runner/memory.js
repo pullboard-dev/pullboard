@@ -41,7 +41,7 @@ export async function assertRunnerMemoryAdmission() {
     writeFileSync(join(box.repo, 'memory-probe.cjs'), "console.log('REAL_RUNNER_MEMORY_PROBE');\n");
     box.git(box.repo, 'add', '-A');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: private memory admission probe');
-    const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/heavy.js')).href;
+    const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
     const cli = join(import.meta.dirname, '../../../pullboard.js');
     const source = [
       `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};

@@ -186,10 +186,10 @@ export async function audit(box, batch) {
     && JSON.parse(event.event_detail).batch.state === 'landed').at(-1));
   assert.equal(JSON.parse(latest.event_detail).batch.id, batchId, 'the explicit full audit covers the requested latest landing');
   if (await finishAudits(box, box.waitFor)) return;
-  const source = `import {runGate} from ${JSON.stringify(new URL('../../../../../packages/gate/heavy.js', import.meta.url).href)};
+  const source = `import {runGate} from ${JSON.stringify(new URL('../../../../../packages/gate/index.js', import.meta.url).href)};
 import * as store from ${JSON.stringify(new URL('../../../../../packages/store/index.js', import.meta.url).href)};
 import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../../../../lib/src/logic/native.js", import.meta.url).href)};
-import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../../../../../packages/gate/heavy.js', import.meta.url).href)};
+import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../../../../../packages/gate/index.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../../../../../packages/runners/index.js', import.meta.url).href)};
 import { landingExecutionServices } from ${JSON.stringify(new URL('../../../../../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';
