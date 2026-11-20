@@ -1,0 +1,3 @@
+{
+  "landing.io-guards.rename-without-path-map": {"proves":{"specs":["C7"],"claim":"a composed landing that renames a tracked file lands without a path-map row, while a missing module target is still refused."},"why":"Without it a rename could be refused again for a path map that the restructure no longer keeps.","kind":"journey","inputs":["packages/landing/index.js","packages/landing/src/io/guards.js","packages/gate/index.js"]}
+}
