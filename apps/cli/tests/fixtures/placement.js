@@ -12,8 +12,8 @@ import { unplanned } from '../../../../packages/codemap/src/io/cells/scripts/pla
 import { cellLintReport } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../../../../packages/codemap/index.js';
-import { importsIn } from '../../../../packages/gate/index.js';
-import { commonJsIn } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/heavy.js';
+import { commonJsIn } from '../../../../packages/gate/heavy.js';
 import { publishAcceptedCells } from '../../../../packages/landing/tests/fixtures/plan.js';
 import { createE2eHelpers } from './e2e.js';
 

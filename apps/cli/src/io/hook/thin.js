@@ -17,6 +17,7 @@ import { COORDINATOR } from '../../../../../packages/config/light.js';
 import { hookClock } from '../commands/hook.js';
 import { hookCommand } from '../commands/hook.js';
 import { hookSeatId } from '../commands/hook.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { appendTrace } from '../trace.js';
 
 /** The light context a commit hook reads: checkout facts, config, board file and doctrine, with no board writes. */
@@ -83,7 +84,7 @@ function hookRefusal(hook, seen) {
 
 /** Append the trace line of a blocked hook: the hook name as the command, the seat, and the refusal code. Never throws. */
 function traceBlock(args, streams, seen, status, startedAt) {
-  appendTrace({ argv: [args[1]], cwd: streams.cwd, startedAt, status, refusal: hookRefusal(args[1], seen), seat: seen.seat, env: streams.env ?? process.env });
+  appendTrace({ argv: [args[1]], cwd: streams.cwd, startedAt, status, refusal: hookRefusal(args[1], seen), seat: seen.seat, env: streams.env ?? environmentAdapter().all() });
 }
 
 /** The body of runThinHook, run inside its Git facts scope. */
@@ -101,7 +102,7 @@ async function runThinHookOnce(args, streams, seen) {
     try { ctx = lightContext(io); } catch (error) { if (!(error instanceof Refused && error.code === 'NO_CONFIG')) throw error; }
     // A repo without pullboard.json binds nothing: hookCommand passes it.
     if (ctx) seen.seat = hookSeatId(ctx, ctx.info.root);
-    session = ctx ? await bindHookSession(ctx, args[1], streams.env ?? process.env) : { release() {} };
+    session = ctx ? await bindHookSession(ctx, args[1], streams.env ?? environmentAdapter().all()) : { release() {} };
     if (!session) return null;
     const code = await withGitCommandMemo(() => hookCommand(io, { first: args[1], second: args[2] }));
     io.flush(io.exitCode(code));
