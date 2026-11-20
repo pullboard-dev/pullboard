@@ -152,7 +152,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily, composeLanding = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, reservations = false, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily, composeLanding = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -343,6 +343,14 @@ export function nextFor(board, options) {
   const mine = laneItems
     // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
     .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
+    // route.reservations (off unless a machine turns it on): an item reserved for another seat is skipped and its holder named; its holder is offered it as usual [C7,#9161].
+    .filter((entry) => {
+      const holder = reservations ? entry.item_reservation_holder : null;
+      if (!holder || holder === agentId) return true;
+      skip(entry, 'ITEM_RESERVED');
+      reasons.push(`#${entry.item_id} is reserved for ${holder}`);
+      return false;
+    })
     .map((entry, order) => ({ entry, order, shared: recent.size ? itemFiles(entry).filter((path) => recent.has(path)) : [] }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
