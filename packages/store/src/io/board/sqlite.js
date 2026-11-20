@@ -1,12 +1,12 @@
 /** Physical SQLite opening accepts explicit runtime ports before migration or proof warming [C7]. */
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
+import { PROGRAM_SCHEMA_SQL } from "../../../../jobs/index.js";
 import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { GATE_HOP_SCHEMA_SQL } from "./hop.js";
@@ -28,6 +28,8 @@ import {
   EVENT_LOG_VERSION,
   BOARD_BUSY_TIMEOUT_MS,
 } from "./schema/source.js";
+
+const fs = fileSystemAdapter();
 
 /** Require connection-local dependencies before creating or touching any SQLite file; never infer a global root. */
 export function requireRuntimePorts(ports) {
@@ -132,6 +134,8 @@ export function openRunsStore(file, { boardId }) {
     if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
     db.exec('CREATE TABLE IF NOT EXISTS runs_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)');
     db.exec(JOB_SCHEMA_SQL);
+    // Offered program text, stored once by its sha256; an offer holds only the hash (S14).
+    db.exec(PROGRAM_SCHEMA_SQL);
     // The inbox mark lives only in the runs file: set once the board has applied the job's receipt (S5).
     if (!db.prepare('PRAGMA table_info(job)').all().some(column => column.name === 'job_applied')) db.exec('ALTER TABLE job ADD COLUMN job_applied INTEGER');
     db.exec('BEGIN IMMEDIATE');
@@ -194,7 +198,7 @@ export function boardRunsReader(board, boardFile) {
   if (!runsStoreOn(board.db)) return null;
   const file = runsFilePath(boardFile);
   let runs;
-  const open = () => (runs === undefined ? (runs = existsSync(file) ? new DatabaseSync(file, { readOnly: true }) : null) : runs);
+  const open = () => (runs === undefined ? (runs = fs.exists(file) ? new DatabaseSync(file, { readOnly: true }) : null) : runs);
   return { get db() { return open(); } };
 }
 
@@ -206,7 +210,7 @@ export function boardRunsReader(board, boardFile) {
  * @param {{ query: { openBoardReadOnly: Function } }} runtimePorts
  */
 function refuseBoardBeyondOneRelease(file, runtimePorts) {
-  if (file === ':memory:' || !existsSync(file)) return;
+  if (file === ':memory:' || !fs.exists(file)) return;
   let version = 0;
   let current;
   try {
@@ -248,7 +252,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
   if (file !== ':memory:' && isMain === false) {
     let boardVersion = 0;
     let logVersion = 0;
-    if (existsSync(file)) {
+    if (fs.exists(file)) {
       const startedAt = Date.now();
       let current;
       try {
@@ -271,7 +275,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
       }
     }
   }
-  if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
+  if (file !== ':memory:') fs.mkdir(dirname(file), { recursive: true });
   const startedAt = Date.now();
   let db;
   try {

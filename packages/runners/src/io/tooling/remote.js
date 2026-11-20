@@ -19,16 +19,17 @@ import { saveTrustedCapture } from './saved.js';
 import { currentRunnerTooling } from './snapshot.js';
 import { claimRunnerLaunch } from '../transport.js';
 import { recoveryIdentity } from '../../../../resources/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { readSync } from 'node:fs';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const TOOL_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+
+const fs = fileSystemAdapter();
 
 // The generation of the runners.js instance whose operation is running; the first pin answers callers outside one.
 const GENERATION = new AsyncLocalStorage();
@@ -69,7 +70,7 @@ export function shellWord(value) { return `'${String(value).replaceAll("'", "'\\
 
 /** Give the SSH client connection necessities only; arbitrary caller secrets cannot be forwarded. */
 export function sshEnvironment() {
-  const inherited = { ...process.env };
+  const inherited = environmentAdapter().all();
   removeGitRepositorySelectors(inherited, process.stderr.write.bind(process.stderr));
   const env = {};
   for (const key of ['PATH', 'HOME', 'USER', 'LOGNAME', 'SSH_AUTH_SOCK', 'TMPDIR', 'SystemRoot', 'WINDIR']) {
@@ -149,7 +150,7 @@ export function trustedTooling() {
  * Why: each landing moves main, and a commit-keyed capture rebuilt the unchanged worker closure on every trip.
  */
 function bundledTooling(id) {
-  const gitRoot = existsSync(join(TOOL_ROOT, '.git')) ? TOOL_ROOT : archivedToolingSource(TOOL_ROOT)?.root;
+  const gitRoot = fs.exists(join(TOOL_ROOT, '.git')) ? TOOL_ROOT : archivedToolingSource(TOOL_ROOT)?.root;
   const found = gitRoot && loadToolingBundle(TOOL_ROOT, id, gitRoot, committedToolingMatches);
   return found ? { ...found, installation: id, bundled: true } : null;
 }
@@ -166,13 +167,13 @@ function captureTrustedTooling() {
       throw new Refused('RUNNER_TOOLING_SECRET', 'the selected runner tooling failed its transfer scan; restore a trusted Pullboard installation');
     }
   }
-  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFile(join(root, 'package.json')));
   if (manifest.name !== 'pullboard' || typeof manifest.version !== 'string') {
     throw new Refused('RUNNER_TOOLING_IDENTITY', 'runner tooling must come from a named Pullboard installation; reinstall Pullboard');
   }
   let provenance = { kind: 'installed-package', name: manifest.name, version: manifest.version };
   const archived = archivedToolingSource(root);
-  if (archived || existsSync(join(root, '.git'))) {
+  if (archived || fs.exists(join(root, '.git'))) {
     const selected = archived ?? runnerSource(root);
     if (!selected || !committedToolingMatches(archived?.root ?? root, selected.commit, files)) {
       throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling differs from its selected committed revision; restore or commit the tooling before remote execution');
@@ -197,7 +198,7 @@ export function readCapsuleFromStdin() {
   const pause = new Int32Array(new SharedArrayBuffer(4));
   const read = (buffer, offset, length) => {
     for (;;) {
-      try { return readSync(0, buffer, offset, length, null); }
+      try { return fs.read(0, buffer, offset, length, null); }
       catch (error) { if (error.code !== 'EAGAIN') throw error; Atomics.wait(pause, 0, 0, 5); }
     }
   };
@@ -220,6 +221,9 @@ export function readCapsuleFromStdin() {
   }
   return bytes.toString('ascii');
 }
+
+/** The generated installer cannot import the fs adapter; readCapsuleFromStdin and claimRunnerLaunch get the same synchronous calls under that name [C7]. */
+const INSTALLER_FS_SHIM = 'const fs = { read: readSync, mkdir: mkdirSync, writeFile: writeFileSync };\n';
 
 /**
  * Install pinned bytes first, then replace the SSH shell with the file-based worker.
@@ -250,10 +254,11 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-${installRunnerPackage.toString()}
+import { homedir } from 'node:os';
+${INSTALLER_FS_SHIM}${installRunnerPackage.toString()}
 ${readCapsuleFromStdin.toString()}
 installRunnerPackage(readCapsuleFromStdin(), ${JSON.stringify(tooling.sha256)}, ${JSON.stringify(runner.root ?? '')});
-${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(process.env.HOME, '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
+${recovery ? recoveryIdentity.toString() + '\n' + claimRunnerLaunch.toString() + '\nif (!claimRunnerLaunch(' + JSON.stringify(runner.root ?? '') + " || join(homedir(), '.pullboard-runner')," + JSON.stringify(recovery) + ")) throw new Error('PULLBOARD_RUNNER_LAUNCH_FENCED');" : ''}`;
   const node = shellWord(runner.node ?? 'node');
   const suffix = `/runtime/${tooling.sha256}/${tooling.entry ?? 'apps/runner/src/io/scripts/worker.js'}`;
   const entry = runner.root ? shellWord(runner.root + suffix) : `"$HOME"${shellWord('/.pullboard-runner' + suffix)}`;

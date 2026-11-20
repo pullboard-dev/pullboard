@@ -1,0 +1,3 @@
+{
+  "cli.sprint.reject-pulls-out-local": {"proves":{"specs":["M2","R3"],"claim":"On a sprint board with no trunk remote, a reject of landed work reverts the landing on the host repository's own trunk, leaves one pull-out job and one pulled event, and reopens the item."},"why":"Without it the pull-out returned at once for a repository with no remote, wrote pull_out, printed nothing, and the rejected work stayed on main.","kind":"journey","inputs":["apps/cli/journeys/sprint/pull-out-local.test.js","apps/cli/src/io/landing/pull-out.js","packages/landing/src/io/step/pull.js","apps/cli/src/io/commands/verify.js","apps/cli/src/io/landing/automatic.js"]}
+}

@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/link",
  "frontDoor": "packages/link/index.js",
+ "lightFrontDoor": "packages/link/light.js",
  "dryRunName": "relay-client",
  "paths": [
   ["src/relay-outbox-summary.js","packages/link/src/io/relay/summary.js","rule"],

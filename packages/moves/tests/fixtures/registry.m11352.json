@@ -1,0 +1,30 @@
+{
+  "moves.table-verify.solo-accept-event": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: the verify table admits a builder accept when every solo low-stakes condition holds and the item records its tree, and writes a solo-low-stakes-accept event after the accept event naming the verdict id, commit, tree, digest and verifier."
+    },
+    "why": "Without the event the verified proof trigger refuses a builder's own accept NOT_PROVEN, so the solo rule could never take effect (#966, #11344).",
+    "kind": "contract",
+    "inputs": [
+      "packages/moves/src/logic/table/verify.table.js",
+      "packages/moves/tests/logic/table/verify-sprint.test.js"
+    ]
+  },
+  "moves.table-verify.no-solo-event-independent": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: an accept by a verifier who is not an author writes no solo-low-stakes-accept event, and a builder accept where any solo condition fails is still refused SELF_VERIFY with no events."
+    },
+    "why": "The solo event must exist only for a real solo accept, so an independent review leaves the record unchanged and a failed solo condition keeps the independence rule (#966).",
+    "kind": "contract",
+    "inputs": [
+      "packages/moves/src/logic/table/verify.table.js",
+      "packages/moves/tests/logic/table/verify-sprint.test.js"
+    ]
+  }
+}

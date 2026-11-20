@@ -1,10 +1,11 @@
-import { REJECT_OPEN_ENGINE } from '../../../../../state/light.js';
-import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
-import { READINESS_ENGINE } from '../../../../../state/light.js';
-import { LEASE_LAPSE_ENGINE } from "../../../../../state/light.js";
-import { CHECK_TIMING_ENGINE } from "../../../../../state/light.js";
-import { ENGINE_VERSION } from "../../../../../state/light.js";
-import { REJECTED_WORK_RETURN_ENGINE } from "../../../../../state/light.js";
+import { REJECT_OPEN_ENGINE } from '../../../../../state/browser.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../../../state/browser.js';
+import { READINESS_ENGINE } from '../../../../../state/browser.js';
+import { NEEDS_ENGINE } from '../../../../../state/browser.js';
+import { LEASE_LAPSE_ENGINE } from "../../../../../state/browser.js";
+import { CHECK_TIMING_ENGINE } from "../../../../../state/browser.js";
+import { ENGINE_VERSION } from "../../../../../state/browser.js";
+import { REJECTED_WORK_RETURN_ENGINE } from "../../../../../state/browser.js";
 /** Pure per-item reads without loading the query facade [C7,H16,B13]. */
 import { Refused } from "../../../../../kernel/light.js";
 /**
@@ -20,16 +21,19 @@ export function itemById(board, id) {
     const target = JSON.parse(redirect.meta_value);
     throw new Refused('NO_ITEM', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}; use that destination reference`);
   }
-  const row = board.db.prepare("SELECT item.*, timing.meta_value AS check_timing, expected.meta_value AS expected_build, readiness.meta_value AS readiness_command FROM item LEFT JOIN board_meta timing ON timing.meta_key='item_check_timing:' || item.item_id LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id LEFT JOIN board_meta readiness ON readiness.meta_key='item_readiness_command:' || item.item_id WHERE item_id = ?").get(id);
+  const row = board.db.prepare("SELECT item.*, timing.meta_value AS check_timing, expected.meta_value AS expected_build, readiness.meta_value AS readiness_command, needs.meta_value AS item_needs FROM item LEFT JOIN board_meta timing ON timing.meta_key='item_check_timing:' || item.item_id LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id LEFT JOIN board_meta readiness ON readiness.meta_key='item_readiness_command:' || item.item_id LEFT JOIN board_meta needs ON needs.meta_key='item_needs:' || item.item_id WHERE item_id = ?").get(id);
   if (!row) throw new Refused('NO_ITEM', `no item #${id}; see: pullboard list`);
-  const { check_timing, expected_build, readiness_command, ...stored } = row;
+  const { check_timing, expected_build, readiness_command, item_needs, ...stored } = row;
   const expected = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE && expected_build !== null
     ? { ...stored, item_expected_build_minutes: JSON.parse(expected_build) } : stored;
   // From READINESS_ENGINE every item has a readiness command, empty until one is authored; older engines read no such field [C7].
   const item = (board.executionEngineVersion ?? ENGINE_VERSION) >= READINESS_ENGINE
     ? { ...expected, item_readiness_command: readiness_command === null ? '' : JSON.parse(readiness_command) } : expected;
+  // From NEEDS_ENGINE every item has a needs list, empty until one is authored; older engines read no such field [U136].
+  const withNeeds = (board.executionEngineVersion ?? ENGINE_VERSION) >= NEEDS_ENGINE
+    ? { ...item, item_needs: item_needs === null ? [] : JSON.parse(item_needs) } : item;
   return (board.executionEngineVersion ?? ENGINE_VERSION) >= CHECK_TIMING_ENGINE && check_timing !== null
-    ? { ...item, item_check_timing: JSON.parse(check_timing) } : item;
+    ? { ...withNeeds, item_check_timing: JSON.parse(check_timing) } : withNeeds;
 }
 
 /** Read the latest return's window, ignoring review releases and earlier submissions. */

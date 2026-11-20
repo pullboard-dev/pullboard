@@ -1,0 +1,3 @@
+{
+  "cli.io-commands-next-wait.busy-board-cpu": {"proves":{"specs":["C7"],"claim":"A real next --wait on a board other processes keep writing returns its idle answer and uses under 0.5 s of process CPU beyond one plain next."},"why":"Without it, the CPU a waiting next burns while other seats write the board stays unmeasured and a wake-loop fix has no number to cut under.","kind":"cell unit","inputs":["apps/cli/src/io/commands/next.js"]}
+}

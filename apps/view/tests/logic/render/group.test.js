@@ -43,3 +43,17 @@ test('view.x-render-group.group-event-links-keep-board-scope-and: group event li
   assert.doesNotMatch(groupEventHtml({ ...row, foreignRoot: null }), /data-board=/u);
   assert.doesNotMatch(groupEventHtml({ ...row, itemId: null }), /data-go=|Prepared title/u);
 });
+
+test('view.x-render-group.needs-across-two-repos: group needs from two repos print one entry per row in order, each with its own repo name, ref and answer root [N34,C7]', () => {
+  const rows = [
+    { repoName: 'Alpha', repoRoot: '/work/alpha', ref: 'G1', textHtml: 'First question', actionLabel: 'answer', ageHtml: '' },
+    { repoName: 'Beta', repoRoot: '/work/beta', ref: 'G2', textHtml: 'Second question', actionLabel: 'answer', ageHtml: '' },
+  ];
+  const html = groupNeedsHtml(rows);
+  assert.equal(html.match(/class="group-need"/gu).length, 2);
+  const [first, second] = html.split('<div class="group-need">').slice(1);
+  assert.match(first, /<b>Alpha<\/b><code>G1<\/code>.*data-root="\/work\/alpha"/u);
+  assert.match(second, /<b>Beta<\/b><code>G2<\/code>.*data-root="\/work\/beta"/u);
+  assert.doesNotMatch(first, /Beta|\/work\/beta/u);
+  assert.doesNotMatch(second, /Alpha|\/work\/alpha/u);
+});

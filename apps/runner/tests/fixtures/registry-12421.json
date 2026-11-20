@@ -1,0 +1,4 @@
+{
+  "runner.io-worker-screenshots.collects-pngs": {"proves":{"specs":["C7"],"claim":"collectScreenshots lists the job's screenshots directory and returns each png with path, bytes, sha256 and base64, or an empty list when the directory is absent."},"why":"Without it the job screenshots could fail to reach the receipt with no test naming what it proved.","kind":"cell unit","inputs":["apps/runner/tests/io/worker/screenshots.test.js"]},
+  "runner.io-worker-screenshots.refuses-oversize": {"proves":{"specs":["C7"],"claim":"a screenshot set over SCREENSHOT_MAX_BYTES returns no files and a refusal naming the total bytes, with no file read."},"why":"Without it an oversize screenshot folder could be read whole into the worker with no test naming what it proved.","kind":"cell unit","inputs":["apps/runner/tests/io/worker/screenshots.test.js"]}
+}

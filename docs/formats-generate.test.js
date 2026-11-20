@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli spec codemap */
+/** @pullboard-test-input source-cell apps/cli spec */
 /** @pullboard-test-input docs/formats/engine-first.md docs/formats/generate.mjs */
 /** @pullboard-world-pin reads the committed engine page and the event declarations to prove the generator reproduces the page and a changed declaration fails the check. */
 /** The first engine section of the formats doc is generated from the code's declarations and checked against the committed page [C7]. */
@@ -13,12 +13,11 @@ const ROOT = resolve(import.meta.dirname, '..');
 const PAGE = 'docs/formats/engine-first.md';
 const DOCS = 'apps/cli/src/io/documentation';
 const EVENTS = `${DOCS}/events`;
-const FREEZE = 'packages/codemap/data/plan/path-map/freeze.json';
 
-/** A scratch root holding the declarations, the path map and the committed page. */
+/** A scratch root holding the declarations and the committed page. */
 function scratchRoot() {
   const root = privateFixtureFiles('formats-generate-').root;
-  for (const path of [DOCS, FREEZE, PAGE]) {
+  for (const path of [DOCS, PAGE]) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     cpSync(join(ROOT, path), join(root, path), { recursive: true });
   }

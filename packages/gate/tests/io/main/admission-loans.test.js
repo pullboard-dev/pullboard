@@ -1,8 +1,9 @@
 /** @pullboard-test-input packages/gate/src/io/browser/admission.js packages/gate/src/io/run/tests.js */
+/** @pullboard-test-timing */
 /** A test file waiting on a nested run lends its place, and every loan is returned or refused cleanly [C7]. */
 import { executionServices } from '../../fixtures/execution.js';
-import { withGateSlot } from '../../../index.js';
-import { awaitNestedRun } from '../../../index.js';
+import { withGateSlot } from '../../../heavy.js';
+import { awaitNestedRun } from '../../../heavy.js';
 import { waitFor } from '../../fixtures/resource.js';
 import { timedFile } from '../../fixtures/file-pool.js';
 import { fixture } from '../../fixtures/file-pool.js';
@@ -20,7 +21,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from '../../fixtures/child.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { safeFixtureDiagnostic } from '../../fixtures/child.js';
-import { occupiedPlaces } from '../../../index.js';
+import { occupiedPlaces } from '../../../heavy.js';
 
 const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 

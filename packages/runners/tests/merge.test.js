@@ -21,7 +21,7 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../gate/tests/fixtures/child.js';
-import { copyPackageSubset } from '../../../apps/cli/tests/fixtures/copy.js';
+import { copyPackageSubset } from '../../gate/tests/fixtures/package-copy.js';
 import { copyPackageFiles } from '../index.js';
 import { repoPath } from '../../kernel/light.js';
 import { ENGINE_VERSION } from '../../state/index.js';
@@ -72,7 +72,7 @@ test('runners.merge.two-commands-added-at-the-same: clause 1: two commands added
   const commandFiles = readdirSync(new URL(`${COMMANDS}/`, ROOT)).filter((file) => file.endsWith('.js'));
   const command = (name) => ({ name, files: { [`${name}.js`]: '/** An independent private command. */\nexport function run() { return 0; }\n' } });
   // Commands are discovered from the commands folder, so the registry keeps no hand-edited index.js to conflict on (#1552).
-  assert.match(readFileSync(new URL(`${COMMANDS}/index.js`, ROOT), 'utf8'), /discovered\(readdirSync\(/u, 'the command registry is discovered, not a hand-kept list');
+  assert.match(readFileSync(new URL(`${COMMANDS}/index.js`, ROOT), 'utf8'), /discovered\((?:readdirSync|fs\.list)\(/u, 'the command registry is discovered, not a hand-kept list');
   const repo = mergeTwo(t, { folder: COMMANDS, files: commandFiles, additions: [command('alpha'), command('alpine')] });
   const merged = readdirSync(join(repo.root, COMMANDS));
   assert.ok(merged.includes('alpha.js') && merged.includes('alpine.js'), 'both new commands are in the merged tree');
