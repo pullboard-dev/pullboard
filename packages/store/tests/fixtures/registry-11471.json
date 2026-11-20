@@ -1,0 +1,32 @@
+{
+  "store.needs.abilities-save-and-read": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "saveAgentAbilities writes the list agentAbilities reads back, a seat never given abilities reads an empty list, and an unknown name is refused USAGE."
+    },
+    "why": "Without this test a seat's declared abilities could be dropped or misread and no item needing a browser would match it.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/needs.test.js",
+      "packages/store/src/io/needs.js",
+      "packages/store/src/io/board/register.js"
+    ]
+  },
+  "store.io-board-register.abilities-real-path": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "register stores a seat's abilities for a fresh join and a rejoin, leaves them when none are given, and refuses ENGINE_VERSION below NEEDS_ENGINE."
+    },
+    "why": "Without this test the join path could ignore declared abilities while the store reads them.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/tests/io/board/register.test.js",
+      "packages/store/src/io/needs.js",
+      "packages/store/src/io/board/register.js"
+    ]
+  }
+}
