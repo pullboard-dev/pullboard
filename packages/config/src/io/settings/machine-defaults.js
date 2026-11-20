@@ -223,6 +223,7 @@ export const MACHINE_DEFAULTS = {
   'tests.requireDeclaredInputs': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'update.check': false,
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'verify.soloLowStakes': false,

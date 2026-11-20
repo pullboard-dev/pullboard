@@ -201,6 +201,7 @@ const ROWS = [
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
   ['landing.pools', 'Boards this computer lands', 'The boards this computer has agreed to land work for, set with pullboard settings landing.pool.', 'Landing', 'list'],
+  ['update.check', 'Check for new releases', 'When enabled, pullboard checks once a day whether a newer release is out and says so; off (default), it never looks. It is on only after the person says yes.', 'Background', 'on/off'],
   ['view.background', 'Keep the view running', 'Init and resume keep pullboard view running, so pullboard.dev can open this computer\'s boards.', 'Background', 'on/off'],
   ['view.port', 'View port', 'The port this computer\'s local view listens on.', 'Background', 'port'],
   ['watch.quietReads', 'Watch reads main\'s head once a second', 'When enabled, pullboard watch reuses its last read of main\'s head for one second instead of reading it after every board event, so an idle watcher spends less CPU; off (default), it reads the head after every event.', 'Background', 'on/off'],
