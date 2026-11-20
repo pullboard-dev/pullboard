@@ -47,6 +47,7 @@ export const REVIEW_RELEASE_TWICE_ENGINE = engineNumber('REVIEW_RELEASE_TWICE_EN
 export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
 export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
 export const BLOCK_ENGINE = engineNumber('BLOCK_ENGINE');
+export const MERGED_AT_ENGINE = engineNumber('MERGED_AT_ENGINE');
 export const WITHDRAW_AS_MET_ENGINE = engineNumber('WITHDRAW_AS_MET_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export const NEEDS_ENGINE = engineNumber('NEEDS_ENGINE');
