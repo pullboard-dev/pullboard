@@ -53,7 +53,8 @@ export function stagedCommit(root) {
   const tree = tryGit(root, ['write-tree']);
   const head = tryGit(root, ['rev-parse', '--verify', 'HEAD']);
   if (tree.status !== 0 || head.status !== 0) return null;
-  const made = tryGit(root, ['commit-tree', tree.stdout.trim(), '-p', head.stdout.trim(), '-m', 'pullboard staged static check']);
+  // A committing hook carries the author in its environment; the fallback name only lets a checkout with no identity write this throwaway commit.
+  const made = tryGit(root, ['-c', 'user.name=pullboard', '-c', 'user.email=pullboard@localhost', 'commit-tree', tree.stdout.trim(), '-p', head.stdout.trim(), '-m', 'pullboard staged static check']);
   return made.status === 0 ? made.stdout.trim() || null : null;
 }
 

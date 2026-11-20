@@ -73,7 +73,7 @@ test('cli.io-hook-static.runner-job-answers-or-falls-back: clause 1: stagedOnRun
   const run = async (views, extra = {}) => {
     const settled = [], offers = [];
     let clock = 0, read = 0;
-    const answer = await stagedOnRunner(ctx, { main: MAIN, claimMs: 15_000, answerMs: 75_000, now: () => clock, wait: async ms => { clock += ms; },
+    const answer = await stagedOnRunner(ctx, { main: MAIN, claimMs: 15_000, answerMs: 75_000, now: () => clock, wait: async ms => { clock += ms; }, commit: () => 'b'.repeat(40),
       offer: async (_ctx, fields) => { offers.push(fields); return { job: 'test:1', ref: 'refs/pullboard/test/x' }; },
       read: async () => views[Math.min(read++, views.length - 1)], settle: async (_ctx, _offered, how) => { settled.push(how); }, ...extra });
     return { answer, settled, offers, clock };
@@ -83,6 +83,7 @@ test('cli.io-hook-static.runner-job-answers-or-falls-back: clause 1: stagedOnRun
   assert.deepEqual(red.settled, [{ cancel: false }]);
   assert.equal(red.offers[0].command, `git update-ref refs/heads/main ${MAIN} && git reset -q --soft HEAD~1 && node --experimental-vm-modules --disable-warning=ExperimentalWarning ./${RUNNER_STAGED_CHECK} --staged-hook`);
   assert.equal(red.offers[0].main, MAIN);
+  assert.equal(red.offers[0].commit, 'b'.repeat(40));
   assert.deepEqual((await run([receiptView('', true)])).answer, []);
   const unclaimed = await run([{ steps: [] }]);
   assert.equal(unclaimed.answer, null);
