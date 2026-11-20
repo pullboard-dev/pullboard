@@ -1,0 +1,1 @@
+{"config.io-compat.jobs-section": {"proves":{"specs":["C7"],"claim":"A pullboard.json with jobs.expediteMax 5 validates and the loaded config carries 5."},"why":"Keeps the jobs section readable so the expedite cap takes a repo value instead of only its default.","kind":"contract","inputs":["packages/config/src/io/compat.js","packages/config/src/io/main.js"]}}

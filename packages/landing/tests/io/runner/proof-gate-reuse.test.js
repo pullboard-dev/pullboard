@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { planTestActions } from '../../../../gate/index.js';
-import { phaseLedger } from '../../../../gate/index.js';
+import { phaseLedger } from '../../../../gate/heavy.js';
 import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { ledgerProofCheck } from '../../../src/io/runner/proof.js';
