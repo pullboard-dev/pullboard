@@ -75,3 +75,25 @@ test('gate.io-test-inputs.with-the-setting-off-the-same: clause 2: with the sett
   const files = { 'a.test.js': FIXTURE_READ, 'b.test.js': DOCS_READ };
   assert.deepEqual(testInputProblems('/unused', Object.keys(files), path => files[path], false), []);
 });
+
+const WALK = "import { readFileSync } from 'node:fs';\nimport { readdirSync } from 'node:fs';\nimport { join } from 'node:path';\nconst DIR = import.meta.dirname;\nreaddirSync(DIR);\nreadFileSync(join(DIR, 'fixtures', 'registry.json'));\n";
+const LIST = "import { readFileSync } from 'node:fs';\nimport { join } from 'node:path';\nconst FILES = ['apps/cli/journeys/gate/slot.test.js'];\nfor (const name of FILES) readFileSync(join(import.meta.dirname, '../../..', name));\n";
+const DATA = "import { readFileSync } from 'node:fs';\nreadFileSync(new URL('../data/ceilings/a.json', import.meta.url));\n";
+
+test('gate.io-test-inputs.exact-declared-reads: clause 1: with the setting on, a read under a cell data, tests or journeys folder needs a header naming it or a glob over it, also through a constant bound to import.meta; a source-cell, source-tree or bare ** header does not cover it, and with the setting off none is reported [C7,#12055]', () => {
+  const files = {
+    'packages/api/tests/registry.test.js': `/** @pullboard-test-input source-cell packages/api */\n${WALK}`,
+    'packages/api/tests/inputs.test.js': `/** @pullboard-test-input packages/api/tests/** */\n${WALK}`,
+    'apps/cli/tests/cases.test.js': `/** @pullboard-test-input ** */\n${LIST}`,
+    'apps/cli/tests/named.test.js': `/** @pullboard-test-input apps/cli/journeys/gate/slot.test.js */\n${LIST}`,
+    'packages/gate/tests/rows.test.js': `/** @pullboard-test-input source-tree */\n${DATA}`,
+    'packages/gate/tests/rows-named.test.js': `/** @pullboard-test-input packages/gate/data/ceilings/*.json */\n${DATA}`,
+  };
+  const problems = testInputProblems('/unused', Object.keys(files), path => files[path], true);
+  assert.deepEqual(problems.map(p => [p.path, p.line, p.text]), [
+    ['packages/api/tests/registry.test.js', 6, 'reads packages/api/tests without a header naming it'],
+    ['apps/cli/tests/cases.test.js', 4, 'reads apps/cli/journeys/gate/slot.test.js without a header naming it'],
+    ['packages/gate/tests/rows.test.js', 3, 'reads packages/gate/data/ceilings/a.json without a header naming it'],
+  ]);
+  assert.deepEqual(testInputProblems('/unused', Object.keys(files), path => files[path], false), []);
+});

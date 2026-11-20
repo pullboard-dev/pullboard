@@ -1,6 +1,6 @@
 /** Submit, review and companion composition retain original completed per-file proof [C7,V4]. */
 import assert from 'node:assert/strict';
-import { completedTestResult } from '../../gate/index.js';
+import { completedTestResult } from '../../gate/heavy.js';
 import { test } from 'node:test';
 import { fleetTestResultReuse } from './fixtures/fleet.js';
 

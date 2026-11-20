@@ -1,0 +1,3 @@
+{
+  "cli.submit-offered.event-once": {"proves":{"specs":["C7"],"claim":"recordSubmitOffered appends exactly one submit_offered event by the submitting agent with the commit, job and main, and nothing for a job it already recorded."},"why":"Under pull mode the board's submit event waits for the status move, so the builder's real submit instant had no event.","kind":"cell unit","inputs":["apps/cli/tests/io/submit/offered.test.js","apps/cli/src/io/submit/offered.js","apps/cli/src/io/submit/pull.js"]}
+}

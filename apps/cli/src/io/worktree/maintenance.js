@@ -1,7 +1,5 @@
 /** Archive-first maintenance acts only on freshly observed native custody [B3,C7]. */
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -26,6 +24,9 @@ import { registeredMaintenanceTrees } from './maintenance/observation.js';
 import { takeMaintenanceCheckout } from './maintenance/observation.js';
 import { writeMaintenanceState } from './maintenance/observation.js';
 import { withMaintenanceLock } from './maintenance/observation.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Excluding a directory protects its descendants and a parent whose removal would erase it. */
 function contains(parent, child) {
@@ -62,7 +63,7 @@ function currentTree(root, common, path, head) {
   const row = registeredMaintenanceTrees(root).find(tree => resolve(tree.path) === resolve(path));
   if (!row || row.locked || row.bare || row.head !== head) throw new Error('maintenance registration changed; source retained');
   const info = repoInfo(path);
-  if (realpathSync(info.commonDir) !== common || realpathSync(info.root) !== resolve(path))
+  if (fs.realpath(info.commonDir) !== common || fs.realpath(info.root) !== resolve(path))
     throw new Error('maintenance worktree identity changed; source retained');
   return row;
 }
@@ -133,7 +134,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
   const report = { version: 1, id: randomUUID(), at: new Date(now).toISOString(), enabled: config.worktreeMaintenance?.enabled === true,
     counts: { active: 0, finished: 0, orphaned: 0, scratch: 0 }, pruned: 0, archived: 0, freedBytes: 0, entries: [] };
   if (!report.enabled) return report;
-  const info = repoInfo(root), common = realpathSync(info.commonDir);
+  const info = repoInfo(root), common = fs.realpath(info.commonDir);
   return withMaintenanceLock(common, async () => {
   removePartialArchives(common);
   const trees = registeredMaintenanceTrees(root);
@@ -197,7 +198,7 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       const late = maintenanceDirtyPaths(tree.path);
       if (late.length) { await keepDirty(ports, fresh, late, entry); entry.action = 'archived-kept'; continue; }
       maintenanceGit(root, ['worktree', 'remove', tree.path]);
-      if (existsSync(tree.path)) throw new Error('maintenance removal did not complete');
+      if (fs.exists(tree.path)) throw new Error('maintenance removal did not complete');
       entry.action = 'pruned';
       report.pruned++;
       if (allocated === null || archiveSize === null) report.freedBytes = null;
@@ -229,7 +230,7 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
   if (maintenanceProtectedPath(path)) return null;
   if (resolve(path) !== resolve(root) && !(retired && ports.completedTakeover === true)
     && !(withdrawn && ports.completedWithdrawal === true)) return null;
-  const info = repoInfo(root), common = realpathSync(info.commonDir), trees = registeredMaintenanceTrees(root);
+  const info = repoInfo(root), common = fs.realpath(info.commonDir), trees = registeredMaintenanceTrees(root);
   const tree = trees.find(row => resolve(row.path) === resolve(path));
   if (!tree || tree.locked || tree.bare || tree.path === trees[0].path) return null;
   const snapshot = await ports.readSnapshot();
