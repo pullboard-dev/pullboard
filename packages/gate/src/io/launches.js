@@ -1,12 +1,7 @@
 #!/usr/bin/env node
 /** Report remaining Git launch sites with --report, lower the allowance with --write, or refuse per-file growth [C7]. */
-import {
-  existsSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
 import { resolve } from 'node:path';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { fileURLToPath } from 'node:url';
 import {
   gitLaunchGrowth,
@@ -14,6 +9,8 @@ import {
   loweredGitLaunchBaseline,
 } from '../../../git/index.js';
 import { report } from './scan.js';
+
+const fs = fileSystemAdapter();
 
 const BASELINE = new URL('../../../git/src/io/launch/baseline.json', import.meta.url);
 
@@ -27,18 +24,18 @@ function growthProblems(growth) {
 
 /** Find additions against the committed baseline, retaining the remaining sites as an explicit report. */
 export function gitLaunchProblems(root) {
-  const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
+  const baseline = JSON.parse(fs.readFile(BASELINE, 'utf8'));
   return growthProblems(gitLaunchGrowth(gitLaunchReport(root), baseline.files));
 }
 
 /** Record the lowered allowance after a migration; growth is reported and nothing is written. */
 export function writeGitLaunchBaseline(root) {
-  const lowered = loweredGitLaunchBaseline(gitLaunchReport(root), JSON.parse(readFileSync(BASELINE, 'utf8')));
-  if (lowered.baseline) writeFileSync(BASELINE, `${JSON.stringify(lowered.baseline, null, 2)}\n`);
+  const lowered = loweredGitLaunchBaseline(gitLaunchReport(root), JSON.parse(fs.readFile(BASELINE, 'utf8')));
+  if (lowered.baseline) fs.writeFile(BASELINE, `${JSON.stringify(lowered.baseline, null, 2)}\n`);
   return growthProblems(lowered.growth);
 }
 
-if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && fs.exists(process.argv[1]) && fs.realpath(process.argv[1]) === fs.realpath(fileURLToPath(import.meta.url))) {
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify(gitLaunchReport(root), null, 2));
   else if (process.argv.includes('--write')) report(writeGitLaunchBaseline(root));

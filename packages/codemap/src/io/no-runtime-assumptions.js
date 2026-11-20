@@ -10,8 +10,8 @@
  *
  * @file-local Reads the config and the sources under the root, through `read` when a caller supplies one.
  */
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
+const disk = fileSystemAdapter();
 import { join } from 'node:path';
 import { lex } from '../../../kernel/index.js';
 import { lineAt } from '../../../kernel/index.js';
@@ -129,7 +129,7 @@ export function assumptionProblems(root, options = {}) {
  */
 export function writeAssumptionBaseline(root) {
   const file = join(root, CONFIG);
-  const config = JSON.parse(readFileSync(file, 'utf8'));
+  const config = JSON.parse(disk.readFile(file, 'utf8'));
   const today = assumptionReport(root);
   const lowered = {};
   for (const [path, kinds] of Object.entries(config.baseline)) {
@@ -140,7 +140,7 @@ export function writeAssumptionBaseline(root) {
     }
     if (Object.keys(row).length) lowered[path] = row;
   }
-  writeFileSync(file, `${JSON.stringify({ ...config, baseline: lowered }, null, 2)}\n`);
+  disk.writeFile(file, `${JSON.stringify({ ...config, baseline: lowered }, null, 2)}\n`);
   return assumptionProblems(root);
 }
 

@@ -256,6 +256,7 @@ const ROWS = [
   ['affectedSuites', 'Suites by folder', 'Which test suite covers each folder, so a landing runs only the suites its changes touch.', 'Checks', 'list'],
   ['affectedTests', 'Selected-test command', 'The command prefix that runs only the test files a change affects.', 'Checks', 'command'],
   ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
+  ['cells.plan', 'Cells plan path', 'The repo path of the cells plan; leave it out for a project with no cells.', 'Checks', 'path'],
   ['cells.shimMaxAgeDays', 'Shim removal age', 'Health names compatibility shims left beyond this many days after their cell move landed.', 'Checks', 'days'],
   ['check.install', 'Check setup', 'The command that prepares a clean tree before an item\'s frozen check runs.', 'Checks', 'command'],
   ['check.timeout', 'Check time limit', 'The longest a frozen check may run.', 'Checks', 'duration'],
