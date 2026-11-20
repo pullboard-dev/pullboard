@@ -24,7 +24,7 @@ import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 // #616: the decline-with-reason dialog has the same reach as Approve all's confirmation (#612). Opened on one board, it
 // must never record the person's decline on another: the page behind it is inert, Tab stays inside it, and leaving the
 // board closes it.
-test('a decline stays on the board it was opened on [B26,N26]', { timeout: 150_000 }, async () => { // budget: hang-only ceiling for Chrome startup, two boards and their recorded decisions.
+test('cli.journeys-spec-cockpit-boards.a-decline-stays-on-the-board: a decline stays on the board it was opened on [B26,N26]', { timeout: 150_000 }, async () => { // budget: hang-only ceiling for Chrome startup, two boards and their recorded decisions.
   const executable = chromeExecutable();
   assert.ok(executable, 'the decline board check needs real Chrome');
   const spec = '# Same rows\n\n## G · Goals\n- G1 [draft, must] First goal. | gate: web test\n- G2 [draft, must] Second goal. | gate: web test\n';
@@ -113,7 +113,7 @@ test('a decline stays on the board it was opened on [B26,N26]', { timeout: 150_0
   }
 });
 
-test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for native setup, Chrome and one person decision.
+test('cli.journeys-spec-cockpit-boards.a-pending-spec-question-can-be: a pending Spec question can be answered in the view [I1,B26]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for native setup, Chrome and one person decision.
   const executable = chromeExecutable();
   assert.ok(executable, 'answering a pending question needs real Chrome');
   const spec = '# Questions\n\n## G · Goals\n- G1 [pending, must] Which store holds the data: SQLite. Choices: SQLite, Postgres. | gate: review\n';
@@ -152,7 +152,7 @@ test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 
   }
 });
 
-test('a refresh keeps the draft and focus in a pending Spec question Answer box [N27,I1]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for native setup and Chrome.
+test('cli.journeys-spec-cockpit-boards.a-refresh-keeps-the-draft-and: a refresh keeps the draft and focus in a pending Spec question Answer box [N27,I1]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for native setup and Chrome.
   const executable = chromeExecutable();
   assert.ok(executable, 'the Answer draft check needs real Chrome');
   const spec = '# Questions\n\n## G · Goals\n- G1 [pending, must] Which store holds the data: SQLite. Choices: SQLite, Postgres. | gate: review\n';

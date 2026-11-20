@@ -318,7 +318,7 @@ const CLAIM_PREPARE_ATTEMPTS = 5;
 const ITEM_META_FAMILIES = [
   'bar_grandfather:', 'bar_revision:', 'bar_sign:', 'blocked_release_waiting:', 'claim_stalled:', 'claim_waiting:',
   'exit-handoff:', 'hold_owner:', 'item_check_baseline_', 'item_check_timing:', 'item_decision:', 'item_diagnosis:',
-  'item_expected_build_minutes:', 'item_lineage:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
+  'item_expected_build_minutes:', 'item_lineage:', 'item_needs:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
   'item_review_family:', 'item_source_advance:', 'item_urgent:', 'landing_phases:', 'main_red_failure_lines:',
   'rehome_import:', 'review_independence:', 'shared-item:', 'stale_hold_until:', 'stale_hold_warning:', 'strict_rename:',
 ];

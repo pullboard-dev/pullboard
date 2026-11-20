@@ -2,7 +2,6 @@ import { observeDirtyRunnerTooling } from '../../../runners/index.js';
 import { dispatchHealth } from "./dispatch.js";
 import { rejectedWorkReturns } from "./returns.js";
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
-import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from "../../../store/index.js";
 import { readBoardSnapshot } from "../../../store/index.js";
 import { healthReport } from "../../../health/index.js";
@@ -17,6 +16,10 @@ import {
   healthFindingIdentity,
   normalizedHealthFindings,
 } from "../../../store/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+/** The one file-system adapter this file reads through [C7]. */
+const fs = fileSystemAdapter();
 
 /**
  * A missing board or an explicitly disabled sentinel has no observation to publish. `gateDrives(db, now)` adds the
@@ -25,7 +28,7 @@ import {
  * `memory()` reads process sizes and swap for the scratch-memory warning; it is off unless the sentinel command passes it [C7].
  */
 export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, tooling = observeDirtyRunnerTooling, gateDrives = () => [], memory = () => null, returnRejected = false }) {
-  if (!healthSentinelEnabled(config) || !existsSync(file)) return null;
+  if (!healthSentinelEnabled(config) || !fs.exists(file)) return null;
   const db = openBoardReadOnly(file);
   try {
     db.exec('BEGIN');
