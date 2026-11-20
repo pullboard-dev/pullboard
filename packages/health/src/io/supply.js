@@ -11,13 +11,13 @@
  * @param {number} now - Observation time in milliseconds.
  * @param {(cause: string, item: any, fields: object) => object} finding - The health finding builder.
  * @param {(item: any) => string} submittedAt - When the item was submitted, as an ISO time.
- * @param {{ limitProblem: (board: any, item: any, seat: string) => any, familyOf: (board: any, item: any) => string }} verify - The review rules, passed in so health takes on no verify edge here.
+ * @param {{ reviewHolder: (board: any, item: any) => string|null, limitProblem: (board: any, item: any, seat: string) => any, familyOf: (board: any, item: any) => string }} verify - The review rules, passed in so health takes on no verify edge here.
  * @returns {object[]}
  */
 export function noReviewerSupplyFindings(board, items, seats, now, finding, submittedAt, verify) {
   const out = [];
   for (const item of items) {
-    if (item.item_status !== 'submitted' || item.item_review_by) continue;
+    if (item.item_status !== 'submitted' || verify.reviewHolder(board, item)) continue;
     const others = seats.filter(seat => seat.agent_id !== item.item_built_by && seat.agent_lane !== 'coordinator');
     const limited = others.filter(seat => verify.limitProblem(board, item, seat.agent_id));
     if (!limited.length || limited.length !== others.length) continue;
