@@ -78,6 +78,7 @@ const BEFORE = [
   'provideMainRedNotes',
   'provideMainTestRecorder',
   'provideRefusalTrials',
+  'provideScreenStart',
   'provideTimingExcuse',
   'pulledGateReds',
   'queueDraining',

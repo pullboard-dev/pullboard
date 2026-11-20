@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
 import { mkdtempSync } from 'node:fs';
 import { scratchBase } from '../../../../kernel/light.js';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** Run ssh-keygen in a private scratch folder, refusing plainly when OpenSSH is not installed. */
 function sshKeygen(args, input) {
@@ -26,7 +27,7 @@ function scratch(work) {
 }
 
 /** The SSH key that vouches for this device: PULLBOARD_SSH_KEY, or the usual key files under ~/.ssh. */
-function signingKey(environment = process.env) {
+function signingKey(environment = environmentAdapter().all()) {
   if (environment.PULLBOARD_SSH_KEY) return environment.PULLBOARD_SSH_KEY;
   const found = ['id_ed25519', 'id_ecdsa', 'id_rsa'].map(name => join(homedir(), '.ssh', name)).find(existsSync);
   if (!found) throw new Refused('RELAY_SSH_KEY', 'no SSH key here vouches for this device; add one to your GitHub account with ssh-keygen -t ed25519 and gh ssh-key add, or set PULLBOARD_SSH_KEY to its path');
@@ -42,7 +43,7 @@ export function signSshVouch(bytes, namespace, requestedKey) {
   return scratch(folder => {
     const file = join(folder, 'statement');
     writeFileSync(file, bytes, { mode: 0o600 });
-    const tries = process.env.SSH_AUTH_SOCK && existsSync(key + '.pub') ? [key + '.pub', key] : [key];
+    const tries = environmentAdapter().get('SSH_AUTH_SOCK') && existsSync(key + '.pub') ? [key + '.pub', key] : [key];
     let failure = '';
     for (const signer of tries) {
       const result = sshKeygen(['-Y', 'sign', '-q', '-n', namespace, '-f', signer, file]);
