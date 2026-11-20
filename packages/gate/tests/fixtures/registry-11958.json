@@ -1,0 +1,4 @@
+{
+  "gate.io-gui-admission.timing-header-declares": {"proves":{"specs":["C7"],"claim":"timingTestFiles returns exactly the files whose leading comments hold a @pullboard-test-timing line; the tag after code, inside a string, or on a missing file does not count."},"why":"Without it a load-sensitive test file cannot ask for an exclusive runner, and it goes red in gates on loaded runners.","kind":"contract","inputs":["packages/gate/index.js"]},
+  "gate.io-gui-admission.timing-files-declared-here": {"proves":{"specs":["C7"],"claim":"In this repository timingTestFiles finds the three admission-loans timing files."},"why":"Without it a load-sensitive test file cannot ask for an exclusive runner, and it goes red in gates on loaded runners.","kind":"contract","inputs":["packages/gate/index.js"]}
+}

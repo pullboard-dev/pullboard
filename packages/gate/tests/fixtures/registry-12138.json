@@ -1,0 +1,4 @@
+{
+  "gate.light.tap-escaped-name": {"proves":{"specs":["C7"],"claim":"tapFailures with nativeLeaves reads a failing TAP case written with \\# and \\\\ as its unescaped name and matches its outcome record."},"why":"Node escapes # and backslash in TAP names; an escaped name never matched its outcome, so accountedFailures returned null.","kind":"cell unit","inputs":["packages/gate/light.js","packages/gate/tests/light.test.js"]},
+  "gate.light.tap-escaped-real-run": {"proves":{"specs":["C7"],"claim":"a real run of packages/gate/src/io/run/tests.js on a failing title holding # and a backslash gives accountedFailures a row with the unescaped name."},"why":"The pulled gate entry posts failures null for such reds unless the real runner output is accounted.","kind":"cell unit","inputs":["packages/gate/light.js","packages/gate/src/io/run/tests.js","packages/gate/tests/light.test.js"]}
+}

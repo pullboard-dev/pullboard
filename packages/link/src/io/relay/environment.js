@@ -1,3 +1,4 @@
+import { environmentAdapter } from '../../../../env/index.js';
 import { withDerivedFamily } from '../../../../items/index.js';
 /**
  * A CI or cloud session's board, from its environment alone [E18]. A session that cannot pair holds an agent token
@@ -48,12 +49,12 @@ function linkedBoard(file) {
  * @returns {Promise<boolean>}
  */
 export async function environmentLink(root, file, io) {
-  const token = process.env.PULLBOARD_RELAY_TOKEN;
-  if (token === undefined || process.env.PULLBOARD_RELAY_KEY === undefined || CHECKED.has(file)) return false;
+  const token = environmentAdapter().get('PULLBOARD_RELAY_TOKEN');
+  if (token === undefined || !environmentAdapter().has('PULLBOARD_RELAY_KEY') || CHECKED.has(file)) return false;
   const linked = existsSync(file);
   if (linked && !TOKEN.test(token)) return false;
   if (!TOKEN.test(token)) throw new Refused('AUTH_REQUIRED', 'set PULLBOARD_RELAY_TOKEN to one agent token for this board, never in command arguments');
-  const url = relayOrigin(process.env.PULLBOARD_RELAY_URL || DEFAULT_RELAY);
+  const url = relayOrigin(environmentAdapter().get('PULLBOARD_RELAY_URL') || DEFAULT_RELAY);
   const probe = { version: 1, board: '0'.repeat(32), url, token, sequence: 0, cursor: 0 };
   // A board token sees exactly its own board; the session then names the agent it acts as.
   const { boards } = linked ? await request(probe, '/auth/boards', {}, io).catch(() => ({})) : await request(probe, '/auth/boards', {}, io);
@@ -92,7 +93,7 @@ export async function environmentLink(root, file, io) {
  * @returns {object | null} the agent row
  */
 export function environmentAgent(root, board) {
-  if (process.env.PULLBOARD_RELAY_TOKEN === undefined) return null;
+  if (!environmentAdapter().has('PULLBOARD_RELAY_TOKEN')) return null;
   let state;
   try { state = JSON.parse(readFileSync(join(repoInfo(root).commonDir, 'pullboard', 'relay.json'), 'utf8')); } catch { return null; }
   const agent = state?.environment?.agent;

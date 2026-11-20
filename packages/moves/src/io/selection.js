@@ -36,6 +36,7 @@ import { COORDINATOR } from '../../../config/index.js';
 import { machineSettingsFile } from '../../../config/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
 import { nextLabelBounds } from '../../../config/index.js';
+import { nextReturnedFirst } from '../../../config/index.js';
 import { nextCapBuilders } from '../../../config/index.js';
 import { nextLightShapedStrong } from '../../../config/index.js';
 import { nextRouteByTier } from '../../../config/index.js';
@@ -65,7 +66,7 @@ const requireModule = createRequire(import.meta.url);
  * @typedef {{ withBoardRead: Function, withBoard: Function, whoAmI: Function, idArg: Function, ordered: Function,
  *   claimOrdered: Function, currentReworkRoutingPolicy: Function, MainSpecMerged: Function, checkMainVerifier: Function,
  *   dirtyFiles: Function, openItemFolder: Function, liveFolderRefusal: Function,
- *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function, firstUnderLabelMax: Function }} NextPorts
+ *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function, firstUnderLabelMax: Function, loadReturnedRules?: Function, returnedRules?: { returnedFirst: Function, stopFacts: Function, stopReason: Function } }} NextPorts
  */
 
 /** This seat's three most recently updated built items, newest first, as listItems orders ties (item id, newest first) [C7,#10692]. */
@@ -108,6 +109,8 @@ export function warmFiles(ctx, board, me, { dirtyFiles }) {
 export async function nextOnce(ctx, values, ports) {
   const { withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, MainSpecMerged, checkMainVerifier,
     liveFolderRefusal, claimWorktreeSnapshot } = ports;
+  // The returned-work rules load only while next.returnedFirst is on, so next with it off loads no module more [C7,#11255].
+  if (nextReturnedFirst() && !ports.returnedRules && ports.loadReturnedRules) ports = { ...ports, returnedRules: await ports.loadReturnedRules() };
   if (!(values.verify && values.verifyId !== undefined)) {
     const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
     values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
@@ -405,6 +408,39 @@ function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMi
   return candidates.length ? { item: null, reasons: ['every item next could offer carries a label already at its maximum (next.labelBounds)'] } : queueTop;
 }
 
+/**
+ * next.returnedFirst (off by default): an item released or rejected once since its last criterion edit is offered ahead of untouched
+ * items, and one stopped twice (a wall) is passed over [C7,#2220]. Candidates are the same offers next would make in queue order, up to
+ * LABEL_PICK_DEPTH; each is read from its release, reject, reopen and edit moves alone, so an agent's words never decide the order.
+ * An item with none of those moves is untouched and keeps its place.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {any} selection - The options the queue top was chosen with.
+ * @param {{ item: any }} queueTop - The queue's own answer.
+ * @param {{ returnedFirst: Function, stopFacts: Function, stopReason: Function }} rules - The queue cell's pure ordering and the items cell's stop rules, loaded by nextOnce.
+ * @returns {any} The answer to use: the first offer the ordering keeps, or the queue's when it keeps none to read.
+ */
+function returnedFirstPick(ctx, board, selection, queueTop, { returnedFirst, stopFacts, stopReason }) {
+  const answers = [];
+  let answer = queueTop;
+  for (let depth = 0; answer.item && depth < LABEL_PICK_DEPTH; depth += 1) {
+    answers.push(answer);
+    selection = { ...selection, omitIds: [...selection.omitIds, answer.item.item_id] };
+    answer = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
+  }
+  const ids = answers.map(entry => entry.item.item_id);
+  const threads = store.itemThreads(board, ids, store.eventsOfKinds(board, ['release', 'reject', 'reopen', 'edit']));
+  const reasons = {};
+  for (const id of ids) {
+    const thread = threads.get(id) ?? [];
+    if (thread.some(entry => entry.type === 'move' && ['release', 'reject', 'reopen'].includes(entry.kind))) reasons[id] = stopReason(stopFacts(thread));
+  }
+  const [first] = returnedFirst(answers.map(entry => ({ id: entry.item.item_id, answer: entry })), reasons);
+  if (first) return first.answer;
+  return answers.length ? { item: null, reasons: ['every item next could offer has stopped twice since its last criterion edit (next.returnedFirst)'] } : queueTop;
+}
+
 /** slices.composeLanding (off by default) reaches the build selection and both review offers as who.composeLanding, beside next.wholeItemsFirst [C7,#11345]. */
 function composeLandingOf(ctx) {
   return ctx.config.slices?.composeLanding === true ? { composeLanding: true } : {};
@@ -462,7 +498,9 @@ function nextPick(ctx, board, values, ports) {
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(derivedGate ? { derivedGateAtHead: derivedGate } : {}), ...(derivedSeatFamily ? { derivedSeatFamily } : {}), ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...composeLandingOf(ctx), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
-  const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
+  const labelled = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
+  // Returned work leads only when no label bound already chose another item, so the two settings never fight over the top [C7,#11255].
+  const own = labelled === queueTop && nextReturnedFirst() && ports.returnedRules && queueTop.item && queueTop.item.item_status !== 'claimed' ? returnedFirstPick(ctx, board, selection, queueTop, ports.returnedRules) : labelled;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
   const reworks = own.item ? [] : builderRework(board, items, agents, me);
