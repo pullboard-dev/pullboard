@@ -1,5 +1,5 @@
 /** The free-disk warning behind health.diskFloorGb [C7,#9110]. */
-import { statfsSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
 
 const GB = 2 ** 30;
 
@@ -11,7 +11,7 @@ const GB = 2 ** 30;
  * @param {Function} [statfs] the file system reader, replaceable in tests
  * @returns {{ freeGb: number, floorGb: number, line: string }|null} the finding, or null when disk is fine, the check is off or unreadable
  */
-export function diskFloorFinding(root, floorGb, statfs = statfsSync) {
+export function diskFloorFinding(root, floorGb, statfs = fileSystemAdapter().statfs) {
   if (!(floorGb > 0)) return null;
   let free;
   try { const stat = statfs(root); free = stat.bavail * stat.bsize; } catch { return null; }
