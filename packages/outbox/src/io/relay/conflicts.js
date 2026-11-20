@@ -4,17 +4,12 @@
  * the move, and that worktree's next command says it, loudly, once.
  */
 import { createHash } from 'node:crypto';
-import {
-  appendFileSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import {
   dirname,
   join,
 } from 'node:path';
+const fileSystem = fileSystemAdapter();
 
 /** The folder of notices beside a link file. */
 function noticeDirectory(linkFile) {
@@ -34,8 +29,8 @@ function noticeFile(linkFile, worktree) {
  * @param {string} line - The refusal, naming the move that won.
  */
 export function leaveConflictNotice(linkFile, worktree, line) {
-  mkdirSync(noticeDirectory(linkFile), { recursive: true, mode: 0o700 });
-  appendFileSync(noticeFile(linkFile, worktree), JSON.stringify(line) + '\n', { mode: 0o600 });
+  fileSystem.mkdir(noticeDirectory(linkFile), { recursive: true, mode: 0o700 });
+  fileSystem.appendFile(noticeFile(linkFile, worktree), JSON.stringify(line) + '\n', { mode: 0o600 });
 }
 
 /**
@@ -49,10 +44,10 @@ export function leaveConflictNotice(linkFile, worktree, line) {
 export function takeConflictNotices(linkFile, worktree) {
   const file = noticeFile(linkFile, worktree);
   const taken = `${file}.${process.pid}.taken`;
-  try { renameSync(file, taken); } catch { return []; }
+  try { fileSystem.rename(file, taken); } catch { return []; }
   try {
-    return readFileSync(taken, 'utf8').split('\n').filter(Boolean).flatMap((row) => {
+    return fileSystem.readFile(taken, 'utf8').split('\n').filter(Boolean).flatMap((row) => {
       try { return [String(JSON.parse(row))]; } catch { return []; }
     });
-  } finally { rmSync(taken, { force: true }); }
+  } finally { fileSystem.rm(taken, { force: true }); }
 }

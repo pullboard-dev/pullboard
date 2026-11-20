@@ -1,11 +1,13 @@
 /** Native outside receipts bind the ordered accept to bytes written by its container executor. */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import {
   dirname,
   join,
 } from 'node:path';
 import { Refused } from "../../../../kernel/index.js";
+
+const fs = fileSystemAdapter();
 
 /** Check the receipt beside this exact board, never a caller-selected host path. Replay retains its sealed facts. */
 export function requireOutsideReceipt(board, receipt) {
@@ -15,10 +17,10 @@ export function requireOutsideReceipt(board, receipt) {
   if (!file) throw refuse();
   const directory = join(dirname(file), 'outside-check-output', String(receipt.item), receipt.id);
   try {
-    if (readFileSync(join(directory, 'receipt.json'), 'utf8') !== JSON.stringify(receipt) + '\n') throw refuse();
+    if (fs.readFile(join(directory, 'receipt.json'), 'utf8') !== JSON.stringify(receipt) + '\n') throw refuse();
     for (const log of receipt.logs) {
       if (!['minimum', 'current'].includes(log.role) || !['environment', 'baseline', 'gate', 'criterion'].includes(log.stage)) throw refuse();
-      const text = readFileSync(join(directory, `${log.role}-${log.stage}.log`));
+      const text = fs.readFile(join(directory, `${log.role}-${log.stage}.log`), null);
       if (createHash('sha256').update(text).digest('hex') !== log.sha256) throw refuse();
     }
   } catch { throw refuse(); }
