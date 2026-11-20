@@ -1145,7 +1145,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       });
     } catch (error) {
       if (error.code === 'RUNNER_STOPPED') break;
-      if (!(error instanceof Refused)) { failure = error; break; }
+      // A duplicate runner never serves: the board names it, so the serve ends with that error instead of waiting it out [C7].
+      if (!(error instanceof Refused) || error.code === 'RUNNER_DUPLICATE') { failure = error; break; }
       // A refused claim call is a wait like an unreachable board: said, backed off, tried again; only the signal ends the serve.
       say(`claim refused: [${error.code}] ${error.message}; retrying in ${delay} ms`);
       waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
