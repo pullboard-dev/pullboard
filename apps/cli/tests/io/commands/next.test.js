@@ -57,8 +57,9 @@ test('cli.io-commands-next.done-submits-and-continues: clause 1: a seat holding 
   box.git(cwd, 'commit', '-q', '-m', 'feat(web): the built item [G1]', '-m', `Pullboard-Item: #${held}`);
   const ran = await cli(box, cwd, ['next', '--done']);
   assert.equal(ran.code, 0, ran.out + ran.err);
-  const [submit] = store.events(box.board, { itemId: held }).filter(event => event.event_kind === 'submit');
-  assert.ok(submit, 'a submit event is recorded for the held item');
+  // The submit hands the item to a gate job; the board records the submit event only when a runner's receipt returns, so the job is the handoff [C7].
+  const gateJobs = box.board.db.prepare("SELECT job_id FROM job WHERE job_item=? AND job_kind='gate'").all(held);
+  assert.ok(gateJobs.length > 0, `a gate job is queued for the held item: ${ran.out}${ran.err}`);
   assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id, 'the same call claimed another item');
 });
 
