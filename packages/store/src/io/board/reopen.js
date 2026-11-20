@@ -40,19 +40,10 @@ import { movesLiveEnabled } from "../../../../config/index.js";
 import { shadowHook } from "./shadow-record.js";
 import { reopenDecision } from "./reopen-table.js";
 import { reopenDiffers } from "./reopen-table.js";
+import { itemPace } from "./sprint-pace.js";
 
 /** The event kinds the item's landing is read from, oldest first, as the pulled writer reads them. */
 const LANDING_KINDS = Object.freeze(['merged', 'pull_out', 'pulled', 'published']);
-
-/**
- * The pace frozen into the item's bar at its first claim, or steady when it holds none; the same reading as the moves cell's itemPace [V2].
- * Why a copy: the moves cell imports the store, so the store cannot import it back.
- */
-function itemPace(row) {
-  let frozen = null;
-  try { frozen = row?.item_frozen ? JSON.parse(row.item_frozen) : null; } catch { frozen = null; }
-  return frozen?.pace === 'sprint' || frozen?.pace === 'strict' ? frozen.pace : 'steady';
-}
 
 /** The item's landing events as `{ kind, by, detail }`, oldest first; a damaged detail reads as empty. */
 function landingHistory(board, id) {

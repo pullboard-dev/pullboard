@@ -97,7 +97,7 @@ export function submitGateConfig(config, accepted) {
   return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
     submitInvariants: accepted.submitInvariants, submitDeferAbove: accepted.submitDeferAbove,
     registryGuards: accepted.registryGuards,
-    ...(accepted.submitInvariants.length || accepted.registryGuards.length ? { affectedTests: accepted.affectedTests } : {}) };
+    ...(accepted.affectedTests?.trim() ? { affectedTests: accepted.affectedTests } : {}) };
 }
 
 /**
@@ -168,7 +168,7 @@ export function reusedProofFiles(root, plan, runner = plan.testRunner) {
 }
 
 /** Decide whether a planned submit needs a browser or GUI slot; a remote analysis runs this beside its plan. */
-export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [] }) {
+export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback, reusedFiles = [], needs = [] }) {
   const { check, selection, deferFullFallback, deferSelection } = plan;
   // Files whose recorded pass is reused run nowhere, so they ask for no browser or GUI slot [C7].
   const reused = new Set(reusedFiles);
@@ -180,7 +180,8 @@ export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, 
     : (selection.full || !allReused && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })));
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
-  return { browser: checkUsesBrowser || proofUsesBrowser, gui };
+  // An item that declares a need gets that slot even when no check or proof file asks [C7,#1888].
+  return { browser: checkUsesBrowser || proofUsesBrowser || (needs ?? []).includes('browser'), gui: gui || (needs ?? []).includes('gui') };
 }
 
 /** Retain all phase identities; conflicting observations never become an arbitrary file binding [V4,H16]. */

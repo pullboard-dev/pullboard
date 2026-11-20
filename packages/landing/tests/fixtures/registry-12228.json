@@ -1,0 +1,4 @@
+{
+  "landing.runner-sprint.ports-run-payload-commands": {"proves":{"specs":["C7"],"claim":"The runner Sprint ports list base..tip changes, run the carried static argv, and run a cell green with no test file or red naming the failing file."},"why":"The runner had no ports for static or cell runs, so a sprint land job could not run its proof there.","kind":"cell unit","inputs":["packages/landing/src/io/runner/sprint.js"]},
+  "landing.runner-sprint.proof-with-ports": {"proves":{"specs":["C7"],"claim":"sprintProof over the runner ports is green for a passing change and red naming the cell for a broken test."},"why":"The ports must satisfy the proof's own reading, not only return shapes.","kind":"cell unit","inputs":["packages/landing/src/io/runner/sprint.js","packages/landing/src/io/exact.js"]}
+}
