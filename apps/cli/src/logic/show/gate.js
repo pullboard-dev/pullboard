@@ -120,9 +120,10 @@ export function pulledRedLines(gateJob, item) {
   if (gateJob?.step !== 'done' || !gate || gate.green === true || gate.deferred === true || item?.item_status !== 'claimed') return [];
   const oneLine = text => String(text ?? '').replace(/\s+/gu, ' ').trim().slice(0, RED_ERROR_CHARS);
   const counts = gate.counts ? `: ${gate.counts.passed ?? 'unknown'} passed, ${gate.counts.failed ?? 'unknown'} failed` : '';
-  const seen = new Set(), cases = [], tails = [];
+  const seen = new Set(), cases = [], tails = [], commands = [];
   for (const phase of Array.isArray(gate.phases) ? gate.phases : []) {
     if (!phase || phase.status === 0) continue;
+    if (typeof phase.command === 'string' && phase.command.trim()) commands.push(`command: ${oneLine(phase.command)}`);
     const rows = (Array.isArray(phase.errors) ? phase.errors : []).filter(row => row && typeof row.name === 'string');
     const cause = causeLine(phase.tail);
     for (const row of rows) {
@@ -134,6 +135,7 @@ export function pulledRedLines(gateJob, item) {
   }
   const runner = gate.logRunner ? `; its full log is on runner ${gate.logRunner}` : '';
   return [`GATE_RED: gate job ${gateJob.id} is red${counts}${runner}; fix the named cases, commit, and run pullboard submit ${item.item_id} again`,
+    ...commands,
     ...cases.slice(0, RED_ROWS), ...(cases.length > RED_ROWS ? [`  ${cases.length - RED_ROWS} more failing cases in the full log`] : []),
     ...tails.slice(-RED_ROWS), ...(typeof gate.logPath === 'string' ? [`full log: ${gate.logPath}`] : [])];
 }

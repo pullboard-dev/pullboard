@@ -1,0 +1,4 @@
+{
+  "api.jobs-program.offer-holds-only-the-hash": {"proves":{"specs":["P7"],"claim":"With runs_store on, two offers of one program store each program text once in the runs file program table, and every offered row holds only its sha256."},"why":"Without this test the runs file would again hold a full copy of the program text in every offered row.","kind":"cell unit","inputs":["packages/api/tests/io/jobs/program.test.js","packages/api/src/io/jobs.js","packages/jobs/src/io/blobs.js"]},
+  "api.jobs-program.claimed-job-reads-the-text": {"proves":{"specs":["P7"],"claim":"A claimed job reads back the same program text it was offered with."},"why":"Without this test a runner could be handed a hash instead of the program it must run.","kind":"cell unit","inputs":["packages/api/tests/io/jobs/program.test.js","packages/api/src/io/jobs.js","packages/jobs/src/io/blobs.js"]}
+}

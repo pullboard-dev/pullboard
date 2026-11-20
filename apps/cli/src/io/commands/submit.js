@@ -1,4 +1,5 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
@@ -30,7 +31,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
-import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/heavy.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -73,8 +74,6 @@ import {
 import {
   COORDINATOR,
 } from '../../../../../packages/config/index.js';
-import {
-} from '../../../../../packages/gate/index.js';
 import {
   contains,
   git,
@@ -145,7 +144,7 @@ import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { topUpClaims } from '../next.js';
 import { mainRedBaselinesToRetake } from '../../../../../packages/store/index.js';
 import { mainRedItemCases } from '../../../../../packages/store/index.js';
-import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
+import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/heavy.js';
 import { waitForSubmitGate } from '../submit/wait.js';
 import { runStaticPreflight } from '../submit/preflight.js';
 import { requireStaticPreflight } from '../submit/preflight.js';
@@ -166,7 +165,7 @@ function reportSubmitStage(ctx, name, start) {
 
 /** Write one phase's wall time to stderr when PULLBOARD_SUBMIT_MARKS is set, so a slow submit names the phase that spent it [C7]. */
 export function submitMark(phase, startMs) {
-  if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
+  if (environmentAdapter().get('PULLBOARD_SUBMIT_MARKS')) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
 }
 
 /**
@@ -222,6 +221,15 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
 /** The tree of a commit, which for a composed submit is not the checkout's tree. */
 function commitTree(root, commit) { return git(root, ['rev-parse', `${commit}^{tree}`]).trim(); }
 
+/**
+ * Submit the item from the checkout it is built in, running the submit checks and recording the move.
+ *
+ * @param {object} ctx
+ * @param {number} id
+ * @param {object} infra
+ * @param {object|null} [companionInput]
+ * @returns {Promise<*>}
+ */
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
@@ -572,7 +580,7 @@ export async function recordCheckTicks(io, itemId) {
  * @param {NodeJS.ProcessEnv} [env] The seat's environment.
  * @returns {{ host: string, builderRoot?: string, root?: string }|null} The runner record, or null.
  */
-function hostedSubmitRunner(env = process.env) {
+function hostedSubmitRunner(env = environmentAdapter().all()) {
   const host = env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim();
   if (!host) return null;
   const runner = (loadMachineSettings().runners ?? []).find(row => row.host === host);
@@ -625,6 +633,13 @@ async function handOffHostedSubmit(ctx, id, runner) {
   return local;
 }
 
+/**
+ * The submit command: parse its arguments and flags, hand off to a hosted runner when one is set, and submit the item.
+ *
+ * @param {object} io
+ * @param {object} args the first word and the parsed flags
+ * @returns {Promise<number>}
+ */
 export async function run(io, { first, values }) {
   const submissionResult = {};
   let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, dryRunReview: values['dry-run-review'] === true, json: values.json === true };
