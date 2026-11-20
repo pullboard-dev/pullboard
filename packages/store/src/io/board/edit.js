@@ -4,6 +4,9 @@ import { requireCriterionEvidence } from '../../../../state/index.js';
 import { saveExpectedBuildMinutes } from '../expected.js';
 import { saveReadinessCommand } from '../readiness.js';
 import { validateReadinessCommand } from '../readiness.js';
+import { saveItemNeeds } from '../needs.js';
+import { validateItemNeeds } from '../needs.js';
+import { NEEDS_ENGINE } from '../../../../state/light.js';
 import { READINESS_ENGINE } from '../../../../state/light.js';
 import { validateExpectedBuildMinutes } from '../../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
@@ -25,6 +28,8 @@ import { saveCheckTiming } from "../../../../items/light.js";
 import { validateCheckTiming } from "../../../../items/light.js";
 import { pendingRefreeze } from "./read/shouts.js";
 import { validateItemDependencies } from "./item/dependencies.js";
+import { afterGateIds } from "./item/after-gate.js";
+import { setAfterGate } from "./item/after-gate.js";
 import { FILE_GROWTH_NOTICE_ENGINE } from "../../../../state/light.js";
 import { recordBarRevision } from "../../../../verify/index.js";
 import { normalizeCheckBaseline } from "../baseline/check.js";
@@ -58,20 +63,20 @@ import { persistShout } from "./shout.js";
  *
  * @param {any} board
  * @param {number} id
- * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
+ * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[], afterGate?: number[] }} change
  */
-export function editItem(board, id, { agentId, title, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, preserveFrozen = false }) {
+export function editItem(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen = false }) {
   if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
-    || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || checkBaseline !== undefined
+    || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || afterGate !== undefined || checkBaseline !== undefined
     || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
-    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined || readinessCommand !== undefined
+    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined || readinessCommand !== undefined || needs !== undefined
     || barActor !== undefined || referenceAuthors !== undefined || referenceAuthority !== undefined)) {
     throw new Refused('COORDINATOR_ONLY', 'preserving a frozen bar is limited to the coordinator’s exact S10 criterion strip');
   }
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, preserveFrozen });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen });
     if (preserveFrozen) {
       const engine = board.executionEngineVersion ?? ENGINE_VERSION;
       const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
@@ -104,8 +109,12 @@ export function editItem(board, id, { agentId, title, brief, route, criterion, c
     saveCheckTiming(board, id, checkTiming);
     saveExpectedBuildMinutes(board, id, expectedBuildMinutes);
     saveReadinessCommand(board, id, readinessCommand);
+    saveItemNeeds(board, id, needs);
     setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     saveReviewFamily(board, id, reviewFamily);
+    // A new plain --after list keeps the after-gate ids the item already waits on.
+    if (afterGate !== undefined) setAfterGate(board, id, afterGate);
+    else if (after !== undefined && afterGateIds(board, id).length) setAfterGate(board, id, afterGateIds(board, id));
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
     saveItemReviewPolicy(board, id, reviewPolicy);
     const machineVerification = saveMachineVerification(board, { ...item, ...next }, { agentId, machineVerified, machineCommands });
@@ -124,6 +133,7 @@ export function editItem(board, id, { agentId, title, brief, route, criterion, c
       ...(checkTiming === undefined ? {} : { checkTiming }),
       ...(expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes }),
       ...(readinessCommand === undefined ? {} : { readinessCommand: readinessCommand.trim() }),
+      ...(needs === undefined ? {} : { needs }),
       ...(next.item_after !== item.item_after ? { after: itemDependencies.dependencyValues(next) } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
       ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
@@ -155,9 +165,11 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, preserveFrozen = false }) {
+export function validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, afterGate, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
+  validateItemNeeds(needs);
+  if (needs !== undefined && engine < NEEDS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring item needs');
   validateReadinessCommand(readinessCommand);
   if (readinessCommand !== undefined && engine < READINESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring a readiness command');
   validateExpectedBuildMinutes(expectedBuildMinutes);
@@ -177,7 +189,7 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
   }
   const command = editCheck(agentId, check, widened);
   if (title !== undefined && (typeof title !== 'string' || !title.trim())) throw new Refused('USAGE', 'the new title cannot be empty: pass --title "the new title"');
-  if ([title, brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand].every((value) => value === undefined)) {
+  if ([title, brief, route, criterion, check, after, afterGate, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, needs].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --title "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));
@@ -198,7 +210,10 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
       throw new Refused('BAD_DEPENDENCIES', 'item dependencies must be an array of positive integer item ids; use --after 1,2 or --after none');
     }
     itemDependencies.validateNativeDependencies(after);
-    validateItemDependencies(board, id, after);
+    validateItemDependencies(board, id, [...after, ...(afterGate ?? afterGateIds(board, id))]);
+  } else if (afterGate !== undefined) {
+    itemDependencies.validateNativeDependencies(afterGate);
+    validateItemDependencies(board, id, [...itemDependencies.dependencyValues(item.item_after), ...afterGate]);
   }
   const next = {
     item_title: title === undefined ? item.item_title : title.trim(),
