@@ -4,6 +4,7 @@ import { requireTestMirror } from '../item/bar.js';
 import { barOwnerOptions } from '../item/bar.js';
 import { requireNoCoordinatorPath } from '../item/bar.js';
 import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
+import { claimCheckCeilingEnabled } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
@@ -128,7 +129,7 @@ export async function run(io, args) {
     change.freeze = freezer(ctx, { captureVerifyPolicy: true, board });
   }
   if (command && command !== item.item_check) refuseCheckSyntax(command);
-  if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command && (command !== item.item_check || barReadySetting(board).enabled)) change.checkBaseline = { ...prepareCheckBaseline(ctx.info.root, command), ...(claimCheckCeilingEnabled() && command !== item.item_check ? { strict: true } : {}) };
   if (command && command !== item.item_check && !sealed) store.guardGreenCheck(board, change.checkBaseline, values['accept-green']);
   change.barActor = barActorForCommand(ctx, board, { asPerson });
   await ordered(ctx, board, 'editItem', [id, change]);
