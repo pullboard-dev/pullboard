@@ -22,6 +22,9 @@ import {
 } from '../../../../../packages/git/index.js';
 import { stopLandingWaits } from '../../../../../packages/landing/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
+import { itemPace } from '../../../../../packages/store/index.js';
+import { pullingLanding } from '../../../../../packages/store/index.js';
+import { pullOutPulling } from './pull-out.js';
 import { sprintLandable } from '../../../../../packages/api/index.js';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
 import {
@@ -88,9 +91,13 @@ function landingObservation(root, ioOptions = {}) {
   const ctx = context(wakeIo(root, ioOptions));
   const trunk = mainCheckout(root);
   // A repository with no board has nothing to land; reading must never create one (withBoardRead would open it for write).
-  const verified = !existsSync(ctx.file) ? [] : withBoardRead(ctx, board => listItems(board, { all: true })
-    .filter(item => !item.item_merged_commit && (item.item_status === 'verified' || sprintLandable(board, item, trunk?.commit ?? null))).map(item => `${item.item_id}:${item.item_commit}`).sort());
-  return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0, verified };
+  const { verified, pulling } = !existsSync(ctx.file) ? { verified: [], pulling: [] } : withBoardRead(ctx, board => {
+    const items = listItems(board, { all: true });
+    // A sprint item whose landing a reject left pulling waits for its pull-out, so one that failed runs again [M2,R3,#12181].
+    return { verified: items.filter(item => !item.item_merged_commit && (item.item_status === 'verified' || sprintLandable(board, item, trunk?.commit ?? null))).map(item => `${item.item_id}:${item.item_commit}`).sort(),
+      pulling: items.filter(item => itemPace(item) === 'sprint' && pullingLanding(board, item.item_id)).map(item => item.item_id) };
+  });
+  return { main: trunk?.commit, branch: trunk?.branch, waiting: verified.length > 0 || pulling.length > 0, verified, pulling };
 }
 
 /**
@@ -179,6 +186,11 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
   else environment.delete('PULLBOARD_LANDING_BACKOFF_MS');
   let observed = landingObservation(root);
   if (!observed.waiting) return;
+  if (observed.pulling.length) {
+    await pullOutPulling(context(wakeIo(root)), observed.pulling);
+    observed = landingObservation(root);
+    if (!observed.waiting) return;
+  }
   const before = observed;
   let held = null, refused = false, ran = null;
   try { ran = await land(context(wakeIo(root))); }
