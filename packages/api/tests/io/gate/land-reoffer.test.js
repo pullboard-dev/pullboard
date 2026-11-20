@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
+import * as store from '../../../../store/index.js';
 import { boardJobQueueCall } from '../../../index.js';
 import { claimJob } from '../../../index.js';
 import { offerLandingJob } from '../../../index.js';
@@ -21,12 +23,15 @@ function claimedLanding(t, { line = {}, pace = null } = {}) {
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
   const commit = repo.commit;
+  // A red receipt returns its item as the coordinator and tells its builder, so both are registered seats.
+  store.board_ensureCoordinator(board, repo.root);
+  const builder = cellSeat(board, { lane: 'core', path: `${repo.root}/seat` }).id;
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
   board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
     VALUES (7, 'core-2', 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, ?)`).run(commit, 'd'.repeat(64), commit, STAMP);
   board.db.exec('INSERT INTO temp.moving VALUES (1)');
-  board.db.prepare(`UPDATE item SET item_status='verified', item_commit=?, item_owner='core-1', item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by='core-1', item_verified_by='core-2', item_verdict='ACCEPT' WHERE item_id=7`)
-    .run(commit, JSON.stringify(pace ? { pace } : {}), 'd'.repeat(64));
+  board.db.prepare(`UPDATE item SET item_status='verified', item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen=?, item_frozen_digest=?, item_built_by=?, item_verified_by='core-2', item_verdict='ACCEPT' WHERE item_id=7`)
+    .run(commit, builder, JSON.stringify(pace ? { pace } : {}), 'd'.repeat(64), builder);
   board.db.exec('DELETE FROM temp.moving');
   for (const [key, value] of Object.entries(line)) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`line_setting:${key}`, JSON.stringify(value));
   const job = offerLandingJob(board.db, { items: [{ id: 7, commit, ref: 'refs/pullboard/land/7' }], expect: commit, config: CONFIG });
