@@ -9,7 +9,7 @@ const { values } = parseArgs({ options: { output: { type: 'string' }, head: { ty
 import {
   releaseSource,
   runReleaseGate,
-} from '../../../../gate/index.js';
+} from '../../../../gate/heavy.js';
 import { fileSystemAdapter } from '../../../../fs/index.js';
 
 const fs = fileSystemAdapter();

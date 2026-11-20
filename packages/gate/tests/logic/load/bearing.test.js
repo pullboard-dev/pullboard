@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { LOAD_BEARING_CEILINGS } from '../../../index.js';
+import { LOAD_BEARING_CEILINGS } from '../../../heavy.js';
 import { changedStaticFailures } from '../../../heavy.js';
-import { loadBearingRaised } from '../../../index.js';
+import { loadBearingRaised } from '../../../heavy.js';
 
 const OLD = 'apps/lib/src/shell/sender.js';
 const MOVED = 'apps/cli/src/shell/sender.js';

@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-frozen.frozen-lines-match-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "frozenLines returns the frozen-at-claim lines with person rulings and the test author and reviewer family lines exactly as show printed them."
+    },
+    "why": "Without it, moving these lines out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/frozen.js"
+    ]
+  }
+}

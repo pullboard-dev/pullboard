@@ -4,7 +4,7 @@ import {
   readGateReceipt,
   receiptBinds,
   receiptStore,
-} from '../../../gate/index.js';
+} from '../../../gate/heavy.js';
 import { Refused } from '../../../kernel/index.js';
 import { fileSystemAdapter } from '../../../fs/index.js';
 

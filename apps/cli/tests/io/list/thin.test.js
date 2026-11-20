@@ -29,7 +29,7 @@ test('cli.io-list-thin.the-thin-door-returns-the-same-rows: clause 1: the thin d
     const full = await box.runLocal(box.repo, 'list', ...(all ? ['--all'] : []), '--json');
     assert.equal(full.code, 0, full.err);
     const expected = JSON.parse(full.out);
-    const thin = thinListRows({ cwd: box.repo, all });
+    const thin = await thinListRows({ cwd: box.repo, all });
     assert.ok(thin, 'the door served a current board');
     assert.equal(thin.items.length, expected.items.length);
     assert.deepEqual(JSON.parse(JSON.stringify(thin.items)), expected.items);
