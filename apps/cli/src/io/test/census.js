@@ -13,13 +13,13 @@ import { spawnSync } from 'node:child_process';
 import { loadavg } from 'node:os';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
-import { COLLECTION_ID_ENV } from '../../../../../packages/gate/index.js';
-import { allTestOutcomes } from '../../../../../packages/gate/index.js';
-import { browserBoundFiles } from '../../../../../packages/gate/index.js';
-import { testsNeedGui } from '../../../../../packages/gate/index.js';
+import { COLLECTION_ID_ENV } from '../../../../../packages/gate/heavy.js';
+import { allTestOutcomes } from '../../../../../packages/gate/heavy.js';
+import { browserBoundFiles } from '../../../../../packages/gate/heavy.js';
+import { testsNeedGui } from '../../../../../packages/gate/heavy.js';
 import { LANDING_COLLECT_ALL_ENV } from '../../../../../packages/landing/index.js';
-import { LANDING_SHARD_ENV } from '../../../../../packages/gate/index.js';
-import { formatTestOutcomes } from '../../../../../packages/gate/index.js';
+import { LANDING_SHARD_ENV } from '../../../../../packages/gate/heavy.js';
+import { formatTestOutcomes } from '../../../../../packages/gate/heavy.js';
 import { checkoutCommonDir } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { fileKey } from '../../../../../packages/landing/index.js';
@@ -27,8 +27,8 @@ import { planLandingShards } from '../../../../../packages/landing/index.js';
 import { runLandingShards } from '../../../../../packages/landing/index.js';
 import { FILE_TIME_LINE } from '../../../../../packages/landing/index.js';
 import { shardFileTimes } from '../../../../../packages/landing/index.js';
-import { readFileTimes } from '../../../../../packages/gate/index.js';
-import { writeFileTimes } from '../../../../../packages/gate/index.js';
+import { readFileTimes } from '../../../../../packages/gate/heavy.js';
+import { writeFileTimes } from '../../../../../packages/gate/heavy.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
@@ -71,7 +71,7 @@ import { withFileLimit } from './file-limit.js';
 
 /** Tracked test entry files at HEAD, the way the gate lists them for a full suite. */
 async function trackedTests(root) {
-  const { trackedDefaultTestFiles } = await import('../../../../../packages/gate/index.js');
+  const { trackedDefaultTestFiles } = await import('../../../../../packages/gate/heavy.js');
   return trackedDefaultTestFiles(root, process.env).map(file => file.replace(/^\.\//u, ''));
 }
 
