@@ -24,6 +24,8 @@ import { EXPORT_ONLY_CEILINGS } from '../../../logic/export/only.js';
 import { declaredDoorFiles } from '../../../logic/export/only.js';
 import { defaultExportProblems } from '../../../logic/export/only.js';
 import { exportOnlyProblems } from '../../../logic/export/only.js';
+import { CLOSURE_CEILINGS } from '../../../logic/budgets.js';
+import { closureCeilingRaises } from '../../../logic/budgets.js';
 import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
@@ -70,8 +72,8 @@ function growthCheck(check) {
 function jsdocProblems(root, files, read) {
   return files.filter(file => /\.[cm]?js$/u.test(file) && !isTestSource(file)).flatMap(file => jsdocFindings(scanSource(file, read(file) ?? '').functions
     .filter(fn => fn.exported)
-    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name ?? param.raw),
-      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name).filter(name => !name.includes('.')) } })))
+    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name),
+      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name) } })))
     .map(row => ({ path: row.file, line: 1, text: `exported function ${row.name}: ${row.problem}` })));
 }
 
@@ -181,6 +183,15 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
   { name: 'test-inputs', run: context => growthCheck((root, files, read) => testInputProblems(root, files, read, requireDeclaredInputsEnabled()))(context) },
   { name: 'load-bearing', run: loadBearingCheck },
+  // An item's change never raises or drops a closure-budget.json row against accepted main; main lowers rows, the coordinator raises them (packages/gate/src/logic/budgets.js) [C7].
+  { name: 'closure-ceiling', run: ({ files, text, previous }) => {
+    if (!files.includes(CLOSURE_CEILINGS)) return [];
+    const accepted = previous(CLOSURE_CEILINGS);
+    if (!accepted) return []; // a project without main's ceilings file has nothing to judge
+    let candidate;
+    try { candidate = text(CLOSURE_CEILINGS); } catch { candidate = '{}'; } // a deleted ceilings file drops every row
+    return closureCeilingRaises(accepted, candidate).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },
   { name: 'wall-clock-margins', run: ({ files, read }) => files.filter(isTestSource).flatMap(file => fixedWallMargins(read(file).source, file)) },
