@@ -16,7 +16,7 @@ export function gateWaitReporter(io) {
   return (wait) => {
     if (report) return report(wait);
     // Lines queue on one shared load, so they print in the order they arrived.
-    ready ??= import('../../../../../packages/gate/index.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
+    ready ??= import('../../../../../packages/gate/heavy.js').then(({ gateWaitReporter: reporter }) => { report = reporter(io); });
     return ready.then(() => report(wait));
   };
 }

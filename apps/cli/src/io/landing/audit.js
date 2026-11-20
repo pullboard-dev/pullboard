@@ -11,11 +11,11 @@ import { ordered } from '../../../index.js';
 import { warmFixtureMemo } from '../../../index.js';
 import { withBoard } from '../../../index.js';
 import { runMainAudits } from '../../../../../packages/gate/index.js';
-import { mainAuditDirectory } from '../../../../../packages/gate/index.js';
-import { waitMainAudit } from '../../../../../packages/gate/index.js';
+import { mainAuditDirectory } from '../../../../../packages/gate/heavy.js';
+import { waitMainAudit } from '../../../../../packages/gate/heavy.js';
 import {
   recordAcceptedCellsFailure,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import { produceAcceptedCells } from '../../../../lib/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { isAbsolute } from 'node:path';
