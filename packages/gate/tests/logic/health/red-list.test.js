@@ -2,9 +2,9 @@
 /** The gate state red list is redNow over the recorded ledger rows, and gate health reads no other source [U152,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { gateHealthLines } from '../../../index.js';
-import { gateHealthSummary } from '../../../index.js';
-import { redNow } from '../../../index.js';
+import { gateHealthLines } from '../../../heavy.js';
+import { gateHealthSummary } from '../../../heavy.js';
+import { redNow } from '../../../heavy.js';
 
 const row = (file, status, at, inputKey = 'k1', context = 'ctx') => ({ file, command: 'proof', context, status, inputKey, commit: 'c'.repeat(40), receipt: `r${at}`, origin: 'run', at });
 const window = { records: [], spans: [], since: 0, now: 1_000_000 };

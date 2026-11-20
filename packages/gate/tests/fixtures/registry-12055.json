@@ -1,0 +1,3 @@
+{
+  "gate.io-test-inputs.exact-declared-reads": {"proves":{"specs":["C7"],"claim":"with tests.requireDeclaredInputs on, a test that reads a data, tests or journeys path is reported unless a header line names that path or a glob over it."},"why":"A test-only gate selects declared readers, so an undeclared reader would stop running when its input changes.","kind":"cell unit","inputs":["packages/gate/tests/io/test/inputs.test.js"]}
+}

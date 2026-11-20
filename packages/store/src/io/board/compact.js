@@ -1,11 +1,4 @@
 /** Archive the job steps of items landed or withdrawn long ago into a gzip file beside the board, and read them back [C7]. */
-import { closeSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { fsyncSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
@@ -14,6 +7,8 @@ import { dropSteps } from '../../../../jobs/index.js';
 import { jobView } from '../../../../jobs/index.js';
 import { readPayload } from '../../../../jobs/index.js';
 import { compactBoard } from './blobs.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 /** Items finished this long ago have their job steps archived. */
 export const COMPACT_AFTER_DAYS = 30;
@@ -69,8 +64,8 @@ function archivable(db, job) {
 function appendMember(file, rows) {
   const text = rows.map(row => JSON.stringify({ id: row.job_step_id, job: row.job_step_job, name: row.job_step_name,
     seq: row.job_step_seq, payload: row.job_step_payload, at: row.job_step_at })).join('\n') + '\n';
-  const fd = openSync(file, 'a', 0o600);
-  try { writeSync(fd, gzipSync(text)); fsyncSync(fd); } finally { closeSync(fd); }
+  const fd = fileSystem.open(file, 'a', 0o600);
+  try { fileSystem.write(fd, gzipSync(text)); fileSystem.fsync(fd); } finally { fileSystem.close(fd); }
 }
 
 /**
@@ -106,16 +101,16 @@ export function compactJobSteps(db, { days = COMPACT_AFTER_DAYS, now = Date.now(
   }
   if (!dryRun && report.rows && vacuum) report.vacuumed = compactBoard(db, { minFreeBytes: 1 }).compacted;
   report.after = pageBytes(db);
-  if (archive && existsSync(archive)) report.archiveBytes = statSync(archive).size;
+  if (archive && fileSystem.exists(archive)) report.archiveBytes = fileSystem.stat(archive).size;
   return report;
 }
 
 /** Every archived step of the board at `boardFile`, oldest first, each once; empty when nothing was archived. */
 function archivedRows(boardFile, job) {
   const archive = stepArchivePath(boardFile);
-  if (!existsSync(archive)) return [];
+  if (!fileSystem.exists(archive)) return [];
   const seen = new Map();
-  for (const line of gunzipSync(readFileSync(archive)).toString('utf8').split('\n')) {
+  for (const line of gunzipSync(fileSystem.readFile(archive, null)).toString('utf8').split('\n')) {
     if (!line) continue;
     const row = JSON.parse(line);
     if (job === undefined || row.job === job) seen.set(row.id, row);

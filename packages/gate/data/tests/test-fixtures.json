@@ -108,7 +108,7 @@
   "packages/gate/tests/io/admission/cpu/load.test.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/main/resource.test.js": {
+  "packages/gate/tests/io/main/short.test.js": {
     "hand-policy": 1
   },
   "packages/gate/tests/io/main/output.test.js": {
@@ -743,9 +743,6 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/doctrine/tests/io/main/moves.test.js": {
-    "tempdir": 2
-  },
   "packages/doctrine/tests/io/main/diff.test.js": {
     "tempdir": 2
   },
@@ -911,9 +908,6 @@
   },
   "packages/gate/tests/io/main/async.test.js": {
     "tempdir": 2
-  },
-  "apps/cli/tests/fixtures/gate/driver.js": {
-    "raw-board": 1
   },
   "packages/gate/tests/io/main/failures.test.js": {
     "tempdir": 1
@@ -2113,10 +2107,10 @@
     "raw-board": 2,
     "hand-policy": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "raw-board": 3
   },
-  "apps/cli/journeys/submit/handoff.test.js": {
+  "apps/cli/tests/io/submit/handoff.test.js": {
     "raw-board": 2
   },
   "packages/gate/tests/io/submit/line.test.js": {

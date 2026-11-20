@@ -1,16 +1,12 @@
 /** Temp folders as caches named by tree id: rebuilt from the bundle when missing, swept without breaking a job [C7]. */
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { utimesSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
 import { bundleFor } from './main.js';
 import { isObjectId } from '../logic/names.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * Name the cache folder for a tree.
@@ -38,23 +34,23 @@ export function cachePath(cacheRoot, tree) {
  */
 export function cacheFor(repo, tree, { cacheRoot, bundles }) {
   const path = cachePath(cacheRoot, tree);
-  if (existsSync(path)) {
+  if (fs.exists(path)) {
     const now = new Date();
-    try { utimesSync(path, now, now); } catch { /* a sweep removed it between the check and the touch; rebuild below */ }
-    if (existsSync(path)) return { path, rebuilt: false };
+    try { fs.utimes(path, now, now); } catch { /* a sweep removed it between the check and the touch; rebuild below */ }
+    if (fs.exists(path)) return { path, rebuilt: false };
   }
   const bundle = bundleFor(repo, tree, bundles);
-  mkdirSync(cacheRoot, { recursive: true });
+  fs.mkdir(cacheRoot, { recursive: true });
   const partial = `${path}.${process.pid}.partial`;
-  rmSync(partial, { recursive: true, force: true });
-  mkdirSync(partial);
+  fs.rm(partial, { recursive: true, force: true });
+  fs.mkdir(partial);
   try {
     const result = spawnSync('tar', ['-xf', bundle.path, '-C', partial], { encoding: 'utf8' });
     if (result.status !== 0) throw new Refused('PIN_CACHE_FAILED', `Unpacking ${bundle.path} failed: ${String(result.stderr ?? result.error?.message ?? '').trim()}. Delete the bundle so it is rebuilt, then retry.`);
-    try { renameSync(partial, path); }
-    catch (error) { if (!existsSync(path)) throw error; }
+    try { fs.rename(partial, path); }
+    catch (error) { if (!fs.exists(path)) throw error; }
   } finally {
-    rmSync(partial, { recursive: true, force: true });
+    fs.rm(partial, { recursive: true, force: true });
   }
   return { path, rebuilt: true };
 }
@@ -70,14 +66,14 @@ export function cacheFor(repo, tree, { cacheRoot, bundles }) {
  * @returns {string[]} The tree ids removed.
  */
 export function sweepCaches(cacheRoot, { keep = [], maxAgeMs = 0, now = Date.now() } = {}) {
-  if (!existsSync(cacheRoot)) return [];
+  if (!fs.exists(cacheRoot)) return [];
   const kept = new Set(keep);
   const removed = [];
-  for (const name of readdirSync(cacheRoot)) {
+  for (const name of fs.list(cacheRoot)) {
     if (!isObjectId(name) || kept.has(name)) continue;
     const path = join(cacheRoot, name);
-    if (now - statSync(path).mtimeMs < maxAgeMs) continue;
-    rmSync(path, { recursive: true, force: true });
+    if (maxAgeMs > 0 && now - fs.stat(path).mtimeMs < maxAgeMs) continue;
+    fs.rm(path, { recursive: true, force: true });
     removed.push(name);
   }
   return removed;

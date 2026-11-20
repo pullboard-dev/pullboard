@@ -113,7 +113,7 @@ import {
 } from '../e2e.js';
 import {
   refuseSandboxBlocked,
-} from '../../../../../packages/gate/index.js';
+} from '../../../../../packages/gate/heavy.js';
 import {
   fixtureContextCpuCase,
 } from '../runner/classification.js';

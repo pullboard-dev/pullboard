@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 /** In-memory Git conflict computation without loading check execution or resource admission [V4,C7]. */
 import { spawnSync } from 'node:child_process';
@@ -7,6 +6,9 @@ import { mainCheckout } from '../../../git/index.js';
 import { trunkRef } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { mechanicalConflictFiles } from './mechanical.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Merge a commit onto the trunk tip in memory: the ref, the tip, and the conflicting files or null [B34,V6].
  *
@@ -58,7 +60,7 @@ function plainRecordedTrunkMerge(gitDirectory, head, trunk) {
 
 /** Refuse local history overrides before trusting either a fresh or cached immutable conflict result. */
 export function refuseRecordedHistoryOverrides(gitDirectory) {
-  if (existsSync(join(gitDirectory, 'info', 'grafts'))) {
+  if (fs.exists(join(gitDirectory, 'info', 'grafts'))) {
     throw new Refused('GIT_GRAFTS', 'recorded conflict replay cannot trust a repository with info/grafts; ask the coordinator to remove its graft file, then resume the same move');
   }
   const refs = spawnSync('git', ['--no-replace-objects', `--git-dir=${gitDirectory}`, 'for-each-ref', '--format=%(refname)', 'refs/replace/'],

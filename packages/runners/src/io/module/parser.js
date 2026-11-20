@@ -1,22 +1,17 @@
 /** One private compile-only VM child per derived runner closure [C7,P3]. */
 import { spawn } from 'node:child_process';
-import { lstatSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/index.js';
-import { mkdirSync } from 'node:fs';
-import { statSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { sweepKeyedFolders } from '../keyed.js';
 import { sharedCacheFolder } from '../keyed.js';
+const fs = fileSystemAdapter();
 
 const MAX_BYTES = 2 ** 26;
 const TIMEOUT_MS = 10_000;
@@ -55,8 +50,8 @@ function resultStore() {
     if (shared) return (storeFolder = shared);
     try {
       const folder = join(scratchRoot(), 'pullboard-runner-parse-cache');
-      mkdirSync(folder, { recursive: true, mode: 0o700 });
-      const state = statSync(folder);
+      fs.mkdir(folder, { recursive: true, mode: 0o700 });
+      const state = fs.stat(folder);
       if (state.isDirectory() && state.uid === process.getuid?.() && (state.mode & 0o077) === 0) storeFolder = folder;
     } catch { /* No store: every miss compiles, as before. */ }
   }
@@ -116,9 +111,9 @@ export function parseWithPaths(parse, files) {
 
 /** Read exact owned compiler bytes; a symlink or unbounded entry cannot become a trusted parser. */
 function compilerBytes(file) {
-  const stat = lstatSync(file);
+  const stat = fs.lstat(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_BYTES) throw parserFailure();
-  return readFileSync(file);
+  return fs.readFile(file, null);
 }
 
 /** Retain initial failure as an unusable generation rather than allowing a partially pinned compiler. */
@@ -145,10 +140,10 @@ function parserFailure() {
 /** Return a bounded regular-file reply, or undefined while this exact owned reply is not present. */
 function replyAt(file) {
   let stat;
-  try { stat = lstatSync(file); }
+  try { stat = fs.lstat(file); }
   catch (error) { if (error.code === 'ENOENT') return undefined; throw parserFailure(); }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_BYTES) throw parserFailure();
-  try { return JSON.parse(readFileSync(file, 'utf8')); }
+  try { return JSON.parse(fs.readFile(file)); }
   catch { throw parserFailure(); }
 }
 
@@ -205,7 +200,7 @@ export function createRunnerModuleParser() {
       catch { failed = true; }
       finally { child.unref(); }
     }
-    try { if (directory) rmSync(directory, { recursive: true, force: true }); }
+    try { if (directory) fs.rm(directory, { recursive: true, force: true }); }
     catch { failed = true; }
     if (failed) throw parserFailure();
   }
@@ -216,7 +211,7 @@ export function createRunnerModuleParser() {
     directory = scratchFolder('pullboard-runner-parser-');
     // Execute the module-load snapshot, never a path that can change after its freshness check.
     const worker = join(directory, 'compiler-worker.mjs');
-    writeFileSync(worker, LOADED_COMPILER.worker, { mode: 0o400, flag: 'wx' });
+    fs.writeFile(worker, LOADED_COMPILER.worker, { mode: 0o400, flag: 'wx' });
     child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
       worker, directory, String(process.pid)],
     { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
@@ -249,8 +244,8 @@ export function createRunnerModuleParser() {
       request = join(directory, `request-${id}.json`);
       reply = join(directory, `reply-${id}.json`);
       const temporary = join(directory, `request-${id}.tmp`);
-      writeFileSync(temporary, input, { mode: 0o600, flag: 'wx' });
-      renameSync(temporary, request);
+      fs.writeFile(temporary, input, { mode: 0o600, flag: 'wx' });
+      fs.rename(temporary, request);
       // Wake only: source and results remain in the validated atomic-file protocol.
       child.send(id);
       while (true) {
@@ -276,8 +271,8 @@ export function createRunnerModuleParser() {
     } finally {
       if (!closed) {
         try {
-          if (request) rmSync(request, { force: true });
-          if (reply) rmSync(reply, { force: true });
+          if (request) fs.rm(request, { force: true });
+          if (reply) fs.rm(reply, { force: true });
         } catch {
           close();
           throw parserFailure();

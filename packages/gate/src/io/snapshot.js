@@ -1,5 +1,5 @@
 /** Shape one commit's Git tree as a sealed in-memory source, so reading it needs no checkout or worktree [C7,V4]. */
-import { realpathSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,7 +8,7 @@ const OBJECT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 /**
  * The sealed snapshot of a commit from two Git reads the caller makes: every tree entry, and the bytes of each regular
  * file. Symlinks and submodules keep their entry and no bytes, so a reader sees them as non-regular.
- * Why the caller reads: this file imports no other cell, and the Git runner already lives beside the tier selection.
+ * Why the caller reads: this file imports only the file-system adapter, and the Git runner already lives beside the tier selection.
  *
  * @param {string} commit the exact commit id
  * @param {{ tree: string, blobs: (shas: string[]) => Buffer }} reads `tree` is `git ls-tree -r -z --full-tree <commit>`;
@@ -41,5 +41,5 @@ export function commitSourceSnapshot(commit, { tree, blobs }) {
   }
   const files = new Map([...wanted].map(([path, sha]) => [path, bytes.get(sha)]));
   // A virtual folder that is never created: every read of it is answered from the snapshot, none from a disk.
-  return { root: join(realpathSync(tmpdir()), `pullboard-commit-source-${commit}`), entries, files };
+  return { root: join(fileSystemAdapter().realpath(tmpdir()), `pullboard-commit-source-${commit}`), entries, files };
 }
