@@ -6,6 +6,7 @@ import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { tryGit } from '../../../../../git/index.js';
 import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../../../../index.js';
+import { readCellKeyedLintBaseline } from '../../../../index.js';
 import { writeCellLintBaseline } from '../../../../index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../../index.js';
 import { cellLintCells } from '../../../../index.js';
@@ -31,7 +32,7 @@ withCellLintParser(compile => {
   /** The lint report is the slow part; --check on an unchanged state never builds it [C7]. */
   const build = () => cellLintReport(root, parsers);
   const report = mode === '--check' ? null : build();
-  if (mode === '--report') console.log(JSON.stringify({ ...report, growth: fs.exists(file) ? cellLintGrowth(report, readCellLintBaseline(root)) : null }, null, 2));
+  if (mode === '--report') console.log(JSON.stringify({ ...report, growth: fs.exists(file) ? cellLintGrowth(report, readCellKeyedLintBaseline(root)) : null }, null, 2));
   else if (mode === '--init') {
     if (fs.exists(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
@@ -40,11 +41,11 @@ withCellLintParser(compile => {
     writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => { stage(); return JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline); } });
   } else if (mode === '--update') {
     if (!fs.exists(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
-    const baseline = readCellLintBaseline(root);
-    lowerCellLintBaseline(report, baseline);
+    const baseline = readCellLintBaseline(root), compare = readCellKeyedLintBaseline(root);
+    lowerCellLintBaseline(report, compare);
     const sharded = cellLintCells(root).length > 0;
     const plan = sharded ? { baseline: cellLintBaseline(report), report } : planCellLintBaseline(report, storedCellLintFiles(root));
-    lowerCellLintBaseline(plan.report, baseline);
+    lowerCellLintBaseline(plan.report, compare);
     writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
   } else {
     // --check holds this checkout to main's committed baseline, never to debt main merely carries now [C7,CD23].

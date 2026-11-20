@@ -1,0 +1,41 @@
+{
+  "api.io-gate.shard-jobs-key-range": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "shardJobs returns exactly one gate's shard rows in order, never a sibling gate's, and its query searches the job_id key instead of scanning every job row."
+    },
+    "why": "Without this test shardJobs can slide back to a substr scan of every gate-shard row on each pull claim, so claim cost grows with the number of gates.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.io-gate.shard-jobs-scale": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On a board of 20000 gate-shard rows across 500 gates, a settleDoneShardGates pass over 30 candidate gates takes under 5 ms, its time printed."
+    },
+    "why": "Without this measurement a slide back to a full scan of the shard rows would only show as a slow pull claim on the live board.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate.js"
+    ]
+  },
+  "api.io-gate.shard-jobs-key-range-scale": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On 20000 gate-shard rows across 500 gates shardJobs returns each gate's shards exactly as the old substr query did, and its query searches the job primary-key index, not job_kind_created."
+    },
+    "why": "Without this test a planner change could move shardJobs back onto job_kind_created, which reads every gate-shard row on each pull claim on the live board.",
+    "kind": "contract",
+    "inputs": [
+      "packages/api/src/io/gate.js"
+    ]
+  }
+}
