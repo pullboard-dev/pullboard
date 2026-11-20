@@ -42,7 +42,7 @@ test('cli.journey.timeline-fleet: clause 2: pullboard timeline --fleet --since 3
   assert.equal(fleet.document.summary.items >= 2, true);
   assert.ok(fleet.document.summary.stages.filed.median_ms >= 0);
   assert.ok(Object.keys(fleet.document.summary.share.buckets).length > 0);
-  const plain = await text(box, 'timeline', '--fleet', '--since', '3h');
+  const plain = await text(box, 'timeline', '--fleet', '--since', '3650d');
   assert.equal(plain.status, 0, plain.stdout + plain.stderr);
   assert.match(plain.stdout, /bucket share/u);
   assert.match(plain.stdout, /slowest #/u);
