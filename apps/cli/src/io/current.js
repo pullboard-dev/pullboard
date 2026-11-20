@@ -39,6 +39,9 @@ function real(path) {
  */
 export function currentEntry(entry, cwd = process.cwd(), env = process.env) {
   if (env.PULLBOARD_OWN_CLI === '1') return null;
+  // A serve replacement holds its predecessor's socket on descriptor 3 and an IPC channel (PULLBOARD_SERVE_FD, drive's SERVE_FD_ENV):
+  // the handover passes only descriptors 0-2, so main's entry would listen on a non-socket and fail ENOTTY [C7,#12301].
+  if (env.PULLBOARD_SERVE_FD !== undefined) return null;
   const own = real(dirname(dirname(dirname(entry)))), here = real(cwd); // apps/cli/pullboard.js sits three levels below the root [V32]
   if (!own || !here) return null;
   let marker;
