@@ -20,3 +20,4 @@ export function testOutcomeFields(value) {
   return rows;
 }
 export { bindProofRunner } from './src/io/rule/proof/coverage.js';
+export { effectiveItemHead } from './src/logic/advance.js';
