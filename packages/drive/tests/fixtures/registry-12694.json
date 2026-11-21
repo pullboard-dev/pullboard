@@ -1,0 +1,17 @@
+{
+  "drive.local-wake.touch-finds-a-runner-under-a-home": {
+    "proves": {
+      "specs": [
+        "P7",
+        "C7"
+      ],
+      "claim": "a wake touch given the PULLBOARD_HOME a local runner started under finds that runner and writes the wake file; one given no home does not"
+    },
+    "why": "The runner's state file is keyed to its home, so a touch that ignored the home never woke a runner the tour started and the wake marker was missing.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/drive/tests/io/local-wake.test.js",
+      "packages/drive/src/io/local.js"
+    ]
+  }
+}

@@ -78,10 +78,11 @@ export function localRunnerState(folder, now = Date.now(), home = null) {
  * is ignored, since the runner's idle nap still finds the job.
  *
  * @param {string} folder - The local runner folder.
+ * @param {string | null} [home] - The PULLBOARD_HOME the runner serves: its state file is keyed to it, so a touch under a home must look for that file or it never finds the runner [P7,C7,#12694].
  * @returns {boolean} Whether the file was touched.
  */
-export function wakeLocalRunner(folder) {
-  if (!localRunnerState(folder)) return false;
+export function wakeLocalRunner(folder, home = null) {
+  if (!localRunnerState(folder, Date.now(), home)) return false;
   try { fs.writeFile(join(folder, WAKE_FILE), `${process.pid} ${Date.now()}\n`); return true; } catch { return false; }
 }
 
