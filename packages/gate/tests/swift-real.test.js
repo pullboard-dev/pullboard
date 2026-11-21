@@ -20,7 +20,7 @@ const FILES = ['Package.swift', 'Sources/Calc/Calc.swift', 'Tests/CalcTests/Calc
 
 /** Select full Xcode for this subprocess if macOS defaults to Command Line Tools without a test framework. */
 function swiftEnvironment() {
-  return process.platform === 'darwin' && !process.env.DEVELOPER_DIR && existsSync(join(XCODE, 'usr', 'bin', 'xcodebuild'))
+  return process.platform === 'darwin' && !process.env.DEVELOPER_DIR && existsSync(join(XCODE, 'usr/bin/xcodebuild'))
     ? { ...process.env, DEVELOPER_DIR: XCODE }
     : process.env;
 }

@@ -1,0 +1,4 @@
+{
+  "store.io-board-write-sequencer.plan-refs": {"proves":{"specs":["C7"],"claim":"A prepared statement param {ref:n} or {json:obj, refs:{path:n}} binds statement n's inserted id, keeping JSON key order, and a ref to a later or missing statement is refused."},"why":"A multi-row move must insert a parent and bind its id into later rows as plain data, because the sequencer takes no callback.","kind":"cell unit","inputs":["packages/store/tests/io/board/write/plan.test.js"]},
+  "store.io-board-write-sequencer.plan-expect": {"proves":{"specs":["C7"],"claim":"A prepared statement whose change count differs from its expect rolls the whole list back and refuses with PREPARED_WRITE_UNEXPECTED_CHANGES."},"why":"A guard on change counts lets a prepared move detect a changed board and leave no partial write.","kind":"cell unit","inputs":["packages/store/tests/io/board/write/plan.test.js"]}
+}

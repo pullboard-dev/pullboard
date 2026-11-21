@@ -76,9 +76,9 @@ test('cli.journeys-fact-board-schema-carry.a-stamped-pre-carry-board-upgrades: a
   const application = join(box.dir, 'main-application');
   mkdirSync(application);
   const t1 = Date.now(); privateMainSource(box, application); console.log(`TIMING privateMainSource ${Date.now() - t1} ms`);
-  // Process-level: this runs the copied candidate main checkout's own entry, which an in-process call cannot reach.
+  // Process-level: this runs the copied candidate main checkout's own entry, which an in-process call cannot reach. lanes opens the board writable; inbox reads without a write open (#10879), so it no longer upgrades.
   console.log(`TIMING pre-open ${Date.now() - T0} ms`);
-  const opened = runFixtureChild(process.execPath, [join(application, 'apps/cli/pullboard.js'), 'inbox', '--json'],
+  const opened = runFixtureChild(process.execPath, [join(application, 'apps/cli/pullboard.js'), 'lanes', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(opened.status, 0, opened.stderr + opened.stdout);
   assert.ok(observe(file).schema.find(row => row.name === 'machine_item_move').sql.includes("'claimed>verified'"));
