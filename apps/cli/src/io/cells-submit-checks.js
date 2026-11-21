@@ -37,7 +37,6 @@ import {
   onlyForwards,
   withDeclaredLoads,
 } from '../../../../packages/codemap/index.js';
-import { checkMoved } from '../../../../packages/codemap/index.js';
 import { lightFrontDoorProblems } from '../../../../packages/codemap/index.js';
 import { pureDoorProblems } from '../../../../packages/codemap/index.js';
 import { pureFrontDoorProblems } from '../../../../packages/codemap/index.js';
@@ -49,20 +48,7 @@ import { posix } from 'node:path';
 import { cellOfFolder } from '../logic/cell-of-folder.js';
 import { cellsReorgReason } from './cells-reorg.js';
 import { warning } from './cells-reorg.js';
-import { fixtureFinding } from './cells-reorg.js';
-import { fixtureWarning } from './cells-reorg.js';
 import { importLine } from './cells-reorg.js';
-
-/** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
-function additions(before, after) {
-  const counts = new Map();
-  for (const value of before) counts.set(value, (counts.get(value) ?? 0) + 1);
-  return after.filter(value => {
-    if (!(counts.get(value) > 0)) return true;
-    counts.set(value, counts.get(value) - 1);
-    return false;
-  });
-}
 
 /** Compare exact diagnostic endpoints in the candidate's committed rename namespace, retaining all other text. */
 function mappedCutDiagnostic(map, problem) {
@@ -168,19 +154,6 @@ function policyScope(files, plans) {
 
 function allCellsReason(files, plans) {
   return policyScope(files, plans).all;
-}
-
-/**
- * Whether the cell owns a path the move maps carry, found from the target's folder, never from the plan's path rows [C7,#8742].
- *
- * Why: the plan rows are being retired, and a folder already names the cell.
- *
- * @param {string} name cell name
- * @param {Array<Map<string, string>>} maps path maps (from to target), one per side
- * @returns {boolean}
- */
-export function cellHasMovedPaths(name, maps) {
-  return maps.some(map => [...map.values()].some(to => cellOfFolder(to) === name));
 }
 
 /** Attribute changed cells and their direct importers against both immutable graphs. */
@@ -327,17 +300,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const problems = [...policy, ...cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`)];
   problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
-  for (const name of cells) {
-    const previous = before.cells.some(cell => cell.name === name);
-    const moved = cellHasMovedPaths(name, [mainMap, candidateMap]);
-    if (!moved) continue;
-    const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline, inventory: oldInventory }) : [];
-    const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline, inventory: newInventory });
-    for (const problem of additions(oldMoved, newMoved)) {
-      if (!reorg && fixtureFinding(problem)) warnings.push(fixtureWarning(name, problem));
-      else problems.push(`${name} --moved: ${problem}`);
-    }
-  }
   return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null, ...(collectMachinery ? { machinery } : {}) };
 }
 

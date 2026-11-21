@@ -6,6 +6,7 @@ import * as store from '../../../../../store/index.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 import { take } from '../../../fixtures/next.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 /** The upper-layer dispatch observation health asks for; this cell's test needs no dispatch findings, only the rescope ones. */
 const dispatchHealth = () => ({ findings: [] });
@@ -18,7 +19,7 @@ function giveBack(box, id, seat, reason) {
 
 test('moves.release-rescope.blocked-routed-elsewhere-ineligible-stop-offer-and-health-names-it: clause 1 and clause 2: BLOCKED, ROUTED_ELSEWHERE and INELIGIBLE each stop next offering the item to the same lane and route; health names it [C7]', async t => {
   for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) await t.test(reason, async t => {
-    const box = fixture(t);
+    const box = fixture(t, { boardFrom: cellBoard });
     const id = box.add('Item that needs re-scope');
     giveBack(box, id, box.seats.actor, reason);
     box.advance(31 * 60_000);
@@ -46,7 +47,7 @@ test('moves.release-rescope.blocked-routed-elsewhere-ineligible-stop-offer-and-h
 
 test('moves.release-rescope.other-budget-taken-over-keep-behaviour-and-never-mark-rescope: clause 3: OTHER, BUDGET and TAKEN_OVER keep the old behaviour and never mark the item for re-scope [C7]', async t => {
   for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) await t.test(reason, async t => {
-    const box = fixture(t);
+    const box = fixture(t, { boardFrom: cellBoard });
     const id = box.add('Item given back for another reason');
     box.claim(id, box.seats.actor);
     store.release(box.board, id, box.seats.actor.id, 'Give the fixture item back to the board', reason);
@@ -60,7 +61,7 @@ test('moves.release-rescope.other-budget-taken-over-keep-behaviour-and-never-mar
 
 test('moves.release-rescope.refreeze-and-reroute-restore-a-scoped-out-item-through-next: clause 1: refreeze and reroute each restore a scoped-out item through next [C7]', async t => {
   for (const reset of ['refreeze', 'reroute']) await t.test(reset, async t => {
-    const box = fixture(t);
+    const box = fixture(t, { boardFrom: cellBoard });
     const id = box.add('Scope reset fixture');
     giveBack(box, id, box.seats.actor, 'ROUTED_ELSEWHERE');
     assert.equal(store.itemsNeedingRescope(box.board, 'web', 'strong').length, 1);
@@ -76,7 +77,7 @@ test('moves.release-rescope.refreeze-and-reroute-restore-a-scoped-out-item-throu
 });
 
 test('moves.release-rescope.a-named-blocker-must-land-before-its: clause 1: a named blocker must land before its blocked scope is offered again [C7]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const blocker = box.add('Named blocker');
   const id = box.add('Waits for the blocker');
   box.claim(id, box.seats.actor);
@@ -98,7 +99,7 @@ test('moves.release-rescope.a-named-blocker-must-land-before-its: clause 1: a na
 });
 
 test('moves.release-rescope.scope-health-bounds-long-release-text-while: clause 2: scope health bounds long release text while retaining its complete detail [C7]', t => {
-  const box = fixture(t);
+  const box = fixture(t, { boardFrom: cellBoard });
   const id = box.add('Long scope explanation');
   box.claim(id, box.seats.actor);
   const note = 'Specific blocker context '.repeat(600).trim();

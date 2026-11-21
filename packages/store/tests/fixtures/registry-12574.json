@@ -1,0 +1,32 @@
+{
+  "store.logic-board-stats.idle-check-seeks-latest-event": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "recordNextIdle reads the seat's latest event through the (event_by, event_id) index, with no temp B-tree sort and no event scan."
+    },
+    "why": "Without this test the idle check sorted every event of the seat, 6.2 s of one coordinator next at load on 20 Nov.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/indexes.js",
+      "packages/store/src/logic/board/stats.js",
+      "packages/store/tests/logic/board/stats.test.js"
+    ]
+  },
+  "store.logic-board-stats.idle-check-flat-with-history": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an unchanged idle record for a seat with 18,187 earlier events stays under 200 ms and within 2x of a seat with 10."
+    },
+    "why": "Without this test the idle check's cost grew with each seat's history, so a speed budget on a fresh fixture proved nothing about long-lived seats.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/store/src/io/board/indexes.js",
+      "packages/store/src/logic/board/stats.js",
+      "packages/store/tests/logic/board/stats.test.js"
+    ]
+  }
+}

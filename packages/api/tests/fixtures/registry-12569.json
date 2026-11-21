@@ -4,7 +4,7 @@
       "specs": [
         "C7"
       ],
-      "claim": "A claimed item whose newest gate settled unknown, with every red file red on main at its unchanged input key, moves to submitted on the next pull-claim settle walk and next --verify offers it."
+      "claim": "A claimed item whose newest gate settled unknown, with every red file red on main at its unchanged input key, moves to submitted during board gate maintenance and next --verify offers it."
     },
     "why": "Without this test an unknown gate can again hold its builder's claim forever, so finished work is never reviewed or landed.",
     "kind": "contract",

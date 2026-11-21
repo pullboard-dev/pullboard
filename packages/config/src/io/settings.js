@@ -72,6 +72,11 @@ export function overlapStaticProofEnabled() {
   return loadMachineSettings().gate?.overlapStaticProof === true;
 }
 
+/** Let a gate red only in files red on main at the same input key settle for review, only when this machine opted in [C7,#12129]; off by default, and only an exact true turns it on. */
+export function excuseMainRedFilesEnabled() {
+  return loadMachineSettings().gate?.excuseMainRedFiles === true;
+}
+
 /** Whether gate.excuseMainTimingReds is on (#9753): off by default; only an exact `true` turns it on. */
 export function excuseMainTimingReds() {
   return loadMachineSettings().gate?.excuseMainTimingReds === true;

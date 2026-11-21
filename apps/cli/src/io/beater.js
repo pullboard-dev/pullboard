@@ -139,11 +139,11 @@ function otherBeaterWatches(lock, agent, alive) {
 /**
  * Start the detached beater for `seat` on the board file `board`, bound to the agent session behind this CLI call; it
  * beats every 30 s until the seat holds no claim, the session exits or the seat's worktree is gone. A beater already
- * watching the same session is kept. Resolves to what it did; it never throws, because the claim is already recorded.
+ * watching the same session is kept. A `remote` binding ({ url, token, agent, seatKey? }) makes it beat a URL-joined seat's board host (runBeater). Resolves to what it did; it never throws, because the claim is already recorded.
  * Why: on 11 Nov 43 of 45 live seats lost a claim while editing or running native tests outside the CLI: only CLI
  * writes, hooks and submit's keepalive beat, and Codex seats have no hooks [B3,C7].
  */
-export async function startClaimBeater(cwd, { seat, board }, { env = environmentAdapter(), session = () => agentSession({ env }), launch = null, alive = agentAlive } = {}) {
+export async function startClaimBeater(cwd, { seat, board, remote = null }, { env = environmentAdapter(), session = () => agentSession({ env }), launch = null, alive = agentAlive } = {}) {
   try {
     if (env.get('PULLBOARD_CLAIM_BEATER') === '0') return { started: false, reason: 'off' };
     if (typeof seat !== 'string' || !seat || typeof board !== 'string' || !board) return { started: false, reason: 'no seat' };
@@ -157,7 +157,7 @@ export async function startClaimBeater(cwd, { seat, board }, { env = environment
     // Another seat's live beater already watching this ancestor means the ancestor outlives the worker: the new beater is recorded as shared and the quiet-seat rule governs it.
     const shared = !agent.named && otherBeaterWatches(lock, agent, alive);
     const entry = fileURLToPath(new URL('./beater/run.js', import.meta.url));
-    const args = [JSON.stringify({ cwd, seat, board, lock, agent, shared, everyMs: Number(env.get('PULLBOARD_BEATER_MS')) || BEATER_EVERY_MS })];
+    const args = [JSON.stringify({ cwd, seat, board, lock, agent, shared, everyMs: Number(env.get('PULLBOARD_BEATER_MS')) || BEATER_EVERY_MS, ...(remote ? { remote } : {}) })];
     // The beater drops the lock only while it names the beater, so recording it after the launch is safe.
     fs.mkdir(dirname(lock), { recursive: true });
     // The drive cell loads here, once a beater really starts, so a claim with no agent session never pays for it [C7].
@@ -168,6 +168,14 @@ export async function startClaimBeater(cwd, { seat, board }, { env = environment
     try { fs.write(descriptor, JSON.stringify({ version: 1, pid, agent, seat, shared }) + '\n'); } finally { fs.close(descriptor); }
     return { started: true, pid, agent, shared };
   } catch (error) { return { started: false, reason: error?.message ?? String(error) }; }
+}
+
+/**
+ * Stop the beater for `seat` on `board`: remove its lock, which the beater reads every tick and ends on within one beat.
+ * Why: a URL-joined seat's submit, done or release ends its claim, and the beater has no board of its own to learn that from [P7,B3].
+ */
+export function stopClaimBeater({ seat, board }) {
+  try { fs.rm(beaterLock(board, seat), { force: true }); } catch { /* the lock is already gone, which is the goal */ }
 }
 
 /**

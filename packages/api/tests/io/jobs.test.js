@@ -223,6 +223,24 @@ test('api.jobs.receipt-parts-any-size: clause 1: a gate receipt over 100 KiB pos
   assert.deepEqual(steps.filter(step => step.name.startsWith('artifact:receipt-part.')), [], 'the joined parts are dropped');
 });
 
+test('api.jobs.receipt-parts-retry: clause 1: a multipart receipt retry under the same valid claim returns the stored receipt and applies it only once [C7,#12629]', (t) => {
+  const { call } = heldGate(t, 'gate:parts-retry');
+  const text = JSON.stringify({ version: 1, green: true, phases: [{ role: 'check', status: 0 }] });
+  const size = Math.ceil(text.length / 2), count = 2;
+  for (let index = 0; index < count; index += 1) {
+    assert.equal(call({ action: 'receiptPart', part: { index, count, text: text.slice(index * size, (index + 1) * size) } }).recorded, true);
+  }
+  const receipt = { status: 1, gateParts: partsOf(text, count) };
+  const applied = [];
+  const onReceipt = row => { applied.push(row); return { applied: true }; };
+  const first = call({ action: 'receipt', receipt }, { onReceipt });
+  const retry = call({ action: 'receipt', receipt }, { onReceipt });
+  assert.equal(first.recorded, true, 'the first post records the receipt');
+  assert.deepEqual(retry.receipt, first.receipt, 'the retry returns the recorded whole receipt');
+  assert.equal(retry.recorded, false, 'the retry does not record another receipt');
+  assert.equal(applied.length, 1, 'the board applies the successful receipt once');
+});
+
 test('api.jobs.receipt-parts-refused: clause 2: a receipt part from a runner not holding the claim is refused, and a receipt whose parts are missing or do not match gateParts is refused JOB_RECEIPT and records nothing [C7,P7,#10771]', (t) => {
   const { db, claim, call } = heldGate(t, 'gate:parts');
   const text = JSON.stringify({ version: 1, green: true, phases: [{ role: 'check', status: 0 }] }), half = Math.ceil(text.length / 2);
