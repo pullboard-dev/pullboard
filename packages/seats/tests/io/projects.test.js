@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import { projectRegistrationAllowed } from '../../src/io/registration.js';
 import { registerProject } from '../../index.js';
 import { registryFile } from '../../index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../git/tests/fixtures/child.js';
 
 /** Change only fixture-owned environment keys and restore them after the test. */
 function environment(t, values) {
