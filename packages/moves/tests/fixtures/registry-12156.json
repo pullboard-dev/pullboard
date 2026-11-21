@@ -1,0 +1,4 @@
+{
+  "moves.io-landing.merged-at-commit-time": {"proves":{"specs":["C7"],"claim":"A merge recorded through the live-wired landing table ten minutes after its commit carries detail.mergedAt as the commit's committer time while event_at stays the record time."},"why":"Without this case the timeline would keep charging landing lag from the record time.","kind":"cell unit","inputs":["packages/moves/src/io/table/board-landing.js"]},
+  "moves.io-landing.merged-at-replay": {"proves":{"specs":["C7"],"claim":"Replay of a merged event recorded before the merged-at engine leaf still agrees with the landing table."},"why":"Without this case an older merged event would show as a replay difference.","kind":"cell unit","inputs":["packages/moves/src/io/table/board-landing.js"]}
+}
