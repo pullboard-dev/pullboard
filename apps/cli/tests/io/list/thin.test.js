@@ -66,7 +66,7 @@ test('cli.io-list-thin.startup-row-holds: clause 1: the real list with list.thin
   await assertStartupBudgets(t, startupReport, { only: ['list thin'] });
 });
 
-test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 1: list with list.thinRead on holds its 150 ms list thin row, and the list row is unchanged [C7,#9090]', () => {
+test('cli.io-commands-read-startup.list-with-list-thinread-on-holds-its: clause 3: list with list.thinRead on holds its 150 ms list thin row, and the list row is unchanged [C7,#9090]', () => {
   assert.ok(startupReport.cpuMediansMs, 'the startup measurement above did not produce its report');
   assert.deepEqual(Object.keys(startupReport.cpuMediansMs), ['list thin']);
   assert.ok(startupReport.floorLines.every(line => line.startsWith('list thin median ')), 'only the list thin row was measured, so the list row is untouched');

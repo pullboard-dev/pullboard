@@ -94,7 +94,7 @@ test('cli.io-commands-read-startup.the-version-row-reports-its-median-the: claus
   assert.equal(startupReport.floorLines.length, Object.keys(startupReport.mediansMs).length);
 });
 
-test('cli.io-commands-read-startup.list-thin-is-an-audited-exception-at: clause 3: list thin is an audited exception at 150 ms over its measured three-run median of 136.69 ms [C7,#9090]', () => {
+test('cli.io-commands-read-startup.list-thin-is-an-audited-exception-at: clause 2: list thin is an audited exception at 150 ms over its measured three-run median of 136.69 ms [C7,#9090]', () => {
   assert.ok(136.69 < ceilings['list thin'] && ceilings['list thin'] === 150);
 });
 
