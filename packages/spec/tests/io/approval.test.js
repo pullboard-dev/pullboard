@@ -15,7 +15,7 @@ import {
 } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 
-const APPROVAL = pathToFileURL(join(import.meta.dirname, '..', '..', 'src', 'io', 'approval.js')).href;
+const APPROVAL = pathToFileURL(join(import.meta.dirname, '../../src/io/approval.js')).href;
 let processes = 0;
 
 /** A real repository with a committed two-line spec, plus a reader that acts as a fresh process and reports whether it ran git blame. */
