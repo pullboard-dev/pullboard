@@ -54,8 +54,9 @@ test('cli.io-worktree.primary-root-falls-back-to-git: clause 2: a repository wit
   const clone = join(box.dir, 'separate-clone');
   box.git(box.dir, 'clone', '-q', `--separate-git-dir=${separate}`, box.repo, clone);
   const calls = [];
-  const found = withGitContractAdapter(observingGit(calls), () => primaryCheckoutRoot(info(clone, box.env)));
-  assert.equal(found, clone);
+  const details = info(clone, box.env);
+  const found = withGitContractAdapter(observingGit(calls), () => primaryCheckoutRoot(details));
+  assert.equal(found, clone, `common dir ${details.commonDir}; worktrees ${box.git(clone, 'worktree', 'list', '--porcelain')}; Git calls ${JSON.stringify(calls)}`);
   assert.notEqual(info(clone, box.env).commonDir.split('/').at(-1), '.git');
   assert.ok(calls.length > 0, 'non-.git common dir kept the Git fallback');
 });
