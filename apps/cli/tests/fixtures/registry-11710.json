@@ -1,0 +1,30 @@
+{
+  "cli.io-submit-preflight-hold.git-files-read-before-the-write-lock": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The submit command reads the item's changed files from Git in its own step before the preflight dry-run opens its write transaction."
+    },
+    "why": "Without it, a Git read inside the dry-run would hold the board write lock for seconds under load again.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/preflight-hold.test.js",
+      "apps/cli/src/io/commands/submit.js"
+    ]
+  },
+  "cli.io-submit-preflight-hold.dry-run-callbacks-run-no-git": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The preflight dry-run's callbacks use the files already read and run no Git reader inside the write transaction."
+    },
+    "why": "Without it, a Git subprocess inside the rolled-back transaction would hold the board write lock past its budget again.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/submit/preflight-hold.test.js",
+      "apps/cli/src/io/commands/submit.js"
+    ]
+  }
+}

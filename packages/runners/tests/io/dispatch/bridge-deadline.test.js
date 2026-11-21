@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { bridgeDeadlineMs } from '../../../src/io/run-async.js';
 import { bridgeResult } from '../../../src/io/dispatch.js';
 
-const PLAIN_NODE_TEST = 'node --test apps/cli/journeys/cells/seals.test.js';
+const PLAIN_NODE_TEST = 'node --test apps/cli/tests/io/commands/cells/seals.test.js';
 
 test('runners.bridge-deadline.a-verify-check-that-is-plain: clause 1: a verify check that is plain node --test gets a bridge deadline and ends as RUNNER_BRIDGE_DEADLINE [C7]', () => {
   const now = 5_000_000;

@@ -16,6 +16,7 @@ import { TEST_KINDS } from '../../logic/test/manifest.js';
 
 export const GOLDEN_FILE = 'packages/gate/data/tests/golden.json';
 export const GUARDS_FILE = 'packages/gate/data/tests/guards.json';
+const MOVED_JOURNEYS_FILE = 'packages/gate/data/tests/moved-journeys.json';
 export const TEST_MANIFEST_FILE = 'packages/gate/data/tests/test-manifest.json';
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
 const SUPPORT = /(?:^|\/)(?:tests?|fixtures?)\//u;
@@ -57,15 +58,9 @@ function goldenFiles(root) {
   return new Set(JSON.parse(readFileSync(path, 'utf8')).paths.map(entry => entry.file));
 }
 
-/**
- * The files the guard list names, or none when the project has no list.
- * Why: the freeze-guards test reads the same list, so a regeneration can never drop the harness tag from a guard [C7,#8430].
- *
- * @param {string} root project root
- * @returns {Set<string>}
- */
-function guardFiles(root) {
-  const path = resolve(root, GUARDS_FILE);
+/** Read a manifest classification list, or an empty set when the project has no list. */
+function listedFiles(root, file) {
+  const path = resolve(root, file);
   if (!existsSync(path)) return new Set();
   return new Set(JSON.parse(readFileSync(path, 'utf8')).files);
 }
@@ -88,7 +83,7 @@ export function generateTestManifest(root, { times = { ...readFileTimes(root), .
   const inputs = tiers.files.map(row => ({ file: row.file, ...spawnEvidence(sources, evidence.get(row.file), row.file),
     specs: testNameIds(sources.get(row.file)?.toString('utf8') ?? ''),
     ms: Object.hasOwn(times, row.file) ? Math.round(times[row.file]) : null }));
-  return { version: 1, files: manifestRows(inputs, goldenFiles(root), guardFiles(root)) };
+  return { version: 1, files: manifestRows(inputs, goldenFiles(root), listedFiles(root, GUARDS_FILE), listedFiles(root, MOVED_JOURNEYS_FILE)) };
 }
 
 /** One row per line so a changed row is a small, readable diff. */

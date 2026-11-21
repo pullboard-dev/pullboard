@@ -34,7 +34,7 @@ import {
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { main as cli } from '../../tests/fixtures/native.js';
-import { runGate } from '../../../../packages/gate/index.js';
+import { runGate } from '../../../../packages/gate/heavy.js';
 import { liveWaiverProjection } from '../../../../packages/landing/index.js';
 import { waiverLine } from '../../../../packages/landing/index.js';
 import { waivedFailures } from '../../../../packages/landing/index.js';

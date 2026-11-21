@@ -2,18 +2,7 @@ import { processMachineHome as machineHome } from '../../../../../kernel/light.j
 /** Advisory process-owned write records; never part of native board state or lock authority [C7,P4]. */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { unlinkSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { lstatSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { closeSync } from 'node:fs';
-import { writeSync } from 'node:fs';
-import { constants } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { join } from 'node:path';
 import { parseProcessCensus } from "../../../../../kernel/light.js";
 import { recordBoardHold } from "../hold/log.js";
@@ -23,10 +12,46 @@ import { channel } from 'node:diagnostics_channel';
 /** Each write transaction's start and end, so a command's remembered item list reads again (read/light.js, #12010). */
 const WRITES = channel('pullboard:board-write');
 
+const fs = fileSystemAdapter();
+
 const pending = new WeakMap();
 let ownIdentity;
 let identityPrepared = false;
 const LONG_WRITE_MS = 2_000;
+const WRITE_HOLD_OVER_1S = 1_000;
+
+/** Append a machine-local violation and keyed counter after a completed slow write. */
+function recordWriteHoldViolation(record, heldMs, outcome) {
+  if (heldMs <= WRITE_HOLD_OVER_1S) return;
+  const key = 'WRITE_HOLD_OVER_1S';
+  const common = { key, move: label(record.move ?? record.command, 'unknown'), seat: label(record.seat, 'unknown'),
+    pid: Number.isSafeInteger(record.pid) && record.pid > 0 ? record.pid : null, heldMs, outcome: label(outcome, 'released') };
+  let fd;
+  try {
+    const directory = machineHome();
+    fs.mkdir(directory, { recursive: true, mode: 0o700 });
+    fd = fs.open(boardWriteLog(), fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW, 0o600);
+    if (!fs.fstat(fd).isFile()) throw new Error('board write log is not a regular file');
+    fs.write(fd, JSON.stringify({ type: 'violation', ...common }) + '\n');
+    fs.write(fd, JSON.stringify({ type: 'counter', ...common, value: 1 }) + '\n');
+  } catch {
+    try { fs.write(2, 'pullboard: board write violation log unavailable; original transaction outcome retained\n'); }
+    catch { /* Optional diagnostics cannot change a completed transaction. */ }
+  } finally {
+    if (fd !== undefined) try { fs.close(fd); } catch { /* Optional log cleanup cannot change a completed transaction. */ }
+  }
+}
+
+/** Read counter rows by key for machine status readers; malformed lines are ignored. */
+export function boardWriteCounterRows(key, file = boardWriteLog()) {
+  if (typeof key !== 'string' || !/^[A-Z0-9_]{1,100}$/u.test(key)) return [];
+  try {
+    return fs.readFile(file, 'utf8').split('\n').filter(Boolean).flatMap(line => {
+      try { const row = JSON.parse(line); return row?.type === 'counter' && row.key === key ? [row] : []; }
+      catch { return []; }
+    });
+  } catch { return []; }
+}
 
 /** Run one bounded PID-only query, without reading or changing any other process's arguments or state. */
 function identities(pids) {
@@ -50,7 +75,7 @@ export function prepareBoardWriteIdentity() {
 /** Resolve a real database's local sidecar directory; memory boards have no filesystem publication. */
 function boardFile(db) {
   const file = db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
-  return file ? realpathSync(file) : null;
+  return file ? fs.realpath(file) : null;
 }
 
 /** The board's database path as SQLite reports it, with no filesystem I/O; null for a memory board [C7]. */
@@ -76,7 +101,7 @@ export function configureBoardJournal(db, context = {}) {
       try {
         const line = { operation: 'journal_mode', timing: 'wait-plus-hold', command: label(context.command, 'api'),
           seat: label(context.seat, 'unknown'), pid: process.pid, durationMs, outcome };
-        writeSync(2, 'pullboard: long board operation ' + JSON.stringify(line) + '\n');
+        fs.write(2, 'pullboard: long board operation ' + JSON.stringify(line) + '\n');
       }
       catch { /* Optional diagnostics must preserve journal conversion's original result or refusal. */ }
     }
@@ -99,20 +124,20 @@ export function prepareBoardWriteMarker(db, context = {}) {
     const file = boardFile(db);
     if (!file || !ownIdentity || ownIdentity.state.startsWith('Z')) return null;
     const directory = file + '.write-holders';
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-    if (!lstatSync(directory).isDirectory()) return null;
+    fs.mkdir(directory, { recursive: true, mode: 0o700 });
+    if (!fs.lstat(directory).isDirectory()) return null;
     const marker = join(directory, `${process.pid}-${storeName(randomUUID())}`);
     const labels = contextFor(db, context);
     const detail = { version: 1, pid: process.pid, started: ownIdentity.started, processSha256: ownIdentity.processSha256,
       command: labels.command, seat: labels.seat, acquiredAt: Date.now(), contender: true };
-    writeFileSync(marker, JSON.stringify(detail) + '\n', { flag: 'wx', mode: 0o600 });
+    fs.writeFile(marker, JSON.stringify(detail) + '\n', { flag: 'wx', mode: 0o600 });
     return marker;
   } catch { return null; }
 }
 
 /** Remove an advisory contender after failed admission or after releasing the transaction. */
 export function discardBoardWriteMarker(marker) {
-  if (marker) try { unlinkSync(marker); } catch { /* Advisory cleanup cannot change the move. */ }
+  if (marker) try { fs.unlink(marker); } catch { /* Advisory cleanup cannot change the move. */ }
 }
 
 /** Start timing after BEGIN without filesystem I/O. */
@@ -178,12 +203,13 @@ export function finishBoardWrite(record, released, outcome = 'released') {
   const durationMs = Math.max(0, Math.round((record.releasedAt ?? performance.now()) - record.start));
   if (durationMs > LONG_WRITE_MS) {
     const line = { command: record.command, seat: record.seat, item: record.item ?? null, pid: record.pid, durationMs, outcome };
-    try { writeSync(2, 'pullboard: long board write ' + JSON.stringify(line) + '\n'); }
+    try { fs.write(2, 'pullboard: long board write ' + JSON.stringify(line) + '\n'); }
     catch { /* A closed diagnostic stream must not turn an already committed move into an apparent refusal. */ }
   }
   recordBoardHold({ ...record, durationMs, outcome });
   recordBoardHold({ ...record, durationMs, outcome, allWrites: true });
-  if (record.marker) try { unlinkSync(record.marker); } catch { /* Optional advisory cleanup. */ }
+  recordWriteHoldViolation(record, durationMs, outcome);
+  if (record.marker) try { fs.unlink(record.marker); } catch { /* Optional advisory cleanup. */ }
   pending.get(record.db)?.delete(record);
 }
 
@@ -197,11 +223,11 @@ export function closeBoardWrites(db) {
 function readMarker(file) {
   let fd;
   try {
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = fstatSync(fd);
+    fd = fs.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const stat = fs.fstat(fd);
     if (!stat.isFile() || stat.size > 4_096) return null;
     const buffer = Buffer.alloc(stat.size);
-    if (readSync(fd, buffer, 0, buffer.length, 0) !== buffer.length) return null;
+    if (fs.read(fd, buffer, 0, buffer.length, 0) !== buffer.length) return null;
     const value = JSON.parse(buffer.toString('utf8'));
     if (value.version !== 1 || !Number.isSafeInteger(value.pid) || value.pid < 1 || !Number.isFinite(value.acquiredAt)
       || typeof value.started !== 'string' || value.started.length > 100 || !/^[a-f0-9]{64}$/u.test(value.processSha256 ?? '')) return null;
@@ -209,7 +235,7 @@ function readMarker(file) {
   } catch { return null; /* Advisory corruption/missing publication never replaces the original BOARD_BUSY refusal. */ }
   finally {
     if (fd !== undefined) {
-      try { closeSync(fd); }
+      try { fs.close(fd); }
       catch { /* Optional marker descriptor cleanup cannot replace the original BOARD_BUSY refusal. */ }
     }
   }
@@ -226,7 +252,7 @@ function reclaimDeadMarkers(candidates, live) {
     try { process.kill(row.pid, 0); } catch (error) { gone = error.code === 'ESRCH'; }
     const identity = live.get(row.pid);
     if (!gone && identity && (identity.state.startsWith('Z') || identity.started !== row.started)) gone = true;
-    if (gone) try { unlinkSync(row.path); } catch { /* Its writer or another reader removed it first. */ }
+    if (gone) try { fs.unlink(row.path); } catch { /* Its writer or another reader removed it first. */ }
   }
 }
 
@@ -235,12 +261,12 @@ export function boardWriteHolderText(file) {
   let directory;
   let candidates;
   try {
-    directory = realpathSync(file) + '.write-holders';
-    if (!lstatSync(directory).isDirectory()) return '';
-    candidates = readdirSync(directory).filter(name => /^\d+-[a-f0-9-]+\.json$/u.test(name)).map(name => {
+    directory = fs.realpath(file) + '.write-holders';
+    if (!fs.lstat(directory).isDirectory()) return '';
+    candidates = fs.list(directory).filter(name => /^\d+-[a-f0-9-]+\.json$/u.test(name)).map(name => {
       const path = join(directory, name);
       try {
-        const stat = lstatSync(path);
+        const stat = fs.lstat(path);
         return stat.isFile() ? { path, at: stat.mtimeMs } : null;
       } catch { return null; /* A completed writer can remove its own record during this advisory read. */ }
     }).filter(Boolean).sort((a, b) => b.at - a.at).slice(0, 32).map(row => ({ ...readMarker(row.path), path: row.path })).filter(row => row.pid);

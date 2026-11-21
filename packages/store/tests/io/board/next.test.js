@@ -6,11 +6,16 @@ import { listItems } from '../../../index.js';
 import { nextFor } from '../../../index.js';
 import { reviewOffer } from '../../../index.js';
 import { register } from '../../../index.js';
+import { saveAgentAbilities } from '../../../src/io/needs.js';
 import { claim } from '../../../index.js';
 import { largestDisjointWave } from '../../../../items/index.js';
 import { submitFixture } from '../../fixtures/submit.js';
 import { FIXTURE_MODEL } from '../../fixtures/cell.js';
 import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
+import { recordSubmitHandoff } from '../../../../jobs/index.js';
+import { setAfterGate } from '../../../src/io/board/item/after-gate.js';
+import { fixture as dispatchFixture } from '../../fixtures/dispatch.js';
+import { getItem } from '../../../index.js';
 
 const FUTURE = '2999-01-01T00:00:00.000Z';
 const PAST = '2000-01-01T00:00:00.000Z';
@@ -255,4 +260,124 @@ test('store.io-board-next.wave-off-leaves-the-order: clause 3: with contention n
   const agentId = register(board, { lane: 'web', path: '/seat-off', route: 'strong' });
   assert.equal(nextFor(board, { agentId, lane: 'web', contention: null }).item?.item_id, ids.a);
   assert.equal(nextFor(board, { agentId, lane: 'web', omitIds: [ids.a] }).item?.item_id, ids.b);
+});
+
+/** Two open items on one lane: one needing a browser, one needing nothing; seats with and without the ability. */
+function needsBoard(t) {
+  const board = fixtureBoard(t);
+  const make = (title, file) => addItem(board, { by: 'coordinator', lane: 'web', title, brief: `Files:\n- ${file}` });
+  const ids = { plain: make('needs nothing', 'src/plain.js'), browser: make('needs a browser', 'src/browser.js') };
+  board.db.prepare("INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)").run(`item_needs:${ids.browser}`, JSON.stringify(['browser']));
+  const seat = (path, abilities) => { const agentId = register(board, { lane: 'web', path, route: 'strong' }); saveAgentAbilities(board, agentId, abilities); return agentId; };
+  return { board, ids, seat };
+}
+
+test('store.io-board-next.needs-ability-skips: clause 1: nextFor never offers an open item whose needs the seat abilities lack, offers it to a seat that has them, and offers an item with no needs as before [U136, #1888]', t => {
+  const { board, ids, seat } = needsBoard(t);
+  const bare = seat('/seat-bare', []), able = seat('/seat-able', ['browser']);
+  assert.equal(nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain] }).item, null, 'a seat without the browser ability is not offered the browser item');
+  assert.equal(nextFor(board, { agentId: bare, lane: 'web' }).item?.item_id, ids.plain, 'an item with no needs is offered as today');
+  assert.equal(nextFor(board, { agentId: able, lane: 'web', omitIds: [ids.plain] }).item?.item_id, ids.browser);
+});
+
+test('store.io-board-next.needs-ability-idle-skip: clause 2: with observeIdle the item skipped for a missing ability is listed with code NEEDS_ABILITY [U136, #1888]', t => {
+  const { board, ids, seat } = needsBoard(t);
+  const bare = seat('/seat-idle', []);
+  const idle = nextFor(board, { agentId: bare, lane: 'web', omitIds: [ids.plain], observeIdle: true });
+  assert.equal(idle.item, null);
+  assert.deepEqual(idle.skips.filter(row => row.item === ids.browser), [{ item: ids.browser, code: 'NEEDS_ABILITY' }]);
+});
+
+/** A dispatch board whose builder seat submits parents; each parent records its gate in the given state at its own head or at `jobHead`. */
+function gateBoard(t) {
+  const box = dispatchFixture(t);
+  let n = 0;
+  const parentWith = (job, jobHead) => {
+    const parent = box.add(`Parent ${n += 1}`);
+    box.submit(parent);
+    const head = getItem(box.board, parent).item_commit;
+    recordSubmitHandoff(box.board.db, parent, { id: `fixture-${parent}`, commit: jobHead ?? head, agentId: box.seats.builder.id, ...job });
+    return parent;
+  };
+  /** A dependent on its own file, waiting on `parent` through the after-gate list, or plain --after when `plain`. */
+  const dependent = (parent, { plain = false } = {}) => {
+    const child = box.add(`Dependent ${n += 1}`, { brief: `Files: web/dependent-${n}.js\nTest: next offers the dependent only behind a gate-green parent.`, ...(plain ? { after: [parent] } : {}) });
+    if (!plain) setAfterGate(box.board, child, [parent]);
+    return child;
+  };
+  /** What next offers this agent when every other dependent is omitted. */
+  const offered = (child, all) => nextFor(box.board, { agentId: box.seats.actor.id, lane: 'web', omitIds: all.filter(id => id !== child) });
+  return { box, parentWith, dependent, offered };
+}
+
+test('store.io-board-next.after-gate-green-parent-offered: clause 1: next offers an open dependent whose after-gate parent is submitted with a green gate at its head, and offers nothing while that gate is queued, running or red [C7,#11805]', t => {
+  const { parentWith, dependent, offered } = gateBoard(t);
+  const green = dependent(parentWith({ state: 'green' }));
+  const queued = dependent(parentWith({ state: 'queued' }));
+  const running = dependent(parentWith({ state: 'running' }));
+  const red = dependent(parentWith({ state: 'red', error: { code: 'TEST_FAILURE' } }));
+  const all = [green, queued, running, red];
+  assert.equal(offered(green, all).item?.item_id, green, 'a green gate at the parent head releases the dependent');
+  for (const child of [queued, running, red]) {
+    const answer = offered(child, all);
+    assert.equal(answer.item, null, `#${child} stays held: ${answer.reasons.join(' | ')}`);
+    assert.ok(answer.reasons.some(line => line.startsWith(`#${child} waits on`)), answer.reasons.join(' | '));
+  }
+});
+
+test('store.io-board-next.plain-after-submitted-parent-skipped: clause 2: a dependent behind a plain --after parent that is only submitted is still skipped DEPENDENCY, as is one behind a green gate recorded at another head [C7,#11805]', t => {
+  const { parentWith, dependent, offered } = gateBoard(t);
+  const plain = dependent(parentWith({ state: 'green' }), { plain: true });
+  const stale = dependent(parentWith({ state: 'green' }, 'b'.repeat(40)));
+  const all = [plain, stale];
+  for (const child of all) {
+    const answer = offered(child, all);
+    assert.equal(answer.item, null, answer.reasons.join(' | '));
+    assert.ok(answer.reasons.some(line => line.startsWith(`#${child} waits on`)), answer.reasons.join(' | '));
+  }
+});
+
+/** Every statement a call prepares on the board's connection, with its query plan rows. */
+function plannedStatements(board, run) {
+  const prepare = board.db.prepare.bind(board.db), seen = [];
+  board.db.prepare = sql => { seen.push(sql); return prepare(sql); };
+  try { run(); } finally { board.db.prepare = prepare; }
+  return seen.filter(sql => /^\s*SELECT/iu.test(sql)).map(sql => ({ sql, plan: prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail) }));
+}
+
+/** Add board_meta rows of other keys, about the live board's average row size, as history the selection must not read. */
+function seedMetaHistory(board, rows) {
+  const insert = board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)');
+  const value = JSON.stringify({ history: 'x'.repeat(180) });
+  board.db.exec('BEGIN');
+  try { for (let index = 0; index < rows; index += 1) insert.run(`local:history-${index}`, value); board.db.exec('COMMIT'); } catch (error) { board.db.exec('ROLLBACK'); throw error; }
+}
+
+/** The median milliseconds of repeated nextFor calls. */
+function medianNextMs(board, calls = 20) {
+  const times = [];
+  for (let index = 0; index < calls; index += 1) {
+    const started = performance.now();
+    nextFor(board, { agentId: 'web-2', lane: 'web' });
+    times.push(performance.now() - started);
+  }
+  return times.sort((a, b) => a - b)[Math.floor(times.length / 2)];
+}
+
+test('store.io-board-next.needs-read-uses-key-range: clause 1: nextFor reads item needs by a key range and never scans board_meta [C7]: its cost does not grow with board history', (t) => {
+  const { board } = mixedBoard(t);
+  const statements = plannedStatements(board, () => nextFor(board, { agentId: 'web-2', lane: 'web' }));
+  assert.ok(statements.some(({ sql }) => sql.includes('item_needs')), 'nextFor reads item needs');
+  for (const { sql, plan } of statements) assert.ok(!plan.some(detail => /^SCAN board_meta\b/u.test(detail)), `a nextFor statement scans board_meta: ${sql} -> ${plan.join('; ')}`);
+});
+
+test('store.io-board-next.cost-flat-with-meta-history: clause 2: nextFor stays under 200 ms and within 2x of an empty board with 81,559 board_meta history rows [C7]: 1:10 of the live board', (t) => {
+  const empty = mixedBoard(t).board;
+  const full = mixedBoard(t).board;
+  seedMetaHistory(full, 81_559);
+  medianNextMs(empty, 3); medianNextMs(full, 3);
+  const base = medianNextMs(empty);
+  const loaded = medianNextMs(full);
+  assert.ok(loaded < 200, `median nextFor ${loaded.toFixed(1)} ms with history`);
+  assert.ok(loaded <= Math.max(2 * base, base + 5), `median nextFor ${loaded.toFixed(1)} ms with history against ${base.toFixed(1)} ms without`);
 });

@@ -1,17 +1,15 @@
-import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
+import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/browser.js";
 /** Durable work-health observations, separate from the person's decisions [A6,H16]. */
 import { Refused } from "../../../../kernel/light.js";
-import { CPU_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { CPU_SENTINEL_ENGINE } from "../../../../state/browser.js";
 
 /** The allocated engine for ordered sentinel observations; earlier moves keep their meaning. */
-import { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
-export { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { HEALTH_SENTINEL_ENGINE } from "../../../../state/browser.js";
 
-import { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
-export { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
+import { HEALTH_CAP_ENGINE } from "../../../../state/browser.js";
 
-import { HEALTH_QUIET_ENGINE } from "../../../../state/light.js";
-import { HEALTH_EPISODE_ENGINE } from "../../../../state/light.js";
+import { HEALTH_QUIET_ENGINE } from "../../../../state/browser.js";
+import { HEALTH_EPISODE_ENGINE } from "../../../../state/browser.js";
 
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;
@@ -123,4 +121,47 @@ export function deliverHealthNotices({ resolved, added, pending = [], recentlyRe
   }
   if (held) shout(coordinator, `Health: ${held} more notices from this run were held back, so one run never floods a feed; pullboard health lists every finding.`);
   return durableCpu ? deferred : undefined;
+}
+
+/** One reader hears a buffered batch at most once in this many milliseconds (#1479). */
+export const DIGEST_WINDOW_MS = 10 * 60 * 1000;
+
+/** The findings a reader hears at once: each needs a ruling or a landing the reader must act on (#1479). */
+const DIGEST_IMMEDIATE_CAUSES = new Set(["UNLANDED_HELD", "UNLANDED_WAITING", "UNLANDED_CONFLICT", "DECISION_UNANSWERED", "REQUEST_UNANSWERED"]);
+
+/**
+ * Plan one run's notices as a digest: an immediate-cause finding goes to each of its readers now, every other added finding is buffered per
+ * reader, a resolved finding leaves every buffer, and a reader whose last flush is at least DIGEST_WINDOW_MS old gets one line naming every
+ * buffered subject. A reader with no last flush starts its window at `now`. No I/O; the caller stores `buffered` and `lastFlush`.
+ *
+ * @param {{ added: any[], resolved: any[], buffered?: Record<string, {key: string, subject: string}[]>, lastFlush?: Record<string, string>,
+ *   now: string | Date, targets: (finding: any) => string[] }} run
+ * @returns {{ immediate: [string, any][], buffered: Record<string, {key: string, subject: string}[]>, lastFlush: Record<string, string>, lines: [string, string][] }}
+ */
+export function healthDigestPlan({ added, resolved, buffered = {}, lastFlush = {}, now, targets }) {
+  const instant = String(now instanceof Date ? now.toISOString() : now);
+  const gone = new Set(resolved.map(finding => finding.key));
+  const next = {};
+  for (const [reader, entries] of Object.entries(buffered)) {
+    const kept = entries.filter(entry => !gone.has(entry.key));
+    if (kept.length) next[reader] = kept;
+  }
+  const immediate = [];
+  for (const finding of added) {
+    for (const reader of targets(finding)) {
+      if (DIGEST_IMMEDIATE_CAUSES.has(finding.cause)) immediate.push([reader, finding]);
+      else if (!(next[reader] ??= []).some(entry => entry.key === finding.key)) next[reader].push({ key: finding.key, subject: finding.subject });
+    }
+  }
+  const flushed = { ...lastFlush };
+  const lines = [];
+  for (const reader of Object.keys(next)) {
+    if (flushed[reader] === undefined) { flushed[reader] = instant; continue; }
+    if (Date.parse(instant) - Date.parse(flushed[reader]) < DIGEST_WINDOW_MS) continue;
+    const subjects = [...new Set(next[reader].map(entry => entry.subject))];
+    lines.push([reader, `Digest: ${next[reader].length} routine findings since ${flushed[reader]}: ${subjects.join(", ")}. pullboard health lists each with its next step.`]);
+    delete next[reader];
+    flushed[reader] = instant;
+  }
+  return { immediate, buffered: next, lastFlush: flushed, lines };
 }

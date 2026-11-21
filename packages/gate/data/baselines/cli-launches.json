@@ -95,7 +95,7 @@
   "apps/cli/journeys/relay/person/scroll.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/resume/tour.test.js": {
+  "apps/cli/tests/io/resume/tour.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/runner/controller/cpu.test.js": {
@@ -284,9 +284,6 @@
   "apps/cli/journeys/export/team/board.test.js": {
     "launch": 3
   },
-  "packages/gate/tests/io/main/resource.test.js": {
-    "launch": 4
-  },
   "apps/cli/journeys/mcp/main.test.js": {
     "launch": 1
   },
@@ -308,7 +305,7 @@
   "apps/cli/journeys/agents/session-takeover.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/companion/companions/review.test.js": {
+  "apps/cli/tests/io/commands/companion/review.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/spec/e2e/next.test.js": {
@@ -392,7 +389,7 @@
   "apps/cli/journeys/runner/overhead.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/compose.test.js": {
+  "apps/cli/tests/io/submit/compose.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/init/shards/stop.test.js": {
@@ -476,7 +473,7 @@
   "apps/cli/journeys/shout/layout/corner.test.js": {
     "launch": 2
   },
-  "apps/cli/journeys/show/policy/dependency.test.js": {
+  "apps/cli/tests/io/commands/show/dependency.test.js": {
     "launch": 8
   },
   "apps/cli/journeys/land/landing/prune.test.js": {
@@ -755,7 +752,7 @@
   "packages/landing/tests/hung.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/shout/sentinel/model.test.js": {
+  "apps/cli/tests/io/shout/sentinel-model.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/check-baseline/warn.test.js": {
@@ -794,10 +791,10 @@
   "apps/cli/journeys/flakes/ci.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/fact/e2e/tour.test.js": {
+  "apps/cli/tests/io/commands/fact/e2e-tour.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/e2e/tour-agent-session.test.js": {
+  "apps/cli/tests/io/commands/fact/e2e-tour-agent-session.test.js": {
     "launch": 1
   },
   "packages/landing/tests/logic/failures.test.js": {
@@ -872,7 +869,7 @@
   "apps/cli/journeys/resources/checks.test.js": {
     "launch": 3
   },
-  "apps/cli/journeys/resume/tour-demo.test.js": {
+  "apps/cli/tests/io/resume/tour-demo.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/test/runners.test.js": {
@@ -938,7 +935,7 @@
   "apps/cli/journeys/fact/bound.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/verify/check-checked.test.js": {
+  "apps/cli/tests/io/commands/verify/checked.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/lane/merged.test.js": {
@@ -1100,7 +1097,7 @@
   "apps/runner/tests/recovery/idle.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/stats/log.test.js": {
+  "apps/cli/tests/io/commands/stats/log.test.js": {
     "launch": 3
   },
   "apps/cli/journeys/publish/catalog.test.js": {
@@ -1151,7 +1148,7 @@
   "apps/cli/journeys/inbox/events-stream.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/submit/handoff/recovery.test.js": {
+  "apps/cli/tests/io/submit/handoff-recovery.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/shout/activity/polish.test.js": {
@@ -1370,7 +1367,7 @@
   "apps/cli/journeys/fact/tests/no.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/resume/presence/heartbeat.test.js": {
+  "apps/cli/tests/io/resume/heartbeat.test.js": {
     "launch": 6
   },
   "packages/seats/tests/io/checkout.test.js": {
@@ -1406,7 +1403,7 @@
   "apps/relay/journeys/server/stays.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/main/cache.test.js": {
+  "apps/cli/tests/io/commands/fact/main-cache.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/verify/team/verdict.test.js": {
@@ -1613,7 +1610,7 @@
   "apps/cli/journeys/shout/http/state.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/verify/checks-heavy.test.js": {
+  "apps/cli/tests/io/commands/verify/heavy.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/fact/board/busy-migration.test.js": {

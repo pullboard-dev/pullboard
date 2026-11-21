@@ -2,13 +2,12 @@
 // Why a module of its own: query.js reaches verify, seats and items, so a light door exporting from it broke its cold-load budget.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { subscribe } from 'node:diagnostics_channel';
-import { existsSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../../fs/index.js';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../../kernel/light.js';
-import { ENGINE_VERSION } from '../../../../../state/light.js';
-import { SUBMIT_HANDOFF_ENGINE } from '../../../../../state/light.js';
-import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
+import { ENGINE_VERSION } from '../../../../../state/browser.js';
+import { SUBMIT_HANDOFF_ENGINE } from '../../../../../state/browser.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../../../state/browser.js';
 import { itemWorkInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
@@ -16,6 +15,8 @@ import { pulledGateRecords } from '../../submit/handoff/records.js';
 import { withSeatPresence } from '../../presence.js';
 import { withDerivedFamily } from '../../../../../items/light.js';
 import { agentParent } from '../../../../../seats/light.js';
+
+const fs = fileSystemAdapter();
 
 /**
  * A value that changes whenever the board's data may have, for per-revision read caches [H24]: another connection's commit moves
@@ -62,7 +63,7 @@ function isCantOpen(error) {
 
 /** Count this process's open descriptors, or null where the platform lists none. */
 function openFileCount() {
-  try { return readdirSync('/dev/fd').length; } catch { return null; }
+  try { return fs.list('/dev/fd').length; } catch { return null; }
 }
 
 /** Open an existing board without migrations, waiting for the same locks as openBoard. The caller may pass a richer `busyError` that names the lock holder. */
@@ -227,8 +228,9 @@ function strictPolicy(stored) {
  * @returns {string}
  */
 export function listItemsSql({ all, hasLane, inFlight = false }) {
+  // Each scope reads item through an item_status index: a NOT IN would scan every item the board ever held [#12581].
   const scope = inFlight ? "(item_status IN ('claimed','submitted') OR (item_status='verified' AND COALESCE(item_merged_commit,'')=''))"
-    : all ? '1' : "item_status NOT IN ('verified','withdrawn')";
+    : all ? '1' : "(item_status IN ('open','claimed','submitted'))";
   return `SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, policy.meta_value AS review_policy, expected.meta_value AS expected_build,
       item.item_id IN (SELECT item_id FROM event WHERE event_kind='merged') AS landed
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
@@ -278,7 +280,7 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 export function landingMayWait(file) {
   let db;
   // No board file means nothing was ever accepted here.
-  if (!existsSync(file)) return false;
+  if (!fs.exists(file)) return false;
   try {
     db = openBoardReadOnly(file);
     return db.prepare("SELECT 1 AS waiting FROM item WHERE item_status = 'verified' AND (item_merged_commit IS NULL OR item_merged_commit = '') LIMIT 1").get() !== undefined;

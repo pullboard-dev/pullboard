@@ -9,6 +9,9 @@ import {
 } from "../../logic/exit/rules/continuation.js";
 import { pendingSubmitHandoff } from "../submit/handoff/records.js";
 import { submitHandoff } from "../submit/handoff/records.js";
+import { GATE_SETTLE_HOLD_MS } from "../submit/handoff/records.js";
+import { afterGateIds } from './item/after-gate.js';
+import { gateGreenParent } from './item/after-gate.js';
 import { firstRefusal } from "../../logic/board/item/lookup.js";
 import { builderFamilyOf } from "../../../../verify/index.js";
 import { familiesDiffer } from "../../../../verify/index.js";
@@ -17,6 +20,8 @@ import { seatFamily } from "../../../../verify/index.js";
 import { idleReason } from "../../../../seats/index.js";
 import { liveRouteProblem } from "../../../../seats/index.js";
 import { withLocalSeatPresence } from "../presence.js";
+import { missingNeeds } from "../../../../queue/light.js";
+import { agentAbilities } from "../needs.js";
 import * as itemDependencies from "../../../../items/index.js";
 import { criticalPathEnabled } from "../../../../items/index.js";
 import { criticalPathOrder } from "../../../../items/index.js";
@@ -140,7 +145,7 @@ function composeLandingReview(board) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined, derivedSeatFamily?: (id: string) => string | undefined, composeLanding?: boolean }} options
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -148,7 +153,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily, composeLanding = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, reservations = false, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead, derivedSeatFamily, composeLanding = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -183,17 +188,25 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  // An open item names the abilities it needs [U136,#1888]; a seat lacking one is never offered it. One read for the whole board, not one per item (#5329).
+  const abilities = new Set(agentAbilities(board, agentId));
+  // A key range on the primary key, never a LIKE: SQLite serves LIKE ... ESCAPE by scanning all of board_meta, 0.7 s a call
+  // on the 815,588-row live board (20 Nov). ';' follows ':' in byte order, so the range holds exactly the item_needs: keys.
+  const neededBy = new Map(board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key >= 'item_needs:' AND meta_key < 'item_needs;'").all()
+    .map(row => [Number(row.meta_key.slice('item_needs:'.length)), JSON.parse(row.meta_value)]));
+  const lacksAbility = (entry) => entry.item_status === 'open' && neededBy.has(entry.item_id) && missingNeeds(neededBy.get(entry.item_id), [...abilities]).length > 0;
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
     if (omitIds.includes(entry.item_id)) skip(entry, 'OMITTED');
     else if (!canTake(route, entry.item_route) || !routes.includes(entry.item_route)) skip(entry, 'ROUTE_FILTER');
+    else if (lacksAbility(entry)) skip(entry, 'NEEDS_ABILITY');
     else if (runnable && !entry.item_check) skip(entry, 'CHECK_REQUIRED');
     else if (verify && entry.item_built_by === agentId) skip(entry, 'SELF_VERIFY');
     else if (verify && skipIds.includes(entry.item_id)) skip(entry, 'SELF_SESSION_VERIFY');
   }
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check) && !lacksAbility(entry)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
       && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));
@@ -333,6 +346,14 @@ export function nextFor(board, options) {
   const mine = laneItems
     // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
     .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
+    // route.reservations (off unless a machine turns it on): an item reserved for another seat is skipped and its holder named; its holder is offered it as usual [C7,#9161].
+    .filter((entry) => {
+      const holder = reservations ? entry.item_reservation_holder : null;
+      if (!holder || holder === agentId) return true;
+      skip(entry, 'ITEM_RESERVED');
+      reasons.push(`#${entry.item_id} is reserved for ${holder}`);
+      return false;
+    })
     .map((entry, order) => ({ entry, order, shared: recent.size ? itemFiles(entry).filter((path) => recent.has(path)) : [] }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
@@ -414,7 +435,9 @@ export function nextFor(board, options) {
     if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
+      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn'
+        // An after-gate parent that is submitted with a green gate at its head no longer holds its dependent back [C7,#11805].
+        && !(afterGateIds(board, entry.item_id).includes(before.item_id) && gateGreenParent(board, before.item_id)));
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { skip(entry, continuation.code); reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
@@ -513,6 +536,42 @@ function jobAtHead(entry, job) {
 }
 
 /**
+ * Name the item's newest gate job when it finished with its proof deferred and nothing settled it: its receipt says
+ * gate.deferred, not green, and the job has no note:shards.settled step. It carries no hand-off record, so the checks
+ * below never see it. Why: such an item showed GATE_WAITING to each new holder, a release reopened it, and next handed
+ * it out again; six items were each claimed 4-5 times in two hours (19 Nov) [C7]. A reopen, reject, edit or refreeze
+ * after the job ends the hold. A board with no job tables holds nothing.
+ * The hold also ends GATE_SETTLE_HOLD_MS after the job's last update when no gate-shard job of it is still offered or
+ * claimed: with no live shard nothing will settle it, and #10700 sat 16 h unoffered, rooting 15 waiting items [C7,B8].
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @param {string | undefined} returned - the newest reopen, reject, edit or refreeze event time
+ * @returns {string | null}
+ */
+function deferredGateUnsettled(board, entry, returned) {
+  let row;
+  try {
+    row = board.db.prepare(`SELECT j.job_id AS id, j.job_candidate AS candidate, j.job_step AS step, j.job_updated AS at,
+      json_extract(r.job_step_payload, '$.receipt.gate.deferred') AS deferred, json_extract(r.job_step_payload, '$.receipt.gate.green') AS green,
+      EXISTS (SELECT 1 FROM job_step s WHERE s.job_step_job = j.job_id AND s.job_step_name = 'note:shards.settled') AS settled
+      FROM job j LEFT JOIN job_step r ON r.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name = 'receipt')
+      WHERE j.job_kind = 'gate' AND j.job_item = ? ORDER BY j.job_created DESC, j.rowid DESC LIMIT 1`).get(entry.item_id);
+  } catch { return null; }
+  if (!row || row.step !== 'done' || row.deferred !== 1 || row.green === 1 || row.settled) return null;
+  if (returned && returned > new Date(row.at).toISOString()) return null;
+  if (!(board.clock.now().getTime() - row.at < GATE_SETTLE_HOLD_MS) && !liveShard(board, entry.item_id, row.id)) return null;
+  return `gate deferred at ${String(row.candidate ?? row.id).slice(0, 12)}, its proof unsettled`;
+}
+
+/** Whether a gate-shard job of the gate job is still offered or claimed; a board that cannot say counts as live, so the hold stays. */
+function liveShard(board, item, job) {
+  try {
+    return Boolean(board.db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%' AND job_step IN ('offered', 'claimed') LIMIT 1").get(item, job));
+  } catch { return true; }
+}
+
+/**
  * Name the gate that already covers an open item's latest head, or null when a build is still due [C7].
  * A queued, running or green gate, or an infrastructure stop under the item's frozen bar, means the work is done and only waits for the
  * machine; a red gate returns the item to its builder, so it stays offered, except a gate red only on main reds,
@@ -525,10 +584,15 @@ function jobAtHead(entry, job) {
  * @returns {string | null}
  */
 export function gateAtHead(board, entry) {
+  // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
+  // An edit or refreeze after a deferred gate also asks for a new build, so it ends that hold too [C7].
+  const marks = board.db.prepare(`SELECT MAX(CASE WHEN event_kind IN ('reopen', 'reject') THEN event_at END) AS returned, MAX(event_at) AS changed
+    FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject', 'edit', 'refreeze')`).get(entry.item_id);
+  const returned = marks?.returned ?? undefined;
+  const deferred = deferredGateUnsettled(board, entry, marks?.changed ?? undefined);
+  if (deferred) return deferred;
   const job = submitHandoff(board, entry.item_id);
   if (!job || !jobAtHead(entry, job)) return null;
-  // A reopen or reject after the job sends the item back for work, so its old gate no longer means "done" (#2955).
-  const returned = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE item_id = ? AND event_kind IN ('reopen', 'reject')").get(entry.item_id)?.at;
   if (returned && typeof job.at === 'string' && returned > job.at) return null;
   // An infrastructure stop covers the head only under the bar it was built for: a refreeze or edit since asks for a new build.
   const state = job.state === 'infrastructure' ? (INFRA_HELD.has(job.error?.code) && (job.digest ?? null) === (entry.item_frozen_digest ?? null) ? job.error.code : null)

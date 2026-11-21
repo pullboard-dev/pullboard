@@ -39,6 +39,7 @@ export function record(root, step) { appendFileSync(process.env.PULLBOARD_FIXTUR
   'packages/items/index.js': `import { record } from '../../bin/record.js';
 export function requireSubmitComposition(root) { record(root, 'composition'); }
 `,
+  'packages/gate/heavy.js': "export * from './index.js';\n",
   'packages/gate/index.js': `import { record } from '../../bin/record.js';
 export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
@@ -202,6 +203,11 @@ export async function pullQueue(t, box, { queue } = {}) {
 }
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+
+/** Start a real census controller against this fixture board, so a journey can signal it. */
+export function startCensusController(box, out) {
+  return spawn(process.execPath, [BIN, 'test', '--census', '--out', out], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+}
 
 /**
  * The environment a served runner starts with: the box's own, with every PULLBOARD_ variable removed so it sees a clean

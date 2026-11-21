@@ -181,7 +181,7 @@
         "component test helper; moves with its importers"
       ]
     },
-    "apps/cli/journeys/claim/policy/detached.test.js": {
+    "apps/cli/tests/io/claim/detached.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -654,7 +654,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/resume/e2e.test.js": {
+    "apps/cli/tests/io/resume/e2e.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -672,9 +672,9 @@
         "drives a browser (apps/cli/tests/fixtures/e2e.js)",
         "imports past app:lib front door (apps/lib/src/logic/native.js)",
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "installs git hooks (apps/cli/journeys/resume/e2e.test.js)",
+        "installs git hooks (apps/cli/tests/io/resume/e2e.test.js)",
         "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/journeys/resume/e2e.test.js)"
+        "spawns a child process (apps/cli/tests/io/resume/e2e.test.js)"
       ]
     },
     "apps/cli/journeys/resume/e2e-more.test.js": {
@@ -700,7 +700,7 @@
         "spawns a child process (apps/cli/journeys/resume/e2e-more.test.js)"
       ]
     },
-    "apps/cli/journeys/gate/slot.test.js": {
+    "apps/cli/tests/io/commands/gate/slot.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -710,7 +710,7 @@
         "sync"
       ],
       "reasons": [
-        "drives a browser (apps/cli/journeys/gate/slot.test.js)",
+        "drives a browser (apps/cli/tests/io/commands/gate/slot.test.js)",
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
         "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
@@ -786,7 +786,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/show/policy/e2e.test.js": {
+    "apps/cli/tests/io/commands/show/e2e.test.js": {
       "cells": [
         "app:lib",
         "app:runner",
@@ -841,7 +841,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/fact/e2e/tour.test.js": {
+    "apps/cli/tests/io/commands/fact/e2e-tour.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -876,7 +876,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/view/e2e-doctrine.test.js": {
+    "apps/cli/tests/io/commands/view/e2e-doctrine.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1092,7 +1092,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/help/main.test.js": {
+    "apps/cli/tests/io/commands/help.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1361,7 +1361,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/fact/main/cache.test.js": {
+    "apps/cli/tests/io/commands/fact/main-cache.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1525,7 +1525,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/resume/refusals.test.js": {
+    "apps/cli/tests/io/resume/refusals.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -1811,7 +1811,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/submit/steps.test.js": {
+    "apps/cli/tests/io/submit/steps.test.js": {
       "cells": [
         "app:cli",
         "app:lib",
@@ -2451,7 +2451,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/companion/companions/review.test.js": {
+    "apps/cli/tests/io/commands/companion/review.test.js": {
       "cells": [
         "app:lib",
         "kernel",
@@ -2467,7 +2467,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/fact/review/packet/cases/fixture.test.js": {
+    "apps/cli/tests/io/commands/fact/review-packet-cases-fixture.test.js": {
       "cells": [
         "app:lib",
         "gate",
@@ -2859,7 +2859,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/show/check.test.js": {
+    "apps/cli/tests/io/commands/show/check.test.js": {
       "cells": [
         "app:lib",
         "config",
@@ -2867,7 +2867,7 @@
         "store"
       ],
       "reasons": [
-        "runs the CLI (apps/cli/journeys/show/check.test.js)",
+        "runs the CLI (apps/cli/tests/io/commands/show/check.test.js)",
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
@@ -2926,7 +2926,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
+    "apps/cli/tests/io/submit/gate/frozen.test.js": {
       "cells": [
         "config",
         "gate",
@@ -2937,7 +2937,7 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/submit/gate/unchecked.test.js": {
+    "apps/cli/tests/io/submit/gate/unchecked.test.js": {
       "cells": [
         "app:runner",
         "gate"
@@ -3251,7 +3251,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/show/policy/dependency.test.js": {
+    "apps/cli/tests/io/commands/show/dependency.test.js": {
       "cells": [
         "app:lib",
         "app:runner",
@@ -3270,7 +3270,7 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/show/policy/refs.test.js": {
+    "apps/cli/tests/io/commands/show/refs.test.js": {
       "cells": [
         "app:lib",
         "app:runner",

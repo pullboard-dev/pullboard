@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/journeys/imports/count.js */
 /** With list.thinRead on, pullboard list prints what it printed before and loads far fewer modules [C7,#9089]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

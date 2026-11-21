@@ -125,7 +125,7 @@ const LAPSE_MAINTENANCE = new WeakSet();
  */
 export async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor, ports = {}) {
   if (!actor || (ports.lapsedOn ?? lapsedSweepEnabled)() || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
-    || operation === 'release' && args[3]?.staleClaim) return;
+    || operation === 'release' && (args[3]?.staleClaim || args[3]?.checkout)) return;
   // An interrupted relay move owes its caller the original outcome; a maintenance move first would hide it behind RELAY_RETRY_PENDING.
   if ((ports.recovered ?? relayRecovered)(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
@@ -143,6 +143,16 @@ export async function maintainLapsedBeforeWrite(ctx, board, operation, args, act
   } finally { LAPSE_MAINTENANCE.delete(board); }
 }
 
+/**
+ * Run one board move through the writer, after the signed-move, spec-approval and first-refusal checks have shaped its arguments.
+ *
+ * @param {object} ctx
+ * @param {object} board
+ * @param {string} operation
+ * @param {Array} args
+ * @param {object} [options]
+ * @returns {Promise<*>}
+ */
 export async function ordered(ctx, board, operation, args, { prepareInWriter } = {}) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });

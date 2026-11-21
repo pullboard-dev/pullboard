@@ -19,7 +19,7 @@
   "test/agent-session.test.js": "apps/cli/journeys/agents/session.test.js",
   "test/approved-row-changes.test.js": "apps/cli/journeys/spec/changes.test.js",
   "test/implies-phone.test.js": "apps/cli/journeys/shout/phone.test.js",
-  "test/intake.test.js": "apps/cli/journeys/intake/main.test.js",
+  "test/intake.test.js": "apps/cli/tests/io/commands/intake/main.test.js",
   "test/person-credential-vault.test.js": "packages/person/tests/logic/person-credential-vault.test.js",
   "test/person.test.js": "apps/cli/journeys/spec/person.test.js",
   "test/qr.test.js": "packages/person/tests/logic/qr.test.js",

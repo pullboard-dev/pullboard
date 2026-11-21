@@ -22,6 +22,7 @@ export const CLAIM_NEXT = Object.freeze({
   HELD: 'take another item: pullboard next',
   ITEM_HELD: 'take another item with pullboard next while the coordinator holds this one',
   LANE_HELD: 'take other work with pullboard next; nothing for this seat: end your turn',
+  NEEDS_ABILITY: 'take an item whose needs your seat covers: pullboard next',
   NOT_CLAIMABLE: 'take open work: pullboard next',
   NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
   NO_ITEM: 'find the item id: pullboard list --all',

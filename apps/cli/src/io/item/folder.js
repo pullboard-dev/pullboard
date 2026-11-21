@@ -1,11 +1,5 @@
 /** Per-item Git worktrees for a joined seat [B5,C7]. */
-import { existsSync } from 'node:fs';
 import { environmentAdapter } from '../../../../../packages/env/index.js';
-import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { resolve } from 'node:path';
 import { dirname } from 'node:path';
@@ -33,6 +27,9 @@ import { itemFolderPath } from './folder/identity.js';
 import { seatRoot } from './folder/identity.js';
 import { prepareSpareFolder } from './folder/spare.js';
 import { takeSpareFolder } from './folder/spare.js';
+import { fileSystemAdapter } from '../../../../../packages/fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Git selectors an inherited environment may set; any of them means the config files alone do not say what Git reads. */
 const CONFIG_SELECTORS = ['GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_SYSTEM', 'GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE'];
@@ -48,7 +45,7 @@ const SYSTEM_CONFIGS = ['/etc/gitconfig', '/opt/homebrew/etc/gitconfig', '/usr/l
  */
 function configFacts(file) {
   let text;
-  try { text = readFileSync(file, 'utf8'); } catch (error) { return ['ENOENT', 'ENOTDIR'].includes(error.code) ? { workers: false, worktreeConfig: false } : null; }
+  try { text = fs.readFile(file, 'utf8'); } catch (error) { return ['ENOENT', 'ENOTDIR'].includes(error.code) ? { workers: false, worktreeConfig: false } : null; }
   const facts = { workers: false, worktreeConfig: false };
   let section = '';
   for (const raw of text.split(/\r?\n/u)) {
@@ -98,13 +95,13 @@ function workersSetInFiles(root) {
   if (fromEnvironment === null) return null;
   let gitDir = join(root, '.git');
   try {
-    if (!statSync(gitDir).isDirectory()) {
-      const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(gitDir, 'utf8').trim());
+    if (!fs.stat(gitDir).isDirectory()) {
+      const match = /^gitdir:\s*(.+)$/u.exec(fs.readFile(gitDir, 'utf8').trim());
       if (!match) return null;
       gitDir = resolve(root, match[1].trim());
     }
     const commonFile = join(gitDir, 'commondir');
-    const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+    const commonDir = fs.exists(commonFile) ? resolve(gitDir, fs.readFile(commonFile, 'utf8').trim()) : gitDir;
     const home = env.HOME ?? '';
     const global = env.GIT_CONFIG_GLOBAL !== undefined ? [env.GIT_CONFIG_GLOBAL]
       : [join(env.XDG_CONFIG_HOME || join(home, '.config'), 'git', 'config'), join(home, '.gitconfig')];
@@ -142,13 +139,13 @@ function branch(lane, id) { return `${lane}/item-${id}`; }
 function seatFolderIds(root) {
   const prefix = `${basename(root)}-item-`;
   let names;
-  try { names = readdirSync(dirname(root)); } catch { return []; }
+  try { names = fs.list(dirname(root)); } catch { return []; }
   return names.filter(name => name.startsWith(prefix) && /^[1-9]\d*$/u.test(name.slice(prefix.length))).map(name => Number(name.slice(prefix.length)));
 }
 
 /** The real path of a folder, or null when it vanished or is a dangling link, so cleanup skips it. */
 function canonical(path) {
-  try { return realpathSync(path); } catch { return null; }
+  try { return fs.realpath(path); } catch { return null; }
 }
 
 /** The trunk branch read once per root for the life of the process, so one claim runs git config pullboard.trunk once [C7]. */
@@ -348,16 +345,16 @@ function branchCheckout(root, ref) {
  * the primary checkout's HEAD, then worktrees/<name>/HEAD, gitdir and locked. Why: every fresh claim asked Git for the list, 23 ms median (#10862).
  */
 function branchCheckoutFromFiles(commonDir, ref) {
-  const read = file => { try { return readFileSync(file, 'utf8').trim(); } catch { return null; } };
+  const read = file => { try { return fs.readFile(file, 'utf8').trim(); } catch { return null; } };
   const wanted = `ref: refs/heads/${ref}`;
   if (basename(commonDir) === '.git' && read(join(commonDir, 'HEAD')) === wanted) return { path: dirname(commonDir), locked: false };
   let names;
-  try { names = readdirSync(join(commonDir, 'worktrees')); } catch { return null; }
+  try { names = fs.list(join(commonDir, 'worktrees')); } catch { return null; }
   for (const name of names) {
     const entry = join(commonDir, 'worktrees', name);
     if (read(join(entry, 'HEAD')) !== wanted) continue;
     const gitdir = read(join(entry, 'gitdir'));
-    if (gitdir) return { path: dirname(gitdir), locked: existsSync(join(entry, 'locked')) };
+    if (gitdir) return { path: dirname(gitdir), locked: fs.exists(join(entry, 'locked')) };
   }
   return null;
 }
@@ -455,9 +452,9 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
 export async function liveFolderRefusal(ctx, board, me, id) {
   if (me.id === 'coordinator') return null;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
-  const prior = existsSync(path) ? null : branchCheckoutFromFiles(ctx.info.commonDir, branch(me.lane, id));
+  const prior = fs.exists(path) ? null : branchCheckoutFromFiles(ctx.info.commonDir, branch(me.lane, id));
   const folder = prior ? prior.path : path;
-  if (!folder || !existsSync(folder)) return null;
+  if (!folder || !fs.exists(folder)) return null;
   // A locked or foreign folder is never adopted (recoverPriorFolder); next passes over its item instead of refusing the call.
   if (prior && (prior.locked || !folder.endsWith(`-item-${id}`))) return protectedFolderRefusal(branch(me.lane, id), folder);
   const session = await import('../join.js');
@@ -497,7 +494,7 @@ export async function claimFolderRefusal(ctx, board, me, id, { renewing = false 
   const live = await liveFolderRefusal(ctx, board, me, id);
   if (live || renewing || me.id === 'coordinator' || await hostedRunner()) return live;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
-  if (!existsSync(path) || checkoutBranch(path) !== branch(me.lane, id)) return null;
+  if (!fs.exists(path) || checkoutBranch(path) !== branch(me.lane, id)) return null;
   const dirty = dirtyFiles(path);
   return dirty?.length ? dirtyFolderRefusal(path, dirty) : null;
 }
@@ -517,33 +514,30 @@ export function claimedFolderProblem(error, id) {
 
 /** Whether two paths name one existing directory, however each was spelled. */
 function sameDirectory(first, second) {
-  try { return first !== null && realpathSync(first) === realpathSync(second); } catch { return false; }
+  try { return first !== null && fs.realpath(first) === fs.realpath(second); } catch { return false; }
 }
 
 /**
- * Bring a clean item folder up to main's tip, keeping every commit the item branch already has.
- * Why: a claim handed over a branch hundreds of commits behind main, so the submit merge was a huge new head every time (#3797).
- * A dirty folder is left as it was; a merge that conflicts is aborted on the clean tree, and submit still merges main then.
- * A reopened item resumes its earlier builder's branch the same way; a conflict is named file by file (#2906).
- *
+ * Fast-forward a clean item folder with no commits of its own, or return a note about a divergent branch.
+ * Finish and submit merge main, so claim can leave divergent folders untouched [C7,#12577].
  * @param {string} path the item folder
- * @param {string} root the repository root, whose trunk setting is shared by every folder
- * @returns {string[]} the files a conflicting merge with main named; empty when the folder is at main's tip
+ * @param {string} trunk the repository's trunk branch
+ * @returns {string|null} the note to report, if the branch has diverged
  */
-function advanceToMain(path, root) {
-  const trunk = trunkBranch(root);
-  // A folder already at the trunk's tip is current, read from Git's files: a warm next reopened it with a Git process each time (#8691).
+function advanceToMain(path, trunk) {
+  // A folder at the trunk tip needs no Git process on a warm claim (#8691).
   const head = checkoutHead(path);
-  if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return [];
-  if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
+  if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return null;
+  const distance = tryGit(path, ['rev-list', '--left-right', '--count', `HEAD...${trunk}`]);
+  if (distance.status !== 0) return null;
+  const [ahead, behind] = distance.stdout.split(/\s+/u).map(Number);
+  if (!behind) return null;
+  if (ahead) return `item branch is ${behind} commit${behind === 1 ? '' : 's'} behind ${trunk}, and submit merges ${trunk}`;
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
-  if (status.status !== 0 || status.stdout) return [];
-  const workers = parallelCheckout(path);
-  if (tryGit(path, [...workers, 'merge', '--ff-only', '-q', trunk]).status === 0) return [];
-  if (tryGit(path, [...workers, 'merge', '--no-edit', '-q', trunk]).status === 0 || !unfinishedOperation(path, tryGit)) return [];
-  const conflicted = tryGit(path, ['diff', '--name-only', '--diff-filter=U']);
-  tryGit(path, ['merge', '--abort']);
-  return conflicted.status === 0 ? conflicted.stdout.split('\n').filter(Boolean) : [];
+  if (status.status === 0 && !status.stdout) {
+    tryGit(path, [...parallelCheckout(path), 'merge', '--ff-only', '-q', trunk]);
+  }
+  return null;
 }
 
 /**
@@ -553,11 +547,11 @@ function advanceToMain(path, root) {
  */
 function worktreeGone(path) {
   const link = `${path}/.git`;
-  if (!existsSync(link)) return true;
+  if (!fs.exists(link)) return true;
   let text;
-  try { text = readFileSync(link, 'utf8'); } catch { return false; }
+  try { text = fs.readFile(link, 'utf8'); } catch { return false; }
   const target = /^gitdir:\s*(.+)$/mu.exec(text)?.[1]?.trim();
-  return Boolean(target) && !existsSync(resolve(path, target));
+  return Boolean(target) && !fs.exists(resolve(path, target));
 }
 
 /**
@@ -571,7 +565,7 @@ function worktreeGone(path) {
  */
 function replaceGoneFolder(root, path, ref) {
   const kept = `${path}.gone-${Date.now()}`;
-  renameSync(path, kept);
+  fs.rename(path, kept);
   tryGit(root, ['worktree', 'prune']);
   const exists = tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0;
   const ahead = exists ? Number(tryGit(root, ['rev-list', '--count', `${trunkBranch(root)}..${ref}`]).stdout) || 0 : 0;
@@ -580,17 +574,15 @@ function replaceGoneFolder(root, path, ref) {
       : `${ref} holds no earlier commits: nothing waits to be submitted.\n`));
 }
 
-/**
- * Open or reuse this item's branch (starting a new branch at the current primary main) and bring it to main's tip; a runner-hosted seat's folder lives only on its runner [C7].
- * A merge with main that conflicts is left undone and its files go to `options.onConflict`, else one stderr line (#2906).
- */
+/** Open or reuse the item's branch folder, fast-forwarding where possible. Runner-hosted folders stay on their runner [C7]. */
 export async function openItemFolder(ctx, me, id, options = {}) {
   const path = await openFolder(ctx, me, id, options);
-  const trunk = trunkBranch(ctx.info.root);
-  const conflicts = typeof path === 'string' && existsSync(path) ? advanceToMain(path, ctx.info.root) : [];
-  if (conflicts.length) {
-    const line = `merging ${trunk} into the item branch conflicts in ${conflicts.join(', ')}; the folder keeps the branch as it was: run git merge ${trunk} there and resolve those files`;
-    if (options.onConflict) options.onConflict(conflicts, line); else process.stderr.write(`warning: ${line}\n`);
+  if (typeof path === 'string' && fs.exists(path)) {
+    const note = advanceToMain(path, trunkBranch(ctx.info.root));
+    if (note) {
+      if (options.onBehind) options.onBehind(note);
+      else process.stderr.write(`${note}\n`);
+    }
   }
   return path;
 }
@@ -605,8 +597,8 @@ export async function openItemFolder(ctx, me, id, options = {}) {
 function hasPrimaryCheckout(info) {
   if (info.isMain) return true;
   try {
-    const common = realpathSync(info.commonDir);
-    if (basename(common) === '.git' && statSync(common).isDirectory() && realpathSync(join(dirname(common), '.git')) === common) return true;
+    const common = fs.realpath(info.commonDir);
+    if (basename(common) === '.git' && fs.stat(common).isDirectory() && fs.realpath(join(dirname(common), '.git')) === common) return true;
   } catch { /* Files cannot answer; Git does. */ }
   return Boolean(primaryCheckoutRoot(info));
 }
@@ -647,8 +639,8 @@ async function openFolder(ctx, me, id, options = {}) {
       hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
   }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);
-  if (existsSync(path) && worktreeGone(path)) replaceGoneFolder(root, path, ref);
-  if (existsSync(path)) {
+  if (fs.exists(path) && worktreeGone(path)) replaceGoneFolder(root, path, ref);
+  if (fs.exists(path)) {
     if (checkoutBranch(path) !== ref || !sameDirectory(checkoutCommonDir(path), ctx.info.commonDir)) throw new Error(`item folder ${path} is occupied by another checkout`);
     if (!options.renewed) {
       const dirty = dirtyFiles(path);

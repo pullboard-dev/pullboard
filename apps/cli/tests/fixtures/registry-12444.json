@@ -1,0 +1,3 @@
+{
+  "cli.io-show-thin.plain-item-extra-facts": {"proves":{"specs":["C7"],"claim":"The thin show door returns the progress, machine, independence and cost facts the caller's readers produce for a plain item, and calls none for an item that steps aside."},"why":"Without it, a regression where the thin show door drops or mis-routes the caller's readers would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/show/thin.test.js"]}
+}

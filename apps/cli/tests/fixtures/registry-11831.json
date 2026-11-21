@@ -1,0 +1,4 @@
+{
+  "cli.io-submit-pull.proof-plan-needs": {"proves":{"specs":["C7"],"claim":"The gate entry sets receipt.proofPlan.needs to the proof files that need a browser and the files that need a GUI, read through main's gate door, and a throw or a missing export declares none."},"why":"Without it each shard run scans every test header again before it can start.","kind":"cell unit","inputs":["apps/cli/src/io/submit/pull.js"]},
+  "cli.io-submit-pull.shard-plan-env": {"proves":{"specs":["C7"],"claim":"A shard run's proof phase gets PULLBOARD_SHARD_PLAN as the plan's JSON, and a shard with no plan sets none, even when the runner's own environment holds one."},"why":"Without it the plan the board computed never reaches the shard's test runner, or a stale plan from the runner's environment decides browser and GUI for the wrong files.","kind":"cell unit","inputs":["apps/cli/src/io/submit/pull.js"]}
+}

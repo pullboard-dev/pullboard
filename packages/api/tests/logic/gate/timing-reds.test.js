@@ -38,11 +38,11 @@ const MAIN_TIMING_CASES = [
   ['packages/items/tests/io/declaration/indexed.test.js', 'items.declaration.seat-family-indexed: seatFamily plans no board_meta scan and 1,000 calls finish under 50 ms on 300,000 rows [C7,#2976]'],
   ['packages/items/tests/io/declaration/scope.test.js', 'items.declaration.seat-records-budget: clause 1: inbox, status and heartbeat on a board with 1,900 agent rows spend under 100 ms in seatRecords [C7,#3251]'],
   ['apps/cli/journeys/speed/release-median.test.js', 'cli.journeys-speed-release-median.the-release-median-on-the-2: clause 1: [C7] the release median on the 2,500-item board is held under its budget, in-process'],
-  ['apps/cli/journeys/view/cold-state.test.js', 'cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under: clause 1: a cold state build over 300 items takes under 10 s [C7,#8480]'],
-  ['apps/cli/journeys/submit/fast.test.js', 'cli.journeys-submit-fast.submit-on-a-clean-committed-item: clause 1: submit on a clean committed item returns within 5 seconds [C7]'],
+  ['apps/cli/tests/io/commands/view/cold.test.js', 'cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under: clause 1: a cold state build over 300 items takes under 10 s [C7,#8480]'],
+  ['apps/cli/tests/io/submit/fast.test.js', 'cli.journeys-submit-fast.submit-on-a-clean-committed-item: clause 1: submit on a clean committed item returns within 5 seconds [C7]'],
   ['packages/gate/tests/io/main/admission-loans-p95-landing.test.js', 'p95 stays below twice standalone'],
   ['packages/resources/tests/io/write/queue.test.js', 'resources.queue.at-1-000-simulated-seats-and: clause 2: at 1,000 simulated seats the slot take and release return within 50 ms at p99 [C7,#3084]'],
-  ['apps/cli/journeys/resume/tour.test.js', 'cli.journeys-resume-tour.the-tour-runs-a-reject-and: the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]'],
+  ['apps/cli/tests/io/resume/tour.test.js', 'cli.journeys-resume-tour.the-tour-runs-a-reject-and: the tour runs a reject and its rework on a throwaway repo, in under thirty seconds [N10]'],
 ];
 
 test('api.gate-timing-reds.sametimingred-true-main-timing-cases: clause 5: sameTimingRed is true for each timing-only case red on main failing on gate and main under one name, and false for another case of that file [C7]', () => {

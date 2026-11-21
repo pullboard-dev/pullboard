@@ -1,7 +1,9 @@
 /** The claim and renew move as one pure table: every rule the board and CLI enforce when a seat claims or renews an item, ported from the pure-core pilot [C7,#8241]. */
 import { Refused } from '../../../../kernel/light.js';
+import { missingNeeds } from '../../../../queue/light.js';
 import { defineRules } from './rules.js';
 import { CLAIM_NEXT } from './next.js';
+import { unmetWaits } from '../lifecycle/rules.js';
 export { CLAIM_NEXT } from './next.js';
 
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
@@ -101,12 +103,12 @@ function firstRefusalReason(s, m) {
 /** The first unlanded dependency, or a claim_waiting wait still open. */
 function dependencyProblem(s, m) {
   if (s.io.foreignBlocker) return `#${m.id} waits on ${s.io.foreignBlocker.label} (${s.io.foreignBlocker.status} on its own board); refresh that board before claiming`;
-  for (const id of s.item.after) {
-    const dep = s.items[id];
-    if (dep.status !== 'verified' && dep.status !== 'withdrawn') {
-      const shown = dep.status === 'claimed' && !leaseLive(s, dep) ? 'open' : dep.status;
-      return `#${m.id} waits on #${id} (${shown}, ${dep.lane} lane); claim another item, or shout ${dep.lane} if it is stuck`;
-    }
+  const waits = s.item.after.filter(id => s.items[id]?.status !== 'withdrawn');
+  const [first] = unmetWaits({ after: waits, afterGate: s.item.afterGate }, new Map(waits.map(id => [id, s.items[id]])));
+  if (first) {
+    const dep = s.items[first.id];
+    const shown = dep?.status === 'claimed' && !leaseLive(s, dep) ? 'open' : first.state;
+    return `#${m.id} waits on #${first.id} (${shown}, ${dep?.lane} lane); claim another item, or shout ${dep?.lane} if it is stuck`;
   }
   const open = s.claimWaiting.filter(id => s.items[id] && s.items[id].status !== 'withdrawn' && !s.items[id].merged);
   return open.length ? `#${m.id} is waiting on ${open.map(id => `#${id}`).join(', ')} to land; it returns to the queue when that lands` : null;
@@ -185,6 +187,7 @@ const CLAIM_RULES = defineRules({
   insideSource: { says: 'an outside PR item stays with its author', holds: (s) => s.item.outside !== 'pull-request' },
   inLane: { says: 'an item is built from its own lane; the refusal names where to build it', holds: (s) => s.item.lane === s.actor.lane },
   lightDiagnosed: { says: 'light work by a light seat needs a current diagnosis', holds: (s, m) => !(seatRoute(s, m) === 'light' && s.item.route === 'light' && !s.item.diagnosed) },
+  abilitiesCoverNeeds: { says: 'an item is claimed only by a seat whose abilities cover its needs; an absent needs list or abilities list reads as empty', holds: (s) => missingNeeds(s.item.needs, s.actor.abilities).length === 0 },
   routeAllows: { says: 'a seat takes work at or below its route', holds: (s, m) => routeIndex(seatRoute(s, m)) >= routeIndex(s.item.route) || m.shapedStrong === true && seatRoute(s, m) === 'light' && s.item.route === 'strong' },
   budgetValid: { says: 'the board build budget is positive minutes',
     holds: (s, m) => isRenewal(s, m) || (typeof s.io.buildBudgetMinutes === 'number' && Number.isFinite(s.io.buildBudgetMinutes) && s.io.buildBudgetMinutes > 0) },
@@ -259,6 +262,7 @@ function claimTable(grantEngine) {
       guard('outside-source', 'insideSource', 'OUTSIDE_NATIVE_BUILD', (s, m) => `outside item #${m.id} stays with its PR author; ask the coordinator to return it, then intake the author's new exact head`),
       guard('in-lane', 'inLane', 'WRONG_LANE', (s, m) => wrongLane(s, m).message, (s, m) => wrongLane(s, m).next),
       guard('light-diagnosed', 'lightDiagnosed', 'DIAGNOSIS_REQUIRED', (s, m) => `#${m.id} has no current diagnosis; keep it mid or strong, then have a capable seat record Files, Change and Test case with pullboard fact <id> diagnosis`),
+      guard('abilities-cover-needs', 'abilitiesCoverNeeds', 'NEEDS_ABILITY', (s, m) => `item #${m.id} needs ${missingNeeds(s.item.needs, s.actor.abilities).join(' and ')}, which this seat's abilities lack`),
       guard('route-allows', 'routeAllows', 'ROUTE', (s, m) => `item #${m.id} needs a ${s.item.route} model; ${seatRoute(s, m) === (s.actor.route ?? 'strong') ? 'you joined on' : 'the model this session declared serves'} the ${seatRoute(s, m)} route. Take your next item: pullboard next`),
       guard('budget-valid', 'budgetValid', 'BAD_BUILD_BUDGET', 'restore a positive itemBuildBudgetMinutes setting, then retry'),
       guard('build-scope', 'buildScope', 'ITEM_BUILD_BUDGET', (s, m) => `item #${m.id} expects ${s.item.expectedMinutes} build minutes, above the ${s.io.buildBudgetMinutes}-minute board budget`,

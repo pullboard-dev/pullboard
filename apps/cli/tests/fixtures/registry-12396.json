@@ -1,0 +1,16 @@
+{
+  "cli.io-commands-claim.profile-names-phases": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with PULLBOARD_CLAIM_PROFILE set, pullboard claim prints one stderr line per claim phase and a total line naming the slowest three, with it unset it prints none, and every phase printed is a step of run() in claim.js."
+    },
+    "why": "Without it, the claim-median bar (#10311) has no measured phase to fix, and the profile could drift from the steps claim.js runs.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/claim.test.js",
+      "apps/cli/src/io/commands/claim.js"
+    ]
+  }
+}

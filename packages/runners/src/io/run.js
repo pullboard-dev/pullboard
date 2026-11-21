@@ -13,13 +13,6 @@ import { itemNotesText } from '../../../items/index.js';
  */
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { environmentAdapter } from '../../../env/index.js';
 import { briefFiles } from '../../../items/index.js';
@@ -46,6 +39,9 @@ import {
   outOfLane,
 } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { fileSystemAdapter } from '../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Report changing machine queue state while an unattended item waits for a gate slot. */
 function gateWaitReporter(io) {
@@ -95,10 +91,10 @@ function runCommand(command, { cwd, env = environmentAdapter().all(), timeoutMs,
   return new Promise((done) => {
     const child = spawn(command, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
-    if (log) writeFileSync(log, '');
+    if (log) fs.writeFile(log, '');
     const keep = (chunk) => {
       output = (output + chunk.toString()).slice(-200_000);
-      if (log) appendFileSync(log, chunk);
+      if (log) fs.appendFile(log, chunk);
     };
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
@@ -142,7 +138,7 @@ function changedSince(root, start) {
 function restore(root, start, paths) {
   for (const path of paths) {
     if (tryGit(root, ['cat-file', '-e', `${start}:${path}`]).status === 0) git(root, ['checkout', start, '--', path]);
-    else rmSync(join(root, path), { force: true });
+    else fs.rm(join(root, path), { force: true });
   }
 }
 
@@ -157,14 +153,14 @@ function restore(root, start, paths) {
  */
 export function packText(root, item, { attempt, attempts, digest, earlier = [], related = [], thread = [] }) {
   const rows = item.item_frozen ? JSON.parse(item.item_frozen).rows : [];
-  const config = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root) : {};
+  const config = fs.exists(join(root, CONFIG_FILE)) ? loadConfig(root) : {};
   const doctrine = loadDoctrine(root, config);
   const files = briefFiles(item.item_brief);
   let budget = PACK_FILE_CHARS;
   const contents = files.map((path) => {
     const file = join(root, path);
-    if (!existsSync(file) || !statSync(file).isFile()) return `### ${path}\n(does not exist yet; create it)`;
-    const text = readFileSync(file, 'utf8');
+    if (!fs.exists(file) || !fs.stat(file).isFile()) return `### ${path}\n(does not exist yet; create it)`;
+    const text = fs.readFile(file, 'utf8');
     if (text.length > FILE_CHARS || text.length > budget) return `### ${path}\n(${text.length} characters; open it yourself)`;
     budget -= text.length;
     return `### ${path}\n\`\`\`\n${text}\n\`\`\``;
@@ -277,7 +273,7 @@ function pinAttempt(root, id) {
     git(root, ['update-ref', ref, commit]);
     return ref;
   } finally {
-    rmSync(index, { force: true });
+    fs.rm(index, { force: true });
   }
 }
 
@@ -336,7 +332,7 @@ async function tryItem(ctx, item, { command, attempts, minutes, deps, me, start,
       return { fresh: claimed, related: store.relatedItems(board, claimed), thread: store.itemThread(board, id) };
     });
     const pack = join(packs, `${id}-${tag}-${attempt}.md`);
-    writeFileSync(pack, packText(root, fresh, { attempt, attempts, digest, earlier, related, thread }));
+    fs.writeFile(pack, packText(root, fresh, { attempt, attempts, digest, earlier, related, thread }));
     ctx.io.say(`#${id} attempt ${attempt}/${attempts}: running the ${item.item_route} agent`);
     const env = { ...environmentAdapter().all(), PULLBOARD_PACK: pack, PULLBOARD_CHECK: item.item_check, PULLBOARD_ITEM: String(id), PULLBOARD_ATTEMPT: String(attempt), PULLBOARD_TIER: item.item_route };
     const built = await runCommand(command, { cwd: root, env, timeoutMs: minutes * 60_000, log: join(packs, `${id}-${tag}-${attempt}.log`) });
@@ -399,7 +395,7 @@ async function buildItem(ctx, item, { agents, attempts, minutes, deps, me }) {
   const listed = new Set(briefFiles(item.item_brief));
   const inScope = (path) => (!listed.size || listed.has(path)) && !outOfLane(ctx.config, item.item_lane, [path]).length;
   const packs = join(ctx.info.gitDir, 'pullboard', 'packs');
-  mkdirSync(packs, { recursive: true });
+  fs.mkdir(packs, { recursive: true });
   const tried = await tryItem(ctx, item, { command: agents[item.item_route], attempts, minutes, deps, me, start, inScope, packs, earlier });
   if (tried.green) return 'submitted';
   const ref = pinAttempt(root, id);

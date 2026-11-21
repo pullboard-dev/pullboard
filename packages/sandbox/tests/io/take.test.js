@@ -8,6 +8,9 @@ import { mainRedBuildOffer } from '../../src/io/take.js';
 import { takeSelection } from '../../src/io/take.js';
 import { nextProgress } from '../../src/io/take.js';
 import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
+import { Refused } from '../../../kernel/index.js';
+import { nextTake } from '../../src/io/take.js';
+import { reportUnbuildableOnce } from '../../src/io/take.js';
 import { actorClaims } from '../fixtures/ports.js';
 import { counted } from '../fixtures/ports.js';
 import { fixture } from '../fixtures/ports.js';
@@ -33,6 +36,19 @@ test('sandbox.take.holding-seat-returns-claim: a holding seat returns its claim 
   assert.equal(taken.item?.item_id, held, JSON.stringify(taken));
   assert.deepEqual(counts, { selected: 1, reviewOffer: 0 });
   assert.deepEqual(actorClaims(box), [held]);
+});
+
+test('sandbox.take.one-claim-per-call: clause 1: next --take on a board with five claimable items in two lanes leaves the seat holding exactly one claim, and a repeat call, as the retry after NEXT_TIMEOUT is, returns that same claim [C7]', async t => {
+  const box = fixture(t, cellBoard);
+  for (const title of ['One', 'Two', 'Three']) box.add(title);
+  for (const title of ['Four', 'Five']) box.add(title, { lane: 'docs' });
+  const first = await take(box);
+  assert.ok(first.item, JSON.stringify(first));
+  assert.equal(actorClaims(box).length, 1, 'one call claims one item');
+  const again = await take(box);
+  assert.equal(again.item.item_id, first.item.item_id, 'the repeat call returns the held claim');
+  assert.equal(again.held, true);
+  assert.deepEqual(actorClaims(box), [first.item.item_id], 'no second claim while the first is unsubmitted with a live lease');
 });
 
 test('sandbox.take.write-runs-chosen-item-guards: next --take: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
@@ -147,4 +163,26 @@ test('sandbox.take.claim-substeps-profile: after progress.enter claim, entering 
   assert.equal(rows.get('claim write'), 2_000);
   assert.equal(rows.get('claim cover-stuck'), 8);
   assert.equal([...rows].filter(([name]) => name.startsWith('claim')).reduce((sum, [, ms]) => sum + ms, 0), 2_053, 'the claim rows sum to the time the claim phase took');
+});
+
+test('sandbox.io-take.unbuildable-held-rebar: clause 1: next --take passing over a BAR_PATH_MISSING bar holds the item with a reason starting "re-bar:" that names the code, a second pass-over adds no second hold, and a hold already on an item stays [C7,#12469]', async t => {
+  const box = fixture(t, cellBoard);
+  const broken = box.add('Bar names a missing file');
+  box.services.claimOrdered = () => { throw new Refused('BAR_PATH_MISSING', '[BAR_PATH_MISSING] the bar names test/eligibility.test.js, missing from main'); };
+  const skipped = await nextTake(box.ctx, { take: true, observeIdle: true }, box.services);
+  assert.equal(skipped.skipItem, broken, JSON.stringify(skipped));
+  const hold = store.itemHold(box.board, broken);
+  assert.ok(hold?.item_hold_reason.startsWith('re-bar: BAR_PATH_MISSING: '), JSON.stringify(hold));
+  assert.ok(hold.item_hold_reason.includes('test/eligibility.test.js'), 'the hold keeps the refusal message');
+  box.advance(60_000);
+  const again = await nextTake(box.ctx, { take: true, observeIdle: true }, box.services);
+  assert.notEqual(again.item?.item_id, broken, 'a held item is not offered again');
+  const refusal = { code: 'BAR_PATH_MISSING', message: '[BAR_PATH_MISSING] the bar names test/eligibility.test.js, missing from main' };
+  await reportUnbuildableOnce(box.ctx, box.board, store.getItem(box.board, broken), box.seats.actor, refusal, box.services.ordered);
+  assert.deepEqual(store.itemHold(box.board, broken), hold, 'a second report of the same bar holds nothing new');
+  const other = box.add('Held by the coordinator first');
+  store.holdItem(box.board, other, { agentId: 'coordinator', reason: 'kept for the person' });
+  const kept = store.itemHold(box.board, other);
+  await reportUnbuildableOnce(box.ctx, box.board, store.getItem(box.board, other), box.seats.actor, refusal, box.services.ordered);
+  assert.deepEqual(store.itemHold(box.board, other), kept, 'a hold already on the item is not touched');
 });

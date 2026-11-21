@@ -247,7 +247,7 @@ npm i -g pullboard
 pullboard tour
 ```
 
-Upgrading from 0.9.3? Run the same install. Your boards and runners keep working.
+Upgrading from 0.9.3? Run the same install. Your boards and runners keep working. Then, in each repo, run `pullboard inbox` to repair the board triggers, and `pullboard init` and commit the `.githooks` it rewrites, so `pullboard doctor` reports no problems.
 
 On a throwaway repo, **you** approve one rule: greet a blank name as "world". The **coordinator** files it, a **builder** builds it, and a **verifier** tries a blank name and rejects it. The **builder** fixes it and adds a test. The **verifier** breaks the fix on purpose, sees the test fail, and accepts. The **coordinator** merges it with a receipt.
 

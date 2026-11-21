@@ -13,6 +13,8 @@ import {
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
+import { hookRunnerWanted } from './runner.js';
+import { stagedOnRunner } from './runner.js';
 
 /** The checkout this CLI runs from: the staged tree when the hook is composed (#2593). */
 const TREE = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -22,21 +24,29 @@ export const HOOK_STATIC_CHECKS = Object.freeze(['packages/gate/src/io/changed/s
 
 /**
  * The failures of the named staged check, one `path:line: message` each; none when no check is named. A path only a
- * companion patch changes is left out, as the commit's own lane checks leave it out.
+ * companion patch changes is left out, as the commit's own lane checks leave it out. With the hook's context, the check
+ * runs first as one runner job when a runner is free, and here only when no runner answers in time [C7,#12570].
+ * Why: on 20 Nov 34 of 37 commits hit the 120 s HOOK_TIMEOUT running this check on a host at load 55-162.
  *
  * @param {string} root the committing checkout
  * @param {NodeJS.ProcessEnv} env
+ * @param {{ ctx?: object | null, main?: string | null, wanted?: (env: NodeJS.ProcessEnv) => boolean, onRunner?: (ctx: object, options: object) => Promise<string[] | null>, say?: (line: string) => void }} [runner]
+ *   ctx: the hook's CLI context, without which the check always runs here; main: accepted main's commit; wanted and
+ *   onRunner replace the runner decision and the job, for a test.
  * @returns {Promise<string[]>}
  */
-export async function stagedStaticProblems(root, env) {
+export async function stagedStaticProblems(root, env, { ctx = null, main = null, wanted = hookRunnerWanted, onRunner = stagedOnRunner, say } = {}) {
   const named = env.PULLBOARD_HOOK_STATIC;
   if (!named) return [];
   const file = resolve(TREE, named);
   const path = relative(TREE, file).split('\\').join('/');
   if (!HOOK_STATIC_CHECKS.includes(path)) return [`PULLBOARD_HOOK_STATIC names ${named}, which apps/cli/src/io/hook/static.js does not declare; name one of ${HOOK_STATIC_CHECKS.join(', ')}`];
-  const { stagedHookFailures } = await loadStaged(file);
   const companions = new Set(JSON.parse(env.PULLBOARD_HOOK_COMPANION_PATHS || '[]'));
-  return stagedHookFailures(root).filter((line) => !companions.has(line.slice(0, line.indexOf(':'))));
+  const own = (line) => !companions.has(line.slice(0, line.indexOf(':')));
+  const answered = ctx && wanted(env) ? await onRunner(ctx, { main, check: path, ...(say ? { say } : {}) }) : null;
+  if (answered) return answered.filter(own);
+  const { stagedHookFailures } = await loadStaged(file);
+  return stagedHookFailures(root).filter(own);
 }
 
 /**

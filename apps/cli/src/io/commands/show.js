@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/jobs/index.js */
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
@@ -6,6 +7,9 @@ import { progressLine } from '../../../../../packages/roadmap/light.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { reservationLine } from '../../logic/show/core.js';
+import { frozenLines } from '../../logic/show/frozen.js';
+import { threadLines } from '../../logic/show/thread.js';
 import { tailLines } from '../../logic/show/tail.js';
 import { fieldLines } from '../../logic/show/fields.js';
 import { reviewLines } from '../../logic/show/review.js';
@@ -19,6 +23,7 @@ import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { routeReservations } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { derivedStateEnabled } from '../../../../../packages/config/index.js';
@@ -26,6 +31,7 @@ import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
+import * as configLight from '../../../../../packages/config/light.js';
 import { verifiedPasskeyRowDecision } from '../../../../../packages/person/read.js';
 import { withBoardRead } from '../board/read.js';
 import {
@@ -63,6 +69,7 @@ import {
   itemLine,
   sayBrief,
 } from '../read.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import { relayStateExists } from '../../../../../packages/store/light.js';
 import { readableRigorText } from '../../../../../packages/store/browser.js';
 import { itemCost } from '../../../../../packages/stats/light.js';
@@ -135,6 +142,17 @@ async function derivedVerdictTable(root, board, verdictTrunk) {
   return table ? { main, derived: item => table.verdicts.get(String(item.item_id)) } : null;
 }
 
+/** The thin door's facts for a plain item, with the readers the full path runs on the open board; null when the full path must run [C7,#12413]. */
+async function thinFacts(ctx, id, prices) {
+  const { thinShowFacts } = await import('../show/thin.js');
+  const { showReads: reads } = await import('../../../../../packages/verify/read.js');
+  const { machineVerification, reviewEligibility } = await reads();
+  const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
+  return thinShowFacts({ cwd: ctx.info.root, id, clock: ctx.clock, conflictReader: async () => (await import('../../../../../packages/merge/index.js')).mechanicalConflictFiles,
+    reads: { progress: (board) => itemProgress(board, id, { onMain }), machine: (board, item) => machineVerification(board, item),
+      independence: (board, item) => reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), cost: (board) => itemCost(board, id, prices) } });
+}
+
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
@@ -144,7 +162,19 @@ export async function run(io, { first, values }) {
   // The verify reads come from their defining modules through the read door, never the full index, so a cold show loads only what it calls [C7,#11911].
   const { recordedVerificationComparison, renderVerificationComparison, machineVerification, testHashRulings, testAuthors, barTestFiles, verdictTrunk, reviewEligibility, barCorrectionLine, barCorrections } = await showReads();
   const prices = loadMachineSettings().costPrices;
-  const { fields, links, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  // With read.thinCommands on, the thin door serves a plain item's facts for the text show; null takes the full path [C7,#12413].
+  const thin = configLight.readThinCommands() && !values.json ? await thinFacts(ctx, id, prices) : null;
+  const { fields, links, afterGate, afterGateMeasure, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+    if (thin) {
+      const stored = thin.item;
+      return { item: stored, queuedSubmit: null, queuedJobId: null, gateText: null, machine: thin.machine, progress: thin.progress, independence: thin.independence,
+        verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id), proofReceipts: [], cost: thin.cost,
+        approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(stored) }, { store, verifiedPasskeyRowDecision }),
+        gateJob: newestGateJob(board.db, id, []), fields: [], links: [], afterGate: [], afterGateMeasure: undefined, foreign: new Map(),
+        moves: thin.history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+        related: store.relatedItems(board, stored), reviewer: store.reviewHolder(board, stored), agents: thin.agents, mainMerge: mainMergeFor(board, id),
+        submits: thin.history.filter((event) => event.event_kind === 'submit') };
+    }
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board, verdictTrunk) : null;
     // An accept whose only conflict with main is one the mechanical merge resolves stays fresh, as it does at landing; the merge index loads only for an accepted item [C7,#11417].
@@ -153,6 +183,9 @@ export async function run(io, { first, values }) {
     const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), residualConflicts, ...(table ? { derived: table.derived } : {}) }).project(stored);
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
+    // The coordinator-set timing flag lives in board_meta, not on the item row, so read it for the exclusive-slot line [C7,#11108].
+    const timing = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key=?").get(`item_check_timing:${id}`);
+    if (timing?.meta_value === 'true') item.item_check_timing = true;
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
     const landingPhases = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`landing_phases:${id}`);
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
@@ -164,11 +197,14 @@ export async function run(io, { first, values }) {
     // Free related links (#9356) load beside the fields, so with the setting off no link is read and show is as it was [C7].
     const links = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).relatedLinks(board, id, { enabled: true })
       .map(other => ({ id: other, title: board.db.prepare('SELECT item_title FROM item WHERE item_id=?').get(other)?.item_title ?? '' })) : [];
+    // The after-gate ids sit beside the after line; the full store loads only for an item that has any [C7].
+    const afterGate = item.item_after && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`after_gate:${id}`) ? (await import('../../../../../packages/store/index.js')).afterGateIds(board, id) : [];
+    // The measured minutes and rebuilds sum over the listed parents; a list whose parents carry no after-gate notes prints no line [C7,#12327].
+    const afterGateMeasure = afterGate.length ? (reports => ({ savedMinutes: reports.reduce((sum, one) => sum + one.savedMinutes, 0), rebuilds: reports.reduce((sum, one) => sum + one.rebuilds, 0) }))(afterGate.map((await import('../../../../../packages/store/index.js')).afterGateReport.bind(null, board))) : null;
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
-    const handoffWorkerAlive = job ? (await import('../alive.js')).handoffWorkerAlive : null;
-    const panel = job ? jobsCell().gatePanel(board.db, job.id, { workerAlive: () => handoffWorkerAlive(board, job) }) : null;
+    const panel = job ? jobsCell().gatePanel(board.db, job.id) : null;
     // The landed-from-main reader lives in the roadmap barrel, which loads only with landing.landedFromMain on, so a cold show reaches the barrel only when it calls it [C7,#11918].
     const onMain = ctx.config?.landing?.landedFromMain === true ? (await import('../../../../../packages/roadmap/index.js')).landedOnMain(ctx.info.root, ctx.config) : null;
     const result = { item, queuedSubmit, queuedJobId: job?.id ?? null, gateText: panel?.text ?? null, machine: machineVerification(board, item), progress: itemProgress(board, id, { onMain }), independence: reviewEligibility(board, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }), verdicts: store.verdictsFor(board, id), thread: store.itemThread(board, id),
@@ -180,10 +216,10 @@ export async function run(io, { first, values }) {
     const runsOn = (() => { try { return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('runs_store')?.meta_value === '1'; } catch { return false; } })();
     const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
     const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
-    if (values.json) return { ...result, gateJob, fields, links };
+    if (values.json) return { ...result, gateJob, fields, links, afterGate };
     result.foreign = await foreignStates(board, item, async () => (await import('../../../../../packages/store/index.js')).foreignDependencyStates);
     const history = store.events(board, { itemId: id });
-    return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+    return { ...result, gateJob, fields, links, afterGate, afterGateMeasure, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
       agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
@@ -205,7 +241,7 @@ export async function run(io, { first, values }) {
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
-  const environment = process.env.PULLBOARD_RELAY_TOKEN !== undefined
+  const environment = environmentAdapter().has('PULLBOARD_RELAY_TOKEN')
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const callerId = ctx.info.isMain ? 'coordinator' : await withBoardRead(ctx, (board, readers) => {
     try { return identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
@@ -216,8 +252,12 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign, ctx.clock.now()), checkText, checkTiming: item.item_check_timing === true || frozenCheckTiming(item) });
   io.say(core.item);
+  const reserved = reservationLine(item, routeReservations());
+  if (reserved) io.say(reserved);
+  if (afterGate.length) io.say(`after-gate ${afterGate.map(waitId => `#${waitId}`).join(',')}`);
+  if (afterGateMeasure && (afterGateMeasure.savedMinutes || afterGateMeasure.rebuilds)) io.say(`after-gate: ${afterGateMeasure.savedMinutes} min saved, ${afterGateMeasure.rebuilds} rebuilds`);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
@@ -287,22 +327,12 @@ export async function run(io, { first, values }) {
     const detail = JSON.parse(event.event_detail);
     io.say(`escalated ${detail.from} -> ${detail.to} by ${agentName(event.event_by)}${detail.attempt ? `, pinned at ${detail.attempt}` : ''}: ${firstLineOf(detail.note)}`);
   }
-  if (frozen) {
-    io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
-    frozen.rows.forEach((row) => io.say(`  ${row.id}: ${readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
-    const rulings = testHashRulings(thread, store.PERSON);
-    for (const [path, hash] of Object.entries(frozen.testHashes ?? {})) {
-      const ruled = rulings.filter(ruling => ruling.path === path);
-      io.say(`  test ${path}: sha256 ${hash}${ruled.length ? `; person ruling ${ruled.map(ruling => `${ruling.factId} accepts ${ruling.hash.slice(0, 12)}`).join(', ')}` : ''}`);
-    }
-  }
+  const bar = frozenLines(item, frozen, { rulings: frozen ? testHashRulings(thread, store.PERSON) : [], authors: testAuthors(thread),
+    reviewerFamilies: [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))],
+    testFiles: barTestFiles(item).criterion.sort(), agentName, readable: readableRigorText });
+  for (const line of bar.frozen) io.say(line);
   for (const line of mutationScoreLines(thread)) io.say(line);
-  const authors = testAuthors(thread);
-  const reviewerFamilies = [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))];
-  for (const path of barTestFiles(item).criterion.sort()) {
-    const author = authors[path];
-    io.say(`  test ${path}: author ${author ? `${agentName(author.seat)} [family ${author.family}]` : 'not recorded'}; reviewer family ${reviewerFamilies.join(', ') || 'none yet'}`);
-  }
+  for (const line of bar.authors) io.say(line);
   const tail = tailLines(item, { builderName: agentName(item.item_built_by), reviewerName: reviewer ? agentName(reviewer) : null, infra });
   for (const line of tail.before) io.say(line);
   // Earlier verdicts as one line each, so an item sent back several times stays short to read
@@ -322,17 +352,6 @@ export async function run(io, { first, values }) {
   for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
   if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
   if (tail.withdrawn) io.say(tail.withdrawn);
-  io.say('thread:');
-  for (const entry of thread) {
-    if (entry.kind === 'proof-run') continue;
-    const stamp = `  ${entry.at}  ${agentDisplayName(agents, ctx.config, entry.by)}  `;
-    if (entry.type === 'fact') {
-      io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.answers ? ' (answers ' + entry.answers + ')' : entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
-      if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
-    } else {
-      const detail = entry.detail;
-      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.previousTitle ? ` (title was: ${detail.previousTitle})` : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
-    }
-  }
+  for (const line of threadLines(thread, (by) => agentDisplayName(agents, ctx.config, by), firstLineOf)) io.say(line);
   return 0;
 }

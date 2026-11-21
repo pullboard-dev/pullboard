@@ -1,0 +1,58 @@
+{
+  "cli.io-commands-verify.isolated-flag": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "verdictIsolation is true when the check ran in the board-made review folder, or when a runner receipt at the submitted commit backs it, and false otherwise."
+    },
+    "why": "Without it, a verdict could not say whether its check ran in the reviewer's own checkout or in an isolated copy of the commit.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/verify.js",
+      "apps/cli/tests/io/commands/verify.test.js"
+    ]
+  },
+  "cli.journeys-verify-main.review-in-board-tree": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A review of a submitted item runs its frozen check in the board-made review folder at the submitted commit, and the verdict it records reads verdict_isolated true in board_meta."
+    },
+    "why": "Without it, a review could pass on files in the reviewer's own checkout that the submitted commit does not hold.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/verify/main.test.js",
+      "apps/cli/src/io/commands/verify.js"
+    ]
+  },
+  "cli.journeys-verify-main.linked-deps-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A review folder whose node_modules links to another checkout is refused DEPS_OUTSIDE_TREE naming the package, before the frozen check runs and with no verdict recorded."
+    },
+    "why": "Without it, a symlinked dependency would make a review read code that is not the commit under review.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/verify/main.test.js",
+      "apps/cli/src/io/commands/verify.js"
+    ]
+  },
+  "cli.journeys-verify-main.receipt-tree-and-deps": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The runner receipt for a review tree carries the submitted commit, its tree, and the sha256 of the tree's lockfile."
+    },
+    "why": "Without it, a verdict could not show which tree and dependencies its proof ran against.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/verify/main.test.js",
+      "apps/cli/src/io/commands/verify.js"
+    ]
+  }
+}

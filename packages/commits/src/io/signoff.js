@@ -1,9 +1,5 @@
 /** Check outside contributors' author-matching DCO trailers against committed policy [C1,C7]. */
 import { spawnSync } from 'node:child_process';
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { resolve } from 'node:path';
 import {
   cleanGitEnvironment,
@@ -11,6 +7,8 @@ import {
   refuseGrafts,
 } from "../../../git/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { fileSystemAdapter } from '../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Read exact Git objects without inherited repository selectors or replacement objects. */
 function gitResult(root, args) {
@@ -83,8 +81,8 @@ export function pendingCommitSignoffProblem(root, message) {
   const maintainers = maintainersAt(root, commit);
   if (maintainers === null) return null; // Other repositories have no contribution policy enabled.
   const mergePath = resolve(root, gitText(root, ['rev-parse', '--git-path', 'MERGE_HEAD']).trim());
-  if (existsSync(mergePath)) {
-    const heads = readFileSync(mergePath, 'utf8').trim().split(/\s+/u);
+  if (fs.exists(mergePath)) {
+    const heads = fs.readFile(mergePath, 'utf8').trim().split(/\s+/u);
     if (!heads.length || heads.some(head => !/^[0-9a-f]{40,64}$/u.test(head))) {
       throw new Refused('BAD_CONFIG', 'Restore the merge parents before checking contributor sign-offs.');
     }
