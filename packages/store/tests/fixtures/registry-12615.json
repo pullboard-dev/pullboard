@@ -1,0 +1,4 @@
+{
+  "store.io-board-write-lock.hold-over-one-second": {"proves":{"specs":["C7"],"claim":"a board write held over 1,000 ms records a named WRITE_HOLD_OVER_1S violation with move, seat, pid and held ms on its board-writes.jsonl row and in a counter row the status reader can read by key."},"why":"A board write over a second must leave keyed telemetry that names the move and writer, while a shorter write stays unmarked.","kind":"cell unit","inputs":["packages/store/src/io/board/write/lock.js","packages/store/tests/io/board/write/lock.test.js"]},
+  "store.io-board-write-lock.hold-under-one-second": {"proves":{"specs":["C7"],"claim":"a board write held for 999 ms records no violation."},"why":"The threshold must not mark a write that stays below one second.","kind":"cell unit","inputs":["packages/store/src/io/board/write/lock.js","packages/store/tests/io/board/write/lock.test.js"]}
+}
