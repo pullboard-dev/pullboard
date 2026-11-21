@@ -7,6 +7,7 @@
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -43,7 +44,10 @@ import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { resolveCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
-import { worktreePaths } from '../../../git/index.js';
+import { statusPaths } from '../../../git/index.js';
+import { checkoutHead } from '../../../git/index.js';
+import { checkoutIndexFile } from '../../../git/index.js';
+import { worktreeStatus } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { nextReview } from '../../../verify/index.js';
 import { forcedLandedUnreviewed } from '../../../verify/index.js';
@@ -97,15 +101,52 @@ export function warmFiles(ctx, board, me, { dirtyFiles }) {
   const recent = board.db.prepare(WARM_ITEMS_SQL).all(me.id).flatMap((item) => store.itemFiles(item));
   // One next reads this seat's edits once, however many of its steps warm from them; an unchanged checkout reuses the last read [C7,#10859].
   const named = [...recent, ...board.db.prepare(OPEN_LANE_FILES_SQL).all(me.lane).flatMap((item) => store.itemFiles(item))];
-  let dirty;
-  // The command's shared paths name the same edited and untracked files as status --porcelain, without its quoting.
-  try { dirty = worktreePaths(ctx.info.root, named); }
-  catch { dirty = commandObservation(JSON.stringify(['dirty-files', ctx.info.root]), () => dirtyFiles(ctx.info.root)); }
+  const dirty = cachedDirtyPaths(ctx.info.root, named, () => {
+    // The command's shared status names the same edited and untracked paths as status --porcelain, without its quoting.
+    try { const { changed, untracked } = statusPaths(worktreeStatus(ctx.info.root)); return [...changed, ...untracked]; }
+    catch { return commandObservation(JSON.stringify(['dirty-files', ctx.info.root]), () => dirtyFiles(ctx.info.root)); }
+  });
   return [...new Set([...recent, ...dirty])];
 }
 
 /** The files open items in this seat's lane name: an edit to one of them must reach the pick, so their stamps are part of the fingerprint [C7,#10859]. */
 const OPEN_LANE_FILES_SQL = `SELECT item_files, item_brief FROM item WHERE item_lane = ? AND item_status = 'open'`;
+
+/** A file's change stamp, its modified time and size, or '-' when it is missing. */
+function stamp(file) {
+  try { const info = statSync(file); return `${info.mtimeMs}:${info.size}`; } catch { return '-'; }
+}
+
+/**
+ * The edited and untracked paths of a seat checkout. The paths are kept per seat root with a fingerprint: HEAD, the index
+ * file's stamp, and the stamp of every path in the kept status plus every file a candidate item names. A matching
+ * fingerprint reuses the kept paths and launches no git; any change reads the status again and keeps the new result.
+ * An edit to a tracked file that no item names can be missed until the next status, and cannot change which item is picked [C7,#10859].
+ *
+ * @param {string} root
+ * @param {string[]} named - Files the seat's recent items and the open items in its lane name.
+ * @param {() => string[]} read - The status read.
+ * @returns {string[]}
+ */
+function cachedDirtyPaths(root, named, read) {
+  const head = checkoutHead(root), index = checkoutIndexFile(root);
+  const file = join(dirname(machineSettingsFile()), 'warm-status-cache.json');
+  let kept = {};
+  try { const parsed = JSON.parse(readFileSync(file, 'utf8')); if (parsed && typeof parsed === 'object') kept = parsed; } catch { /* no cache yet, or one a crash left half written: read the status */ }
+  const fingerprint = (paths) => head && index
+    ? JSON.stringify([head, stamp(index), [...new Set([...paths, ...named])].sort().map(path => [path, stamp(join(root, path))])]) : null;
+  const entry = kept[root];
+  if (Array.isArray(entry?.paths) && entry.fingerprint && entry.fingerprint === fingerprint(entry.paths)) return entry.paths;
+  const paths = read();
+  const next = fingerprint(paths);
+  if (next) {
+    try {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, JSON.stringify({ ...kept, [root]: { fingerprint: next, paths } }));
+    } catch { /* an unwritable cache only costs a status */ }
+  }
+  return paths;
+}
 
 /**
  * One loop of `next`: claim the next free item, or reserve the next review (V15). A claim that loses

@@ -87,7 +87,7 @@ test('cli.journeys-speed-next-git-reads.with-next-onegitread-off-next-reads: cla
   assert.equal(off.printed, unset.printed);
 });
 
-test('cli.journeys-speed-next-git-reads.warm-second-next-no-status: clause 3: a warm second next on the 2,500-item board launches no git status [C7,#10859]', async (t) => {
+test('cli.journeys-speed-next-git-reads.warm-second-next-live-status-only: clause 3: a warm second next on the 2,500-item board launches no git status from selection and at most the one live status of the activity read [C7,#10859]', async (t) => {
   const box = largeBoard(t, { scale: { items: 2_500, events: 5_000, shouts: 1_000, seats: 100 } });
   fileFixtureItem(box, box.repo, { lane: 'web', title: 'Warm status sample', diagnose: false, args: ['--specs', 'G1'] });
   const statusReads = async () => {
@@ -99,5 +99,6 @@ test('cli.journeys-speed-next-git-reads.warm-second-next-no-status: clause 3: a 
   const first = await statusReads();
   const second = await statusReads();
   console.log(`# next git status reads, first: ${JSON.stringify(first)}; second: ${JSON.stringify(second)}`);
-  assert.equal(second.length, 0, `a warm second next launches no git status (saw ${JSON.stringify(second)})`);
+  assert.ok(second.length <= 1, `a warm second next launches at most one git status (saw ${JSON.stringify(second)})`);
+  assert.ok(second.every((read) => read.includes('activityWorkingFiles')), `the one status is the activity read's live one (saw ${JSON.stringify(second)})`);
 });

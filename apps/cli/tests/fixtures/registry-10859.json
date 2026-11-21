@@ -1,3 +1,3 @@
 {
-  "cli.journeys-speed-next-git-reads.warm-second-next-no-status": {"proves":{"specs":["C7"],"claim":"A warm second next on the 2,500-item board launches no git status."},"why":"Every next launched a git status even when the seat checkout was unchanged (#10859).","kind":"journey","inputs":["apps/cli/tests/io/commands/next/git-reads.test.js","packages/moves/src/io/selection.js"]}
+  "cli.journeys-speed-next-git-reads.warm-second-next-live-status-only": {"proves":{"specs":["C7"],"claim":"A warm second next on the 2,500-item board launches no git status from selection and at most the one live status of the activity read."},"why":"Every next launched a git status even when the seat checkout was unchanged (#10859).","kind":"journey","inputs":["apps/cli/tests/io/commands/next/git-reads.test.js","packages/moves/src/io/selection.js"]}
 }

@@ -4,7 +4,8 @@ import { fileSystemAdapter } from '../../../fs/index.js';
 import { gitPath } from '../../../git/index.js';
 import { checkoutHead } from '../../../git/index.js';
 import { gitExecFileSync } from '../../../git/index.js';
-import { worktreePaths } from '../../../git/index.js';
+import { statusPaths } from '../../../git/index.js';
+import { worktreeStatus } from '../../../git/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
 import { parseSpec } from '../../../spec/index.js';
 
@@ -102,7 +103,8 @@ export function activityWorkingFiles(root, builds) {
   let unknown = false;
   // One status gives the edits against HEAD and the untracked files, and other readers in this command share it.
   try {
-    for (const path of worktreePaths(root)) files.add(path);
+    const { changed, untracked } = statusPaths(worktreeStatus(root));
+    for (const path of [...changed, ...untracked]) files.add(path);
   } catch { unknown = true; }
   const head = checkoutHead(root);
   const bases = [];

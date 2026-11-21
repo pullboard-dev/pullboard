@@ -1715,9 +1715,9 @@
       "kind": "json",
       "owner": "packages/moves/src/io/selection.js"
     },
-    "pullboard-worktree-paths.json": {
+    "warm-status-cache.json": {
       "kind": "json",
-      "owner": "packages/git/src/io/main.js"
+      "owner": "packages/moves/src/io/selection.js"
     },
     "push.sqlite": {
       "kind": "sqlite",
