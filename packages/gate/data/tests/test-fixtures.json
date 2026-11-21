@@ -16,7 +16,7 @@
     "hand-policy": 3,
     "raw-board": 3
   },
-  "apps/cli/journeys/formats/live.test.js": {
+  "apps/cli/tests/io/formats/live.test.js": {
     "tempdir": 1,
     "raw-board": 5,
     "model": 4

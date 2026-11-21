@@ -71,6 +71,8 @@ function eventRows(events) {
       if (detail.job != null) settled.set(detail.job, { outcome: SETTLE_OUTCOMES.has(detail.outcome) ? detail.outcome : null, class: SETTLE_CLASSES.has(detail.class) ? detail.class : null });
       continue;
     }
+    // Fleet snapshots are consumed separately by timelineOf, never reported as unmapped item events.
+    if (event.kind === 'gate-queue') continue;
     const mapped = EVENT_STAGES[event.kind];
     if (!mapped) { unmapped.set(event.kind, (unmapped.get(event.kind) ?? 0) + 1); continue; }
     // The submit after a submit_offered is the same submission, so the one submitted row sits at the offer; a board from before the kind keeps its submit row.
@@ -122,12 +124,22 @@ const returned = outcome => outcome === 'red' || outcome === 'stale';
  * Which bucket (or wait reason) each stretch between two rows belongs to, walking the rows in order.
  * A gate or landing job counts only while it is open, so parallel shards never double-count a stretch.
  */
+function gateQueueReason(snapshot, previous, item) {
+  if (previous && previous.serveStartedAt !== snapshot.serveStartedAt) return 'SERVE_RESTART';
+  if (!Array.isArray(snapshot.runnersSeen) || snapshot.runnersSeen.length === 0) return 'RUNNER_DOWN';
+  const ahead = Array.isArray(snapshot.queued) ? snapshot.queued.indexOf(item) : -1;
+  if (ahead > 0) return `QUEUE_DEPTH(${ahead})`;
+  if (ahead === 0 && Number(snapshot.leased) >= snapshot.runnersSeen.length) return 'NO_RUNNER_SLOT';
+  return null;
+}
+
 function stretches(rows, end) {
   const out = [];
   const gate = { queued: new Set(), running: new Set() }, land = { queued: new Set(), running: new Set() };
-  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null;
+  let phase = 'open', rework = false, held = false, wait = null, outcome = null, smoking = false, settleWait = null, gateWait = null;
   const bucketNow = () => {
     if (held) return { reason: 'HELD' };
+    if (gateWait) return { reason: gateWait };
     if (smoking) return { bucket: 'landing' };
     if (land.running.size) return { bucket: 'landing' };
     if (phase === 'merged') return { bucket: 'landing' };
@@ -147,6 +159,8 @@ function stretches(rows, end) {
   for (let index = 0; index < rows.length; index += 1) {
     const current = rows[index];
     const gateJob = current.stage.startsWith('gate-'), landJob = current.stage === 'land-queued' || (current.stage === 'landing' && current.ref);
+    if (current.stage === 'gate-queued') gateWait = current.reason ?? null;
+    else gateWait = null;
     if (current.stage === 'filed') { phase = 'open'; }
     else if (current.stage === 'claimed' || current.stage === 're-claimed') { phase = 'building'; wait = null; settleWait = null; }
     else if (current.stage === 'released') { phase = 'open'; wait = current.reason === 'BLOCKED' ? 'DEPENDENCY' : null; }
@@ -159,9 +173,9 @@ function stretches(rows, end) {
     else if (current.stage === 'merged') phase = rows[index + 1]?.stage === 'recorded' ? 'recorded' : 'merged';
     else if (current.stage === 'recorded') phase = 'recorded';
     if (gateJob) {
-      if (current.stage === 'gate-queued') gate.queued.add(current.ref);
+      if (current.stage === 'gate-queued' && current.edge === 'start') gate.queued.add(current.ref);
       else if (current.stage === 'gate-running') { gate.queued.delete(current.ref); gate.running.add(current.ref); }
-      else { gate.queued.delete(current.ref); gate.running.delete(current.ref); outcome = current.reason ?? 'green'; if (returned(outcome)) rework = true; settleWait = SETTLE_WAITS[current.class] ?? null; }
+      else if (current.stage === 'gate-settled') { gate.queued.delete(current.ref); gate.running.delete(current.ref); outcome = current.reason ?? 'green'; if (returned(outcome)) rework = true; settleWait = SETTLE_WAITS[current.class] ?? null; }
     } else if (landJob) {
       if (current.stage === 'land-queued') land.queued.add(current.ref);
       else if (current.edge === 'start') { land.queued.delete(current.ref); land.running.add(current.ref); }
@@ -184,11 +198,25 @@ function stretches(rows, end) {
  * @param {{ item?: number, events: { id?: number, at: string|number, by?: string, kind: string, item: number, detail?: object|string }[], jobs?: { id: string, kind: string, created: number }[], steps?: { job: string, name: string, at: number, payload?: string|object }[], now?: number }} input
  * @returns {{ rows: object[], summary: object, unmapped: { kind: string, count: number }[] }}
  */
-export function timelineOf({ events = [], jobs = [], steps = [], now, item: given = null } = {}) {
+export function timelineOf({ events = [], jobs = [], steps = [], gateQueue = [], now, item: given = null } = {}) {
   const item = events.find(event => event.item != null)?.item ?? given;
   const fromEvents = eventRows(events);
   const sourceOrder = new Map();
-  const all = [...fromEvents.rows, ...jobRows(item, jobs, steps, fromEvents.settled)];
+  const gateRows = jobRows(item, jobs, steps, fromEvents.settled);
+  const snapshots = gateQueue.slice().sort((a, b) => a.at - b.at);
+  for (const job of jobs.filter(value => value.kind === 'gate')) {
+    const queuedRow = gateRows.find(value => value.stage === 'gate-queued' && value.ref === job.id);
+    const endRow = gateRows.find(value => value.stage === 'gate-running' && value.ref === job.id) ?? gateRows.find(value => value.stage === 'gate-settled' && value.ref === job.id);
+    if (!queuedRow) continue;
+    let previous = null;
+    for (const snapshot of snapshots) {
+      if (snapshot.at < queuedRow.at || (endRow && snapshot.at >= endRow.at) || !snapshot.detail.queued?.includes(job.id)) continue;
+      const reason = gateQueueReason(snapshot.detail, previous, job.id);
+      gateRows.push(row(snapshot.at, item, 'gate-queued', 'point', null, reason, job.id));
+      previous = snapshot.detail;
+    }
+  }
+  const all = [...fromEvents.rows, ...gateRows];
   all.forEach((value, index) => sourceOrder.set(value, index));
   const rows = all.sort((a, b) => a.at - b.at || sourceOrder.get(a) - sourceOrder.get(b));
   rows.forEach((value, index) => { value.delta = index === 0 ? null : value.at - rows[index - 1].at; });
@@ -200,7 +228,7 @@ export function timelineOf({ events = [], jobs = [], steps = [], now, item: give
   let unaccounted = 0, longest = null;
   const unaccountedStretches = [];
   parts.forEach((part, index) => {
-    if (part.reason) { waits[part.reason] += part.ms; return; }
+    if (part.reason) { waits[part.reason] = (waits[part.reason] ?? 0) + part.ms; return; }
     if (!part.bucket) {
       if (part.ms > UNACCOUNTED_OVER_MS) { unaccounted += part.ms; unaccountedStretches.push({ from: part.from, to: part.to, ms: part.ms }); part.reason = UNACCOUNTED; return; }
       // A short hand-off belongs to the stage it leads into, else the one it left.
@@ -266,7 +294,7 @@ export function fleetSummary(timelines, fleetRows = []) {
     gates += summary.gates ?? 0;
     if (rows.some(value => value.stage === 'merged')) landed += 1;
     for (const name of TIMELINE_BUCKETS) buckets[name] += summary.buckets[name];
-    for (const name of WAIT_REASONS) waits[name] += summary.waits[name];
+    for (const [name, ms] of Object.entries(summary.waits)) waits[name] = (waits[name] ?? 0) + ms;
     for (const stretch of summary.unaccounted) {
       const stalled = Math.min(stretch.ms, stalledMs(stretch.from, stretch.to, stalls));
       waits.API_BUSY += stalled;

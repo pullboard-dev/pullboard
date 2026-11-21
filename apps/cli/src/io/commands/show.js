@@ -137,7 +137,7 @@ function newestRunGateJob(db, id, receipts, runs) {
 async function derivedVerdictTable(root, board, verdictTrunk) {
   let main;
   try { main = verdictTrunk(root, { trunkRef }); } catch { return null; }
-  const { readDerivedState } = await import('../../../../../packages/health/index.js');
+  const { readDerivedState } = await import('../../../../../packages/health/light.js');
   const table = readDerivedState(board, { mainCommit: main, enabled: true });
   return table ? { main, derived: item => table.verdicts.get(String(item.item_id)) } : null;
 }

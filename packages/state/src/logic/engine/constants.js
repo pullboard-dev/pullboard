@@ -211,6 +211,7 @@ export const MILESTONE_BUMP_ENGINE = engineNumber('MILESTONE_BUMP_ENGINE');
 export const WITHDRAW_MILESTONE_ENGINE = engineNumber('WITHDRAW_MILESTONE_ENGINE');
 export const WORK_ORDER_ENGINE = engineNumber('WORK_ORDER_ENGINE');
 export const MERGED_AT_ENGINE = engineNumber('MERGED_AT_ENGINE');
+export const REVIEWER_ALIVE_RESERVE_ENGINE = engineNumber('REVIEWER_ALIVE_RESERVE_ENGINE');
 export const BOARD_RELEASE_CODES_ENGINE = engineNumber('BOARD_RELEASE_CODES_ENGINE');
 export { CAUSE_ENGINE } from '../move/constants.js';
 export { IMPLIES_ENGINE } from '../move/constants.js';

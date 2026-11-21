@@ -1,0 +1,4 @@
+{
+  "cli.io-item-wip.snapshot-keeps-builder-state": {"proves":{"specs":["C7"],"claim":"snapshotWip writes staged, unstaged and untracked work to refs/pullboard/wip/<item> and leaves the folder's index bytes and mtime, HEAD and status unchanged"},"why":"Without it a snapshot could disturb the builder's index or lose part of the work it is meant to keep safe.","kind":"journey","inputs":["apps/cli/src/io/item/wip.js","apps/cli/tests/io/item/wip.test.js"]},
+  "cli.io-item-wip.snapshot-skips": {"proves":{"specs":["C7"],"claim":"a second snapshot of an unchanged folder writes no new commit, and none runs while index.lock exists"},"why":"Without it the beater would pile up identical snapshots or race a builder's own git command.","kind":"journey","inputs":["apps/cli/src/io/item/wip.js","apps/cli/tests/io/item/wip.test.js"]}
+}

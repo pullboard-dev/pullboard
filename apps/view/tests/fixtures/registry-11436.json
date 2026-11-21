@@ -1,0 +1,5 @@
+{
+  "view.flow-panel-render.rows-one-line-each-in-order": {"proves":{"specs":["N26"],"claim":"The Flow panel draws one one-line row per unlanded item with its id and cause, in input order."},"why":"Without it the panel could reorder, merge or wrap rows and hide where the release is stuck.","kind":"cell unit","inputs":["apps/view/tests/logic/panel/render.test.js"]},
+  "view.flow-panel-render.idle-seats-on-one-line": {"proves":{"specs":["N26"],"claim":"The Flow panel lists every idle seat with its reason on a single line."},"why":"Without it idle seats could vanish from the panel or spread over many lines.","kind":"cell unit","inputs":["apps/view/tests/logic/panel/render.test.js"]},
+  "view.flow-panel-render.empty-model-one-quiet-line-no-accent-border": {"proves":{"specs":["N26"],"claim":"An empty flow model renders a single quiet empty line, and no Flow markup draws a left-edge accent border."},"why":"Without it an idle board could draw a broken panel or bring back the accent border the design language bans.","kind":"cell unit","inputs":["apps/view/tests/logic/panel/render.test.js"]}
+}

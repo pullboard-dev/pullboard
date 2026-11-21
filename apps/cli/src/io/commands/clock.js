@@ -8,6 +8,7 @@ import { COORDINATOR } from '../../../../../packages/config/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { context } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { withBoardRead } from '../entry.js';
 
 const USAGE = 'pullboard clock [--dry-run] [--json]';
 
@@ -19,16 +20,18 @@ function line(verb, row) {
 
 /** The store moves and coordinator id the clock pass takes as ports. */
 function clockPorts() {
-  const { listItems, events, getItem, atomic, logEvent, insertShout } = store;
-  return { listItems, events, getItem, atomic, logEvent, insertShout, coordinator: COORDINATOR };
+  const { listItems, events, getItem, atomic, logEvent, insertShout, readBoardMeta, writeBoardMeta } = store;
+  return { listItems, events, getItem, atomic, logEvent, insertShout, readBoardMeta, writeBoardMeta, coordinator: COORDINATOR };
 }
 
 /** Run `pullboard clock [--dry-run] [--json]` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
   if (first || second || rest?.length) throw new Refused('USAGE', 'clock takes no arguments', USAGE);
   const ctx = context(io);
+  if (!ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'run pullboard clock from the main checkout');
   const dryRun = values['dry-run'] === true;
-  const result = withBoard(ctx, board => clockSweep(board, { now: ctx.clock.now().getTime(), dryRun, ports: clockPorts() }));
+  const open = dryRun ? withBoardRead : withBoard;
+  const result = open(ctx, board => clockSweep(board, { now: ctx.clock.now().getTime(), dryRun, ports: clockPorts() }));
   io.result?.(result);
   for (const row of result.applied) io.say(line(dryRun ? 'would apply' : 'applied', row));
   for (const row of result.pending) io.say(line('pending', row));
