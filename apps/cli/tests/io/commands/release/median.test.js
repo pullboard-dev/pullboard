@@ -240,6 +240,12 @@ test('cli.journeys-speed-release-median.profile-by-git-call: clause 1: [C7] the 
       samples.push(performance.now() - started);
     });
     assert.equal(released.code, 0, `release ${id}: ${released.err}${released.out}`);
+    const argvs = rows.map((row) => row.argv);
+    assert.deepEqual(argvs.filter((argv) => /(^|\s)worktree list(\s|$)/u.test(argv)), [], `release ${id} starts no worktree list`);
+    assert.deepEqual(argvs.filter((argv) => argv.includes('--no-optional-locks')), [], `release ${id} starts no status --no-optional-locks`);
+    const removed = argvs.filter((argv) => /(^|\s)worktree remove(\s|$)/u.test(argv)).length;
+    assert.ok(removed >= 1, `release ${id} removes its idle seat folder`);
+    assert.ok(argvs.filter((argv) => argv.includes('--ignored=matching')).length <= removed, `release ${id} runs status --ignored=matching only for a folder it removes`);
     calls.push(...rows);
   }
   assert.equal(samples.length, RUNS, 'five releases succeeded');
