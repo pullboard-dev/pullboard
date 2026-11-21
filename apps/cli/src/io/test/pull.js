@@ -62,6 +62,15 @@ export function authenticatedPullCompletion(envelope, expected, runners) {
   } catch { return false; }
 }
 
+/** True only when every packet entry was produced by this request and the entries cover every input key with this run's own outcomes; a reused earlier entry makes the packet partial, so none is retained [C7,#12643]. */
+export function completePacketEntries(entries, { keys, files, runId, outcomes, valid }) {
+  const sortRows = rows => [...rows].sort((a, b) => `${a.file}\0${a.name}`.localeCompare(`${b.file}\0${b.name}`));
+  return Array.isArray(entries) && entries.length > 0 && entries.every(entry => valid(entry) && keys.includes(entry.inputKey)
+    && files.includes(entry.file) && entry.status === 'pass' && entry.origin?.request === runId && Array.isArray(entry.tap?.testOutcomes)
+    && JSON.stringify(sortRows(entry.tap.testOutcomes)) === JSON.stringify(sortRows(outcomes.filter(row => row.file === entry.file))))
+    && keys.every(key => entries.some(entry => entry.inputKey === key));
+}
+
 /** A completion that also binds the exact request, packet, runtime and tooling, so its packet may be retained [C7,#12643]. */
 export function authenticatedPullPacket(envelope, expected, runners) {
   try {
@@ -119,6 +128,7 @@ if (hits && Array.isArray(hits.files)) { const hitsFile = join(tools, 'pullboard
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
+if (runId) { env.PULLBOARD_TEST_RESULT_REQUEST = runId; env.PULLBOARD_TEST_RESULT_REUSE_UNCOMPLETED = '1'; }
 const ran = spawnSync(input.command, { shell: true, cwd: root, env, maxBuffer: 256 * 1024 ** 2, stdio: ['ignore', 'pipe', 'pipe'] });
 const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
 const text = output.toString('utf8') + (ran.error ? String(ran.error.message) : '');
@@ -469,10 +479,7 @@ async function runJobFor(ctx, fields, { agent, say, testRun, signal, onOffer }) 
         const entries = JSON.parse(gunzipSync(Buffer.from(packet, 'base64'), { maxOutputLength: 8 * 1024 * 1024 }).toString('utf8'));
         const keys = offered.inputKeys, outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : [];
         const sortRows = rows => [...rows].sort((a, b) => `${a.file}\0${a.name}`.localeCompare(`${b.file}\0${b.name}`));
-        const complete = Array.isArray(entries) && entries.length > 0 && entries.every(entry => validTestResult(entry) && keys.includes(entry.inputKey)
-          && fields.files.includes(entry.file) && entry.status === 'pass' && Array.isArray(entry.tap?.testOutcomes)
-          && JSON.stringify(sortRows(entry.tap.testOutcomes)) === JSON.stringify(sortRows(outcomes.filter(row => row.file === entry.file))))
-          && keys.every(key => entries.some(entry => entry.inputKey === key));
+        const complete = completePacketEntries(entries, { keys, files: fields.files, runId: offered.runId, outcomes, valid: validTestResult });
         if (complete && outcomes.length) {
           const store = testResultStore(ctx.info.root), completion = { id: offered.runId, commit: fields.commit, tree, code: receipt.status, signal: receipt.signal,
             outputSha256: receipt.outputSha256, runtimeSha256, toolingSha256 };

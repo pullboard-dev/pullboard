@@ -24,6 +24,7 @@ import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
 import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
 import { authenticatedPullPacket } from '../../../src/io/test/pull.js';
+import { completePacketEntries } from '../../../src/io/test/pull.js';
 import { pullPacketDigest } from '../../../src/io/test/pull.js';
 import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
 import { generateKeyPairSync } from 'node:crypto';
@@ -74,6 +75,15 @@ test('cli.io-test-pull.authenticated-outcome-retention: clause 1: controller acc
   }
   assert.equal(authenticatedPullPacket(signed, expected, [{ ...enrolled[0], runtimeSha256: '0'.repeat(64) }]), false, 'runtime must match independent enrollment pin');
   assert.match(testJobEntry('RECEIPT', 'PULLBOARD_PULLED_JOB', 'PULLBOARD_TIMING_RUN_ID', '# pullboard test outcomes ', ''), /selectedTestResults\(store, keys\)/u);
+});
+
+test('cli.io-test-pull.authenticated-outcome-retention-origin: clause 2: a packet entry whose origin request differs is not retained [C7,#12643]', () => {
+  const run = '11111111-2222-3333-4444-555555555555', outcomes = [{ file: 'a.test.js', name: 'x', passed: true, skipped: false }];
+  const entry = request => ({ inputKey: 'k1', file: 'a.test.js', status: 'pass', origin: { request }, tap: { testOutcomes: outcomes } });
+  const args = { keys: ['k1'], files: ['a.test.js'], runId: run, outcomes, valid: () => true };
+  assert.equal(completePacketEntries([entry(run)], args), true);
+  assert.equal(completePacketEntries([entry('99999999-2222-3333-4444-555555555555')], args), false, 'earlier request entry');
+  assert.equal(completePacketEntries([entry(run), entry(null)], args), false, 'entry without origin request');
 });
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
