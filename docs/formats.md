@@ -321,6 +321,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `shout` | `shout_evidence_commit` | `TEXT` | `nullable` |
 | `shout` | `shout_request` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
 | `shout` | `shout_request_outcome` | `TEXT` | `NOT NULL`; `DEFAULT ''` |
+| `shout` | `shout_answered_at` | `TEXT` | `nullable` |
 | `test_result` | `test_result_id` | `INTEGER` | `PRIMARY KEY` |
 | `test_result` | `test_result_file` | `TEXT` | `NOT NULL`; `UNIQUE` |
 | `test_result` | `test_result_input_key` | `TEXT` | `NOT NULL` |
