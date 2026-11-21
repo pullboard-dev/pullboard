@@ -208,6 +208,7 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
     join(DIR, 'io', 'init', 'permissions.test.js'),
     join(DIR, 'io', 'init', 'practice.test.js'),
     join(DIR, 'io', 'init', 'testkit.test.js'),
+    join(DIR, 'io', 'commands', 'init', 'cpp.test.js'),
   ];
   assert.deepEqual(initLandListLogMcpFindings(records, journeys, moved), []);
 });
