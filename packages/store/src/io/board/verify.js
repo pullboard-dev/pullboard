@@ -198,7 +198,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     // The verify table decides the verdict event and its follow-ups from the board before the move; where it does not model the call, the original rules below run.
     const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, soloLowStakes, rows, checks, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
-      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS, verifyFacts) : null;
+      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown, engine }, VERIFY_TABLE_DEPS, verifyFacts) : null;
     // A builder's own accept passes the notBuilder check only when the verify table, through soloLowStakesHolds, wrote the solo-low-stakes-accept event for it [#966].
     const soloEvents = isAccept ? decided?.events.filter(event => event.kind === 'solo-low-stakes-accept') ?? [] : [];
     const soloAccepted = soloEvents.length > 0;
