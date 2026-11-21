@@ -26,6 +26,7 @@ const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exe
 async function recordingReads(work) {
   const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
   const reads = [];
+  reads.stacks = [];
   for (const api of APIS) {
     childProcess[api] = function recorded(...args) {
       const command = typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '';
@@ -33,7 +34,7 @@ async function recordingReads(work) {
       if (command.endsWith('git')) {
         const own = [...rest];
         while (own[0]?.startsWith('-')) own.splice(0, own[0] === '-c' || own[0] === '-C' ? 2 : 1);
-        if (READS.has(own[0])) reads.push(own.join(' '));
+        if (READS.has(own[0])) { reads.push(own.join(' ')); reads.stacks.push(new Error().stack.split('\n').slice(2, 14).map((line) => line.trim().replace(/^at /u, '').replace(/^.*\/pullboard[^/]*\//u, '')).join(' < ')); }
       }
       return real[api].apply(this, args);
     };
@@ -93,7 +94,7 @@ test('cli.journeys-speed-next-git-reads.warm-second-next-no-status: clause 3: a 
     let result;
     const reads = await recordingReads(async () => { result = await box.runIn(box.web, 'next', '--json'); });
     assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
-    return reads.filter((read) => read.split(' ')[0] === 'status');
+    return reads.filter((read, at) => read.split(' ')[0] === 'status').map((read) => `${read} FROM ${reads.stacks[reads.indexOf(read)]}`);
   };
   const first = await statusReads();
   const second = await statusReads();
