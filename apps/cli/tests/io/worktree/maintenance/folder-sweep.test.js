@@ -9,8 +9,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
-import { openBoardForRead } from '../../../../../lib/index.js';
-import { openKitBoard } from '../../../../../lib/tests/fixtures/board.js';
+import { apiBoardOpeners } from '../../../fixtures/board.js';
+import { openKitBoard } from '../../../fixtures/board.js';
 import { addFixtureItem } from '../../../fixtures/worktree/maintenance/lifecycle.js';
 import { joinAgent } from '../../../fixtures/worktree/maintenance/lifecycle.js';
 import { context } from '../../../../src/io/context.js';
@@ -134,7 +134,7 @@ async function nativeClaim(fx, board, seat, title, leaseMs) {
 test('cli.io-worktree-maintenance-folder-sweep.releases-and-reclaims: clause 2: one pass releases gone claims, preserves a dirty diff and retains a checkout when custody refuses [C7,#12625]', async t => {
   const fx = fixture(t);
   let at = Date.now();
-  const io = { cwd: fx.repo, clock: { now: () => new Date(at) }, nativeBoard: { openBoard: openKitBoard, openBoardForRead }, err() {}, say() {} };
+  const io = { cwd: fx.repo, clock: { now: () => new Date(at) }, nativeBoard: apiBoardOpeners, err() {}, say() {} };
   const ctx = context(io);
   const board = openKitBoard(ctx.file, ctx.clock, { gitRoot: fx.repo });
   t.after(() => store.closeBoard(board));
