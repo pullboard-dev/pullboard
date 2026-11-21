@@ -1,16 +1,17 @@
-/** A plain Elixir mix project goes through init on a scratch board: init records mix test as the gate [C7,#10619,#3705]. */
+/** @pullboard-test-input source-cell apps/cli */
+/** A plain Elixir mix project goes through init on a scratch board: init records mix test as the gate [C7,#10619]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { GATE } from '../../tests/fixtures/languages/elixir.js';
-import { MIX } from '../../tests/fixtures/languages/elixir.js';
-import { UNAVAILABLE } from '../../tests/fixtures/languages/elixir.js';
-import { mixSandbox } from '../../tests/fixtures/languages/elixir.js';
-import { writeProject } from '../../tests/fixtures/languages/elixir.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { GATE } from '../../../fixtures/languages/elixir.js';
+import { MIX } from '../../../fixtures/languages/elixir.js';
+import { UNAVAILABLE } from '../../../fixtures/languages/elixir.js';
+import { mixSandbox } from '../../../fixtures/languages/elixir.js';
+import { writeProject } from '../../../fixtures/languages/elixir.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
