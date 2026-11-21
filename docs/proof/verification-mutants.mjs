@@ -11,7 +11,7 @@
 import { audit } from './harness.mjs';
 
 const VERIFY_AT_COMMIT = ['apps/cli/journeys/spec/e2e/next.test.js', 'verify runs at the submitted commit, against the criterion frozen at claim'];
-const CLEAN_TREE = ['apps/cli/journeys/gate/slot.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
+const CLEAN_TREE = ['apps/cli/tests/io/commands/gate/slot.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
 const VERDICT_RULES = ['apps/cli/journeys/resume/board.test.js', 'ACCEPT needs CRITERION_MET'];
 const BOARD_CRITERION = ['packages/store/src/io/board/verify.js', '        criterionUnchanged: (found) =>\n          digest === found.item_frozen_digest', '        criterionUnchanged: (found) =>\n          true || digest === found.item_frozen_digest'];
 const CLI_CRITERION = 'if (digest !== item.item_frozen_digest) throw new Refused(\'CRITERIA_CHANGED\'';
