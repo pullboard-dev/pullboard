@@ -126,18 +126,22 @@ const JOB_QUEUE_MS = 15 * 60_000;
  * 12 Nov while their runs were live (#6128). The lease is the liveness: a dead runner stops renewing it, and the
  * claim becomes sweepable again. One indexed read per quiet claim, so it stays cheap in stale capture.
  */
-function claimJobInFlight(board, item, claimAt, now) {
+function claimJobInFlight(board, item, claimAt, now, progressWithinMs = null) {
   if (!item?.item_owner) return false;
   const since = Date.parse(claimAt ?? '');
   let rows;
   try {
     rows = board.db.prepare(`SELECT j.job_kind AS kind, j.job_created AS created,
+      MAX(j.job_created, j.job_updated, COALESCE((SELECT MAX(p.job_step_at) FROM job_step p WHERE p.job_step_job = j.job_id
+        AND p.job_step_name <> 'alive' AND p.job_step_name NOT LIKE 'note:%'), 0)) AS progress,
       (SELECT s.job_step_payload FROM job_step s WHERE s.job_step_job = j.job_id AND s.job_step_name = 'queued' ORDER BY s.job_step_id LIMIT 1) AS queued
       FROM job j WHERE j.job_kind IN ('test-run', 'test', 'gate') AND j.job_item = ?
       AND (j.job_lease_until > ? OR (j.job_lease_owner IS NULL AND j.job_step IN ('queued', 'offered') AND j.job_created > ?))`)
       .all(item.item_id, now, now - JOB_QUEUE_MS);
   } catch { return false; } // an older board has no job tables, so it holds no run
   return rows.some(row => {
+    // A test job that made no step or result progress inside the window is a waiter renewing a lease, not work [C7,#12690].
+    if (row.kind !== 'gate' && progressWithinMs !== null && now - row.progress >= progressWithinMs) return false;
     if (row.kind !== 'test-run') return !Number.isFinite(since) || row.created >= since;
     try { return JSON.parse(row.queued ?? '{}').agent === item.item_owner; } catch { return false; }
   });
@@ -203,9 +207,12 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   let waited = null;
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate or proof run is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
-    if (itemWorkInFlight(board, byId.get(row.id))) return [];
+    // Once the lease has lapsed, only a test job that progressed inside the stale interval counts; a gate always does [C7,#12690].
+    const leaseGone = staleInstant(row.leaseUntil, at.getTime()) !== null && Date.parse(row.leaseUntil) <= at.getTime();
+    const progressWithinMs = leaseGone ? limit : null;
+    if (itemWorkInFlight(board, byId.get(row.id), { progressWithinMs })) return [];
     // With claim.keepWhileRunning on, a live test run, test or gate job on the item keeps the claim whatever the seat's heartbeat or idle time says [C7,#9498].
-    if (keepWhileRunning && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime())) return [];
+    if (keepWhileRunning && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime(), progressWithinMs)) return [];
     const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && (waited ??= dependencyWaitedIds(board)).has(String(row.id));
     if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
@@ -219,7 +226,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
     const heartbeatLost = Number.isFinite(Date.parse(lastHeartbeat ?? ''))
       && at.getTime() - Date.parse(lastHeartbeat) >= seatQuietLimit;
     // A quiet seat waiting on its own test run or check is working; only a seat with nothing in flight is gone (#6128).
-    if (heartbeatLost && !worktreeMissing && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime())) return [];
+    if (heartbeatLost && !worktreeMissing && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime(), progressWithinMs)) return [];
     // Seat silence is not worktree silence; even the Git-free write path observes native item edits.
     if (stall && heartbeatLost) return [];
     if (path && (heartbeatLost || worktreeMissing) && claimFolderActive(path, row.id, at.getTime()) !== false) return [];

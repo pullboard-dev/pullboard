@@ -9,9 +9,23 @@ import { test } from 'node:test';
 import { ledgerHits } from '../../../../../packages/store/index.js';
 import { recordTestResults } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { fixtureBoard } from '../../../../../packages/board/tests/fixtures/board.js';
+import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { finishLedgerRows } from '../../../src/io/test/pull.js';
+import { receiptOf } from '../../../src/io/test/pull.js';
+import { offerJob } from '../../../../../packages/api/index.js';
+import { takeJob } from '../../../../../packages/jobs/index.js';
+import { renewLease } from '../../../../../packages/jobs/index.js';
+import { writeStep } from '../../../../../packages/jobs/index.js';
+import { workTestRun } from '../../../../../packages/drive/index.js';
+import { pullTestWanted } from '../../../src/io/test/pull.js';
+import { pulledDiagnosisOutput } from '../../../src/io/test/pull.js';
 import { testJobRow } from '../../../src/io/test/pull.js';
 import { testJobEntry } from '../../../src/io/test/pull.js';
+import { authenticatedPullCompletion } from '../../../src/io/test/pull.js';
+import { signedPullFixture } from '../../fixtures/test/signed-pull.js';
+import { generateKeyPairSync } from 'node:crypto';
+import { signRunnerReceipt } from '../../../../../packages/runners/index.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { focusedRunnerPath } from '../../fixtures/test/pulled-entry.js';
 import { runPulledEntry } from '../../fixtures/test/pulled-entry.js';
@@ -24,6 +38,25 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { storeTestResult } from '../../../../../packages/gate/index.js';
+
+test('cli.io-test-pull.signed-completion: clause 1: a real pulled completion verifies only for its enrolled runner and exact fresh request [C7,#12647]', { timeout: 120_000 }, async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  const signed = body => { const row = { ...body, host: 'runner.example' }; return { ...row, signature: signRunnerReceipt(row, privateKey) }; };
+  const { receipt, job, nonce, source, tree } = await signedPullFixture(signed);
+  assert.ok(receipt?.signedCompletion, 'the pull runner posts its signed envelope');
+  const expected = { job, nonce, source, tree, status: receipt.status, signal: receipt.signal, outputSha256: receipt.outputSha256 };
+  const runners = [{ host: 'runner.example', publicKey: pinned }];
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, runners), true);
+  assert.equal(authenticatedPullCompletion(null, expected, runners), false, 'unsigned remains unauthenticated');
+  const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, expected, [{ host: 'runner.example', publicKey: other }]), false, 'wrong enrolled key');
+  assert.equal(authenticatedPullCompletion(receipt.signedCompletion, { ...expected, nonce: 'cd'.repeat(24) }, runners), false, 'replayed request');
+  for (const field of ['source', 'tree', 'outputSha256']) assert.equal(authenticatedPullCompletion({ ...receipt.signedCompletion, [field]: '0'.repeat(receipt.signedCompletion[field].length) }, expected, runners), false, `tampered ${field}`);
+  const unsigned = await signedPullFixture(null);
+  assert.equal(unsigned.receipt.status, 0, 'ordinary unsigned execution still returns');
+  assert.equal(unsigned.receipt.signedCompletion, undefined);
+});
 
 test('cli.io-test-pull.same-runner-complete-proof: clause 1: separate pulled checkouts reuse complete same-runner proof and fresh or changed input runs [C7,#12642]', { timeout: 300_000 }, t => {
   const repo = fixtureCommittedGraph('pull-test-proof-'), scratch = privateFixtureFiles('pull-test-runner-');
@@ -88,6 +121,37 @@ test('cli.io-test-pull.leaves-other-variables-out: clause 2: testJobRow leaves P
   assert.equal('env' in bare.request, false, 'a shell with no fixture variable adds no env map');
 });
 
+test('cli.io-test-pull.runner-dispatch-keeps-affected-diagnose-and-focused-runs-on-runners: clause 1: pullTestWanted selects pull dispatch for --affected, focused --diagnose and ordinary focused runs [C7,P7]', () => {
+  assert.equal(pullTestWanted(1, { affected: true }), true);
+  assert.equal(pullTestWanted(1, { diagnose: true }), true);
+  assert.equal(pullTestWanted(1, {}), true);
+});
+
+test('cli.io-test-pull.runner-job-keeps-candidate-item-and-interactive-priority: clause 1: a pulled test job keeps the requested candidate and item with interactive priority [C7,P7]', async t => {
+  const { root, commit } = cellRepo(t, { real: true });
+  const { row } = await testJobRow({ info: { root } }, { item: 12573, commit, main: commit, command: 'true', files: [] });
+  assert.equal(row.candidate, commit);
+  assert.equal(row.item, 12573);
+  assert.equal(row.priority, 'interactive');
+});
+
+test('cli.io-test-pull.queued-diagnose-reaches-its-worker: clause 1: queueTestRun carries --diagnose through the worker command and records the focused diagnosis flag [C7,P7]', async t => {
+  const board = fixtureBoard(t);
+  const { root } = cellRepo(t, { real: true });
+  const launched = [];
+  queueTestRun({ info: { commonDir: join(root, '.git'), root } }, work => work(board),
+    { agent: 'seat', files: ['apps/cli/tests/io/test/pull.test.js'], diagnose: true },
+    { bin: '/pullboard.js', launch: (_node, args) => { launched.push(args); return { unref() {} }; } });
+  assert.ok(launched[0].includes('--diagnose'), JSON.stringify(launched[0]));
+  const queued = board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'queued'").get();
+  assert.equal(JSON.parse(queued.payload).diagnose, true);
+});
+
+test('cli.io-test-pull.diagnose-labels-clipped-receipt-output: clause 1: pulled diagnose preserves red output and reports when the receipt clipped it [C7,P7]', () => {
+  assert.equal(pulledDiagnosisOutput('failure: details\n', 17), 'failure: details\n');
+  assert.equal(pulledDiagnosisOutput('tail\n', 50), '[runner output clipped: showing the last 5 of 50 bytes]\ntail\n');
+});
+
 const KEY_A = 'a'.repeat(64), KEY_B = 'b'.repeat(64), CONTEXT = 'c'.repeat(64);
 
 test('cli.io-test-pull.finish-run-carries-test-results: clause 1: the pulled finish test job carries testResults with the selected files\' input keys and an origin naming the finish run, and its receipt rows reach the ledger under the proof command [P7]', async t => {
@@ -115,4 +179,44 @@ test('cli.io-test-pull.finish-rows-reach-ledger: clause 2: a finish run of 5 fil
   assert.deepEqual(testResults(db).map(row => row.file).sort(), files);
   const hits = ledgerHits(db, files);
   assert.deepEqual(hits.files.map(row => row[0]).sort(), files);
+});
+
+/** A detached waiter's two lease holders, as the run's worker holds them: the run job it renews and the runner job it waits on. */
+function waiterFixture(t) {
+  const board = fixtureBoard(t);
+  offerJob(board.db, { id: 'run-1', kind: 'noop' });
+  offerJob(board.db, { id: 'runner-1', kind: 'noop' });
+  return { board, runs: { db: board.db }, beats: [] };
+}
+
+test('cli.io-test-pull.stuck-waiter-stops: clause 1: a detached test-run waiter whose runner job lapsed past the wait deadline stops renewing and heartbeating, records the run not finished and exits [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 30 });
+  const result = await workTestRun(work => work(board), 'run-1',
+    () => receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 150, pollMs: 10, beatSeat: agent => beats.push(agent) }).then(() => ({ green: true })),
+    { renewMs: 10, beatSeat: () => beats.push('worker'), runs });
+  assert.equal(result.green, false);
+  assert.equal(result.error.code, 'TEST_JOB_STALLED');
+  const view = board.db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = 'run-1'").all().map(row => row.name);
+  assert.ok(view.includes('result'), 'the run records its result');
+  const lease = () => board.db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'run-1'").get().until;
+  const settled = { beats: beats.length, lease: lease() };
+  for (let turn = 0; turn < 50; turn += 1) await new Promise(done => setImmediate(done));
+  assert.deepEqual({ beats: beats.length, lease: lease() }, settled, 'no beat and no lease renewal after the waiter stopped');
+});
+
+test('cli.io-test-pull.progressing-waiter-lives: clause 2: a detached test-run waiter whose runner job keeps its lease past the wait deadline keeps waiting until the receipt arrives [C7,#12670]', async t => {
+  const { board, runs, beats } = waiterFixture(t);
+  takeJob(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+  let polls = 0;
+  const wait = async () => {
+    polls += 1;
+    const until = Date.now() + 10;
+    while (Date.now() < until) await new Promise(done => setImmediate(done));
+    renewLease(board.db, 'runner-1', 'runner-a', { leaseMs: 60 });
+    if (polls === 25) writeStep(board.db, 'runner-1', 'receipt', { receipt: { status: 0 }, runner: 'runner-a' });
+  };
+  const posted = await receiptOf({}, { job: 'runner-1', agent: 'seat', runs, waitMs: 100, pollMs: 10, wait, beatSeat: agent => beats.push(agent) });
+  assert.equal(posted.runner, 'runner-a');
+  assert.ok(polls >= 25 && beats.length >= 1, `polls ${polls}, beats ${beats.length}`);
 });

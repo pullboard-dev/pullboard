@@ -1,0 +1,3 @@
+{
+  "runners.probe.pull-runtime-pin": {"proves":{"specs":["C7"],"claim":"authenticated enrollment retains the selected service Node digest, and absent or changed runtime cannot match"},"why":"A pull result must not set its own expected executable fingerprint.","kind":"journey","inputs":["packages/runners/tests/io/probe.test.js"]}
+}

@@ -80,10 +80,10 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
     }
     const binding = factReference(ref);
     if (!urgency && !ruling && (neverAgain || asPerson || cause !== null)) requireNeverAgain(id, { agentId, cause, neverAgain, asPerson, channel });
-    logEvent(board, neverAgain || urgency || ruling ? PERSON : agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes, ...barFields, ...(neverAgain ? { cause, neverAgain: true, channel } : {}), ...(implies?.length ? { implies } : {}) });
+    // The row logEvent returns is this fact's own: board.lastEvent ends as the last chained row, such as a lifted hold's unhold_item [C7].
+    const trigger = logEvent(board, neverAgain || urgency || ruling ? PERSON : agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes, ...barFields, ...(neverAgain ? { cause, neverAgain: true, channel } : {}), ...(implies?.length ? { implies } : {}) });
     if (urgency) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
       .run(`item_urgent:${id}`, text);
-    const trigger = board.lastEvent;
     if (diagnosis) {
       board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
         .run(`item_diagnosis:${id}`, JSON.stringify({ ...diagnosis, factId, by: agentId, criterion: item.item_criterion, check: item.item_check }));
