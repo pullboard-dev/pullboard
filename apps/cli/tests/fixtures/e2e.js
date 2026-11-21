@@ -330,8 +330,10 @@ function sandbox({ declareFamilies = false } = {}) {
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
-  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise; every other call is git as before [C7,#9215].
-  const tryGit = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // tryGit answers synchronously with real git, so a caller reads `.status` straight away, whatever test.inProcessHooks says [C7,#12653].
+  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise, so only a caller that awaits asks for it [C7,#9215].
+  const tryGitInProcess = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? tryGit(cwd, ...args);
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
   const declareFamily = (cwd, family) => {
@@ -389,7 +391,7 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   /** A read of the board that is not the journey's subject, such as the settle wait's poll: in this process, whatever the mode, and recorded nowhere, so the parity call count follows no timing (U149) [C7]. */
   runIn.read = inProcess;
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, tryGitInProcess, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
 }
 
 const CONFIG = {

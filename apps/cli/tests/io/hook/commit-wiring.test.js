@@ -45,12 +45,12 @@ async function project(inProcess) {
   return { box, marks, started: () => (existsSync(marks) ? readFileSync(marks, 'utf8').split('\n').filter(Boolean) : []) };
 }
 
-/** Stage `path` in the web seat and commit it with `message` through box.tryGit; the answer may be a promise. */
+/** Stage `path` in the web seat and commit it with `message` through box.tryGitInProcess; the answer may be a promise. */
 async function commit(box, path, message) {
   mkdirSync(join(box.web, path, '..'), { recursive: true });
   writeFileSync(join(box.web, path), 'a change\n');
   box.git(box.web, 'add', '-A');
-  const answer = await box.tryGit(box.web, 'commit', '-q', '-m', message);
+  const answer = await box.tryGitInProcess(box.web, 'commit', '-q', '-m', message);
   const log = box.tryGit(box.web, 'log', '-1', '--format=%B');
   return { status: answer.status === 0 ? 0 : 1, stderr: parityText(answer.stderr?.toString(), box.dir), message: answer.status === 0 ? log.stdout.toString().trim() : '' };
 }
@@ -63,7 +63,7 @@ const CASES = [
 ];
 
 for (const [name, path, message, status] of CASES) {
-  test(`clause 1: with the setting on, box.tryGit commit for ${name} runs both hooks in-process and answers as with it off [C7,#9215]`, async () => {
+  test(`clause 1: with the setting on, box.tryGitInProcess commit for ${name} runs both hooks in-process and answers as with it off [C7,#9215]`, async () => {
     const off = await project(false);
     const real = await commit(off.box, path, message);
     const on = await project(true);
@@ -87,7 +87,7 @@ test('cli.io-hook-commit-wiring.with-the-setting-off-a-commit-starts: clause 2: 
   mkdirSync(join(on.box.web, 'web'), { recursive: true });
   writeFileSync(join(on.box.web, 'web', 'amend.txt'), 'x\n');
   on.box.git(on.box.web, 'add', '-A');
-  assert.equal(on.box.tryGit(on.box.web, 'commit', '-q', '--amend', '-m', 'feat(web): amend the page [G1]').status, 0);
+  assert.equal(on.box.tryGitInProcess(on.box.web, 'commit', '-q', '--amend', '-m', 'feat(web): amend the page [G1]').status, 0);
   assert.deepEqual(on.started(), ['pre-commit', 'commit-msg'], 'an --amend with the setting on starts the real hooks');
 });
 
