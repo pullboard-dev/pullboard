@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../../../../../packages/store/index.js';
-import { openBoard } from '../../../../../lib/index.js';
+import { openBoard } from '../../../../../../packages/board/index.js';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
 import { fixtureAdd } from '../../../fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../../fixtures/testkit.js';
