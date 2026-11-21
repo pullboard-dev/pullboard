@@ -1,22 +1,23 @@
 /** A claim of an after-gate dependent records one note on it naming the parent, its head and the claim time; a verified parent records the minutes saved and a send-back a rebuild [C7,#12325,#12326]. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { recordSubmitHandoff } from "../../../../../jobs/index.js";
-import { setAfterGate } from "../../../../src/io/board/item/after-gate.js";
-import { getItem } from "../../../../index.js";
-import { itemThread } from "../../../../index.js";
-import { fixture } from "../../../fixtures/dispatch.js";
+import { recordSubmitHandoff } from "../../../../../../jobs/index.js";
+import { setAfterGate } from "../../../../../../store/index.js";
+import { getItem } from "../../../../../../store/index.js";
+import { itemThread } from "../../../../../../store/index.js";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import * as store from "../../../../index.js";
-import { ENGINE_VERSION } from "../../../../../state/index.js";
-import { afterGateReport } from "../../../../index.js";
-import { recordAfterGateClaim } from "../../../../src/io/board/item/after-gate-report.js";
-import { recordAfterGateRebuild } from "../../../../src/io/board/item/after-gate-report.js";
-import { cellBoard } from "../../../fixtures/cell.js";
-import { cellItem } from "../../../fixtures/cell.js";
-import { cellSeat } from "../../../fixtures/cell.js";
-import { temporaryRepository } from "../../../fixtures/submit.js";
+import * as store from "../../../../../../store/index.js";
+import { ENGINE_VERSION } from "../../../../../../state/index.js";
+import { afterGateReport } from "../../../../../../store/index.js";
+import { recordAfterGateClaim } from "../../../../../../store/index.js";
+import { recordAfterGateRebuild } from "../../../../../../store/index.js";
+import { cellBoard } from "../../../../fixtures/cell-board.js";
+import { cellProject } from "../../../../../../store/tests/fixtures/cell.js";
+import { cellItem } from "../../../../../../store/tests/fixtures/cell.js";
+import { cellSeat } from "../../../../../../store/tests/fixtures/cell.js";
+import { temporaryRepository } from "../../../../../../store/tests/fixtures/submit.js";
+import { submitFixture } from "../../../../../../store/tests/fixtures/submit.js";
 
 /** The after-gate claim notes on one item's thread. */
 function claimNotes(board, id) {
@@ -25,7 +26,23 @@ function claimNotes(board, id) {
 
 /** A board with a gate-green parent submitted at a real head, and the seat that claims. */
 function seeded(t) {
-  const box = fixture(t);
+  const project = cellProject(t, { real: true });
+  const clock = { now: () => new Date("2026-10-25T10:00:00.000Z") };
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
+  const seats = {
+    actor: cellSeat(board, { lane: "web", path: join(project.dir, "actor"), family: "Family Alpha" }),
+    builder: cellSeat(board, { lane: "web", path: join(project.dir, "builder"), family: "Family Alpha" }),
+  };
+  const box = { board, clock, seats };
+  box.add = title => cellItem(board, { lane: "web", title, criterion: "The real fixture succeeds.", check: "true",
+    specIds: ["G1"], brief: "Files: web/dispatch.js\nTest: the real board selects the eligible item and retains its ownership." }).item_id;
+  box.claim = (id, seat = seats.builder) => store.claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs: 3_600_000,
+    freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, check: item.item_check, rows: [] }), digest: "digest:" + id }) });
+  box.submit = id => {
+    box.claim(id);
+    const head = project.git(project.repo, "rev-parse", "HEAD");
+    submitFixture(board, id, { agentId: seats.builder.id, commit: head, tree: project.git(project.repo, "rev-parse", head + "^{tree}") });
+  };
   const parent = box.add("Green parent");
   box.submit(parent);
   const head = getItem(box.board, parent).item_commit;
@@ -33,7 +50,7 @@ function seeded(t) {
   return { box, parent, head };
 }
 
-test("store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a dependent whose after-gate parent is gate-green records one note fact starting after-gate claim: naming the parent id, the parent head and the claim time, and a plain --after claim and a renewed claim record none [C7,#12325]", t => {
+test('store.io-board-item-after-gate-report.claim-recorded: clause 1: claiming a dependent whose after-gate parent is gate-green records one note fact starting after-gate claim: naming the parent id, the parent head and the claim time, and a plain --after claim and a renewed claim record none [C7,#12325]', t => {
   const { box, parent, head } = seeded(t);
   const child = box.add("Dependent on the gate");
   setAfterGate(box.board, child, [parent]);
@@ -86,7 +103,7 @@ function timed(t) {
 /** The note texts on one item that start with a prefix. */
 const notesStarting = (board, id, prefix) => itemThread(board, id).filter(entry => entry.type === "fact" && entry.kind === "note" && String(entry.text).startsWith(prefix)).map(entry => entry.text);
 
-test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 1: verifying an after-gate parent records one after-gate saved: note naming each claimed dependent and its whole minutes, and sending a dependent back records one after-gate rebuild: note naming it on the parent [C7,#12326]", t => {
+test('store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 1: verifying an after-gate parent records one after-gate saved: note naming each claimed dependent and its whole minutes, and sending a dependent back records one after-gate rebuild: note naming it on the parent [C7,#12326]', t => {
   const { board, clock, seats, item, claim, submitted, verdict } = timed(t);
   // Both parents are submitted before the first verdict sets the engine that seals each submission's policy.
   const parent = submitted("Parent that is verified");
@@ -116,7 +133,7 @@ test("store.io-board-item-after-gate-report.verify-and-rebuild-recorded: clause 
   assert.equal(notesStarting(board, parent, "after-gate rebuild:").length, 0, "a verified parent records no rebuild");
 });
 
-test("store.io-board-item-after-gate-report.report-reads-back: clause 1: afterGateReport sums the minutes of every saved note and counts the rebuild notes on a parent, and reads zero for a parent with none [C7,#12327]", t => {
+test('store.io-board-item-after-gate-report.report-reads-back: clause 1: afterGateReport sums the minutes of every saved note and counts the rebuild notes on a parent, and reads zero for a parent with none [C7,#12327]', t => {
   const { box, parent } = seeded(t);
   const agentId = box.seats.builder.id;
   assert.deepEqual(afterGateReport(box.board, parent), { savedMinutes: 0, rebuilds: 0 });

@@ -1,0 +1,20 @@
+{
+  "cli.io-static-stage.lease-not-held-while-waiting-for-runner": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "clause 1: a remote attempt past 120000ms holds no local pool lease while a competing local fallback takes and releases one."
+    },
+    "why": "A remote runner wait must not occupy a local static-check slot and block local fallback work.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/static/stage.js", "apps/cli/tests/io/static/stage.test.js"]
+  },
+  "cli.io-static-stage.local-fallback-takes-lease": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "clause 2: local fallback takes and releases the pool lease, completes without timer killing, and writes an exact-tree memo."
+    },
+    "why": "Fallback work still needs bounded local admission and the green result must be reusable only for its exact tree.",
+    "kind": "cell unit",
+    "inputs": ["apps/cli/src/io/static/stage.js", "apps/cli/tests/io/static/stage.test.js"]
+  }
+}
