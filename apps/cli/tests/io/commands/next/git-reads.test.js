@@ -93,10 +93,10 @@ test('cli.journeys-speed-next-git-reads.warm-second-next-no-status: clause 3: a 
     let result;
     const reads = await recordingReads(async () => { result = await box.runIn(box.web, 'next', '--json'); });
     assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
-    return reads.filter((read) => read.split(' ')[0] === 'status').length;
+    return reads.filter((read) => read.split(' ')[0] === 'status');
   };
   const first = await statusReads();
   const second = await statusReads();
-  console.log(`# next git status reads, first: ${first}; second: ${second}`);
-  assert.equal(second, 0, `a warm second next launches no git status (saw ${second})`);
+  console.log(`# next git status reads, first: ${JSON.stringify(first)}; second: ${JSON.stringify(second)}`);
+  assert.equal(second.length, 0, `a warm second next launches no git status (saw ${JSON.stringify(second)})`);
 });
