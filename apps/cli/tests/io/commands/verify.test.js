@@ -143,7 +143,7 @@ test('cli.io-commands-verify.solo-check-facts: soloLowStakesFacts takes redBefor
 });
 
 /** A web-1 item frozen on spec row G1 written low, submitted and waiting, with verify.soloLowStakes on for the machine. */
-function frozenLowItem() {
+async function frozenLowItem() {
   const box = e2e.project('true');
   const spec = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const stake = (text, stakes) => text.replace(/(- G1 \[approved, must\] .*?)( \| stakes: \w+)?\n/u, `$1 | stakes: ${stakes}\n`);
@@ -155,7 +155,7 @@ function frozenLowItem() {
   commitSpec('low');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   fileFixtureItem(box, box.repo, { lane: 'web', title: 'Low row', criterion: 'the page renders', check: 'true', args: ['--specs', 'G1'] });
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/index.html'), 'fixture');
   e2e.historicalCheckSubmission(box, e2e.attackCommit(box, box.web));
@@ -165,7 +165,7 @@ function frozenLowItem() {
 }
 
 test('cli.io-commands-verify.raised-stakes-self-accept: clause 1: a builder self-accept on an item frozen with a low row that main now writes as team is refused PENDING_REFREEZE naming the row and pullboard refreeze [C7,#1084]', async () => {
-  const { box, commitSpec } = frozenLowItem();
+  const { box, commitSpec } = await frozenLowItem();
   commitSpec('team');
   const refused = await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'self accept on the old record');
   assert.notEqual(refused.code, 0);
@@ -176,7 +176,7 @@ test('cli.io-commands-verify.raised-stakes-self-accept: clause 1: a builder self
 });
 
 test('cli.io-commands-verify.raised-stakes-scope: clause 2: an independent verifier accept is not refused by the raised-stakes check, and a self-accept after pullboard refreeze meets the ordinary team-row SELF_VERIFY [C7,#1084]', async () => {
-  const { box, commitSpec } = frozenLowItem();
+  const { box, commitSpec } = await frozenLowItem();
   const commit = box.git(box.web, 'rev-parse', 'HEAD').trim();
   commitSpec('team');
   const review = join(box.dir, 'raised-review');
@@ -187,7 +187,7 @@ test('cli.io-commands-verify.raised-stakes-scope: clause 2: an independent verif
   const refrozen = await box.runLocal(box.repo, 'refreeze', '1');
   assert.equal(refrozen.code, 0, refrozen.stdout + refrozen.stderr);
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   writeFileSync(join(box.web, 'web/second.html'), 'fixture');
   e2e.historicalCheckSubmission(box, e2e.attackCommit(box, box.web));
   const own = await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'self accept after the refreeze');
