@@ -1,16 +1,16 @@
-/** A plain C# dotnet project goes through init on a scratch board: init records dotnet test as the gate [C7,#10675,#3705]. */
+/** A plain C# dotnet project goes through init on a scratch board: init records dotnet test as the gate [C7,#10675]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { DOTNET } from '../../tests/fixtures/languages/csharp.js';
-import { GATE } from '../../tests/fixtures/languages/csharp.js';
-import { UNAVAILABLE } from '../../tests/fixtures/languages/csharp.js';
-import { dotnetSandbox } from '../../tests/fixtures/languages/csharp.js';
-import { writeProject } from '../../tests/fixtures/languages/csharp.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { DOTNET } from '../../../fixtures/languages/csharp.js';
+import { GATE } from '../../../fixtures/languages/csharp.js';
+import { UNAVAILABLE } from '../../../fixtures/languages/csharp.js';
+import { dotnetSandbox } from '../../../fixtures/languages/csharp.js';
+import { writeProject } from '../../../fixtures/languages/csharp.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

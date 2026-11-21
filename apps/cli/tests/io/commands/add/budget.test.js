@@ -1,13 +1,13 @@
-/** add files an over-budget item as a parent with one cut child per clause, using the board's itemBuildBudgetMinutes [C7,#2539]. */
+/** Add files an over-budget item as a parent with one cut child per clause, using the board's itemBuildBudgetMinutes [C7,#2539]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { onBoard } from '../../tests/fixtures/land/board.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import * as store from '../../../../../../packages/store/index.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { onBoard } from '../../../fixtures/land/board.js';
+import { fixtureAdd } from '../../../fixtures/testkit.js';
 
 const CRITERION = '1. the first clause holds [test] 2. the second clause holds [test] 3. the third clause holds [test]';
 const CHECK = 'node --test web/handler.test.js';

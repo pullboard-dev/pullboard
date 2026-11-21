@@ -43,7 +43,7 @@ function writeRows(box) {
   return existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
 }
 
-test('cli.journeys-inbox-no-write.read-writes-nothing: clause 1: with inbox.batchedMarks on, one fresh interrupt and two unread shouts, pullboard inbox prints the interrupt and both shouts while board-writes.jsonl gains no row with command inbox [C7,#8943]', async t => {
+test('cli.journeys-inbox-no-write.golden-read-writes-nothing: clause 1: the end-to-end inbox read prints the interrupt and both shouts without an inbox write [C7,#8943]', async t => {
   const box = await batchedProject(t);
   const before = writeRows(box);
   assert.ok(before.some(row => row.command === 'claim'), 'the log records the setup writes, so an empty answer is not a log that never writes');

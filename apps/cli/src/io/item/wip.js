@@ -1,5 +1,6 @@
 /** Snapshot an item folder's work to refs/pullboard/wip/<item> without touching the builder's index, HEAD or files [C7,#12568]. */
 import { copyFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
@@ -7,12 +8,24 @@ import { resolve } from 'node:path';
 import { git } from '../../../../../packages/git/index.js';
 import { checkoutRefCommit } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
+import { secretsIn } from '../../../../../packages/commits/index.js';
 
 /** The identity of a snapshot commit: it is the board's record, never the builder's authorship. */
 const IDENTITY = { GIT_AUTHOR_NAME: 'pullboard', GIT_AUTHOR_EMAIL: 'pullboard@localhost', GIT_COMMITTER_NAME: 'pullboard', GIT_COMMITTER_EMAIL: 'pullboard@localhost' };
 
 /** The ref a snapshot of an item lands on. */
 export const wipRef = item => `refs/pullboard/wip/${item}`;
+
+/** List secret-bearing worktree paths without retaining or printing matched values. */
+export function blockedWipPaths(folder) {
+  const paths = git(folder, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean);
+  return paths.filter(path => {
+    try {
+      const text = readFileSync(resolve(folder, path), 'utf8');
+      return secretsIn(text.split(/\r?\n/u).map((line, index) => ({ path, line: index + 1, text: line }))).length > 0;
+    } catch { return false; }
+  });
+}
 
 /** A git path of the folder (index, index.lock), absolute, worktree-aware. */
 function gitFile(folder, name) {
@@ -38,7 +51,16 @@ export function snapshotWip(folder, item) {
     const temporary = gitFile(folder, `wip-index-${process.pid}`);
     if (existsSync(index)) copyFileSync(index, temporary);
     const env = { ...process.env, ...IDENTITY, GIT_INDEX_FILE: temporary };
-    git(folder, ['add', '-A'], { env });
+    const paths = git(folder, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { env }).split('\0').filter(Boolean);
+    const blocked = blockedWipPaths(folder);
+    for (const path of blocked) {
+      if (tryGit(folder, ['ls-files', '--error-unmatch', '--', path], { env }).status === 0) {
+        git(folder, ['update-index', '--force-remove', '--', path], { env });
+      }
+    }
+    const clean = paths.filter(path => !blocked.includes(path));
+    if (clean.length) git(folder, ['add', '-A', '--', ...clean], { env });
+    if (blocked.length) console.log(`WIP snapshot blocked for item ${item}: ${blocked.join(', ')}`);
     if (existsSync(lock)) return { written: false, commit: null, reason: 'locked' };
     const tree = git(folder, ['write-tree'], { env });
     const previous = tryGit(folder, ['rev-parse', '--verify', '-q', `${ref}^{commit}`]);
