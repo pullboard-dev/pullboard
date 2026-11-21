@@ -6,9 +6,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
-import { parseSpec } from '../../../../packages/spec/index.js';
+import { createE2eHelpers } from '../../../fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../../../../../packages/gate/tests/fixtures/testkit.js';
+import { parseSpec } from '../../../../../../packages/spec/index.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
