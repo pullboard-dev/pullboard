@@ -7,10 +7,10 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
 import { formatTable } from '../../../../../packages/state/index.js';
 import { commandHelpModule } from '../docs.js';
-import { replaceDocTable } from '../../logic/generated/doc/blocks.js';
 import { shapeTable } from '../../logic/generated/doc/blocks.js';
 import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
 import { declarationDocBlocks } from './declarations.js';
+import { API_NOTES, HTTP_PATHS } from './api-notes.js';
 
 const files = fileSystemAdapter();
 
@@ -117,13 +117,58 @@ export function specPage(blocks) {
   ].join('\n');
 }
 
+/** The API guide: headings held here, its three shape tables rendered from the JSON shape catalog, its v1 path table and the reference paragraphs its tests require held in api-notes.js; the other authored prose is dropped [C7,A1]. */
+export function apiPage(blocks) {
+  const notes = API_NOTES;
+  return [
+    '# CLI JSON API',
+    '',
+    notes.versioning,
+    '',
+    notes.decisions,
+    '',
+    notes.projectDecisions,
+    '',
+    '## Command result shapes',
+    '',
+    ...marked(blocks, 'api-command-shapes'),
+    '## Refusals',
+    '',
+    ...marked(blocks, 'api-refusal-shapes'),
+    '## Local HTTP API v1',
+    '',
+    notes.serve,
+    '',
+    notes.origin,
+    '',
+    '| Method and path | Result |',
+    '| --- | --- |',
+    ...HTTP_PATHS.map(([path, result]) => `| \`${path}\` | ${result} |`),
+    '',
+    notes.boards,
+    '',
+    notes.item,
+    '',
+    notes.proofs,
+    '',
+    notes.snapshots,
+    '',
+    '### Response shapes',
+    '',
+    ...marked(blocks, 'api-http-shapes'),
+    notes.stream,
+    '',
+    notes.streams,
+    '',
+  ].join('\n');
+}
+
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
 export function generatedDocs(root = fileURLToPath(new URL('../../../../../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
   let blocks;
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
   finally { closeBoard(board); }
-  let api = files.readFile(join(root, 'docs', 'api.md'), 'utf8');
   const tables = {
     'api-command-shapes': shapeTable(['Command', 'Required top-level fields'], Object.fromEntries(
       Object.entries(JSON_SHAPES.commands).map(([name, shape]) => [name, shape.required]))),
@@ -131,9 +176,8 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
     'api-http-shapes': shapeTable(['Response', 'Required top-level fields'], Object.fromEntries(
       Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]))),
   };
-  for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
-    ['docs/formats.md', formatsPage(blocks)], ['docs/formats/spec.md', specPage(blocks)], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', api],
+    ['docs/formats.md', formatsPage(blocks)], ['docs/formats/spec.md', specPage(blocks)], ['docs/formats/static-view.md', staticViewPage(blocks)], ['docs/api.md', apiPage({ ...blocks, ...tables })],
     ['docs/formats/engine-first.md', engineFirstPage(blocks)],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);

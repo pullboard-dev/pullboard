@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/generated/docs.js apps/cli/src/io/documentation/events/*.json docs/formats/engine-first.md docs/formats/static-view.md docs/formats/spec.md docs/formats.md docs/tools/update-docs.js */
+/** @pullboard-test-input apps/cli/src/io/generated/docs.js apps/cli/src/io/documentation/events/*.json docs/formats/engine-first.md docs/formats/static-view.md docs/formats/spec.md docs/formats.md docs/api.md docs/tools/update-docs.js */
 /** The generated-docs boundary renders the engine page whole from the declarations, with no committed page to read [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -14,6 +14,7 @@ const PAGE = 'docs/formats/engine-first.md';
 const STATIC_VIEW = 'docs/formats/static-view.md';
 const SPEC = 'docs/formats/spec.md';
 const FORMATS = 'docs/formats.md';
+const API = 'docs/api.md';
 
 test('cli.io-generated-docs.engine-page-whole: clause 1: generatedDocs returns docs/formats/engine-first.md rendered whole on a root that has no such file [C7]', (t) => {
   const box = docsRepository(t);
@@ -111,6 +112,33 @@ test('cli.io-generated-docs.formats-written: clause 2: docs/tools/update-docs.js
   const written = box.node('docs/tools/update-docs.js');
   assert.equal(written.status, 0, written.context);
   assert.equal(readFileSync(join(box.root, FORMATS), 'utf8'), committed);
+  const checked = box.node('docs/tools/update-docs.js', '--check');
+  assert.equal(checked.status, 0, checked.context);
+});
+
+test('cli.io-generated-docs.api-renders-whole: clause 1: generatedDocs returns docs/api.md rendered whole, with every generated table and the v1 path table, on a root that has no such file [C7,A1]', (t) => {
+  const box = docsRepository(t);
+  const committed = readFileSync(join(box.root, API), 'utf8');
+  rmSync(join(box.root, API));
+  assert.equal(existsSync(join(box.root, API)), false);
+  const page = generatedDocs(box.root, { openBoard }).get(API);
+  assert.equal(page, committed, 'the rendered page equals the committed copy');
+  assert.match(page, /^# CLI JSON API\n/u);
+  for (const name of ['api-command-shapes', 'api-refusal-shapes', 'api-http-shapes']) {
+    assert.ok(page.includes(`<!-- ${name}:start -->\n| `), `${name} table present`);
+    assert.ok(page.includes(`\n<!-- ${name}:end -->\n`), `${name} end marker present`);
+  }
+  assert.ok(page.includes('| Method and path | Result |\n| --- | --- |\n| `GET /api/v1/health` |'), 'the v1 path table is on the page');
+  assert.ok(page.includes('| `GET /api/v1/compat-cells` |'), 'the compat cells path is on the page');
+});
+
+test('cli.io-generated-docs.api-written: clause 2: docs/tools/update-docs.js writes the whole API guide where none exists and --check then passes [C7,A1]', (t) => {
+  const box = docsRepository(t);
+  const committed = readFileSync(join(box.root, API), 'utf8');
+  rmSync(join(box.root, API));
+  const written = box.node('docs/tools/update-docs.js');
+  assert.equal(written.status, 0, written.context);
+  assert.equal(readFileSync(join(box.root, API), 'utf8'), committed);
   const checked = box.node('docs/tools/update-docs.js', '--check');
   assert.equal(checked.status, 0, checked.context);
 });
