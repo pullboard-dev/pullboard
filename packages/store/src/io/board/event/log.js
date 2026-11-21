@@ -29,6 +29,7 @@ import {
 import { BOARD_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { suspendStoreGuards } from "../guards.js";
 import { notifyUnblocked } from '../../../logic/board/notices.js';
+import { measureBoardWritePhase } from '../write/lock.js';
 import { fileSystemAdapter } from '../../../../../fs/index.js';
 const fileSystem = fileSystemAdapter();
 
@@ -215,20 +216,24 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     const isAgent = Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(by));
     const recorded = { ...detail, ...((board.executionEngineVersion ?? ENGINE_VERSION) >= 8 && isAgent ? { model: model ?? 'unknown' } : {}),
       ...(board.movePerson ? { person: board.movePerson } : {}) }; // The person behind a relayed move, from engine 73 (engine.js) [E3].
-    const inserted = board.db
-      .prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
-      .run(at ? at.toISOString() : board.clock.now().toISOString(), by, kind, itemId, JSON.stringify(recorded));
-    const event = board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
-    appendProofCounter(board, event);
+    // Each named part is timed, so a long hold names its slowest step: the record itself or one of the per-event hooks [C7,#12605].
+    const phase = (name, work) => measureBoardWritePhase(board.db, name, work);
+    const event = phase('event-insert', () => {
+      const inserted = board.db
+        .prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)')
+        .run(at ? at.toISOString() : board.clock.now().toISOString(), by, kind, itemId, JSON.stringify(recorded));
+      return board.db.prepare('SELECT * FROM event WHERE event_id = ?').get(inserted.lastInsertRowid);
+    });
+    phase('appendProofCounter', () => appendProofCounter(board, event));
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
-    liftConditionalHold(board, event, logEvent, setItem);
-    liftInfraHold(board, event, logEvent, setItem);
-    liftTwiceHold(board, event, logEvent, setItem);
-    liftSettledHolds(board, event, logEvent, setItem);
-    flagWithdrawnDependents(board, event, logEvent);
+    phase('liftConditionalHold', () => liftConditionalHold(board, event, logEvent, setItem));
+    phase('liftInfraHold', () => liftInfraHold(board, event, logEvent, setItem));
+    phase('liftTwiceHold', () => liftTwiceHold(board, event, logEvent, setItem));
+    phase('liftSettledHolds', () => liftSettledHolds(board, event, logEvent, setItem));
+    phase('flagWithdrawnDependents', () => flagWithdrawnDependents(board, event, logEvent));
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
-      notifyUnblocked(board, event, logEvent);
+      phase('notifyUnblocked', () => notifyUnblocked(board, event, logEvent));
     }
     board.db.exec('RELEASE proof_event_append');
     return event;
