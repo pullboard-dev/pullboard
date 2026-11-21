@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../fixtures/e2e.js';
-import { personNeedsState } from '../../../../view/index.js';
-import { parseSpec } from '../../../../../packages/spec/index.js';
+import { personNeedsState } from '../../../../../view/index.js';
+import { parseSpec } from '../../../../../../packages/spec/index.js';
 import { requireApplier } from '../../../../src/io/commands/spec/apply-row.js';
 
 const fixtures = createE2eHelpers();
