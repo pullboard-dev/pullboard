@@ -17,6 +17,7 @@ import { reviewOffer } from '../../../../../jobs/index.js';
 import * as store from '../../../../../store/index.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
+import { cellBoard } from '../../../../../board/tests/fixtures/cell-board.js';
 
 const files = privateFixtureFiles('pullboard-durable-review-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -71,7 +72,7 @@ function reviewSeat(box, name) {
 }
 
 test('moves.reserve-next-review-durable.next-verify-holds-the-review-as-a: clause 1: next --verify holds the review as a jobs-cell lease and reclaims a silent reviewer after 2 minutes with the lapse recorded [C7]', async t => {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const id = box.add('Review whose reviewer goes silent');
   box.submit(id);
   const silent = reviewSeat(box, 'silent');
@@ -96,7 +97,7 @@ test('moves.reserve-next-review-durable.next-verify-holds-the-review-as-a: claus
 
 /** A submitted item reserved by the sibling reviewer through next --verify, with its live review job. */
 async function reservedOnBoard(t) {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   const id = box.add('Review whose item moves on');
   box.submit(id);
   box.as('sibling');

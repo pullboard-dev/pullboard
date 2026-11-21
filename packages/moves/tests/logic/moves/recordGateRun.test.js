@@ -5,6 +5,7 @@ import { fixture } from '../../fixtures/next.js';
 import { next } from '../../fixtures/next.js';
 import * as store from '../../../../store/index.js';
 import { recordSubmitHandoff } from '../../../../jobs/index.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 
 /** Write the gate job's record for the item's submitted head, as the queue does at each state change. */
 function gate(box, id, state, { receipt = state === 'green' } = {}) {
@@ -21,7 +22,7 @@ function gate(box, id, state, { receipt = state === 'green' } = {}) {
 
 /** One submitted item with its gate running, and the reviewer seat that did not build it. */
 function running(t) {
-  const box = fixture(t, { reviewers: true });
+  const box = fixture(t, { boardFrom: cellBoard, reviewers: true });
   box.as('outside');
   const id = box.add('Submission whose gate is still running');
   box.submit(id);
