@@ -1,5 +1,5 @@
 /** @pullboard-world-pin: clause 1 reads the e2e test files themselves to prove the split kept every case. */
-/** @pullboard-test-input apps/cli/journeys/merged/e2e.test.js apps/cli/journeys/list/board.test.js apps/cli/tests/io/commands/gate/slot.test.js */
+/** @pullboard-test-input apps/cli/journeys/merged/e2e.test.js apps/cli/tests/io/commands/list/board.test.js apps/cli/tests/io/commands/gate/slot.test.js */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
