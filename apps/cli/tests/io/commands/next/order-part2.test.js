@@ -48,7 +48,7 @@ test('cli.journeys-next-order-part2.next-in-the-main-checkout-names: next in the
   const empty = JSON.parse((await idle.runLocal(idle.repo, 'next', '--build', '--json')).out).error;
   assert.equal(empty.code, 'NOTHING_FREE');
   assert.equal(empty.next, 'To keep looking: pullboard next --take', 'an idle board points to the bounded native take');
-  const plain = await idle.runLocal(idle.repo, 'next', '--json');
-  assert.equal(plain.code, 0, 'plain next on an idle board finishes without waiting');
-  assert.equal(JSON.parse(plain.out).next, 'nothing for this seat: end your turn', 'the plain loop ends the turn instead of refusing');
+  const plain = await idle.runLocal(idle.repo, 'next', '--no-wait', '--json');
+  assert.equal(plain.code, 4, 'next --no-wait reports an idle seat without waiting');
+  assert.match(JSON.parse(plain.out).reasons[0], /^\[IDLE_TIMEOUT\]/u, 'the no-wait result names the idle state');
 });
