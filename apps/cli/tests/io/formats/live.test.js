@@ -17,7 +17,7 @@ import { syntheticFlakeObservation } from '../../../../../apps/cli/tests/fixture
 import { reviewDefaultEventContract } from '../../../../../apps/lib/tests/fixtures/generated/doc/default.js';
 import { pipelineEventContract } from '../../../../../apps/lib/tests/fixtures/generated/doc/pipeline.js';
 import { mainMovedFixture } from '../../fixtures/main/moved.js';
-import { sourceAdvanceEventContract } from '../../../../../packages/runners/tests/fixtures/advance.js';
+import { sourceAdvanceEventContract } from '../../fixtures/main/advance.js';
 import { board_recordNextIdle as recordNextIdle } from '../../../../../packages/store/index.js';
 import { addMilestone } from '../../../../../packages/store/index.js';
 import { editMilestoneItems } from '../../../../../packages/store/index.js';
