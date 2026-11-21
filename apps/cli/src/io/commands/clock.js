@@ -8,6 +8,7 @@ import { COORDINATOR } from '../../../../../packages/config/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { context } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { withBoardRead } from '../entry.js';
 
 const USAGE = 'pullboard clock [--dry-run] [--json]';
 
@@ -27,8 +28,10 @@ function clockPorts() {
 export function run(io, { first, second, rest, values }) {
   if (first || second || rest?.length) throw new Refused('USAGE', 'clock takes no arguments', USAGE);
   const ctx = context(io);
+  if (!ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'run pullboard clock from the main checkout');
   const dryRun = values['dry-run'] === true;
-  const result = withBoard(ctx, board => clockSweep(board, { now: ctx.clock.now().getTime(), dryRun, ports: clockPorts() }));
+  const open = dryRun ? withBoardRead : withBoard;
+  const result = open(ctx, board => clockSweep(board, { now: ctx.clock.now().getTime(), dryRun, ports: clockPorts() }));
   io.result?.(result);
   for (const row of result.applied) io.say(line(dryRun ? 'would apply' : 'applied', row));
   for (const row of result.pending) io.say(line('pending', row));
