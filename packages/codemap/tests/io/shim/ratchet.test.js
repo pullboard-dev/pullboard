@@ -22,8 +22,8 @@ function reader(files = {}) {
 /** A committed shim, moved implementation, and valid bounded exception. */
 function files(overrides = {}) {
   return {
-    [`HEAD:${shim}`]: `export { request } from './request.js';\n`,
-    [`:index:${shim}`]: `export { request } from './request.js';\n`,
+    [`HEAD:${shim}`]: `export * from './request.js';\n`,
+    [`:index:${shim}`]: `export * from './request.js';\n`,
     [`HEAD:${moved}`]: 'export const request = true;\n',
     [`:index:${moved}`]: 'export const request = true;\n',
     'HEAD:packages/codemap/data/plan/cells.json': JSON.stringify({ cells: [{ paths: [[shim, moved]], frontDoor }] }),
